@@ -1,0 +1,14 @@
+Crypto.com Chain
+Copyright 2018 - 2019, Foris Limited ("Crypto.com"). 
+
+This project contains portions of code derived from the following libraries:
+
+* Cardano Rust
+ * Copyright: Copyright (c) 2018 Input Output HK
+ * License: MIT License
+ * Repository: https://github.com/input-output-hk/rust-cardano
+
+* Emerald Vault
+ * Copyright: Copyright (c) 2018 ETCDEV
+ * License: Apache License 2.0
+ * Repository: https://github.com/ETCDEVTeam/emerald-rs

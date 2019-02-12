@@ -1,0 +1,20 @@
+[package]
+name = "chain-core"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Library with core types and serialization for the use in external tools"
+readme = "../README.md"
+
+[dependencies]
+digest = "0.8"
+sha3 = "0.8"
+hex = "0.3"
+grin_secp256k1zkp = "0.7.3"
+serde = "1.0"
+serde_derive = "1.0"
+blake2 = "0.8"
+serde_cbor = "0.9"
+serde_json = "1.0"
+
+[dev-dependencies]
+quickcheck = "0.7"

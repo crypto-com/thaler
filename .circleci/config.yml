@@ -1,0 +1,72 @@
+version: 2
+
+jobs:
+  build:
+    docker:
+      - image: circleci/rust:latest
+    resource_class: xlarge    
+    steps:
+      - checkout
+      - run:
+          name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
+          command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
+      - run:
+          name: install rustc
+          command: rustup install stable && rustup install nightly && rustup default stable
+      - restore_cache:
+          key: project-cache    
+      - run:
+          name: Check formatting
+          command: |
+            rustup component add rustfmt-preview
+            rustfmt --version
+            cargo fmt -- --check --color=auto
+            cd chain-core
+            cargo fmt -- --check --color=auto
+            cd ..
+      - run:
+          name: Stable Build Core
+          command: |
+            cd chain-core
+            rustup run stable rustc --version --verbose
+            rustup run stable cargo --version --verbose
+            rustup run stable cargo build
+            cd ..
+      - run:
+          name: Test Core
+          command: |
+            cd chain-core
+            rustup run stable cargo test
+            cd ..
+      - run:
+          name: Stable Build ABCI App
+          command: |
+            rustup run stable rustc --version --verbose
+            rustup run stable cargo --version --verbose
+            rustup run stable cargo build
+      - run:
+          name: Test ABCI App
+          command: |
+            rustup run stable cargo test
+      - run:
+          name: Check style
+          command: |
+            rustup component add clippy-preview
+            cargo-clippy --version
+            cargo clippy # -- -D warnings
+            cd chain-core
+            cargo clippy
+            cd ..       
+      - run:
+          name: Nightly Build ABCI App + coverage
+          command: |
+            rustup run nightly rustc --version --verbose
+            rustup run nightly cargo --version --verbose
+            rustup run nightly cargo build
+            RUSTFLAGS="--cfg procmacro2_semver_exempt" rustup run nightly cargo install cargo-tarpaulin
+            rustup run nightly cargo tarpaulin
+      - save_cache:
+          key: project-cache
+          paths:
+            - "~/.cargo"
+            - "./target"

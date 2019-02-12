@@ -1,0 +1,20 @@
+[package]
+name = "signer-app"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Basic tool for secret management (using enclaves in the future), possibly TX generation and signing."
+readme = "../../README.md"
+
+[dependencies]
+chain-core = { path = "../../chain-core/" }
+blake2 = "0.8.0"
+log = "0.4.0"
+env_logger = "0.6.0"
+clap = { features = ["yaml"], version = "2.32.0" }
+grin_secp256k1zkp = "0.7.3"
+rpassword = "2.1.0"
+miscreant = "0.4.0-beta2"
+zeroize = "0.5.2"
+rand = "0.6.3"
+hex = "0.3"
+serde_cbor = "0.9.0"

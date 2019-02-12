@@ -1,0 +1,10 @@
+[package]
+name = "dev-utils"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Experimental package for development purposes (e.g. generation of genesis.json parameters)."
+readme = "../README.md"
+
+[dependencies]
+chain-core = { path = "../chain-core" }
+hex = "0.3"

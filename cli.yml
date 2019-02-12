@@ -1,0 +1,37 @@
+name: Chain Node
+version: "0.0.1"
+author: Crypto.com <chain@crypto.com>
+about: Pre-alpha version prototype of Crypto.com Chain node (Tendermint ABCI application)
+args:
+    - data:
+        short: d
+        long: data
+        value_name: DIRECTORY
+        help: Sets a data directory
+        takes_value: true
+    - port:
+        short: p
+        long: port
+        value_name: PORT_NUMBER
+        help: Sets a port to listen on
+        takes_value: true
+    - host:
+        short: h
+        long: host
+        value_name: HOSTNAME
+        help: Sets the ip address to listen on
+        takes_value: true
+    - genesis_app_hash:
+        short: g
+        long: genesis_app_hash
+        value_name: APP_HASH
+        help: The expected app hash after init chain (merkle tree root)
+        takes_value: true
+        required: true
+    - chain_id:
+        short: c
+        long: chain_id
+        value_name: CHAIN_ID
+        help: The expected chain id from init chain (the name convention is "...some-name...-<TWO_HEX_DIGITS>")
+        takes_value: true
+        required: true        
