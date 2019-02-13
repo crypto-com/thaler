@@ -11,7 +11,7 @@ jobs:
           command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
       - run:
           name: install rustup
-          command: curl https://sh.rustup.rs -sSf | sh
+          command: curl https://sh.rustup.rs -sSf | sh -s -- -y
       - run:
           name: install rustc
           command: rustup install stable && rustup install nightly && rustup default stable
