@@ -14,7 +14,7 @@ jobs:
           command: curl https://sh.rustup.rs -sSf | sh -s -- -y
       - run:
           name: configure rustup path
-          command: $HOME/.cargo/env    
+          command: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $BASH_ENV   
       - run:
           name: install rustc
           command: rustup install stable && rustup install nightly && rustup default stable
