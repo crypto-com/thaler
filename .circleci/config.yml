@@ -2,14 +2,24 @@ version: 2
 
 jobs:
   build:
-    docker:
-      - image: circleci/rust:latest
-    resource_class: xlarge    
+    machine:
+      enabled: true 
     steps:
       - checkout
       - run:
+          name: add PPA for cmake-3.* (not available on ubuntu 14.04)
+          command: |
+            sudo add-apt-repository ppa:george-edison55/cmake-3.x
+            sudo apt-get update          
+      - run:
           name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
           command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
+      - run:
+          name: install rustup
+          command: curl https://sh.rustup.rs -sSf | sh -s -- -y
+      - run:
+          name: configure rustup path
+          command: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $BASH_ENV   
       - run:
           name: install rustc
           command: rustup install stable && rustup install nightly && rustup default stable
