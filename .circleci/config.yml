@@ -10,6 +10,9 @@ jobs:
           name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
           command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
       - run:
+          name: install rustup
+          command: curl https://sh.rustup.rs -sSf | sh
+      - run:
           name: install rustc
           command: rustup install stable && rustup install nightly && rustup default stable
       - restore_cache:
