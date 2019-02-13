@@ -7,6 +7,11 @@ jobs:
     steps:
       - checkout
       - run:
+          name: add PPA for cmake-3.* (not available on ubuntu 14.04)
+          command: |
+            sudo add-apt-repository ppa:george-edison55/cmake-3.x
+            sudo apt-get update          
+      - run:
           name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
           command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
       - run:
