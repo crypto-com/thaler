@@ -218,7 +218,7 @@ pub mod tests {
         Arc::new(create(NUM_COLUMNS.unwrap()))
     }
 
-    fn prepare_app_valid_tx() -> (Arc<KeyValueDB>, TxAux, SecretKey) {
+    fn prepare_app_valid_tx(timelocked: bool) -> (Arc<KeyValueDB>, TxAux, SecretKey) {
         let db = create_db();
 
         let mut tx = Tx::new();
@@ -230,11 +230,21 @@ pub mod tests {
         let addr = ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&secp, &public_key).0);
 
         let mut old_tx = Tx::new();
-        old_tx.add_output(TxOut::new_with_timelock(
-            addr.clone(),
-            Coin::new(10).unwrap(),
-            -20,
-        ));
+
+        if timelocked {
+            old_tx.add_output(TxOut::new_with_timelock(
+                addr.clone(),
+                Coin::new(10).unwrap(),
+                20,
+            ));
+        } else {
+            old_tx.add_output(TxOut::new_with_timelock(
+                addr.clone(),
+                Coin::new(10).unwrap(),
+                -20,
+            ));
+        }
+
         let old_tx_id = old_tx.id();
         let txp = TxoPointer::new(old_tx_id, 0);
 
@@ -259,52 +269,11 @@ pub mod tests {
         (db, txaux, secret_key)
     }
 
-    fn prepare_timelocked_tx() -> (Arc<KeyValueDB>, TxAux, SecretKey) {
-        let db = create_db();
-
-        let mut tx = Tx::new();
-        let secp = Secp256k1::new();
-        let secret_key =
-            SecretKey::from_slice(&secp, &[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = PublicKey::from_secret_key(&secp, &secret_key).unwrap();
-
-        let addr = ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&secp, &public_key).0);
-
-        let mut old_tx = Tx::new();
-        old_tx.add_output(TxOut::new_with_timelock(
-            addr.clone(),
-            Coin::new(10).unwrap(),
-            20,
-        ));
-        let old_tx_id = old_tx.id();
-        let txp = TxoPointer::new(old_tx_id, 0);
-
-        let mut inittx = db.transaction();
-        inittx.put(COL_BODIES, &old_tx_id, &to_vec_packed(&old_tx).unwrap());
-
-        inittx.put(
-            COL_TX_META,
-            &old_tx_id,
-            &BitVec::from_elem(1, false).to_bytes(),
-        );
-        db.write(inittx).unwrap();
-        tx.add_input(txp);
-        tx.add_output(TxOut::new_with_timelock(addr, Coin::new(9).unwrap(), 20));
-        tx.add_output(TxOut::new(
-            ExtendedAddr::BasicRedeem(RedeemAddress::default().0),
-            Coin::new(1).unwrap(),
-        ));
-
-        let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx, secret_key)];
-        let txaux = TxAux::new(tx, std::convert::From::from(witness));
-        (db, txaux, secret_key)
-    }
-
     const DEFAULT_CHAIN_ID: u8 = 0;
 
     #[test]
     fn existing_utxo_input_tx_should_verify() {
-        let (db, txaux, _) = prepare_app_valid_tx();
+        let (db, txaux, _) = prepare_app_valid_tx(false);
         let result = verify(&txaux, DEFAULT_CHAIN_ID, db, 0);
         assert!(result.is_ok());
     }
@@ -322,7 +291,7 @@ pub mod tests {
 
     #[test]
     fn test_verify_fail() {
-        let (db, txaux, secret_key) = prepare_app_valid_tx();
+        let (db, txaux, secret_key) = prepare_app_valid_tx(false);
         // WrongChainHexId
         {
             let result = verify(&txaux, DEFAULT_CHAIN_ID + 1, db.clone(), 0);
@@ -436,7 +405,7 @@ pub mod tests {
         }
         // OutputInTimelock
         {
-            let (db, txaux, _) = prepare_timelocked_tx();
+            let (db, txaux, _) = prepare_app_valid_tx(true);
             let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
             expect_error(&result, Error::OutputInTimelock);
         }

@@ -63,13 +63,14 @@ impl abci::Application for ChainNodeApp {
         );
         // TODO: process RequestBeginBlock -- e.g. rewards for validators? + punishment for malicious ByzantineValidators
         self.uncommitted_block = true;
+        // TODO: Check security implications once https://github.com/tendermint/tendermint/issues/2653 is closed
         self.block_time = Some(
             req.header
                 .as_ref()
-                .expect("Begin block reqeust does not have header")
+                .expect("Begin block request does not have header")
                 .time
                 .as_ref()
-                .expect("Header does not have timestamp")
+                .expect("Header does not have a timestamp")
                 .seconds,
         );
         ResponseBeginBlock::new()
