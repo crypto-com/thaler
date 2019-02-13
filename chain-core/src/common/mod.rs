@@ -16,3 +16,6 @@ pub fn hash256<D: Digest>(data: &[u8]) -> [u8; HASH_SIZE_256] {
 pub trait TypeInfo {
     fn type_name() -> &'static str;
 }
+
+/// Seconds since UNIX epoch
+pub type Timespec = i64;
