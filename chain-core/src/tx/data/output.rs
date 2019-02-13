@@ -1,4 +1,4 @@
-use common::TypeInfo;
+use common::{Timespec, TypeInfo};
 use init::coin::Coin;
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
@@ -7,11 +7,11 @@ use tx::data::address::ExtendedAddr;
 use tx::data::Tx;
 
 /// Tx Output composed of an address and a coin value
-/// TODO: timelock?
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TxOut {
     pub address: ExtendedAddr,
     pub value: Coin,
+    pub valid_from: Option<Timespec>,
 }
 
 impl fmt::Display for TxOut {
@@ -34,9 +34,19 @@ impl Serialize for TxOut {
     where
         S: Serializer,
     {
-        let mut s = serializer.serialize_struct(Tx::type_name(), 2)?;
+        let mut s = if self.valid_from.is_some() {
+            serializer.serialize_struct(Tx::type_name(), 3)?
+        } else {
+            serializer.serialize_struct(Tx::type_name(), 2)?
+        };
+
         s.serialize_field("address", &self.address)?;
         s.serialize_field("value", &self.value)?;
+
+        if let Some(timelock) = self.valid_from {
+            s.serialize_field("valid_from", &timelock)?;
+        }
+
         s.end()
     }
 }
@@ -67,17 +77,38 @@ impl<'de> Deserialize<'de> for TxOut {
                     Some((1, v)) => v,
                     _ => return Err(serde::de::Error::missing_field("value")),
                 };
-                Ok(TxOut::new(address, value))
+
+                match map.next_entry::<u64, Timespec>()? {
+                    Some((2, v)) => Ok(TxOut::new_with_timelock(address, value, v)),
+                    _ => Ok(TxOut::new(address, value)),
+                }
             }
         }
 
-        deserializer.deserialize_struct(TxOut::type_name(), &["address", "value"], TxOutVisitor)
+        deserializer.deserialize_struct(
+            TxOut::type_name(),
+            &["address", "value", "valid_from"],
+            TxOutVisitor,
+        )
     }
 }
 
 impl TxOut {
     /// creates a TX output (mainly for testing/tools)
     pub fn new(address: ExtendedAddr, value: Coin) -> Self {
-        TxOut { address, value }
+        TxOut {
+            address,
+            value,
+            valid_from: None,
+        }
+    }
+
+    /// creates a TX output with timelock
+    pub fn new_with_timelock(address: ExtendedAddr, value: Coin, valid_from: Timespec) -> Self {
+        TxOut {
+            address,
+            value,
+            valid_from: Some(valid_from),
+        }
     }
 }

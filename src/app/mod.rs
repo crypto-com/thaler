@@ -55,7 +55,7 @@ impl abci::Application for ChainNodeApp {
     ///   deliver_tx()  for each transaction in the block
     /// end_block()
     /// commit()
-    fn begin_block(&mut self, _req: &RequestBeginBlock) -> ResponseBeginBlock {
+    fn begin_block(&mut self, req: &RequestBeginBlock) -> ResponseBeginBlock {
         info!("received beginblock request");
         assert!(
             !self.uncommitted_block,
@@ -63,6 +63,16 @@ impl abci::Application for ChainNodeApp {
         );
         // TODO: process RequestBeginBlock -- e.g. rewards for validators? + punishment for malicious ByzantineValidators
         self.uncommitted_block = true;
+        // TODO: Check security implications once https://github.com/tendermint/tendermint/issues/2653 is closed
+        self.block_time = Some(
+            req.header
+                .as_ref()
+                .expect("Begin block request does not have header")
+                .time
+                .as_ref()
+                .expect("Header does not have a timestamp")
+                .seconds,
+        );
         ResponseBeginBlock::new()
     }
 
@@ -259,6 +269,7 @@ mod tests {
             Storage::new_db(db.clone()),
         );
         let mut req = RequestInitChain::default();
+        req.set_time(::protobuf::well_known_types::Timestamp::new());
         req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
         req.set_chain_id(String::from(TEST_CHAIN_ID));
         app.init_chain(&req);
@@ -405,7 +416,10 @@ mod tests {
     }
 
     fn begin_block(app: &mut ChainNodeApp) {
-        let bbreq = RequestBeginBlock::default();
+        let mut bbreq = RequestBeginBlock::default();
+        let mut header = Header::default();
+        header.set_time(::protobuf::well_known_types::Timestamp::new());
+        bbreq.set_header(header);
         app.begin_block(&bbreq);
     }
 

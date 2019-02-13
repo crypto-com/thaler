@@ -1,6 +1,7 @@
 use abci::*;
 use bit_vec::BitVec;
 use chain_core::common::merkle::MerkleTree;
+use chain_core::common::Timespec;
 use chain_core::common::HASH_SIZE_256;
 use chain_core::init::config::InitConfig;
 use chain_core::tx::{
@@ -31,6 +32,8 @@ pub struct ChainNodeApp {
     pub last_apphash: Option<[u8; HASH_SIZE_256]>,
     /// last two hex digits in chain_id
     pub chain_hex_id: u8,
+    /// time in previous block's header or genesis time
+    pub block_time: Option<Timespec>,
 }
 
 impl ChainNodeApp {
@@ -70,6 +73,7 @@ impl ChainNodeApp {
                 last_apphash: None,
                 chain_hex_id,
                 genesis_app_hash,
+                block_time: None,
             }
         } else {
             info!("last app hash stored");
@@ -104,6 +108,11 @@ impl ChainNodeApp {
                     .to_vec(),
             )
             .0;
+            let block_time: Option<Timespec> = storage
+                .db
+                .get(COL_NODE_INFO, BLOCK_TIME_KEY)
+                .expect("Error while fetching value")
+                .map(|bytes| -> Timespec { Timespec::decode_var_vec(&bytes.to_vec()).0 });
             let mut app_hash = [0u8; HASH_SIZE_256];
             app_hash.copy_from_slice(&last_app_hash.unwrap()[..]);
             ChainNodeApp {
@@ -115,6 +124,7 @@ impl ChainNodeApp {
                 last_apphash: Some(app_hash),
                 chain_hex_id,
                 genesis_app_hash,
+                block_time,
             }
         }
     }
@@ -224,6 +234,8 @@ impl ChainNodeApp {
             } else {
                 self.last_apphash = Some(genesis_app_hash);
             }
+
+            self.block_time = Some(_req.time.as_ref().unwrap().seconds);
         } else {
             // TODO: panic?
             println!(
