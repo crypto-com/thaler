@@ -2,6 +2,7 @@
 **/*.rs.bk
 .alpha-storage/
 /dev-utils/target
-/signer/app/target
-/signer/app/.signer
 /chain-core/target
+.cro-storage/
+/signer/.storage
+/signer/target

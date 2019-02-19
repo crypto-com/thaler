@@ -1,6 +1,5 @@
-#[macro_use]
-extern crate chain_core;
 extern crate blake2;
+extern crate chain_core;
 extern crate digest;
 extern crate sha3;
 #[macro_use]

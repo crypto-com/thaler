@@ -1,0 +1,23 @@
+[package]
+name = "signer"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Basic tool for secret management (address management, transaction generation) for Crypto.com chain node"
+edition = "2018"
+
+[dependencies]
+chain-core = { path = "../chain-core/" }
+structopt = "0.2"
+sled = "0.18"
+blake2 = "0.8"
+grin_secp256k1zkp = "0.7"
+miscreant = "0.4"
+rand = "0.6"
+zeroize = "0.5"
+bincode = "1.1"
+serde = { version = "1.0", features = ["derive"] }
+sha3 = "0.8"
+hex = "0.3"
+failure = "0.1"
+quest = "0.3"
+serde_cbor = "0.9"
