@@ -1,9 +1,7 @@
 use failure::{format_err, Error, ResultExt};
 use hex::{decode, encode};
-use quest::{ask, choose, text, yesno, success};
-use secp256k1zkp::aggsig::{add_signatures_single, export_secnonce_single, sign_single};
-use secp256k1zkp::key::PublicKey;
-use secp256k1zkp::{Message, Secp256k1};
+use quest::{ask, choose, success, text, yesno};
+use secp256k1zkp::Message;
 use serde_cbor::ser::to_vec_packed;
 use sled::Db;
 use structopt::StructOpt;
@@ -16,12 +14,11 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
-use chain_core::tx::witness::redeem::EcdsaSignature;
-use chain_core::tx::witness::tree::{pk_to_raw, sig_to_raw};
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::TxAux;
 
-use crate::commands::{AddressCommand, Secrets};
+use crate::commands::AddressCommand;
+use crate::Secrets;
 
 /// Enum used to specify different subcommands under transaction command.
 /// Refer to main documentation for more details.
@@ -97,68 +94,6 @@ impl TransactionCommand {
             Ok(ExtendedAddr::OrTree(addr))
         }
     }
-    
-    /// Returns ECDSA signature of message signed with provided secret
-    fn get_ecdsa_signature(secrets: &Secrets, message: &Message) -> Result<TxInWitness, Error> {
-        let secp = Secp256k1::new();
-
-        let signature = secp.sign_recoverable(message, &secrets.spend)?;
-        let (recovery_id, serialized_signature) = signature.serialize_compact(&secp);
-
-        let r = &serialized_signature[0..32];
-        let s = &serialized_signature[32..64];
-        let mut sign = EcdsaSignature::default();
-
-        sign.v = recovery_id.to_i32() as u8;
-        sign.r.copy_from_slice(r);
-        sign.s.copy_from_slice(s);
-
-        Ok(TxInWitness::BasicRedeem(sign))
-    }
-    
-    /// Returns Schonrr signature of message signed with provided secret
-    fn get_schnorr_signature(secrets: &Secrets, message: &Message) -> Result<TxInWitness, Error> {
-        let spend_public_key = AddressCommand::get_public_key(&secrets.spend)?;
-        let view_public_key = AddressCommand::get_public_key(&secrets.view)?;
-
-        let secp = Secp256k1::new();
-
-        let secnonce_1 = export_secnonce_single(&secp)?;
-        let secnonce_2 = export_secnonce_single(&secp)?;
-        let pubnonce_2 = PublicKey::from_secret_key(&secp, &secnonce_2)?;
-        let mut nonce_sum = pubnonce_2;
-        nonce_sum.add_exp_assign(&secp, &secnonce_1)?;
-        let mut pk_sum = view_public_key;
-        pk_sum.add_exp_assign(&secp, &secrets.spend)?;
-        let sig1 = sign_single(
-            &secp,
-            &message,
-            &secrets.spend,
-            Some(&secnonce_1),
-            None,
-            Some(&nonce_sum),
-            Some(&pk_sum),
-            Some(&nonce_sum),
-        )?;
-        let sig2 = sign_single(
-            &secp,
-            &message,
-            &secrets.view,
-            Some(&secnonce_2),
-            None,
-            Some(&nonce_sum),
-            Some(&pk_sum),
-            Some(&nonce_sum),
-        )?;
-        let sig = add_signatures_single(&secp, vec![&sig1, &sig2], &nonce_sum)?;
-        let pk = PublicKey::from_combination(&secp, vec![&spend_public_key, &view_public_key])?;
-
-        Ok(TxInWitness::TreeSig(
-            pk_to_raw(&secp, pk),
-            sig_to_raw(&secp, sig),
-            vec![],
-        ))
-    }
 
     /// Returns transaction witnesses after signing
     fn get_transaction_witnesses(
@@ -168,8 +103,8 @@ impl TransactionCommand {
     ) -> Result<TxWitness, Error> {
         let message = Message::from_slice(&transaction.id())?;
 
-        let ecdsa_signature = Self::get_ecdsa_signature(secrets, &message)?;
-        let schnorr_signature = Self::get_schnorr_signature(secrets, &message)?;
+        let ecdsa_signature = secrets.get_ecdsa_signature(&message)?;
+        let schnorr_signature = secrets.get_schnorr_signature(&message)?;
 
         let witnesses: Vec<TxInWitness> = required_signature_types
             .iter()
@@ -281,10 +216,10 @@ impl TransactionCommand {
         let txa = TxAux::new(transaction, witnesses);
 
         ask("Transaction ID: ");
-        success(&format!("{}", encode(&txa.tx.id())));
+        success(&encode(&txa.tx.id()).to_string());
 
         ask("Transaction: ");
-        success(&format!("{}", encode(&to_vec_packed(&txa)?)));
+        success(&encode(&to_vec_packed(&txa)?).to_string());
 
         Ok(())
     }
