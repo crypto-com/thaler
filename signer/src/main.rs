@@ -14,6 +14,7 @@
 //!
 //! ### Generating Secret Keys
 //! Signer uses `grin_secp256k1zkp` crate to generate cryptographically secure random secret keys.
+//! NOTE: Subject to change when secp256k1 includes Schnorr signature-related features.
 //!
 //! ### Generating Public Keys
 //! Again, signer uses `grin_secp256k1zkp` crate to derive public keys from secret keys.
