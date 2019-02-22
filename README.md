@@ -96,16 +96,14 @@ Currently, there's a rough command-line application in `signer/app` for testing 
 
 Its workflow is the following:
 
-1. Generate a new keypair: `signer-app keypair new -n <keypair name>` (you can view hex-encoded addresses of corresponding public keys with `signer-app keypair display`)
+1. Generate a new keypair: `signer address generate -n <name>` (you can view hex-encoded addresses of corresponding key with `signer address get -n <name>`)
 
 2. Generate a signed TX with: 
 ```
-signer-app tx gen_tx -n <keypair name> -c <chain hex id> 
--i <input0 hex-encoded TXID> <input0 index> <input0 required signature [ecdsa|schnorr]> .... <inputN hex-encoded TXID> <inputN index> <inputN required signature [ecdsa|schnorr]>
--o <output0 address type [redeem|tree]> <output0 address hex-encoded bytes> <output0 amount of coins> .... <outputN address type [redeem|tree]> <outputN address hex-encoded bytes> <outputN amount of coins>
+signer transaction generate -n <name> -c <chain_id>
 ```
 
-This will print out a hex-encoded TXID (blake2s hash) and a hex-encoded CBOR-serialized TX structure / content. You can decode it and transform it as necessary, e.g. into base64.
+After entering all the required data, this will print out a hex-encoded TXID (blake2s hash) and a hex-encoded CBOR-serialized TX structure / content. You can decode it and transform it as necessary, e.g. into base64.
 
 3. You can then send a TX using the `broadcast_tx` Tendermint RPC command (e.g. JSONRPC over HTTP or websockets). 
 For example, for the [URI/HTTP option](https://tendermint.com/rpc/#uri-http), it can look like this:
