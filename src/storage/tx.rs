@@ -195,16 +195,20 @@ pub mod tests {
     use chain_core::tx::data::{address::ExtendedAddr, input::TxoPointer, output::TxOut};
     use chain_core::tx::witness::{redeem::EcdsaSignature, TxInWitness};
     use kvdb_memorydb::create;
-    use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1};
+    use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
     use serde_cbor::ser::to_vec_packed;
     use std::fmt::Debug;
     use std::mem;
     use storage::{COL_TX_META, NUM_COLUMNS};
 
-    pub fn get_tx_witness(secp: Secp256k1, tx: &Tx, secret_key: SecretKey) -> TxInWitness {
+    pub fn get_tx_witness<C: Signing>(
+        secp: Secp256k1<C>,
+        tx: &Tx,
+        secret_key: SecretKey,
+    ) -> TxInWitness {
         let message = Message::from_slice(&tx.id()).expect("32 bytes");
-        let sig = secp.sign_recoverable(&message, &secret_key).unwrap();
-        let (v, ss) = sig.serialize_compact(&secp);
+        let sig = secp.sign_recoverable(&message, &secret_key);
+        let (v, ss) = sig.serialize_compact();
         let r = &ss[0..32];
         let s = &ss[32..64];
         let mut sign = EcdsaSignature::default();
@@ -223,11 +227,10 @@ pub mod tests {
 
         let mut tx = Tx::new();
         let secp = Secp256k1::new();
-        let secret_key =
-            SecretKey::from_slice(&secp, &[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = PublicKey::from_secret_key(&secp, &secret_key).unwrap();
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
-        let addr = ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&secp, &public_key).0);
+        let addr = ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&public_key).0);
 
         let mut old_tx = Tx::new();
 
@@ -382,7 +385,7 @@ pub mod tests {
             txaux.witness[0] = get_tx_witness(
                 secp.clone(),
                 &txaux.tx,
-                SecretKey::from_slice(&secp, &[0x11; 32]).expect("32 bytes, within curve order"),
+                SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
             );
             let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
             expect_error(

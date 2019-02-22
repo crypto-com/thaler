@@ -2,7 +2,7 @@
 
 use common::hash256;
 use hex;
-use secp256k1::{self, key::PublicKey, Secp256k1};
+use secp256k1::{self, key::PublicKey};
 use serde::de::{Deserialize, Deserializer, Error};
 use serde::ser::{Serialize, Serializer};
 use sha3::Keccak256;
@@ -113,8 +113,8 @@ impl RedeemAddress {
         Ok(RedeemAddress(to_arr(data)))
     }
 
-    pub fn try_from_pk(secp: &Secp256k1, pk: &PublicKey) -> Self {
-        let hash = keccak256(&pk.serialize_vec(secp, false)[1..]);
+    pub fn try_from_pk(pk: &PublicKey) -> Self {
+        let hash = keccak256(&pk.serialize_uncompressed()[1..]);
         RedeemAddress(to_arr(&hash[12..]))
     }
 }

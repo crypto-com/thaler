@@ -1,7 +1,7 @@
 use failure::{format_err, Error, ResultExt};
 use hex::{decode, encode};
 use quest::{ask, choose, success, text, yesno};
-use secp256k1zkp::Message;
+use secp256k1::Message;
 use serde_cbor::ser::to_vec_packed;
 use sled::Db;
 use structopt::StructOpt;
