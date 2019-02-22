@@ -28,8 +28,8 @@ pub struct Secrets {
     #[serde(skip, default = "Secp256k1::new")]
     secp: Secp256k1,
 
-    pub spend: SecretKey,
-    pub view: SecretKey,
+    spend: SecretKey,
+    view: SecretKey,
 }
 
 impl Secrets {
