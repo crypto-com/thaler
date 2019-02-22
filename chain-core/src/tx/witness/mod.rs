@@ -6,8 +6,8 @@ pub mod tree;
 use common::TypeInfo;
 use init::address::RedeemAddress;
 use secp256k1::{
-    self, aggsig::verify_single, constants::COMPRESSED_PUBLIC_KEY_SIZE, key::PublicKey,
-    ContextFlag, Message, RecoverableSignature, RecoveryId, Secp256k1, Signature,
+    self, constants::PUBLIC_KEY_SIZE, key::PublicKey, schnorrsig::schnorr_verify,
+    schnorrsig::SchnorrSignature, Message, RecoverableSignature, RecoveryId, Secp256k1,
 };
 use serde::de::{Deserialize, Deserializer, EnumAccess, Error, VariantAccess, Visitor};
 use serde::ser::{Serialize, Serializer};
@@ -191,7 +191,7 @@ impl TxInWitness {
         tx: &Tx,
         address: &ExtendedAddr,
     ) -> Result<(), secp256k1::Error> {
-        let secp = Secp256k1::with_caps(ContextFlag::VerifyOnly);
+        let secp = Secp256k1::verification_only();
         let message = Message::from_slice(&tx.id())?;
         match (&self, address) {
             (TxInWitness::BasicRedeem(sig), ExtendedAddr::BasicRedeem(addr)) => {
@@ -199,18 +199,18 @@ impl TxInWitness {
                 sign.extend(&sig.r);
                 sign.extend(&sig.s);
                 let ri = RecoveryId::from_i32(i32::from(sig.v))?;
-                let rk = RecoverableSignature::from_compact(&secp, &sign, ri)?;
+                let rk = RecoverableSignature::from_compact(&sign, ri)?;
                 let pk = secp.recover(&message, &rk)?;
-                let expected_addr = RedeemAddress::try_from_pk(&secp, &pk).0;
+                let expected_addr = RedeemAddress::try_from_pk(&pk).0;
                 // TODO: constant time eq?
                 if *addr != expected_addr {
                     Err(secp256k1::Error::InvalidPublicKey)
                 } else {
-                    secp.verify(&message, &rk.to_standard(&secp), &pk)
+                    secp.verify(&message, &rk.to_standard(), &pk)
                 }
             }
             (TxInWitness::TreeSig(pk, sig, ops), ExtendedAddr::OrTree(roothash)) => {
-                let mut pk_vec = Vec::with_capacity(COMPRESSED_PUBLIC_KEY_SIZE);
+                let mut pk_vec = Vec::with_capacity(PUBLIC_KEY_SIZE);
                 pk_vec.push(pk.0);
                 pk_vec.extend(&pk.1);
                 let mut pk_hash = txid_hash(&pk_vec);
@@ -237,15 +237,11 @@ impl TxInWitness {
                 // TODO: migrate to https://github.com/ElementsProject/secp256k1-zkp/pull/35
                 // WARNING: secp256k1-zkp was/is highly experimental, its implementation should be verified or replaced by more stable and audited library (when available)
                 } else {
-                    let dpk = PublicKey::from_slice(&secp, &pk_vec)?;
+                    let dpk = PublicKey::from_slice(&pk_vec)?;
                     let mut sig_vec = Vec::from(&sig.0[..]);
                     sig_vec.extend(&sig.1);
-                    let dsig = Signature::from_compact(&secp, &sig_vec)?;
-                    if verify_single(&secp, &dsig, &message, None, &dpk, Some(&dpk), None, false) {
-                        Ok(())
-                    } else {
-                        Err(secp256k1::Error::IncorrectSignature)
-                    }
+                    let dsig = SchnorrSignature::from_default(&sig_vec)?;
+                    schnorr_verify(&secp, &message, &dsig, &dpk)
                 }
             }
             (_, _) => Err(secp256k1::Error::InvalidSignature),
@@ -259,18 +255,24 @@ pub mod tests {
     use common::merkle::MerkleTree;
     use common::HASH_SIZE_256;
     use secp256k1::{
-        aggsig::{add_signatures_single, export_secnonce_single, sign_single},
+        key::pubkey_combine,
         key::PublicKey,
         key::SecretKey,
-        Message, Secp256k1, Signature,
+        musig::{MuSigSession, MuSigSessionID},
+        schnorrsig::{schnorr_sign, SchnorrSignature},
+        Message, Secp256k1, Signing, Verification,
     };
     use tx::data::txid_hash;
     use tx::witness::tree::{pk_to_raw, sig_to_raw, MerklePath};
 
-    pub fn get_ecdsa_witness(secp: &Secp256k1, tx: &Tx, secret_key: SecretKey) -> TxInWitness {
+    pub fn get_ecdsa_witness<C: Signing>(
+        secp: &Secp256k1<C>,
+        tx: &Tx,
+        secret_key: SecretKey,
+    ) -> TxInWitness {
         let message = Message::from_slice(&tx.id()).expect("32 bytes");
-        let sig = secp.sign_recoverable(&message, &secret_key).unwrap();
-        let (v, ss) = sig.serialize_compact(&secp);
+        let sig = secp.sign_recoverable(&message, &secret_key);
+        let (v, ss) = sig.serialize_compact();
         let r = &ss[0..32];
         let s = &ss[32..64];
         let mut sign = EcdsaSignature::default();
@@ -280,121 +282,123 @@ pub mod tests {
         return TxInWitness::BasicRedeem(sign);
     }
 
-    fn sign_single_schnorr(secp: &Secp256k1, msg: &Message, secret_key: &SecretKey) -> Signature {
-        let secnonce_1 = export_secnonce_single(&secp).unwrap();
-        let pubnonce = PublicKey::from_secret_key(&secp, &secnonce_1).unwrap();
-        let pk = PublicKey::from_secret_key(&secp, &secret_key).unwrap();
-        sign_single(
-            secp,
-            msg,
-            secret_key,
-            Some(&secnonce_1),
-            None,
-            Some(&pubnonce),
-            Some(&pk),
-            Some(&pubnonce),
-        )
-        .unwrap()
+    fn sign_single_schnorr<C: Signing>(
+        secp: &Secp256k1<C>,
+        msg: &Message,
+        secret_key: &SecretKey,
+    ) -> SchnorrSignature {
+        schnorr_sign(secp, msg, secret_key).0
     }
 
-    fn get_single_tx_witness(
-        secp: Secp256k1,
+    fn get_single_tx_witness<C: Signing>(
+        secp: Secp256k1<C>,
         tx: &Tx,
         secret_key: SecretKey,
     ) -> (TxInWitness, [u8; HASH_SIZE_256]) {
         let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let sig = sign_single_schnorr(&secp, &message, &secret_key);
-        let pk = PublicKey::from_secret_key(&secp, &secret_key).unwrap();
+        let pk = PublicKey::from_secret_key(&secp, &secret_key);
 
-        let pk_hash = txid_hash(&pk.serialize_vec(&secp, true));
+        let pk_hash = txid_hash(&pk.serialize());
         let merkle = MerkleTree::new(&vec![pk_hash]);
 
         return (
-            TxInWitness::TreeSig(pk_to_raw(&secp, pk), sig_to_raw(&secp, sig), vec![]),
+            TxInWitness::TreeSig(pk_to_raw(pk), sig_to_raw(sig), vec![]),
             merkle.get_root_hash(),
         );
     }
 
-    fn get_2_of_2_sig(
-        secp: &Secp256k1,
+    fn get_2_of_2_sig<C: Signing + Verification>(
+        secp: &Secp256k1<C>,
         tx: &Tx,
         secret_key1: SecretKey,
         secret_key2: SecretKey,
-    ) -> (Signature, PublicKey, PublicKey) {
+    ) -> (SchnorrSignature, PublicKey, PublicKey) {
         let message = Message::from_slice(&tx.id()).expect("32 bytes");
-        let pk1 = PublicKey::from_secret_key(&secp, &secret_key1).unwrap();
-        let pk2 = PublicKey::from_secret_key(&secp, &secret_key2).unwrap();
-
-        let secnonce_1 = export_secnonce_single(&secp).unwrap();
-        let secnonce_2 = export_secnonce_single(&secp).unwrap();
-        let pubnonce_2 = PublicKey::from_secret_key(&secp, &secnonce_2).unwrap();
-
-        let mut nonce_sum = pubnonce_2.clone();
-        let _ = nonce_sum.add_exp_assign(&secp, &secnonce_1);
-        let mut pk_sum = pk2.clone();
-        let _ = pk_sum.add_exp_assign(&secp, &secret_key1);
-
-        let sig1 = sign_single(
-            &secp,
+        let pk1 = PublicKey::from_secret_key(&secp, &secret_key1);
+        let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
+        let session_id1 = MuSigSessionID::from_slice(&[0x01; 32]).expect("32 bytes");
+        let session_id2 = MuSigSessionID::from_slice(&[0x02; 32]).expect("32 bytes");
+        let (pk, pk_hash) = pubkey_combine(secp, &vec![pk1, pk2]).expect("combined pk");
+        let mut session1 = MuSigSession::new(
+            secp,
+            session_id1,
             &message,
+            &pk,
+            &pk_hash,
+            2,
+            0,
             &secret_key1,
-            Some(&secnonce_1),
-            None,
-            Some(&nonce_sum),
-            Some(&pk_sum),
-            Some(&nonce_sum),
         )
-        .unwrap();
-
-        let sig2 = sign_single(
-            &secp,
+        .expect("session 1");
+        let mut session2 = MuSigSession::new(
+            secp,
+            session_id2,
             &message,
+            &pk,
+            &pk_hash,
+            2,
+            1,
             &secret_key2,
-            Some(&secnonce_2),
-            None,
-            Some(&nonce_sum),
-            Some(&pk_sum),
-            Some(&nonce_sum),
         )
-        .unwrap();
-        let sig = add_signatures_single(&secp, vec![&sig1, &sig2], &nonce_sum).unwrap();
+        .expect("session 2");
+        session1.set_nonce_commitment(session2.get_my_nonce_commitment(), 1);
+        session2.set_nonce_commitment(session1.get_my_nonce_commitment(), 0);
+        let nonces = vec![
+            session1.get_public_nonce().unwrap(),
+            session2.get_public_nonce().unwrap(),
+        ];
+        for i in 0..nonces.len() {
+            let nonce = nonces[i];
+            session1.set_nonce(i, nonce).expect("nonce in session1");
+            session2.set_nonce(i, nonce).expect("nonce in session2");
+        }
+        session1.combine_nonces().expect("combined nonces session1");
+        session2.combine_nonces().expect("combined nonces session2");
+        let partial_sigs = vec![
+            session1.partial_sign().expect("partial signature 1"),
+            session2.partial_sign().expect("partial signature 2"),
+        ];
+        let sig = session1
+            .partial_sig_combine(&partial_sigs)
+            .expect("combined signature");
         return (sig, pk1, pk2);
     }
 
-    fn get_2_of_2_tx_witness(
-        secp: Secp256k1,
+    fn get_2_of_2_tx_witness<C: Signing + Verification>(
+        secp: Secp256k1<C>,
         tx: &Tx,
         secret_key1: SecretKey,
         secret_key2: SecretKey,
     ) -> (TxInWitness, [u8; HASH_SIZE_256]) {
         let (sig, pk1, pk2) = get_2_of_2_sig(&secp, tx, secret_key1, secret_key2);
 
-        let pk = PublicKey::from_combination(&secp, vec![&pk1, &pk2]).unwrap();
-        let pk_hash = txid_hash(&pk.serialize_vec(&secp, true));
+        let pk = pubkey_combine(&secp, &vec![pk1, pk2]).unwrap().0;
+        let pk_hash = txid_hash(&pk.serialize());
         let merkle = MerkleTree::new(&vec![pk_hash]);
 
         return (
-            TxInWitness::TreeSig(pk_to_raw(&secp, pk), sig_to_raw(&secp, sig), vec![]),
+            TxInWitness::TreeSig(pk_to_raw(pk), sig_to_raw(sig), vec![]),
             merkle.get_root_hash(),
         );
     }
 
-    fn get_2_of_3_tx_witness(
-        secp: Secp256k1,
+    fn get_2_of_3_tx_witness<C: Signing + Verification>(
+        secp: Secp256k1<C>,
         tx: &Tx,
         secret_key1: SecretKey,
         secret_key2: SecretKey,
         secret_key3: SecretKey,
     ) -> (TxInWitness, [u8; HASH_SIZE_256]) {
-        let pk1 = PublicKey::from_secret_key(&secp, &secret_key1).unwrap();
-        let pk2 = PublicKey::from_secret_key(&secp, &secret_key2).unwrap();
-        let pk3 = PublicKey::from_secret_key(&secp, &secret_key3).unwrap();
-        let pkc1 = PublicKey::from_combination(&secp, vec![&pk1, &pk2]).unwrap();
-        let pkc2 = PublicKey::from_combination(&secp, vec![&pk1, &pk3]).unwrap();
-        let pkc3 = PublicKey::from_combination(&secp, vec![&pk2, &pk3]).unwrap();
+        let pk1 = PublicKey::from_secret_key(&secp, &secret_key1);
+        let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
+        let pk3 = PublicKey::from_secret_key(&secp, &secret_key3);
+        let pkc1 = pubkey_combine(&secp, &vec![pk1, pk2]).unwrap().0;
+        let pkc2 = pubkey_combine(&secp, &vec![pk1, pk3]).unwrap().0;
+        let pkc3 = pubkey_combine(&secp, &vec![pk2, pk3]).unwrap().0;
         let pk_hashes: Vec<[u8; 32]> = vec![pkc1, pkc2, pkc3]
             .iter()
-            .map(|x| txid_hash(&x.serialize_vec(&secp, true)))
+            .map(|x| txid_hash(&x.serialize()))
             .collect();
         let merkle = MerkleTree::new(&pk_hashes);
 
@@ -406,7 +410,7 @@ pub mod tests {
         let (sig, _, _) = get_2_of_2_sig(&secp, tx, secret_key1, secret_key2);
 
         return (
-            TxInWitness::TreeSig(pk_to_raw(&secp, pkc1), sig_to_raw(&secp, sig), path),
+            TxInWitness::TreeSig(pk_to_raw(pkc1), sig_to_raw(sig), path),
             merkle.get_root_hash(),
         );
     }
@@ -415,14 +419,12 @@ pub mod tests {
     fn mismatched_signed_tx_should_fail() {
         let tx = Tx::new();
         let secp = Secp256k1::new();
-        let secret_key =
-            SecretKey::from_slice(&secp, &[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = PublicKey::from_secret_key(&secp, &secret_key).unwrap();
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let expected_addr1 = ExtendedAddr::OrTree([0x00; 32]);
         let witness1 = get_ecdsa_witness(&secp, &tx, secret_key);
         assert!(witness1.verify_tx_address(&tx, &expected_addr1).is_err());
-        let expected_addr2 =
-            ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&secp, &public_key).0);
+        let expected_addr2 = ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&public_key).0);
         let (witness2, _) = get_single_tx_witness(secp, &tx, secret_key);
         assert!(witness2.verify_tx_address(&tx, &expected_addr2).is_err());
     }
@@ -431,11 +433,9 @@ pub mod tests {
     fn signed_tx_should_verify() {
         let tx = Tx::new();
         let secp = Secp256k1::new();
-        let secret_key =
-            SecretKey::from_slice(&secp, &[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = PublicKey::from_secret_key(&secp, &secret_key).unwrap();
-        let expected_addr =
-            ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&secp, &public_key).0);
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+        let expected_addr = ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&public_key).0);
         let witness = get_ecdsa_witness(&secp, &tx, secret_key);
         assert!(witness.verify_tx_address(&tx, &expected_addr).is_ok());
     }
@@ -444,8 +444,7 @@ pub mod tests {
     fn schnorr_signed_tx_should_verify() {
         let tx = Tx::new();
         let secp = Secp256k1::new();
-        let secret_key =
-            SecretKey::from_slice(&secp, &[0xcd; 32]).expect("32 bytes, within curve order");
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let (witness, addr) = get_single_tx_witness(secp, &tx, secret_key);
         let expected_addr = ExtendedAddr::OrTree(addr);
         let r = witness.verify_tx_address(&tx, &expected_addr);
@@ -456,10 +455,8 @@ pub mod tests {
     fn agg_schnorr_signed_tx_should_verify() {
         let tx = Tx::new();
         let secp = Secp256k1::new();
-        let secret_key1 =
-            SecretKey::from_slice(&secp, &[0xcd; 32]).expect("32 bytes, within curve order");
-        let secret_key2 =
-            SecretKey::from_slice(&secp, &[0xde; 32]).expect("32 bytes, within curve order");
+        let secret_key1 = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let secret_key2 = SecretKey::from_slice(&[0xde; 32]).expect("32 bytes, within curve order");
         let (witness, addr) = get_2_of_2_tx_witness(secp, &tx, secret_key1, secret_key2);
         let expected_addr = ExtendedAddr::OrTree(addr);
         assert!(witness.verify_tx_address(&tx, &expected_addr).is_ok());
@@ -469,12 +466,9 @@ pub mod tests {
     fn tree_agg_schnorr_signed_tx_should_verify() {
         let tx = Tx::new();
         let secp = Secp256k1::new();
-        let secret_key1 =
-            SecretKey::from_slice(&secp, &[0xcd; 32]).expect("32 bytes, within curve order");
-        let secret_key2 =
-            SecretKey::from_slice(&secp, &[0xde; 32]).expect("32 bytes, within curve order");
-        let secret_key3 =
-            SecretKey::from_slice(&secp, &[0xef; 32]).expect("32 bytes, within curve order");
+        let secret_key1 = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let secret_key2 = SecretKey::from_slice(&[0xde; 32]).expect("32 bytes, within curve order");
+        let secret_key3 = SecretKey::from_slice(&[0xef; 32]).expect("32 bytes, within curve order");
         let (witness, addr) =
             get_2_of_3_tx_witness(secp, &tx, secret_key1, secret_key2, secret_key3);
         let expected_addr = ExtendedAddr::OrTree(addr);
@@ -485,8 +479,7 @@ pub mod tests {
     fn wrong_basic_address_should_fail() {
         let tx = Tx::new();
         let secp = Secp256k1::new();
-        let secret_key =
-            SecretKey::from_slice(&secp, &[0xcd; 32]).expect("32 bytes, within curve order");
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
 
         let witness = get_ecdsa_witness(&secp, &tx, secret_key);
         let wrong_addr = ExtendedAddr::BasicRedeem(RedeemAddress::default().0);

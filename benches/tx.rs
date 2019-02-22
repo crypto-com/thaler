@@ -6,7 +6,7 @@ extern crate chain_core;
 extern crate chain_node;
 extern crate kvdb;
 extern crate kvdb_memorydb;
-pub extern crate secp256k1zkp;
+extern crate secp256k1;
 use abci::{Application, RequestCheckTx, RequestInitChain};
 use chain_core::common::merkle::MerkleTree;
 use chain_core::init::{
@@ -33,9 +33,8 @@ use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
 use secp256k1::{
     key::{PublicKey, SecretKey},
-    Message, Secp256k1,
+    Message, Secp256k1, Signing,
 };
-pub use secp256k1zkp as secp256k1;
 use std::sync::Arc;
 
 fn create_db() -> Arc<KeyValueDB> {
@@ -44,10 +43,14 @@ fn create_db() -> Arc<KeyValueDB> {
 
 const TEST_CHAIN_ID: &str = "test-00";
 
-pub fn get_tx_witness(secp: &Secp256k1, tx: &Tx, secret_key: SecretKey) -> TxInWitness {
+pub fn get_tx_witness<C: Signing>(
+    secp: &Secp256k1<C>,
+    tx: &Tx,
+    secret_key: SecretKey,
+) -> TxInWitness {
     let message = Message::from_slice(&tx.id()).expect("32 bytes");
-    let sig = secp.sign_recoverable(&message, &secret_key).unwrap();
-    let (v, ss) = sig.serialize_compact(&secp);
+    let sig = secp.sign_recoverable(&message, &secret_key);
+    let (v, ss) = sig.serialize_compact();
     let r = &ss[0..32];
     let s = &ss[32..64];
     let mut sign = EcdsaSignature::default();
@@ -86,15 +89,15 @@ fn prepare_app_valid_txs(upper: u8) -> (ChainNodeApp, Vec<TxAux>) {
     let secp = Secp256k1::new();
     let dummy_keys = 0x01..upper;
     let secret_keys: Vec<SecretKey> = dummy_keys
-        .map(|x| SecretKey::from_slice(&secp, &[x; 32]).unwrap())
+        .map(|x| SecretKey::from_slice(&[x; 32]).unwrap())
         .collect();
     let public_keys: Vec<PublicKey> = secret_keys
         .iter()
-        .map(|secret_key| PublicKey::from_secret_key(&secp, &secret_key).unwrap())
+        .map(|secret_key| PublicKey::from_secret_key(&secp, &secret_key))
         .collect();
     let addrs = public_keys
         .iter()
-        .map(|public_key| RedeemAddress::try_from_pk(&secp, &public_key))
+        .map(|public_key| RedeemAddress::try_from_pk(&public_key))
         .collect();
     let (app, txids) = init_chain_for(&addrs);
     let mut txs = Vec::new();
@@ -102,7 +105,7 @@ fn prepare_app_valid_txs(upper: u8) -> (ChainNodeApp, Vec<TxAux>) {
         let txp = TxoPointer::new(txids[i], 0);
         let mut tx = Tx::new();
         tx.attributes.allowed_view.push(TxAccessPolicy::new(
-            pk_to_raw(&secp, public_keys[i]),
+            pk_to_raw(public_keys[i]),
             TxAccess::AllData,
         ));
         let eaddr = ExtendedAddr::BasicRedeem(addrs[i].0);

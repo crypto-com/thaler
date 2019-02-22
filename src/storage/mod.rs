@@ -42,7 +42,6 @@ pub struct Storage {
 
 impl Storage {
     /// initializes Storage with a provided reference to KV DB (used in testing -- in-mem KVDB)
-    #[cfg(test)]
     pub fn new_db(db: Arc<KeyValueDB>) -> Self {
         Storage { db }
     }

@@ -6,7 +6,7 @@ mod validate_tx;
 pub use self::app_init::ChainNodeApp;
 use abci::*;
 use ethbloom::{Bloom, Input};
-use secp256k1::constants::COMPRESSED_PUBLIC_KEY_SIZE;
+use secp256k1::constants::PUBLIC_KEY_SIZE;
 use storage::tx::spend_utxos;
 
 impl abci::Application for ChainNodeApp {
@@ -119,7 +119,7 @@ impl abci::Application for ChainNodeApp {
             // TODO: explore alternatives, e.g. https://github.com/bitcoin/bips/blob/master/bip-0158.mediawiki
             let mut bloom = Bloom::default();
             for key in keys {
-                let k: &[u8; COMPRESSED_PUBLIC_KEY_SIZE - 1] = &key;
+                let k: &[u8; PUBLIC_KEY_SIZE - 1] = &key;
                 bloom.accrue(Input::Raw(k));
             }
             let mut kvpair = KVPair::new();
@@ -358,10 +358,9 @@ mod tests {
 
     fn prepare_app_valid_tx() -> (ChainNodeApp, TxAux) {
         let secp = Secp256k1::new();
-        let secret_key =
-            SecretKey::from_slice(&secp, &[0xcd; 32]).expect("32 bytes, within curve order");
-        let public_key = PublicKey::from_secret_key(&secp, &secret_key).unwrap();
-        let addr = RedeemAddress::try_from_pk(&secp, &public_key);
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+        let addr = RedeemAddress::try_from_pk(&public_key);
         let app = init_chain_for(addr);
         let old_tx: Tx =
             serde_cbor::from_slice(&app.storage.db.iter(COL_BODIES).next().unwrap().1).unwrap();
@@ -378,7 +377,7 @@ mod tests {
         let txp = TxoPointer::new(old_tx_id, 0);
         let mut tx = Tx::new();
         tx.attributes.allowed_view.push(TxAccessPolicy::new(
-            pk_to_raw(&secp, public_key),
+            pk_to_raw(public_key),
             TxAccess::AllData,
         ));
         let eaddr = ExtendedAddr::BasicRedeem(addr.0);
