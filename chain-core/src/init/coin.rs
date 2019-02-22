@@ -74,7 +74,8 @@ impl ::std::ops::Deref for Coin {
 
 impl fmt::Display for Coin {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}.{:06}", self.0 / 1000000, self.0 % 1000000)
+        // 8 decimals
+        write!(f, "{}.{:08}", self.0 / 100_000_000, self.0 % 100_000_000)
     }
 }
 

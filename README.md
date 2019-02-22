@@ -39,7 +39,7 @@ docker run --security-opt seccomp=unconfined -v "$PWD:/volume" xd009642/tarpauli
 1. generate initial state -- currently, a very naive way is in dev-utils. In the end, you should get two pieces of data:
 ```
 "app_hash": "<APP_HASH_HEX_BYTES>",
-"app_state": {"distribution":[{"address":"0x<ETH_ADDRESS_HEX_BYTES>","amount":100000000000000000 }]}
+"app_state": {"distribution":[{"address":"0x<ETH_ADDRESS_HEX_BYTES>","amount":10000000000000000000 }]}
 ```
 
 "app_hash" is the initial application hash -- currently, it's computed as a root of a merkle tree of transaction IDs. In the example above, there'll be only one TX:

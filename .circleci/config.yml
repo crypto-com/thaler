@@ -63,7 +63,7 @@ jobs:
           command: |
             rustup component add clippy-preview
             cargo-clippy --version
-            cargo clippy # -- -D warnings
+            cargo clippy -- -D warnings
             cd chain-core
             cargo clippy
             cd ..       
