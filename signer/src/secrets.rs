@@ -97,7 +97,7 @@ impl Secrets {
     /// NOTE: this method generates the signature from an interactive MuSig protocol session
     /// -- this is not necessary, as both keys are currently generated locally on the same machine,
     /// so it's here more for demonstrative purposes. This will become essential when they are combined from
-    /// different devices or different parties. 
+    /// different devices or different parties.
     pub fn get_schnorr_signature(&self, message: &Message) -> Result<TxInWitness, Error> {
         use AddressType::*;
 
@@ -152,8 +152,7 @@ impl Secrets {
 
 impl Drop for Secrets {
     fn drop(&mut self) {
-        // TODO:
-        // self.spend.zeroize();
-        // self.view.zeroize();
+        self.spend.zeroize();
+        self.view.zeroize();
     }
 }
