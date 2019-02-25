@@ -22,7 +22,7 @@ hex = "0.3"
 protobuf = "2.2.0"
 integer-encoding = "1.0.5"
 clap = { features = ["yaml"], version = "2.32.0" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "bece8d7d882c0d9933207371fa03318a75679fa6" }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "540cf449b16b4ee4874e9e211a50595e4141d67e" }
 blake2 = "0.8"
 ethbloom = "0.5.0"
 
