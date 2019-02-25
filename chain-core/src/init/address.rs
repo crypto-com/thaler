@@ -1,4 +1,13 @@
 //! # Eth-style Account address (20 bytes) -- from emerald-rs
+//!
+//! ### Generating Address
+//! There are three main steps to obtain chain address from public keys
+//! - Start with the public key. (64 bytes)
+//! - Take a Keccak-256 hash of public key. (Note: Keccak-256 is different from SHA3-256. [Difference between Keccak256 and SHA3-256](https://ethereum.stackexchange.com/questions/30369/difference-between-keccak256-and-sha3) ) (32 bytes)
+//! - Take the last 20 bytes of this Keccak-256 hash. Or, in other words, drop the first 12 bytes.
+//!   These 20 bytes are the address.
+//!
+//! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
 
 use common::hash256;
 use hex;
