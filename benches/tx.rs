@@ -7,6 +7,8 @@ extern crate chain_node;
 extern crate kvdb;
 extern crate kvdb_memorydb;
 extern crate secp256k1;
+extern crate protobuf;
+
 use abci::{Application, RequestCheckTx, RequestInitChain};
 use chain_core::common::merkle::MerkleTree;
 use chain_core::init::{
@@ -81,6 +83,7 @@ fn init_chain_for(addresses: &Vec<RedeemAddress>) -> (ChainNodeApp, Vec<TxId>) {
     let mut req = RequestInitChain::default();
     req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
     req.set_chain_id(String::from(TEST_CHAIN_ID));
+    req.set_time(::protobuf::well_known_types::Timestamp::new());
     app.init_chain(&req);
     return (app, txids);
 }
