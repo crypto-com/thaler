@@ -6,8 +6,8 @@ extern crate chain_core;
 extern crate chain_node;
 extern crate kvdb;
 extern crate kvdb_memorydb;
-extern crate secp256k1;
 extern crate protobuf;
+extern crate secp256k1;
 
 use abci::{Application, RequestCheckTx, RequestInitChain};
 use chain_core::common::merkle::MerkleTree;

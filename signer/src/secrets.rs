@@ -94,6 +94,10 @@ impl Secrets {
     }
 
     /// Returns 2-of-2 (view+spend keys) agg/combined Schnorr signature of message signed with provided secret
+    /// NOTE: this method generates the signature from an interactive MuSig protocol session
+    /// -- this is not necessary, as both keys are currently generated locally on the same machine,
+    /// so it's here more for demonstrative purposes. This will become essential when they are combined from
+    /// different devices or different parties. 
     pub fn get_schnorr_signature(&self, message: &Message) -> Result<TxInWitness, Error> {
         use AddressType::*;
 

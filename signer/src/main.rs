@@ -10,23 +10,20 @@
 //! ## How are new addresses generated? (Note: This will change in future and we may start using HD-stype wallets)
 //! - Generate a cryptographically secure random secret key. (256 bits)
 //! - Derive a public key from secret key using elliptic curve cryptography. (secp256k1)
-//! - Calculate address from public key.
+//! - Calculate address from public key depending on its type:
 //!
-//! ### Generating Secret Keys
-//! Signer uses `grin_secp256k1zkp` crate to generate cryptographically secure random secret keys.
-//! NOTE: Subject to change when secp256k1 includes Schnorr signature-related features.
+//! 1) "RedeemAddress": Ethereum account address (for ERC20 reedem / backwards-compatibility); see `init/address.rs` in `chain-core`.
+//! 2) "Tree": threshold multisig addresses; records a root of a "Merklized Abstract Syntax Tree" where branches are "OR" operations 
+//! and leafs are Blake2s hashes of aggregated public keys:
 //!
-//! ### Generating Public Keys
-//! Again, signer uses `grin_secp256k1zkp` crate to derive public keys from secret keys.
+//! [Merklized Abstract Syntax Tree](https://blockstream.com/2015/08/24/treesignatures/)
+//! [MuSig: A New Multisignature Standard](https://blockstream.com/2019/02/18/musig-a-new-multisignature-standard/)
 //!
-//! ### Generating Chain Address
-//! There are three main steps to obtain chain address from public keys
-//! - Start with the public key. (64 bytes)
-//! - Take a Keccak-256 hash of public key. (Note: Keccak-256 is different from SHA3-256. [Difference between Keccak256 and SHA3-256](https://ethereum.stackexchange.com/questions/30369/difference-between-keccak256-and-sha3) ) (32 bytes)
-//! - Take the last 20 bytes of this Keccak-256 hash. Or, in other words, drop the first 12 bytes.
-//!   These 20 bytes are the address.
-//!
-//! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
+//! ### Cryptography
+//! - Key operations, signatures, etc. are done via a custom fork of `rust-secp256k1` crate linked against `secp256k1zkp`
+//! - `secp256k1zkp` is an experimental fork of `secp256k1` (used in Bitcoin, Ethereum, etc.) with support for new features, such as Schnorr signatures
+//! - Once Schnorr signatures and MuSig are included in the upstream `secp256k1`, the tool will use the original crate
+//! - Secret storage currently uses  `miscreant` (AES-SIV / AES-PMAC-SIV): this may be revised when secret storage is changed (e.g. to generate keys inside TEE enclaves)
 //!
 //! ## How are addresses stored?
 //! Currently, signer uses `sled` crate, which is a embeddable database for Rust, to store secret keys. Addresses
@@ -34,7 +31,7 @@
 //!
 //! Before storing secret keys using `sled`, these secrets are encrypted using a misuse resistant symmetric
 //! encryption crate called `miscreant`. This provides support for authenticated encryption of individual messages.
-//! Encryption keys are the `passphrase` provided by users at the time of address geneation.
+//! Encryption keys are the hashed `passphrase` provided by users at the time of address generation.
 //!
 //! # Signed Transaction Generation
 //! Besides address management, another main responsibility of signer is to generate transactions for Crypto.com chain.
