@@ -28,47 +28,27 @@ jobs:
       - run:
           name: Check formatting
           command: |
-            rustup component add rustfmt-preview
+            rustup component add rustfmt
             rustfmt --version
             cargo fmt -- --check --color=auto
-            cd chain-core
-            cargo fmt -- --check --color=auto
-            cd ..
       - run:
-          name: Stable Build Core
+          name: Stable Build
           command: |
-            cd chain-core
-            rustup run stable rustc --version --verbose
-            rustup run stable cargo --version --verbose
-            rustup run stable cargo build
-            cd ..
+            rustc --version --verbose
+            cargo --version --verbose
+            cargo build
       - run:
-          name: Test Core
+          name: Test
           command: |
-            cd chain-core
-            rustup run stable cargo test
-            cd ..
-      - run:
-          name: Stable Build ABCI App
-          command: |
-            rustup run stable rustc --version --verbose
-            rustup run stable cargo --version --verbose
-            rustup run stable cargo build
-      - run:
-          name: Test ABCI App
-          command: |
-            rustup run stable cargo test
+            cargo test
       - run:
           name: Check style
           command: |
-            rustup component add clippy-preview
+            rustup component add clippy
             cargo-clippy --version
-            cargo clippy -- -D warnings
-            cd chain-core
-            cargo clippy
-            cd ..       
+            cargo clippy -- -D warnings 
       - run:
-          name: Nightly Build ABCI App + coverage
+          name: Nightly Build + coverage
           command: |
             rustup run nightly rustc --version --verbose
             rustup run nightly cargo --version --verbose

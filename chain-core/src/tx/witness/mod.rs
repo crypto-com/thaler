@@ -266,7 +266,7 @@ pub mod tests {
     pub fn get_ecdsa_witness<C: Signing>(
         secp: &Secp256k1<C>,
         tx: &Tx,
-        secret_key: SecretKey,
+        secret_key: &SecretKey,
     ) -> TxInWitness {
         let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let sig = secp.sign_recoverable(&message, &secret_key);
@@ -291,7 +291,7 @@ pub mod tests {
     fn get_single_tx_witness<C: Signing>(
         secp: Secp256k1<C>,
         tx: &Tx,
-        secret_key: SecretKey,
+        secret_key: &SecretKey,
     ) -> (TxInWitness, [u8; HASH_SIZE_256]) {
         let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let sig = sign_single_schnorr(&secp, &message, &secret_key);
@@ -420,10 +420,10 @@ pub mod tests {
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let expected_addr1 = ExtendedAddr::OrTree([0x00; 32]);
-        let witness1 = get_ecdsa_witness(&secp, &tx, secret_key);
+        let witness1 = get_ecdsa_witness(&secp, &tx, &secret_key);
         assert!(witness1.verify_tx_address(&tx, &expected_addr1).is_err());
         let expected_addr2 = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key).0);
-        let (witness2, _) = get_single_tx_witness(secp, &tx, secret_key);
+        let (witness2, _) = get_single_tx_witness(secp, &tx, &secret_key);
         assert!(witness2.verify_tx_address(&tx, &expected_addr2).is_err());
     }
 
@@ -434,7 +434,7 @@ pub mod tests {
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let expected_addr = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key).0);
-        let witness = get_ecdsa_witness(&secp, &tx, secret_key);
+        let witness = get_ecdsa_witness(&secp, &tx, &secret_key);
         assert!(witness.verify_tx_address(&tx, &expected_addr).is_ok());
     }
 
@@ -443,7 +443,7 @@ pub mod tests {
         let tx = Tx::new();
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-        let (witness, addr) = get_single_tx_witness(secp, &tx, secret_key);
+        let (witness, addr) = get_single_tx_witness(secp, &tx, &secret_key);
         let expected_addr = ExtendedAddr::OrTree(addr);
         let r = witness.verify_tx_address(&tx, &expected_addr);
         assert!(r.is_ok());
@@ -479,7 +479,7 @@ pub mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
 
-        let witness = get_ecdsa_witness(&secp, &tx, secret_key);
+        let witness = get_ecdsa_witness(&secp, &tx, &secret_key);
         let wrong_addr = ExtendedAddr::BasicRedeem(RedeemAddress::default().0);
         assert!(witness.verify_tx_address(&tx, &wrong_addr).is_err());
     }

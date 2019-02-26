@@ -1,8 +1,3 @@
 /target
 **/*.rs.bk
-.alpha-storage/
-/dev-utils/target
-/chain-core/target
-.cro-storage/
-/signer/.storage
-/signer/target
+.storage
