@@ -360,7 +360,7 @@ mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-        let addr = RedeemAddress::try_from_pk(&public_key);
+        let addr = RedeemAddress::from(&public_key);
         let app = init_chain_for(addr);
         let old_tx: Tx =
             serde_cbor::from_slice(&app.storage.db.iter(COL_BODIES).next().unwrap().1).unwrap();

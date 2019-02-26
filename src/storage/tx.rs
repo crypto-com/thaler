@@ -230,7 +230,7 @@ pub mod tests {
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
-        let addr = ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&public_key).0);
+        let addr = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key).0);
 
         let mut old_tx = Tx::new();
 

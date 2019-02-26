@@ -37,6 +37,9 @@ pub struct Secrets {
     view: SecretKey,
 }
 
+/// Currently, secp256k1 isn't compiled with "rand" feature,
+/// as it uses an older "rand" crate, hence this helper function
+/// TODO: upgrade secp256k1's rand + code using it?
 fn random_32_bytes<R: Rng>(rng: &mut R) -> [u8; 32] {
     let mut ret = [0u8; 32];
     rng.fill_bytes(&mut ret);
@@ -98,6 +101,7 @@ impl Secrets {
     /// -- this is not necessary, as both keys are currently generated locally on the same machine,
     /// so it's here more for demonstrative purposes. This will become essential when they are combined from
     /// different devices or different parties.
+    /// TODO: migrate to upstream secp256k1 when it contains Schnorr + MuSig
     pub fn get_schnorr_signature(&self, message: &Message) -> Result<TxInWitness, Error> {
         use AddressType::*;
 

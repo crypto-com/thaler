@@ -121,11 +121,6 @@ impl RedeemAddress {
 
         Ok(RedeemAddress(to_arr(data)))
     }
-
-    pub fn try_from_pk(pk: &PublicKey) -> Self {
-        let hash = keccak256(&pk.serialize_uncompressed()[1..]);
-        RedeemAddress(to_arr(&hash[12..]))
-    }
 }
 
 impl ops::Deref for RedeemAddress {
@@ -133,6 +128,13 @@ impl ops::Deref for RedeemAddress {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl From<&PublicKey> for RedeemAddress {
+    fn from(pk: &PublicKey) -> Self {
+        let hash = keccak256(&pk.serialize_uncompressed()[1..]);
+        RedeemAddress(to_arr(&hash[12..]))
     }
 }
 
