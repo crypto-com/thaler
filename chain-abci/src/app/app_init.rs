@@ -5,7 +5,7 @@ use chain_core::common::Timespec;
 use chain_core::common::HASH_SIZE_256;
 use chain_core::init::config::InitConfig;
 use chain_core::tx::{
-    data::{attribute::TxAttributes, TxId},
+    data::{attribute::TxAttributes, Tx, TxId},
     TxAux,
 };
 use hex::decode;
@@ -160,7 +160,7 @@ impl ChainNodeApp {
                 );
             }
             let utxos = conf.generate_utxos(&TxAttributes::new(self.chain_hex_id));
-            let ids: Vec<TxId> = utxos.iter().map(|x| x.id()).collect();
+            let ids: Vec<TxId> = utxos.iter().map(Tx::id).collect();
             let tree = MerkleTree::new(&ids);
             let genesis_app_hash = tree.get_root_hash();
             if self.genesis_app_hash != genesis_app_hash {

@@ -94,7 +94,7 @@ impl<'de> Deserialize<'de> for EcdsaSignature {
             {
                 let sig_bytes =
                     <(u8, [u8; 32], [u8; 32]) as Deserialize>::deserialize(deserializer);
-                sig_bytes.map(|x| x.into())
+                sig_bytes.map(Into::into)
             }
         }
 
