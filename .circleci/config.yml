@@ -28,7 +28,7 @@ jobs:
           command: rustup install stable && rustup install nightly && rustup default stable
       - restore_cache:
           keys: 
-            - v1-chain-{{ checksum "Cargo.toml" }}-{{ checksum "./chain-abci/Cargo.toml" }}-{{ checksum "./chain-core/Cargo.toml" }}-{{ checksum "./dev-utils/Cargo.toml" }}-{{ checksum "./signer/Cargo.toml" }}
+            - v1-chain-{{ checksum "Cargo.lock" }}
             - v1-chain-
       - run:
           name: Check formatting
@@ -61,7 +61,7 @@ jobs:
             rustup run nightly cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" rustup run nightly cargo install cargo-tarpaulin
             env CARGO_TARGET_DIR=./target/nightly rustup run nightly cargo tarpaulin
       - save_cache:
-          key: v1-chain-{{ checksum "Cargo.toml" }}-{{ checksum "./chain-abci/Cargo.toml" }}-{{ checksum "./chain-core/Cargo.toml" }}-{{ checksum "./dev-utils/Cargo.toml" }}-{{ checksum "./signer/Cargo.toml" }}
+          key: v1-chain-{{ checksum "Cargo.lock" }}
           paths:
             - "~/.cargo"
             - "./target"
