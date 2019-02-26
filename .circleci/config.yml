@@ -19,7 +19,10 @@ jobs:
           command: curl https://sh.rustup.rs -sSf | sh -s -- -y
       - run:
           name: configure rustup path
-          command: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $BASH_ENV   
+          command: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $BASH_ENV 
+      - run:
+          name: configure rustflags
+          command: echo -e '[build]\nrustflags = ["-Ctarget-feature=+aes,+ssse3"]' >> $HOME/.cargo/config
       - run:
           name: install rustc
           command: rustup install stable && rustup install nightly && rustup default stable
