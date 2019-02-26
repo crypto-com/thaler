@@ -55,9 +55,9 @@ jobs:
           command: |
             rustup run nightly rustc --version --verbose
             rustup run nightly cargo --version --verbose
-            rustup run nightly cargo build
+            rustup run nightly cargo build --target-dir ./target/nightly
             rustup run nightly cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" rustup run nightly cargo install cargo-tarpaulin
-            rustup run nightly cargo tarpaulin
+            rustup run nightly cargo tarpaulin --target-dir ./target/nightly
       - save_cache:
           key: project-cache
           paths:
