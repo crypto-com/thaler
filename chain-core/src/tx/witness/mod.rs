@@ -201,7 +201,7 @@ impl TxInWitness {
                 let ri = RecoveryId::from_i32(i32::from(sig.v))?;
                 let rk = RecoverableSignature::from_compact(&sign, ri)?;
                 let pk = secp.recover(&message, &rk)?;
-                let expected_addr = RedeemAddress::try_from_pk(&pk).0;
+                let expected_addr = RedeemAddress::from(&pk).0;
                 // TODO: constant time eq?
                 if *addr != expected_addr {
                     Err(secp256k1::Error::InvalidPublicKey)
@@ -233,9 +233,7 @@ impl TxInWitness {
                 // TODO: constant time eq?
                 if pk_hash != *roothash {
                     Err(secp256k1::Error::InvalidPublicKey)
-                // TODO: "All aggsig-related api functions need review and are subject to change."
-                // TODO: migrate to https://github.com/ElementsProject/secp256k1-zkp/pull/35
-                // WARNING: secp256k1-zkp was/is highly experimental, its implementation should be verified or replaced by more stable and audited library (when available)
+                // TODO: migrate to upstream secp256k1 when Schnorr is available
                 } else {
                     let dpk = PublicKey::from_slice(&pk_vec)?;
                     let mut sig_vec = Vec::from(&sig.0[..]);
@@ -424,7 +422,7 @@ pub mod tests {
         let expected_addr1 = ExtendedAddr::OrTree([0x00; 32]);
         let witness1 = get_ecdsa_witness(&secp, &tx, secret_key);
         assert!(witness1.verify_tx_address(&tx, &expected_addr1).is_err());
-        let expected_addr2 = ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&public_key).0);
+        let expected_addr2 = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key).0);
         let (witness2, _) = get_single_tx_witness(secp, &tx, secret_key);
         assert!(witness2.verify_tx_address(&tx, &expected_addr2).is_err());
     }
@@ -435,7 +433,7 @@ pub mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-        let expected_addr = ExtendedAddr::BasicRedeem(RedeemAddress::try_from_pk(&public_key).0);
+        let expected_addr = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key).0);
         let witness = get_ecdsa_witness(&secp, &tx, secret_key);
         assert!(witness.verify_tx_address(&tx, &expected_addr).is_ok());
     }

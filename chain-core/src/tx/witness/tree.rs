@@ -6,6 +6,8 @@ use serde::ser::{Serialize, Serializer};
 use std::fmt;
 
 /// wrappers, as Rust/serde has impls for up to 32-byte arrays
+/// an alternative is to use `[serde-big-array](https://crates.io/crates/serde-big-array)`
+/// TODO: revisit when transaction format is more stabilized
 /// TODO: custom serializers + eq etc. impls
 pub type RawPubkey = (u8, [u8; PUBLIC_KEY_SIZE - 1]);
 /// TODO: custom serializers + eq etc. impls
