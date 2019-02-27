@@ -553,7 +553,9 @@ mod tests {
         endreq.set_height(10);
         let cresp = app.end_block(&endreq);
         assert_eq!(1, cresp.tags.len());
-        let bloom = Bloom::from(&cresp.tags[0].value[..]);
+        let mut value: [u8; 256] = [0; 256];
+        value.copy_from_slice(&cresp.tags[0].value[..]);
+        let bloom = Bloom::from(&value);
         assert!(bloom.contains_input(Input::Raw(&txaux.tx.attributes.allowed_view[0].view_key.1)));
         assert!(!bloom.contains_input(Input::Raw(&[0u8; 32][..])));
 
