@@ -6,89 +6,87 @@ jobs:
     steps:
       - checkout
       - run: 
-        name: Add PPA for cmake-3.*
-        command: |
-          sudo apt-get install software-properties-common
-          sudo add-apt-repository ppa:george-edison55/cmake-3.x
-          sudo apt-get update
+          name: Add PPA for cmake-3.*
+          command: |
+            sudo apt-get install software-properties-common
+            sudo add-apt-repository ppa:george-edison55/cmake-3.x
+            sudo apt-get update
       - run:
-        name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
-        command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
+          name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
+          command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
       - restore_cache:
-        keys: 
-          - v2-chain-stable-{{ checksum "Cargo.lock" }}
-          - v2-chain-stable-
+          keys: 
+            - v2-chain-stable-{{ checksum "Cargo.lock" }}
+            - v2-chain-stable-
       - run:
-        name: Check formatting
-        command: |
-          rustup component add rustfmt
-          rustfmt --version
-          cargo fmt -- --check --color=auto
+          name: Check formatting
+          command: |
+            rustup component add rustfmt
+            rustfmt --version
+            cargo fmt -- --check --color=auto
       - run:
-        name: Build
-        command: |
-          rustc --version --verbose
-          cargo --version --verbose
-          cargo build
+          name: Build
+          command: |
+            rustc --version --verbose
+            cargo --version --verbose
+            cargo build
       - run:
-        name: Test
-        command: |
-          cargo test
+          name: Test
+          command: |
+            cargo test
       - run:
-        name: Check style
-        command: |
-          rustup component add clippy
-          cargo-clippy --version
-          cargo clippy -- -D warnings
+          name: Check style
+          command: |
+            rustup component add clippy
+            cargo-clippy --version
+            cargo clippy -- -D warnings
       - save_cache:
-        key: v2-chain-stable-{{ checksum "Cargo.lock" }}
-        paths:
-          - "~/.cargo"
-          - "./target"
+          key: v2-chain-stable-{{ checksum "Cargo.lock" }}
+          paths:
+            - "~/.cargo"
+            - "./target"
   nightly:
     docker: 
       - image: circleci/rust:latest
     steps:
       - checkout
       - run: 
-        name: Add PPA for cmake-3.*
-        command: |
-          sudo apt-get install software-properties-common
-          sudo add-apt-repository ppa:george-edison55/cmake-3.x
-          sudo apt-get update
+          name: Add PPA for cmake-3.*
+          command: |
+            sudo apt-get install software-properties-common
+            sudo add-apt-repository ppa:george-edison55/cmake-3.x
+            sudo apt-get update
       - run:
-        name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
-        command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
+          name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
+          command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
       - restore_cache:
-        keys: 
-          - v2-chain-nightly-{{ checksum "Cargo.lock" }}
-          - v2-chain-nightly-
+          keys: 
+            - v2-chain-nightly-{{ checksum "Cargo.lock" }}
+            - v2-chain-nightly-
       - run:
-        name: Install nightly rust
-        command: |
-          rustup install nightly
-          rustup default nightly
+          name: Install nightly rust
+          command: |
+            rustup install nightly
+            rustup default nightly
       - run:
-        name: Build
-        command: |
-          rustc --version --verbose
-          cargo --version --verbose
-          cargo build
+          name: Build
+          command: |
+            rustc --version --verbose
+            cargo --version --verbose
+            cargo build
       - run:
-        name: Install tarpaulin
-        command: cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
+          name: Install tarpaulin
+          command: cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
       - run:
-        name: Run tarpaulim
-        command: env CARGO_TARGET_DIR=./target/tarpaulin cargo tarpaulin
+          name: Run tarpaulim
+          command: env CARGO_TARGET_DIR=./target/tarpaulin cargo tarpaulin
       - save_cache:
-        key: v2-chain-nightly-{{ checksum "Cargo.lock" }}
-        paths:
-          - "~/.cargo"
-          - "./target"
+          key: v2-chain-nightly-{{ checksum "Cargo.lock" }}
+          paths:
+            - "~/.cargo"
+            - "./target"
 workflows:
   version: 2
   build:
     - stable
     - nightly
-
-
