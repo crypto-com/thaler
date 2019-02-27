@@ -15,7 +15,7 @@ jobs:
             - v2-chain-stable-
       - run:
           name: Configure rustflags
-          command: echo -e '[build]\nrustflags = ["-Ctarget-feature=+aes,+ssse3"]' > $HOME/.cargo/config
+          command: export RUSTFLAGS="-C target-feature=+aes,+ssse3"
       - run:
           name: Check formatting
           command: |
@@ -62,7 +62,7 @@ jobs:
             rustup default nightly
       - run:
           name: Configure rustflags
-          command: echo -e '[build]\nrustflags = ["-Ctarget-feature=+aes,+ssse3"]' > $HOME/.cargo/config
+          command: export RUSTFLAGS="-C target-feature=+aes,+ssse3"
       - run:
           name: Build
           command: |
