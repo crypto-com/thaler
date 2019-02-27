@@ -14,9 +14,6 @@ jobs:
             - v2-chain-stable-{{ checksum "Cargo.lock" }}
             - v2-chain-stable-
       - run:
-          name: Configure rustflags
-          command: export RUSTFLAGS="-C target-feature=+aes,+ssse3"
-      - run:
           name: Check formatting
           command: |
             rustup component add rustfmt
@@ -27,17 +24,17 @@ jobs:
           command: |
             rustc --version --verbose
             cargo --version --verbose
-            cargo build
+            env RUSTFLAGS=-Ctarget-feature=+aes,+ssse3 cargo build
       - run:
           name: Test
           command: |
-            cargo test
+            env RUSTFLAGS=-Ctarget-feature=+aes,+ssse3 cargo test
       - run:
           name: Check style
           command: |
             rustup component add clippy
             cargo-clippy --version
-            cargo clippy -- -D warnings
+            env RUSTFLAGS=-Ctarget-feature=+aes,+ssse3 cargo clippy -- -D warnings
       - save_cache:
           key: v2-chain-stable-{{ checksum "Cargo.lock" }}
           paths:
@@ -61,18 +58,15 @@ jobs:
             rustup install nightly
             rustup default nightly
       - run:
-          name: Configure rustflags
-          command: export RUSTFLAGS="-C target-feature=+aes,+ssse3"
-      - run:
           name: Build
           command: |
             rustc --version --verbose
             cargo --version --verbose
-            cargo build
+            env RUSTFLAGS=-Ctarget-feature=+aes,+ssse3 cargo build
       - run:
           name: Install tarpaulin
           command: |
-            cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
+            env RUSTFLAGS=-Ctarget-feature=+aes,+ssse3 cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
       - run:
           name: Run tarpaulim
           command: env CARGO_TARGET_DIR=./target/tarpaulin cargo tarpaulin
