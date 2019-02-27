@@ -1,0 +1,67 @@
+version: 2
+
+jobs:
+  build:
+    machine:
+      enabled: true 
+    steps:
+      - checkout
+      - run:
+          name: add PPA for cmake-3.* (not available on ubuntu 14.04)
+          command: |
+            sudo add-apt-repository ppa:george-edison55/cmake-3.x
+            sudo apt-get update          
+      - run:
+          name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
+          command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
+      - run:
+          name: install rustup
+          command: curl https://sh.rustup.rs -sSf | sh -s -- -y
+      - run:
+          name: configure rustup path
+          command: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $BASH_ENV 
+      - run:
+          name: configure rustflags
+          command: echo -e '[build]\nrustflags = ["-Ctarget-feature=+aes,+ssse3"]' >> $HOME/.cargo/config
+      - run:
+          name: install rustc
+          command: rustup install stable && rustup install nightly && rustup default stable
+      - restore_cache:
+          keys: 
+            - v1-chain-{{ checksum "Cargo.lock" }}
+            - v1-chain-
+      - run:
+          name: Check formatting
+          command: |
+            rustup component add rustfmt
+            rustfmt --version
+            cargo fmt -- --check --color=auto
+      - run:
+          name: Stable Build
+          command: |
+            rustc --version --verbose
+            cargo --version --verbose
+            cargo build
+      - run:
+          name: Test
+          command: |
+            cargo test
+      - run:
+          name: Check style
+          command: |
+            rustup component add clippy
+            cargo-clippy --version
+            cargo clippy -- -D warnings 
+      - run:
+          name: Nightly Build + coverage
+          command: |
+            rustup run nightly rustc --version --verbose
+            rustup run nightly cargo --version --verbose
+            rustup run nightly cargo build --target-dir ./target/nightly
+            rustup run nightly cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" rustup run nightly cargo install cargo-tarpaulin
+            env CARGO_TARGET_DIR=./target/nightly rustup run nightly cargo tarpaulin
+      - save_cache:
+          key: v1-chain-{{ checksum "Cargo.lock" }}
+          paths:
+            - "~/.cargo"
+            - "./target"
