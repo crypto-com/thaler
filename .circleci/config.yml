@@ -8,7 +8,7 @@ jobs:
       - checkout
       - run:
           name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
-          command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
+          command: sudo apt-get -y install gcc g++ libssl-dev pkg-config file make cmake zlib1g-dev
       - restore_cache:
           keys: 
             - v2-chain-stable-{{ checksum "Cargo.lock" }}
@@ -47,7 +47,7 @@ jobs:
       - checkout
       - run:
           name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
-          command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
+          command: sudo apt-get -y install gcc g++ libssl-dev pkg-config file make cmake zlib1g-dev
       - restore_cache:
           keys: 
             - v2-chain-nightly-{{ checksum "Cargo.lock" }}
