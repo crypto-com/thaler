@@ -65,7 +65,7 @@ jobs:
           - v2-chain-nightly-
       - run:
         name: Install nightly rust
-        run: |
+        command: |
           rustup install nightly
           rustup default nightly
       - run:
