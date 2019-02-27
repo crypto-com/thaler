@@ -6,12 +6,6 @@ jobs:
       - image: circleci/rust:latest
     steps:
       - checkout
-      - run: 
-          name: Add PPA for cmake-3.*
-          command: |
-            sudo apt-get install software-properties-common
-            sudo add-apt-repository --yes ppa:george-edison55/cmake-3.x
-            sudo apt-get update
       - run:
           name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
           command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
@@ -51,12 +45,6 @@ jobs:
       - image: circleci/rust:latest
     steps:
       - checkout
-      - run: 
-          name: Add PPA for cmake-3.*
-          command: |
-            sudo apt-get install software-properties-common
-            sudo add-apt-repository --yes ppa:george-edison55/cmake-3.x
-            sudo apt-get update
       - run:
           name: install cmake (needed for parity rust-snappy) + others (needed for tarpaulin)
           command: sudo apt-get -y install libssl-dev pkg-config cmake zlib1g-dev
