@@ -48,7 +48,7 @@ impl<'de> Deserialize<'de> for TxWitness {
 
         impl<'de> Visitor<'de> for TxWitnessVisitor {
             type Value = TxWitness;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("TX witness")
             }
 
@@ -106,7 +106,7 @@ pub enum TxInWitness {
 }
 
 impl fmt::Display for TxInWitness {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
@@ -148,7 +148,7 @@ impl<'de> Deserialize<'de> for TxInWitness {
         struct TxInWitnessVisitor;
         impl<'de> Visitor<'de> for TxInWitnessVisitor {
             type Value = TxInWitness;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction input witness")
             }
 

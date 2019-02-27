@@ -70,7 +70,7 @@ impl From<secp256k1::Error> for ErrorAddress {
 }
 
 impl fmt::Display for ErrorAddress {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             ErrorAddress::InvalidLength(len) => write!(f, "Invalid length: {}", len),
             ErrorAddress::InvalidHexLength(ref str) => {
@@ -89,7 +89,7 @@ impl error::Error for ErrorAddress {
         "Core error"
     }
 
-    fn cause(&self) -> Option<&error::Error> {
+    fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             ErrorAddress::UnexpectedHexEncoding(ref err) => Some(err),
             ErrorAddress::EcdsaCrypto(ref err) => Some(err),
@@ -163,7 +163,7 @@ impl FromStr for RedeemAddress {
 }
 
 impl fmt::Display for RedeemAddress {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{}", hex::encode(self.0))
     }
 }

@@ -52,8 +52,8 @@ impl ChainNodeApp {
     /// Returns Some(parsed txaux) if OK, or None if some problems (and sets log + error code in the passed in response).
     pub fn validate_tx_req(
         &self,
-        _req: &RequestWithTx,
-        resp: &mut ResponseWithCodeAndLog,
+        _req: &dyn RequestWithTx,
+        resp: &mut dyn ResponseWithCodeAndLog,
     ) -> Option<TxAux> {
         let dtx: error::Result<TxAux> = from_slice(_req.tx());
         match dtx {

@@ -15,7 +15,7 @@ pub struct TxOut {
 }
 
 impl fmt::Display for TxOut {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} -> {}", self.address, self.value)
     }
 }
@@ -60,7 +60,7 @@ impl<'de> Deserialize<'de> for TxOut {
 
         impl<'de> Visitor<'de> for TxOutVisitor {
             type Value = TxOut;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction output")
             }
 

@@ -31,7 +31,7 @@ pub enum Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::Error::*;
         match self {
             WrongChainHexId => write!(f, "chain hex ID does not match"),
@@ -54,7 +54,7 @@ impl fmt::Display for Error {
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
 /// in the TX_META storage.
-pub fn spend_utxos(txaux: &TxAux, db: Arc<KeyValueDB>, dbtx: &mut DBTransaction) {
+pub fn spend_utxos(txaux: &TxAux, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
     let mut updated_txs = BTreeMap::new();
     for txin in txaux.tx.inputs.iter() {
         updated_txs
@@ -71,7 +71,7 @@ pub fn spend_utxos(txaux: &TxAux, db: Arc<KeyValueDB>, dbtx: &mut DBTransaction)
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
 /// in the TX_META storage and it will create a new entry for TX in TX_META with all outputs marked as unspent.
-pub fn update_utxos_commit(txaux: &TxAux, db: Arc<KeyValueDB>, dbtx: &mut DBTransaction) {
+pub fn update_utxos_commit(txaux: &TxAux, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
     spend_utxos(txaux, db, dbtx);
     let txid = txaux.tx.id();
     dbtx.put(
@@ -86,7 +86,7 @@ pub fn update_utxos_commit(txaux: &TxAux, db: Arc<KeyValueDB>, dbtx: &mut DBTran
 pub fn verify(
     txaux: &TxAux,
     chain_hex_id: u8,
-    db: Arc<KeyValueDB>,
+    db: Arc<dyn KeyValueDB>,
     block_time: Timespec,
 ) -> Result<(), Error> {
     // TODO: check other attributes?
@@ -218,11 +218,11 @@ pub mod tests {
         return TxInWitness::BasicRedeem(sign);
     }
 
-    fn create_db() -> Arc<KeyValueDB> {
+    fn create_db() -> Arc<dyn KeyValueDB> {
         Arc::new(create(NUM_COLUMNS.unwrap()))
     }
 
-    fn prepare_app_valid_tx(timelocked: bool) -> (Arc<KeyValueDB>, TxAux, SecretKey) {
+    fn prepare_app_valid_tx(timelocked: bool) -> (Arc<dyn KeyValueDB>, TxAux, SecretKey) {
         let db = create_db();
 
         let mut tx = Tx::new();

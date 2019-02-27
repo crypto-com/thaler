@@ -40,7 +40,7 @@ pub struct Tx {
 }
 
 impl fmt::Display for Tx {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for input in self.inputs.iter() {
             writeln!(f, "-> {}", input)?;
         }
@@ -82,7 +82,7 @@ impl<'de> Deserialize<'de> for Tx {
 
         impl<'de> Visitor<'de> for TxVisitor {
             type Value = Tx;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction data")
             }
 

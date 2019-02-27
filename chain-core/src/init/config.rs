@@ -34,7 +34,7 @@ pub enum DistributionError {
 }
 
 impl fmt::Display for DistributionError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             DistributionError::DistributionCoinError(c) => c.fmt(f),
             DistributionError::DoesNotMatchMaxSupply => write!(

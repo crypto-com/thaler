@@ -29,7 +29,7 @@ use secp256k1::{
 };
 use std::sync::Arc;
 
-fn create_db() -> Arc<KeyValueDB> {
+fn create_db() -> Arc<dyn KeyValueDB> {
     Arc::new(create(NUM_COLUMNS.unwrap()))
 }
 

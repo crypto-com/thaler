@@ -138,7 +138,7 @@ impl ChainNodeApp {
     /// * `gah` - hex-encoded genesis app hash
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `storage_config` - configuration for storage (currently only the path, but TODO: more options, e.g. SSD or HDD params)
-    pub fn new(gah: &str, chain_id: &str, storage_config: &StorageConfig) -> ChainNodeApp {
+    pub fn new(gah: &str, chain_id: &str, storage_config: &StorageConfig<'_>) -> ChainNodeApp {
         ChainNodeApp::new_with_storage(gah, chain_id, Storage::new(storage_config))
     }
 
@@ -176,7 +176,9 @@ impl ChainNodeApp {
                     inittx.put(
                         COL_EXTRA,
                         b"init_chain_consensus_params",
-                        &(cp as &Message).write_to_bytes().expect("consensus params"),
+                        &(cp as &dyn Message)
+                            .write_to_bytes()
+                            .expect("consensus params"),
                     );
                 }
                 None => {
@@ -188,7 +190,7 @@ impl ChainNodeApp {
                     inittx.put(
                         COL_EXTRA,
                         b"init_chain_time",
-                        &(time as &Message).write_to_bytes().expect("time"),
+                        &(time as &dyn Message).write_to_bytes().expect("time"),
                     );
                 }
                 None => {
@@ -200,7 +202,7 @@ impl ChainNodeApp {
                 .validators
                 .iter()
                 .map(|x| {
-                    (x as &Message)
+                    (x as &dyn Message)
                         .write_to_bytes()
                         .expect("genesis validators")
                 })

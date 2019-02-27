@@ -177,7 +177,7 @@ mod tests {
     use serde_cbor::{from_slice, ser::to_vec_packed};
     use std::sync::Arc;
 
-    fn create_db() -> Arc<KeyValueDB> {
+    fn create_db() -> Arc<dyn KeyValueDB> {
         Arc::new(create(NUM_COLUMNS.unwrap()))
     }
 

@@ -43,7 +43,7 @@ impl<'de> Deserialize<'de> for TxAttributes {
 
         impl<'de> Visitor<'de> for TxAttributesVisitor {
             type Value = TxAttributes;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction attributes")
             }
 

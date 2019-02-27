@@ -50,7 +50,7 @@ impl<'de> Deserialize<'de> for TxAccess {
         struct TxAccessVisitor;
         impl<'de> Visitor<'de> for TxAccessVisitor {
             type Value = TxAccess;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction access specification")
             }
 
@@ -123,7 +123,7 @@ impl<'de> Deserialize<'de> for TxAccessPolicy {
 
         impl<'de> Visitor<'de> for TxAccessPolicyVisitor {
             type Value = TxAccessPolicy;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction access policy")
             }
 

@@ -83,7 +83,7 @@ impl<'de> Deserialize<'de> for EcdsaSignature {
 
         impl<'de> Visitor<'de> for EcdsaSignatureVisitor {
             type Value = EcdsaSignature;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("recoverable ECDSA signature")
             }
 

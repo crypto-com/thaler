@@ -14,7 +14,7 @@ pub struct TxoPointer {
 }
 
 impl fmt::Display for TxoPointer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}@{}",
@@ -54,7 +54,7 @@ impl<'de> Deserialize<'de> for TxoPointer {
 
         impl<'de> Visitor<'de> for TxoPointerVisitor {
             type Value = TxoPointer;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("tx input pointer")
             }
 
