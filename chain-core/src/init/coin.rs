@@ -1,5 +1,5 @@
-use common::TypeInfo;
-use init::MAX_COIN;
+use crate::common::TypeInfo;
+use crate::init::MAX_COIN;
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::ser::{Serialize, Serializer};
 use std::{fmt, ops, result};
@@ -205,6 +205,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use quickcheck::quickcheck;
 
     quickcheck! {
         // test a given u32 is always a valid value for a `Coin`

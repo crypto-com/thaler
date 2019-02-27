@@ -1,8 +1,8 @@
-use common::TypeInfo;
+use crate::common::TypeInfo;
+use crate::tx::data::TxId;
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt;
-use tx::data::TxId;
 
 /// Structure used for addressing a specific output of a transaction
 /// built from a TxId (hash of the tx) and the offset in the outputs of this

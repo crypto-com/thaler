@@ -1,8 +1,8 @@
 use super::ChainNodeApp;
+use crate::storage::tx::verify;
 use abci::*;
 use chain_core::tx::TxAux;
 use serde_cbor::{error, from_slice};
-use storage::tx::verify;
 
 /// Wrapper to astract over CheckTx and DeliverTx requests
 pub trait RequestWithTx {
@@ -23,8 +23,8 @@ impl RequestWithTx for RequestDeliverTx {
 
 /// Wrapper to astract over CheckTx and DeliverTx responses
 pub trait ResponseWithCodeAndLog {
-    fn set_code(&mut self, u32);
-    fn add_log(&mut self, &str);
+    fn set_code(&mut self, _: u32);
+    fn add_log(&mut self, _: &str);
 }
 
 impl ResponseWithCodeAndLog for ResponseCheckTx {

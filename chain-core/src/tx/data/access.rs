@@ -1,8 +1,8 @@
-use common::TypeInfo;
+use crate::common::TypeInfo;
+use crate::tx::witness::tree::RawPubkey;
 use serde::de::{Deserialize, Deserializer, EnumAccess, Error, MapAccess, VariantAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt;
-use tx::witness::tree::RawPubkey;
 
 /// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
 #[derive(Debug, PartialEq, Eq, Clone)]

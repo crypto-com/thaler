@@ -1,3 +1,4 @@
+use crate::storage::{COL_BODIES, COL_TX_META};
 use bit_vec::BitVec;
 use chain_core::common::Timespec;
 use chain_core::init::coin::{Coin, CoinError};
@@ -9,7 +10,6 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::{fmt, io};
-use storage::{COL_BODIES, COL_TX_META};
 
 /// All possible TX validation errors
 #[derive(Debug)]
@@ -191,6 +191,7 @@ pub fn verify(
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::storage::{COL_TX_META, NUM_COLUMNS};
     use chain_core::init::address::RedeemAddress;
     use chain_core::tx::data::{address::ExtendedAddr, input::TxoPointer, output::TxOut};
     use chain_core::tx::witness::{redeem::EcdsaSignature, TxInWitness};
@@ -199,7 +200,6 @@ pub mod tests {
     use serde_cbor::ser::to_vec_packed;
     use std::fmt::Debug;
     use std::mem;
-    use storage::{COL_TX_META, NUM_COLUMNS};
 
     pub fn get_tx_witness<C: Signing>(
         secp: Secp256k1<C>,

@@ -1,5 +1,5 @@
-use common::{TypeInfo, HASH_SIZE_256};
-use init::address::RedeemAddressRaw;
+use crate::common::{TypeInfo, HASH_SIZE_256};
+use crate::init::address::RedeemAddressRaw;
 use serde::de::{Deserialize, Deserializer, EnumAccess, Error, VariantAccess, Visitor};
 use serde::ser::{Serialize, Serializer};
 use std::fmt;

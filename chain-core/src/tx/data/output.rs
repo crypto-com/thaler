@@ -1,10 +1,10 @@
-use common::{Timespec, TypeInfo};
-use init::coin::Coin;
+use crate::common::{Timespec, TypeInfo};
+use crate::init::coin::Coin;
+use crate::tx::data::address::ExtendedAddr;
+use crate::tx::data::Tx;
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt;
-use tx::data::address::ExtendedAddr;
-use tx::data::Tx;
 
 /// Tx Output composed of an address and a coin value
 #[derive(Debug, PartialEq, Eq, Clone)]

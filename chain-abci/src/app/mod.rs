@@ -3,11 +3,13 @@ mod commit;
 mod query;
 mod validate_tx;
 
-pub use self::app_init::ChainNodeApp;
 use abci::*;
 use ethbloom::{Bloom, Input};
+use log::info;
 use secp256k1::constants::PUBLIC_KEY_SIZE;
-use storage::tx::spend_utxos;
+
+pub use self::app_init::ChainNodeApp;
+use crate::storage::tx::spend_utxos;
 
 impl abci::Application for ChainNodeApp {
     /// Query Connection: Called on startup from Tendermint.  The application should normally
@@ -147,6 +149,8 @@ impl abci::Application for ChainNodeApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::tx::tests::get_tx_witness;
+    use crate::storage::*;
     use abci::Application;
     use bit_vec::BitVec;
     use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
@@ -172,8 +176,6 @@ mod tests {
     use secp256k1::{key::PublicKey, key::SecretKey, Secp256k1};
     use serde_cbor::{from_slice, ser::to_vec_packed};
     use std::sync::Arc;
-    use storage::tx::tests::get_tx_witness;
-    use storage::*;
 
     fn create_db() -> Arc<KeyValueDB> {
         Arc::new(create(NUM_COLUMNS.unwrap()))

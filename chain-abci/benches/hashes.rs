@@ -1,15 +1,9 @@
-extern crate blake2;
-extern crate chain_core;
-extern crate digest;
-extern crate sha3;
-#[macro_use]
-extern crate criterion;
-
 use chain_core::common::hash256;
 use chain_core::common::merkle::Hash256;
 use chain_core::tx::data::TxId;
 
 use blake2::Blake2s;
+use criterion::{criterion_group, criterion_main};
 use criterion::{Criterion, Fun};
 use digest::Digest;
 use sha3::Sha3_256;

@@ -5,7 +5,7 @@ pub mod witness;
 
 use self::data::Tx;
 use self::witness::TxWitness;
-use common::TypeInfo;
+use crate::common::TypeInfo;
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt;

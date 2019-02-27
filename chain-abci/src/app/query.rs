@@ -1,11 +1,11 @@
 use super::ChainNodeApp;
+use crate::storage::merkle::get_proof;
+use crate::storage::*;
 use abci::*;
 use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
 use serde_cbor::from_slice;
-use storage::merkle::get_proof;
-use storage::*;
 
 impl ChainNodeApp {
     /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).

@@ -9,7 +9,7 @@
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
 
-use common::hash256;
+use crate::common::hash256;
 use hex;
 use secp256k1::{self, key::PublicKey};
 use serde::de::{Deserialize, Deserializer, Error};

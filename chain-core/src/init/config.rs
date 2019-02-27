@@ -1,8 +1,11 @@
-use init::address::RedeemAddress;
-use init::coin::{sum_coins, Coin, CoinError};
-use init::MAX_COIN;
 use std::fmt;
-use tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
+
+use serde::{Deserialize, Serialize};
+
+use crate::init::address::RedeemAddress;
+use crate::init::coin::{sum_coins, Coin, CoinError};
+use crate::init::MAX_COIN;
+use crate::tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
 
 /// Redeem mapping Eth address => CRO tokens
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]

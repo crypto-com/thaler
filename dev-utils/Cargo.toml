@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Experimental package for development purposes (e.g. generation of genesis.json parameters)."
 readme = "../README.md"
+edition = "2018"
 
 [dependencies]
 chain-core = { path = "../chain-core" }

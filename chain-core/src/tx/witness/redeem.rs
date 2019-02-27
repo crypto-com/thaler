@@ -1,4 +1,4 @@
-use common::TypeInfo;
+use crate::common::TypeInfo;
 use serde::de::{Deserialize, Deserializer, Visitor};
 use serde::ser::{Serialize, Serializer};
 use std::fmt;

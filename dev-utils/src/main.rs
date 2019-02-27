@@ -1,6 +1,3 @@
-extern crate chain_core;
-extern crate hex;
-
 use chain_core::common::merkle::MerkleTree;
 use chain_core::init::{
     coin::Coin,

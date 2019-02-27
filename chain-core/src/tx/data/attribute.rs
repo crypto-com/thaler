@@ -1,5 +1,5 @@
-use common::TypeInfo;
-use tx::data::access::TxAccessPolicy;
+use crate::common::TypeInfo;
+use crate::tx::data::access::TxAccessPolicy;
 
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
