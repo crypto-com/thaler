@@ -1,4 +1,5 @@
 version: 2
+
 jobs:
   stable:
     docker: 
@@ -76,7 +77,8 @@ jobs:
             cargo build
       - run:
           name: Install tarpaulin
-          command: cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
+          command: |
+            cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin
       - run:
           name: Run tarpaulim
           command: env CARGO_TARGET_DIR=./target/tarpaulin cargo tarpaulin
@@ -88,5 +90,6 @@ jobs:
 workflows:
   version: 2
   build:
-    - stable
-    - nightly
+    jobs:
+      - stable
+      - nightly
