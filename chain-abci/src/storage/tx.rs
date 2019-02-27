@@ -204,7 +204,7 @@ pub mod tests {
     pub fn get_tx_witness<C: Signing>(
         secp: Secp256k1<C>,
         tx: &Tx,
-        secret_key: SecretKey,
+        secret_key: &SecretKey,
     ) -> TxInWitness {
         let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let sig = secp.sign_recoverable(&message, &secret_key);
@@ -267,7 +267,7 @@ pub mod tests {
             Coin::new(1).unwrap(),
         ));
 
-        let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx, secret_key)];
+        let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx, &secret_key)];
         let txaux = TxAux::new(tx, std::convert::From::from(witness));
         (db, txaux, secret_key)
     }
@@ -350,7 +350,7 @@ pub mod tests {
             txaux.tx.outputs[0].value = Coin::max();
             let outp = txaux.tx.outputs[0].clone();
             txaux.tx.outputs.push(outp);
-            txaux.witness[0] = get_tx_witness(Secp256k1::new(), &txaux.tx, secret_key);
+            txaux.witness[0] = get_tx_witness(Secp256k1::new(), &txaux.tx, &secret_key);
             let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
             expect_error(
                 &result,
@@ -385,7 +385,7 @@ pub mod tests {
             txaux.witness[0] = get_tx_witness(
                 secp.clone(),
                 &txaux.tx,
-                SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
+                &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
             );
             let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
             expect_error(
@@ -402,7 +402,7 @@ pub mod tests {
         {
             let mut txaux = txaux.clone();
             txaux.tx.outputs[0].value = (txaux.tx.outputs[0].value + Coin::unit()).unwrap();
-            txaux.witness[0] = get_tx_witness(Secp256k1::new(), &txaux.tx, secret_key);
+            txaux.witness[0] = get_tx_witness(Secp256k1::new(), &txaux.tx, &secret_key);
             let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
             expect_error(&result, Error::InputOutputDoNotMatch);
         }

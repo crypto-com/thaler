@@ -19,64 +19,49 @@ jobs:
           command: curl https://sh.rustup.rs -sSf | sh -s -- -y
       - run:
           name: configure rustup path
-          command: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $BASH_ENV   
+          command: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $BASH_ENV 
+      - run:
+          name: configure rustflags
+          command: echo -e '[build]\nrustflags = ["-Ctarget-feature=+aes,+ssse3"]' >> $HOME/.cargo/config
       - run:
           name: install rustc
           command: rustup install stable && rustup install nightly && rustup default stable
       - restore_cache:
-          key: project-cache    
+          keys: 
+            - v1-chain-{{ checksum "Cargo.lock" }}
+            - v1-chain-
       - run:
           name: Check formatting
           command: |
-            rustup component add rustfmt-preview
+            rustup component add rustfmt
             rustfmt --version
             cargo fmt -- --check --color=auto
-            cd chain-core
-            cargo fmt -- --check --color=auto
-            cd ..
       - run:
-          name: Stable Build Core
+          name: Stable Build
           command: |
-            cd chain-core
-            rustup run stable rustc --version --verbose
-            rustup run stable cargo --version --verbose
-            rustup run stable cargo build
-            cd ..
+            rustc --version --verbose
+            cargo --version --verbose
+            cargo build
       - run:
-          name: Test Core
+          name: Test
           command: |
-            cd chain-core
-            rustup run stable cargo test
-            cd ..
-      - run:
-          name: Stable Build ABCI App
-          command: |
-            rustup run stable rustc --version --verbose
-            rustup run stable cargo --version --verbose
-            rustup run stable cargo build
-      - run:
-          name: Test ABCI App
-          command: |
-            rustup run stable cargo test
+            cargo test
       - run:
           name: Check style
           command: |
-            rustup component add clippy-preview
+            rustup component add clippy
             cargo-clippy --version
-            cargo clippy -- -D warnings
-            cd chain-core
-            cargo clippy
-            cd ..       
+            cargo clippy -- -D warnings 
       - run:
-          name: Nightly Build ABCI App + coverage
+          name: Nightly Build + coverage
           command: |
             rustup run nightly rustc --version --verbose
             rustup run nightly cargo --version --verbose
-            rustup run nightly cargo build
+            rustup run nightly cargo build --target-dir ./target/nightly
             rustup run nightly cargo tarpaulin --version || RUSTFLAGS="--cfg procmacro2_semver_exempt" rustup run nightly cargo install cargo-tarpaulin
-            rustup run nightly cargo tarpaulin
+            env CARGO_TARGET_DIR=./target/nightly rustup run nightly cargo tarpaulin
       - save_cache:
-          key: project-cache
+          key: v1-chain-{{ checksum "Cargo.lock" }}
           paths:
             - "~/.cargo"
             - "./target"

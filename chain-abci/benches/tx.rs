@@ -2,14 +2,16 @@
 extern crate criterion;
 
 extern crate abci;
+extern crate chain_abci;
 extern crate chain_core;
-extern crate chain_node;
 extern crate kvdb;
 extern crate kvdb_memorydb;
 extern crate protobuf;
 extern crate secp256k1;
 
 use abci::{Application, RequestCheckTx, RequestInitChain};
+use chain_abci::app::ChainNodeApp;
+use chain_abci::storage::{Storage, NUM_COLUMNS};
 use chain_core::common::merkle::MerkleTree;
 use chain_core::init::{
     address::RedeemAddress,
@@ -28,8 +30,6 @@ use chain_core::tx::{
     },
     TxAux,
 };
-use chain_node::app::ChainNodeApp;
-use chain_node::storage::{Storage, NUM_COLUMNS};
 use criterion::Criterion;
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
@@ -48,7 +48,7 @@ const TEST_CHAIN_ID: &str = "test-00";
 pub fn get_tx_witness<C: Signing>(
     secp: &Secp256k1<C>,
     tx: &Tx,
-    secret_key: SecretKey,
+    secret_key: &SecretKey,
 ) -> TxInWitness {
     let message = Message::from_slice(&tx.id()).expect("32 bytes");
     let sig = secp.sign_recoverable(&message, &secret_key);
@@ -100,7 +100,7 @@ fn prepare_app_valid_txs(upper: u8) -> (ChainNodeApp, Vec<TxAux>) {
         .collect();
     let addrs = public_keys
         .iter()
-        .map(|public_key| RedeemAddress::try_from_pk(&public_key))
+        .map(|public_key| RedeemAddress::from(public_key))
         .collect();
     let (app, txids) = init_chain_for(&addrs);
     let mut txs = Vec::new();
@@ -114,7 +114,7 @@ fn prepare_app_valid_txs(upper: u8) -> (ChainNodeApp, Vec<TxAux>) {
         let eaddr = ExtendedAddr::BasicRedeem(addrs[i].0);
         tx.add_input(txp);
         tx.add_output(TxOut::new(eaddr, Coin::unit()));
-        let witness: Vec<TxInWitness> = vec![get_tx_witness(&secp, &tx, secret_keys[i])];
+        let witness: Vec<TxInWitness> = vec![get_tx_witness(&secp, &tx, &secret_keys[i])];
         let txaux = TxAux::new(tx, witness.into());
         txs.push(txaux)
     }

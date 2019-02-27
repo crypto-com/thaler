@@ -6,7 +6,7 @@ use chain_core::init::{
     coin::Coin,
     config::{ERC20Owner, InitConfig},
 };
-use chain_core::tx::data::{attribute::TxAttributes, TxId};
+use chain_core::tx::data::{attribute::TxAttributes, Tx, TxId};
 use std::env;
 
 use hex::encode_upper;
@@ -19,7 +19,7 @@ fn main() {
         let hexid = hex::decode(&args[2]).unwrap()[0];
 
         let utxos = c.generate_utxos(&TxAttributes::new(hexid));
-        let txids: Vec<TxId> = utxos.iter().map(|x| x.id()).collect();
+        let txids: Vec<TxId> = utxos.iter().map(Tx::id).collect();
         let tree = MerkleTree::new(&txids);
         let genesis_app_hash = tree.get_root_hash();
         println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
@@ -27,7 +27,7 @@ fn main() {
             "\"app_state\": {{\"distribution\":[{{\"address\":\"{}\",\"amount\":{} }}]}}",
             c.distribution[0].address, *c.distribution[0].amount
         );
-        println!("");
+        println!();
         println!("first tx: {:?}", utxos[0].id());
     }
 }
