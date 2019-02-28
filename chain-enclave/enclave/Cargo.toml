@@ -1,0 +1,57 @@
+[package]
+name = "tx-validation-enclave"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "The transaction validation enclave."
+readme = "../../README.md"
+edition = "2018"
+
+[lib]
+name = "txvalidationenclave"
+crate-type = ["staticlib"]
+
+[features]
+default = []
+
+[dependencies]
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_types]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_tstd]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_trts]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+# needed?
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_tse]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_tdh]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_tservice]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_alloc]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_tseal]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_rand]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies.sgx_tunittest]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"

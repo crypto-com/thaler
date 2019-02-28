@@ -6,8 +6,18 @@ use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
 use serde_cbor::from_slice;
+use crate::enclave_bridge::EnclaveProxy;
 
-impl ChainNodeApp {
+/// Generate generic ABCI ProofOp for the witness
+fn get_witness_proof_op(witness: &[u8]) -> ProofOp {
+    let mut op = ProofOp::new();
+    op.set_field_type("witness".into());
+    op.set_key(TXID_HASH_ID.to_vec());
+    op.set_data(txid_hash(witness).to_vec());
+    op
+}
+
+impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).
     fn lookup(&self, resp: &mut ResponseQuery, column: Option<u32>, key: &[u8], log_message: &str) {
         let v = self.storage.db.get(column, key);
@@ -20,15 +30,6 @@ impl ChainNodeApp {
                 resp.code = 1;
             }
         }
-    }
-
-    /// Generate generic ABCI ProofOp for the witness
-    fn get_witness_proof_op(witness: &[u8]) -> ProofOp {
-        let mut op = ProofOp::new();
-        op.set_field_type("witness".into());
-        op.set_key(TXID_HASH_ID.to_vec());
-        op.set_data(txid_hash(witness).to_vec());
-        op
     }
 
     /// Responds to query requests -- note that path is hex-encoded in the original request on the client side
@@ -67,7 +68,7 @@ impl ChainNodeApp {
                             let mut txid = [0u8; HASH_SIZE_256];
                             txid.copy_from_slice(&_req.data[..]);
                             let mut proofl = get_proof(&tree, &txid);
-                            proofl.push(ChainNodeApp::get_witness_proof_op(&witness[..]));
+                            proofl.push(get_witness_proof_op(&witness[..]));
                             let mut proof = Proof::new();
                             proof.set_ops(proofl.into());
                             resp.set_proof(proof);

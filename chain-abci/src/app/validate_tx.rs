@@ -3,6 +3,7 @@ use crate::storage::tx::verify;
 use abci::*;
 use chain_core::tx::TxAux;
 use serde_cbor::{error, from_slice};
+use crate::enclave_bridge::EnclaveProxy;
 
 /// Wrapper to astract over CheckTx and DeliverTx requests
 pub trait RequestWithTx {
@@ -47,7 +48,7 @@ impl ResponseWithCodeAndLog for ResponseDeliverTx {
     }
 }
 
-impl ChainNodeApp {
+impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Gets CheckTx or DeliverTx requests, tries to parse its data into TxAux and validate that TxAux.
     /// Returns Some(parsed txaux) if OK, or None if some problems (and sets log + error code in the passed in response).
     pub fn validate_tx_req(

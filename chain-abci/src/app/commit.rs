@@ -6,8 +6,9 @@ use chain_core::common::merkle::MerkleTree;
 use chain_core::tx::data::TxId;
 use integer_encoding::VarInt;
 use serde_cbor::ser::to_vec_packed;
+use crate::enclave_bridge::EnclaveProxy;
 
-impl ChainNodeApp {
+impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Commits delivered TX: flushes updates to the underlying storage
     pub fn commit_handler(&mut self, _req: &RequestCommit) -> ResponseCommit {
         let mut resp = ResponseCommit::new();

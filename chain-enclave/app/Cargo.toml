@@ -1,0 +1,25 @@
+[package]
+name = "tx-validation-app"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Application server wrapper around the transaction validation enclave."
+readme = "../../README.md"
+edition = "2018"
+
+[dependencies]
+abci-enclave-protocol = { path = "../protocol" }
+chain-core = { path = "../../chain-core" }
+zmq = "0.9"
+bincode = "1.1"
+serde = "1.0"
+serde_derive = "1.0"
+hex = "0.3"
+dirs = "1.0.2"
+
+[dependencies.sgx_types]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"
+
+[dependencies.sgx_urts]
+git = "https://github.com/baidu/rust-sgx-sdk.git"
+rev = "v1.0.6"

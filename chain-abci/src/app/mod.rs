@@ -10,8 +10,9 @@ use secp256k1::constants::PUBLIC_KEY_SIZE;
 
 pub use self::app_init::ChainNodeApp;
 use crate::storage::tx::spend_utxos;
+use crate::enclave_bridge::EnclaveProxy;
 
-impl abci::Application for ChainNodeApp {
+impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     /// Query Connection: Called on startup from Tendermint.  The application should normally
     /// return the last know state so Tendermint can determine if it needs to replay blocks
     /// to the application.

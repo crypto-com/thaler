@@ -1,0 +1,3 @@
+[submodule "chain-enclave/sdk"]
+	path = chain-enclave/sdk
+	url = git@github.com:baidu/rust-sgx-sdk.git

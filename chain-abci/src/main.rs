@@ -1,19 +1,28 @@
 mod app;
 mod storage;
+mod enclave_bridge;
 
 use clap::load_yaml;
 use clap::App;
 use log::info;
 use std::net::SocketAddr;
+use zmq::{Socket, Context, REQ, Error};
 
 use crate::app::ChainNodeApp;
 use crate::storage::*;
+use crate::enclave_bridge::ZmqEnclaveClient;
 
 fn main() {
     // TODO
     env_logger::init();
     let yaml = load_yaml!("../cli.yml");
     let matches = App::from_yaml(yaml).get_matches();
+    let mut ctx = Context::new();
+    let socket = ctx.socket(REQ).expect("failed to init zmq context");
+    let enclave_conn = matches.value_of("enclave_server").unwrap_or("tcp://127.0.0.1:25933");
+    socket.connect(enclave_conn).expect("failed to connect to enclave zmq wrapper");
+    let proxy = ZmqEnclaveClient::new(socket);
+
     let data = matches.value_of("data").unwrap_or(".cro-storage/");
     let port = matches.value_of("port").unwrap_or("26658");
     let host = matches.value_of("host").unwrap_or("127.0.0.1");
@@ -25,6 +34,7 @@ fn main() {
     abci::run(
         addr,
         ChainNodeApp::new(
+            proxy,
             &genesis_app_hash,
             &chain_id,
             &StorageConfig { db_path: data },
