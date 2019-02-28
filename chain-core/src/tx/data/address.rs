@@ -1,5 +1,5 @@
-use common::{TypeInfo, HASH_SIZE_256};
-use init::address::RedeemAddressRaw;
+use crate::common::{TypeInfo, HASH_SIZE_256};
+use crate::init::address::RedeemAddressRaw;
 use serde::de::{Deserialize, Deserializer, EnumAccess, Error, VariantAccess, Visitor};
 use serde::ser::{Serialize, Serializer};
 use std::fmt;
@@ -16,7 +16,7 @@ pub enum ExtendedAddr {
 }
 
 impl fmt::Display for ExtendedAddr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ExtendedAddr::BasicRedeem(addr) => write!(f, "0x{}", hex::encode(addr)),
             ExtendedAddr::OrTree(hash) => write!(f, "TODO (base58) 0x{}", hex::encode(hash)),
@@ -58,7 +58,7 @@ impl<'de> Deserialize<'de> for ExtendedAddr {
         struct ExtendedAddrVisitor;
         impl<'de> Visitor<'de> for ExtendedAddrVisitor {
             type Value = ExtendedAddr;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("extended address")
             }
 

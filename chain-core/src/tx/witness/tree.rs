@@ -1,4 +1,4 @@
-use common::HASH_SIZE_256;
+use crate::common::HASH_SIZE_256;
 use secp256k1::constants::{COMPACT_SIGNATURE_SIZE, PUBLIC_KEY_SIZE};
 use secp256k1::{key::PublicKey, schnorrsig::SchnorrSignature};
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
@@ -61,7 +61,7 @@ impl<'de> Deserialize<'de> for MerklePath {
         struct MerklePathVisitor;
         impl<'de> Visitor<'de> for MerklePathVisitor {
             type Value = MerklePath;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("merkle path type")
             }
 

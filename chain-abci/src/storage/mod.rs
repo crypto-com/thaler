@@ -37,18 +37,18 @@ pub struct StorageConfig<'a> {
 /// Storage wrapper -- currently only holds the reference to KV DB.
 /// It may hold caches or other look ups (TODO: reconsider whether necessary and if db could be moved up to App)
 pub struct Storage {
-    pub db: Arc<KeyValueDB>,
+    pub db: Arc<dyn KeyValueDB>,
 }
 
 impl Storage {
     /// initializes Storage with a provided reference to KV DB (used in testing / benches -- in-mem KVDB)
     #[allow(dead_code)]
-    pub fn new_db(db: Arc<KeyValueDB>) -> Self {
+    pub fn new_db(db: Arc<dyn KeyValueDB>) -> Self {
         Storage { db }
     }
 
     /// inititalizes Storage based on the provided config
-    pub fn new(config: &StorageConfig) -> Self {
+    pub fn new(config: &StorageConfig<'_>) -> Self {
         let db = Arc::new(
             kvdb_rocksdb::Database::open(
                 &kvdb_rocksdb::DatabaseConfig::with_columns(NUM_COLUMNS),

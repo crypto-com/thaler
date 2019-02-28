@@ -1,11 +1,11 @@
 use super::ChainNodeApp;
+use crate::storage::tx::update_utxos_commit;
+use crate::storage::*;
 use abci::*;
 use chain_core::common::merkle::MerkleTree;
 use chain_core::tx::data::TxId;
 use integer_encoding::VarInt;
 use serde_cbor::ser::to_vec_packed;
-use storage::tx::update_utxos_commit;
-use storage::*;
 
 impl ChainNodeApp {
     /// Commits delivered TX: flushes updates to the underlying storage

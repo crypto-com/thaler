@@ -9,14 +9,14 @@ pub mod input;
 /// Transaction outputs (amount to an address)
 pub mod output;
 
+use crate::common::{hash256, TypeInfo, HASH_SIZE_256};
+use crate::init::coin::{sum_coins, Coin, CoinError};
+use crate::tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
 use blake2::Blake2s;
-use common::{hash256, TypeInfo, HASH_SIZE_256};
-use init::coin::{sum_coins, Coin, CoinError};
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use serde_cbor::ser::to_vec_packed;
 use std::fmt;
-use tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
 
 /// Calculates hash of the input data -- if CBOR-serialized TX is passed in, it's equivalent to TxId.
 /// Currently, it uses blake2s.
@@ -40,7 +40,7 @@ pub struct Tx {
 }
 
 impl fmt::Display for Tx {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for input in self.inputs.iter() {
             writeln!(f, "-> {}", input)?;
         }
@@ -82,7 +82,7 @@ impl<'de> Deserialize<'de> for Tx {
 
         impl<'de> Visitor<'de> for TxVisitor {
             type Value = Tx;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction data")
             }
 

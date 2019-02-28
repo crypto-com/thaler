@@ -3,8 +3,14 @@ pub mod redeem;
 /// Witness for Merklized Abstract Syntax Trees (MAST) + Schnorr
 pub mod tree;
 
-use common::TypeInfo;
-use init::address::RedeemAddress;
+use crate::common::TypeInfo;
+use crate::init::address::RedeemAddress;
+use crate::tx::data::address::ExtendedAddr;
+use crate::tx::data::{txid_hash, Tx};
+use crate::tx::witness::{
+    redeem::EcdsaSignature,
+    tree::{MerklePath, ProofOp, RawPubkey, RawSignature},
+};
 use secp256k1::{
     self, constants::PUBLIC_KEY_SIZE, key::PublicKey, schnorrsig::schnorr_verify,
     schnorrsig::SchnorrSignature, Message, RecoverableSignature, RecoveryId, Secp256k1,
@@ -12,12 +18,6 @@ use secp256k1::{
 use serde::de::{Deserialize, Deserializer, EnumAccess, Error, VariantAccess, Visitor};
 use serde::ser::{Serialize, Serializer};
 use std::fmt;
-use tx::data::address::ExtendedAddr;
-use tx::data::{txid_hash, Tx};
-use tx::witness::{
-    redeem::EcdsaSignature,
-    tree::{MerklePath, ProofOp, RawPubkey, RawSignature},
-};
 
 /// A transaction witness is a vector of input witnesses
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
@@ -48,7 +48,7 @@ impl<'de> Deserialize<'de> for TxWitness {
 
         impl<'de> Visitor<'de> for TxWitnessVisitor {
             type Value = TxWitness;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("TX witness")
             }
 
@@ -106,7 +106,7 @@ pub enum TxInWitness {
 }
 
 impl fmt::Display for TxInWitness {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
@@ -148,7 +148,7 @@ impl<'de> Deserialize<'de> for TxInWitness {
         struct TxInWitnessVisitor;
         impl<'de> Visitor<'de> for TxInWitnessVisitor {
             type Value = TxInWitness;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction input witness")
             }
 
@@ -250,8 +250,10 @@ impl TxInWitness {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use common::merkle::MerkleTree;
-    use common::HASH_SIZE_256;
+    use crate::common::merkle::MerkleTree;
+    use crate::common::HASH_SIZE_256;
+    use crate::tx::data::txid_hash;
+    use crate::tx::witness::tree::{pk_to_raw, sig_to_raw, MerklePath};
     use secp256k1::{
         key::pubkey_combine,
         key::PublicKey,
@@ -260,8 +262,6 @@ pub mod tests {
         schnorrsig::{schnorr_sign, SchnorrSignature},
         Message, Secp256k1, Signing, Verification,
     };
-    use tx::data::txid_hash;
-    use tx::witness::tree::{pk_to_raw, sig_to_raw, MerklePath};
 
     pub fn get_ecdsa_witness<C: Signing>(
         secp: &Secp256k1<C>,

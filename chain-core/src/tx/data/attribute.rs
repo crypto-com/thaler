@@ -1,5 +1,5 @@
-use common::TypeInfo;
-use tx::data::access::TxAccessPolicy;
+use crate::common::TypeInfo;
+use crate::tx::data::access::TxAccessPolicy;
 
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
@@ -43,7 +43,7 @@ impl<'de> Deserialize<'de> for TxAttributes {
 
         impl<'de> Visitor<'de> for TxAttributesVisitor {
             type Value = TxAttributes;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction attributes")
             }
 

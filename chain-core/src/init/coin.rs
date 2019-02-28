@@ -1,5 +1,5 @@
-use common::TypeInfo;
-use init::MAX_COIN;
+use crate::common::TypeInfo;
+use crate::init::MAX_COIN;
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::ser::{Serialize, Serializer};
 use std::{fmt, ops, result};
@@ -22,7 +22,7 @@ pub enum CoinError {
 }
 
 impl fmt::Display for CoinError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             CoinError::OutOfBound(ref v) => write!(
                 f,
@@ -73,7 +73,7 @@ impl ::std::ops::Deref for Coin {
 }
 
 impl fmt::Display for Coin {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // 8 decimals
         write!(f, "{}.{:08}", self.0 / 100_000_000, self.0 % 100_000_000)
     }
@@ -173,7 +173,7 @@ impl<'de> Deserialize<'de> for Coin {
 
         impl<'de> Visitor<'de> for CoinVisitor {
             type Value = Coin;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("the coin amount in a range (0..total supply]")
             }
 
@@ -205,6 +205,7 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use quickcheck::quickcheck;
 
     quickcheck! {
         // test a given u32 is always a valid value for a `Coin`

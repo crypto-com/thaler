@@ -1,8 +1,8 @@
-use common::TypeInfo;
+use crate::common::TypeInfo;
+use crate::tx::witness::tree::RawPubkey;
 use serde::de::{Deserialize, Deserializer, EnumAccess, Error, MapAccess, VariantAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt;
-use tx::witness::tree::RawPubkey;
 
 /// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -50,7 +50,7 @@ impl<'de> Deserialize<'de> for TxAccess {
         struct TxAccessVisitor;
         impl<'de> Visitor<'de> for TxAccessVisitor {
             type Value = TxAccess;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction access specification")
             }
 
@@ -123,7 +123,7 @@ impl<'de> Deserialize<'de> for TxAccessPolicy {
 
         impl<'de> Visitor<'de> for TxAccessPolicyVisitor {
             type Value = TxAccessPolicy;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("transaction access policy")
             }
 

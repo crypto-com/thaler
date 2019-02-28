@@ -1,14 +1,3 @@
-#[macro_use]
-extern crate criterion;
-
-extern crate abci;
-extern crate chain_abci;
-extern crate chain_core;
-extern crate kvdb;
-extern crate kvdb_memorydb;
-extern crate protobuf;
-extern crate secp256k1;
-
 use abci::{Application, RequestCheckTx, RequestInitChain};
 use chain_abci::app::ChainNodeApp;
 use chain_abci::storage::{Storage, NUM_COLUMNS};
@@ -31,6 +20,7 @@ use chain_core::tx::{
     TxAux,
 };
 use criterion::Criterion;
+use criterion::{criterion_group, criterion_main};
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
 use secp256k1::{
@@ -39,7 +29,7 @@ use secp256k1::{
 };
 use std::sync::Arc;
 
-fn create_db() -> Arc<KeyValueDB> {
+fn create_db() -> Arc<dyn KeyValueDB> {
     Arc::new(create(NUM_COLUMNS.unwrap()))
 }
 

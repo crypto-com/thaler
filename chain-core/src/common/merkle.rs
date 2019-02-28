@@ -1,5 +1,7 @@
-use common::HASH_SIZE_256;
-use tx::data::{txid_hash, TxId};
+use serde::{Deserialize, Serialize};
+
+use crate::common::HASH_SIZE_256;
+use crate::tx::data::{txid_hash, TxId};
 
 /// hash digest
 // TODO: opaque types?

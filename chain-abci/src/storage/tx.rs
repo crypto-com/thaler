@@ -1,3 +1,4 @@
+use crate::storage::{COL_BODIES, COL_TX_META};
 use bit_vec::BitVec;
 use chain_core::common::Timespec;
 use chain_core::init::coin::{Coin, CoinError};
@@ -9,7 +10,6 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::{fmt, io};
-use storage::{COL_BODIES, COL_TX_META};
 
 /// All possible TX validation errors
 #[derive(Debug)]
@@ -31,7 +31,7 @@ pub enum Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::Error::*;
         match self {
             WrongChainHexId => write!(f, "chain hex ID does not match"),
@@ -54,7 +54,7 @@ impl fmt::Display for Error {
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
 /// in the TX_META storage.
-pub fn spend_utxos(txaux: &TxAux, db: Arc<KeyValueDB>, dbtx: &mut DBTransaction) {
+pub fn spend_utxos(txaux: &TxAux, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
     let mut updated_txs = BTreeMap::new();
     for txin in txaux.tx.inputs.iter() {
         updated_txs
@@ -71,7 +71,7 @@ pub fn spend_utxos(txaux: &TxAux, db: Arc<KeyValueDB>, dbtx: &mut DBTransaction)
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
 /// in the TX_META storage and it will create a new entry for TX in TX_META with all outputs marked as unspent.
-pub fn update_utxos_commit(txaux: &TxAux, db: Arc<KeyValueDB>, dbtx: &mut DBTransaction) {
+pub fn update_utxos_commit(txaux: &TxAux, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
     spend_utxos(txaux, db, dbtx);
     let txid = txaux.tx.id();
     dbtx.put(
@@ -86,7 +86,7 @@ pub fn update_utxos_commit(txaux: &TxAux, db: Arc<KeyValueDB>, dbtx: &mut DBTran
 pub fn verify(
     txaux: &TxAux,
     chain_hex_id: u8,
-    db: Arc<KeyValueDB>,
+    db: Arc<dyn KeyValueDB>,
     block_time: Timespec,
 ) -> Result<(), Error> {
     // TODO: check other attributes?
@@ -191,6 +191,7 @@ pub fn verify(
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::storage::{COL_TX_META, NUM_COLUMNS};
     use chain_core::init::address::RedeemAddress;
     use chain_core::tx::data::{address::ExtendedAddr, input::TxoPointer, output::TxOut};
     use chain_core::tx::witness::{redeem::EcdsaSignature, TxInWitness};
@@ -199,7 +200,6 @@ pub mod tests {
     use serde_cbor::ser::to_vec_packed;
     use std::fmt::Debug;
     use std::mem;
-    use storage::{COL_TX_META, NUM_COLUMNS};
 
     pub fn get_tx_witness<C: Signing>(
         secp: Secp256k1<C>,
@@ -218,11 +218,11 @@ pub mod tests {
         return TxInWitness::BasicRedeem(sign);
     }
 
-    fn create_db() -> Arc<KeyValueDB> {
+    fn create_db() -> Arc<dyn KeyValueDB> {
         Arc::new(create(NUM_COLUMNS.unwrap()))
     }
 
-    fn prepare_app_valid_tx(timelocked: bool) -> (Arc<KeyValueDB>, TxAux, SecretKey) {
+    fn prepare_app_valid_tx(timelocked: bool) -> (Arc<dyn KeyValueDB>, TxAux, SecretKey) {
         let db = create_db();
 
         let mut tx = Tx::new();

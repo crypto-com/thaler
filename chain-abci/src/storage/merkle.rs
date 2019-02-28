@@ -74,6 +74,7 @@ mod test {
     use super::*;
     use chain_core::common::HASH_SIZE_256;
     use chain_core::tx::data::txid_hash;
+    use quickcheck::quickcheck;
 
     fn from_proof_op(op: &ProofOp) -> Option<MerklePath> {
         let key = op.key[0] as u8;

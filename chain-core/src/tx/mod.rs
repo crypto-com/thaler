@@ -5,7 +5,7 @@ pub mod witness;
 
 use self::data::Tx;
 use self::witness::TxWitness;
-use common::TypeInfo;
+use crate::common::TypeInfo;
 use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 use std::fmt;
@@ -25,7 +25,7 @@ impl TxAux {
 }
 
 impl fmt::Display for TxAux {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Tx:\n{}", self.tx)?;
         writeln!(f, "witnesses: {:?}\n", self.witness)
     }
@@ -61,7 +61,7 @@ impl<'de> Deserialize<'de> for TxAux {
 
         impl<'de> Visitor<'de> for TxAuxVisitor {
             type Value = TxAux;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("TX auxiliary structure")
             }
 

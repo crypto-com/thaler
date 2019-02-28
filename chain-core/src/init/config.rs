@@ -1,8 +1,11 @@
-use init::address::RedeemAddress;
-use init::coin::{sum_coins, Coin, CoinError};
-use init::MAX_COIN;
 use std::fmt;
-use tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
+
+use serde::{Deserialize, Serialize};
+
+use crate::init::address::RedeemAddress;
+use crate::init::coin::{sum_coins, Coin, CoinError};
+use crate::init::MAX_COIN;
+use crate::tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
 
 /// Redeem mapping Eth address => CRO tokens
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -31,7 +34,7 @@ pub enum DistributionError {
 }
 
 impl fmt::Display for DistributionError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             DistributionError::DistributionCoinError(c) => c.fmt(f),
             DistributionError::DoesNotMatchMaxSupply => write!(

@@ -4,14 +4,14 @@ version = "0.1.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Library with core types and serialization for the use in external tools"
 readme = "../README.md"
+edition = "2018"
 
 [dependencies]
 digest = "0.8"
 sha3 = "0.8"
 hex = "0.3"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "540cf449b16b4ee4874e9e211a50595e4141d67e" }
-serde = "1.0"
-serde_derive = "1.0"
+serde = { version = "1.0", features = ["derive"] }
 blake2 = "0.8"
 serde_cbor = "0.9"
 serde_json = "1.0"

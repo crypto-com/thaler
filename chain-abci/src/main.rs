@@ -1,34 +1,13 @@
 mod app;
 mod storage;
 
-extern crate abci;
-extern crate bit_vec;
-#[macro_use]
-extern crate log;
-extern crate blake2;
-extern crate chain_core;
-extern crate env_logger;
-extern crate ethbloom;
-extern crate hex;
-extern crate integer_encoding;
-extern crate kvdb;
-extern crate kvdb_rocksdb;
-extern crate protobuf;
-extern crate secp256k1;
-extern crate serde;
-extern crate serde_cbor;
-extern crate serde_json;
-#[macro_use]
-extern crate clap;
-extern crate kvdb_memorydb;
-#[cfg(test)]
-#[macro_use]
-extern crate quickcheck;
-
-use app::ChainNodeApp;
+use clap::load_yaml;
 use clap::App;
+use log::info;
 use std::net::SocketAddr;
-use storage::*;
+
+use crate::app::ChainNodeApp;
+use crate::storage::*;
 
 fn main() {
     // TODO
