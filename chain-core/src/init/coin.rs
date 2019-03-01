@@ -1,10 +1,14 @@
+//! # Value with associated properties (e.g. min/max bounds)
+//! adapted from https://github.com/input-output-hk/rust-cardano (Cardano Rust)
+//! Copyright (c) 2018, Input Output HK (licensed under the MIT License)
+//! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
+
 use crate::common::TypeInfo;
 use crate::init::MAX_COIN;
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::ser::{Serialize, Serializer};
 use std::{fmt, ops, result};
 
-// adapted from rust-cardano
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub struct Coin(u64);
 
