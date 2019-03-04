@@ -1,4 +1,6 @@
-use failure::Error;
+use std::str::FromStr;
+
+use failure::{format_err, Error};
 use hex::encode;
 use rand::rngs::OsRng;
 use rand::Rng;
@@ -11,19 +13,31 @@ use secp256k1::{
 };
 use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
-use structopt::clap::{_clap_count_exprs, arg_enum};
+use unicase::eq_ascii;
 use zeroize::Zeroize;
 
 use chain_core::tx::witness::redeem::EcdsaSignature;
 use chain_core::tx::witness::tree::{pk_to_raw, sig_to_raw};
 use chain_core::tx::witness::TxInWitness;
 
-arg_enum! {
-    /// Different address types
-    #[derive(Debug)]
-    pub enum AddressType {
-        Spend,
-        View,
+/// Different address types
+#[derive(Debug)]
+pub enum AddressType {
+    Spend,
+    View,
+}
+
+impl FromStr for AddressType {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if eq_ascii("spend", s) {
+            Ok(AddressType::Spend)
+        } else if eq_ascii("view", s) {
+            Ok(AddressType::View)
+        } else {
+            Err(format_err!("Invalid address type"))
+        }
     }
 }
 
@@ -53,7 +67,6 @@ impl Secrets {
         let secp = Secp256k1::new();
 
         let spend = SecretKey::from_slice(&random_32_bytes(&mut rand))?;
-
         let view = SecretKey::from_slice(&random_32_bytes(&mut rand))?;
 
         Ok(Secrets { secp, spend, view })
