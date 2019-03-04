@@ -1,4 +1,5 @@
 use super::ChainNodeApp;
+use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::tx::update_utxos_commit;
 use crate::storage::*;
 use abci::*;
@@ -7,7 +8,7 @@ use chain_core::tx::data::TxId;
 use integer_encoding::VarInt;
 use serde_cbor::ser::to_vec_packed;
 
-impl ChainNodeApp {
+impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Commits delivered TX: flushes updates to the underlying storage
     pub fn commit_handler(&mut self, _req: &RequestCommit) -> ResponseCommit {
         let mut resp = ResponseCommit::new();

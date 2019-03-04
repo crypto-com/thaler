@@ -1,4 +1,6 @@
+use crate::enclave_bridge::EnclaveProxy;
 use abci::*;
+use abci_enclave_protocol::{SubAbciRequest, SubAbciResponse};
 use bit_vec::BitVec;
 use chain_core::common::merkle::MerkleTree;
 use chain_core::common::Timespec;
@@ -17,7 +19,7 @@ use serde_cbor::ser::to_vec_packed;
 use crate::storage::*;
 
 /// The global ABCI state
-pub struct ChainNodeApp {
+pub struct ChainNodeApp<T: EnclaveProxy> {
     /// the underlying key-value storage (+ possibly some info in the future)
     pub storage: Storage,
     /// last processed block height
@@ -36,9 +38,10 @@ pub struct ChainNodeApp {
     pub chain_hex_id: u8,
     /// time in previous block's header or genesis time
     pub block_time: Option<Timespec>,
+    pub tx_validator: T,
 }
 
-impl ChainNodeApp {
+impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Creates a new App initialized with a given storage (could be in-mem or persistent).
     /// If persistent storage is used, it'll try to recove stored arguments (e.g. last app hash / block height) from it.
     ///
@@ -47,12 +50,27 @@ impl ChainNodeApp {
     /// * `gah` - hex-encoded genesis app hash
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `storage` - underlying storage to be used (in-mem or persistent)
-    pub fn new_with_storage(gah: &str, chain_id: &str, storage: Storage) -> Self {
+    pub fn new_with_storage(
+        mut tx_validator: T,
+        gah: &str,
+        chain_id: &str,
+        storage: Storage,
+    ) -> Self {
         let decoded_gah = decode(gah).expect("failed to decode genesis app hash");
         let mut genesis_app_hash = [0u8; HASH_SIZE_256];
         genesis_app_hash.copy_from_slice(&decoded_gah[..]);
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
+
+        let enc_hex_id = tx_validator.process_request(SubAbciRequest::InitChain(chain_hex_id));
+        match enc_hex_id {
+            SubAbciResponse::InitChain(true) => {
+                println!("init success");
+            }
+            _ => {
+                panic!("init failed");
+            }
+        }
 
         let last_app_hash = storage.db.get(COL_NODE_INFO, LAST_APP_HASH_KEY).unwrap();
 
@@ -76,6 +94,7 @@ impl ChainNodeApp {
                 chain_hex_id,
                 genesis_app_hash,
                 block_time: None,
+                tx_validator,
             }
         } else {
             info!("last app hash stored");
@@ -127,6 +146,7 @@ impl ChainNodeApp {
                 chain_hex_id,
                 genesis_app_hash,
                 block_time,
+                tx_validator,
             }
         }
     }
@@ -138,8 +158,13 @@ impl ChainNodeApp {
     /// * `gah` - hex-encoded genesis app hash
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `storage_config` - configuration for storage (currently only the path, but TODO: more options, e.g. SSD or HDD params)
-    pub fn new(gah: &str, chain_id: &str, storage_config: &StorageConfig<'_>) -> ChainNodeApp {
-        ChainNodeApp::new_with_storage(gah, chain_id, Storage::new(storage_config))
+    pub fn new(
+        tx_validator: T,
+        gah: &str,
+        chain_id: &str,
+        storage_config: &StorageConfig<'_>,
+    ) -> Self {
+        ChainNodeApp::new_with_storage(tx_validator, gah, chain_id, Storage::new(storage_config))
     }
 
     /// Handles InitChain requests:

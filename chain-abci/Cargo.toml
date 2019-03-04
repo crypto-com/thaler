@@ -8,7 +8,9 @@ edition = "2018"
 
 [dependencies]
 abci = "0.4.3"
+abci-enclave-protocol = { path = "../chain-enclave/protocol" }
 chain-core = { path = "../chain-core" }
+bincode = "1.1"
 log = "0.4.0"
 env_logger = "0.6.0"
 bit-vec = "0.5.0"

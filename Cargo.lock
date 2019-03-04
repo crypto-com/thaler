@@ -14,6 +14,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "abci-enclave-protocol"
+version = "0.1.0"
+dependencies = [
+ "bincode 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "integer-encoding 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "aesni"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -180,6 +190,8 @@ name = "chain-abci"
 version = "0.0.1"
 dependencies = [
  "abci 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "abci-enclave-protocol 0.1.0",
+ "bincode 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.1.0",
@@ -1533,6 +1545,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.38 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "tx-validation-enclave-app"
+version = "0.1.0"
+dependencies = [
+ "abci-enclave-protocol 0.1.0",
+ "bincode 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "integer-encoding 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
+ "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

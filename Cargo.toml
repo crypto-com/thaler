@@ -4,5 +4,6 @@ members = [
     "chain-abci",
     "chain-core",
     "signer",
-    "dev-utils"
+    "dev-utils",
+    "chain-enclave/enclave-app"
 ]
