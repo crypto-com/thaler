@@ -47,11 +47,9 @@
 
 pub(crate) mod commands;
 pub(crate) mod constants;
-pub(crate) mod secrets;
 pub(crate) mod signer;
 
 use constants::*;
-use secrets::{AddressType, Secrets};
 use signer::Signer;
 
 use failure::{Error, ResultExt};

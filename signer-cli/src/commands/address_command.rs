@@ -9,7 +9,7 @@ use sled::Db;
 use structopt::StructOpt;
 use zeroize::Zeroize;
 
-use crate::{AddressType, Secrets};
+use signer_core::{AddressType, Secrets};
 
 /// Nonce size in bytes
 pub const NONCE_SIZE: usize = 8;
@@ -29,16 +29,7 @@ pub enum AddressCommand {
     Get {
         #[structopt(name = "name", short, long, help = "Name of address")]
         name: String,
-        #[structopt(
-            name = "type",
-            short,
-            long,
-            help = "Type of address",
-            raw(
-                possible_values = "&AddressType::variants()",
-                case_insensitive = "true"
-            )
-        )]
+        #[structopt(name = "type", short, long, help = "Type of address (spend or view)")]
         address_type: Option<AddressType>,
     },
     /// Used to list all previously generated address names
