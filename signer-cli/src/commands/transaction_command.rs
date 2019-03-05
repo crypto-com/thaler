@@ -1,9 +1,7 @@
 use failure::{format_err, Error, ResultExt};
 use hex::{decode, encode};
 use quest::{ask, choose, success, text, yesno};
-use secp256k1::Message;
 use serde_cbor::ser::to_vec_packed;
-use sled::Db;
 use structopt::StructOpt;
 
 use chain_core::common::{Timespec, HASH_SIZE_256};
@@ -14,11 +12,10 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
-use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::TxAux;
+use signer_core::{get_transaction_witnesses, SecretsService, SignatureType};
 
 use crate::commands::AddressCommand;
-use crate::Secrets;
 
 /// Enum used to specify different subcommands under transaction command.
 /// Refer to main documentation for more details.
@@ -39,20 +36,13 @@ pub enum TransactionCommand {
     },
 }
 
-/// Enum specifying different signature types
-#[derive(Debug)]
-enum SignatureType {
-    ECDSA,
-    Schnorr,
-}
-
 impl TransactionCommand {
     /// Executes current transaction command
-    pub fn execute(&self, address_storage: &Db) -> Result<(), Error> {
+    pub fn execute(&self, service: &SecretsService) -> Result<(), Error> {
         use TransactionCommand::*;
 
         match self {
-            Generate { chain_id, name } => Self::generate(chain_id, name, address_storage),
+            Generate { chain_id, name } => Self::generate(chain_id, name, service),
         }
     }
 
@@ -93,28 +83,6 @@ impl TransactionCommand {
             addr.copy_from_slice(&address);
             Ok(ExtendedAddr::OrTree(addr))
         }
-    }
-
-    /// Returns transaction witnesses after signing
-    fn get_transaction_witnesses(
-        transaction: &Tx,
-        secrets: &Secrets,
-        required_signature_types: &[SignatureType],
-    ) -> Result<TxWitness, Error> {
-        let message = Message::from_slice(&transaction.id())?;
-
-        let ecdsa_signature = secrets.get_ecdsa_signature(&message)?;
-        let schnorr_signature = secrets.get_schnorr_signature(&message)?;
-
-        let witnesses: Vec<TxInWitness> = required_signature_types
-            .iter()
-            .map(|x| match x {
-                SignatureType::ECDSA => ecdsa_signature.clone(),
-                SignatureType::Schnorr => schnorr_signature.clone(),
-            })
-            .collect();
-
-        Ok(witnesses.into())
     }
 
     /// Takes transaction inputs from user
@@ -200,8 +168,8 @@ impl TransactionCommand {
     }
 
     /// Generates new transaction
-    fn generate(chain_id: &str, name: &str, address_storage: &Db) -> Result<(), Error> {
-        let secrets = AddressCommand::get_secrets(name, address_storage)?;
+    fn generate(chain_id: &str, name: &str, service: &SecretsService) -> Result<(), Error> {
+        let secrets = AddressCommand::get_secrets(name, service)?;
 
         let mut transaction = Tx::new();
         transaction.attributes = TxAttributes::new(decode(chain_id)?[0]);
@@ -211,7 +179,7 @@ impl TransactionCommand {
         Self::ask_transaction_outputs(&mut transaction)?;
 
         let witnesses =
-            Self::get_transaction_witnesses(&transaction, &secrets, &required_signature_types)?;
+            get_transaction_witnesses(&transaction, &secrets, &required_signature_types)?;
 
         let txa = TxAux::new(transaction, witnesses);
 

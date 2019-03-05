@@ -3,7 +3,8 @@
 members = [
     "chain-abci",
     "chain-core",
-    "signer",
     "dev-utils",
-    "chain-enclave/enclave-app"
+    "chain-enclave/enclave-app",
+    "signer-core",
+    "signer-cli",
 ]
