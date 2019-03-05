@@ -46,17 +46,15 @@
 //!
 
 pub(crate) mod commands;
-pub(crate) mod constants;
 pub(crate) mod signer;
 
-use constants::*;
 use signer::Signer;
 
-use failure::{Error, ResultExt};
+use failure::Error;
 use quest::error;
-use sled::ConfigBuilder;
-use sled::Db;
 use structopt::StructOpt;
+
+use signer_core::SecretsService;
 
 fn main() {
     if let Err(err) = execute() {
@@ -65,13 +63,8 @@ fn main() {
 }
 
 fn execute() -> Result<(), Error> {
-    let address_storage = Db::start(
-        ConfigBuilder::new()
-            .path(STORAGE_PATH.to_owned() + SECRETS_STORAGE_PATH)
-            .build(),
-    )
-    .context("Not able to initialize secrets storage")?;
+    let service = SecretsService::new()?;
 
     let signer = Signer::from_args();
-    signer.execute(&address_storage)
+    signer.execute(&service)
 }
