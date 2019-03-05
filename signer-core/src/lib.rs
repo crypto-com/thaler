@@ -1,6 +1,11 @@
 mod secrets;
+mod storage;
+mod constants;
+mod secrets_service;
 
 pub use secrets::{AddressType, Secrets};
+pub use storage::Storage;
+pub use secrets_service::SecretsService;
 
 use failure::Error;
 use secp256k1::Message;

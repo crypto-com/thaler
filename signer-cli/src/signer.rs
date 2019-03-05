@@ -1,6 +1,7 @@
 use failure::Error;
-use sled::Db;
 use structopt::StructOpt;
+
+use signer_core::SecretsService;
 
 use super::commands::AddressCommand;
 use super::commands::TransactionCommand;
@@ -28,14 +29,14 @@ pub enum Signer {
 
 impl Signer {
     /// Executes the current command
-    pub fn execute(&self, address_storage: &Db) -> Result<(), Error> {
+    pub fn execute(&self, service: &SecretsService) -> Result<(), Error> {
         use Signer::*;
 
         match self {
-            Address { address_command } => address_command.execute(address_storage),
+            Address { address_command } => address_command.execute(service),
             Transaction {
                 transaction_command,
-            } => transaction_command.execute(address_storage),
+            } => transaction_command.execute(service),
         }
     }
 }

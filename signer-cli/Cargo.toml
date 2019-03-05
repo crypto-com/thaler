@@ -8,13 +8,7 @@ edition = "2018"
 chain-core = { path = "../chain-core/" }
 signer-core = { path = "../signer-core/" }
 structopt = "0.2"
-sled = "0.18"
-blake2 = "0.8"
 failure = "0.1"
 quest = "0.3"
 serde_cbor = "0.9"
-miscreant = "^0.4.2"
-rand = "0.6"
-zeroize = "0.5"
-bincode = "1.1"
 hex = "0.3"
