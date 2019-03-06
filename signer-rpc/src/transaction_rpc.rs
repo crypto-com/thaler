@@ -7,6 +7,7 @@ use jsonrpc_derive::rpc;
 use jsonrpc_http_server::jsonrpc_core;
 use serde::{Deserialize, Serialize};
 use serde_cbor::ser::to_vec_packed;
+use zeroize::Zeroize;
 
 use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
@@ -44,7 +45,7 @@ impl TransactionRpcImpl {
 impl TransactionRpc for TransactionRpcImpl {
     fn generate_transaction(
         &self,
-        request: TransactionRequest,
+        mut request: TransactionRequest,
     ) -> jsonrpc_core::Result<TransactionResponse> {
         let secrets = self
             .service
@@ -55,6 +56,8 @@ impl TransactionRpc for TransactionRpcImpl {
 
         let witnesses = get_transaction_witnesses(&transaction, &secrets, &request.signature_types)
             .map_err(to_rpc_error)?;
+
+        request.passphrase.zeroize();
 
         let txa = TxAux::new(transaction, witnesses);
 

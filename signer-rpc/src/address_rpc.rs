@@ -3,6 +3,7 @@ use std::sync::Arc;
 use jsonrpc_derive::rpc;
 use jsonrpc_http_server::jsonrpc_core;
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
 
 use signer_core::{AddressType, SecretsService};
 
@@ -36,11 +37,13 @@ impl AddressRpc for AddressRpcImpl {
         }
     }
 
-    fn get_address(&self, request: AddressRequest) -> jsonrpc_core::Result<AddressResponse> {
+    fn get_address(&self, mut request: AddressRequest) -> jsonrpc_core::Result<AddressResponse> {
         let secrets = self
             .service
             .get(&request.name, &request.passphrase)
             .map_err(to_rpc_error)?;
+
+        request.passphrase.zeroize();
 
         let response = AddressResponse {
             spend: secrets
