@@ -34,9 +34,7 @@ impl Storage {
     }
 
     pub fn get(&self, name: &str, passphrase: &str) -> Result<Secrets, Error> {
-        let key = serialize(name).context("Unable to serialize key")?;
-
-        match self.0.get(key).context("Unable to connect to storage")? {
+        match self.0.get(name).context("Unable to connect to storage")? {
             None => Err(format_err!("No address found with name: {}!", name)),
             Some(value) => {
                 let nonce_index = value.len() - NONCE_SIZE;
@@ -79,7 +77,7 @@ impl Storage {
             cipher.extend(&nonce[..]);
 
             self.0
-                .set(serialize(name).context("Unable to serialize name")?, cipher)
+                .set(name, cipher)
                 .context("Unable to store secrets")?;
             Ok(())
         }
@@ -89,8 +87,7 @@ impl Storage {
         let keys = self.0.iter().keys();
 
         keys.map(|key| -> Result<String, Error> {
-            Ok(deserialize(&key.context("Pagecache error")?)
-                .context("Unable to deserialize key")?)
+            Ok(String::from_utf8(key.context("Pagecache error")?)?)
         })
         .collect()
     }
