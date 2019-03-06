@@ -51,15 +51,12 @@ pub fn read_bincode<T: DeserializeOwned>(stream: &mut Read) -> Option<T> {
     let length = read_varint(stream);
     if let Ok(amount) = length {
         let mut buf = vec![0; amount as usize];
-        println!("53");
         // TODO: refactor
         return match stream.read_exact(&mut buf) {
             Ok(_) => {
-                println!("57");
                 if let Ok(request) = deserialize(&buf[..]) {
                     Some(request)
                 } else {
-                    println!("61");
                     None
                 }
             }

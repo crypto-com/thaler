@@ -5,8 +5,9 @@ authors = ["Crypto.com <chain@crypto.com>"]
 description = "Application server wrapper with the transaction validation enclave."
 readme = "../../README.md"
 edition = "2018"
-	
+
 [dependencies]
+abci-enclave-macro = { path = "../enclave-macro" }
 abci-enclave-protocol = { path = "../protocol" }
 integer-encoding = "1.0.5"
 bincode = "1.1"

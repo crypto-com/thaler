@@ -1,0 +1,10 @@
+[package]
+name = "abci-enclave-macro"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "A small collection of proc macros"
+readme = "../../README.md"
+edition = "2018"
+
+[lib]
+proc-macro = true

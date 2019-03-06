@@ -14,6 +14,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "abci-enclave-macro"
+version = "0.1.0"
+
+[[package]]
 name = "abci-enclave-protocol"
 version = "0.1.0"
 dependencies = [
@@ -1562,6 +1566,7 @@ dependencies = [
 name = "tx-validation-enclave-app"
 version = "0.1.0"
 dependencies = [
+ "abci-enclave-macro 0.1.0",
  "abci-enclave-protocol 0.1.0",
  "bincode 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "integer-encoding 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",

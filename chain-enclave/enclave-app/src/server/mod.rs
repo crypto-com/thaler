@@ -1,12 +1,13 @@
 use abci_enclave_protocol::{read_bincode, send_bincode, SubAbciRequest, SubAbciResponse};
 use std::io::{self, Write};
 use std::net::TcpStream;
+use abci_enclave_macro::get_network_id;
 
-const TESTNET_HEX_ID: u8 = 0xab;
+const NETWORK_ID: u8 = get_network_id!();
 
 fn respond(request: SubAbciRequest, stream: &mut Write) -> io::Result<()> {
     let resp = match request {
-        SubAbciRequest::InitChain(chain_hex_id) if chain_hex_id == TESTNET_HEX_ID => {
+        SubAbciRequest::InitChain(chain_hex_id) if chain_hex_id == NETWORK_ID => {
             SubAbciResponse::InitChain(true)
         }
         SubAbciRequest::InitChain(_) => SubAbciResponse::InitChain(false),
