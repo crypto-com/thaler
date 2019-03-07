@@ -13,7 +13,9 @@ use std::{fmt, ops, result};
 pub struct Coin(u64);
 
 /// error type relating to `Coin` operations
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(
+    Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, serde::Serialize, serde::Deserialize,
+)]
 pub enum CoinError {
     /// means that the given value was out of bound
     ///

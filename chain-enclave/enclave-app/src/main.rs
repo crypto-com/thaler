@@ -1,8 +1,8 @@
 #![feature(proc_macro_hygiene)]
 
+use std::env;
 use std::io;
 use std::net::TcpListener;
-use std::env;
 mod server;
 
 fn main() -> io::Result<()> {

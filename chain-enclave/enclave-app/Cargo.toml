@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 abci-enclave-macro = { path = "../enclave-macro" }
 abci-enclave-protocol = { path = "../protocol" }
+chain-core = { path = "../../chain-core" }
 integer-encoding = "1.0.5"
 bincode = "1.1"
 serde = "1.0"

@@ -1,5 +1,7 @@
 use crate::common::HASH_SIZE_256;
+#[cfg(not(target_env = "sgx"))]
 use secp256k1::constants::{COMPACT_SIGNATURE_SIZE, PUBLIC_KEY_SIZE};
+#[cfg(not(target_env = "sgx"))]
 use secp256k1::{key::PublicKey, schnorrsig::SchnorrSignature};
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::ser::{Serialize, Serializer};
@@ -9,14 +11,17 @@ use std::fmt;
 /// an alternative is to use `[serde-big-array](https://crates.io/crates/serde-big-array)`
 /// TODO: revisit when transaction format is more stabilized
 /// TODO: custom serializers + eq etc. impls
-pub type RawPubkey = (u8, [u8; PUBLIC_KEY_SIZE - 1]);
+//pub type RawPubkey = (u8, [u8; PUBLIC_KEY_SIZE - 1]);
+pub type RawPubkey = (u8, [u8; 33 - 1]);
 /// TODO: custom serializers + eq etc. impls
-pub type RawSignature = (
-    [u8; COMPACT_SIGNATURE_SIZE / 2],
-    [u8; COMPACT_SIGNATURE_SIZE / 2],
-);
+pub type RawSignature = ([u8; 64 / 2], [u8; 64 / 2]);
+// pub type RawSignature = (
+//     [u8; COMPACT_SIGNATURE_SIZE / 2],
+//     [u8; COMPACT_SIGNATURE_SIZE / 2],
+// );
 
 /// conversion for custom wrappers
+#[cfg(not(target_env = "sgx"))]
 pub fn pk_to_raw(pk: PublicKey) -> RawPubkey {
     let compressed = &pk.serialize();
     let mut r = [0; 32];
@@ -25,6 +30,7 @@ pub fn pk_to_raw(pk: PublicKey) -> RawPubkey {
 }
 
 /// conversion for custom wrappers
+#[cfg(not(target_env = "sgx"))]
 pub fn sig_to_raw(sig: SchnorrSignature) -> RawSignature {
     let compressed = &sig.serialize_default();
     let mut r1 = [0; 32];

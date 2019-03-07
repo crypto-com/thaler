@@ -2,21 +2,61 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 use bincode::{deserialize, serialize_into, serialized_size};
+use chain_core::init::coin::{Coin, CoinError};
+use chain_core::tx::TxAux;
 use integer_encoding::VarInt;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::io::{self, Read, Write};
+
+/// All possible TX validation errors
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Error {
+    WrongChainHexId,
+    NoInputs,
+    NoOutputs,
+    DuplicateInputs,
+    ZeroCoin,
+    InvalidSum(CoinError),
+    UnexpectedWitnesses,
+    MissingWitnesses,
+    InvalidInput,
+    InputSpent,
+    InputOutputDoNotMatch,
+    OutputInTimelock,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use self::Error::*;
+        match self {
+            WrongChainHexId => write!(f, "chain hex ID does not match"),
+            DuplicateInputs => write!(f, "duplicated inputs"),
+            UnexpectedWitnesses => write!(f, "transaction has more witnesses than inputs"),
+            MissingWitnesses => write!(f, "transaction has more inputs than witnesses"),
+            NoInputs => write!(f, "transaction has no inputs"),
+            NoOutputs => write!(f, "transaction has no outputs"),
+            ZeroCoin => write!(f, "output with no credited value"),
+            InvalidSum(ref err) => write!(f, "input or output sum error: {}", err),
+            InvalidInput => write!(f, "transaction spends an invalid input"),
+            InputSpent => write!(f, "transaction spends an input that was already spent"),
+            InputOutputDoNotMatch => write!(f, "transaction input output coin sums don't match"),
+            OutputInTimelock => write!(f, "output transaction is in timelock"),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SubAbciRequest {
     InitChain(u8),
-    // VerifyTX(TxAux)
+    BasicVerifyTX(TxAux),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SubAbciResponse {
     InitChain(bool),
-    // VerifyTX(TxAux)
+    BasicVerifyTX(Result<Coin, Error>),
 }
 
 /// Parse out the varint. This code was adapted from the excellent integer-encoding crate

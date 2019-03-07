@@ -14,6 +14,7 @@
 
 use crate::common::hash256;
 use hex;
+#[cfg(not(target_env = "sgx"))]
 use secp256k1::{self, key::PublicKey};
 use serde::de::{Deserialize, Deserializer, Error};
 use serde::ser::{Serialize, Serializer};
@@ -57,6 +58,7 @@ pub enum ErrorAddress {
     UnexpectedHexEncoding(hex::FromHexError),
 
     /// ECDSA crypto error
+    #[cfg(not(target_env = "sgx"))]
     EcdsaCrypto(secp256k1::Error),
 }
 
@@ -66,6 +68,7 @@ impl From<hex::FromHexError> for ErrorAddress {
     }
 }
 
+#[cfg(not(target_env = "sgx"))]
 impl From<secp256k1::Error> for ErrorAddress {
     fn from(err: secp256k1::Error) -> Self {
         ErrorAddress::EcdsaCrypto(err)
@@ -82,6 +85,7 @@ impl fmt::Display for ErrorAddress {
             ErrorAddress::UnexpectedHexEncoding(ref err) => {
                 write!(f, "Unexpected hexadecimal encoding: {}", err)
             }
+            #[cfg(not(target_env = "sgx"))]
             ErrorAddress::EcdsaCrypto(ref err) => write!(f, "ECDSA crypto error: {}", err),
         }
     }
@@ -95,6 +99,7 @@ impl error::Error for ErrorAddress {
     fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             ErrorAddress::UnexpectedHexEncoding(ref err) => Some(err),
+            #[cfg(not(target_env = "sgx"))]
             ErrorAddress::EcdsaCrypto(ref err) => Some(err),
             _ => None,
         }
@@ -134,6 +139,7 @@ impl ops::Deref for RedeemAddress {
     }
 }
 
+#[cfg(not(target_env = "sgx"))]
 impl From<&PublicKey> for RedeemAddress {
     fn from(pk: &PublicKey) -> Self {
         let hash = keccak256(&pk.serialize_uncompressed()[1..]);

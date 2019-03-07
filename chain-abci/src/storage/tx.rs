@@ -7,21 +7,13 @@ use kvdb::{DBTransaction, KeyValueDB};
 use secp256k1;
 use serde_cbor::from_slice;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::{fmt, io};
 
 /// All possible TX validation errors
 #[derive(Debug)]
 pub enum Error {
-    WrongChainHexId,
-    NoInputs,
-    NoOutputs,
-    DuplicateInputs,
-    ZeroCoin,
     InvalidSum(CoinError),
-    UnexpectedWitnesses,
-    MissingWitnesses,
     InvalidInput,
     InputSpent,
     InputOutputDoNotMatch,
@@ -34,13 +26,6 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::Error::*;
         match self {
-            WrongChainHexId => write!(f, "chain hex ID does not match"),
-            DuplicateInputs => write!(f, "duplicated inputs"),
-            UnexpectedWitnesses => write!(f, "transaction has more witnesses than inputs"),
-            MissingWitnesses => write!(f, "transaction has more inputs than witnesses"),
-            NoInputs => write!(f, "transaction has no inputs"),
-            NoOutputs => write!(f, "transaction has no outputs"),
-            ZeroCoin => write!(f, "output with no credited value"),
             InvalidSum(ref err) => write!(f, "input or output sum error: {}", err),
             InvalidInput => write!(f, "transaction spends an invalid input"),
             InputSpent => write!(f, "transaction spends an input that was already spent"),
@@ -83,52 +68,12 @@ pub fn update_utxos_commit(txaux: &TxAux, db: Arc<dyn KeyValueDB>, dbtx: &mut DB
 
 /// Checks TX against the current DB and returns an `Error` if something fails.
 /// TODO: when more address/sigs available, check Redeem addresses are never in outputs?
-pub fn verify(
+pub fn verify_with_storage(
     txaux: &TxAux,
-    chain_hex_id: u8,
+    outcoins: Coin,
     db: Arc<dyn KeyValueDB>,
     block_time: Timespec,
 ) -> Result<(), Error> {
-    // TODO: check other attributes?
-    // check that chain IDs match
-    if chain_hex_id != txaux.tx.attributes.chain_hex_id {
-        return Err(Error::WrongChainHexId);
-    }
-    // check that there are inputs
-    if txaux.tx.inputs.is_empty() {
-        return Err(Error::NoInputs);
-    }
-
-    // check that there are outputs
-    if txaux.tx.outputs.is_empty() {
-        return Err(Error::NoOutputs);
-    }
-
-    // check that there are no duplicate inputs
-    let mut inputs = BTreeSet::new();
-    if !txaux.tx.inputs.iter().all(|x| inputs.insert(x)) {
-        return Err(Error::DuplicateInputs);
-    }
-
-    // check that all outputs have a non-zero amount
-    if !txaux.tx.outputs.iter().all(|x| x.value > Coin::zero()) {
-        return Err(Error::ZeroCoin);
-    }
-
-    // Note: we don't need to check against MAX_COIN because Coin's
-    // constructor should already do it.
-
-    // TODO: check address attributes?
-
-    // verify transaction witnesses
-    if txaux.tx.inputs.len() < txaux.witness.len() {
-        return Err(Error::UnexpectedWitnesses);
-    }
-
-    if txaux.tx.inputs.len() > txaux.witness.len() {
-        return Err(Error::MissingWitnesses);
-    }
-
     let mut incoins = Coin::zero();
 
     // verify that txids of inputs correspond to the owner/signer
@@ -177,11 +122,6 @@ pub fn verify(
     }
     // check sum(input amounts) == sum(output amounts)
     // TODO: do we allow "burn"? i.e. sum(input amounts) >= sum(output amounts)
-    let outsum = txaux.tx.get_output_total();
-    if outsum.is_err() {
-        return Err(Error::InvalidSum(outsum.unwrap_err()));
-    }
-    let outcoins = outsum.unwrap();
     if incoins != outcoins {
         return Err(Error::InputOutputDoNotMatch);
     }

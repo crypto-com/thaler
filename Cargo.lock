@@ -22,6 +22,7 @@ name = "abci-enclave-protocol"
 version = "0.1.0"
 dependencies = [
  "bincode 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "chain-core 0.1.0",
  "integer-encoding 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1568,6 +1569,7 @@ dependencies = [
  "abci-enclave-macro 0.1.0",
  "abci-enclave-protocol 0.1.0",
  "bincode 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "chain-core 0.1.0",
  "integer-encoding 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.88 (registry+https://github.com/rust-lang/crates.io-index)",

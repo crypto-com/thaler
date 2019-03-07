@@ -11,6 +11,7 @@ use crate::tx::witness::{
     redeem::EcdsaSignature,
     tree::{MerklePath, ProofOp, RawPubkey, RawSignature},
 };
+#[cfg(not(target_env = "sgx"))]
 use secp256k1::{
     self, constants::PUBLIC_KEY_SIZE, key::PublicKey, schnorrsig::schnorr_verify,
     schnorrsig::SchnorrSignature, Message, RecoverableSignature, RecoveryId, Secp256k1,
@@ -186,6 +187,7 @@ impl TxInWitness {
     /// and the signature against the given transation `Tx`
     /// TODO: capture possible errors in enum
     ///
+    #[cfg(not(target_env = "sgx"))]
     pub fn verify_tx_address(
         &self,
         tx: &Tx,
