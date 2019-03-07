@@ -7,4 +7,5 @@ members = [
     "chain-enclave/enclave-app",
     "signer-core",
     "signer-cli",
+    "signer-rpc"
 ]

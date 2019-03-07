@@ -4,16 +4,17 @@ use quest::{ask, choose, success, text, yesno};
 use serde_cbor::ser::to_vec_packed;
 use structopt::StructOpt;
 
-use chain_core::common::{Timespec, HASH_SIZE_256};
-use chain_core::init::address::REDEEM_ADDRESS_BYTES;
+use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
-use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::{Tx, TxId};
+use chain_core::tx::data::Tx;
 use chain_core::tx::TxAux;
-use signer_core::{get_transaction_witnesses, SecretsService, SignatureType};
+use signer_core::{
+    get_transaction_witnesses, verify_redeem_address, verify_transaction_id, verify_tree_address,
+    SecretsService, SignatureType,
+};
 
 use crate::commands::AddressCommand;
 
@@ -46,45 +47,6 @@ impl TransactionCommand {
         }
     }
 
-    /// Verifies the transaction id
-    fn verify_transaction_id(transaction_id: String) -> Result<TxId, Error> {
-        let transaction_id = decode(&transaction_id)?;
-
-        if HASH_SIZE_256 != transaction_id.len() {
-            Err(format_err!("Invalid transaction id"))
-        } else {
-            let mut new_transaction_id: TxId = [0; HASH_SIZE_256];
-            new_transaction_id.copy_from_slice(&transaction_id);
-            Ok(new_transaction_id)
-        }
-    }
-
-    /// Verifies redeem address
-    fn verify_redeem_address(address: String) -> Result<ExtendedAddr, Error> {
-        let address = decode(&address)?;
-
-        if REDEEM_ADDRESS_BYTES != address.len() {
-            Err(format_err!("Invalid redeem address"))
-        } else {
-            let mut addr = [0; REDEEM_ADDRESS_BYTES];
-            addr.copy_from_slice(&address);
-            Ok(ExtendedAddr::BasicRedeem(addr))
-        }
-    }
-
-    /// Verifies tree address
-    fn verify_tree_address(address: String) -> Result<ExtendedAddr, Error> {
-        let address = decode(&address)?;
-
-        if HASH_SIZE_256 != address.len() {
-            Err(format_err!("Invalid tree address"))
-        } else {
-            let mut addr = [0; HASH_SIZE_256];
-            addr.copy_from_slice(&address);
-            Ok(ExtendedAddr::OrTree(addr))
-        }
-    }
-
     /// Takes transaction inputs from user
     fn ask_transaction_inputs(transaction: &mut Tx) -> Result<Vec<SignatureType>, Error> {
         let mut flag = true;
@@ -94,7 +56,7 @@ impl TransactionCommand {
 
         while flag {
             ask("Enter input transaction ID: ");
-            let transaction_id = Self::verify_transaction_id(text()?)?;
+            let transaction_id = verify_transaction_id(text()?)?;
 
             ask("Enter index: ");
             let index = text()?
@@ -136,8 +98,8 @@ impl TransactionCommand {
 
             ask("Address type: \n");
             let address = match address_types[choose(Default::default(), address_types)?] {
-                "Redeem" => Self::verify_redeem_address(address)?,
-                "Tree" => Self::verify_tree_address(address)?,
+                "Redeem" => verify_redeem_address(address)?,
+                "Tree" => verify_tree_address(address)?,
                 _ => unreachable!(),
             };
 

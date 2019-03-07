@@ -1,0 +1,18 @@
+[package]
+name = "signer-rpc"
+version = "0.1.0"
+authors = ["Devashish Dixit <devashish@crypto.com>"]
+edition = "2018"
+
+[dependencies]
+chain-core = { path = "../chain-core/" }
+signer-core = { path = "../signer-core/" }
+serde = { version = "1.0", features = ["derive"] }
+jsonrpc-http-server = "10.1"
+jsonrpc-derive = "10.1"
+structopt = "0.2"
+failure = "0.1"
+quest = "0.3"
+serde_cbor = "0.9"
+hex = "0.3"
+zeroize = "0.5"

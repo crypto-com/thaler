@@ -3,7 +3,6 @@ use std::str::FromStr;
 use failure::{format_err, Error};
 use hex::encode;
 use rand::rngs::OsRng;
-use rand::Rng;
 use secp256k1::{
     key::pubkey_combine,
     key::PublicKey,
@@ -51,22 +50,13 @@ pub struct Secrets {
     view: SecretKey,
 }
 
-/// Currently, secp256k1 isn't compiled with "rand" feature,
-/// as it uses an older "rand" crate, hence this helper function
-/// TODO: upgrade secp256k1's rand + code using it?
-fn random_32_bytes<R: Rng>(rng: &mut R) -> [u8; 32] {
-    let mut ret = [0u8; 32];
-    rng.fill_bytes(&mut ret);
-    ret
-}
-
 impl Secrets {
     /// Generates random spend and view secret keys
     pub fn generate() -> Result<Secrets, Error> {
         let mut rand = OsRng::new()?;
 
-        let spend = SecretKey::from_slice(&random_32_bytes(&mut rand))?;
-        let view = SecretKey::from_slice(&random_32_bytes(&mut rand))?;
+        let spend = SecretKey::new(&mut rand);
+        let view = SecretKey::new(&mut rand);
 
         Ok(Secrets { spend, view })
     }
@@ -121,8 +111,8 @@ impl Secrets {
         let view_public_key = self.get_public_key(View)?;
         let mut rand = OsRng::new()?;
 
-        let session_id1 = MuSigSessionID::from_slice(&random_32_bytes(&mut rand))?;
-        let session_id2 = MuSigSessionID::from_slice(&random_32_bytes(&mut rand))?;
+        let session_id1 = MuSigSessionID::new(&mut rand);
+        let session_id2 = MuSigSessionID::new(&mut rand);
 
         SECP.with(|secp| -> Result<TxInWitness, Error> {
             let (combined_pk, pk_hash) =

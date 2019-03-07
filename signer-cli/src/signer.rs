@@ -9,8 +9,8 @@ use super::commands::TransactionCommand;
 /// Enum used to specify subcommands under signer
 #[derive(Debug, StructOpt)]
 #[structopt(
-    name = "signer",
-    about = "Basic tool for secret management (using enclaves in the future), possibly TX generation and signing"
+    name = "signer-cli",
+    about = "Basic CLI tool for secret management (using enclaves in the future), possibly TX generation and signing"
 )]
 pub enum Signer {
     /// Used for address management

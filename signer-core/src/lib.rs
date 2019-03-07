@@ -7,16 +7,23 @@ pub use secrets::{AddressType, Secrets};
 pub use secrets_service::SecretsService;
 pub use storage::Storage;
 
-use failure::Error;
+use failure::{format_err, Error};
+use hex::decode;
 use secp256k1::Message;
+use serde::{Deserialize, Serialize};
 
-use chain_core::tx::data::Tx;
+use chain_core::common::HASH_SIZE_256;
+use chain_core::init::address::REDEEM_ADDRESS_BYTES;
+use chain_core::tx::data::address::ExtendedAddr;
+use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 
 /// Enum specifying different signature types
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum SignatureType {
+    #[serde(alias = "ecdsa")]
     ECDSA,
+    #[serde(alias = "schnorr")]
     Schnorr,
 }
 
@@ -40,4 +47,43 @@ pub fn get_transaction_witnesses(
         .collect();
 
     Ok(witnesses.into())
+}
+
+/// Verifies the transaction id
+pub fn verify_transaction_id(transaction_id: String) -> Result<TxId, Error> {
+    let transaction_id = decode(&transaction_id)?;
+
+    if HASH_SIZE_256 != transaction_id.len() {
+        Err(format_err!("Invalid transaction id"))
+    } else {
+        let mut new_transaction_id: TxId = [0; HASH_SIZE_256];
+        new_transaction_id.copy_from_slice(&transaction_id);
+        Ok(new_transaction_id)
+    }
+}
+
+/// Verifies redeem address
+pub fn verify_redeem_address(address: String) -> Result<ExtendedAddr, Error> {
+    let address = decode(&address)?;
+
+    if REDEEM_ADDRESS_BYTES != address.len() {
+        Err(format_err!("Invalid redeem address"))
+    } else {
+        let mut addr = [0; REDEEM_ADDRESS_BYTES];
+        addr.copy_from_slice(&address);
+        Ok(ExtendedAddr::BasicRedeem(addr))
+    }
+}
+
+/// Verifies tree address
+pub fn verify_tree_address(address: String) -> Result<ExtendedAddr, Error> {
+    let address = decode(&address)?;
+
+    if HASH_SIZE_256 != address.len() {
+        Err(format_err!("Invalid tree address"))
+    } else {
+        let mut addr = [0; HASH_SIZE_256];
+        addr.copy_from_slice(&address);
+        Ok(ExtendedAddr::OrTree(addr))
+    }
 }
