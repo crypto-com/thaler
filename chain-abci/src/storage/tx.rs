@@ -1,24 +1,19 @@
 use crate::storage::{COL_BODIES, COL_TX_META};
 use bit_vec::BitVec;
-use chain_core::common::Timespec;
-use chain_core::init::coin::{Coin, CoinError};
 use chain_core::tx::{data::Tx, TxAux};
 use kvdb::{DBTransaction, KeyValueDB};
-use secp256k1;
 use serde_cbor::from_slice;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::{fmt, io};
 
 /// All possible TX validation errors
 #[derive(Debug)]
 pub enum Error {
-    InvalidSum(CoinError),
     InvalidInput,
     InputSpent,
-    InputOutputDoNotMatch,
-    OutputInTimelock,
-    EcdsaCrypto(secp256k1::Error),
+    NoInputs,
+    DuplicateInputs,
     IoError(io::Error),
 }
 
@@ -26,12 +21,10 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::Error::*;
         match self {
-            InvalidSum(ref err) => write!(f, "input or output sum error: {}", err),
             InvalidInput => write!(f, "transaction spends an invalid input"),
+            NoInputs => write!(f, "transaction has no inputs"),
+            DuplicateInputs => write!(f, "duplicated inputs"),
             InputSpent => write!(f, "transaction spends an input that was already spent"),
-            InputOutputDoNotMatch => write!(f, "transaction input output coin sums don't match"),
-            OutputInTimelock => write!(f, "output transaction is in timelock"),
-            EcdsaCrypto(ref err) => write!(f, "ECDSA crypto error: {}", err),
             IoError(ref err) => write!(f, "IO error: {}", err),
         }
     }
@@ -66,19 +59,23 @@ pub fn update_utxos_commit(txaux: &TxAux, db: Arc<dyn KeyValueDB>, dbtx: &mut DB
     );
 }
 
-/// Checks TX against the current DB and returns an `Error` if something fails.
-/// TODO: when more address/sigs available, check Redeem addresses are never in outputs?
-pub fn verify_with_storage(
+pub fn basic_verify_collect_inputs(
     txaux: &TxAux,
-    outcoins: Coin,
     db: Arc<dyn KeyValueDB>,
-    block_time: Timespec,
-) -> Result<(), Error> {
-    let mut incoins = Coin::zero();
+) -> Result<Vec<Tx>, Error> {
+    // check that there are inputs
+    if txaux.tx.inputs.is_empty() {
+        return Err(Error::NoInputs);
+    }
 
-    // verify that txids of inputs correspond to the owner/signer
-    // and it'd check they are not spent
-    for (txin, in_witness) in txaux.tx.inputs.iter().zip(txaux.witness.iter()) {
+    // check that there are no duplicate inputs
+    let mut inputs = BTreeSet::new();
+    if !txaux.tx.inputs.iter().all(|x| inputs.insert(x)) {
+        return Err(Error::DuplicateInputs);
+    }
+    let mut result: Vec<Tx> = Vec::with_capacity(txaux.tx.inputs.len());
+    // check inputs are not spent and look up corresponding transactions
+    for txin in txaux.tx.inputs.iter() {
         let txo = db.get(COL_TX_META, &txin.id[..]);
         match txo {
             Ok(Some(v)) => {
@@ -89,28 +86,8 @@ pub fn verify_with_storage(
                 if bv.unwrap() {
                     return Err(Error::InputSpent);
                 }
-                let tx: Tx =
-                    from_slice(&db.get(COL_BODIES, &txin.id[..]).unwrap().unwrap()).unwrap();
-                if txin.index >= tx.outputs.len() {
-                    return Err(Error::InvalidInput);
-                }
-                let txout = &tx.outputs[txin.index];
-                if let Some(valid_from) = txout.valid_from {
-                    if valid_from > block_time {
-                        return Err(Error::OutputInTimelock);
-                    }
-                }
-
-                let wv = in_witness.verify_tx_address(&txaux.tx, &txout.address);
-                if wv.is_err() {
-                    return Err(Error::EcdsaCrypto(wv.unwrap_err()));
-                }
-                let sum = incoins + txout.value;
-                if sum.is_err() {
-                    return Err(Error::InvalidSum(sum.unwrap_err()));
-                } else {
-                    incoins = sum.unwrap();
-                }
+                result
+                    .push(from_slice(&db.get(COL_BODIES, &txin.id[..]).unwrap().unwrap()).unwrap());
             }
             Ok(None) => {
                 return Err(Error::InvalidInput);
@@ -120,12 +97,7 @@ pub fn verify_with_storage(
             }
         }
     }
-    // check sum(input amounts) == sum(output amounts)
-    // TODO: do we allow "burn"? i.e. sum(input amounts) >= sum(output amounts)
-    if incoins != outcoins {
-        return Err(Error::InputOutputDoNotMatch);
-    }
-    Ok(())
+    Ok(result)
 }
 
 #[cfg(test)]

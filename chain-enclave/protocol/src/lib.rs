@@ -2,8 +2,9 @@ extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 use bincode::{deserialize, serialize_into, serialized_size};
+use chain_core::common::Timespec;
 use chain_core::init::coin::{Coin, CoinError};
-use chain_core::tx::TxAux;
+use chain_core::tx::{data::Tx, TxAux};
 use integer_encoding::VarInt;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -19,12 +20,12 @@ pub enum Error {
     DuplicateInputs,
     ZeroCoin,
     InvalidSum(CoinError),
-    UnexpectedWitnesses,
-    MissingWitnesses,
     InvalidInput,
-    InputSpent,
     InputOutputDoNotMatch,
     OutputInTimelock,
+    UnexpectedWitnesses,
+    MissingWitnesses,
+    WitnessVerificationFailed,
 }
 
 impl fmt::Display for Error {
@@ -40,9 +41,9 @@ impl fmt::Display for Error {
             ZeroCoin => write!(f, "output with no credited value"),
             InvalidSum(ref err) => write!(f, "input or output sum error: {}", err),
             InvalidInput => write!(f, "transaction spends an invalid input"),
-            InputSpent => write!(f, "transaction spends an input that was already spent"),
             InputOutputDoNotMatch => write!(f, "transaction input output coin sums don't match"),
             OutputInTimelock => write!(f, "output transaction is in timelock"),
+            WitnessVerificationFailed => write!(f, "witness verification failed"),
         }
     }
 }
@@ -51,12 +52,14 @@ impl fmt::Display for Error {
 pub enum SubAbciRequest {
     InitChain(u8),
     BasicVerifyTX(TxAux),
+    FullVerifyTX(Vec<Tx>, Timespec, TxAux),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SubAbciResponse {
     InitChain(bool),
     BasicVerifyTX(Result<Coin, Error>),
+    FullVerifyTX(Result<(), Error>),
 }
 
 /// Parse out the varint. This code was adapted from the excellent integer-encoding crate

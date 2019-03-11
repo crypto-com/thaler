@@ -1,6 +1,6 @@
 use super::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::tx::verify_with_storage;
+use crate::storage::tx::basic_verify_collect_inputs;
 use abci::*;
 use abci_enclave_protocol::{SubAbciRequest, SubAbciResponse};
 use chain_core::tx::TxAux;
@@ -65,29 +65,31 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 None
             }
             Ok(txaux) => {
-                let enc_v = self
-                    .tx_validator
-                    .process_request(SubAbciRequest::BasicVerifyTX(txaux.clone()));
-                match enc_v {
-                    SubAbciResponse::BasicVerifyTX(Ok(outcoins)) => {
-                        let v = verify_with_storage(
-                            &txaux,
-                            outcoins,
-                            self.storage.db.clone(),
+                let minputs = basic_verify_collect_inputs(&txaux, self.storage.db.clone());
+                if let Ok(inputs) = minputs {
+                    let enc_v = self
+                        .tx_validator
+                        .process_request(SubAbciRequest::FullVerifyTX(
+                            inputs,
                             self.block_time.expect("Last block's timestamp is expected"),
-                        );
-                        if v.is_ok() {
+                            txaux.clone(),
+                        ));
+                    match enc_v {
+                        SubAbciResponse::FullVerifyTX(Ok(_)) => {
                             resp.set_code(0);
-                        } else {
-                            resp.set_code(1);
-                            resp.add_log(&format!("verification failed: {}", v.unwrap_err()));
                         }
+                        SubAbciResponse::FullVerifyTX(Err(e)) => {
+                            resp.set_code(1);
+                            resp.add_log(&format!("verification failed: {}", e));
+                        }
+                        _ => panic!("enclave protocol communication failed"),
                     }
-                    SubAbciResponse::BasicVerifyTX(Err(e)) => {
-                        resp.set_code(1);
-                        resp.add_log(&format!("verification failed: {}", e));
-                    }
-                    _ => panic!("enclave protocol communication failed"),
+                } else {
+                    resp.set_code(1);
+                    resp.add_log(&format!(
+                        "input verification failed: {}",
+                        minputs.unwrap_err()
+                    ));
                 }
 
                 Some(txaux)
