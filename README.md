@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://avatars0.githubusercontent.com/u/41934032?s=400&v=4" alt="Crypto.com Chain" width="400">
+</p>
+
 # CRO Node (ABCI)
 
 This repository contains ABCI part of the pre-alpha technical preview implementation of CRO node.
