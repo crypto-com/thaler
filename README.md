@@ -2,13 +2,25 @@
   <img src="https://avatars0.githubusercontent.com/u/41934032?s=400&v=4" alt="Crypto.com Chain" width="400">
 </p>
 
-# CRO Node (ABCI)
+# Crypto.com Chain
 
-This repository contains ABCI part of the pre-alpha technical preview implementation of CRO node.
+This repository contains the pre-alpha version prototype implementation of Crypto.com Chain. The current repository consists of the following Rust sub-crates:
+
+* *chain-abci*: the Tendermint ABCI application that currently does the transaction validation etc.
+
+* *chain-core*: the library that contains the main type definitions and any utility code (such as serialization), so that it can be used in *chain-abci* and other applications.
+
+* *dev-utils*: currently a minimal development tool for generating genesis.json
+
+* *signer-[cli|core|rpc]*: work-in-progress infrastructure for client code, such as wallet implementations and third party integrations. 
 
 ## Contributing
 Please abide by the [Code of Conduct](CODE_OF_CONDUCT.md) in all interactions,
 and the [contributing guidelines](CONTRIBUTING.md) when submitting code.
+
+## License
+
+[Apache 2.0](./LICENSE)
 
 ## Prerequisites 
 
