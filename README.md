@@ -1,10 +1,26 @@
-# CRO Node (ABCI)
+<p align="center">
+  <img src="https://avatars0.githubusercontent.com/u/41934032?s=400&v=4" alt="Crypto.com Chain" width="400">
+</p>
 
-This repository contains ABCI part of the pre-alpha technical preview implementation of CRO node.
+# Crypto.com Chain
+
+This repository contains the pre-alpha version prototype implementation of Crypto.com Chain. The current repository consists of the following Rust sub-crates:
+
+* *chain-abci*: the Tendermint ABCI application that currently does the transaction validation etc.
+
+* *chain-core*: the library that contains the main type definitions and any utility code (such as serialization), so that it can be used in *chain-abci* and other applications.
+
+* *dev-utils*: currently a minimal development tool for generating genesis.json
+
+* *signer-[cli|core|rpc]*: work-in-progress infrastructure for client code, such as wallet implementations and third party integrations. 
 
 ## Contributing
 Please abide by the [Code of Conduct](CODE_OF_CONDUCT.md) in all interactions,
 and the [contributing guidelines](CONTRIBUTING.md) when submitting code.
+
+## License
+
+[Apache 2.0](./LICENSE)
 
 ## Prerequisites 
 
@@ -111,3 +127,9 @@ For example, for the [URI/HTTP option](https://tendermint.com/rpc/#uri-http), it
 ```
 http://localhost:26657/broadcast_tx_sync?tx=0xa200a30081a200982018f318bc1844182918821848188a18a51835186118f51877189c031868186618f8188a185b18cb185d18b418da18a518db18d6183f18e2185018f200184701000181a20082009418431835186b18fe18ec011858183d18fe1878187e183d181f18a3181918ae06189c181e189801185002a10018aa0181820183820298201861189718f318a518bb184918ea00187205187318ad18b6184318cd182a1841183518dc1825181a0b18ac181d184418f718a118c418680018f701829820188718d90c186d183518ee189218410f186c189118d418c418d518c5184e189a189418f7185d181a1820182b18b1181e18e618b51018e3184c1851186d982018220d18b71859183718af187018b818c8185f18731893188618e0181918e918fc18b5185718c3188c182b188b185e1882184618d7189d187218f4183d181980
 ```
+
+## Useful links
+
+* [Project Website](http://crypto.com/chain)
+* Community chatrooms (non-technical): [Discord](https://discord.gg/nsp9JTC) [Telegram](https://t.me/CryptoComOfficial)
+* Developer community chatroom (technical): [![riot.im](https://img.shields.io/badge/riot.im-JOIN%20CHAT-green.svg)](https://riot.im/app/#/room/#cro:matrix.org)
