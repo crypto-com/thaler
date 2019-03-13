@@ -1,24 +1,23 @@
 use crate::common::HASH_SIZE_256;
 #[cfg(not(target_env = "sgx"))]
-use secp256k1::constants::{COMPACT_SIGNATURE_SIZE, PUBLIC_KEY_SIZE};
-#[cfg(not(target_env = "sgx"))]
 use secp256k1::{key::PublicKey, schnorrsig::SchnorrSignature};
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::ser::{Serialize, Serializer};
 use std::fmt;
 
+pub const PUBLIC_KEY_SIZE: usize = 33;
+pub const COMPACT_SIGNATURE_SIZE: usize = 64;
+
 /// wrappers, as Rust/serde has impls for up to 32-byte arrays
 /// an alternative is to use `[serde-big-array](https://crates.io/crates/serde-big-array)`
 /// TODO: revisit when transaction format is more stabilized
 /// TODO: custom serializers + eq etc. impls
-//pub type RawPubkey = (u8, [u8; PUBLIC_KEY_SIZE - 1]);
-pub type RawPubkey = (u8, [u8; 33 - 1]);
+pub type RawPubkey = (u8, [u8; PUBLIC_KEY_SIZE - 1]);
 /// TODO: custom serializers + eq etc. impls
-pub type RawSignature = ([u8; 64 / 2], [u8; 64 / 2]);
-// pub type RawSignature = (
-//     [u8; COMPACT_SIGNATURE_SIZE / 2],
-//     [u8; COMPACT_SIGNATURE_SIZE / 2],
-// );
+pub type RawSignature = (
+    [u8; COMPACT_SIGNATURE_SIZE / 2],
+    [u8; COMPACT_SIGNATURE_SIZE / 2],
+);
 
 /// conversion for custom wrappers
 #[cfg(not(target_env = "sgx"))]

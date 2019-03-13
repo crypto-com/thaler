@@ -11,6 +11,11 @@ pub struct TcpEnclaveClient {
 
 impl TcpEnclaveClient {
     pub fn new(stream: TcpStream) -> Self {
+        // TODO: TLS / Noise
+        // TODO: remote attestation
+        // currently, it's a bit cumbersome to compile SGX with mbedTLS (requires old version of LLVM)
+        // and remote attestation via the `aesm-client` crate is a bit spartan.
+        // so while this is essential, it's postponed for the moment.
         TcpEnclaveClient { stream }
     }
 }

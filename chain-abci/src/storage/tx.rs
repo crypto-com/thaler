@@ -104,7 +104,9 @@ pub fn basic_verify_collect_inputs(
 pub mod tests {
     use super::*;
     use crate::storage::{COL_TX_META, NUM_COLUMNS};
+    use abci_enclave_protocol::{verify_with_storage, Error as EError};
     use chain_core::init::address::RedeemAddress;
+    use chain_core::init::coin::{Coin, CoinError};
     use chain_core::tx::data::{address::ExtendedAddr, input::TxoPointer, output::TxOut};
     use chain_core::tx::witness::{redeem::EcdsaSignature, TxInWitness};
     use kvdb_memorydb::create;
@@ -189,7 +191,9 @@ pub mod tests {
     #[test]
     fn existing_utxo_input_tx_should_verify() {
         let (db, txaux, _) = prepare_app_valid_tx(false);
-        let result = verify(&txaux, DEFAULT_CHAIN_ID, db, 0);
+        let inputs = basic_verify_collect_inputs(&txaux, db);
+        assert!(inputs.is_ok());
+        let result = verify_with_storage(&txaux, inputs.unwrap(), DEFAULT_CHAIN_ID, 0);
         assert!(result.is_ok());
     }
 
@@ -207,54 +211,59 @@ pub mod tests {
     #[test]
     fn test_verify_fail() {
         let (db, txaux, secret_key) = prepare_app_valid_tx(false);
+        let inputs = basic_verify_collect_inputs(&txaux, db.clone()).expect("valid inputs");
         // WrongChainHexId
         {
-            let result = verify(&txaux, DEFAULT_CHAIN_ID + 1, db.clone(), 0);
-            expect_error(&result, Error::WrongChainHexId);
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID + 1, 0);
+            expect_error(&result, EError::WrongChainHexId);
         }
         // NoInputs
         {
             let mut txaux = txaux.clone();
             txaux.tx.inputs.clear();
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
-            expect_error(&result, Error::NoInputs);
+            let basic_result = basic_verify_collect_inputs(&txaux, db.clone());
+            expect_error(&basic_result, Error::NoInputs);
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::NoInputs);
         }
         // NoOutputs
         {
             let mut txaux = txaux.clone();
             txaux.tx.outputs.clear();
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
-            expect_error(&result, Error::NoOutputs);
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::NoOutputs);
         }
         // DuplicateInputs
         {
             let mut txaux = txaux.clone();
             let inp = txaux.tx.inputs[0].clone();
             txaux.tx.inputs.push(inp);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
-            expect_error(&result, Error::DuplicateInputs);
+            let basic_result = basic_verify_collect_inputs(&txaux, db.clone());
+            expect_error(&basic_result, Error::DuplicateInputs);
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::DuplicateInputs);
         }
         // ZeroCoin
         {
             let mut txaux = txaux.clone();
             txaux.tx.outputs[0].value = Coin::zero();
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
-            expect_error(&result, Error::ZeroCoin);
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::ZeroCoin);
         }
         // UnexpectedWitnesses
         {
             let mut txaux = txaux.clone();
             let wp = txaux.witness[0].clone();
             txaux.witness.push(wp);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
-            expect_error(&result, Error::UnexpectedWitnesses);
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::UnexpectedWitnesses);
         }
         // MissingWitnesses
         {
             let mut txaux = txaux.clone();
             txaux.witness.clear();
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
-            expect_error(&result, Error::MissingWitnesses);
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::MissingWitnesses);
         }
         // InvalidSum
         {
@@ -263,10 +272,10 @@ pub mod tests {
             let outp = txaux.tx.outputs[0].clone();
             txaux.tx.outputs.push(outp);
             txaux.witness[0] = get_tx_witness(Secp256k1::new(), &txaux.tx, &secret_key);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID, 0);
             expect_error(
                 &result,
-                Error::InvalidSum(CoinError::OutOfBound(*Coin::max())),
+                EError::InvalidSum(CoinError::OutOfBound(*Coin::max())),
             );
         }
         // InputSpent
@@ -279,7 +288,7 @@ pub mod tests {
             );
             db.write(inittx).unwrap();
 
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
+            let result = basic_verify_collect_inputs(&txaux, db.clone());
             expect_error(&result, Error::InputSpent);
 
             let mut reset = db.transaction();
@@ -290,7 +299,7 @@ pub mod tests {
             );
             db.write(reset).unwrap();
         }
-        // Invalid signature (EcdsaCrypto)
+        // Invalid signature (WitnessVerificationFailed)
         {
             let mut txaux = txaux.clone();
             let secp = Secp256k1::new();
@@ -299,30 +308,30 @@ pub mod tests {
                 &txaux.tx,
                 &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
             );
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
-            expect_error(
-                &result,
-                Error::EcdsaCrypto(secp256k1::Error::InvalidPublicKey),
-            );
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::WitnessVerificationFailed);
         }
         // InvalidInput
         {
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, create_db(), 0);
-            expect_error(&result, Error::InvalidInput);
+            let basic_result = basic_verify_collect_inputs(&txaux, create_db());
+            expect_error(&basic_result, Error::InvalidInput);
+            let result = verify_with_storage(&txaux, vec![Tx::default()], DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::InvalidInput);
         }
         // InputOutputDoNotMatch
         {
             let mut txaux = txaux.clone();
             txaux.tx.outputs[0].value = (txaux.tx.outputs[0].value + Coin::unit()).unwrap();
             txaux.witness[0] = get_tx_witness(Secp256k1::new(), &txaux.tx, &secret_key);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
-            expect_error(&result, Error::InputOutputDoNotMatch);
+            let result = verify_with_storage(&txaux, inputs.clone(), DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::InputOutputDoNotMatch);
         }
         // OutputInTimelock
         {
             let (db, txaux, _) = prepare_app_valid_tx(true);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), 0);
-            expect_error(&result, Error::OutputInTimelock);
+            let inputs = basic_verify_collect_inputs(&txaux, db).expect("valid inputs");
+            let result = verify_with_storage(&txaux, inputs, DEFAULT_CHAIN_ID, 0);
+            expect_error(&result, EError::OutputInTimelock);
         }
     }
 

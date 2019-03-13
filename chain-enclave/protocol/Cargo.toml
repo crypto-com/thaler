@@ -12,3 +12,7 @@ chain-core = { path = "../../chain-core" }
 integer-encoding = "1.0.5"
 serde = "1.0"
 serde_derive = "1.0" 
+libsecp256k1 = { git = "https://github.com/crypto-com/libsecp256k1-rs.git", rev = "7053a96cc067aecc4620c6b1333a4da8fa89b9a2" }
+
+[dev-dependencies]
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "99f410ec22c97634e0c430fc578b3a20f30b5ee5" }

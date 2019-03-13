@@ -18,6 +18,9 @@ jobs:
           name: install rustup
           command: curl https://sh.rustup.rs -sSf | sh -s -- -y
       - run:
+          name: configure network id
+          command: echo 'export NETWORK_ID=00' >> $BASH_ENV           
+      - run:
           name: configure rustup path
           command: echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> $BASH_ENV 
       - run:

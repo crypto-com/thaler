@@ -14,4 +14,3 @@ integer-encoding = "1.0.5"
 bincode = "1.1"
 serde = "1.0"
 serde_derive = "1.0"
-libsecp256k1 = { git = "https://github.com/crypto-com/libsecp256k1-rs.git", rev = "7053a96cc067aecc4620c6b1333a4da8fa89b9a2" }

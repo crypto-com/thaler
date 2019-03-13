@@ -4,9 +4,9 @@ mod query;
 mod validate_tx;
 
 use abci::*;
+use chain_core::tx::witness::tree::PUBLIC_KEY_SIZE;
 use ethbloom::{Bloom, Input};
 use log::info;
-use secp256k1::constants::PUBLIC_KEY_SIZE;
 
 pub use self::app_init::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
@@ -153,6 +153,7 @@ mod tests {
     use crate::storage::tx::tests::get_tx_witness;
     use crate::storage::*;
     use abci::Application;
+    use abci_enclave_protocol::{verify_with_storage, SubAbciRequest, SubAbciResponse};
     use bit_vec::BitVec;
     use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
     use chain_core::init::address::RedeemAddress;
@@ -178,17 +179,48 @@ mod tests {
     use serde_cbor::{from_slice, ser::to_vec_packed};
     use std::sync::Arc;
 
+    pub struct MockEnclaveClient {
+        chain_id: u8,
+    }
+
+    impl MockEnclaveClient {
+        pub fn new(chain_id: u8) -> Self {
+            MockEnclaveClient { chain_id }
+        }
+    }
+
+    impl EnclaveProxy for MockEnclaveClient {
+        fn process_request(&mut self, request: SubAbciRequest) -> SubAbciResponse {
+            match request {
+                SubAbciRequest::InitChain(chain_hex_id) if chain_hex_id == self.chain_id => {
+                    SubAbciResponse::InitChain(true)
+                }
+                SubAbciRequest::InitChain(_) => SubAbciResponse::InitChain(false),
+                SubAbciRequest::FullVerifyTX(inputs, block_time, txaux) => {
+                    SubAbciResponse::FullVerifyTX(verify_with_storage(
+                        &txaux,
+                        inputs,
+                        self.chain_id,
+                        block_time,
+                    ))
+                }
+            }
+        }
+    }
+
     fn create_db() -> Arc<dyn KeyValueDB> {
         Arc::new(create(NUM_COLUMNS.unwrap()))
     }
 
     const TEST_CHAIN_ID: &str = "test-00";
+    const TEST_CHAIN_HEX_ID: u8 = 0;
 
     #[test]
     fn proper_hash_and_chainid_should_be_stored() {
         let db = create_db();
         let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
         let _app = ChainNodeApp::new_with_storage(
+            MockEnclaveClient::new(TEST_CHAIN_HEX_ID),
             example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
@@ -211,6 +243,7 @@ mod tests {
         let db = create_db();
         let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
         let _app = ChainNodeApp::new_with_storage(
+            MockEnclaveClient::new(TEST_CHAIN_HEX_ID),
             example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
@@ -222,8 +255,12 @@ mod tests {
     fn chain_id_without_hex_digits_should_panic() {
         let db = create_db();
         let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
-        let _app =
-            ChainNodeApp::new_with_storage(example_hash, "test", Storage::new_db(db.clone()));
+        let _app = ChainNodeApp::new_with_storage(
+            MockEnclaveClient::new(TEST_CHAIN_HEX_ID),
+            example_hash,
+            "test",
+            Storage::new_db(db.clone()),
+        );
     }
 
     #[test]
@@ -232,6 +269,7 @@ mod tests {
         let db = create_db();
         let example_hash = "EOWNEOIWFNOPXZ./32";
         let _app = ChainNodeApp::new_with_storage(
+            MockEnclaveClient::new(TEST_CHAIN_HEX_ID),
             example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
@@ -252,13 +290,14 @@ mod tests {
         db.write(inittx).unwrap();
         let example_hash2 = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
         let _app = ChainNodeApp::new_with_storage(
+            MockEnclaveClient::new(TEST_CHAIN_HEX_ID),
             example_hash2,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
         );
     }
 
-    fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
+    fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockEnclaveClient> {
         let db = create_db();
         let c = InitConfig::new(vec![ERC20Owner::new(address, Coin::max())]);
         let utxos = c.generate_utxos(&TxAttributes::new(0));
@@ -267,6 +306,7 @@ mod tests {
         let genesis_app_hash = tree.get_root_hash();
         let example_hash = hex::encode_upper(genesis_app_hash);
         let mut app = ChainNodeApp::new_with_storage(
+            MockEnclaveClient::new(TEST_CHAIN_HEX_ID),
             &example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
@@ -310,6 +350,7 @@ mod tests {
         )]);
         let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
         let mut app = ChainNodeApp::new_with_storage(
+            MockEnclaveClient::new(TEST_CHAIN_HEX_ID),
             &example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
@@ -325,6 +366,7 @@ mod tests {
         let db = create_db();
         let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
         let mut app = ChainNodeApp::new_with_storage(
+            MockEnclaveClient::new(TEST_CHAIN_HEX_ID),
             &example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
@@ -359,7 +401,7 @@ mod tests {
         assert_ne!(0, cresp.code);
     }
 
-    fn prepare_app_valid_tx() -> (ChainNodeApp, TxAux) {
+    fn prepare_app_valid_tx() -> (ChainNodeApp<MockEnclaveClient>, TxAux) {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
@@ -417,7 +459,7 @@ mod tests {
         app.begin_block(&bbreq);
     }
 
-    fn begin_block(app: &mut ChainNodeApp) {
+    fn begin_block(app: &mut ChainNodeApp<MockEnclaveClient>) {
         let mut bbreq = RequestBeginBlock::default();
         let mut header = Header::default();
         header.set_time(::protobuf::well_known_types::Timestamp::new());
@@ -471,7 +513,7 @@ mod tests {
         assert_eq!(0, cresp.tags.len());
     }
 
-    fn deliver_valid_tx() -> (ChainNodeApp, TxAux, ResponseDeliverTx) {
+    fn deliver_valid_tx() -> (ChainNodeApp<MockEnclaveClient>, TxAux, ResponseDeliverTx) {
         let (mut app, txaux) = prepare_app_valid_tx();
         assert_eq!(0, app.delivered_txs.len());
         begin_block(&mut app);

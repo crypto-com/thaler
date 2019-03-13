@@ -1,15 +1,15 @@
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 use bincode::{deserialize, serialize_into, serialized_size};
 use chain_core::common::Timespec;
-use chain_core::init::coin::{Coin, CoinError};
+use chain_core::init::coin::CoinError;
 use chain_core::tx::{data::Tx, TxAux};
 use integer_encoding::VarInt;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::io::{self, Read, Write};
+mod tx_verify;
+
+pub use tx_verify::verify_with_storage;
 
 /// All possible TX validation errors
 #[derive(Serialize, Deserialize, Debug)]
@@ -50,15 +50,14 @@ impl fmt::Display for Error {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SubAbciRequest {
+    // TODO: add genesis app_hash
     InitChain(u8),
-    BasicVerifyTX(TxAux),
     FullVerifyTX(Vec<Tx>, Timespec, TxAux),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SubAbciResponse {
     InitChain(bool),
-    BasicVerifyTX(Result<Coin, Error>),
     FullVerifyTX(Result<(), Error>),
 }
 
@@ -75,18 +74,18 @@ fn read_varint(stream: &mut Read) -> Result<i64, io::Error> {
                 "Unterminated varint",
             ));
         }
-        let read = stream.read(&mut buf[i..i + 1])?;
+        let read = stream.read(&mut buf[i..=i])?;
 
         // EOF
         if read == 0 && i == 0 {
             return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Reached EOF"));
         }
-        if buf[i] & 0b10000000 == 0 {
+        if buf[i] & 0b1000_0000 == 0 {
             break;
         }
         i += 1;
     }
-    let (result, _) = i64::decode_var(&buf[0..i + 1]);
+    let (result, _) = i64::decode_var(&buf[0..=i]);
     Ok(result)
 }
 
@@ -106,7 +105,6 @@ pub fn read_bincode<T: DeserializeOwned>(stream: &mut Read) -> Option<T> {
             Err(_) => None,
         };
     }
-    println!("69 {:?}", length);
     None
 }
 

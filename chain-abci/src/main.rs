@@ -20,7 +20,7 @@ fn main() {
     let enclave_conn = matches
         .value_of("enclave_server")
         .unwrap_or("127.0.0.1:7878");
-    // TODO: TLS
+    // TODO: TLS+attestation
     let stream = TcpStream::connect(enclave_conn).expect("failed to connect to enclave server");
     let proxy = TcpEnclaveClient::new(stream);
 

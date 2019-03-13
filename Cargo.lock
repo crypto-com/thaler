@@ -24,6 +24,8 @@ dependencies = [
  "bincode 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.1.0",
  "integer-encoding 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libsecp256k1 0.2.2 (git+https://github.com/crypto-com/libsecp256k1-rs.git?rev=7053a96cc067aecc4620c6b1333a4da8fa89b9a2)",
+ "secp256k1zkp 0.12.2 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=99f410ec22c97634e0c430fc578b3a20f30b5ee5)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2110,7 +2112,6 @@ dependencies = [
  "bincode 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.1.0",
  "integer-encoding 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "libsecp256k1 0.2.2 (git+https://github.com/crypto-com/libsecp256k1-rs.git?rev=7053a96cc067aecc4620c6b1333a4da8fa89b9a2)",
  "serde 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.89 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
