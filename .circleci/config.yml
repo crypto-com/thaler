@@ -44,17 +44,17 @@ jobs:
           command: |
             rustc --version --verbose
             cargo --version --verbose
-            cargo build
+            cargo build --all --exclude tx-validation-enclave-app
       - run:
           name: Test
           command: |
-            cargo test
+            cargo test --all --exclude tx-validation-enclave-app
       - run:
           name: Check style
           command: |
             rustup component add clippy
             cargo-clippy --version
-            cargo clippy -- -D warnings 
+            cargo clippy --all --exclude tx-validation-enclave-app -- -D warnings 
       - run:
           name: Nightly Build + coverage
           command: |
