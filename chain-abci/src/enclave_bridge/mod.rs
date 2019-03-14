@@ -5,11 +5,15 @@ pub trait EnclaveProxy: Sync + Send + Sized {
     fn process_request(&mut self, request: SubAbciRequest) -> SubAbciResponse;
 }
 
+#[allow(dead_code)]
+/// currently only used in app, not lib
 pub struct TcpEnclaveClient {
     stream: TcpStream,
 }
 
 impl TcpEnclaveClient {
+    #[allow(dead_code)]
+    /// currently only used in app, not lib
     pub fn new(stream: TcpStream) -> Self {
         // TODO: TLS / Noise
         // TODO: remote attestation
