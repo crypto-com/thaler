@@ -54,7 +54,6 @@ impl KeyValueDB for MemoryDB {
     /// Delete a key from the database, return the last value if it exists.
     /// An error is returned when the column does not exist
     fn delete(&mut self, column: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
-        let h: HashMap<Vec<u8>, Vec<u8>> = HashMap::new();
         match self.map.get_mut(column) {
             None => Err(Error::from(kvdb::ErrorKind::ColumnNotFound)),
             Some(column_map) => {
