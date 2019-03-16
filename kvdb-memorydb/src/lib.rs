@@ -1,7 +1,6 @@
 use failure::Error;
 use kvdb;
 use kvdb::KeyValueDB;
-use std::io;
 use std::collections::HashMap;
 
 pub struct MemoryDB {
@@ -30,12 +29,12 @@ impl KeyValueDB for MemoryDB {
 
     /// Set a key to a new value, returning the old value if it was set.
     fn set(&mut self, column: &[u8], key: &[u8], value: &[u8]) -> Result<Option<Vec<u8>>, Error> {
-        let column_map = match self.map.get(column) {
+        let column_map = match self.map.get_mut(column) {
             None => {
                 self.map.insert(column.to_vec(), HashMap::new());
                 self.map.get_mut(column).unwrap()
-            },
-            Some(map) => map
+            }
+            Some(map) => map,
         };
 
         let old_value = column_map.get(key).map(|x| x.clone());
@@ -47,32 +46,34 @@ impl KeyValueDB for MemoryDB {
     /// An error is returned when the column does not exist
     fn get(&self, column: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
         match self.map.get(column) {
-            None => Err(kvdb::ErrorKind::ColumnNotFound),
+            None => Err(Error::from(kvdb::ErrorKind::ColumnNotFound)),
             Some(column_map) => Ok(column_map.get(key).cloned()),
         }
     }
 
     /// Delete a key from the database, return the last value if it exists.
     /// An error is returned when the column does not exist
-    pub fn delete(&self, column: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>, kvdb::Error> {
-        match self.map.get(column) {
-            None => Err(kvdb::Error::from(kvdb::ErrorKind::ColumnNotFound)),
-            Some(column_map) => Ok(column_map.get(key).cloned()),
+    fn delete(&mut self, column: &[u8], key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
+        let h: HashMap<Vec<u8>, Vec<u8>> = HashMap::new();
+        match self.map.get_mut(column) {
+            None => Err(Error::from(kvdb::ErrorKind::ColumnNotFound)),
+            Some(column_map) => {
+                let old_value = column_map.get(key).cloned();
+                column_map.remove(key);
+                Ok(old_value)
+            }
         }
     }
 
     /// Flush all previous write
-    pub fn flush(&self) -> Result<(), ()> {
+    fn flush(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
     /// Clear the database, removing all values
-    pub fn clear(&mut self) -> Result<(), ()> {
+    fn clear(&mut self) -> Result<(), Error> {
         self.map.clear();
         Ok(())
-    }
-
-    fn get_or_create_column_map(&mut self, column: &[u8]) -> &mut HashMap<Vec<u8>, Vec<u8>> {
     }
 }
 
@@ -82,7 +83,7 @@ mod tests {
         use crate::*;
 
         #[test]
-        #[should_panic(expected = "Column not found")]
+        #[should_panic(expected = "ColumnNotFound")]
         fn should_panic_missing_column_error_when_column_does_not_exist() {
             let memory_db = MemoryDB::new();
 
@@ -177,9 +178,9 @@ mod tests {
         use crate::*;
 
         #[test]
-        #[should_panic(expected = "Column not found")]
+        #[should_panic(expected = "ColumnNotFound")]
         fn should_panic_missing_column_error_when_column_does_not_exist() {
-            let memory_db = MemoryDB::new();
+            let mut memory_db = MemoryDB::new();
 
             let unexist_column = "Unexist Column".as_bytes();
             let key = "Key".as_bytes();
@@ -241,8 +242,8 @@ mod tests {
             memory_db.set(column, "Key4".as_bytes(), value).unwrap();
 
             memory_db.clear().unwrap();
-            
-            assert_eq!(memory_db.contain_column(column), false);
+
+            assert_eq!(memory_db.contains_column(column), false);
         }
     }
 }
