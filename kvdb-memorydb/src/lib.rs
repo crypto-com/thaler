@@ -1,6 +1,7 @@
 use kvdb::{Error, KeyValueDB};
 use std::collections::HashMap;
 
+#[derive(Default)]
 pub struct MemoryDB {
     map: HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<u8>>>,
 }
@@ -35,7 +36,7 @@ impl KeyValueDB for MemoryDB {
             Some(map) => map,
         };
 
-        let old_value = column_map.get(key).map(|x| x.clone());
+        let old_value = column_map.get(key).cloned();
         column_map.insert(key.to_vec(), value.to_vec());
         Ok(old_value)
     }
