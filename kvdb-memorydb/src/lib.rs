@@ -1,6 +1,4 @@
-use failure::Error;
-use kvdb;
-use kvdb::KeyValueDB;
+use kvdb::{Error, KeyValueDB};
 use std::collections::HashMap;
 
 pub struct MemoryDB {
@@ -82,7 +80,7 @@ mod tests {
         use crate::*;
 
         #[test]
-        #[should_panic(expected = "ColumnNotFound")]
+        #[should_panic(expected = "Column not found")]
         fn should_panic_missing_column_error_when_column_does_not_exist() {
             let memory_db = MemoryDB::new();
 
@@ -177,7 +175,7 @@ mod tests {
         use crate::*;
 
         #[test]
-        #[should_panic(expected = "ColumnNotFound")]
+        #[should_panic(expected = "Column not found")]
         fn should_panic_missing_column_error_when_column_does_not_exist() {
             let mut memory_db = MemoryDB::new();
 
