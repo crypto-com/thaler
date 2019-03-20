@@ -3,6 +3,9 @@
 </p>
 
 # Crypto.com Chain
+[![Build Status](https://travis-ci.org/crypto-com/chain.svg?branch=master)](https://travis-ci.org/crypto-com/chain)
+[![codecov](https://codecov.io/gh/crypto-com/chain/branch/master/graph/badge.svg)](https://codecov.io/gh/crypto-com/chain)
+[![riot.im](https://img.shields.io/badge/riot.im-JOIN%20CHAT-green.svg)](https://riot.im/app/#/room/#cro:matrix.org)
 
 This repository contains the pre-alpha version prototype implementation of Crypto.com Chain. The current repository consists of the following Rust sub-crates:
 
