@@ -1,0 +1,40 @@
+language: rust
+sudo: required
+dist: trusty
+addons:
+    apt:
+        packages:
+            - libssl-dev
+cache: cargo
+rust:
+  - stable
+  - beta
+  - nightly
+env:
+  - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
+matrix:
+  allow_failures:
+    - rust: nightly
+
+before_cache: |
+  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
+    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin -f
+  fi
+
+script:
+- cargo clean
+- cargo build
+- cargo test
+- |
+  if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+    rustfmt --version || rustup component add rustfmt
+    cargo fmt -- --check --color=auto
+    cargo-clippy --version || rustup component add clippy
+    cargo clippy -- -D warnings 
+  fi
+
+after_success: |
+  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
+    travis_wait 30 cargo tarpaulin --out Xml
+    bash <(curl -s https://codecov.io/bash)
+  fi
