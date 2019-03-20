@@ -10,6 +10,8 @@ rust:
   - stable
   - beta
   - nightly
+env:
+  - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
 matrix:
   allow_failures:
     - rust: nightly
