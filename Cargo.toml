@@ -5,7 +5,9 @@ members = [
     "chain-core",
     "dev-utils",
     "chain-enclave/enclave-app",
+    "kvdb",
+    "kvdb-memorydb",
     "signer-core",
     "signer-cli",
-    "signer-rpc"
+    "signer-rpc",
 ]
