@@ -11,8 +11,7 @@ rust:
   - beta
   - nightly
 env:
-  - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
-  - NETWORK_ID=00
+  - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3 NETWORK_ID=00
 matrix:
   allow_failures:
     - rust: nightly
