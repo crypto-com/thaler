@@ -2,7 +2,7 @@ mod error;
 
 pub use error::{Error, ErrorKind};
 
-pub trait KeyValueDB {
+pub trait KeyValueDB: Sync + Send {
     /// Set a key to a new value, returning the old value if it was set.
     fn set(&mut self, column: &[u8], key: &[u8], value: &[u8]) -> Result<Option<Vec<u8>>, Error>;
 
