@@ -2,6 +2,7 @@
 **/*.rs.bk
 /.storage
 /chain-abci/target
+/.cro-storage
 
 # IDE
 .vscode

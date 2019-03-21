@@ -11,10 +11,10 @@ use secp256k1::{
     All, Message, Secp256k1,
 };
 use serde::{Deserialize, Serialize};
-use sha3::{Digest, Keccak256};
 use unicase::eq_ascii;
 use zeroize::Zeroize;
 
+use chain_core::init::address::RedeemAddress;
 use chain_core::tx::witness::redeem::EcdsaSignature;
 use chain_core::tx::witness::tree::{pk_to_raw, sig_to_raw};
 use chain_core::tx::witness::TxInWitness;
@@ -74,12 +74,9 @@ impl Secrets {
     /// Returns address derived from current secret key of given address type
     pub fn get_address(&self, address_type: AddressType) -> Result<String, Error> {
         let public_key = self.get_public_key(address_type)?;
+        let address = RedeemAddress::from(&public_key);
 
-        let mut hasher = Keccak256::new();
-        hasher.input(&public_key.serialize()[1..]);
-        let hash = hasher.result()[12..].to_vec();
-
-        Ok(encode(hash))
+        Ok(encode(address.0))
     }
 
     /// Returns ECDSA signature of message signed with provided secret
