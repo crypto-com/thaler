@@ -14,10 +14,10 @@ use serde::{Deserialize, Serialize};
 use unicase::eq_ascii;
 use zeroize::Zeroize;
 
+use chain_core::init::address::RedeemAddress;
 use chain_core::tx::witness::redeem::EcdsaSignature;
 use chain_core::tx::witness::tree::{pk_to_raw, sig_to_raw};
 use chain_core::tx::witness::TxInWitness;
-use chain_core::init::address::RedeemAddress;
 
 // NOTE: Verification is needed for combining public keys
 thread_local! { pub static SECP: Secp256k1<All> = Secp256k1::new(); }
