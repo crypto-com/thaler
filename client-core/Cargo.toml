@@ -1,0 +1,20 @@
+[package]
+name = "client-core"
+version = "0.1.0"
+authors = ["Devashish Dixit <devashish@crypto.com>"]
+edition = "2018"
+
+[dependencies]
+chain-core = { path = "../chain-core" }
+serde = { version = "1.0", features = ["derive"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "99f410ec22c97634e0c430fc578b3a20f30b5ee5", features = ["serde", "zeroize", "rand"] }
+rand = "0.6"
+failure = "0.1"
+miscreant = "0.4"
+bincode = "1.1"
+blake2 = "0.8"
+hex = "0.3"
+sled = { version = "0.19", optional = true }
+
+[features]
+default = ["sled"]
