@@ -1,5 +1,6 @@
 use failure::ResultExt;
 use hex::encode;
+use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
 
@@ -24,8 +25,10 @@ where
         if self.storage.contains_key(name.as_bytes())? {
             Err(ErrorKind::AlreadyExists.into())
         } else {
-            let private_key = PrivateKey::new()?;
+            let mut private_key = PrivateKey::new()?;
             let public_key = PublicKey::from(&private_key);
+
+            private_key.zeroize();
 
             let address = RedeemAddress::from(&public_key);
 

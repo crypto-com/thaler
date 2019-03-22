@@ -6,6 +6,7 @@ mod sled_wallet;
 pub use self::sled_wallet::SledWallet;
 
 use hex::encode;
+use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
 
@@ -42,10 +43,12 @@ where
                     None => Ok(None),
                     Some(keys) => {
                         let addresses: Vec<String> = keys
-                            .iter()
-                            .map(|private_key| {
-                                let public_key = PublicKey::from(private_key);
+                            .into_iter()
+                            .map(|mut private_key| {
+                                let public_key = PublicKey::from(&private_key);
                                 let address = RedeemAddress::from(&public_key);
+
+                                private_key.zeroize();
 
                                 encode(address.0)
                             })
@@ -65,9 +68,11 @@ where
         match wallet_id {
             None => Err(ErrorKind::WalletNotFound.into()),
             Some(wallet_id) => {
-                let private_key = self.key_service().generate(&wallet_id, passphrase)?;
+                let mut private_key = self.key_service().generate(&wallet_id, passphrase)?;
                 let public_key = PublicKey::from(&private_key);
                 let address = RedeemAddress::from(&public_key);
+
+                private_key.zeroize();
 
                 Ok(encode(address.0))
             }

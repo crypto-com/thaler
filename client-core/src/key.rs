@@ -3,6 +3,7 @@ use bincode::{deserialize, serialize};
 use failure::ResultExt;
 use rand::rngs::OsRng;
 use secp256k1::{PublicKey as SecpPublicKey, SecretKey};
+use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
 
@@ -31,6 +32,12 @@ impl PrivateKey {
         let secret_key: SecretKey = deserialize(bytes).context(ErrorKind::DeserializationError)?;
 
         Ok(PrivateKey(secret_key))
+    }
+}
+
+impl Zeroize for PrivateKey {
+    fn zeroize(&mut self) {
+        self.0.zeroize()
     }
 }
 
