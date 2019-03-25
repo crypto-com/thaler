@@ -30,8 +30,8 @@ where
         self.wallet_service().create(name, passphrase)
     }
 
-    /// Retrieves all addresses corresponding to given wallet
-    fn get_addresses(&self, name: &str, passphrase: &str) -> Result<Option<Vec<String>>> {
+    /// Retrieves all public keys corresponding to given wallet
+    fn get_public_keys(&self, name: &str, passphrase: &str) -> Result<Option<Vec<PublicKey>>> {
         let wallet_id = self.wallet_service().get(name, passphrase)?;
 
         match wallet_id {
@@ -42,27 +42,35 @@ where
                 match keys {
                     None => Ok(None),
                     Some(keys) => {
-                        let addresses: Vec<String> = keys
-                            .into_iter()
-                            .map(|mut private_key| {
-                                let public_key = PublicKey::from(&private_key);
-                                let address = RedeemAddress::from(&public_key);
+                        let public_keys: Vec<PublicKey> =
+                            keys.iter().map(PublicKey::from).collect();
 
-                                private_key.zeroize();
-
-                                encode(address.0)
-                            })
-                            .collect();
-
-                        Ok(Some(addresses))
+                        Ok(Some(public_keys))
                     }
                 }
             }
         }
     }
 
-    /// Generates a new address
-    fn generate_address(&self, name: &str, passphrase: &str) -> Result<String> {
+    /// Retrieves all addresses corresponding to given wallet
+    fn get_addresses(&self, name: &str, passphrase: &str) -> Result<Option<Vec<String>>> {
+        let public_keys = self.get_public_keys(name, passphrase)?;
+
+        let addresses = public_keys.map(|public_keys| {
+            public_keys
+                .iter()
+                .map(|public_key| {
+                    let address = RedeemAddress::from(public_key);
+                    encode(address.0)
+                })
+                .collect::<Vec<String>>()
+        });
+
+        Ok(addresses)
+    }
+
+    /// Generates a new public key
+    fn generate_public_key(&self, name: &str, passphrase: &str) -> Result<PublicKey> {
         let wallet_id = self.wallet_service().get(name, passphrase)?;
 
         match wallet_id {
@@ -70,12 +78,18 @@ where
             Some(wallet_id) => {
                 let mut private_key = self.key_service().generate(&wallet_id, passphrase)?;
                 let public_key = PublicKey::from(&private_key);
-                let address = RedeemAddress::from(&public_key);
 
                 private_key.zeroize();
 
-                Ok(encode(address.0))
+                Ok(public_key)
             }
         }
+    }
+
+    /// Generates a new address
+    fn generate_address(&self, name: &str, passphrase: &str) -> Result<String> {
+        let public_key = self.generate_public_key(name, passphrase)?;
+        let address = RedeemAddress::from(&public_key);
+        Ok(encode(address.0))
     }
 }

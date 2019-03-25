@@ -1,4 +1,4 @@
-#![deny(missing_docs)]
+#![deny(missing_docs, unsafe_code, unstable_features)]
 //! # Crypto.com Chain Client
 //!
 //! This crate exposes following functionalities for interacting with Crypto.com Chain:

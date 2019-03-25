@@ -1,4 +1,6 @@
 //! Key management
+use std::fmt;
+
 use bincode::{deserialize, serialize};
 use failure::ResultExt;
 use rand::rngs::OsRng;
@@ -38,6 +40,27 @@ impl PrivateKey {
 
 /// Public key used in Crypto.com Chain
 pub struct PublicKey(SecpPublicKey);
+
+impl PublicKey {
+    /// Serializes current public key
+    pub fn serialize(&self) -> Result<Vec<u8>> {
+        Ok(serialize(&self.0).context(ErrorKind::SerializationError)?)
+    }
+
+    /// Deserializes public key from bytes
+    pub fn deserialize_from(bytes: &[u8]) -> Result<PublicKey> {
+        let public_key: SecpPublicKey =
+            deserialize(bytes).context(ErrorKind::DeserializationError)?;
+
+        Ok(PublicKey(public_key))
+    }
+}
+
+impl fmt::Display for PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 impl From<&PrivateKey> for PublicKey {
     fn from(private_key: &PrivateKey) -> Self {
