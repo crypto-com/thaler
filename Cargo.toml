@@ -3,10 +3,11 @@
 members = [
     "chain-abci",
     "chain-core",
+    "client-core",
     "dev-utils",
     "kvdb",
     "kvdb-memorydb",
-    "signer-core",
     "signer-cli",
+    "signer-core",
     "signer-rpc",
 ]
