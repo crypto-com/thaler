@@ -1,91 +1,59 @@
-use crate::common::{TypeInfo, HASH_SIZE_256};
-use crate::init::address::RedeemAddressRaw;
-use serde::de::{Deserialize, Deserializer, EnumAccess, Error, VariantAccess, Visitor};
-use serde::ser::{Serialize, Serializer};
+use crate::common::H256;
+use crate::init::address::RedeemAddress;
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use std::fmt;
 
 /// TODO: opaque types?
-pub type TreeRoot = [u8; HASH_SIZE_256];
+type TreeRoot = H256;
 
 /// Currently, only Ethereum-style redeem address + MAST of Or operations (records the root).
 /// TODO: HD-addresses?
 #[derive(Debug, PartialEq, PartialOrd, Ord, Hash, Eq, Clone)]
 pub enum ExtendedAddr {
-    BasicRedeem(RedeemAddressRaw),
+    BasicRedeem(RedeemAddress),
     OrTree(TreeRoot),
 }
 
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ExtendedAddr::BasicRedeem(addr) => write!(f, "0x{}", hex::encode(addr)),
+            ExtendedAddr::BasicRedeem(addr) => write!(f, "0x{}", addr),
             ExtendedAddr::OrTree(hash) => write!(f, "TODO (base58) 0x{}", hex::encode(hash)),
         }
     }
 }
 
-impl TypeInfo for ExtendedAddr {
-    #[inline]
-    fn type_name() -> &'static str {
-        "ExtendedAddr"
-    }
-}
-
-impl Serialize for ExtendedAddr {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match *self {
-            ExtendedAddr::BasicRedeem(ref addr) => serializer.serialize_newtype_variant(
-                ExtendedAddr::type_name(),
-                0,
-                "BasicRedeem",
-                addr,
-            ),
-            ExtendedAddr::OrTree(ref hash) => {
-                serializer.serialize_newtype_variant(ExtendedAddr::type_name(), 1, "OrTree", hash)
+impl Encodable for ExtendedAddr {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        match self {
+            ExtendedAddr::BasicRedeem(addr) => {
+                s.begin_list(2).append(&0u8).append(addr);
+            }
+            ExtendedAddr::OrTree(th) => {
+                s.begin_list(2).append(&1u8).append(th);
             }
         }
     }
 }
 
-impl<'de> Deserialize<'de> for ExtendedAddr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct ExtendedAddrVisitor;
-        impl<'de> Visitor<'de> for ExtendedAddrVisitor {
-            type Value = ExtendedAddr;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("extended address")
-            }
-
-            #[inline]
-            fn visit_enum<A>(self, deserializer: A) -> Result<Self::Value, A::Error>
-            where
-                A: EnumAccess<'de>,
-            {
-                match deserializer.variant::<u64>() {
-                    Ok((0, v)) => VariantAccess::newtype_variant::<RedeemAddressRaw>(v)
-                        .map(ExtendedAddr::BasicRedeem),
-                    Ok((1, v)) => {
-                        VariantAccess::newtype_variant::<TreeRoot>(v).map(ExtendedAddr::OrTree)
-                    }
-                    Ok((i, _)) => Err(A::Error::unknown_variant(
-                        &i.to_string(),
-                        &["BasicRedeem", "OrTree"],
-                    )),
-                    Err(e) => Err(e),
-                }
-            }
+impl Decodable for ExtendedAddr {
+    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
+        if rlp.item_count()? != 2 {
+            return Err(DecoderError::Custom(
+                "Cannot decode an extended address structure",
+            ));
         }
-
-        deserializer.deserialize_enum(
-            ExtendedAddr::type_name(),
-            &["BasicRedeem", "OrTree"],
-            ExtendedAddrVisitor,
-        )
+        let type_tag: u8 = rlp.val_at(0)?;
+        match type_tag {
+            0 => {
+                let addr: RedeemAddress = rlp.val_at(1)?;
+                Ok(ExtendedAddr::BasicRedeem(addr))
+            }
+            1 => {
+                let th: TreeRoot = rlp.val_at(1)?;
+                Ok(ExtendedAddr::OrTree(th))
+            }
+            _ => Err(DecoderError::Custom("Unknown transaction type")),
+        }
     }
 }

@@ -1,68 +1,33 @@
-/// Witness for the initial "redeem" (ECDSA with PK recovery)
-pub mod redeem;
 /// Witness for Merklized Abstract Syntax Trees (MAST) + Schnorr
 pub mod tree;
-
-use crate::common::TypeInfo;
+use crate::common::H256;
 use crate::init::address::RedeemAddress;
 use crate::tx::data::address::ExtendedAddr;
 use crate::tx::data::{txid_hash, Tx};
-use crate::tx::witness::{
-    redeem::EcdsaSignature,
-    tree::{MerklePath, ProofOp, RawPubkey, RawSignature},
-};
+use crate::tx::witness::tree::{MerklePath, ProofOp, RawPubkey, RawSignature};
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use secp256k1::{
-    self, constants::PUBLIC_KEY_SIZE, key::PublicKey, schnorrsig::schnorr_verify,
+    self, key::PublicKey, schnorrsig::schnorr_verify,
     schnorrsig::SchnorrSignature, Message, RecoverableSignature, RecoveryId, Secp256k1,
 };
-use serde::de::{Deserialize, Deserializer, EnumAccess, Error, VariantAccess, Visitor};
-use serde::ser::{Serialize, Serializer};
 use std::fmt;
+
+pub type EcdsaSignature = RecoverableSignature;
 
 /// A transaction witness is a vector of input witnesses
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct TxWitness(Vec<TxInWitness>);
 
-impl TypeInfo for TxWitness {
-    #[inline]
-    fn type_name() -> &'static str {
-        "TxWitness"
+impl Encodable for TxWitness {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        s.append_list(&self.0);
     }
 }
 
-impl Serialize for TxWitness {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_newtype_struct(TxWitness::type_name(), &self.0)
-    }
-}
-
-impl<'de> Deserialize<'de> for TxWitness {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct TxWitnessVisitor;
-
-        impl<'de> Visitor<'de> for TxWitnessVisitor {
-            type Value = TxWitness;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("TX witness")
-            }
-
-            #[inline]
-            fn visit_newtype_struct<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                let address_bytes = <Vec<TxInWitness>>::deserialize(deserializer);
-                address_bytes.map(TxWitness)
-            }
-        }
-
-        deserializer.deserialize_newtype_struct(TxWitness::type_name(), TxWitnessVisitor)
+impl Decodable for TxWitness {
+    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
+        let witnesses: Vec<TxInWitness> = rlp.as_list()?;
+        Ok(witnesses.into())
     }
 }
 
@@ -102,7 +67,7 @@ impl ::std::ops::DerefMut for TxWitness {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TxInWitness {
     BasicRedeem(EcdsaSignature),
-    TreeSig(RawPubkey, RawSignature, Vec<ProofOp>),
+    TreeSig(PublicKey, SchnorrSignature, Vec<ProofOp>),
 }
 
 impl fmt::Display for TxInWitness {
@@ -111,73 +76,73 @@ impl fmt::Display for TxInWitness {
     }
 }
 
-impl TypeInfo for TxInWitness {
-    #[inline]
-    fn type_name() -> &'static str {
-        "TxInWitness"
-    }
-}
+pub const MAX_TREE_DEPTH: usize = 32;
 
-impl Serialize for TxInWitness {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+impl Encodable for TxInWitness {
+    fn rlp_append(&self, s: &mut RlpStream) {
         match self {
-            TxInWitness::BasicRedeem(ref sig) => serializer.serialize_newtype_variant(
-                TxInWitness::type_name(),
-                0,
-                "BasicRedeem",
-                sig,
-            ),
-            TxInWitness::TreeSig(pk, sig, ops) => serializer.serialize_newtype_variant(
-                TxInWitness::type_name(),
-                1,
-                "TreeSig",
-                &(pk, sig, ops),
-            ),
-        }
-    }
-}
-
-impl<'de> Deserialize<'de> for TxInWitness {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct TxInWitnessVisitor;
-        impl<'de> Visitor<'de> for TxInWitnessVisitor {
-            type Value = TxInWitness;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("transaction input witness")
+            TxInWitness::BasicRedeem(sig) => {
+                let (recovery_id, serialized_sig) = sig.serialize_compact();
+                let signature: RawSignature = serialized_sig.into();
+                // recovery_id is one of 0 | 1 | 2 | 3
+                let rid = recovery_id.to_i32() as u8;
+                s.begin_list(3).append(&0u8).append(&rid).append(&signature);
             }
-
-            #[inline]
-            fn visit_enum<A>(self, deserializer: A) -> Result<Self::Value, A::Error>
-            where
-                A: EnumAccess<'de>,
-            {
-                match deserializer.variant::<u64>() {
-                    Ok((0, v)) => VariantAccess::newtype_variant::<EcdsaSignature>(v)
-                        .map(TxInWitness::BasicRedeem),
-                    Ok((1, v)) => {
-                        VariantAccess::newtype_variant::<(RawPubkey, RawSignature, Vec<ProofOp>)>(v)
-                            .map(|(pk, sig, ops)| TxInWitness::TreeSig(pk, sig, ops))
-                    }
-                    Ok((i, _)) => Err(A::Error::unknown_variant(
-                        &i.to_string(),
-                        &["BasicRedeem", "TreeSig"],
-                    )),
-                    Err(e) => Err(e),
+            TxInWitness::TreeSig(pk, schnorrsig, ops) => {
+                let serialized_pk: RawPubkey = pk.serialize().into();
+                let serialized_sig: RawSignature = schnorrsig.serialize_default().into();
+                let len = 3 + ops.len() * 2;
+                s.begin_list(len)
+                    .append(&1u8)
+                    .append(&serialized_pk)
+                    .append(&serialized_sig);
+                for op in ops.iter() {
+                    s.append(&op.0);
+                    s.append(&op.1);
                 }
             }
         }
+    }
+}
 
-        deserializer.deserialize_enum(
-            TxInWitness::type_name(),
-            &["BasicRedeem", "TreeSig"],
-            TxInWitnessVisitor,
-        )
+impl Decodable for TxInWitness {
+    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
+        const MAX_LEN: usize = 3 + MAX_TREE_DEPTH * 2;
+        let item_count = rlp.item_count()?;
+        if !(item_count >= 3 && item_count <= MAX_LEN) {
+            return Err(DecoderError::Custom("Cannot decode a transaction witness"));
+        }
+        let type_tag: u8 = rlp.val_at(0)?;
+        match (type_tag, item_count) {
+            (0, 3) => {
+                let rid: u8 = rlp.val_at(1)?;
+                let raw_sig: RawSignature = rlp.val_at(2)?;
+                let recovery_id = RecoveryId::from_i32(i32::from(rid))
+                    .map_err(|_| DecoderError::Custom("failed to decode recovery id"))?;
+                let sig = RecoverableSignature::from_compact(&raw_sig.as_bytes(), recovery_id)
+                    .map_err(|_| DecoderError::Custom("failed to decode recoverable signature"))?;
+                Ok(TxInWitness::BasicRedeem(sig))
+            }
+            (1, _) => {
+                let raw_pk: RawPubkey = rlp.val_at(1)?;
+                let pk = PublicKey::from_slice(&raw_pk.as_bytes())
+                    .map_err(|_| DecoderError::Custom("failed to public key"))?;
+
+                let raw_sig: RawSignature = rlp.val_at(2)?;
+                let schnorrsig = SchnorrSignature::from_default(&raw_sig.as_bytes())
+                    .map_err(|_| DecoderError::Custom("failed to decode schnorr signature"))?;
+                let mut ops: Vec<ProofOp> = Vec::with_capacity((item_count - 3) / 2);
+                let mut index = 3;
+                while index < item_count {
+                    let path: MerklePath = rlp.val_at(index)?;
+                    let hv: H256 = rlp.val_at(index + 1)?;
+                    ops.push((path, hv));
+                    index += 2;
+                }
+                Ok(TxInWitness::TreeSig(pk, schnorrsig, ops))
+            }
+            _ => Err(DecoderError::Custom("Unknown transaction type")),
+        }
     }
 }
 
@@ -192,28 +157,20 @@ impl TxInWitness {
         address: &ExtendedAddr,
     ) -> Result<(), secp256k1::Error> {
         let secp = Secp256k1::verification_only();
-        let message = Message::from_slice(&tx.id())?;
+        let message = Message::from_slice(&tx.id().as_bytes())?;
         match (&self, address) {
             (TxInWitness::BasicRedeem(sig), ExtendedAddr::BasicRedeem(addr)) => {
-                let mut sign = Vec::new();
-                sign.extend(&sig.r);
-                sign.extend(&sig.s);
-                let ri = RecoveryId::from_i32(i32::from(sig.v))?;
-                let rk = RecoverableSignature::from_compact(&sign, ri)?;
-                let pk = secp.recover(&message, &rk)?;
-                let expected_addr = RedeemAddress::from(&pk).0;
+                let pk = secp.recover(&message, &sig)?;
+                let expected_addr = RedeemAddress::from(&pk);
                 // TODO: constant time eq?
                 if *addr != expected_addr {
                     Err(secp256k1::Error::InvalidPublicKey)
                 } else {
-                    secp.verify(&message, &rk.to_standard(), &pk)
+                    secp.verify(&message, &sig.to_standard(), &pk)
                 }
             }
             (TxInWitness::TreeSig(pk, sig, ops), ExtendedAddr::OrTree(roothash)) => {
-                let mut pk_vec = Vec::with_capacity(PUBLIC_KEY_SIZE);
-                pk_vec.push(pk.0);
-                pk_vec.extend(&pk.1);
-                let mut pk_hash = txid_hash(&pk_vec);
+                let mut pk_hash = txid_hash(&pk.serialize());
                 // TODO: blake2 tree hashing?
                 for op in ops.iter() {
                     let mut bs = vec![1u8];
@@ -235,11 +192,7 @@ impl TxInWitness {
                     Err(secp256k1::Error::InvalidPublicKey)
                 // TODO: migrate to upstream secp256k1 when Schnorr is available
                 } else {
-                    let dpk = PublicKey::from_slice(&pk_vec)?;
-                    let mut sig_vec = Vec::from(&sig.0[..]);
-                    sig_vec.extend(&sig.1);
-                    let dsig = SchnorrSignature::from_default(&sig_vec)?;
-                    schnorr_verify(&secp, &message, &dsig, &dpk)
+                    schnorr_verify(&secp, &message, &sig, &pk)
                 }
             }
             (_, _) => Err(secp256k1::Error::InvalidSignature),

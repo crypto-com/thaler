@@ -1,28 +1,24 @@
-use serde::{Deserialize, Serialize};
-
-use crate::common::HASH_SIZE_256;
+use crate::common::{H256, HASH_SIZE_256};
 use crate::tx::data::{txid_hash, TxId};
 
 /// hash digest
 // TODO: opaque types?
-pub type Hash256 = [u8; HASH_SIZE_256];
+pub type Hash256 = H256;
 
 /// Tree is either empty or has some nodes
-#[derive(Serialize, Deserialize)]
 pub enum MerkleTree {
     Empty,
     Tree(usize, MerkleNode),
 }
 
 /// Node is either an inner node (branch) or a leaf
-#[derive(Serialize, Deserialize)]
 pub enum MerkleNode {
     Branch(Hash256, Box<MerkleNode>, Box<MerkleNode>),
     Leaf(Hash256),
 }
 
 // txid_hash(&vec![])
-const EMPTY_HASH: Hash256 = [
+const EMPTY_HASH: [u8; HASH_SIZE_256] = [
     105, 33, 122, 48, 121, 144, 128, 148, 225, 17, 33, 208, 66, 53, 74, 124, 31, 85, 182, 72, 44,
     161, 165, 30, 27, 37, 13, 253, 30, 208, 238, 249,
 ];
@@ -40,7 +36,7 @@ impl MerkleTree {
     /// returns the merkle root == hash of the root node in a non-empty tree
     pub fn get_root_hash(&self) -> Hash256 {
         match self {
-            MerkleTree::Empty => EMPTY_HASH,
+            MerkleTree::Empty => EMPTY_HASH.into(),
             MerkleTree::Tree(_, node) => *node.get_root_hash(),
         }
     }
@@ -60,8 +56,8 @@ impl MerkleNode {
             let a = MerkleNode::make_tree(&xs[0..i]);
             let b = MerkleNode::make_tree(&xs[i..]);
             let mut bs = vec![1u8];
-            bs.extend(a.get_root_hash().iter());
-            bs.extend(b.get_root_hash().iter());
+            bs.extend(a.get_root_hash().as_bytes().iter());
+            bs.extend(b.get_root_hash().as_bytes().iter());
             MerkleNode::Branch(txid_hash(&bs), Box::new(a), Box::new(b))
         }
     }

@@ -3,13 +3,13 @@
 //! Copyright (c) 2018, Input Output HK (licensed under the MIT License)
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
-use crate::common::TypeInfo;
 use crate::init::MAX_COIN;
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
-use serde::ser::{Serialize, Serializer};
+use serde::Serialize;
 use std::{fmt, ops, result};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize)]
 pub struct Coin(u64);
 
 /// error type relating to `Coin` operations
@@ -152,22 +152,6 @@ impl From<u32> for Coin {
     }
 }
 
-impl TypeInfo for Coin {
-    #[inline]
-    fn type_name() -> &'static str {
-        "Coin"
-    }
-}
-
-impl Serialize for Coin {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_newtype_struct(Coin::type_name(), &self.0)
-    }
-}
-
 impl<'de> Deserialize<'de> for Coin {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -194,8 +178,24 @@ impl<'de> Deserialize<'de> for Coin {
                 }
             }
         }
+        deserializer.deserialize_newtype_struct("Coin", CoinVisitor)
+    }
+}
 
-        deserializer.deserialize_newtype_struct(Coin::type_name(), CoinVisitor)
+impl Encodable for Coin {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        s.append(&self.0);
+    }
+}
+
+impl Decodable for Coin {
+    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
+        let amount: u64 = rlp.val_at(0)?;
+        if amount <= MAX_COIN {
+            Ok(Coin(amount))
+        } else {
+            Err(DecoderError::Custom("Coin is more than the total supply"))
+        }
     }
 }
 

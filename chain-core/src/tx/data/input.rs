@@ -1,7 +1,5 @@
-use crate::common::TypeInfo;
 use crate::tx::data::TxId;
-use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
-use serde::ser::{Serialize, SerializeStruct, Serializer};
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use std::fmt;
 
 /// Structure used for addressing a specific output of a transaction
@@ -15,71 +13,24 @@ pub struct TxoPointer {
 
 impl fmt::Display for TxoPointer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}@{}",
-            serde_json::to_string(&self.id).unwrap(),
-            self.index
-        )
+        write!(f, "{:?}@{}", self.id, self.index)
     }
 }
 
-impl TypeInfo for TxoPointer {
-    #[inline]
-    fn type_name() -> &'static str {
-        "TxoPointer"
+impl Encodable for TxoPointer {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        s.begin_list(2).append(&self.id).append(&self.index);
     }
 }
 
-/// TODO: switch to cbor_event or equivalent simple raw cbor library when serialization is finalized
-/// TODO: backwards/forwards-compatible serialization (adding/removing fields, variants etc. should be possible)
-impl Serialize for TxoPointer {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct(TxoPointer::type_name(), 2)?;
-        s.serialize_field("id", &self.id)?;
-        s.serialize_field("index", &self.index)?;
-        s.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for TxoPointer {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct TxoPointerVisitor;
-
-        impl<'de> Visitor<'de> for TxoPointerVisitor {
-            type Value = TxoPointer;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("tx input pointer")
-            }
-
-            #[inline]
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: MapAccess<'de>,
-            {
-                let txid = match map.next_entry::<u64, TxId>()? {
-                    Some((0, v)) => v,
-                    _ => return Err(serde::de::Error::missing_field("txid")),
-                };
-                let index = match map.next_entry::<u64, usize>()? {
-                    Some((1, v)) => v,
-                    _ => return Err(serde::de::Error::missing_field("index")),
-                };
-                Ok(TxoPointer::new(txid, index))
-            }
+impl Decodable for TxoPointer {
+    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
+        if rlp.item_count()? != 2 {
+            return Err(DecoderError::Custom("Cannot decode a transaction input"));
         }
-
-        deserializer.deserialize_struct(
-            TxoPointer::type_name(),
-            &["txid", "index"],
-            TxoPointerVisitor,
-        )
+        let id: TxId = rlp.val_at(0)?;
+        let index: usize = rlp.val_at(1)?;
+        Ok(TxoPointer::new(id, index))
     }
 }
 
