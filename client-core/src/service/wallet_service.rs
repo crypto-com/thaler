@@ -60,12 +60,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::WalletService;
-    use crate::storage::HashMapStorage;
+    use crate::storage::SledStorage;
     use crate::ErrorKind;
 
     #[test]
-    fn check_happy_flow() {
-        let wallet_service: WalletService<HashMapStorage> = Default::default();
+    fn check_flow() {
+        let wallet_service = WalletService::new(
+            SledStorage::new("./wallet-service-test").expect("Unable to create sled storage"),
+        );
 
         let wallet = wallet_service
             .get("name", "passphrase")

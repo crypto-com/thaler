@@ -2,6 +2,7 @@
 name = "client-core"
 version = "0.1.0"
 authors = ["Devashish Dixit <devashish@crypto.com>"]
+description = "This crate exposes following functionalities for interacting with Crypto.com Chain."
 edition = "2018"
 
 [dependencies]

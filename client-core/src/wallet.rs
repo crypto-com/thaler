@@ -1,12 +1,8 @@
 //! Wallet management
-#[cfg(any(test, feature = "hash-map"))]
-mod hash_map_wallet;
-#[cfg(all(not(test), feature = "sled"))]
+#[cfg(feature = "sled")]
 mod sled_wallet;
 
-#[cfg(any(test, feature = "hash-map"))]
-pub use self::hash_map_wallet::HashMapWallet;
-#[cfg(all(not(test), feature = "sled"))]
+#[cfg(feature = "sled")]
 pub use self::sled_wallet::SledWallet;
 
 use hex::encode;
