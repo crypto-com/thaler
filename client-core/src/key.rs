@@ -3,7 +3,7 @@ use bincode::{deserialize, serialize};
 use failure::ResultExt;
 use rand::rngs::OsRng;
 use secp256k1::{PublicKey as SecpPublicKey, SecretKey};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use chain_core::init::address::RedeemAddress;
 
@@ -11,6 +11,7 @@ use crate::SECP;
 use crate::{ErrorKind, Result};
 
 /// Private key used in Crypto.com Chain
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct PrivateKey(SecretKey);
 
 impl PrivateKey {
@@ -32,12 +33,6 @@ impl PrivateKey {
         let secret_key: SecretKey = deserialize(bytes).context(ErrorKind::DeserializationError)?;
 
         Ok(PrivateKey(secret_key))
-    }
-}
-
-impl Zeroize for PrivateKey {
-    fn zeroize(&mut self) {
-        self.0.zeroize()
     }
 }
 

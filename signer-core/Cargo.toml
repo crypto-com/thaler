@@ -6,10 +6,10 @@ edition = "2018"
 
 [dependencies]
 chain-core = { path = "../chain-core/" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "99f410ec22c97634e0c430fc578b3a20f30b5ee5", features = ["serde", "zeroize", "rand"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "4bb6adc44da57e79055a49931f51a8ac4231f165", features = ["serde", "zeroize", "rand"] }
 rand = "0.6"
 failure = "0.1"
-zeroize = "0.5"
+zeroize = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 hex = "0.3"
 unicase = "2.2"
