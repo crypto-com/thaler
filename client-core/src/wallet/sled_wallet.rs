@@ -17,29 +17,6 @@ pub struct SledWallet {
 
 impl SledWallet {
     /// Creates a new instance with specified path for data storage
-    #[cfg(not(test))]
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let mut path_buf = path.as_ref().to_path_buf();
-        path_buf.push(KEY_PATH);
-
-        let key_storage = SledStorage::new(path_buf.as_path())?;
-        let key_service = KeyService::new(key_storage);
-
-        path_buf.pop();
-        path_buf.push(WALLET_PATH);
-
-        let wallet_storage = SledStorage::new(path_buf.as_path())?;
-        let wallet_service = WalletService::new(wallet_storage);
-
-        Ok(SledWallet {
-            key_service,
-            wallet_service,
-        })
-    }
-
-    /// Creates a new temporary instance (data will be deleted after the instance is dropped) with specified path for
-    /// data storage.
-    #[cfg(test)]
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut path_buf = path.as_ref().to_path_buf();
         path_buf.push(KEY_PATH);
