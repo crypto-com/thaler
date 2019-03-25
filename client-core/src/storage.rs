@@ -1,8 +1,12 @@
 //! Data storage layer
-#[cfg(feature = "sled")]
+#[cfg(any(test, feature = "hash-map"))]
+mod hash_map_storage;
+#[cfg(all(not(test), feature = "sled"))]
 mod sled_storage;
 
-#[cfg(feature = "sled")]
+#[cfg(any(test, feature = "hash-map"))]
+pub use hash_map_storage::HashMapStorage;
+#[cfg(all(not(test), feature = "sled"))]
 pub use sled_storage::SledStorage;
 
 use blake2::{Blake2s, Digest};

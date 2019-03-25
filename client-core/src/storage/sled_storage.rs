@@ -1,4 +1,4 @@
-#![cfg(feature = "sled")]
+#![cfg(all(not(test), feature = "sled"))]
 use std::path::Path;
 
 use failure::ResultExt;

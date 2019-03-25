@@ -4,6 +4,7 @@ use failure::ResultExt;
 use crate::{ErrorKind, PrivateKey, Result, SecureStorage};
 
 /// Exposes functionality for managing public and private keys
+#[derive(Default)]
 pub struct KeyService<T> {
     storage: T,
 }
@@ -63,5 +64,48 @@ where
                 Ok(Some(private_keys))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::KeyService;
+    use crate::storage::HashMapStorage;
+    use crate::ErrorKind;
+
+    #[test]
+    fn check_happy_flow() {
+        let key_service = KeyService::new(HashMapStorage::default());
+
+        let private_key = key_service
+            .generate("wallet_id", "passphrase")
+            .expect("Unable to generate private key");
+
+        let keys = key_service
+            .get_keys("wallet_id", "passphrase")
+            .expect("Unable to get keys from storage")
+            .expect("No keys found");
+
+        assert_eq!(1, keys.len(), "Unexpected key length");
+        assert_eq!(private_key, keys[0], "Invalid private key found");
+    }
+
+    #[test]
+    fn incorrect_passphrase() {
+        let key_service: KeyService<HashMapStorage> = Default::default();
+
+        key_service
+            .generate("wallet_id", "passphrase")
+            .expect("Unable to generate private key");
+
+        let error = key_service
+            .get_keys("wallet_id", "incorrect_passphrase")
+            .expect_err("Decryption worked with incorrect passphrase");
+
+        assert_eq!(
+            error.kind(),
+            ErrorKind::DecryptionError,
+            "Invalid error kind"
+        );
     }
 }
