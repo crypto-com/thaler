@@ -33,7 +33,7 @@ impl MerklePath {
         let mut op = ProofOp::new();
         op.set_field_type("path".into());
         op.set_key(vec![self as u8]);
-        op.set_data(t.to_vec());
+        op.set_data(t.as_bytes().to_vec());
         op
     }
 }

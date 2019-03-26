@@ -19,8 +19,14 @@ pub fn hash256<D: Digest>(data: &[u8]) -> H256 {
 }
 
 /// Seconds since UNIX epoch
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Ord, PartialOrd)]
 pub struct Timespec(i64);
+
+impl From<i64> for Timespec {
+    fn from(v: i64) -> Self {
+        Timespec(v)
+    }
+}
 
 impl Encodable for Timespec {
     fn rlp_append(&self, s: &mut RlpStream) {

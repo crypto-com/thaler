@@ -6,10 +6,10 @@ mod validate_tx;
 use abci::*;
 use ethbloom::{Bloom, Input};
 use log::info;
-use secp256k1::constants::PUBLIC_KEY_SIZE;
 
 pub use self::app_init::ChainNodeApp;
 use crate::storage::tx::spend_utxos;
+use chain_core::tx::TxAux;
 
 impl abci::Application for ChainNodeApp {
     /// Query Connection: Called on startup from Tendermint.  The application should normally
@@ -19,10 +19,10 @@ impl abci::Application for ChainNodeApp {
         info!("received info request");
         let mut resp = ResponseInfo::new();
         if self.last_apphash.is_some() {
-            resp.last_block_app_hash = self.last_apphash.unwrap().to_vec();
+            resp.last_block_app_hash = self.last_apphash.unwrap().as_bytes().to_vec();
             resp.last_block_height = self.last_block_height;
         } else {
-            resp.last_block_app_hash = self.genesis_app_hash.to_vec();
+            resp.last_block_app_hash = self.genesis_app_hash.as_bytes().to_vec();
         }
         resp
     }
@@ -73,7 +73,8 @@ impl abci::Application for ChainNodeApp {
                 .time
                 .as_ref()
                 .expect("Header does not have a timestamp")
-                .seconds,
+                .seconds
+                .into(),
         );
         ResponseBeginBlock::new()
     }
@@ -88,18 +89,20 @@ impl abci::Application for ChainNodeApp {
         );
         let mut resp = ResponseDeliverTx::new();
         let mtxaux = ChainNodeApp::validate_tx_req(self, _req, &mut resp);
-        if resp.code == 0 && mtxaux.is_some() {
-            let txaux = mtxaux.unwrap();
-            let txid = txaux.tx.id();
-            let mut inittx = self.storage.db.transaction();
-            spend_utxos(&txaux, self.storage.db.clone(), &mut inittx);
-            self.storage.db.write_buffered(inittx);
-            self.delivered_txs.push(txaux);
-            let mut kvpair = KVPair::new();
-            kvpair.key = Vec::from(&b"txid"[..]);
-            // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
-            kvpair.value = Vec::from(&txid[..]);
-            resp.tags.push(kvpair);
+        match (resp.code, mtxaux) {
+            (0, Some(TxAux::TransferTx(tx, witness))) => {
+                let txid = tx.id();
+                let mut inittx = self.storage.db.transaction();
+                spend_utxos(&tx, self.storage.db.clone(), &mut inittx);
+                self.storage.db.write_buffered(inittx);
+                self.delivered_txs.push(TxAux::TransferTx(tx, witness));
+                let mut kvpair = KVPair::new();
+                kvpair.key = Vec::from(&b"txid"[..]);
+                // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
+                kvpair.value = Vec::from(&txid[..]);
+                resp.tags.push(kvpair);
+            }
+            _ => {}
         }
         resp
     }
@@ -115,14 +118,15 @@ impl abci::Application for ChainNodeApp {
         let mut keys = self
             .delivered_txs
             .iter()
-            .flat_map(|x| x.tx.attributes.allowed_view.iter().map(|x| x.view_key.1))
+            .flat_map(|x| match x {
+                TxAux::TransferTx(tx, _) => tx.attributes.allowed_view.iter().map(|x| x.view_key),
+            })
             .peekable();
         if keys.peek().is_some() {
             // TODO: explore alternatives, e.g. https://github.com/bitcoin/bips/blob/master/bip-0158.mediawiki
             let mut bloom = Bloom::default();
             for key in keys {
-                let k: &[u8; PUBLIC_KEY_SIZE - 1] = &key;
-                bloom.accrue(Input::Raw(k));
+                bloom.accrue(Input::Raw(&key.serialize()[..]));
             }
             let mut kvpair = KVPair::new();
             kvpair.key = Vec::from(&b"ethbloom"[..]);

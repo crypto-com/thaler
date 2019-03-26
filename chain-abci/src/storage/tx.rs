@@ -4,8 +4,8 @@ use chain_core::common::Timespec;
 use chain_core::init::coin::{Coin, CoinError};
 use chain_core::tx::{data::Tx, TxAux};
 use kvdb::{DBTransaction, KeyValueDB};
+use rlp::{Decodable, Rlp};
 use secp256k1;
-use serde_cbor::from_slice;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::Arc;
@@ -54,9 +54,9 @@ impl fmt::Display for Error {
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
 /// in the TX_META storage.
-pub fn spend_utxos(txaux: &TxAux, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
+pub fn spend_utxos(tx: &Tx, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
     let mut updated_txs = BTreeMap::new();
-    for txin in txaux.tx.inputs.iter() {
+    for txin in tx.inputs.iter() {
         updated_txs
             .entry(txin.id)
             .or_insert_with(|| {
@@ -65,19 +65,18 @@ pub fn spend_utxos(txaux: &TxAux, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransact
             .set(txin.index, true);
     }
     for (txid, bv) in &updated_txs {
-        dbtx.put(COL_TX_META, txid, &bv.to_bytes());
+        dbtx.put(COL_TX_META, txid.as_bytes(), &bv.to_bytes());
     }
 }
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
 /// in the TX_META storage and it will create a new entry for TX in TX_META with all outputs marked as unspent.
-pub fn update_utxos_commit(txaux: &TxAux, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
-    spend_utxos(txaux, db, dbtx);
-    let txid = txaux.tx.id();
+pub fn update_utxos_commit(tx: &Tx, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
+    spend_utxos(tx, db, dbtx);
     dbtx.put(
         COL_TX_META,
-        &txid,
-        &BitVec::from_elem(txaux.tx.outputs.len(), false).to_bytes(),
+        &tx.id().as_bytes(),
+        &BitVec::from_elem(tx.outputs.len(), false).to_bytes(),
     );
 }
 
@@ -89,101 +88,107 @@ pub fn verify(
     db: Arc<dyn KeyValueDB>,
     block_time: Timespec,
 ) -> Result<(), Error> {
-    // TODO: check other attributes?
-    // check that chain IDs match
-    if chain_hex_id != txaux.tx.attributes.chain_hex_id {
-        return Err(Error::WrongChainHexId);
-    }
-    // check that there are inputs
-    if txaux.tx.inputs.is_empty() {
-        return Err(Error::NoInputs);
-    }
+    match txaux {
+        TxAux::TransferTx(maintx, witness) => {
+            // TODO: check other attributes?
+            // check that chain IDs match
+            if chain_hex_id != maintx.attributes.chain_hex_id {
+                return Err(Error::WrongChainHexId);
+            }
+            // check that there are inputs
+            if maintx.inputs.is_empty() {
+                return Err(Error::NoInputs);
+            }
 
-    // check that there are outputs
-    if txaux.tx.outputs.is_empty() {
-        return Err(Error::NoOutputs);
-    }
+            // check that there are outputs
+            if maintx.outputs.is_empty() {
+                return Err(Error::NoOutputs);
+            }
 
-    // check that there are no duplicate inputs
-    let mut inputs = BTreeSet::new();
-    if !txaux.tx.inputs.iter().all(|x| inputs.insert(x)) {
-        return Err(Error::DuplicateInputs);
-    }
+            // check that there are no duplicate inputs
+            let mut inputs = BTreeSet::new();
+            if !maintx.inputs.iter().all(|x| inputs.insert(x)) {
+                return Err(Error::DuplicateInputs);
+            }
 
-    // check that all outputs have a non-zero amount
-    if !txaux.tx.outputs.iter().all(|x| x.value > Coin::zero()) {
-        return Err(Error::ZeroCoin);
-    }
+            // check that all outputs have a non-zero amount
+            if !maintx.outputs.iter().all(|x| x.value > Coin::zero()) {
+                return Err(Error::ZeroCoin);
+            }
 
-    // Note: we don't need to check against MAX_COIN because Coin's
-    // constructor should already do it.
+            // Note: we don't need to check against MAX_COIN because Coin's
+            // constructor should already do it.
 
-    // TODO: check address attributes?
+            // TODO: check address attributes?
 
-    // verify transaction witnesses
-    if txaux.tx.inputs.len() < txaux.witness.len() {
-        return Err(Error::UnexpectedWitnesses);
-    }
+            // verify transaction witnesses
+            if maintx.inputs.len() < witness.len() {
+                return Err(Error::UnexpectedWitnesses);
+            }
 
-    if txaux.tx.inputs.len() > txaux.witness.len() {
-        return Err(Error::MissingWitnesses);
-    }
+            if maintx.inputs.len() > witness.len() {
+                return Err(Error::MissingWitnesses);
+            }
 
-    let mut incoins = Coin::zero();
+            let mut incoins = Coin::zero();
 
-    // verify that txids of inputs correspond to the owner/signer
-    // and it'd check they are not spent
-    for (txin, in_witness) in txaux.tx.inputs.iter().zip(txaux.witness.iter()) {
-        let txo = db.get(COL_TX_META, &txin.id[..]);
-        match txo {
-            Ok(Some(v)) => {
-                let bv = BitVec::from_bytes(&v).get(txin.index);
-                if bv.is_none() {
-                    return Err(Error::InvalidInput);
-                }
-                if bv.unwrap() {
-                    return Err(Error::InputSpent);
-                }
-                let tx: Tx =
-                    from_slice(&db.get(COL_BODIES, &txin.id[..]).unwrap().unwrap()).unwrap();
-                if txin.index >= tx.outputs.len() {
-                    return Err(Error::InvalidInput);
-                }
-                let txout = &tx.outputs[txin.index];
-                if let Some(valid_from) = txout.valid_from {
-                    if valid_from > block_time {
-                        return Err(Error::OutputInTimelock);
+            // verify that txids of inputs correspond to the owner/signer
+            // and it'd check they are not spent
+            for (txin, in_witness) in maintx.inputs.iter().zip(witness.iter()) {
+                let txo = db.get(COL_TX_META, &txin.id[..]);
+                match txo {
+                    Ok(Some(v)) => {
+                        let bv = BitVec::from_bytes(&v).get(txin.index);
+                        if bv.is_none() {
+                            return Err(Error::InvalidInput);
+                        }
+                        if bv.unwrap() {
+                            return Err(Error::InputSpent);
+                        }
+                        let tx = Tx::decode(&Rlp::new(
+                            &db.get(COL_BODIES, &txin.id[..]).unwrap().unwrap(),
+                        ))
+                        .unwrap();
+                        if txin.index >= tx.outputs.len() {
+                            return Err(Error::InvalidInput);
+                        }
+                        let txout = &tx.outputs[txin.index];
+                        if let Some(valid_from) = &txout.valid_from {
+                            if *valid_from > block_time {
+                                return Err(Error::OutputInTimelock);
+                            }
+                        }
+
+                        let wv = in_witness.verify_tx_address(&tx, &txout.address);
+                        if wv.is_err() {
+                            return Err(Error::EcdsaCrypto(wv.unwrap_err()));
+                        }
+                        let sum = incoins + txout.value;
+                        if sum.is_err() {
+                            return Err(Error::InvalidSum(sum.unwrap_err()));
+                        } else {
+                            incoins = sum.unwrap();
+                        }
+                    }
+                    Ok(None) => {
+                        return Err(Error::InvalidInput);
+                    }
+                    Err(e) => {
+                        return Err(Error::IoError(e));
                     }
                 }
-
-                let wv = in_witness.verify_tx_address(&txaux.tx, &txout.address);
-                if wv.is_err() {
-                    return Err(Error::EcdsaCrypto(wv.unwrap_err()));
-                }
-                let sum = incoins + txout.value;
-                if sum.is_err() {
-                    return Err(Error::InvalidSum(sum.unwrap_err()));
-                } else {
-                    incoins = sum.unwrap();
-                }
             }
-            Ok(None) => {
-                return Err(Error::InvalidInput);
+            // check sum(input amounts) == sum(output amounts)
+            // TODO: do we allow "burn"? i.e. sum(input amounts) >= sum(output amounts)
+            let outsum = maintx.get_output_total();
+            if outsum.is_err() {
+                return Err(Error::InvalidSum(outsum.unwrap_err()));
             }
-            Err(e) => {
-                return Err(Error::IoError(e));
+            let outcoins = outsum.unwrap();
+            if incoins != outcoins {
+                return Err(Error::InputOutputDoNotMatch);
             }
         }
-    }
-    // check sum(input amounts) == sum(output amounts)
-    // TODO: do we allow "burn"? i.e. sum(input amounts) >= sum(output amounts)
-    let outsum = txaux.tx.get_output_total();
-    if outsum.is_err() {
-        return Err(Error::InvalidSum(outsum.unwrap_err()));
-    }
-    let outcoins = outsum.unwrap();
-    if incoins != outcoins {
-        return Err(Error::InputOutputDoNotMatch);
     }
     Ok(())
 }
