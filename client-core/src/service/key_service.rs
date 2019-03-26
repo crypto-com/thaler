@@ -1,7 +1,7 @@
 use bincode::{deserialize, serialize};
 use failure::ResultExt;
 
-use crate::{ErrorKind, PrivateKey, Result, SecureStorage};
+use crate::{ErrorKind, PrivateKey, Result, SecureStorage, Storage};
 
 /// Exposes functionality for managing public and private keys
 #[derive(Default)]
@@ -11,7 +11,7 @@ pub struct KeyService<T> {
 
 impl<T> KeyService<T>
 where
-    T: SecureStorage,
+    T: Storage,
 {
     /// Creates a new instance of key service
     pub fn new(storage: T) -> Self {

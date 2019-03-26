@@ -47,6 +47,12 @@ pub enum ErrorKind {
     /// Error while locking a shared resource
     #[fail(display = "Error while locking a shared resource")]
     LockError,
+    /// Error while adding two balances
+    #[fail(display = "Error while adding two balances")]
+    BalanceAdditionError,
+    /// Balance not found
+    #[fail(display = "Balance not found")]
+    BalanceNotFound,
 }
 
 impl Fail for Error {

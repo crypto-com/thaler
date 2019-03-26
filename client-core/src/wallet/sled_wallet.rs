@@ -1,5 +1,6 @@
 #![cfg(feature = "sled")]
 
+#[cfg(not(test))]
 use std::path::Path;
 
 use crate::service::{KeyService, WalletService};
@@ -16,7 +17,8 @@ pub struct SledWallet {
 }
 
 impl SledWallet {
-    /// Creates a new instance with specified path for data storage
+    /// Creates a new instance with specified path for data storage'
+    #[cfg(not(test))]
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut path_buf = path.as_ref().to_path_buf();
         path_buf.push(KEY_PATH);
@@ -28,6 +30,21 @@ impl SledWallet {
         path_buf.push(WALLET_PATH);
 
         let wallet_storage = SledStorage::new(path_buf.as_path())?;
+        let wallet_service = WalletService::new(wallet_storage);
+
+        Ok(SledWallet {
+            key_service,
+            wallet_service,
+        })
+    }
+
+    /// Creates a new instance with specified path for data storage'
+    #[cfg(test)]
+    pub fn new(path: String) -> Result<Self> {
+        let key_storage = SledStorage::new(path.clone() + KEY_PATH)?;
+        let key_service = KeyService::new(key_storage);
+
+        let wallet_storage = SledStorage::new(path + WALLET_PATH)?;
         let wallet_service = WalletService::new(wallet_storage);
 
         Ok(SledWallet {
@@ -54,7 +71,8 @@ mod tests {
 
     #[test]
     fn check_happy_flow() {
-        let wallet = SledWallet::new("./wallet-test").expect("Unable to create sled wallet");
+        let wallet =
+            SledWallet::new("./wallet-test".to_string()).expect("Unable to create sled wallet");
 
         wallet
             .new_wallet("name", "passphrase")
