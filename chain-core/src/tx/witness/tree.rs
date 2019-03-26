@@ -12,22 +12,31 @@ pub enum MerklePath {
 }
 
 /// Contains the path taken + the other branch's hash
-pub type ProofOp = (MerklePath, H256);
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ProofOp(pub MerklePath, pub H256);
 
-impl Encodable for MerklePath {
+/// TODO: it's a bit wasteful now, perhaps more efficient encoding
+/// One option would be (a level up / in TxInWitness) to have a N-bit BitVec that denotes
+/// in each bit whether the left or right branch was taken
+/// followed by N*32 bytes (N hashes of the other branches)
+impl Encodable for ProofOp {
     fn rlp_append(&self, s: &mut RlpStream) {
-        let v = *self == MerklePath::LFound;
+        let v = self.0 == MerklePath::LFound;
+        s.begin_list(2);
         s.append(&v);
+        s.append(&self.1);
     }
 }
 
-impl Decodable for MerklePath {
+impl Decodable for ProofOp {
     fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        let v: bool = rlp.as_val()?;
-        if v {
-            Ok(MerklePath::LFound)
+        let v: bool = rlp.val_at(0)?;
+        let p = if v {
+            MerklePath::LFound
         } else {
-            Ok(MerklePath::RFound)
-        }
+            MerklePath::RFound
+        };
+        let h: H256 = rlp.val_at(1)?;
+        Ok(ProofOp(p, h))
     }
 }

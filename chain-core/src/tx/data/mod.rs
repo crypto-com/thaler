@@ -26,10 +26,10 @@ pub fn txid_hash(buf: &[u8]) -> H256 {
 pub const TXID_HASH_ID: &[u8; 7] = b"blake2s";
 
 /// Transaction ID -- currently, blake2s hash of RLP-serialized TX data
-/// TODO: opaque types?
 pub type TxId = H256;
 
 /// A Transaction containing tx inputs and tx outputs.
+/// TODO: max input/output size?
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Tx {
     pub inputs: Vec<TxoPointer>,

@@ -1,14 +1,13 @@
 /// Witness for Merklized Abstract Syntax Trees (MAST) + Schnorr
 pub mod tree;
-use crate::common::H256;
 use crate::init::address::RedeemAddress;
 use crate::tx::data::address::ExtendedAddr;
 use crate::tx::data::{txid_hash, Tx};
 use crate::tx::witness::tree::{MerklePath, ProofOp, RawPubkey, RawSignature};
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use secp256k1::{
-    self, key::PublicKey, schnorrsig::schnorr_verify,
-    schnorrsig::SchnorrSignature, Message, RecoverableSignature, RecoveryId, Secp256k1,
+    self, key::PublicKey, schnorrsig::schnorr_verify, schnorrsig::SchnorrSignature, Message,
+    RecoverableSignature, RecoveryId, Secp256k1,
 };
 use std::fmt;
 
@@ -76,8 +75,6 @@ impl fmt::Display for TxInWitness {
     }
 }
 
-pub const MAX_TREE_DEPTH: usize = 32;
-
 impl Encodable for TxInWitness {
     fn rlp_append(&self, s: &mut RlpStream) {
         match self {
@@ -91,15 +88,12 @@ impl Encodable for TxInWitness {
             TxInWitness::TreeSig(pk, schnorrsig, ops) => {
                 let serialized_pk: RawPubkey = pk.serialize().into();
                 let serialized_sig: RawSignature = schnorrsig.serialize_default().into();
-                let len = 3 + ops.len() * 2;
-                s.begin_list(len)
+                // TODO: better proof op encoding
+                s.begin_list(4)
                     .append(&1u8)
                     .append(&serialized_pk)
-                    .append(&serialized_sig);
-                for op in ops.iter() {
-                    s.append(&op.0);
-                    s.append(&op.1);
-                }
+                    .append(&serialized_sig)
+                    .append_list(&ops);
             }
         }
     }
@@ -107,9 +101,8 @@ impl Encodable for TxInWitness {
 
 impl Decodable for TxInWitness {
     fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        const MAX_LEN: usize = 3 + MAX_TREE_DEPTH * 2;
         let item_count = rlp.item_count()?;
-        if !(item_count >= 3 && item_count <= MAX_LEN) {
+        if !(item_count >= 3 && item_count <= 4) {
             return Err(DecoderError::Custom("Cannot decode a transaction witness"));
         }
         let type_tag: u8 = rlp.val_at(0)?;
@@ -123,7 +116,7 @@ impl Decodable for TxInWitness {
                     .map_err(|_| DecoderError::Custom("failed to decode recoverable signature"))?;
                 Ok(TxInWitness::BasicRedeem(sig))
             }
-            (1, _) => {
+            (1, 4) => {
                 let raw_pk: RawPubkey = rlp.val_at(1)?;
                 let pk = PublicKey::from_slice(&raw_pk.as_bytes())
                     .map_err(|_| DecoderError::Custom("failed to public key"))?;
@@ -131,14 +124,8 @@ impl Decodable for TxInWitness {
                 let raw_sig: RawSignature = rlp.val_at(2)?;
                 let schnorrsig = SchnorrSignature::from_default(&raw_sig.as_bytes())
                     .map_err(|_| DecoderError::Custom("failed to decode schnorr signature"))?;
-                let mut ops: Vec<ProofOp> = Vec::with_capacity((item_count - 3) / 2);
-                let mut index = 3;
-                while index < item_count {
-                    let path: MerklePath = rlp.val_at(index)?;
-                    let hv: H256 = rlp.val_at(index + 1)?;
-                    ops.push((path, hv));
-                    index += 2;
-                }
+                // TODO: max tree depth?
+                let ops: Vec<ProofOp> = rlp.list_at(3)?;
                 Ok(TxInWitness::TreeSig(pk, schnorrsig, ops))
             }
             _ => Err(DecoderError::Custom("Unknown transaction type")),
@@ -175,12 +162,12 @@ impl TxInWitness {
                 for op in ops.iter() {
                     let mut bs = vec![1u8];
                     match op {
-                        (MerklePath::LFound, data) => {
+                        ProofOp(MerklePath::LFound, data) => {
                             bs.extend(&pk_hash[..]);
                             bs.extend(&data[..]);
                             pk_hash = txid_hash(&bs);
                         }
-                        (MerklePath::RFound, data) => {
+                        ProofOp(MerklePath::RFound, data) => {
                             bs.extend(&data[..]);
                             bs.extend(&pk_hash[..]);
                             pk_hash = txid_hash(&bs);
@@ -204,9 +191,9 @@ impl TxInWitness {
 pub mod tests {
     use super::*;
     use crate::common::merkle::MerkleTree;
-    use crate::common::HASH_SIZE_256;
+    use crate::common::H256;
     use crate::tx::data::txid_hash;
-    use crate::tx::witness::tree::{pk_to_raw, sig_to_raw, MerklePath};
+    use crate::tx::witness::tree::MerklePath;
     use secp256k1::{
         key::pubkey_combine,
         key::PublicKey,
@@ -221,16 +208,9 @@ pub mod tests {
         tx: &Tx,
         secret_key: &SecretKey,
     ) -> TxInWitness {
-        let message = Message::from_slice(&tx.id()).expect("32 bytes");
+        let message = Message::from_slice(&tx.id().as_bytes()).expect("32 bytes");
         let sig = secp.sign_recoverable(&message, &secret_key);
-        let (v, ss) = sig.serialize_compact();
-        let r = &ss[0..32];
-        let s = &ss[32..64];
-        let mut sign = EcdsaSignature::default();
-        sign.v = v.to_i32() as u8;
-        sign.r.copy_from_slice(r);
-        sign.s.copy_from_slice(s);
-        return TxInWitness::BasicRedeem(sign);
+        return TxInWitness::BasicRedeem(sig);
     }
 
     fn sign_single_schnorr<C: Signing>(
@@ -245,8 +225,8 @@ pub mod tests {
         secp: Secp256k1<C>,
         tx: &Tx,
         secret_key: &SecretKey,
-    ) -> (TxInWitness, [u8; HASH_SIZE_256]) {
-        let message = Message::from_slice(&tx.id()).expect("32 bytes");
+    ) -> (TxInWitness, H256) {
+        let message = Message::from_slice(&tx.id().as_bytes()).expect("32 bytes");
         let sig = sign_single_schnorr(&secp, &message, &secret_key);
         let pk = PublicKey::from_secret_key(&secp, &secret_key);
 
@@ -254,7 +234,7 @@ pub mod tests {
         let merkle = MerkleTree::new(&vec![pk_hash]);
 
         return (
-            TxInWitness::TreeSig(pk_to_raw(pk), sig_to_raw(sig), vec![]),
+            TxInWitness::TreeSig(pk, sig, vec![]),
             merkle.get_root_hash(),
         );
     }
@@ -265,7 +245,7 @@ pub mod tests {
         secret_key1: SecretKey,
         secret_key2: SecretKey,
     ) -> (SchnorrSignature, PublicKey, PublicKey) {
-        let message = Message::from_slice(&tx.id()).expect("32 bytes");
+        let message = Message::from_slice(&tx.id().as_bytes()).expect("32 bytes");
         let pk1 = PublicKey::from_secret_key(&secp, &secret_key1);
         let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
         let session_id1 = MuSigSessionID::from_slice(&[0x01; 32]).expect("32 bytes");
@@ -321,15 +301,15 @@ pub mod tests {
         tx: &Tx,
         secret_key1: SecretKey,
         secret_key2: SecretKey,
-    ) -> (TxInWitness, [u8; HASH_SIZE_256]) {
+    ) -> (TxInWitness, H256) {
         let (sig, pk1, pk2) = get_2_of_2_sig(&secp, tx, secret_key1, secret_key2);
 
         let pk = pubkey_combine(&secp, &vec![pk1, pk2]).unwrap().0;
-        let pk_hash = txid_hash(&pk.serialize());
+        let pk_hash = txid_hash(&pk.serialize()[..]);
         let merkle = MerkleTree::new(&vec![pk_hash]);
 
         return (
-            TxInWitness::TreeSig(pk_to_raw(pk), sig_to_raw(sig), vec![]),
+            TxInWitness::TreeSig(pk, sig, vec![]),
             merkle.get_root_hash(),
         );
     }
@@ -340,28 +320,28 @@ pub mod tests {
         secret_key1: SecretKey,
         secret_key2: SecretKey,
         secret_key3: SecretKey,
-    ) -> (TxInWitness, [u8; HASH_SIZE_256]) {
+    ) -> (TxInWitness, H256) {
         let pk1 = PublicKey::from_secret_key(&secp, &secret_key1);
         let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
         let pk3 = PublicKey::from_secret_key(&secp, &secret_key3);
         let pkc1 = pubkey_combine(&secp, &vec![pk1, pk2]).unwrap().0;
         let pkc2 = pubkey_combine(&secp, &vec![pk1, pk3]).unwrap().0;
         let pkc3 = pubkey_combine(&secp, &vec![pk2, pk3]).unwrap().0;
-        let pk_hashes: Vec<[u8; 32]> = vec![pkc1, pkc2, pkc3]
+        let pk_hashes: Vec<H256> = vec![pkc1, pkc2, pkc3]
             .iter()
-            .map(|x| txid_hash(&x.serialize()))
+            .map(|x| txid_hash(&x.serialize()[..]))
             .collect();
         let merkle = MerkleTree::new(&pk_hashes);
 
         let path: Vec<ProofOp> = vec![
-            (MerklePath::LFound, pk_hashes[1]),
-            (MerklePath::LFound, pk_hashes[2]),
+            ProofOp(MerklePath::LFound, pk_hashes[1]),
+            ProofOp(MerklePath::LFound, pk_hashes[2]),
         ];
 
         let (sig, _, _) = get_2_of_2_sig(&secp, tx, secret_key1, secret_key2);
 
         return (
-            TxInWitness::TreeSig(pk_to_raw(pkc1), sig_to_raw(sig), path),
+            TxInWitness::TreeSig(pkc1, sig, path),
             merkle.get_root_hash(),
         );
     }
@@ -372,10 +352,10 @@ pub mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-        let expected_addr1 = ExtendedAddr::OrTree([0x00; 32]);
+        let expected_addr1 = ExtendedAddr::OrTree([0x00; 32].into());
         let witness1 = get_ecdsa_witness(&secp, &tx, &secret_key);
         assert!(witness1.verify_tx_address(&tx, &expected_addr1).is_err());
-        let expected_addr2 = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key).0);
+        let expected_addr2 = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key));
         let (witness2, _) = get_single_tx_witness(secp, &tx, &secret_key);
         assert!(witness2.verify_tx_address(&tx, &expected_addr2).is_err());
     }
@@ -386,7 +366,7 @@ pub mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-        let expected_addr = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key).0);
+        let expected_addr = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key));
         let witness = get_ecdsa_witness(&secp, &tx, &secret_key);
         assert!(witness.verify_tx_address(&tx, &expected_addr).is_ok());
     }
@@ -433,16 +413,19 @@ pub mod tests {
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
 
         let witness = get_ecdsa_witness(&secp, &tx, &secret_key);
-        let wrong_addr = ExtendedAddr::BasicRedeem(RedeemAddress::default().0);
+        let wrong_addr = ExtendedAddr::BasicRedeem(RedeemAddress::default());
         assert!(witness.verify_tx_address(&tx, &wrong_addr).is_err());
     }
 
     #[test]
     fn wrongly_basic_signed_tx_should_fail() {
         let tx = Tx::new();
-        let sign = EcdsaSignature::default();
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let message = Message::from_slice(&[0xaa; 32]).expect("32 bytes");
+        let sign = secp.sign_recoverable(&message, &secret_key);
         let witness = TxInWitness::BasicRedeem(sign);
-        let addr = ExtendedAddr::BasicRedeem(RedeemAddress::default().0);
+        let addr = ExtendedAddr::BasicRedeem(RedeemAddress::default());
         assert!(witness.verify_tx_address(&tx, &addr).is_err());
     }
 

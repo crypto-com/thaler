@@ -4,10 +4,11 @@
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
 use crate::init::MAX_COIN;
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::Serialize;
-use std::{fmt, ops, result};
+use std::{fmt, mem, ops, result};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize)]
 pub struct Coin(u64);
@@ -184,18 +185,30 @@ impl<'de> Deserialize<'de> for Coin {
 
 impl Encodable for Coin {
     fn rlp_append(&self, s: &mut RlpStream) {
-        s.append(&self.0);
+        let mut bs = [0u8; mem::size_of::<u64>()];
+        bs.as_mut()
+            .write_u64::<LittleEndian>(self.0)
+            .expect("Unable to write Coin");
+        s.encoder().encode_value(&bs[..]);
     }
 }
 
 impl Decodable for Coin {
     fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        let amount: u64 = rlp.val_at(0)?;
-        if amount <= MAX_COIN {
-            Ok(Coin(amount))
-        } else {
-            Err(DecoderError::Custom("Coin is more than the total supply"))
-        }
+        rlp.decoder().decode_value(|mut bytes| match bytes.len() {
+            l if l == mem::size_of::<u64>() => {
+                let amount = bytes
+                    .read_u64::<LittleEndian>()
+                    .map_err(|_| DecoderError::Custom("failed to read u64"))?;
+                if amount <= MAX_COIN {
+                    Ok(Coin(amount))
+                } else {
+                    Err(DecoderError::Custom("Coin is more than the total supply"))
+                }
+            }
+            l if l < mem::size_of::<u64>() => Err(DecoderError::RlpIsTooShort),
+            _ => Err(DecoderError::RlpIsTooBig),
+        })
     }
 }
 
