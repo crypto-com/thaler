@@ -83,13 +83,18 @@ mod tests {
             .generate("wallet_id", "passphrase")
             .expect("Unable to generate private key");
 
+        let new_private_key = key_service
+            .generate("wallet_id", "passphrase")
+            .expect("Unable to generate private key");
+
         let keys = key_service
             .get_keys("wallet_id", "passphrase")
             .expect("Unable to get keys from storage")
             .expect("No keys found");
 
-        assert_eq!(1, keys.len(), "Unexpected key length");
+        assert_eq!(2, keys.len(), "Unexpected key length");
         assert_eq!(private_key, keys[0], "Invalid private key found");
+        assert_eq!(new_private_key, keys[1], "Invalid private key found");
 
         let error = key_service
             .get_keys("wallet_id", "incorrect_passphrase")

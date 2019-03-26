@@ -50,7 +50,7 @@ impl Wallet<SledStorage, SledStorage> for SledWallet {
 #[cfg(test)]
 mod tests {
     use super::SledWallet;
-    use crate::Wallet;
+    use crate::{ErrorKind, Wallet};
 
     #[test]
     fn check_happy_flow() {
@@ -79,5 +79,22 @@ mod tests {
 
         assert_eq!(1, addresses.len(), "Invalid addresses length");
         assert_eq!(address, addresses[0], "Addresses don't match");
+
+        assert_eq!(
+            None,
+            wallet
+                .get_public_keys("name_new", "passphrase")
+                .expect("Unable to get public keys"),
+            "Invalid public key present in database"
+        );
+
+        assert_eq!(
+            ErrorKind::WalletNotFound,
+            wallet
+                .generate_public_key("name_new", "passphrase")
+                .expect_err("Generated public key for non existent wallet")
+                .kind(),
+            "Error of invalid kind received"
+        );
     }
 }
