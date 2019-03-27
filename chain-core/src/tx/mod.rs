@@ -102,7 +102,7 @@ pub mod tests {
             PublicKey::from_secret_key(&secp, &sk2),
             TxAccess::Output(0),
         ));
-        let msg = Message::from_slice(&tx.id().as_bytes()).expect("msg");
+        let msg = Message::from_slice(tx.id().as_bytes()).expect("msg");
         let w1 = TxInWitness::BasicRedeem(secp.sign_recoverable(&msg, &sk1));
         let w2 = TxInWitness::TreeSig(
             PublicKey::from_secret_key(&secp, &sk1),
@@ -112,6 +112,7 @@ pub mod tests {
                 ProofOp(MerklePath::RFound, [0xbb; 32].into()),
             ],
         );
+        assert_eq!(tx.id().as_bytes(), tx.id().as_bytes());
         let txa = TxAux::TransferTx(tx, vec![w1, w2].into());
         let encoded = txa.rlp_bytes();
         let rlp = Rlp::new(&encoded);

@@ -136,7 +136,7 @@ impl Decodable for TxInWitness {
 impl TxInWitness {
     /// verify a given extended address is associated to the witness
     /// and the signature against the given transation `Tx`
-    /// TODO: capture possible errors in enum
+    /// TODO: capture possible errors in enum?
     ///
     pub fn verify_tx_address(
         &self,
@@ -144,7 +144,8 @@ impl TxInWitness {
         address: &ExtendedAddr,
     ) -> Result<(), secp256k1::Error> {
         let secp = Secp256k1::verification_only();
-        let message = Message::from_slice(&tx.id().as_bytes())?;
+        let message = Message::from_slice(tx.id().as_bytes())?;
+
         match (&self, address) {
             (TxInWitness::BasicRedeem(sig), ExtendedAddr::BasicRedeem(addr)) => {
                 let pk = secp.recover(&message, &sig)?;
@@ -208,7 +209,7 @@ pub mod tests {
         tx: &Tx,
         secret_key: &SecretKey,
     ) -> TxInWitness {
-        let message = Message::from_slice(&tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
         let sig = secp.sign_recoverable(&message, &secret_key);
         return TxInWitness::BasicRedeem(sig);
     }
@@ -226,7 +227,7 @@ pub mod tests {
         tx: &Tx,
         secret_key: &SecretKey,
     ) -> (TxInWitness, H256) {
-        let message = Message::from_slice(&tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
         let sig = sign_single_schnorr(&secp, &message, &secret_key);
         let pk = PublicKey::from_secret_key(&secp, &secret_key);
 
@@ -245,7 +246,7 @@ pub mod tests {
         secret_key1: SecretKey,
         secret_key2: SecretKey,
     ) -> (SchnorrSignature, PublicKey, PublicKey) {
-        let message = Message::from_slice(&tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
         let pk1 = PublicKey::from_secret_key(&secp, &secret_key1);
         let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
         let session_id1 = MuSigSessionID::from_slice(&[0x01; 32]).expect("32 bytes");
@@ -358,6 +359,28 @@ pub mod tests {
         let expected_addr2 = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key));
         let (witness2, _) = get_single_tx_witness(secp, &tx, &secret_key);
         assert!(witness2.verify_tx_address(&tx, &expected_addr2).is_err());
+    }
+
+    #[test]
+    fn same_pk_recovered() {
+        let tx = Tx::new();
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+        let witness: TxWitness = vec![get_ecdsa_witness(&secp, &tx, &secret_key)].into();
+        let encoded = witness.rlp_bytes();
+        let rlp = Rlp::new(&encoded);
+        let decoded = TxWitness::decode(&rlp).expect("decode tx witness");
+        match &decoded[0] {
+            TxInWitness::BasicRedeem(sig) => {
+                let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
+                let pk = secp.recover(&message, &sig).unwrap();
+                assert_eq!(pk, public_key);
+            }
+            _ => {
+                assert!(false);
+            }
+        }
     }
 
     #[test]
