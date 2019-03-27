@@ -4,14 +4,16 @@ use crate::balance::BalanceChange;
 use crate::Result;
 
 use chain_core::init::coin::Coin;
+use chain_core::tx::data::address::ExtendedAddr;
+use chain_core::tx::data::TxId;
 
 /// Represents balance change in a transaction
 #[derive(Debug)]
 pub struct TransactionChange {
     /// ID of transaction which caused this change
-    pub transaction_id: String,
+    pub transaction_id: TxId,
     /// Address which is affected by this change
-    pub address: String,
+    pub address: ExtendedAddr,
     /// Change in balance
     pub balance_change: BalanceChange,
 }
@@ -39,7 +41,7 @@ mod tests {
     fn get_transaction_change(balance_change: BalanceChange) -> TransactionChange {
         TransactionChange {
             transaction_id: Default::default(),
-            address: Default::default(),
+            address: ExtendedAddr::BasicRedeem(Default::default()),
             balance_change,
         }
     }
