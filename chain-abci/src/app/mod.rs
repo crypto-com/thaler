@@ -6,10 +6,10 @@ mod validate_tx;
 use abci::*;
 use ethbloom::{Bloom, Input};
 use log::info;
-use secp256k1::constants::PUBLIC_KEY_SIZE;
 
 pub use self::app_init::ChainNodeApp;
 use crate::storage::tx::spend_utxos;
+use chain_core::tx::TxAux;
 
 impl abci::Application for ChainNodeApp {
     /// Query Connection: Called on startup from Tendermint.  The application should normally
@@ -19,10 +19,10 @@ impl abci::Application for ChainNodeApp {
         info!("received info request");
         let mut resp = ResponseInfo::new();
         if self.last_apphash.is_some() {
-            resp.last_block_app_hash = self.last_apphash.unwrap().to_vec();
+            resp.last_block_app_hash = self.last_apphash.unwrap().as_bytes().to_vec();
             resp.last_block_height = self.last_block_height;
         } else {
-            resp.last_block_app_hash = self.genesis_app_hash.to_vec();
+            resp.last_block_app_hash = self.genesis_app_hash.as_bytes().to_vec();
         }
         resp
     }
@@ -73,7 +73,8 @@ impl abci::Application for ChainNodeApp {
                 .time
                 .as_ref()
                 .expect("Header does not have a timestamp")
-                .seconds,
+                .seconds
+                .into(),
         );
         ResponseBeginBlock::new()
     }
@@ -88,13 +89,12 @@ impl abci::Application for ChainNodeApp {
         );
         let mut resp = ResponseDeliverTx::new();
         let mtxaux = ChainNodeApp::validate_tx_req(self, _req, &mut resp);
-        if resp.code == 0 && mtxaux.is_some() {
-            let txaux = mtxaux.unwrap();
-            let txid = txaux.tx.id();
+        if let (0, Some(TxAux::TransferTx(tx, witness))) = (resp.code, mtxaux) {
+            let txid = tx.id();
             let mut inittx = self.storage.db.transaction();
-            spend_utxos(&txaux, self.storage.db.clone(), &mut inittx);
+            spend_utxos(&tx, self.storage.db.clone(), &mut inittx);
             self.storage.db.write_buffered(inittx);
-            self.delivered_txs.push(txaux);
+            self.delivered_txs.push(TxAux::TransferTx(tx, witness));
             let mut kvpair = KVPair::new();
             kvpair.key = Vec::from(&b"txid"[..]);
             // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
@@ -115,14 +115,15 @@ impl abci::Application for ChainNodeApp {
         let mut keys = self
             .delivered_txs
             .iter()
-            .flat_map(|x| x.tx.attributes.allowed_view.iter().map(|x| x.view_key.1))
+            .flat_map(|x| match x {
+                TxAux::TransferTx(tx, _) => tx.attributes.allowed_view.iter().map(|x| x.view_key),
+            })
             .peekable();
         if keys.peek().is_some() {
             // TODO: explore alternatives, e.g. https://github.com/bitcoin/bips/blob/master/bip-0158.mediawiki
             let mut bloom = Bloom::default();
             for key in keys {
-                let k: &[u8; PUBLIC_KEY_SIZE - 1] = &key;
-                bloom.accrue(Input::Raw(k));
+                bloom.accrue(Input::Raw(&key.serialize()[..]));
             }
             let mut kvpair = KVPair::new();
             kvpair.key = Vec::from(&b"ethbloom"[..]);
@@ -166,15 +167,15 @@ mod tests {
             output::TxOut,
             txid_hash, Tx, TxId,
         },
-        witness::{tree::pk_to_raw, TxInWitness, TxWitness},
+        witness::{TxInWitness, TxWitness},
         TxAux,
     };
     use ethbloom::{Bloom, Input};
     use hex::decode;
     use kvdb::KeyValueDB;
     use kvdb_memorydb::create;
+    use rlp::{Decodable, Encodable, Rlp};
     use secp256k1::{key::PublicKey, key::SecretKey, Secp256k1};
-    use serde_cbor::{from_slice, ser::to_vec_packed};
     use std::sync::Arc;
 
     fn create_db() -> Arc<dyn KeyValueDB> {
@@ -290,7 +291,7 @@ mod tests {
         let gah = db.get(COL_NODE_INFO, LAST_APP_HASH_KEY).unwrap().unwrap();
         let mut stored_genesis = [0u8; HASH_SIZE_256];
         stored_genesis.copy_from_slice(&gah[..]);
-        assert_eq!(genesis_app_hash, stored_genesis);
+        assert_eq!(genesis_app_hash, stored_genesis.into());
         assert_eq!(1, db.iter(COL_TX_META).count());
         assert_eq!(1, db.iter(COL_BODIES).count());
         assert!(db.get(COL_MERKLE_PROOFS, &stored_genesis[..]).is_ok());
@@ -353,7 +354,7 @@ mod tests {
         );
         let mut creq = RequestCheckTx::default();
         let tx = TxAux::new(Tx::new(), TxWitness::new());
-        creq.set_tx(serde_cbor::ser::to_vec_packed(&tx).unwrap());
+        creq.set_tx(tx.rlp_bytes());
         let cresp = app.check_tx(&creq);
         assert_ne!(0, cresp.code);
     }
@@ -364,13 +365,15 @@ mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = RedeemAddress::from(&public_key);
         let app = init_chain_for(addr);
-        let old_tx: Tx =
-            serde_cbor::from_slice(&app.storage.db.iter(COL_BODIES).next().unwrap().1).unwrap();
+        let old_tx: Tx = Tx::decode(&Rlp::new(
+            &app.storage.db.iter(COL_BODIES).next().unwrap().1,
+        ))
+        .expect("tx");
         let old_tx_id = old_tx.id();
         let old_utxos_before = BitVec::from_bytes(
             &app.storage
                 .db
-                .get(COL_TX_META, &old_tx_id)
+                .get(COL_TX_META, &old_tx_id.as_bytes())
                 .unwrap()
                 .unwrap(),
         );
@@ -378,15 +381,16 @@ mod tests {
 
         let txp = TxoPointer::new(old_tx_id, 0);
         let mut tx = Tx::new();
-        tx.attributes.allowed_view.push(TxAccessPolicy::new(
-            pk_to_raw(public_key),
-            TxAccess::AllData,
-        ));
-        let eaddr = ExtendedAddr::BasicRedeem(addr.0);
+        tx.attributes
+            .allowed_view
+            .push(TxAccessPolicy::new(public_key, TxAccess::AllData));
+        let eaddr = ExtendedAddr::BasicRedeem(addr);
         tx.add_input(txp);
         tx.add_output(TxOut::new(eaddr, (Coin::max() - Coin::unit()).unwrap()));
+        let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
+        let pk2 = PublicKey::from_secret_key(&secp, &sk2);
         tx.add_output(TxOut::new(
-            ExtendedAddr::BasicRedeem(RedeemAddress::default().0),
+            ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
             Coin::unit(),
         ));
         let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx, &secret_key)];
@@ -398,7 +402,7 @@ mod tests {
     fn check_tx_should_accept_valid_tx() {
         let (mut app, txaux) = prepare_app_valid_tx();
         let mut creq = RequestCheckTx::default();
-        creq.set_tx(serde_cbor::ser::to_vec_packed(&txaux).unwrap());
+        creq.set_tx(txaux.rlp_bytes());
         let cresp = app.check_tx(&creq);
         assert_eq!(0, cresp.code);
     }
@@ -463,31 +467,32 @@ mod tests {
         begin_block(&mut app);
         let mut creq = RequestDeliverTx::default();
         let tx = TxAux::new(Tx::new(), TxWitness::new());
-        creq.set_tx(serde_cbor::ser::to_vec_packed(&tx).unwrap());
+        creq.set_tx(tx.rlp_bytes());
         let cresp = app.deliver_tx(&creq);
         assert_ne!(0, cresp.code);
         assert_eq!(0, app.delivered_txs.len());
         assert_eq!(0, cresp.tags.len());
     }
 
-    fn deliver_valid_tx() -> (ChainNodeApp, TxAux, ResponseDeliverTx) {
+    fn deliver_valid_tx() -> (ChainNodeApp, Tx, TxWitness, ResponseDeliverTx) {
         let (mut app, txaux) = prepare_app_valid_tx();
         assert_eq!(0, app.delivered_txs.len());
         begin_block(&mut app);
         let mut creq = RequestDeliverTx::default();
-        creq.set_tx(serde_cbor::ser::to_vec_packed(&txaux).unwrap());
+        creq.set_tx(txaux.rlp_bytes());
         let cresp = app.deliver_tx(&creq);
-        (app, txaux, cresp)
+        match txaux {
+            TxAux::TransferTx(tx, witness) => (app, tx, witness, cresp),
+        }
     }
 
     #[test]
     fn deliver_tx_should_add_valid_tx() {
-        let (app, txaux, cresp) = deliver_valid_tx();
+        let (app, tx, _, cresp) = deliver_valid_tx();
         assert_eq!(0, cresp.code);
         assert_eq!(1, app.delivered_txs.len());
         assert_eq!(1, cresp.tags.len());
-        let txid = txaux.tx.id();
-        assert_eq!(&txid[..], &cresp.tags[0].value[..]);
+        assert_eq!(&tx.id().as_bytes()[..], &cresp.tags[0].value[..]);
     }
 
     #[test]
@@ -544,9 +549,11 @@ mod tests {
 
     #[test]
     fn valid_commit_should_persist() {
-        let (mut app, txaux, _) = deliver_valid_tx();
-        let old_tx: Tx =
-            serde_cbor::from_slice(&app.storage.db.iter(COL_BODIES).next().unwrap().1).unwrap();
+        let (mut app, tx, _, _) = deliver_valid_tx();
+        let old_tx: Tx = Tx::decode(&Rlp::new(
+            &app.storage.db.iter(COL_BODIES).next().unwrap().1,
+        ))
+        .unwrap();
         let old_tx_id = old_tx.id();
         let old_app_hash = app.last_apphash;
         let mut endreq = RequestEndBlock::default();
@@ -554,19 +561,21 @@ mod tests {
         let cresp = app.end_block(&endreq);
         assert_eq!(1, cresp.tags.len());
         let bloom = Bloom::from(&cresp.tags[0].value[..]);
-        assert!(bloom.contains_input(Input::Raw(&txaux.tx.attributes.allowed_view[0].view_key.1)));
-        assert!(!bloom.contains_input(Input::Raw(&[0u8; 32][..])));
+        assert!(bloom.contains_input(Input::Raw(
+            &tx.attributes.allowed_view[0].view_key.serialize()
+        )));
+        assert!(!bloom.contains_input(Input::Raw(&[0u8; 33][..])));
 
         assert!(app
             .storage
             .db
-            .get(COL_BODIES, &txaux.tx.id())
+            .get(COL_BODIES, tx.id().as_bytes())
             .unwrap()
             .is_none());
         assert!(app
             .storage
             .db
-            .get(COL_WITNESS, &txaux.tx.id())
+            .get(COL_WITNESS, tx.id().as_bytes())
             .unwrap()
             .is_none());
         assert_ne!(10, app.last_block_height);
@@ -575,13 +584,13 @@ mod tests {
         assert!(app
             .storage
             .db
-            .get(COL_BODIES, &txaux.tx.id())
+            .get(COL_BODIES, tx.id().as_bytes())
             .unwrap()
             .is_some());
         assert!(app
             .storage
             .db
-            .get(COL_WITNESS, &txaux.tx.id())
+            .get(COL_WITNESS, tx.id().as_bytes())
             .unwrap()
             .is_some());
         assert_eq!(10, app.last_block_height);
@@ -597,7 +606,7 @@ mod tests {
         let old_utxos_after = BitVec::from_bytes(
             &app.storage
                 .db
-                .get(COL_TX_META, &old_tx_id)
+                .get(COL_TX_META, &old_tx_id.as_bytes())
                 .unwrap()
                 .unwrap(),
         );
@@ -605,7 +614,7 @@ mod tests {
         let new_utxos = BitVec::from_bytes(
             &app.storage
                 .db
-                .get(COL_TX_META, &txaux.tx.id())
+                .get(COL_TX_META, tx.id().as_bytes())
                 .unwrap()
                 .unwrap(),
         );
@@ -629,27 +638,27 @@ mod tests {
 
     #[test]
     fn query_should_return_proof_for_committed_tx() {
-        let (mut app, txaux, _) = deliver_valid_tx();
+        let (mut app, tx, witness, _) = deliver_valid_tx();
         let mut endreq = RequestEndBlock::default();
         endreq.set_height(10);
         app.end_block(&endreq);
         let cresp = app.commit(&RequestCommit::default());
         let mut qreq = RequestQuery::new();
-        qreq.data = txaux.tx.id().to_vec();
+        qreq.data = tx.id().as_bytes().to_vec();
         qreq.path = "store".into();
         qreq.prove = true;
         let qresp = app.query(&qreq);
-        assert_eq!(txaux.tx, from_slice(&qresp.value).unwrap());
+        assert_eq!(tx, Tx::decode(&Rlp::new(&qresp.value)).unwrap());
         let proof = qresp.proof.unwrap();
         assert_eq!(proof.ops.len(), 3);
-        assert_eq!(proof.ops[0].data, txaux.tx.id());
+        assert_eq!(proof.ops[0].data, tx.id().as_bytes());
         assert_eq!(proof.ops[1].data, cresp.data);
         let mut qreq2 = RequestQuery::new();
-        qreq2.data = txaux.tx.id().to_vec();
+        qreq2.data = tx.id().as_bytes().to_vec();
         qreq2.path = "witness".into();
         let qresp = app.query(&qreq2);
-        assert_eq!(qresp.value, to_vec_packed(&txaux.witness).unwrap());
-        assert_eq!(proof.ops[2].data, txid_hash(&qresp.value));
+        assert_eq!(qresp.value, witness.rlp_bytes());
+        assert_eq!(proof.ops[2].data, txid_hash(&qresp.value).as_bytes());
     }
 
 }

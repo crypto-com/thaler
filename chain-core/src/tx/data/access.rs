@@ -1,8 +1,6 @@
-use crate::common::TypeInfo;
 use crate::tx::witness::tree::RawPubkey;
-use serde::de::{Deserialize, Deserializer, EnumAccess, Error, MapAccess, VariantAccess, Visitor};
-use serde::ser::{Serialize, SerializeStruct, Serializer};
-use std::fmt;
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use secp256k1::key::PublicKey;
 
 /// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -19,134 +17,73 @@ impl Default for TxAccess {
     }
 }
 
-impl TypeInfo for TxAccess {
-    #[inline]
-    fn type_name() -> &'static str {
-        "TxAccess"
-    }
-}
-
-impl Serialize for TxAccess {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
+impl Encodable for TxAccess {
+    fn rlp_append(&self, s: &mut RlpStream) {
         match self {
             TxAccess::AllData => {
-                serializer.serialize_unit_variant(TxAccess::type_name(), 0, "AllData")
+                s.begin_list(1).append(&0u8);
             }
-            TxAccess::Output(ref index) => {
-                serializer.serialize_newtype_variant(TxAccess::type_name(), 1, "Output", &index)
+            TxAccess::Output(index) => {
+                s.begin_list(2).append(&1u8).append(index);
             }
         }
     }
 }
 
-impl<'de> Deserialize<'de> for TxAccess {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct TxAccessVisitor;
-        impl<'de> Visitor<'de> for TxAccessVisitor {
-            type Value = TxAccess;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("transaction access specification")
-            }
-
-            #[inline]
-            fn visit_enum<A>(self, deserializer: A) -> Result<Self::Value, A::Error>
-            where
-                A: EnumAccess<'de>,
-            {
-                match deserializer.variant::<u64>() {
-                    Ok((0, _)) => Ok(TxAccess::AllData),
-                    Ok((1, v)) => VariantAccess::newtype_variant::<usize>(v).map(TxAccess::Output),
-                    Ok((i, _)) => Err(A::Error::unknown_variant(
-                        &i.to_string(),
-                        &["AllData", "Output"],
-                    )),
-                    Err(e) => Err(e),
-                }
-            }
+impl Decodable for TxAccess {
+    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
+        let item_count = rlp.item_count()?;
+        if !(item_count >= 1 && item_count <= 2) {
+            return Err(DecoderError::Custom(
+                "Cannot decode a transaction access specification",
+            ));
         }
-
-        deserializer.deserialize_enum(
-            TxAccess::type_name(),
-            &["AllData", "Output"],
-            TxAccessVisitor,
-        )
+        let type_tag: u8 = rlp.val_at(0)?;
+        match (type_tag, item_count) {
+            (0, 1) => Ok(TxAccess::AllData),
+            (1, 2) => {
+                let index = rlp.val_at(1)?;
+                Ok(TxAccess::Output(index))
+            }
+            _ => Err(DecoderError::Custom(
+                "Unknown transaction access specification type",
+            )),
+        }
     }
 }
 
 /// Specifies who can access what -- TODO: revisit when enforced by HW encryption / enclaves
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct TxAccessPolicy {
-    pub view_key: RawPubkey,
+    pub view_key: PublicKey,
     pub access: TxAccess,
 }
 
 impl TxAccessPolicy {
     /// creates tx access policy
-    pub fn new(view_key: RawPubkey, access: TxAccess) -> Self {
+    pub fn new(view_key: PublicKey, access: TxAccess) -> Self {
         TxAccessPolicy { view_key, access }
     }
 }
 
-impl TypeInfo for TxAccessPolicy {
-    #[inline]
-    fn type_name() -> &'static str {
-        "TxAccessPolicy"
+impl Encodable for TxAccessPolicy {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        let vk: RawPubkey = self.view_key.serialize().into();
+        s.begin_list(2).append(&vk).append(&self.access);
     }
 }
 
-/// TODO: switch to cbor_event or equivalent simple raw cbor library when serialization is finalized
-/// TODO: backwards/forwards-compatible serialization (adding/removing fields, variants etc. should be possible)
-impl Serialize for TxAccessPolicy {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct(TxAccessPolicy::type_name(), 2)?;
-        s.serialize_field("view_key", &self.view_key)?;
-        s.serialize_field("access", &self.access)?;
-        s.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for TxAccessPolicy {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct TxAccessPolicyVisitor;
-
-        impl<'de> Visitor<'de> for TxAccessPolicyVisitor {
-            type Value = TxAccessPolicy;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("transaction access policy")
-            }
-
-            #[inline]
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: MapAccess<'de>,
-            {
-                let view_key = match map.next_entry::<u64, RawPubkey>()? {
-                    Some((0, v)) => v,
-                    _ => return Err(serde::de::Error::missing_field("view_key")),
-                };
-                let access = match map.next_entry::<u64, TxAccess>()? {
-                    Some((1, v)) => v,
-                    _ => return Err(serde::de::Error::missing_field("access")),
-                };
-                Ok(TxAccessPolicy::new(view_key, access))
-            }
+impl Decodable for TxAccessPolicy {
+    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
+        if rlp.item_count()? != 2 {
+            return Err(DecoderError::Custom(
+                "Cannot decode a transaction access policy",
+            ));
         }
-        deserializer.deserialize_struct(
-            TxAccessPolicy::type_name(),
-            &["view_key", "access"],
-            TxAccessPolicyVisitor,
-        )
+        let rawkey: RawPubkey = rlp.val_at(0)?;
+        let view_key = PublicKey::from_slice(&rawkey.as_bytes())
+            .map_err(|_| DecoderError::Custom("failed to decode public key"))?;
+        let access: TxAccess = rlp.val_at(1)?;
+        Ok(TxAccessPolicy::new(view_key, access))
     }
 }

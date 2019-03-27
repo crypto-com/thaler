@@ -23,6 +23,7 @@ use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use secp256k1::{
     key::{PublicKey, SecretKey},
     Message, Secp256k1, Signing,
@@ -124,7 +125,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         .iter()
         .map(|txaux| {
             let mut creq = RequestCheckTx::default();
-            creq.set_tx(serde_cbor::ser::to_vec_packed(&txaux).unwrap());
+            creq.set_tx(&txaux.rlp_bytes());
             creq
         })
         .collect();

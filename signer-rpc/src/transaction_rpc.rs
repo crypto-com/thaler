@@ -5,11 +5,10 @@ use hex::decode;
 use hex::encode;
 use jsonrpc_derive::rpc;
 use jsonrpc_http_server::jsonrpc_core;
+use rlp::Encodable;
 use serde::{Deserialize, Serialize};
-use serde_cbor::ser::to_vec_packed;
 use zeroize::Zeroize;
 
-use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
@@ -53,7 +52,7 @@ impl TransactionRpc for TransactionRpcImpl {
             .map_err(to_rpc_error)?;
 
         let transaction = request.transaction.into_tx().map_err(to_rpc_error)?;
-
+        let txid = encode(&transaction.id()).to_string();
         let witnesses = get_transaction_witnesses(&transaction, &secrets, &request.signature_types)
             .map_err(to_rpc_error)?;
 
@@ -62,9 +61,8 @@ impl TransactionRpc for TransactionRpcImpl {
         let txa = TxAux::new(transaction, witnesses);
 
         let response = TransactionResponse {
-            transaction_id: encode(&txa.tx.id()).to_string(),
-            transaction: encode(&to_vec_packed(&txa).map_err(|e| to_rpc_error(e.into()))?)
-                .to_string(),
+            transaction_id: txid,
+            transaction: encode(&txa.rlp_bytes()).to_string(),
         };
 
         Ok(response)
@@ -103,7 +101,7 @@ pub struct TransactionOutput {
     pub address: String,
     pub address_type: AddressType,
     pub value: Coin,
-    pub valid_from: Option<Timespec>,
+    pub valid_from: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -153,7 +151,11 @@ impl TransactionOutput {
 
         match self.valid_from {
             None => Ok(TxOut::new(address, self.value)),
-            Some(timespec) => Ok(TxOut::new_with_timelock(address, self.value, timespec)),
+            Some(timespec) => Ok(TxOut::new_with_timelock(
+                address,
+                self.value,
+                timespec.into(),
+            )),
         }
     }
 }

@@ -10,5 +10,5 @@ signer-core = { path = "../signer-core/" }
 structopt = "0.2"
 failure = "0.1"
 quest = "0.3"
-serde_cbor = "0.9"
 hex = "0.3"
+rlp = "0.3.0"

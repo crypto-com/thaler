@@ -2,10 +2,11 @@ use super::ChainNodeApp;
 use crate::storage::merkle::get_proof;
 use crate::storage::*;
 use abci::*;
-use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
+use chain_core::common::merkle::MerkleTree;
+use chain_core::common::HASH_SIZE_256;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
-use serde_cbor::from_slice;
+use rlp::{Decodable, Rlp};
 
 impl ChainNodeApp {
     /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).
@@ -27,7 +28,7 @@ impl ChainNodeApp {
         let mut op = ProofOp::new();
         op.set_field_type("witness".into());
         op.set_key(TXID_HASH_ID.to_vec());
-        op.set_data(txid_hash(witness).to_vec());
+        op.set_data(txid_hash(witness).as_bytes().to_vec());
         op
     }
 
@@ -55,18 +56,19 @@ impl ChainNodeApp {
                                 .get(COL_APP_STATES, &i64::encode_var_vec(height))
                                 .unwrap()
                                 .unwrap();
-                            let tree: MerkleTree = from_slice(
+                            let tree = MerkleTree::decode(&Rlp::new(
                                 &self
                                     .storage
                                     .db
                                     .get(COL_MERKLE_PROOFS, &app_hash[..])
                                     .unwrap()
                                     .unwrap()[..],
-                            )
-                            .unwrap();
+                            ))
+                            .expect("merkle tree");
+
                             let mut txid = [0u8; HASH_SIZE_256];
                             txid.copy_from_slice(&_req.data[..]);
-                            let mut proofl = get_proof(&tree, &txid);
+                            let mut proofl = get_proof(&tree, &txid.into());
                             proofl.push(ChainNodeApp::get_witness_proof_op(&witness[..]));
                             let mut proof = Proof::new();
                             proof.set_ops(proofl.into());

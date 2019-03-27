@@ -1,38 +1,8 @@
-use crate::common::HASH_SIZE_256;
-use secp256k1::constants::{COMPACT_SIGNATURE_SIZE, PUBLIC_KEY_SIZE};
-use secp256k1::{key::PublicKey, schnorrsig::SchnorrSignature};
-use serde::de::{Deserialize, Deserializer, Error, Visitor};
-use serde::ser::{Serialize, Serializer};
-use std::fmt;
+use crate::common::{H256, H264, H512};
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 
-/// wrappers, as Rust/serde has impls for up to 32-byte arrays
-/// an alternative is to use `[serde-big-array](https://crates.io/crates/serde-big-array)`
-/// TODO: revisit when transaction format is more stabilized
-/// TODO: custom serializers + eq etc. impls
-pub type RawPubkey = (u8, [u8; PUBLIC_KEY_SIZE - 1]);
-/// TODO: custom serializers + eq etc. impls
-pub type RawSignature = (
-    [u8; COMPACT_SIGNATURE_SIZE / 2],
-    [u8; COMPACT_SIGNATURE_SIZE / 2],
-);
-
-/// conversion for custom wrappers
-pub fn pk_to_raw(pk: PublicKey) -> RawPubkey {
-    let compressed = &pk.serialize();
-    let mut r = [0; 32];
-    r.copy_from_slice(&compressed[1..PUBLIC_KEY_SIZE]);
-    (compressed[0], r)
-}
-
-/// conversion for custom wrappers
-pub fn sig_to_raw(sig: SchnorrSignature) -> RawSignature {
-    let compressed = &sig.serialize_default();
-    let mut r1 = [0; 32];
-    r1.copy_from_slice(&compressed[..COMPACT_SIGNATURE_SIZE / 2]);
-    let mut r2 = [0; 32];
-    r2.copy_from_slice(&compressed[COMPACT_SIGNATURE_SIZE / 2..]);
-    (r1, r2)
-}
+pub type RawPubkey = H264;
+pub type RawSignature = H512;
 
 /// Encodes whether a left or right branch was taken
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -42,39 +12,31 @@ pub enum MerklePath {
 }
 
 /// Contains the path taken + the other branch's hash
-pub type ProofOp = (MerklePath, [u8; HASH_SIZE_256]);
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct ProofOp(pub MerklePath, pub H256);
 
-impl Serialize for MerklePath {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_bool(*self == MerklePath::LFound)
+/// TODO: it's a bit wasteful now, perhaps more efficient encoding
+/// One option would be (a level up / in TxInWitness) to have a N-bit BitVec that denotes
+/// in each bit whether the left or right branch was taken
+/// followed by N*32 bytes (N hashes of the other branches)
+impl Encodable for ProofOp {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        let v = self.0 == MerklePath::LFound;
+        s.begin_list(2);
+        s.append(&v);
+        s.append(&self.1);
     }
 }
 
-impl<'de> Deserialize<'de> for MerklePath {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct MerklePathVisitor;
-        impl<'de> Visitor<'de> for MerklePathVisitor {
-            type Value = MerklePath;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("merkle path type")
-            }
-
-            #[inline]
-            fn visit_bool<E: Error>(self, v: bool) -> Result<Self::Value, E> {
-                if v {
-                    Ok(MerklePath::LFound)
-                } else {
-                    Ok(MerklePath::RFound)
-                }
-            }
-        }
-
-        deserializer.deserialize_bool(MerklePathVisitor)
+impl Decodable for ProofOp {
+    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
+        let v: bool = rlp.val_at(0)?;
+        let p = if v {
+            MerklePath::LFound
+        } else {
+            MerklePath::RFound
+        };
+        let h: H256 = rlp.val_at(1)?;
+        Ok(ProofOp(p, h))
     }
 }
