@@ -5,6 +5,7 @@ addons:
     apt:
         packages:
             - libssl-dev
+            - kcov       
 cache: cargo
 rust:
   - stable
@@ -15,11 +16,6 @@ env:
 matrix:
   allow_failures:
     - rust: nightly
-
-before_cache: |
-  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-    RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin -f
-  fi
 
 script:
 - cargo clean
@@ -35,6 +31,11 @@ script:
 
 after_success: |
   if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-    travis_wait 30 cargo tarpaulin --out Xml
-    bash <(curl -s https://codecov.io/bash)
+    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/chain_abci-* &&
+    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/client_core-* &&
+    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/dev_utils-* &&
+    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/kvdb-* &&
+    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/kvdb_memorydb-* &&
+    bash <(curl -s https://codecov.io/bash) &&
+    echo "Uploaded code coverage";
   fi
