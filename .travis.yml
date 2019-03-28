@@ -31,11 +31,7 @@ script:
 
 after_success: |
   if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/chain_abci-* &&
-    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/client_core-* &&
-    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/dev_utils-* &&
-    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/kvdb-* &&
-    kcov --exclude-pattern=/.cargo,/usr/lib --verify target/cov target/debug/deps/kvdb_memorydb-* &&
-    bash <(curl -s https://codecov.io/bash) &&
-    echo "Uploaded code coverage";
+    cargo-kcov --version || cargo install cargo-kcov;
+    cargo kcov --all;
+    bash <(curl -s https://codecov.io/bash);
   fi
