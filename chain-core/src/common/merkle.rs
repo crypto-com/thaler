@@ -124,6 +124,7 @@ impl MerkleNode {
         if xs.is_empty() {
             panic!("make_tree applied to empty list")
         } else if xs.len() == 1 {
+            // TODO: should this be prefixed by vec![0u8] and re-hashed?
             MerkleNode::Leaf(xs[0])
         } else {
             let i = xs.len().checked_next_power_of_two().unwrap() >> 1;
