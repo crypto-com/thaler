@@ -11,19 +11,6 @@ This crate exposes following functionalities for interacting with Crypto.com Cha
 
 Below is a high level design diagram of this crate:
 
-<style scoped>
-    .design_diagram {
-        padding-left:20%; 
-        padding-right:20%;
-    }
-
-    @media (max-width: 1100px) {
-        .design_diagram {
-            padding-left:10%; 
-            padding-right:10%;
-        }
-    }
-</style>
 <div class = "design_diagram">
     <img src="./client_design.png" alt="Client Design" />
 </div>
