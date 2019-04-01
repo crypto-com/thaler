@@ -83,6 +83,13 @@ implementations:
 - `recalculate_balance`: Recalculate current balance for given wallet `name` and `passphrase` from genesis. This 
   function internally uses `BalanceService::sync_all` to synchronize balance.
 
+## API Documentation
+
+To see this crate's API docs. Run following command from `chain` directory.
+```
+cargo doc --package client-core --no-deps --open
+```
+
 ### Warning
 
 This is a work-in-progress crate and is unusable in its current state. These is no implementation for Chain ABCI client
