@@ -10,20 +10,28 @@ use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
 
-use crate::service::{KeyService, WalletService};
-use crate::{ErrorKind, PublicKey, Result, Storage};
+use crate::service::{BalanceService, KeyService, WalletService};
+use crate::{Chain, ErrorKind, PublicKey, Result, Storage};
 
 /// Interface for a generic wallet
-pub trait Wallet<K, W>
+pub trait Wallet<C, K, W, B>
 where
+    C: Chain,
     K: Storage,
     W: Storage,
+    B: Storage,
 {
+    /// Returns assiciated Crypto.com Chain client
+    fn chain(&self) -> &C;
+
     /// Returns associated key service
     fn key_service(&self) -> &KeyService<K>;
 
     /// Returns associated wallet service
     fn wallet_service(&self) -> &WalletService<W>;
+
+    /// Returns associated balance service
+    fn balance_service(&self) -> &BalanceService<C, B>;
 
     /// Creates a new wallet with given name
     fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String> {

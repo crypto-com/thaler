@@ -21,4 +21,3 @@ sled = { version = "0.19", optional = true }
 
 [features]
 default = ["sled"]
-hash-map = []

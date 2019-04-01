@@ -7,12 +7,12 @@ use crate::{Chain, Error, ErrorKind, Result, SecureStorage, Storage};
 
 /// Exposes functionalities for transaction storage and syncing
 #[derive(Default)]
-pub struct TransactionService<C, T> {
+pub struct BalanceService<C, T> {
     chain: C,
     storage: T,
 }
 
-impl<C, T> TransactionService<C, T>
+impl<C, T> BalanceService<C, T>
 where
     C: Chain,
     T: Storage,
@@ -56,8 +56,37 @@ where
     ///
     /// # Warning
     /// This should only be used when you need to recalculate balance from whole history of blockchain.
-    pub fn sync_all(&self, _wallet_id: &str, _passphrase: &str) -> Result<Coin> {
-        unimplemented!()
+    pub fn sync_all(
+        &self,
+        wallet_id: &str,
+        passphrase: &str,
+        addresses: Vec<String>,
+    ) -> Result<Coin> {
+        let bytes = self
+            .storage
+            .get_secure(wallet_id.as_bytes(), passphrase.as_bytes())?;
+
+        let mut storage_unit = match bytes {
+            None => Default::default(),
+            Some(bytes) => StorageUnit::deserialize_from(&bytes)?,
+        };
+
+        let (transaction_changes, block_height) =
+            self.chain.query_transaction_changes(addresses, 0)?;
+
+        storage_unit.last_block_height = block_height;
+
+        for change in transaction_changes {
+            storage_unit.balance = (storage_unit.balance + change)?;
+        }
+
+        self.storage.set_secure(
+            wallet_id.as_bytes(),
+            storage_unit.serialize(),
+            passphrase.as_bytes(),
+        )?;
+
+        Ok(storage_unit.balance)
     }
 
     /// Returns balance for a given wallet ID.
