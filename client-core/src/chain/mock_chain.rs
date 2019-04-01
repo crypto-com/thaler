@@ -13,6 +13,6 @@ impl Chain for MockChain {
         _addresses: Vec<String>,
         _last_block_height: u64,
     ) -> Result<(Vec<TransactionChange>, u64)> {
-        unimplemented!()
+        Ok((Default::default(), Default::default()))
     }
 }

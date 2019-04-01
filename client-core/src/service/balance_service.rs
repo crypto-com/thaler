@@ -90,17 +90,18 @@ where
     }
 
     /// Returns balance for a given wallet ID.
-    pub fn get_balance(&self, wallet_id: &str, passphrase: &str) -> Result<Coin> {
+    pub fn get_balance(&self, wallet_id: &str, passphrase: &str) -> Result<Option<Coin>> {
         let bytes = self
             .storage
             .get_secure(wallet_id.as_bytes(), passphrase.as_bytes())?;
 
-        let storage_unit = match bytes {
-            None => Err(ErrorKind::BalanceNotFound.into()),
-            Some(bytes) => StorageUnit::deserialize_from(&bytes),
-        }?;
-
-        Ok(storage_unit.balance)
+        match bytes {
+            None => Ok(None),
+            Some(bytes) => {
+                let storage_unit = StorageUnit::deserialize_from(&bytes)?;
+                Ok(Some(storage_unit.balance))
+            }
+        }
     }
 }
 

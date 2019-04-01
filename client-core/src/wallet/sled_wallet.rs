@@ -113,7 +113,7 @@ mod tests {
             None,
             wallet
                 .get_addresses("name", "passphrase")
-                .expect("Unable to retrieve addresses"),
+                .expect("Unable to get addresses for wallet"),
             "Wallet already has keys"
         );
 
@@ -130,10 +130,11 @@ mod tests {
         assert_eq!(address, addresses[0], "Addresses don't match");
 
         assert_eq!(
-            None,
+            ErrorKind::WalletNotFound,
             wallet
                 .get_public_keys("name_new", "passphrase")
-                .expect("Unable to get public keys"),
+                .expect_err("Found public keys for non existent wallet")
+                .kind(),
             "Invalid public key present in database"
         );
 
