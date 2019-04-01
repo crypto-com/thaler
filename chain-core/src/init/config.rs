@@ -61,7 +61,7 @@ impl InitConfig {
             .map(|x| {
                 Tx::new_with(
                     Vec::new(),
-                    vec![TxOut::new(ExtendedAddr::BasicRedeem(x.address.0), x.amount)],
+                    vec![TxOut::new(ExtendedAddr::BasicRedeem(x.address), x.amount)],
                     attributes.clone(),
                 )
             })

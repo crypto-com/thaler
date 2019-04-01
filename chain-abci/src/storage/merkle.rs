@@ -33,7 +33,7 @@ impl MerklePath {
         let mut op = ProofOp::new();
         op.set_field_type("path".into());
         op.set_key(vec![self as u8]);
-        op.set_data(t.to_vec());
+        op.set_data(t.as_bytes().to_vec());
         op
     }
 }
@@ -90,13 +90,13 @@ mod test {
         let mut bs = vec![1u8];
         match path_op {
             Some(MerklePath::LFound) => {
-                bs.extend(prev_hash);
+                bs.extend(prev_hash.as_bytes());
                 bs.extend(&op.data[..]);
                 Some(txid_hash(&bs))
             }
             Some(MerklePath::RFound) => {
                 bs.extend(&op.data[..]);
-                bs.extend(prev_hash);
+                bs.extend(prev_hash.as_bytes());
                 Some(txid_hash(&bs))
             }
             _ => None,
@@ -119,8 +119,9 @@ mod test {
                     return false;
                 }
             }
-            let mut prev_hash = [0u8; HASH_SIZE_256];
-            prev_hash.copy_from_slice(&op1.data[..]);
+            let mut ph = [0u8; HASH_SIZE_256];
+            ph.copy_from_slice(&op1.data[..]);
+            let mut prev_hash: Hash256 = ph.into();
             for i in 1..(ops.len() - 1) {
                 prev_hash = run_op(&ops[i], &prev_hash).unwrap();
             }
@@ -128,8 +129,9 @@ mod test {
             let last = from_proof_op(lastop);
             match last {
                 Some(MerklePath::Root) => {
-                    let mut expected = [0u8; HASH_SIZE_256];
-                    expected.copy_from_slice(&lastop.data);
+                    let mut e = [0u8; HASH_SIZE_256];
+                    e.copy_from_slice(&lastop.data);
+                    let expected: Hash256 = e.into();
                     expected == prev_hash
                 }
                 _ => false,

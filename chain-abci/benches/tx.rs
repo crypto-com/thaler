@@ -7,7 +7,7 @@ use chain_core::init::{
     coin::Coin,
     config::{ERC20Owner, InitConfig},
 };
-use chain_core::tx::witness::{redeem::EcdsaSignature, tree::pk_to_raw, TxInWitness};
+use chain_core::tx::witness::TxInWitness;
 use chain_core::tx::{
     data::{
         access::{TxAccess, TxAccessPolicy},
@@ -23,6 +23,7 @@ use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
+use rlp::Encodable;
 use secp256k1::{
     key::{PublicKey, SecretKey},
     Message, Secp256k1, Signing,
@@ -40,16 +41,9 @@ pub fn get_tx_witness<C: Signing>(
     tx: &Tx,
     secret_key: &SecretKey,
 ) -> TxInWitness {
-    let message = Message::from_slice(&tx.id()).expect("32 bytes");
+    let message = Message::from_slice(&tx.id().as_bytes()).expect("32 bytes");
     let sig = secp.sign_recoverable(&message, &secret_key);
-    let (v, ss) = sig.serialize_compact();
-    let r = &ss[0..32];
-    let s = &ss[32..64];
-    let mut sign = EcdsaSignature::default();
-    sign.v = v.to_i32() as u8;
-    sign.r.copy_from_slice(r);
-    sign.s.copy_from_slice(s);
-    return TxInWitness::BasicRedeem(sign);
+    return TxInWitness::BasicRedeem(sig);
 }
 
 fn init_chain_for(addresses: &Vec<RedeemAddress>) -> (ChainNodeApp, Vec<TxId>) {
@@ -97,11 +91,10 @@ fn prepare_app_valid_txs(upper: u8) -> (ChainNodeApp, Vec<TxAux>) {
     for i in 0..addrs.len() {
         let txp = TxoPointer::new(txids[i], 0);
         let mut tx = Tx::new();
-        tx.attributes.allowed_view.push(TxAccessPolicy::new(
-            pk_to_raw(public_keys[i]),
-            TxAccess::AllData,
-        ));
-        let eaddr = ExtendedAddr::BasicRedeem(addrs[i].0);
+        tx.attributes
+            .allowed_view
+            .push(TxAccessPolicy::new(public_keys[i], TxAccess::AllData));
+        let eaddr = ExtendedAddr::BasicRedeem(addrs[i]);
         tx.add_input(txp);
         tx.add_output(TxOut::new(eaddr, Coin::unit()));
         let witness: Vec<TxInWitness> = vec![get_tx_witness(&secp, &tx, &secret_keys[i])];
@@ -124,7 +117,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         .iter()
         .map(|txaux| {
             let mut creq = RequestCheckTx::default();
-            creq.set_tx(serde_cbor::ser::to_vec_packed(&txaux).unwrap());
+            creq.set_tx(txaux.rlp_bytes());
             creq
         })
         .collect();

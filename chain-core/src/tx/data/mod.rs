@@ -9,29 +9,27 @@ pub mod input;
 /// Transaction outputs (amount to an address)
 pub mod output;
 
-use crate::common::{hash256, TypeInfo, HASH_SIZE_256};
+use crate::common::{hash256, H256};
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
 use blake2::Blake2s;
-use serde::de::{Deserialize, Deserializer, MapAccess, Visitor};
-use serde::ser::{Serialize, SerializeStruct, Serializer};
-use serde_cbor::ser::to_vec_packed;
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use std::fmt;
 
-/// Calculates hash of the input data -- if CBOR-serialized TX is passed in, it's equivalent to TxId.
+/// Calculates hash of the input data -- if RLP-serialized TX is passed in, it's equivalent to TxId.
 /// Currently, it uses blake2s.
-pub fn txid_hash(buf: &[u8]) -> [u8; HASH_SIZE_256] {
+pub fn txid_hash(buf: &[u8]) -> H256 {
     hash256::<Blake2s>(buf)
 }
 
 /// Key to identify the used TXID hash function, e.g. in ProofOps.
 pub const TXID_HASH_ID: &[u8; 7] = b"blake2s";
 
-/// Transaction ID -- currently, blake2s hash of CBOR-serialized TX data
-/// TODO: opaque types?
-pub type TxId = [u8; HASH_SIZE_256];
+/// Transaction ID -- currently, blake2s hash of RLP-serialized TX data
+pub type TxId = H256;
 
 /// A Transaction containing tx inputs and tx outputs.
+/// TODO: max input/output size?
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Tx {
     pub inputs: Vec<TxoPointer>,
@@ -51,66 +49,24 @@ impl fmt::Display for Tx {
     }
 }
 
-impl TypeInfo for Tx {
-    #[inline]
-    fn type_name() -> &'static str {
-        "Tx"
+impl Encodable for Tx {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        s.begin_list(3)
+            .append_list(&self.inputs)
+            .append_list(&self.outputs)
+            .append(&self.attributes);
     }
 }
 
-/// TODO: switch to cbor_event or equivalent simple raw cbor library when serialization is finalized
-/// TODO: backwards/forwards-compatible serialization (adding/removing fields, variants etc. should be possible)
-impl Serialize for Tx {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let mut s = serializer.serialize_struct(Tx::type_name(), 3)?;
-        s.serialize_field("inputs", &self.inputs)?;
-        s.serialize_field("outputs", &self.outputs)?;
-        s.serialize_field("attributes", &self.attributes)?;
-        s.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Tx {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct TxVisitor;
-
-        impl<'de> Visitor<'de> for TxVisitor {
-            type Value = Tx;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("transaction data")
-            }
-
-            #[inline]
-            fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-            where
-                A: MapAccess<'de>,
-            {
-                let inputs = match map.next_entry::<u64, Vec<TxoPointer>>()? {
-                    Some((0, v)) => v,
-                    _ => return Err(serde::de::Error::missing_field("inputs")),
-                };
-                let outputs = match map.next_entry::<u64, Vec<TxOut>>()? {
-                    Some((1, v)) => v,
-                    _ => return Err(serde::de::Error::missing_field("outputs")),
-                };
-                let attributes = match map.next_entry::<u64, TxAttributes>()? {
-                    Some((2, v)) => v,
-                    _ => return Err(serde::de::Error::missing_field("attributes")),
-                };
-                Ok(Tx::new_with(inputs, outputs, attributes))
-            }
+impl Decodable for Tx {
+    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
+        if rlp.item_count()? != 3 {
+            return Err(DecoderError::Custom("Cannot decode a transaction"));
         }
-        deserializer.deserialize_struct(
-            Tx::type_name(),
-            &["inputs", "outputs", "attributes"],
-            TxVisitor,
-        )
+        let inputs: Vec<TxoPointer> = rlp.list_at(0)?;
+        let outputs: Vec<TxOut> = rlp.list_at(1)?;
+        let attributes: TxAttributes = rlp.val_at(2)?;
+        Ok(Tx::new_with(inputs, outputs, attributes))
     }
 }
 
@@ -129,10 +85,9 @@ impl Tx {
         }
     }
 
-    /// retrieves a TX ID (currently blake2s(cbor_serialize_packed(tx)))
+    /// retrieves a TX ID (currently blake2s(rlp_bytes(tx)))
     pub fn id(&self) -> TxId {
-        let s = to_vec_packed(self).expect("Tx can be serialiazed to CBOR");
-        txid_hash(&s)
+        txid_hash(&self.rlp_bytes())
     }
 
     /// adds an input to a TX (mainly for testing / tools)

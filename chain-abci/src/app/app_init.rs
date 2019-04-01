@@ -2,7 +2,7 @@ use abci::*;
 use bit_vec::BitVec;
 use chain_core::common::merkle::MerkleTree;
 use chain_core::common::Timespec;
-use chain_core::common::HASH_SIZE_256;
+use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::init::config::InitConfig;
 use chain_core::tx::{
     data::{attribute::TxAttributes, Tx, TxId},
@@ -12,7 +12,7 @@ use hex::decode;
 use integer_encoding::VarInt;
 use log::info;
 use protobuf::Message;
-use serde_cbor::ser::to_vec_packed;
+use rlp::{Encodable, RlpStream};
 
 use crate::storage::*;
 
@@ -29,9 +29,9 @@ pub struct ChainNodeApp {
     /// valid transactions after DeliverTx before EndBlock/Commit
     pub delivered_txs: Vec<TxAux>,
     /// a reference to genesis (used when there is no committed state)
-    pub genesis_app_hash: [u8; HASH_SIZE_256],
+    pub genesis_app_hash: H256,
     /// last committed merkle root (if any)
-    pub last_apphash: Option<[u8; HASH_SIZE_256]>,
+    pub last_apphash: Option<H256>,
     /// last two hex digits in chain_id
     pub chain_hex_id: u8,
     /// time in previous block's header or genesis time
@@ -74,7 +74,7 @@ impl ChainNodeApp {
                 delivered_txs: Vec::new(),
                 last_apphash: None,
                 chain_hex_id,
-                genesis_app_hash,
+                genesis_app_hash: genesis_app_hash.into(),
                 block_time: None,
             }
         } else {
@@ -114,7 +114,7 @@ impl ChainNodeApp {
                 .db
                 .get(COL_NODE_INFO, BLOCK_TIME_KEY)
                 .expect("Error while fetching value")
-                .map(|bytes| -> Timespec { Timespec::decode_var_vec(&bytes.to_vec()).0 });
+                .map(|bytes| -> Timespec { i64::decode_var_vec(&bytes.to_vec()).0.into() });
             let mut app_hash = [0u8; HASH_SIZE_256];
             app_hash.copy_from_slice(&last_app_hash.unwrap()[..]);
             ChainNodeApp {
@@ -123,9 +123,9 @@ impl ChainNodeApp {
                 uncommitted_block_height: 0,
                 uncommitted_block: false,
                 delivered_txs: Vec::new(),
-                last_apphash: Some(app_hash),
+                last_apphash: Some(app_hash.into()),
                 chain_hex_id,
-                genesis_app_hash,
+                genesis_app_hash: genesis_app_hash.into(),
                 block_time,
             }
         }
@@ -207,19 +207,28 @@ impl ChainNodeApp {
                         .expect("genesis validators")
                 })
                 .collect();
-            inittx.put(
-                COL_EXTRA,
-                b"init_chain_validators",
-                &to_vec_packed(&validators).unwrap(),
-            );
+            let mut rlp = RlpStream::new();
+            rlp.begin_list(validators.len());
+            for v in validators.iter() {
+                rlp.append_list(v);
+            }
+            inittx.put(COL_EXTRA, b"init_chain_validators", &rlp.out());
 
             for utxo in utxos.iter() {
                 let txid = utxo.id();
                 info!("creating genesis tx (id: {:?})", &txid);
-                inittx.put(COL_BODIES, &txid, &to_vec_packed(&utxo).unwrap());
-                inittx.put(COL_TX_META, &txid, &BitVec::from_elem(1, false).to_bytes());
+                inittx.put(COL_BODIES, &txid.as_bytes(), &utxo.rlp_bytes());
+                inittx.put(
+                    COL_TX_META,
+                    &txid.as_bytes(),
+                    &BitVec::from_elem(1, false).to_bytes(),
+                );
             }
-            inittx.put(COL_NODE_INFO, LAST_APP_HASH_KEY, &genesis_app_hash);
+            inittx.put(
+                COL_NODE_INFO,
+                LAST_APP_HASH_KEY,
+                &genesis_app_hash.as_bytes(),
+            );
             inittx.put(
                 COL_NODE_INFO,
                 LAST_BLOCK_HEIGHT_KEY,
@@ -227,8 +236,8 @@ impl ChainNodeApp {
             );
             inittx.put(
                 COL_MERKLE_PROOFS,
-                &genesis_app_hash,
-                &to_vec_packed(&tree).unwrap(),
+                &genesis_app_hash.as_bytes(),
+                &tree.rlp_bytes(),
             );
 
             let wr = db.write(inittx);
@@ -239,7 +248,7 @@ impl ChainNodeApp {
                 self.last_apphash = Some(genesis_app_hash);
             }
 
-            self.block_time = Some(_req.time.as_ref().unwrap().seconds);
+            self.block_time = Some(_req.time.as_ref().unwrap().seconds.into());
         } else {
             // TODO: panic?
             println!(

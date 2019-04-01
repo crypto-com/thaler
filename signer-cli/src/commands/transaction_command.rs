@@ -1,10 +1,9 @@
 use failure::{format_err, Error, ResultExt};
 use hex::{decode, encode};
 use quest::{ask, choose, success, text, yesno};
-use serde_cbor::ser::to_vec_packed;
+use rlp::Encodable;
 use structopt::StructOpt;
 
-use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
@@ -115,7 +114,7 @@ impl TransactionCommand {
                 transaction.add_output(TxOut::new_with_timelock(
                     address,
                     amount,
-                    timelock.parse::<Timespec>()?,
+                    timelock.parse::<i64>()?.into(),
                 ));
             }
 
@@ -143,13 +142,13 @@ impl TransactionCommand {
         let witnesses =
             get_transaction_witnesses(&transaction, &secrets, &required_signature_types)?;
 
+        ask("Transaction ID: ");
+        success(&encode(&transaction.id()).to_string());
+
         let txa = TxAux::new(transaction, witnesses);
 
-        ask("Transaction ID: ");
-        success(&encode(&txa.tx.id()).to_string());
-
         ask("Transaction: ");
-        success(&encode(&to_vec_packed(&txa)?).to_string());
+        success(&encode(&txa.rlp_bytes()).to_string());
 
         Ok(())
     }

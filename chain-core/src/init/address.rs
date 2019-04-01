@@ -12,19 +12,21 @@
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
 
-use crate::common::hash256;
+use crate::common::{hash256, H256};
 use hex;
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use secp256k1::{self, key::PublicKey};
 use serde::de::{Deserialize, Deserializer, Error};
 use serde::ser::{Serialize, Serializer};
 use sha3::Keccak256;
 use std::str::FromStr;
-use std::{error, fmt, ops};
+use std::{cmp, error, fmt, ops};
+
 /// Keccak-256 crypto hash length in bytes
 pub const KECCAK256_BYTES: usize = 32;
 
 /// Calculate Keccak-256 crypto hash
-pub fn keccak256(data: &[u8]) -> [u8; KECCAK256_BYTES] {
+pub fn keccak256(data: &[u8]) -> H256 {
     hash256::<Keccak256>(data)
 }
 
@@ -109,6 +111,8 @@ pub type RedeemAddressRaw = [u8; REDEEM_ADDRESS_BYTES];
 /// Eth-style Account address (20 bytes)
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RedeemAddress(pub RedeemAddressRaw);
+impl_encodable_for_hash!(RedeemAddress);
+impl_decodable_for_hash!(RedeemAddress, REDEEM_ADDRESS_BYTES);
 
 impl RedeemAddress {
     /// Try to convert a byte vector to `RedeemAddress`.
