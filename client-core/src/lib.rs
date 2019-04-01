@@ -4,9 +4,9 @@
 //! This crate exposes following functionalities for interacting with Crypto.com Chain:
 //! - Wallet creation
 //! - Address generation
-//! - Transaction creation and signing
 //! - Transaction syncing and storage
 //! - Balance tracking
+//! - Transaction creation and signing
 //!
 //! ## Features
 //!
@@ -16,12 +16,20 @@
 //!   - Implementation of [`Wallet`](crate::Wallet) trait using [`SledStorage`](crate::storage::SledStorage)
 //!   - Enable with **`"sled"`** feature flag.
 //!   - This feature is enabled by **default**.
+//!
+//! ### Warning
+//!
+//! This is a work-in-progress crate and is unusable in its current state.
+pub mod balance;
+pub mod chain;
 pub mod error;
 pub mod key;
 pub mod service;
 pub mod storage;
 pub mod wallet;
 
+#[doc(inline)]
+pub use chain::Chain;
 #[doc(inline)]
 pub use error::{Error, ErrorKind, Result};
 #[doc(inline)]

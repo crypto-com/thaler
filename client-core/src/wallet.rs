@@ -10,20 +10,28 @@ use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
 
-use crate::service::{KeyService, WalletService};
-use crate::{ErrorKind, PublicKey, Result, Storage};
+use crate::service::{BalanceService, KeyService, WalletService};
+use crate::{Chain, ErrorKind, PublicKey, Result, Storage};
 
 /// Interface for a generic wallet
-pub trait Wallet<K, W>
+pub trait Wallet<C, K, W, B>
 where
+    C: Chain,
     K: Storage,
     W: Storage,
+    B: Storage,
 {
+    /// Returns associated Crypto.com Chain client
+    fn chain(&self) -> &C;
+
     /// Returns associated key service
     fn key_service(&self) -> &KeyService<K>;
 
     /// Returns associated wallet service
     fn wallet_service(&self) -> &WalletService<W>;
+
+    /// Returns associated balance service
+    fn balance_service(&self) -> &BalanceService<C, B>;
 
     /// Creates a new wallet with given name
     fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String> {
@@ -35,7 +43,7 @@ where
         let wallet_id = self.wallet_service().get(name, passphrase)?;
 
         match wallet_id {
-            None => Ok(None),
+            None => Err(ErrorKind::WalletNotFound.into()),
             Some(wallet_id) => {
                 let keys = self.key_service().get_keys(&wallet_id, passphrase)?;
 
@@ -91,5 +99,61 @@ where
         let public_key = self.generate_public_key(name, passphrase)?;
         let address = RedeemAddress::from(&public_key);
         Ok(encode(address.0))
+    }
+
+    /// Retrieves current balance of wallet
+    fn get_balance(&self, name: &str, passphrase: &str) -> Result<Option<u64>> {
+        let wallet_id = self.wallet_service().get(name, passphrase)?;
+
+        match wallet_id {
+            None => Err(ErrorKind::WalletNotFound.into()),
+            Some(wallet_id) => Ok(self
+                .balance_service()
+                .get_balance(&wallet_id, passphrase)?
+                .map(Into::into)),
+        }
+    }
+
+    /// Synchronizes and returns current balance of wallet
+    fn sync_balance(&self, name: &str, passphrase: &str) -> Result<u64> {
+        let addresses = self.get_addresses(name, passphrase)?;
+
+        match addresses {
+            None => Ok(0),
+            Some(addresses) => {
+                let wallet_id = self.wallet_service().get(name, passphrase)?;
+
+                match wallet_id {
+                    None => Err(ErrorKind::WalletNotFound.into()),
+                    Some(wallet_id) => self
+                        .balance_service()
+                        .sync(&wallet_id, passphrase, addresses)
+                        .map(Into::into),
+                }
+            }
+        }
+    }
+
+    /// Recalculate current balance of wallet
+    ///
+    /// # Warning
+    /// This should only be used when you need to recalculate balance from whole history of blockchain.
+    fn recalculate_balance(&self, name: &str, passphrase: &str) -> Result<u64> {
+        let addresses = self.get_addresses(name, passphrase)?;
+
+        match addresses {
+            None => Ok(0),
+            Some(addresses) => {
+                let wallet_id = self.wallet_service().get(name, passphrase)?;
+
+                match wallet_id {
+                    None => Err(ErrorKind::WalletNotFound.into()),
+                    Some(wallet_id) => self
+                        .balance_service()
+                        .sync_all(&wallet_id, passphrase, addresses)
+                        .map(Into::into),
+                }
+            }
+        }
     }
 }

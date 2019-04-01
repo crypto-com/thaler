@@ -108,5 +108,13 @@ mod tests {
         let value = std::str::from_utf8(&value).expect("Unable to deserialize bytes");
 
         assert_eq!("value", value, "Incorrect value found");
+
+        storage.clear().expect("Unable to clean database");
+
+        assert_eq!(
+            0,
+            storage.keys().expect("Unable to get keys").len(),
+            "Keys present even after clearing"
+        );
     }
 }
