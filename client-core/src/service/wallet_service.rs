@@ -6,6 +6,8 @@ use chain_core::init::address::RedeemAddress;
 
 use crate::{ErrorKind, PrivateKey, PublicKey, Result, SecureStorage, Storage};
 
+const KEYSPACE: &str = "wallet";
+
 /// Exposes functionality for managing wallets
 #[derive(Default)]
 pub struct WalletService<T> {
@@ -23,7 +25,7 @@ where
 
     /// Creates a new wallet and returns wallet ID
     pub fn create(&self, name: &str, passphrase: &str) -> Result<String> {
-        if self.storage.contains_key(name.as_bytes())? {
+        if self.storage.contains_key(KEYSPACE, name)? {
             Err(ErrorKind::AlreadyExists.into())
         } else {
             let mut private_key = PrivateKey::new()?;
@@ -34,7 +36,7 @@ where
             let address = RedeemAddress::from(&public_key);
 
             self.storage
-                .set_secure(name.as_bytes(), address.0.to_vec(), passphrase.as_bytes())?;
+                .set_secure(KEYSPACE, name, address.0.to_vec(), passphrase)?;
 
             Ok(encode(address.0))
         }
@@ -42,9 +44,7 @@ where
 
     /// Retrieves a wallet ID from storage
     pub fn get(&self, name: &str, passphrase: &str) -> Result<Option<String>> {
-        let address = self
-            .storage
-            .get_secure(name.as_bytes(), passphrase.as_bytes())?;
+        let address = self.storage.get_secure(KEYSPACE, name, passphrase)?;
 
         match address {
             None => Ok(None),

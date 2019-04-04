@@ -18,39 +18,61 @@ const NONCE_SIZE: usize = 8;
 
 /// Interface for a generic key-value storage
 pub trait Storage: Send + Sync {
-    /// Clears all data in storage.
-    fn clear(&self) -> Result<()>;
+    /// Clears all data in a keyspace.
+    fn clear<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<()>;
 
-    /// Returns value of key if it exists.
-    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>>;
+    /// Returns value of key if it exists in keyspace.
+    fn get<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<Option<Vec<u8>>>;
 
-    /// Set a key to a new value, returning old value if it was set.
-    fn set(&self, key: &[u8], value: Vec<u8>) -> Result<Option<Vec<u8>>>;
+    /// Set a key to a new value in given keyspace, returning old value if it was set.
+    fn set<S: AsRef<[u8]>, K: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+        value: Vec<u8>,
+    ) -> Result<Option<Vec<u8>>>;
 
-    /// Returns a vector of stored keys
-    fn keys(&self) -> Result<Vec<Vec<u8>>>;
+    /// Returns a vector of stored keys in a keyspace.
+    fn keys<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<Vec<Vec<u8>>>;
 
-    /// Returns `true` if the storage contains a value for the specified key, `false` otherwise.
-    fn contains_key(&self, key: &[u8]) -> Result<bool>;
+    /// Returns `true` if the storage contains a value for the specified key in given keyspace, `false` otherwise.
+    fn contains_key<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<bool>;
+
+    /// Returns all the keyspaces currently available.
+    fn keyspaces(&self) -> Result<Vec<Vec<u8>>>;
 }
 
 /// Interface for a generic key-value storage (with encryption)
 pub trait SecureStorage {
-    /// Returns value (after decryption) of key if it exists.
-    fn get_secure(&self, key: &[u8], passphrase: &[u8]) -> Result<Option<Vec<u8>>>;
+    /// Returns value (after decryption) of key if it exists in given keyspace.
+    fn get_secure<S: AsRef<[u8]>, K: AsRef<[u8]>, P: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+        passphrase: P,
+    ) -> Result<Option<Vec<u8>>>;
 
-    /// Set a key to a new value (after encryption). This function returns [`Error`](crate::Error) of
-    /// [`ErrorKind`](crate::ErrorKind): `AlreadyExists` when the specified key is already present in
-    /// storage.
-    fn set_secure(&self, key: &[u8], value: Vec<u8>, passphrase: &[u8]) -> Result<Option<Vec<u8>>>;
+    /// Set a key to a new value (after encryption) in given keyspace and return old value.
+    fn set_secure<S: AsRef<[u8]>, K: AsRef<[u8]>, P: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+        value: Vec<u8>,
+        passphrase: P,
+    ) -> Result<Option<Vec<u8>>>;
 }
 
 impl<T> SecureStorage for T
 where
     T: Storage,
 {
-    fn get_secure(&self, key: &[u8], passphrase: &[u8]) -> Result<Option<Vec<u8>>> {
-        let value = self.get(key)?;
+    fn get_secure<S: AsRef<[u8]>, K: AsRef<[u8]>, P: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+        passphrase: P,
+    ) -> Result<Option<Vec<u8>>> {
+        let value = self.get(keyspace, &key)?;
 
         match value {
             None => Ok(None),
@@ -59,28 +81,38 @@ where
                 let mut algo = get_algo(passphrase);
 
                 Ok(Some(
-                    algo.open(&inner[nonce_index..], key, &inner[..nonce_index])
+                    algo.open(&inner[nonce_index..], key.as_ref(), &inner[..nonce_index])
                         .context(ErrorKind::DecryptionError)?,
                 ))
             }
         }
     }
 
-    fn set_secure(&self, key: &[u8], value: Vec<u8>, passphrase: &[u8]) -> Result<Option<Vec<u8>>> {
-        let mut algo = get_algo(passphrase);
+    fn set_secure<S: AsRef<[u8]>, K: AsRef<[u8]>, P: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+        value: Vec<u8>,
+        passphrase: P,
+    ) -> Result<Option<Vec<u8>>> {
+        let old_value = self.get_secure(&keyspace, &key, &passphrase)?;
+
+        let mut algo = get_algo(&passphrase);
 
         let mut nonce = [0u8; NONCE_SIZE];
         let mut rand = OsRng::new().context(ErrorKind::RngError)?;
         rand.fill(&mut nonce);
 
-        let mut cipher = algo.seal(&nonce, key, &value);
+        let mut cipher = algo.seal(&nonce, key.as_ref(), &value);
         cipher.extend(&nonce[..]);
 
-        self.set(key, cipher)
+        self.set(keyspace, key, cipher)?;
+
+        Ok(old_value)
     }
 }
 
-fn get_algo(passphrase: &[u8]) -> Aes128PmacSivAead {
+fn get_algo<P: AsRef<[u8]>>(passphrase: P) -> Aes128PmacSivAead {
     let mut hasher = Blake2s::new();
     hasher.input(passphrase);
 

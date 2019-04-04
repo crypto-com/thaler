@@ -21,9 +21,6 @@ where
     W: Storage,
     B: Storage,
 {
-    /// Returns associated Crypto.com Chain client
-    fn chain(&self) -> &C;
-
     /// Returns associated key service
     fn key_service(&self) -> &KeyService<K>;
 

@@ -8,6 +8,7 @@ use crate::storage::Storage;
 use crate::{ErrorKind, Result};
 
 /// Storage backed by Sled
+#[derive(Clone)]
 pub struct SledStorage(Db);
 
 impl SledStorage {
@@ -21,7 +22,7 @@ impl SledStorage {
     }
 
     /// Creates a new temporary instance (data will be deleted after the instance is dropped) with specified path for
-    /// data storage
+    /// data storage. Only for use in tests.
     #[cfg(test)]
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         Ok(Self(
@@ -32,89 +33,67 @@ impl SledStorage {
 }
 
 impl Storage for SledStorage {
-    fn clear(&self) -> Result<()> {
-        self.0.clear().context(ErrorKind::StorageError)?;
+    fn clear<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<()> {
+        let tree = self
+            .0
+            .open_tree(keyspace.as_ref().to_vec())
+            .context(ErrorKind::StorageError)?;
+
+        tree.clear().context(ErrorKind::StorageError)?;
         Ok(())
     }
 
-    fn get(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
-        let value = self.0.get(key).context(ErrorKind::StorageError)?;
+    fn get<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<Option<Vec<u8>>> {
+        let tree = self
+            .0
+            .open_tree(keyspace.as_ref().to_vec())
+            .context(ErrorKind::StorageError)?;
+
+        let value = tree.get(key).context(ErrorKind::StorageError)?;
         let value = value.map(|inner| inner.to_vec());
 
         Ok(value)
     }
 
-    fn set(&self, key: &[u8], value: Vec<u8>) -> Result<Option<Vec<u8>>> {
-        let value = self.0.set(key, value).context(ErrorKind::StorageError)?;
+    fn set<S: AsRef<[u8]>, K: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+        value: Vec<u8>,
+    ) -> Result<Option<Vec<u8>>> {
+        let tree = self
+            .0
+            .open_tree(keyspace.as_ref().to_vec())
+            .context(ErrorKind::StorageError)?;
+
+        let value = tree.set(key, value).context(ErrorKind::StorageError)?;
         let value = value.map(|inner| inner.to_vec());
 
         Ok(value)
     }
 
-    fn keys(&self) -> Result<Vec<Vec<u8>>> {
-        self.0
-            .iter()
+    fn keys<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<Vec<Vec<u8>>> {
+        let tree = self
+            .0
+            .open_tree(keyspace.as_ref().to_vec())
+            .context(ErrorKind::StorageError)?;
+
+        tree.iter()
             .keys()
             .map(|key| Ok(key.context(ErrorKind::StorageError)?))
             .collect()
     }
 
-    fn contains_key(&self, key: &[u8]) -> Result<bool> {
-        Ok(self.0.contains_key(key).context(ErrorKind::StorageError)?)
+    fn contains_key<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<bool> {
+        let tree = self
+            .0
+            .open_tree(keyspace.as_ref().to_vec())
+            .context(ErrorKind::StorageError)?;
+
+        Ok(tree.contains_key(key).context(ErrorKind::StorageError)?)
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::SledStorage;
-    use crate::Storage;
-
-    #[test]
-    fn check_flow() {
-        let storage = SledStorage::new("./storage-test").expect("Unable to start sled storage");
-
-        assert!(
-            !storage
-                .contains_key("key".as_bytes())
-                .expect("Unable to connect to database"),
-            "Key already in storage"
-        );
-
-        assert_eq!(
-            None,
-            storage.get("key".as_bytes()).expect("Unable to get value"),
-            "Invalid value in get"
-        );
-
-        assert_eq!(
-            None,
-            storage
-                .set("key".as_bytes(), "value".as_bytes().to_vec())
-                .expect("Unable to set value"),
-            "Invalid value in set"
-        );
-
-        assert_eq!(
-            1,
-            storage.keys().expect("Unable to get keys").len(),
-            "Invalid number of keys present"
-        );
-
-        let value = storage
-            .get("key".as_bytes())
-            .expect("Unable to get value")
-            .expect("Value not found");
-
-        let value = std::str::from_utf8(&value).expect("Unable to deserialize bytes");
-
-        assert_eq!("value", value, "Incorrect value found");
-
-        storage.clear().expect("Unable to clean database");
-
-        assert_eq!(
-            0,
-            storage.keys().expect("Unable to get keys").len(),
-            "Keys present even after clearing"
-        );
+    fn keyspaces(&self) -> Result<Vec<Vec<u8>>> {
+        Ok(self.0.tree_names())
     }
 }
