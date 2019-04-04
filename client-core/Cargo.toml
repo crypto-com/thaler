@@ -15,7 +15,6 @@ bincode = "1.1"
 blake2 = "0.8"
 hex = "0.3"
 zeroize = "0.6"
-zeroize_derive = "0.1"
 byteorder = "1.3"
 sled = { version = "0.21", optional = true }
 

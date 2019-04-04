@@ -1,12 +1,12 @@
 use failure::ResultExt;
 use rand::rngs::OsRng;
 use secp256k1::SecretKey;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 use crate::{ErrorKind, Result};
 
 /// Private key used in Crypto.com Chain
-#[derive(Debug, PartialEq, Zeroize, ZeroizeOnDrop)]
+#[derive(Debug, PartialEq)]
 pub struct PrivateKey(pub(super) SecretKey);
 
 impl PrivateKey {
@@ -29,6 +29,18 @@ impl PrivateKey {
             SecretKey::from_slice(bytes).context(ErrorKind::DeserializationError)?;
 
         Ok(PrivateKey(secret_key))
+    }
+}
+
+impl Zeroize for PrivateKey {
+    fn zeroize(&mut self) {
+        self.0.zeroize()
+    }
+}
+
+impl Drop for PrivateKey {
+    fn drop(&mut self) {
+        self.zeroize()
     }
 }
 
