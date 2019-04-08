@@ -3,6 +3,8 @@ use failure::ResultExt;
 
 use crate::{ErrorKind, PrivateKey, Result, SecureStorage, Storage};
 
+const KEYSPACE: &str = "key";
+
 /// Exposes functionality for managing public and private keys
 #[derive(Default)]
 pub struct KeyService<T> {
@@ -22,9 +24,7 @@ where
     pub fn generate(&self, wallet_id: &str, passphrase: &str) -> Result<PrivateKey> {
         let private_key = PrivateKey::new()?;
 
-        let private_keys = self
-            .storage
-            .get_secure(wallet_id.as_bytes(), passphrase.as_bytes())?;
+        let private_keys = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
 
         let mut private_keys = match private_keys {
             None => Vec::new(),
@@ -36,9 +36,10 @@ where
         private_keys.push(private_key.serialize()?);
 
         self.storage.set_secure(
-            wallet_id.as_bytes(),
+            KEYSPACE,
+            wallet_id,
             serialize(&private_keys).context(ErrorKind::SerializationError)?,
-            passphrase.as_bytes(),
+            passphrase,
         )?;
 
         Ok(private_key)
@@ -46,9 +47,7 @@ where
 
     /// Returns all the keys stored for given wallet ID
     pub fn get_keys(&self, wallet_id: &str, passphrase: &str) -> Result<Option<Vec<PrivateKey>>> {
-        let private_keys = self
-            .storage
-            .get_secure(wallet_id.as_bytes(), passphrase.as_bytes())?;
+        let private_keys = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
 
         match private_keys {
             None => Ok(None),

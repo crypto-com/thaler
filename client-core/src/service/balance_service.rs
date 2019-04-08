@@ -5,6 +5,8 @@ use chain_core::init::coin::Coin;
 
 use crate::{Chain, Error, ErrorKind, Result, SecureStorage, Storage};
 
+const KEYSPACE: &str = "balance";
+
 /// Exposes functionalities for transaction storage and syncing
 #[derive(Default)]
 pub struct BalanceService<C, T> {
@@ -24,9 +26,7 @@ where
 
     /// Updates balance after querying new transactions from Crypto.com Chain.
     pub fn sync(&self, wallet_id: &str, passphrase: &str, addresses: Vec<String>) -> Result<Coin> {
-        let bytes = self
-            .storage
-            .get_secure(wallet_id.as_bytes(), passphrase.as_bytes())?;
+        let bytes = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
 
         let mut storage_unit = match bytes {
             None => Default::default(),
@@ -43,11 +43,8 @@ where
             storage_unit.balance = (storage_unit.balance + change)?;
         }
 
-        self.storage.set_secure(
-            wallet_id.as_bytes(),
-            storage_unit.serialize(),
-            passphrase.as_bytes(),
-        )?;
+        self.storage
+            .set_secure(KEYSPACE, wallet_id, storage_unit.serialize(), passphrase)?;
 
         Ok(storage_unit.balance)
     }
@@ -62,9 +59,7 @@ where
         passphrase: &str,
         addresses: Vec<String>,
     ) -> Result<Coin> {
-        let bytes = self
-            .storage
-            .get_secure(wallet_id.as_bytes(), passphrase.as_bytes())?;
+        let bytes = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
 
         let mut storage_unit = match bytes {
             None => Default::default(),
@@ -80,20 +75,15 @@ where
             storage_unit.balance = (storage_unit.balance + change)?;
         }
 
-        self.storage.set_secure(
-            wallet_id.as_bytes(),
-            storage_unit.serialize(),
-            passphrase.as_bytes(),
-        )?;
+        self.storage
+            .set_secure(KEYSPACE, wallet_id, storage_unit.serialize(), passphrase)?;
 
         Ok(storage_unit.balance)
     }
 
     /// Returns balance for a given wallet ID.
     pub fn get_balance(&self, wallet_id: &str, passphrase: &str) -> Result<Option<Coin>> {
-        let bytes = self
-            .storage
-            .get_secure(wallet_id.as_bytes(), passphrase.as_bytes())?;
+        let bytes = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
 
         match bytes {
             None => Ok(None),
