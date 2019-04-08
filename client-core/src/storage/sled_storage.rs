@@ -152,9 +152,9 @@ mod tests {
         );
 
         assert_eq!(
-            1,
+            2,
             storage.keyspaces().expect("Unable to get keyspaces").len(),
-            "More than one keyspaces present"
+            "More than two keyspaces present"
         );
     }
 }
