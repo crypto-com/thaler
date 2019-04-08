@@ -6,7 +6,6 @@ use secp256k1::PublicKey as SecpPublicKey;
 use chain_core::init::address::RedeemAddress;
 
 use crate::{ErrorKind, Result};
-use crate::{PrivateKey, SECP};
 
 /// Public key used in Crypto.com Chain
 #[derive(Debug, PartialEq)]
@@ -33,12 +32,8 @@ impl fmt::Display for PublicKey {
     }
 }
 
-impl From<&PrivateKey> for PublicKey {
-    fn from(private_key: &PrivateKey) -> Self {
-        let secret_key = &private_key.0;
-
-        let public_key = SECP.with(|secp| SecpPublicKey::from_secret_key(secp, secret_key));
-
+impl From<SecpPublicKey> for PublicKey {
+    fn from(public_key: SecpPublicKey) -> Self {
         PublicKey(public_key)
     }
 }
