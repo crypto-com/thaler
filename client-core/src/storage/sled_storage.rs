@@ -97,3 +97,64 @@ impl Storage for SledStorage {
         Ok(self.0.tree_names())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::SledStorage;
+    use crate::Storage;
+
+    #[test]
+    fn check_flow() {
+        let storage = SledStorage::new("./storage-test").expect("Unable to start sled storage");
+
+        assert!(
+            !storage
+                .contains_key("keyspace", "key")
+                .expect("Unable to connect to database"),
+            "Key already in storage"
+        );
+
+        assert_eq!(
+            None,
+            storage.get("keyspace", "key").expect("Unable to get value"),
+            "Invalid value in get"
+        );
+
+        assert_eq!(
+            None,
+            storage
+                .set("keyspace", "key", "value".as_bytes().to_vec())
+                .expect("Unable to set value"),
+            "Invalid value in set"
+        );
+
+        assert_eq!(
+            1,
+            storage.keys("keyspace").expect("Unable to get keys").len(),
+            "Invalid number of keys present"
+        );
+
+        let value = storage
+            .get("keyspace", "key")
+            .expect("Unable to get value")
+            .expect("Value not found");
+
+        let value = std::str::from_utf8(&value).expect("Unable to deserialize bytes");
+
+        assert_eq!("value", value, "Incorrect value found");
+
+        storage.clear("keyspace").expect("Unable to clean database");
+
+        assert_eq!(
+            0,
+            storage.keys("keyspace").expect("Unable to get keys").len(),
+            "Keys present even after clearing"
+        );
+
+        assert_eq!(
+            1,
+            storage.keyspaces().expect("Unable to get keyspaces").len(),
+            "More than one keyspaces present"
+        );
+    }
+}
