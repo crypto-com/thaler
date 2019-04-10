@@ -20,22 +20,14 @@
 //! ### Warning
 //!
 //! This is a work-in-progress crate and is unusable in its current state.
-pub mod balance;
-pub mod chain;
-pub mod error;
 pub mod key;
 pub mod service;
-pub mod storage;
+#[cfg(test)]
+pub mod test;
 pub mod wallet;
 
 #[doc(inline)]
-pub use chain::Chain;
-#[doc(inline)]
-pub use error::{Error, ErrorKind, Result};
-#[doc(inline)]
 pub use key::{PrivateKey, PublicKey};
-#[doc(inline)]
-pub use storage::{SecureStorage, Storage};
 #[doc(inline)]
 pub use wallet::Wallet;
 

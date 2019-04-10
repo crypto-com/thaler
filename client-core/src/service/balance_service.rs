@@ -2,8 +2,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use failure::ResultExt;
 
 use chain_core::init::coin::Coin;
-
-use crate::{Chain, Error, ErrorKind, Result, SecureStorage, Storage};
+use client_common::{Chain, Error, ErrorKind, Result, SecureStorage, Storage};
 
 const KEYSPACE: &str = "balance";
 

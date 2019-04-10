@@ -7,16 +7,15 @@ edition = "2018"
 
 [dependencies]
 chain-core = { path = "../chain-core" }
+client-common = { path = "../client-common" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "4bb6adc44da57e79055a49931f51a8ac4231f165", features = ["serde", "zeroize", "rand"] }
 rand = "0.6"
 failure = "0.1"
-miscreant = "0.4"
 bincode = "1.1"
-blake2 = "0.8"
 hex = "0.3"
 zeroize = "0.6"
 byteorder = "1.3"
-sled = { version = "0.21", optional = true }
 
 [features]
 default = ["sled"]
+sled = ["client-common/sled"]

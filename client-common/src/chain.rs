@@ -1,11 +1,4 @@
 //! Communication between client and chain
-
-#[cfg(test)]
-mod mock_chain;
-
-#[cfg(test)]
-pub use mock_chain::MockChain;
-
 use crate::balance::TransactionChange;
 use crate::Result;
 

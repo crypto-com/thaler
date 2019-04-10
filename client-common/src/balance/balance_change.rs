@@ -2,9 +2,9 @@ use std::ops::Add;
 
 use failure::ResultExt;
 
-use crate::{ErrorKind, Result};
-
 use chain_core::init::coin::Coin;
+
+use crate::{ErrorKind, Result};
 
 /// Incoming or Outgoing balance change
 #[derive(Debug)]

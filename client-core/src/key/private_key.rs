@@ -3,7 +3,9 @@ use rand::rngs::OsRng;
 use secp256k1::{PublicKey as SecpPublicKey, SecretKey};
 use zeroize::Zeroize;
 
-use crate::{ErrorKind, PublicKey, Result, SECP};
+use client_common::{ErrorKind, Result};
+
+use crate::{PublicKey, SECP};
 
 /// Private key used in Crypto.com Chain
 #[derive(Debug, PartialEq)]

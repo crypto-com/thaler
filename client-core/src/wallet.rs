@@ -9,9 +9,10 @@ use hex::encode;
 use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
+use client_common::{Chain, ErrorKind, Result, Storage};
 
 use crate::service::{BalanceService, KeyService, WalletService};
-use crate::{Chain, ErrorKind, PublicKey, Result, Storage};
+use crate::PublicKey;
 
 /// Interface for a generic wallet
 pub trait Wallet<C, K, W, B>

@@ -3,6 +3,7 @@
 members = [
     "chain-abci",
     "chain-core",
+    "client-common",
     "client-core",
     "dev-utils",
     "kvdb",
