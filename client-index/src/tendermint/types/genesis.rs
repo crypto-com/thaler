@@ -16,51 +16,8 @@ pub struct Genesis {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct GenesisInner {
-    genesis_time: String,
     chain_id: String,
-    consensus_params: ConsensusParams,
-    validators: Vec<ValidatorElement>,
-    app_hash: String,
     app_state: InitConfig,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ConsensusParams {
-    block: Block,
-    evidence: Evidence,
-    validator: ConsensusParamsValidator,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Block {
-    max_bytes: String,
-    max_gas: String,
-    time_iota_ms: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Evidence {
-    max_age: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ConsensusParamsValidator {
-    pub_key_types: Vec<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ValidatorElement {
-    address: String,
-    pub_key: PubKey,
-    power: String,
-    name: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct PubKey {
-    #[serde(rename = "type")]
-    pub_key_type: String,
-    value: String,
 }
 
 impl Genesis {
@@ -77,5 +34,46 @@ impl Genesis {
         let transactions = app_state.generate_utxos(&TxAttributes::new(chain_id));
 
         Ok(transactions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::str::FromStr;
+
+    use chain_core::init::address::RedeemAddress;
+    use chain_core::init::coin::Coin;
+    use chain_core::init::config::ERC20Owner;
+
+    #[test]
+    fn check_transactions() {
+        let genesis = Genesis {
+            genesis: GenesisInner {
+                chain_id: "test-chain-4UIy1Wab".to_owned(),
+                app_state: InitConfig::new(vec![ERC20Owner::new(
+                    RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+                    Coin::new(10000000000000000000).unwrap(),
+                )]),
+            },
+        };
+
+        assert_eq!(1, genesis.transactions().unwrap().len());
+    }
+
+    #[test]
+    fn check_wrong_transaction() {
+        let genesis = Genesis {
+            genesis: GenesisInner {
+                chain_id: "test-chain-4UIy1Wb".to_owned(),
+                app_state: InitConfig::new(vec![ERC20Owner::new(
+                    RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+                    Coin::new(10000000000000000000).unwrap(),
+                )]),
+            },
+        };
+
+        assert!(genesis.transactions().is_err());
     }
 }

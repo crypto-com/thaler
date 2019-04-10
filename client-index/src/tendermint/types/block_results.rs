@@ -2,37 +2,32 @@
 
 use base64::decode;
 use failure::ResultExt;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use chain_core::tx::data::TxId;
 use client_common::{ErrorKind, Result};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct BlockResults {
     height: String,
     results: Results,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Results {
     #[serde(rename = "DeliverTx")]
-    pub deliver_tx: Vec<DeliverTx>,
-    #[serde(rename = "BeginBlock")]
-    pub begin_block: BeginBlock,
+    deliver_tx: Vec<DeliverTx>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct BeginBlock {}
-
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct DeliverTx {
-    pub tags: Vec<Tag>,
+    tags: Vec<Tag>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Tag {
-    pub key: String,
-    pub value: String,
+    key: String,
+    value: String,
 }
 
 impl BlockResults {
@@ -55,5 +50,44 @@ impl BlockResults {
         }
 
         Ok(transactions)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_ids() {
+        let block_results = BlockResults {
+            height: "2".to_owned(),
+            results: Results {
+                deliver_tx: vec![DeliverTx {
+                    tags: vec![Tag {
+                        key: "dHhpZA==".to_owned(),
+                        value: "kOzcmhZgAAaw5roBdqDNniwRjjKNe+foJEiDAOObTDQ=".to_owned(),
+                    }],
+                }],
+            },
+        };
+
+        assert_eq!(1, block_results.ids().unwrap().len());
+    }
+
+    #[test]
+    fn check_wrong_id() {
+        let block_results = BlockResults {
+            height: "2".to_owned(),
+            results: Results {
+                deliver_tx: vec![DeliverTx {
+                    tags: vec![Tag {
+                        key: "dHhpZA==".to_owned(),
+                        value: "kOzcmhZgAAaw5riwRjjKNe+foJEiDAOObTDQ=".to_owned(),
+                    }],
+                }],
+            },
+        };
+
+        assert!(block_results.ids().is_err());
     }
 }
