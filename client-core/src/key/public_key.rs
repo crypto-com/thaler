@@ -4,8 +4,7 @@ use failure::ResultExt;
 use secp256k1::PublicKey as SecpPublicKey;
 
 use chain_core::init::address::RedeemAddress;
-
-use crate::{ErrorKind, Result};
+use client_common::{ErrorKind, Result};
 
 /// Public key used in Crypto.com Chain
 #[derive(Debug, PartialEq)]

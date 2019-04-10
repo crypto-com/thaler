@@ -1,7 +1,9 @@
 use bincode::{deserialize, serialize};
 use failure::ResultExt;
 
-use crate::{ErrorKind, PrivateKey, Result, SecureStorage, Storage};
+use client_common::{ErrorKind, Result, SecureStorage, Storage};
+
+use crate::PrivateKey;
 
 const KEYSPACE: &str = "key";
 
@@ -69,14 +71,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::KeyService;
-    use crate::storage::SledStorage;
-    use crate::ErrorKind;
+
+    use client_common::ErrorKind;
+
+    use crate::test::MemoryStorage;
 
     #[test]
     fn check_flow() {
-        let key_service = KeyService::new(
-            SledStorage::new("./key-service-test").expect("Unable to create key sled storage"),
-        );
+        let key_service = KeyService::new(MemoryStorage::default());
 
         let private_key = key_service
             .generate("wallet_id", "passphrase")

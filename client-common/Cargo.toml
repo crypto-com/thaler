@@ -1,0 +1,16 @@
+[package]
+name = "client-common"
+version = "0.1.0"
+authors = ["Devashish Dixit <devashish@crypto.com>"]
+edition = "2018"
+
+[dependencies]
+chain-core = { path = "../chain-core" }
+rand = "0.6"
+failure = "0.1"
+miscreant = "0.4"
+blake2 = "0.8"
+sled = { version = "0.21", optional = true }
+
+[features]
+default = ["sled"]

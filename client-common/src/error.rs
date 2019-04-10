@@ -53,6 +53,9 @@ pub enum ErrorKind {
     /// Balance not found
     #[fail(display = "Balance not found")]
     BalanceNotFound,
+    /// RPC error
+    #[fail(display = "RPC error")]
+    RpcError,
 }
 
 impl Fail for Error {

@@ -5,6 +5,7 @@ use crate::Result;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
+use chain_core::tx::data::Tx;
 use chain_core::tx::data::TxId;
 
 /// Represents balance change in a transaction
@@ -16,6 +17,27 @@ pub struct TransactionChange {
     pub address: ExtendedAddr,
     /// Change in balance
     pub balance_change: BalanceChange,
+}
+
+impl TransactionChange {
+    /// Returns a list of transaction changes from one transaction
+    pub fn from_tx(tx: &Tx) -> Vec<TransactionChange> {
+        let mut changes = Vec::with_capacity(tx.outputs.len());
+
+        let id = tx.id();
+
+        for output in tx.outputs.iter() {
+            let change = TransactionChange {
+                transaction_id: id,
+                address: output.address.clone(),
+                balance_change: BalanceChange::Incoming(output.value),
+            };
+
+            changes.push(change);
+        }
+
+        changes
+    }
 }
 
 impl Add<&TransactionChange> for Coin {

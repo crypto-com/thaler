@@ -2,9 +2,11 @@
 
 use std::path::Path;
 
+use client_common::storage::SledStorage;
+use client_common::{Chain, Result};
+
 use crate::service::{BalanceService, KeyService, WalletService};
-use crate::storage::SledStorage;
-use crate::{Chain, Result, Wallet};
+use crate::Wallet;
 
 /// Wallet backed by [`SledStorage`](crate::storage::SledStorage)
 pub struct SledWallet<C> {
@@ -19,7 +21,11 @@ where
 {
     /// Creates a new instance with specified path for data storage'
     pub fn new<P: AsRef<Path>>(path: P, chain: C) -> Result<Self> {
+        #[cfg(not(test))]
         let storage = SledStorage::new(path)?;
+        #[cfg(test)]
+        let storage = SledStorage::temp(path)?;
+
         let key_service = KeyService::new(storage.clone());
         let wallet_service = WalletService::new(storage.clone());
         let balance_service = BalanceService::new(chain, storage);
@@ -52,8 +58,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::SledWallet;
-    use crate::chain::MockChain;
-    use crate::{ErrorKind, Wallet};
+    use crate::test::MockChain;
+    use crate::Wallet;
+
+    use client_common::ErrorKind;
 
     #[test]
     fn check_happy_flow() {

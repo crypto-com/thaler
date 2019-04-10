@@ -3,8 +3,9 @@ use hex::encode;
 use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
+use client_common::{ErrorKind, Result, SecureStorage, Storage};
 
-use crate::{ErrorKind, PrivateKey, PublicKey, Result, SecureStorage, Storage};
+use crate::{PrivateKey, PublicKey};
 
 const KEYSPACE: &str = "wallet";
 
@@ -60,14 +61,14 @@ where
 #[cfg(test)]
 mod tests {
     use super::WalletService;
-    use crate::storage::SledStorage;
-    use crate::ErrorKind;
+
+    use client_common::ErrorKind;
+
+    use crate::test::MemoryStorage;
 
     #[test]
     fn check_flow() {
-        let wallet_service = WalletService::new(
-            SledStorage::new("./wallet-service-test").expect("Unable to create sled storage"),
-        );
+        let wallet_service = WalletService::new(MemoryStorage::default());
 
         let wallet = wallet_service
             .get("name", "passphrase")

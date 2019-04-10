@@ -1,7 +1,7 @@
 #![cfg(test)]
 
-use crate::balance::TransactionChange;
-use crate::{Chain, Result};
+use client_common::balance::TransactionChange;
+use client_common::{Chain, Result};
 
 /// A mock chain client
 #[derive(Clone, Default)]
