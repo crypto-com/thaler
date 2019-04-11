@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+use std::collections::HashSet;
 
 use base64::decode;
 use failure::ResultExt;
@@ -32,8 +33,8 @@ struct Tag {
 
 impl BlockResults {
     /// Returns valid transaction ids in block results
-    pub fn ids(&self) -> Result<Vec<TxId>> {
-        let mut transactions: Vec<TxId> = Default::default();
+    pub fn ids(&self) -> Result<HashSet<TxId>> {
+        let mut transactions: HashSet<TxId> = HashSet::with_capacity(self.results.deliver_tx.len());
 
         for transaction in self.results.deliver_tx.iter() {
             for tag in transaction.tags.iter() {
@@ -45,7 +46,7 @@ impl BlockResults {
                 let mut id: [u8; 32] = [0; 32];
                 id.copy_from_slice(&decoded);
 
-                transactions.push(id.into());
+                transactions.insert(id.into());
             }
         }
 

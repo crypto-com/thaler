@@ -1,11 +1,12 @@
 use std::ops::Add;
 
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+
 use crate::balance::BalanceChange;
 use crate::Result;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
-use chain_core::tx::data::Tx;
 use chain_core::tx::data::TxId;
 
 /// Represents balance change in a transaction
@@ -19,26 +20,49 @@ pub struct TransactionChange {
     pub balance_change: BalanceChange,
 }
 
-impl TransactionChange {
-    /// Returns a list of transaction changes from one transaction
-    pub fn from_tx(tx: &Tx) -> Vec<TransactionChange> {
-        let mut changes = Vec::with_capacity(tx.outputs.len());
-
-        let id = tx.id();
-
-        for output in tx.outputs.iter() {
-            let change = TransactionChange {
-                transaction_id: id,
-                address: output.address.clone(),
-                balance_change: BalanceChange::Incoming(output.value),
-            };
-
-            changes.push(change);
-        }
-
-        changes
+impl Encodable for TransactionChange {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        s.begin_list(3)
+            .append(&self.transaction_id)
+            .append(&self.address)
+            .append(&self.balance_change);
     }
 }
+
+impl Decodable for TransactionChange {
+    fn decode(rlp: &Rlp) -> core::result::Result<Self, DecoderError> {
+        if rlp.item_count()? != 3 {
+            return Err(DecoderError::Custom("Invalid item count"));
+        }
+
+        Ok(TransactionChange {
+            transaction_id: rlp.val_at(0)?,
+            address: rlp.val_at(1)?,
+            balance_change: rlp.val_at(2)?,
+        })
+    }
+}
+
+// impl TransactionChange {
+//     /// Returns a list of transaction changes from one transaction
+//     pub fn from_tx(tx: &Tx) -> Vec<TransactionChange> {
+//         let mut changes = Vec::with_capacity(tx.outputs.len());
+
+//         let id = tx.id();
+
+//         for output in tx.outputs.iter() {
+//             let change = TransactionChange {
+//                 transaction_id: id,
+//                 address: output.address.clone(),
+//                 balance_change: BalanceChange::Incoming(output.value),
+//             };
+
+//             changes.push(change);
+//         }
+
+//         changes
+//     }
+// }
 
 impl Add<&TransactionChange> for Coin {
     type Output = Result<Coin>;

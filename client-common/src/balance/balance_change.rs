@@ -1,6 +1,7 @@
 use std::ops::Add;
 
 use failure::ResultExt;
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 
 use chain_core::init::coin::Coin;
 
@@ -13,6 +14,31 @@ pub enum BalanceChange {
     Incoming(Coin),
     /// Represents balance reduction
     Outgoing(Coin),
+}
+
+impl Encodable for BalanceChange {
+    fn rlp_append(&self, s: &mut RlpStream) {
+        match self {
+            BalanceChange::Incoming(coin) => s.begin_list(2).append(&0u8).append(coin),
+            BalanceChange::Outgoing(coin) => s.begin_list(2).append(&1u8).append(coin),
+        };
+    }
+}
+
+impl Decodable for BalanceChange {
+    fn decode(rlp: &Rlp) -> core::result::Result<Self, DecoderError> {
+        if rlp.item_count()? != 2 {
+            return Err(DecoderError::Custom("Invalid item count"));
+        }
+
+        let type_tag: u8 = rlp.val_at(0)?;
+
+        match type_tag {
+            0 => Ok(BalanceChange::Incoming(rlp.val_at(1)?)),
+            1 => Ok(BalanceChange::Outgoing(rlp.val_at(1)?)),
+            _ => Err(DecoderError::Custom("Invalid balance change type")),
+        }
+    }
 }
 
 #[allow(clippy::suspicious_arithmetic_impl)]

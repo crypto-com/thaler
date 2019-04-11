@@ -56,6 +56,9 @@ pub enum ErrorKind {
     /// RPC error
     #[fail(display = "RPC error")]
     RpcError,
+    /// Invalid transaction
+    #[fail(display = "Invalid transaction")]
+    InvalidTransaction,
 }
 
 impl Fail for Error {
