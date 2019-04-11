@@ -1,0 +1,16 @@
+[package]
+name = "client-index"
+version = "0.1.0"
+authors = ["Devashish Dixit <devashish@crypto.com>"]
+edition = "2018"
+
+[dependencies]
+chain-core = { path = "../chain-core" }
+client-common = { path = "../client-common" }
+jsonrpc = "0.11"
+failure = "0.1"
+hex = "0.3"
+base64 = "0.10"
+rlp = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
