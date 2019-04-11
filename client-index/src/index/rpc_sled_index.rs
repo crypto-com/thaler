@@ -40,6 +40,7 @@ impl RpcSledIndex {
         })
     }
 
+    /// Clears all the services
     fn clear(&self) -> Result<()> {
         self.address_service.clear()?;
         self.balance_service.clear()?;
@@ -48,6 +49,7 @@ impl RpcSledIndex {
         self.transaction_service.clear()
     }
 
+    /// Handles genesis transactions
     fn genesis(&self) -> Result<()> {
         let genesis_transactions = self.client.genesis()?.transactions()?;
         self.handle_transactions(&genesis_transactions, 0)?;
@@ -55,6 +57,7 @@ impl RpcSledIndex {
         Ok(())
     }
 
+    /// Handles transactions by calling appropriate functions of different services
     fn handle_transactions(&self, transactions: &[Tx], height: u64) -> Result<()> {
         let changes = self.changes(transactions)?;
 
@@ -78,6 +81,7 @@ impl RpcSledIndex {
         Ok(())
     }
 
+    /// Converts `[Tx] -> [TransactionChange]`
     fn changes(&self, transactions: &[Tx]) -> Result<Vec<TransactionChange>> {
         let mut changes = Vec::new();
 
