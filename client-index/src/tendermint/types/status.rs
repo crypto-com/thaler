@@ -35,7 +35,7 @@ mod tests {
         let status = Status {
             sync_info: SyncInfo {
                 latest_block_height: "2".to_owned(),
-            }
+            },
         };
 
         assert_eq!(2, status.last_block_height().unwrap());
@@ -46,7 +46,7 @@ mod tests {
         let status = Status {
             sync_info: SyncInfo {
                 latest_block_height: "a".to_owned(),
-            }
+            },
         };
 
         assert!(status.last_block_height().is_err());

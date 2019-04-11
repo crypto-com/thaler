@@ -28,9 +28,9 @@ script:
 - cargo test
 - |
   if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
-    rustfmt --version || rustup component add rustfmt
-    cargo fmt -- --check --color=auto
-    cargo-clippy --version || rustup component add clippy
+    (rustfmt --version || rustup component add rustfmt) &&
+    cargo fmt -- --check --color=auto &&
+    (cargo-clippy --version || rustup component add clippy) &&
     cargo clippy -- -D warnings 
   fi
 
