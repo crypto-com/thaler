@@ -11,7 +11,11 @@ use client_common::storage::SledStorage;
 use client_common::{ErrorKind, Result};
 
 use crate::service::*;
-use crate::tendermint::{Client, RpcClient};
+use crate::tendermint::Client;
+#[cfg(not(test))]
+use crate::tendermint::RpcClient;
+#[cfg(test)]
+use crate::test::MockClient;
 use crate::Index;
 
 /// Transaction index backed by `sled` embedded database
@@ -21,14 +25,24 @@ pub struct RpcSledIndex {
     global_state_service: GlobalStateService<SledStorage>,
     transaction_outputs_service: TransactionOutputsService<SledStorage>,
     transaction_service: TransactionService<SledStorage>,
+    #[cfg(not(test))]
     client: RpcClient,
+    #[cfg(test)]
+    client: MockClient,
 }
 
 impl RpcSledIndex {
     /// Creates a new instance of `RpcSledIndex`
     pub fn new<P: AsRef<Path>>(path: P, url: &str) -> Result<Self> {
+        #[cfg(not(test))]
         let storage = SledStorage::new(path)?;
+        #[cfg(test)]
+        let storage = SledStorage::temp(path)?;
+
+        #[cfg(not(test))]
         let client = RpcClient::new(url);
+        #[cfg(test)]
+        let client = MockClient::new(url);
 
         Ok(Self {
             address_service: AddressService::new(storage.clone()),
@@ -167,5 +181,40 @@ impl Index for RpcSledIndex {
 
     fn transaction(&self, id: &TxId) -> Result<Option<Tx>> {
         self.transaction_service.get(id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::str::FromStr;
+
+    use chain_core::init::address::RedeemAddress;
+
+    #[test]
+    fn check_flow() {
+        let index = RpcSledIndex::new("./index-test".to_owned(), "dummy").unwrap();
+
+        let spend_address = ExtendedAddr::BasicRedeem(
+            RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+        );
+        let view_address = ExtendedAddr::BasicRedeem(
+            RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5").unwrap(),
+        );
+
+        assert!(index.sync_all().is_ok());
+        assert_eq!(Coin::zero(), index.balance(&spend_address).unwrap());
+        assert_eq!(
+            Coin::new(10000000000000000000).unwrap(),
+            index.balance(&view_address).unwrap()
+        );
+
+        assert_eq!(2, index.transaction_changes(&spend_address).unwrap().len());
+        assert_eq!(1, index.transaction_changes(&view_address).unwrap().len());
+
+        for change in index.transaction_changes(&spend_address).unwrap().iter() {
+            assert!(index.transaction(&change.transaction_id).unwrap().is_some());
+        }
     }
 }

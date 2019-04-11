@@ -44,3 +44,29 @@ where
         self.storage.clear(KEYSPACE)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use chain_core::init::coin::Coin;
+    use chain_core::tx::data::address::ExtendedAddr;
+    use client_common::storage::MemoryStorage;
+
+    #[test]
+    fn check_flow() {
+        let transaction_outputs_service = TransactionOutputsService::new(MemoryStorage::default());
+        let id = TxId::zero();
+        let outputs = vec![TxOut {
+            address: ExtendedAddr::BasicRedeem(Default::default()),
+            value: Coin::zero(),
+            valid_from: None,
+        }];
+
+        assert_eq!(0, transaction_outputs_service.get(&id).unwrap().len());
+        assert!(transaction_outputs_service.set(&id, &outputs).is_ok());
+        assert_eq!(1, transaction_outputs_service.get(&id).unwrap().len());
+        assert!(transaction_outputs_service.clear().is_ok());
+        assert_eq!(0, transaction_outputs_service.get(&id).unwrap().len());
+    }
+}

@@ -8,7 +8,7 @@ use chain_core::init::coin::Coin;
 use crate::{ErrorKind, Result};
 
 /// Incoming or Outgoing balance change
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BalanceChange {
     /// Represents balance addition
     Incoming(Coin),
@@ -69,6 +69,8 @@ impl Add<BalanceChange> for Coin {
 mod tests {
     use super::*;
 
+    use rlp::{decode, encode};
+
     #[test]
     fn add_incoming() {
         let coin = Coin::zero()
@@ -107,5 +109,21 @@ mod tests {
             + BalanceChange::Outgoing(Coin::new(30).expect("Unable to create new coin"));
 
         assert!(coin.is_err(), "Created negative coin")
+    }
+
+    #[test]
+    fn check_incoming_encoding() {
+        let change = BalanceChange::Incoming(Coin::new(30).expect("Unable to create new coin"));
+        let new_change = decode(&encode(&change)).expect("Unable to decode balance change");
+
+        assert_eq!(change, new_change, "Incorrect balance change encoding");
+    }
+
+    #[test]
+    fn check_outgoing_encoding() {
+        let change = BalanceChange::Outgoing(Coin::new(30).expect("Unable to create new coin"));
+        let new_change = decode(&encode(&change)).expect("Unable to decode balance change");
+
+        assert_eq!(change, new_change, "Incorrect balance change encoding");
     }
 }

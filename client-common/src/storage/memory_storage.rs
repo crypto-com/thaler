@@ -1,11 +1,10 @@
-#![cfg(test)]
-
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use client_common::{Error, ErrorKind, Result, Storage};
+use crate::{Error, ErrorKind, Result, Storage};
 
 /// Storage backed by `HashMap`
+#[allow(clippy::type_complexity)]
 #[derive(Default)]
 pub struct MemoryStorage(Arc<RwLock<HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<u8>>>>>);
 

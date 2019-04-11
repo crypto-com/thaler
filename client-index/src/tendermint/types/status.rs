@@ -26,19 +26,26 @@ impl Status {
     }
 }
 
+// Note: Do not change these values. These are tied with tests for `RpcSledIndex`
+#[cfg(test)]
+impl Default for Status {
+    fn default() -> Self {
+        Status {
+            sync_info: SyncInfo {
+                latest_block_height: "1".to_owned(),
+            },
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn check_last_block_height() {
-        let status = Status {
-            sync_info: SyncInfo {
-                latest_block_height: "2".to_owned(),
-            },
-        };
-
-        assert_eq!(2, status.last_block_height().unwrap());
+        let status = Status::default();
+        assert_eq!(1, status.last_block_height().unwrap());
     }
 
     #[test]

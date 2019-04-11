@@ -49,3 +49,38 @@ where
         self.storage.clear(KEYSPACE)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use chain_core::init::coin::Coin;
+    use client_common::balance::BalanceChange;
+    use client_common::storage::MemoryStorage;
+
+    #[test]
+    fn check_flow() {
+        let balance_service = BalanceService::new(MemoryStorage::default());
+        let address = ExtendedAddr::BasicRedeem(Default::default());
+
+        assert_eq!(Coin::zero(), balance_service.get(&address).unwrap());
+        assert_eq!(
+            Coin::new(30).unwrap(),
+            balance_service
+                .change(&address, &BalanceChange::Incoming(Coin::new(30).unwrap()))
+                .unwrap()
+        );
+        assert_eq!(
+            Coin::new(10).unwrap(),
+            balance_service
+                .change(&address, &BalanceChange::Outgoing(Coin::new(20).unwrap()))
+                .unwrap()
+        );
+        assert_eq!(
+            Coin::new(10).unwrap(),
+            balance_service.get(&address).unwrap()
+        );
+        assert!(balance_service.clear().is_ok());
+        assert_eq!(Coin::zero(), balance_service.get(&address).unwrap());
+    }
+}

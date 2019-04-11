@@ -54,13 +54,11 @@ impl BlockResults {
     }
 }
 
+// Note: Do not change these values. These are tied with tests for `RpcSledIndex`
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn check_ids() {
-        let block_results = BlockResults {
+impl Default for BlockResults {
+    fn default() -> Self {
+        BlockResults {
             height: "2".to_owned(),
             results: Results {
                 deliver_tx: vec![DeliverTx {
@@ -70,8 +68,17 @@ mod tests {
                     }],
                 }],
             },
-        };
+        }
+    }
+}
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_ids() {
+        let block_results = BlockResults::default();
         assert_eq!(1, block_results.ids().unwrap().len());
     }
 

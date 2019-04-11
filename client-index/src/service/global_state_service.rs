@@ -50,18 +50,29 @@ where
         }
     }
 
-    /// Synchronizes last block height with Crypto.com Chain and returns old (if exists) and new value
-    // pub fn sync_last_block_height(&self) -> Result<(Option<u64>, u64)> {
-    //     let status = self.client.status()?;
-    //     let last_block_height = status.last_block_height()?;
-
-    //     let old_last_block_height = self.set_last_block_height(last_block_height)?;
-
-    //     Ok((old_last_block_height, last_block_height))
-    // }
-
     /// Clears all storage
     pub fn clear(&self) -> Result<()> {
         self.storage.clear(KEYSPACE)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use client_common::storage::MemoryStorage;
+
+    #[test]
+    fn check_flow() {
+        let global_state_service = GlobalStateService::new(MemoryStorage::default());
+
+        assert_eq!(None, global_state_service.last_block_height().unwrap());
+        assert_eq!(None, global_state_service.set_last_block_height(5).unwrap());
+        assert_eq!(
+            5,
+            global_state_service.last_block_height().unwrap().unwrap()
+        );
+        assert!(global_state_service.clear().is_ok());
+        assert_eq!(None, global_state_service.last_block_height().unwrap());
     }
 }

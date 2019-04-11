@@ -46,3 +46,23 @@ where
         self.storage.clear(KEYSPACE)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use client_common::storage::MemoryStorage;
+
+    #[test]
+    fn check_flow() {
+        let transaction_service = TransactionService::new(MemoryStorage::default());
+        let id = TxId::zero();
+        let transaction = Tx::default();
+
+        assert_eq!(None, transaction_service.get(&id).unwrap());
+        assert!(transaction_service.set(&id, &transaction).is_ok());
+        assert_eq!(transaction, transaction_service.get(&id).unwrap().unwrap());
+        assert!(transaction_service.clear().is_ok());
+        assert_eq!(None, transaction_service.get(&id).unwrap());
+    }
+}

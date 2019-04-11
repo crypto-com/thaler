@@ -10,7 +10,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::TxId;
 
 /// Represents balance change in a transaction
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct TransactionChange {
     /// ID of transaction which caused this change
     pub transaction_id: TxId,
@@ -43,27 +43,6 @@ impl Decodable for TransactionChange {
     }
 }
 
-// impl TransactionChange {
-//     /// Returns a list of transaction changes from one transaction
-//     pub fn from_tx(tx: &Tx) -> Vec<TransactionChange> {
-//         let mut changes = Vec::with_capacity(tx.outputs.len());
-
-//         let id = tx.id();
-
-//         for output in tx.outputs.iter() {
-//             let change = TransactionChange {
-//                 transaction_id: id,
-//                 address: output.address.clone(),
-//                 balance_change: BalanceChange::Incoming(output.value),
-//             };
-
-//             changes.push(change);
-//         }
-
-//         changes
-//     }
-// }
-
 impl Add<&TransactionChange> for Coin {
     type Output = Result<Coin>;
 
@@ -83,6 +62,9 @@ impl Add<TransactionChange> for Coin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use rlp::{decode, encode};
+
     use chain_core::tx::data::txid_hash;
 
     fn get_transaction_change(balance_change: BalanceChange) -> TransactionChange {
@@ -139,5 +121,15 @@ mod tests {
             ));
 
         assert!(coin.is_err(), "Created negative coin")
+    }
+
+    #[test]
+    fn check_encoding() {
+        let change = get_transaction_change(BalanceChange::Incoming(
+            Coin::new(32).expect("Unable to create new coin"),
+        ));
+        let new_change = decode(&encode(&change)).expect("Unable to decode transaction change");
+
+        assert_eq!(change, new_change, "Incorrect transaction change encoding");
     }
 }
