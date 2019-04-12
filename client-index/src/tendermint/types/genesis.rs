@@ -1,21 +1,24 @@
 #![allow(missing_docs)]
 
+use chrono::offset::Utc;
+use chrono::DateTime;
 use failure::ResultExt;
 use hex::decode;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use chain_core::init::config::InitConfig;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::Tx;
 use client_common::{ErrorKind, Result};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Genesis {
     pub genesis: GenesisInner,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct GenesisInner {
+    pub genesis_time: DateTime<Utc>,
     pub chain_id: String,
     pub app_state: InitConfig,
 }
@@ -35,6 +38,11 @@ impl Genesis {
 
         Ok(transactions)
     }
+
+    /// Returns time of genesis
+    pub fn time(&self) -> DateTime<Utc> {
+        self.genesis.genesis_time
+    }
 }
 
 #[cfg(test)]
@@ -42,6 +50,7 @@ mod tests {
     use super::*;
 
     use std::str::FromStr;
+    use std::time::SystemTime;
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
@@ -49,8 +58,11 @@ mod tests {
 
     #[test]
     fn check_transactions() {
+        let time = DateTime::from(SystemTime::now());
+
         let genesis = Genesis {
             genesis: GenesisInner {
+                genesis_time: time,
                 chain_id: "test-chain-4UIy1Wab".to_owned(),
                 app_state: InitConfig::new(vec![ERC20Owner::new(
                     RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
@@ -59,12 +71,14 @@ mod tests {
             },
         };
         assert_eq!(1, genesis.transactions().unwrap().len());
+        assert_eq!(time, genesis.time());
     }
 
     #[test]
     fn check_wrong_transaction() {
         let genesis = Genesis {
             genesis: GenesisInner {
+                genesis_time: DateTime::from(SystemTime::now()),
                 chain_id: "test-chain-4UIy1Wb".to_owned(),
                 app_state: InitConfig::new(vec![ERC20Owner::new(
                     RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),

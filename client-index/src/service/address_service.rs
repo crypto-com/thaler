@@ -55,6 +55,10 @@ where
 mod tests {
     use super::*;
 
+    use std::time::SystemTime;
+
+    use chrono::DateTime;
+
     use chain_core::init::coin::Coin;
     use chain_core::tx::data::txid_hash;
     use client_common::balance::BalanceChange;
@@ -70,6 +74,8 @@ mod tests {
             balance_change: BalanceChange::Incoming(
                 Coin::new(30).expect("Unable to create new coin"),
             ),
+            height: 1,
+            time: DateTime::from(SystemTime::now()),
         };
 
         assert_eq!(0, address_service.get(&address).unwrap().len());
