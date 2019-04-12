@@ -62,9 +62,8 @@ where
 mod tests {
     use super::WalletService;
 
+    use client_common::storage::MemoryStorage;
     use client_common::ErrorKind;
-
-    use crate::test::MemoryStorage;
 
     #[test]
     fn check_flow() {

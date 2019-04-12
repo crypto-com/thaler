@@ -7,12 +7,12 @@ use client_common::{ErrorKind, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Status {
-    sync_info: SyncInfo,
+    pub sync_info: SyncInfo,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SyncInfo {
-    latest_block_height: String,
+pub struct SyncInfo {
+    pub latest_block_height: String,
 }
 
 impl Status {
@@ -34,11 +34,10 @@ mod tests {
     fn check_last_block_height() {
         let status = Status {
             sync_info: SyncInfo {
-                latest_block_height: "2".to_owned(),
+                latest_block_height: "1".to_owned(),
             },
         };
-
-        assert_eq!(2, status.last_block_height().unwrap());
+        assert_eq!(1, status.last_block_height().unwrap());
     }
 
     #[test]

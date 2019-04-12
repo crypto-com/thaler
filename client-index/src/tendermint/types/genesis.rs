@@ -11,13 +11,13 @@ use client_common::{ErrorKind, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Genesis {
-    genesis: GenesisInner,
+    pub genesis: GenesisInner,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct GenesisInner {
-    chain_id: String,
-    app_state: InitConfig,
+pub struct GenesisInner {
+    pub chain_id: String,
+    pub app_state: InitConfig,
 }
 
 impl Genesis {
@@ -58,7 +58,6 @@ mod tests {
                 )]),
             },
         };
-
         assert_eq!(1, genesis.transactions().unwrap().len());
     }
 

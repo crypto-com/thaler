@@ -1,7 +1,9 @@
 //! Data storage layer
+mod memory_storage;
 #[cfg(feature = "sled")]
 mod sled_storage;
 
+pub use memory_storage::MemoryStorage;
 #[cfg(feature = "sled")]
 pub use sled_storage::SledStorage;
 

@@ -1,3 +1,7 @@
+#![cfg(feature = "rpc")]
+
+use std::sync::Arc;
+
 use failure::ResultExt;
 use jsonrpc::client::Client as JsonRpcClient;
 use serde::Deserialize;
@@ -9,14 +13,15 @@ use crate::tendermint::types::*;
 use crate::tendermint::Client;
 
 /// Tendermint RPC Client
+#[derive(Clone)]
 pub struct RpcClient {
-    inner: JsonRpcClient,
+    inner: Arc<JsonRpcClient>,
 }
 
 impl RpcClient {
     /// Creates a new instance of `RpcClient`
     pub fn new(url: &str) -> Self {
-        let inner = JsonRpcClient::new(url.to_owned(), None, None);
+        let inner = Arc::new(JsonRpcClient::new(url.to_owned(), None, None));
 
         Self { inner }
     }

@@ -9,17 +9,17 @@ use client_common::{ErrorKind, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Block {
-    block: BlockInner,
+    pub block: BlockInner,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BlockInner {
-    data: Data,
+pub struct BlockInner {
+    pub data: Data,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Data {
-    txs: Vec<String>,
+pub struct Data {
+    pub txs: Vec<String>,
 }
 
 impl Block {
@@ -50,7 +50,6 @@ mod tests {
                 }
             }
         };
-
         assert_eq!(1, block.transactions().unwrap().len());
     }
 

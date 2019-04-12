@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+use std::collections::HashSet;
 
 use base64::decode;
 use failure::ResultExt;
@@ -9,31 +10,31 @@ use client_common::{ErrorKind, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct BlockResults {
-    height: String,
-    results: Results,
+    pub height: String,
+    pub results: Results,
 }
 
 #[derive(Debug, Deserialize)]
-struct Results {
+pub struct Results {
     #[serde(rename = "DeliverTx")]
-    deliver_tx: Vec<DeliverTx>,
+    pub deliver_tx: Vec<DeliverTx>,
 }
 
 #[derive(Debug, Deserialize)]
-struct DeliverTx {
-    tags: Vec<Tag>,
+pub struct DeliverTx {
+    pub tags: Vec<Tag>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Tag {
-    key: String,
-    value: String,
+pub struct Tag {
+    pub key: String,
+    pub value: String,
 }
 
 impl BlockResults {
     /// Returns valid transaction ids in block results
-    pub fn ids(&self) -> Result<Vec<TxId>> {
-        let mut transactions: Vec<TxId> = Default::default();
+    pub fn ids(&self) -> Result<HashSet<TxId>> {
+        let mut transactions: HashSet<TxId> = HashSet::with_capacity(self.results.deliver_tx.len());
 
         for transaction in self.results.deliver_tx.iter() {
             for tag in transaction.tags.iter() {
@@ -45,7 +46,7 @@ impl BlockResults {
                 let mut id: [u8; 32] = [0; 32];
                 id.copy_from_slice(&decoded);
 
-                transactions.push(id.into());
+                transactions.insert(id.into());
             }
         }
 
@@ -70,7 +71,6 @@ mod tests {
                 }],
             },
         };
-
         assert_eq!(1, block_results.ids().unwrap().len());
     }
 
