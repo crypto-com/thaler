@@ -1,13 +1,16 @@
 use std::ops::Add;
+use std::str::FromStr;
 
+use chrono::offset::Utc;
+use chrono::DateTime;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
-
-use crate::balance::BalanceChange;
-use crate::Result;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::TxId;
+
+use crate::balance::BalanceChange;
+use crate::Result;
 
 /// Represents balance change in a transaction
 #[derive(Debug, Clone, PartialEq)]
@@ -18,20 +21,26 @@ pub struct TransactionChange {
     pub address: ExtendedAddr,
     /// Change in balance
     pub balance_change: BalanceChange,
+    /// Height of block which has this transaction
+    pub height: u64,
+    /// Time of block which has this transaction
+    pub time: DateTime<Utc>,
 }
 
 impl Encodable for TransactionChange {
     fn rlp_append(&self, s: &mut RlpStream) {
-        s.begin_list(3)
+        s.begin_list(5)
             .append(&self.transaction_id)
             .append(&self.address)
-            .append(&self.balance_change);
+            .append(&self.balance_change)
+            .append(&self.height)
+            .append(&self.time.to_rfc3339());
     }
 }
 
 impl Decodable for TransactionChange {
     fn decode(rlp: &Rlp) -> core::result::Result<Self, DecoderError> {
-        if rlp.item_count()? != 3 {
+        if rlp.item_count()? != 5 {
             return Err(DecoderError::Custom("Invalid item count"));
         }
 
@@ -39,6 +48,9 @@ impl Decodable for TransactionChange {
             transaction_id: rlp.val_at(0)?,
             address: rlp.val_at(1)?,
             balance_change: rlp.val_at(2)?,
+            height: rlp.val_at(3)?,
+            time: DateTime::from_str(&rlp.val_at::<String>(4)?)
+                .map_err(|_| DecoderError::Custom("Unable to decode DateTime"))?,
         })
     }
 }
@@ -63,6 +75,8 @@ impl Add<TransactionChange> for Coin {
 mod tests {
     use super::*;
 
+    use std::time::SystemTime;
+
     use rlp::{decode, encode};
 
     use chain_core::tx::data::txid_hash;
@@ -72,6 +86,8 @@ mod tests {
             transaction_id: txid_hash(&[0, 1, 2]),
             address: ExtendedAddr::BasicRedeem(Default::default()),
             balance_change,
+            height: 0,
+            time: DateTime::from(SystemTime::now()),
         }
     }
 

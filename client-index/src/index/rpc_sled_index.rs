@@ -2,6 +2,9 @@
 
 use std::path::Path;
 
+use chrono::offset::Utc;
+use chrono::DateTime;
+
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::{Tx, TxId};
@@ -65,15 +68,21 @@ impl RpcSledIndex {
 
     /// Handles genesis transactions
     fn genesis(&self) -> Result<()> {
-        let genesis_transactions = self.client.genesis()?.transactions()?;
-        self.handle_transactions(&genesis_transactions, 0)?;
+        let genesis = self.client.genesis()?;
+        let genesis_transactions = genesis.transactions()?;
+        self.handle_transactions(&genesis_transactions, 0, genesis.time())?;
 
         Ok(())
     }
 
     /// Handles transactions by calling appropriate functions of different services
-    fn handle_transactions(&self, transactions: &[Tx], height: u64) -> Result<()> {
-        let changes = self.changes(transactions)?;
+    fn handle_transactions(
+        &self,
+        transactions: &[Tx],
+        height: u64,
+        time: DateTime<Utc>,
+    ) -> Result<()> {
+        let changes = self.changes(transactions, height, time)?;
 
         for change in changes {
             self.balance_service
@@ -96,7 +105,12 @@ impl RpcSledIndex {
     }
 
     /// Converts `[Tx] -> [TransactionChange]`
-    fn changes(&self, transactions: &[Tx]) -> Result<Vec<TransactionChange>> {
+    fn changes(
+        &self,
+        transactions: &[Tx],
+        height: u64,
+        time: DateTime<Utc>,
+    ) -> Result<Vec<TransactionChange>> {
         let mut changes = Vec::new();
 
         for transaction in transactions {
@@ -117,6 +131,8 @@ impl RpcSledIndex {
                             transaction_id: id,
                             address: input.address,
                             balance_change: BalanceChange::Outgoing(input.value),
+                            height,
+                            time,
                         });
                     }
                 }
@@ -127,6 +143,8 @@ impl RpcSledIndex {
                     transaction_id: id,
                     address: output.address.clone(),
                     balance_change: BalanceChange::Incoming(output.value),
+                    height,
+                    time,
                 });
             }
         }
@@ -149,9 +167,8 @@ impl Index for RpcSledIndex {
 
         for height in (last_block_height + 1)..=current_block_height {
             let valid_ids = self.client.block_results(height)?.ids()?;
-            let transactions = self
-                .client
-                .block(height)?
+            let block = self.client.block(height)?;
+            let transactions = block
                 .transactions()?
                 .into_iter()
                 .map(|tx_aux| match tx_aux {
@@ -160,7 +177,7 @@ impl Index for RpcSledIndex {
                 .filter(|tx| valid_ids.contains(&tx.id()))
                 .collect::<Vec<Tx>>();
 
-            self.handle_transactions(&transactions, height)?;
+            self.handle_transactions(&transactions, height, block.time())?;
         }
 
         Ok(())

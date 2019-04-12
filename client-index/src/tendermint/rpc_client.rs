@@ -63,6 +63,7 @@ impl Client for RpcClient {
     }
 }
 
+// Note: Do not delete these lines before writing integration tests.
 // #[cfg(test)]
 // mod tests {
 //     use super::*;
@@ -74,6 +75,7 @@ impl Client for RpcClient {
 //         let transactions = genesis.transactions().unwrap();
 
 //         println!("{:?}", transactions);
+//         println!("{}", genesis.time().to_rfc3339());
 
 //         assert_eq!(1, transactions.len());
 //     }
