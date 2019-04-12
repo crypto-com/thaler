@@ -9,17 +9,17 @@ use client_common::{ErrorKind, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Block {
-    block: BlockInner,
+    pub block: BlockInner,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct BlockInner {
-    data: Data,
+pub struct BlockInner {
+    pub data: Data,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Data {
-    txs: Vec<String>,
+pub struct Data {
+    pub txs: Vec<String>,
 }
 
 impl Block {
@@ -37,27 +37,19 @@ impl Block {
     }
 }
 
-// Note: Do not change these values. These are tied with tests for `RpcSledIndex`
-#[cfg(test)]
-impl Default for Block {
-    fn default() -> Self {
-        Block {
-            block: BlockInner {
-                data: Data {
-                    txs: vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()]
-                }
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn check_transactions() {
-        let block = Block::default();
+        let block = Block {
+            block: BlockInner {
+                data: Data {
+                    txs: vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()]
+                }
+            }
+        };
         assert_eq!(1, block.transactions().unwrap().len());
     }
 

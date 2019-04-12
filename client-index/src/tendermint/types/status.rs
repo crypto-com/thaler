@@ -7,12 +7,12 @@ use client_common::{ErrorKind, Result};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Status {
-    sync_info: SyncInfo,
+    pub sync_info: SyncInfo,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SyncInfo {
-    latest_block_height: String,
+pub struct SyncInfo {
+    pub latest_block_height: String,
 }
 
 impl Status {
@@ -26,25 +26,17 @@ impl Status {
     }
 }
 
-// Note: Do not change these values. These are tied with tests for `RpcSledIndex`
-#[cfg(test)]
-impl Default for Status {
-    fn default() -> Self {
-        Status {
-            sync_info: SyncInfo {
-                latest_block_height: "1".to_owned(),
-            },
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn check_last_block_height() {
-        let status = Status::default();
+        let status = Status {
+            sync_info: SyncInfo {
+                latest_block_height: "1".to_owned(),
+            },
+        };
         assert_eq!(1, status.last_block_height().unwrap());
     }
 

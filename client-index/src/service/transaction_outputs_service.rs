@@ -8,7 +8,7 @@ const KEYSPACE: &str = "index_transaction_outputs";
 
 /// Exposes functionalities for managing transaction outputs
 ///
-/// Stores `tx_id -> [tx_output_address]` mapping
+/// Stores `tx_id -> [tx_outputs]` mapping
 pub struct TransactionOutputsService<S> {
     storage: S,
 }

@@ -9,24 +9,15 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::Tx;
 use client_common::{ErrorKind, Result};
 
-#[cfg(test)]
-use chain_core::init::address::RedeemAddress;
-#[cfg(test)]
-use chain_core::init::coin::Coin;
-#[cfg(test)]
-use chain_core::init::config::ERC20Owner;
-#[cfg(test)]
-use std::str::FromStr;
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Genesis {
-    genesis: GenesisInner,
+    pub genesis: GenesisInner,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-struct GenesisInner {
-    chain_id: String,
-    app_state: InitConfig,
+pub struct GenesisInner {
+    pub chain_id: String,
+    pub app_state: InitConfig,
 }
 
 impl Genesis {
@@ -46,11 +37,19 @@ impl Genesis {
     }
 }
 
-// Note: Do not change these values. These are tied with tests for `RpcSledIndex`
 #[cfg(test)]
-impl Default for Genesis {
-    fn default() -> Self {
-        Genesis {
+mod tests {
+    use super::*;
+
+    use std::str::FromStr;
+
+    use chain_core::init::address::RedeemAddress;
+    use chain_core::init::coin::Coin;
+    use chain_core::init::config::ERC20Owner;
+
+    #[test]
+    fn check_transactions() {
+        let genesis = Genesis {
             genesis: GenesisInner {
                 chain_id: "test-chain-4UIy1Wab".to_owned(),
                 app_state: InitConfig::new(vec![ERC20Owner::new(
@@ -58,17 +57,7 @@ impl Default for Genesis {
                     Coin::new(10000000000000000000).unwrap(),
                 )]),
             },
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn check_transactions() {
-        let genesis = Genesis::default();
+        };
         assert_eq!(1, genesis.transactions().unwrap().len());
     }
 

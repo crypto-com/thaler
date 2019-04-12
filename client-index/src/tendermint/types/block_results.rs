@@ -10,25 +10,25 @@ use client_common::{ErrorKind, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct BlockResults {
-    height: String,
-    results: Results,
+    pub height: String,
+    pub results: Results,
 }
 
 #[derive(Debug, Deserialize)]
-struct Results {
+pub struct Results {
     #[serde(rename = "DeliverTx")]
-    deliver_tx: Vec<DeliverTx>,
+    pub deliver_tx: Vec<DeliverTx>,
 }
 
 #[derive(Debug, Deserialize)]
-struct DeliverTx {
-    tags: Vec<Tag>,
+pub struct DeliverTx {
+    pub tags: Vec<Tag>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Tag {
-    key: String,
-    value: String,
+pub struct Tag {
+    pub key: String,
+    pub value: String,
 }
 
 impl BlockResults {
@@ -54,11 +54,13 @@ impl BlockResults {
     }
 }
 
-// Note: Do not change these values. These are tied with tests for `RpcSledIndex`
 #[cfg(test)]
-impl Default for BlockResults {
-    fn default() -> Self {
-        BlockResults {
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_ids() {
+        let block_results = BlockResults {
             height: "2".to_owned(),
             results: Results {
                 deliver_tx: vec![DeliverTx {
@@ -68,17 +70,7 @@ impl Default for BlockResults {
                     }],
                 }],
             },
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn check_ids() {
-        let block_results = BlockResults::default();
+        };
         assert_eq!(1, block_results.ids().unwrap().len());
     }
 
