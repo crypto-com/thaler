@@ -5,7 +5,7 @@ pub mod index;
 pub mod service;
 pub mod tendermint;
 #[cfg(test)]
-pub mod test;
+pub mod tests;
 
 #[doc(inline)]
 pub use crate::index::Index;
