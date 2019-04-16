@@ -34,10 +34,17 @@ Rust tooling (cargo + cmake): https://rustup.rs
 (TODO: In the future, the build tooling may be migrated to Bazel / Nix etc. for reproducible builds.)
 
 ## How to build it
+Before building, add the following lines to `~/.cargo/config`
+```
+[build]
+rustflags = ["-Ctarget-feature=+aes,+ssse3"]
+```
+
+Then build the executables
 ```
 $ cargo build
 ```
-The built executables will be put inside folder `/target/debug/`
+The built executables will be put inside folder `/target/debug/` by default.
 
 ## How to run the test suite
 ```
