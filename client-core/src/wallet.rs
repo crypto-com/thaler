@@ -1,9 +1,4 @@
 //! Wallet management
-// #[cfg(feature = "sled")]
-// mod sled_wallet;
-
-// #[cfg(feature = "sled")]
-// pub use self::sled_wallet::SledWallet;
 
 #[cfg(all(feature = "sled", feature = "rpc"))]
 mod rpc_sled_wallet_client;
