@@ -7,7 +7,7 @@ use client_common::{ErrorKind, Result, SecureStorage, Storage};
 
 use crate::{PrivateKey, PublicKey};
 
-const KEYSPACE: &str = "wallet";
+const KEYSPACE: &str = "core_wallet";
 
 /// Exposes functionality for managing wallets
 #[derive(Default)]
@@ -56,6 +56,11 @@ where
             }
         }
     }
+
+    /// Clears all storage
+    pub fn clear(&self) -> Result<()> {
+        self.storage.clear(KEYSPACE)
+    }
 }
 
 #[cfg(test)]
@@ -91,5 +96,9 @@ mod tests {
             .expect("Wallet with given name not found");
 
         assert_eq!(wallet_id, wallet_id_new, "Wallet ids should match");
+
+        assert!(wallet_service.clear().is_ok());
+
+        assert!(wallet_service.get("name", "passphrase").unwrap().is_none());
     }
 }

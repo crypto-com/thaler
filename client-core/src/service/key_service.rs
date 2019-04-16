@@ -5,7 +5,7 @@ use client_common::{ErrorKind, Result, SecureStorage, Storage};
 
 use crate::PrivateKey;
 
-const KEYSPACE: &str = "key";
+const KEYSPACE: &str = "core_key";
 
 /// Exposes functionality for managing public and private keys
 #[derive(Default)]
@@ -66,6 +66,11 @@ where
             }
         }
     }
+
+    /// Clears all storage
+    pub fn clear(&self) -> Result<()> {
+        self.storage.clear(KEYSPACE)
+    }
 }
 
 #[cfg(test)]
@@ -105,5 +110,12 @@ mod tests {
             ErrorKind::DecryptionError,
             "Invalid error kind"
         );
+
+        assert!(key_service.clear().is_ok());
+
+        assert!(key_service
+            .get_keys("wallet_id", "passphrase")
+            .unwrap()
+            .is_none());
     }
 }

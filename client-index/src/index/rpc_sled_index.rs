@@ -18,10 +18,10 @@ use crate::tendermint::Client;
 #[cfg(not(test))]
 use crate::tendermint::RpcClient;
 #[cfg(test)]
-use crate::test::MockClient;
+use crate::tests::MockClient;
 use crate::Index;
 
-/// Transaction index backed by `sled` embedded database
+/// Transaction index backed by `sled` embedded database and `RpcClient`
 pub struct RpcSledIndex {
     address_service: AddressService<SledStorage>,
     balance_service: BalanceService<SledStorage>,

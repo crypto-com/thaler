@@ -1,16 +1,16 @@
 #![allow(missing_docs)]
 
 use failure::ResultExt;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use client_common::{ErrorKind, Result};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Status {
     pub sync_info: SyncInfo,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct SyncInfo {
     pub latest_block_height: String,
 }
