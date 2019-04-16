@@ -34,28 +34,53 @@ Rust tooling (cargo + cmake): https://rustup.rs
 (TODO: In the future, the build tooling may be migrated to Bazel / Nix etc. for reproducible builds.)
 
 ## How to build it
+Before building, add the following lines to `~/.cargo/config`
 ```
-cargo build
+[build]
+rustflags = ["-Ctarget-feature=+aes,+ssse3"]
 ```
+
+Then build the executables
+```
+$ cargo build
+```
+The built executables will be put inside folder `/target/debug/` by default.
 
 ## How to run the test suite
 ```
-cargo test
+$ cargo test
 ```
 
 To measure code coverage, one can run
 ```
-cargo tarpaulin
+$ cargo tarpaulin
 ```
 
 This only works on x86_64 processors running Linux. On different platforms, 
 
 ```
-docker run --security-opt seccomp=unconfined -v "$PWD:/volume" xd009642/tarpaulin
+$ docker run --security-opt seccomp=unconfined -v "$PWD:/volume" xd009642/tarpaulin
 ```
 
 ## How to run a full node
-1. generate initial state -- currently, a very naive way is in dev-utils. In the end, you should get two pieces of data:
+1. generate address -- currently, there is a signer cli for this purpose
+```
+$ signer-cli -- address generate --name <NAME>
+```
+This command will create an address with name <NAME>. After entering the passphase, the address is generated.
+```
+$ signer-cli -- address get -n <NAME>
+
+Enter passphrase:
+Spend address: <ETH_ADDRESS_HEX_BYTES>
+View address: <VIEW_ETH_ADDRESS_HEX_BYTES>
+```
+
+2. generate initial state -- currently, a very naive way is in dev-utils. The `chain_id` will be used in Tendermint configuration later. At this point, just use two hex digits.
+```
+$ dev-utils -- genesis generate -a <ETH_ADDRESS_HEX_BYTES> -c <CHAIN_ID>
+```
+In the end, you should get two pieces of data:
 ```
 "app_hash": "<APP_HASH_HEX_BYTES>",
 "app_state": {"distribution":[{"address":"0x<ETH_ADDRESS_HEX_BYTES>","amount":10000000000000000000 }]}
@@ -65,46 +90,45 @@ docker run --security-opt seccomp=unconfined -v "$PWD:/volume" xd009642/tarpauli
 ```
 (no inputs) => 1 output
 ```
-where the output is saying "0x<ETH_ADDRESS_HEX_BYTES>" could redeem the full supply.
+where the output is saying `0x<ETH_ADDRESS_HEX_BYTES>` could redeem the full supply.
 
 "app_state" is the initial application state that will be passed to the application. Currently, it only contains the initial distribution that maps Ethereum-style addresses to the number of tokens they own.
 
-2. initialize a Tendermint node:
+3. initialize a Tendermint node:
 ```
-tendermint init
+$ tendermint init
 ```
 
 If you previously initialized a Tendermint node, you may need to run before it:
 ```
-tendermint unsafe_reset_all
+$ tendermint unsafe_reset_all
 ```
 
-3. configure a Tendermint node:
+4. configure a Tendermint node:
 
-One thing to change would be the change `genesis.json` to have `app_hash` and `app_state` obtained in step 1. Also, make sure the `chain_id` ends with two hex digits (e.g. test-chain-mafL4t-AA).
+One thing to change would be the change `genesis.json` to have `app_hash` and `app_state` obtained in step 1. Also, make sure reusing the `chain_id` we come up earlier, which should ends with two hex digits (e.g. test-chain-mafL4t-AA).
 
-4. run CRO ABCI process, e.g.:
+5. run CRO ABCI process, e.g.:
 ```
-chain-node -g "<APP_HASH_HEX_BYTES>" -c <CHAIN_ID>
+$ chain-abci -g "<APP_HASH_HEX_BYTES>" -c <FULL_CHAIN_ID>
 ```
-
-The string passed to `-g` is the genesis `app_hash` obtained in step 1 and configured in the previous step. The string passed to `-c` is the `chain_id` that ends with two hex digits (e.g. test-chain-mafL4t-AA).
+The string passed to `-g` is the genesis `app_hash` obtained in step 1 and configured in the previous step. The string passed to `-c` is the `full_chain_id` that ends with two hex digits (e.g. test-chain-mafL4t-AA).
 
 If you need backtraces or logging, set the environment variables before it:
 ```
 RUST_BACKTRACE=1 RUST_LOG=info 
 ```
 
-5. run a Tendermint process:
+6. run a Tendermint process:
 in a different terminal:
 
 ```
-tendermint node
+$ tendermint node
 ```
 
 ## How to run a basic lite node
 ```
-tendermint lite
+$ tendermint lite
 ```
 
 ## How to send TX, query, etc.
@@ -115,12 +139,14 @@ Currently, there's a rough command-line application in `signer/app` for testing 
 
 Its workflow is the following:
 
-1. Generate a new keypair: `signer address generate -n <name>` (you can view hex-encoded addresses of corresponding key with `signer address get -n <name>`)
+1. Generate a new keypair: `signer address generate -n <NAME>` (you can view hex-encoded addresses of corresponding key with `signer address get -n <NAME>`)
 
 2. Generate a signed TX with: 
 ```
-signer transaction generate -n <name> -c <chain_id>
+$ signer-cli transaction generate -n <NAME> -c <CHAIN_ID>
 ```
+
+Right now there is no concept of fee, you must spend the whole input in the output(s).
 
 After entering all the required data, this will print out a hex-encoded TXID (blake2s hash) and a hex-encoded RLP-serialized TX structure / content. You can decode it and transform it as necessary, e.g. into base64.
 
