@@ -37,6 +37,7 @@ Rust tooling (cargo + cmake): https://rustup.rs
 ```
 $ cargo build
 ```
+The built executables will be put inside folder `/target/debug/`
 
 ## How to run the test suite
 ```
