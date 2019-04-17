@@ -61,6 +61,12 @@ impl Client for RpcClient {
         let params = [json!(height.to_string())];
         self.call("block_results", &params)
     }
+
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()> {
+        let params = [json!(transaction)];
+        self.call::<serde_json::Value>("broadcast_tx_sync", &params)
+            .map(|_| ())
+    }
 }
 
 // Note: Do not delete these lines before writing integration tests.
@@ -68,15 +74,14 @@ impl Client for RpcClient {
 // mod tests {
 //     use super::*;
 
+//     use hex::decode;
+
 //     #[test]
 //     fn check_genesis() {
+//         let transaction = decode("f89580f84ae3e2a04bf56f95da00be5479c212f9860ade019f00751014368bab2238bab08b9a6d9480e1e0d680940b65e1abbe69940639f2bdbf9f248e6c95d81811880000e8890423c78ac381abc0f846f8448001b840c361fe29c9ef2b02c367ceb5626ed2a9ad6cccd8dc74ce5fbfe81864a5e39f581df262f2041ffc57283ea908e4da877459281e29f580fadc2aff3a04a836a603").unwrap();
+
 //         let client = RpcClient::new("http://localhost:26657/");
-//         let genesis = client.genesis().unwrap();
-//         let transactions = genesis.transactions().unwrap();
-
-//         println!("{:?}", transactions);
-//         println!("{}", genesis.time().to_rfc3339());
-
-//         assert_eq!(1, transactions.len());
+//         let broadcast = client.broadcast_transaction(&transaction);
+//         assert!(broadcast.is_ok());
 //     }
 // }

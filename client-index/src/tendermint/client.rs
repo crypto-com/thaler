@@ -15,4 +15,7 @@ pub trait Client {
 
     /// Makes `block_results` call to tendermint
     fn block_results(&self, height: u64) -> Result<BlockResults>;
+
+    /// Makes `broadcast_tx_sync` call to tendermint
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()>;
 }

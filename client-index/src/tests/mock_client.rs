@@ -70,4 +70,8 @@ impl Client for MockClient {
             },
         })
     }
+
+    fn broadcast_transaction(&self, _: &[u8]) -> Result<()> {
+        Ok(())
+    }
 }
