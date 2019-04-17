@@ -1,11 +1,14 @@
+use std::fmt;
+
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Deserialize, Serialize};
+
 use crate::common::Timespec;
 use crate::init::coin::Coin;
 use crate::tx::data::address::ExtendedAddr;
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
-use std::fmt;
 
 /// Tx Output composed of an address and a coin value
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TxOut {
     pub address: ExtendedAddr,
     pub value: Coin,

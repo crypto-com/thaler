@@ -1,18 +1,20 @@
-use crate::common::{H256, H264, H512};
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Deserialize, Serialize};
+
+use crate::common::{H256, H264, H512};
 
 pub type RawPubkey = H264;
 pub type RawSignature = H512;
 
 /// Encodes whether a left or right branch was taken
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum MerklePath {
     LFound = 1,
     RFound = 2,
 }
 
 /// Contains the path taken + the other branch's hash
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ProofOp(pub MerklePath, pub H256);
 
 /// TODO: it's a bit wasteful now, perhaps more efficient encoding

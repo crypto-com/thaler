@@ -1,8 +1,10 @@
-use crate::tx::data::access::TxAccessPolicy;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Deserialize, Serialize};
+
+use crate::tx::data::access::TxAccessPolicy;
 
 /// Tx extra metadata, e.g. network ID
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TxAttributes {
     pub chain_hex_id: u8,
     pub allowed_view: Vec<TxAccessPolicy>,

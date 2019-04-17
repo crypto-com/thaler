@@ -1,11 +1,14 @@
-use crate::tx::data::TxId;
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use std::fmt;
+
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Deserialize, Serialize};
+
+use crate::tx::data::TxId;
 
 /// Structure used for addressing a specific output of a transaction
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
 /// transaction.
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub struct TxoPointer {
     pub id: TxId,
     pub index: usize,

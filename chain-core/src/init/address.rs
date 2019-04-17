@@ -11,16 +11,17 @@
 //!   These 20 bytes are the address.
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
+use std::str::FromStr;
+use std::{cmp, error, fmt, ops};
 
-use crate::common::{hash256, H256};
 use hex;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use secp256k1::{self, key::PublicKey};
-use serde::de::{Deserialize, Deserializer, Error};
-use serde::ser::{Serialize, Serializer};
+use serde::de::Error;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha3::Keccak256;
-use std::str::FromStr;
-use std::{cmp, error, fmt, ops};
+
+use crate::common::{hash256, H256};
 
 /// Keccak-256 crypto hash length in bytes
 pub const KECCAK256_BYTES: usize = 32;
