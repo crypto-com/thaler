@@ -1,5 +1,4 @@
 //! Wallet management
-
 #[cfg(all(feature = "sled", feature = "rpc"))]
 mod rpc_sled_wallet_client;
 
