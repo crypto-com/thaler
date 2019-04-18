@@ -1,20 +1,25 @@
 /// Witness for Merklized Abstract Syntax Trees (MAST) + Schnorr
 pub mod tree;
-use crate::init::address::RedeemAddress;
-use crate::tx::data::address::ExtendedAddr;
-use crate::tx::data::{txid_hash, Tx};
-use crate::tx::witness::tree::{MerklePath, ProofOp, RawPubkey, RawSignature};
+
+use std::fmt;
+
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use secp256k1::{
     self, key::PublicKey, schnorrsig::schnorr_verify, schnorrsig::SchnorrSignature, Message,
     RecoverableSignature, RecoveryId, Secp256k1,
 };
-use std::fmt;
+use serde::{Deserialize, Serialize};
+
+use crate::init::address::RedeemAddress;
+use crate::tx::data::address::ExtendedAddr;
+use crate::tx::data::{txid_hash, Tx};
+use crate::tx::witness::tree::{MerklePath, ProofOp, RawPubkey, RawSignature};
 
 pub type EcdsaSignature = RecoverableSignature;
 
 /// A transaction witness is a vector of input witnesses
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct TxWitness(Vec<TxInWitness>);
 
 impl Encodable for TxWitness {
@@ -63,7 +68,7 @@ impl ::std::ops::DerefMut for TxWitness {
 }
 
 // normally should be some structure: e.g. indicate a type of signature
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum TxInWitness {
     BasicRedeem(EcdsaSignature),
     TreeSig(PublicKey, SchnorrSignature, Vec<ProofOp>),

@@ -3,12 +3,15 @@ pub mod data;
 /// Witness structures (e.g. signatures) for transactions
 pub mod witness;
 
-use self::data::Tx;
-use self::witness::TxWitness;
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use std::fmt;
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Deserialize, Serialize};
+
+use self::data::Tx;
+use self::witness::TxWitness;
+
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum TxAux {
     /// Tx with the vector of witnesses
     TransferTx(Tx, TxWitness),

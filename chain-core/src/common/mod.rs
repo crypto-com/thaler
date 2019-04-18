@@ -1,12 +1,16 @@
+use std::cmp;
+use std::mem;
+
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use digest::Digest;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use secp256k1::constants::{COMPACT_SIGNATURE_SIZE, PUBLIC_KEY_SIZE};
-use std::cmp;
-use std::mem;
+use serde::{Deserialize, Serialize};
 
 /// Generic merkle tree
 pub mod merkle;
+
+/// Size in bytes of a 256-bit hash
 pub const HASH_SIZE_256: usize = 32;
 
 /// Calculates 256-bit crypto hash
@@ -19,7 +23,8 @@ pub fn hash256<D: Digest>(data: &[u8]) -> H256 {
 }
 
 /// Seconds since UNIX epoch
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Ord, PartialOrd)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Timespec(i64);
 
 impl From<i64> for Timespec {
@@ -251,7 +256,11 @@ macro_rules! construct_fixed_hash {
     }
 }
 
-construct_fixed_hash! {pub struct H256(HASH_SIZE_256);}
+construct_fixed_hash! {
+    #[derive(Serialize, Deserialize)]
+    #[serde(transparent)]
+    pub struct H256(HASH_SIZE_256);
+}
 construct_fixed_hash! {pub struct H264(HASH_SIZE_256 + 1);}
 construct_fixed_hash! {pub struct H512(2 * HASH_SIZE_256);}
 

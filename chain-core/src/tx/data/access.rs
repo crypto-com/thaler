@@ -1,9 +1,11 @@
-use crate::tx::witness::tree::RawPubkey;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use secp256k1::key::PublicKey;
+use serde::{Deserialize, Serialize};
+
+use crate::tx::witness::tree::RawPubkey;
 
 /// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum TxAccess {
     AllData,
     Output(usize),
@@ -53,7 +55,7 @@ impl Decodable for TxAccess {
 }
 
 /// Specifies who can access what -- TODO: revisit when enforced by HW encryption / enclaves
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TxAccessPolicy {
     pub view_key: PublicKey,
     pub access: TxAccess,

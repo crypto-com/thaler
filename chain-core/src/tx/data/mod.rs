@@ -9,12 +9,15 @@ pub mod input;
 /// Transaction outputs (amount to an address)
 pub mod output;
 
+use std::fmt;
+
+use blake2::Blake2s;
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Deserialize, Serialize};
+
 use crate::common::{hash256, H256};
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
-use blake2::Blake2s;
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
-use std::fmt;
 
 /// Calculates hash of the input data -- if RLP-serialized TX is passed in, it's equivalent to TxId.
 /// Currently, it uses blake2s.
@@ -30,7 +33,7 @@ pub type TxId = H256;
 
 /// A Transaction containing tx inputs and tx outputs.
 /// TODO: max input/output size?
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Tx {
     pub inputs: Vec<TxoPointer>,
     pub outputs: Vec<TxOut>,

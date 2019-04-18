@@ -1,14 +1,17 @@
+use std::fmt;
+
+use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Deserialize, Serialize};
+
 use crate::common::H256;
 use crate::init::address::RedeemAddress;
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
-use std::fmt;
 
 /// TODO: opaque types?
 type TreeRoot = H256;
 
 /// Currently, only Ethereum-style redeem address + MAST of Or operations (records the root).
 /// TODO: HD-addresses?
-#[derive(Debug, PartialEq, PartialOrd, Ord, Hash, Eq, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Ord, Hash, Eq, Clone, Serialize, Deserialize)]
 pub enum ExtendedAddr {
     BasicRedeem(RedeemAddress),
     OrTree(TreeRoot),
