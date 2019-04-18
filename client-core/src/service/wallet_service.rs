@@ -10,8 +10,8 @@ use crate::{PrivateKey, PublicKey};
 const KEYSPACE: &str = "core_wallet";
 
 /// Exposes functionality for managing wallets
-#[derive(Default)]
-pub struct WalletService<T> {
+#[derive(Default, Clone)]
+pub struct WalletService<T: Storage> {
     storage: T,
 }
 

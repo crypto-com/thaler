@@ -8,8 +8,8 @@ use crate::PrivateKey;
 const KEYSPACE: &str = "core_key";
 
 /// Exposes functionality for managing public and private keys
-#[derive(Default)]
-pub struct KeyService<T> {
+#[derive(Default, Clone)]
+pub struct KeyService<T: Storage> {
     storage: T,
 }
 

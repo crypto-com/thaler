@@ -14,19 +14,17 @@ pub struct SledStorage(Db);
 impl SledStorage {
     /// Creates a new instance with specified path for data storage
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
-        Ok(Self(
-            Db::start(ConfigBuilder::new().path(path).build())
-                .context(ErrorKind::StorageInitializationError)?,
-        ))
-    }
-
-    /// Creates a new temporary instance (data will be deleted after the instance is dropped) with specified path for
-    /// data storage. Only for use in tests.
-    pub fn temp<P: AsRef<Path>>(path: P) -> Result<Self> {
-        Ok(Self(
-            Db::start(ConfigBuilder::new().path(path).temporary(true).build())
-                .context(ErrorKind::StorageInitializationError)?,
-        ))
+        if cfg!(test) {
+            Ok(Self(
+                Db::start(ConfigBuilder::new().path(path).temporary(true).build())
+                    .context(ErrorKind::StorageInitializationError)?,
+            ))
+        } else {
+            Ok(Self(
+                Db::start(ConfigBuilder::new().path(path).build())
+                    .context(ErrorKind::StorageInitializationError)?,
+            ))
+        }
     }
 }
 
@@ -103,7 +101,7 @@ mod tests {
 
     #[test]
     fn check_flow() {
-        let storage = SledStorage::temp("./storage-test").expect("Unable to start sled storage");
+        let storage = SledStorage::new("./storage-test").expect("Unable to start sled storage");
 
         assert!(
             !storage

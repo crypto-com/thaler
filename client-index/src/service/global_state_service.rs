@@ -7,7 +7,8 @@ const KEYSPACE: &str = "index_global_state";
 const LAST_BLOCK_HEIGHT: &str = "last_block_height";
 
 /// Exposes functionalities for managing client's global state
-pub struct GlobalStateService<S> {
+#[derive(Default, Clone)]
+pub struct GlobalStateService<S: Storage> {
     storage: S,
 }
 

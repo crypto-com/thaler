@@ -4,6 +4,7 @@
 pub mod balance;
 pub mod error;
 pub mod storage;
+pub mod tendermint;
 
 #[doc(inline)]
 pub use error::{Error, ErrorKind, Result};

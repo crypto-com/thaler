@@ -7,7 +7,8 @@ use failure::ResultExt;
 use serde::Deserialize;
 
 use chain_core::tx::TxAux;
-use client_common::{ErrorKind, Result};
+
+use crate::{ErrorKind, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct Block {

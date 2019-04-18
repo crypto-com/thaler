@@ -10,8 +10,6 @@
 //! - Transaction broadcasting (WIP)
 pub mod key;
 pub mod service;
-#[cfg(test)]
-pub mod tests;
 pub mod wallet;
 
 #[doc(inline)]

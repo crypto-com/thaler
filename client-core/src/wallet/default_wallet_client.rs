@@ -1,7 +1,3 @@
-#![cfg(all(feature = "sled", feature = "rpc"))]
-
-use std::path::Path;
-
 use failure::ResultExt;
 use zeroize::Zeroize;
 
@@ -9,49 +5,44 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::balance::TransactionChange;
-use client_common::storage::SledStorage;
-use client_common::{ErrorKind, Result};
-#[cfg(not(test))]
-use client_index::index::RpcSledIndex;
+use client_common::{ErrorKind, Result, Storage};
 use client_index::Index;
 
 use crate::service::*;
-#[cfg(test)]
-use crate::tests::MockIndex;
 use crate::{PublicKey, WalletClient};
 
-/// Wallet client backed by `sled` embedded database and `RpcSledIndex`
-pub struct RpcSledWalletClient {
-    key_service: KeyService<SledStorage>,
-    wallet_service: WalletService<SledStorage>,
-    #[cfg(not(test))]
-    index: RpcSledIndex,
-    #[cfg(test)]
-    index: MockIndex,
+/// Default implementation of `WalletClient` based on `Storage` and `Index`
+#[derive(Default, Clone)]
+pub struct DefaultWalletClient<S, I>
+where
+    S: Storage,
+    I: Index,
+{
+    key_service: KeyService<S>,
+    wallet_service: WalletService<S>,
+    index: I,
 }
 
-impl RpcSledWalletClient {
-    /// Creates a new instance of `RpcSledWalletClient`
-    pub fn new<P: AsRef<Path>>(path: P, url: &str) -> Result<Self> {
-        #[cfg(not(test))]
-        let storage = SledStorage::new(path.as_ref().to_path_buf())?;
-        #[cfg(test)]
-        let storage = SledStorage::temp(path.as_ref().to_path_buf())?;
-
-        #[cfg(not(test))]
-        let index = RpcSledIndex::new(path, url)?;
-        #[cfg(test)]
-        let index = MockIndex::new(path, url);
-
-        Ok(RpcSledWalletClient {
+impl<S, I> DefaultWalletClient<S, I>
+where
+    S: Storage + Clone,
+    I: Index,
+{
+    /// Creates a new instance of `DefaultWalletClient`
+    pub fn new(storage: S, index: I) -> Self {
+        Self {
             key_service: KeyService::new(storage.clone()),
             wallet_service: WalletService::new(storage),
             index,
-        })
+        }
     }
 }
 
-impl WalletClient for RpcSledWalletClient {
+impl<S, I> WalletClient for DefaultWalletClient<S, I>
+where
+    S: Storage,
+    I: Index,
+{
     fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String> {
         self.wallet_service.create(name, passphrase)
     }
@@ -148,10 +139,57 @@ impl WalletClient for RpcSledWalletClient {
 mod tests {
     use super::*;
 
+    use std::time::SystemTime;
+
+    use chrono::DateTime;
+
+    use chain_core::init::coin::Coin;
+    use chain_core::tx::data::address::ExtendedAddr;
+    use chain_core::tx::data::attribute::TxAttributes;
+    use chain_core::tx::data::{Tx, TxId};
+    use client_common::balance::{BalanceChange, TransactionChange};
+    use client_common::storage::MemoryStorage;
+    use client_common::Result;
+    use client_index::Index;
+
+    #[derive(Default)]
+    pub struct MockIndex;
+
+    impl Index for MockIndex {
+        fn sync(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn sync_all(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>> {
+            Ok(vec![TransactionChange {
+                transaction_id: TxId::zero(),
+                address: address.clone(),
+                balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                height: 1,
+                time: DateTime::from(SystemTime::now()),
+            }])
+        }
+
+        fn balance(&self, _: &ExtendedAddr) -> Result<Coin> {
+            Ok(Coin::new(30).unwrap())
+        }
+
+        fn transaction(&self, _: &TxId) -> Result<Option<Tx>> {
+            Ok(Some(Tx {
+                inputs: Default::default(),
+                outputs: Default::default(),
+                attributes: TxAttributes::new(171),
+            }))
+        }
+    }
+
     #[test]
     fn check_flow() {
-        let wallet = RpcSledWalletClient::new("./wallet-test".to_string(), "dummy")
-            .expect("Unable to create wallet client");
+        let wallet = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
 
         assert!(wallet.addresses("name", "passphrase").is_err());
 

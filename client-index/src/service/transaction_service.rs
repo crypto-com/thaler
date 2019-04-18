@@ -9,7 +9,8 @@ const KEYSPACE: &str = "index_transaction";
 /// Exposes functionalities for managing transactions
 ///
 /// Stores `tx_id -> tx` mapping
-pub struct TransactionService<S> {
+#[derive(Default, Clone)]
+pub struct TransactionService<S: Storage> {
     storage: S,
 }
 

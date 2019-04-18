@@ -1,9 +1,7 @@
 //! Transaction index operations
-#[cfg(all(feature = "sled", feature = "rpc"))]
-mod rpc_sled_index;
+mod default_index;
 
-#[cfg(all(feature = "sled", feature = "rpc"))]
-pub use rpc_sled_index::RpcSledIndex;
+pub use default_index::DefaultIndex;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -12,7 +10,7 @@ use client_common::balance::TransactionChange;
 use client_common::Result;
 
 /// Interface for interacting with transaction index
-pub trait Index {
+pub trait Index: Send + Sync {
     /// Synchronizes transaction index with Crypto.com Chain (from last known height)
     fn sync(&self) -> Result<()>;
 

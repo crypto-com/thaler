@@ -11,11 +11,12 @@ const KEYSPACE: &str = "index_balance";
 /// Exposes functionalities for managing balances
 ///
 /// Stores `address -> balance` mapping
-pub struct BalanceService<S> {
+#[derive(Default, Clone)]
+pub struct BalanceService<S: Storage> {
     storage: S,
 }
 
-impl<S> BalanceService<S>
+impl<S: Storage> BalanceService<S>
 where
     S: Storage,
 {

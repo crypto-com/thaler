@@ -5,8 +5,8 @@ use base64::decode;
 use failure::ResultExt;
 use serde::Deserialize;
 
+use crate::{ErrorKind, Result};
 use chain_core::tx::data::TxId;
-use client_common::{ErrorKind, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct BlockResults {

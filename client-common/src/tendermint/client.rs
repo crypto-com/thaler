@@ -1,9 +1,8 @@
-use client_common::Result;
-
 use crate::tendermint::types::*;
+use crate::Result;
 
 /// Makes remote calls to tendermint (backend agnostic)
-pub trait Client {
+pub trait Client: Send + Sync {
     /// Makes `genesis` call to tendermint
     fn genesis(&self) -> Result<Genesis>;
 
