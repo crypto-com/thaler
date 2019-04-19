@@ -7,10 +7,9 @@ use jsonrpc::client::Client as JsonRpcClient;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use client_common::{ErrorKind, Result};
-
 use crate::tendermint::types::*;
 use crate::tendermint::Client;
+use crate::{ErrorKind, Result};
 
 /// Tendermint RPC Client
 #[derive(Clone)]

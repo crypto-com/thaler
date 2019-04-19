@@ -1,9 +1,7 @@
 //! Wallet management
-#[cfg(all(feature = "sled", feature = "rpc"))]
-mod rpc_sled_wallet_client;
+mod default_wallet_client;
 
-#[cfg(all(feature = "sled", feature = "rpc"))]
-pub use rpc_sled_wallet_client::RpcSledWalletClient;
+pub use default_wallet_client::DefaultWalletClient;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -13,7 +11,7 @@ use client_common::Result;
 use crate::PublicKey;
 
 /// Interface for a generic wallet
-pub trait WalletClient {
+pub trait WalletClient: Send + Sync {
     /// Creates a new wallet with given name and returns wallet_id
     fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String>;
 

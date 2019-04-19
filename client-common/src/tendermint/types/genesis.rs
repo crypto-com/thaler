@@ -9,7 +9,8 @@ use serde::Deserialize;
 use chain_core::init::config::InitConfig;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::Tx;
-use client_common::{ErrorKind, Result};
+
+use crate::{ErrorKind, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct Genesis {

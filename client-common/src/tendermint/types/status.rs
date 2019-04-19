@@ -3,7 +3,7 @@
 use failure::ResultExt;
 use serde::Deserialize;
 
-use client_common::{ErrorKind, Result};
+use crate::{ErrorKind, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct Status {

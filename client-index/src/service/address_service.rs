@@ -9,7 +9,8 @@ const KEYSPACE: &str = "index_address";
 /// Exposes functionalities for managing addresses
 ///
 /// Stores `address -> [tx_changes]` mapping
-pub struct AddressService<S> {
+#[derive(Default, Clone)]
+pub struct AddressService<S: Storage> {
     storage: S,
 }
 

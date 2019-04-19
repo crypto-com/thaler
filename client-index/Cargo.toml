@@ -8,11 +8,7 @@ edition = "2018"
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 failure = "0.1"
-hex = "0.3"
-base64 = "0.10"
 rlp = "0.3"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
 bincode = "1.1"
 chrono = { version = "0.4", features = ["serde"] }
 jsonrpc = { version = "0.11", optional = true }
