@@ -1,14 +1,15 @@
 use failure::ResultExt;
 use rand::rngs::OsRng;
-use secp256k1::{PublicKey as SecpPublicKey, SecretKey};
+use secp256k1::{Message, PublicKey as SecpPublicKey, SecretKey};
 use zeroize::Zeroize;
 
+use chain_core::tx::witness::TxInWitness;
 use client_common::{ErrorKind, Result};
 
 use crate::{PublicKey, SECP};
 
 /// Private key used in Crypto.com Chain
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct PrivateKey(SecretKey);
 
 impl PrivateKey {
@@ -31,6 +32,14 @@ impl PrivateKey {
             SecretKey::from_slice(bytes).context(ErrorKind::DeserializationError)?;
 
         Ok(PrivateKey(secret_key))
+    }
+
+    /// Signs a message with current private key
+    pub fn sign<T: AsRef<[u8]>>(&self, bytes: T) -> Result<TxInWitness> {
+        let message =
+            Message::from_slice(bytes.as_ref()).context(ErrorKind::DeserializationError)?;
+        let signature = SECP.with(|secp| secp.sign_recoverable(&message, &self.0));
+        Ok(TxInWitness::BasicRedeem(signature))
     }
 }
 
