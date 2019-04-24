@@ -89,12 +89,8 @@ where
         let addresses = self.addresses(name, passphrase)?;
 
         for (i, known_address) in addresses.iter().enumerate() {
-            if cfg!(test) {
+            if known_address == address || cfg!(test) {
                 return Ok(Some(private_keys[i].clone()));
-            } else {
-                if known_address == address {
-                    return Ok(Some(private_keys[i].clone()));
-                }
             }
         }
 
