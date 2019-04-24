@@ -305,6 +305,7 @@ mod tests {
 
         for change in index.transaction_changes(&spend_address).unwrap().iter() {
             assert!(index.transaction(&change.transaction_id).unwrap().is_some());
+            assert!(index.output(&change.transaction_id, 0).is_ok());
         }
     }
 }

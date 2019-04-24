@@ -174,6 +174,7 @@ where
 mod tests {
     use super::*;
 
+    use std::str::FromStr;
     use std::time::SystemTime;
 
     use chrono::DateTime;
@@ -181,6 +182,7 @@ mod tests {
     use chain_core::init::coin::Coin;
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::attribute::TxAttributes;
+    use chain_core::tx::data::input::TxoPointer;
     use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
     use client_common::balance::{BalanceChange, TransactionChange};
@@ -216,14 +218,23 @@ mod tests {
 
         fn transaction(&self, _: &TxId) -> Result<Option<Tx>> {
             Ok(Some(Tx {
-                inputs: Default::default(),
+                inputs: vec![TxoPointer {
+                    id: TxId::zero(),
+                    index: 1,
+                }],
                 outputs: Default::default(),
                 attributes: TxAttributes::new(171),
             }))
         }
 
         fn output(&self, _id: &TxId, _index: usize) -> Result<TxOut> {
-            unimplemented!()
+            Ok(TxOut {
+                address: ExtendedAddr::BasicRedeem(
+                    RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+                ),
+                value: Coin::new(10000000000000000000).unwrap(),
+                valid_from: None,
+            })
         }
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
@@ -251,6 +262,11 @@ mod tests {
 
         assert_eq!(1, addresses.len());
         assert_eq!(address, addresses[0], "Addresses don't match");
+
+        assert!(wallet
+            .private_key("name", "passphrase", &address)
+            .unwrap()
+            .is_some());
 
         assert_eq!(
             ErrorKind::WalletNotFound,
@@ -291,5 +307,17 @@ mod tests {
 
         assert!(wallet.sync().is_ok());
         assert!(wallet.sync_all().is_ok());
+
+        assert!(wallet
+            .broadcast_transaction(
+                "name",
+                "passphrase",
+                Tx {
+                    inputs: Default::default(),
+                    outputs: Default::default(),
+                    attributes: TxAttributes::new(171),
+                }
+            )
+            .is_ok());
     }
 }
