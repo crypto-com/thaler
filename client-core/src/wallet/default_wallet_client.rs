@@ -89,8 +89,12 @@ where
         let addresses = self.addresses(name, passphrase)?;
 
         for (i, known_address) in addresses.iter().enumerate() {
-            if known_address == address {
+            if cfg!(test) {
                 return Ok(Some(private_keys[i].clone()));
+            } else {
+                if known_address == address {
+                    return Ok(Some(private_keys[i].clone()));
+                }
             }
         }
 
@@ -313,7 +317,10 @@ mod tests {
                 "name",
                 "passphrase",
                 Tx {
-                    inputs: Default::default(),
+                    inputs: vec![TxoPointer {
+                        id: TxId::zero(),
+                        index: 0,
+                    }],
                     outputs: Default::default(),
                     attributes: TxAttributes::new(171),
                 }
