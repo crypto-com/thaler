@@ -3,7 +3,7 @@ use chain_core::init::coin::{Coin};
 use client_core::wallet::{WalletClient};
 use jsonrpc_derive::rpc;
 use jsonrpc_http_server::jsonrpc_core;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use crate::server::{to_rpc_error, rpc_error_string};
 
 #[rpc]
@@ -17,8 +17,8 @@ pub trait WalletRpc {
     #[rpc(name = "wallet_addresses")]
     fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
 
-    #[rpc(name = "wallet_wallets")]
-    fn wallets(&self) -> jsonrpc_core::Result<Vec<String>>;
+    #[rpc(name = "wallet_list")]
+    fn list(&self) -> jsonrpc_core::Result<Vec<String>>;
 }
 
 pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
@@ -62,7 +62,7 @@ impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'st
             Err(e) => Err(to_rpc_error(e)),
         }
     }
-    fn wallets(&self) -> jsonrpc_core::Result<Vec<String>> {
+    fn list(&self) -> jsonrpc_core::Result<Vec<String>> {
         match self.client.wallets() {
             Ok(wallets) => Ok(wallets),
             Err(e) => Err(to_rpc_error(e)),
@@ -74,13 +74,6 @@ impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'st
 pub struct WalletRequest {
     name: String,
     passphrase: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct WalletResponse {
-    name: String,
-    balance: Coin,
-    addresses: Vec<ExtendedAddr>,
 }
 
 // #[cfg(test)]
@@ -204,7 +197,7 @@ mod tests {
     use chain_core::tx::data::{Tx, TxId};
     use client_common::balance::{BalanceChange, TransactionChange};
     use client_common::storage::MemoryStorage;
-    use client_common::{Storage, Error, ErrorKind, Result};
+    use client_common::{Error, ErrorKind, Result};
     use client_index::Index;
 
     #[derive(Default)]
@@ -260,25 +253,93 @@ mod tests {
     }
 
     #[test]
-    fn create_should_create_new_address_in_the_newly_created_wallet() {
-        let memory_storage = MemoryStorage::default();
-        let wallet_client = DefaultWalletClient::new(memory_storage, MockIndex::default());
+    fn test_create_duplicated_wallet() {
+        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
         let wallet_rpc = WalletRpcImpl::new(wallet_client);
+        // let wallet_rpc = setup_wallet_rpc();
 
         assert_eq!(
-            to_rpc_error(Error::from(ErrorKind::WalletNotFound)),
-            wallet_rpc.addresses(new_wallet_request("Default", "123456")).unwrap_err()
+            "Default".to_owned(),
+            wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap()
+        );
+
+        assert_eq!(
+            to_rpc_error(Error::from(ErrorKind::AlreadyExists)),
+            wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap_err()
+        );
+    }
+
+    #[test]
+    fn test_create_and_list_wallet_flow() {
+        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+        let wallet_rpc = WalletRpcImpl::new(wallet_client);
+        // let wallet_rpc = setup_wallet_rpc();
+
+        assert_eq!(
+            0,
+            wallet_rpc.list().unwrap().len()
         );
 
         assert_eq!(
             "Default".to_owned(),
-            wallet_rpc.create(new_wallet_request("Default", "123456")).unwrap()
+            wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap()
         );
 
-        assert_eq!(1, wallet_rpc.addresses(new_wallet_request("Default", "123456")).unwrap().len());
+        assert_eq!(
+            vec!["Default"],
+            wallet_rpc.list().unwrap()
+        );
+
+        assert_eq!(
+            "Personal".to_owned(),
+            wallet_rpc.create(create_wallet_request("Personal", "123456")).unwrap()
+        );
+
+        let wallet_list = wallet_rpc.list().unwrap();
+        assert_eq!(2, wallet_list.len());
+        assert_eq!("Default", wallet_list[0]);
+        assert_eq!("Personal", wallet_list[1]);
     }
 
-    fn new_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
+    #[test]
+    fn test_create_and_list_wallet_addresses_flow() {
+        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+        let wallet_rpc = WalletRpcImpl::new(wallet_client);
+        // let wallet_rpc = setup_wallet_rpc();
+
+        assert_eq!(
+            to_rpc_error(Error::from(ErrorKind::WalletNotFound)),
+            wallet_rpc.addresses(create_wallet_request("Default", "123456")).unwrap_err()
+        );
+
+        assert_eq!(
+            "Default".to_owned(),
+            wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap()
+        );
+
+        assert_eq!(1, wallet_rpc.addresses(create_wallet_request("Default", "123456")).unwrap().len());
+    }
+
+    #[test]
+    fn test_wallet_balance() {
+        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+        let wallet_rpc = WalletRpcImpl::new(wallet_client);
+        // let wallet_rpc = setup_wallet_rpc();
+
+        wallet_rpc.create(create_wallet_request("Default", "123456"));
+        assert_eq!(
+            Coin::new(30).unwrap(),
+            wallet_rpc.balance(create_wallet_request("Default", "123456")).unwrap()
+        )
+    }
+
+    // fn setup_wallet_rpc() -> WalletRpcImpl<DefaultWalletClient> {
+    //     let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+
+    //     WalletRpcImpl::new(wallet_client)
+    // }
+
+    fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
         WalletRequest {
             name: name.to_owned(),
             passphrase: passphrase.to_owned(),
