@@ -46,6 +46,10 @@ where
     S: Storage,
     I: Index,
 {
+    fn wallets(&self) -> Result<Vec<String>> {
+        self.wallet_service.names()
+    }
+
     fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String> {
         self.wallet_service.create(name, passphrase)
     }
@@ -253,6 +257,8 @@ mod tests {
             .expect("Unable to create a new wallet");
 
         assert_eq!(0, wallet.addresses("name", "passphrase").unwrap().len());
+        assert_eq!("name".to_string(), wallet.wallets().unwrap()[0]);
+        assert_eq!(1, wallet.wallets().unwrap().len());
 
         let address = wallet
             .new_address("name", "passphrase")
