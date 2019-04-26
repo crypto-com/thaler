@@ -334,6 +334,7 @@ name = "client-rpc"
 version = "0.1.0"
 dependencies = [
  "chain-core 0.1.0",
+ "chrono 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common 0.1.0",
  "client-core 0.1.0",
  "client-index 0.1.0",
