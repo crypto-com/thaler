@@ -75,3 +75,102 @@ pub struct WalletResponse {
     balance: Coin,
     addresses: Vec<ExtendedAddr>,
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+
+//     use client_core::{PrivateKey, PublicKey, WalletClient};
+//     use chain_core::init::coin::Coin;
+//     use chain_core::tx::data::address::ExtendedAddr;
+//     use chain_core::tx::data::Tx;
+
+//     #[derive(Default)]
+//     pub struct MockClient;
+
+//     impl WalletClient for MockClient {
+//         fn wallets(&self) -> Result<Vec<String>> {
+//             Ok("Default".to_owned())
+//         }
+
+//         /// Creates a new wallet with given name and returns wallet_id
+//         fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String> {
+//             Ok("Default".to_owned())
+//         }
+
+//         /// Retrieves all public keys corresponding to given wallet
+//         fn private_keys(&self, name: &str, passphrase: &str) -> Result<Vec<PrivateKey>> {
+//             vec![PrivateKey::new()]
+//         }
+
+//         /// Retrieves all public keys corresponding to given wallet
+//         fn public_keys(&self, name: &str, passphrase: &str) -> Result<Vec<PublicKey>> {
+//             let private_key = PrivateKey::new();
+//             vec![PublicKey::from(&private_key)]
+//         }
+
+//         /// Retrieves all addresses corresponding to given wallet
+//         fn addresses(&self, name: &str, passphrase: &str) -> Result<Vec<ExtendedAddr>> {
+//             vec![ExtendedAddr::BasicRedeem(
+//                 RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+//             )]
+//         }
+
+//         /// Retrieves private key corresponding to given address
+//         fn private_key(
+//             &self,
+//             name: &str,
+//             passphrase: &str,
+//             address: &ExtendedAddr,
+//         ) -> Result<Option<PrivateKey>> {
+//             PrivateKey::new()
+//         }
+
+//         /// Generates a new public key for given wallet
+//         fn new_public_key(&self, name: &str, passphrase: &str) -> Result<PublicKey> {
+//             PublicKey::from(&PrivateKey::new())
+//         }
+
+//         /// Generates a new address for given wallet
+//         fn new_address(&self, name: &str, passphrase: &str) -> Result<ExtendedAddr> {
+//             ExtendedAddr::BasicRedeem(
+//                 RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+//             )
+//         }
+
+//         /// Retrieves current balance of wallet
+//         fn balance(&self, name: &str, passphrase: &str) -> Result<Coin> {
+//             Coin::zero()
+//         }
+
+//         /// Retrieves transaction history of wallet
+//         fn history(&self, name: &str, passphrase: &str) -> Result<Vec<TransactionChange>> {
+//             vec![]
+//         }
+
+//         /// Broadcasts a transaction to Crypto.com Chain
+//         fn broadcast_transaction(&self, name: &str, passphrase: &str, transaction: Tx) -> Result<()> {
+//             Ok(())
+//         }
+
+//         /// Synchronizes index with Crypto.com Chain (from last known height)
+//         fn sync(&self) -> Result<()> {
+//             Ok(())
+//         }
+
+//         /// Synchronizes index with Crypto.com Chain (from genesis)
+//         fn sync_all(&self) -> Result<()> {
+//             Ok(())
+//         }
+//     }
+
+//     #[test]
+//     fn create_should_create_wallet() => {
+//         let wallet_rpc = WalletRpcImpl::new(MockClient::default());
+
+//         assert!(wallet_rpc.create(WalletRequest {
+//             name: "Default".to_owned(),
+//             passphrase: "123456".to_owned(),
+//         }.is_ok());
+//     }
+// }
