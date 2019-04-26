@@ -1,15 +1,18 @@
 use failure::ResultExt;
+use rlp::encode;
 use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
+use chain_core::tx::data::Tx;
+use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
 use client_common::{ErrorKind, Result, Storage};
 use client_index::Index;
 
 use crate::service::*;
-use crate::{PublicKey, WalletClient};
+use crate::{PrivateKey, PublicKey, WalletClient};
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Default, Clone)]
@@ -43,29 +46,30 @@ where
     S: Storage,
     I: Index,
 {
+    fn wallets(&self) -> Result<Vec<String>> {
+        self.wallet_service.names()
+    }
+
     fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String> {
         self.wallet_service.create(name, passphrase)
     }
 
-    fn public_keys(&self, name: &str, passphrase: &str) -> Result<Vec<PublicKey>> {
+    fn private_keys(&self, name: &str, passphrase: &str) -> Result<Vec<PrivateKey>> {
         let wallet_id = self.wallet_service.get(name, passphrase)?;
 
         match wallet_id {
             None => Err(ErrorKind::WalletNotFound.into()),
-            Some(wallet_id) => {
-                let keys = self.key_service.get_keys(&wallet_id, passphrase)?;
-
-                match keys {
-                    None => Ok(Default::default()),
-                    Some(keys) => {
-                        let public_keys =
-                            keys.iter().map(PublicKey::from).collect::<Vec<PublicKey>>();
-
-                        Ok(public_keys)
-                    }
-                }
-            }
+            Some(wallet_id) => Ok(self
+                .key_service
+                .get_keys(&wallet_id, passphrase)?
+                .unwrap_or_default()),
         }
+    }
+
+    fn public_keys(&self, name: &str, passphrase: &str) -> Result<Vec<PublicKey>> {
+        let keys = self.private_keys(name, passphrase)?;
+        let public_keys = keys.iter().map(PublicKey::from).collect::<Vec<PublicKey>>();
+        Ok(public_keys)
     }
 
     fn addresses(&self, name: &str, passphrase: &str) -> Result<Vec<ExtendedAddr>> {
@@ -77,6 +81,24 @@ where
             .collect::<Vec<ExtendedAddr>>();
 
         Ok(addresses)
+    }
+
+    fn private_key(
+        &self,
+        name: &str,
+        passphrase: &str,
+        address: &ExtendedAddr,
+    ) -> Result<Option<PrivateKey>> {
+        let private_keys = self.private_keys(name, passphrase)?;
+        let addresses = self.addresses(name, passphrase)?;
+
+        for (i, known_address) in addresses.iter().enumerate() {
+            if known_address == address {
+                return Ok(Some(private_keys[i].clone()));
+            }
+        }
+
+        Ok(None)
     }
 
     fn new_public_key(&self, name: &str, passphrase: &str) -> Result<PublicKey> {
@@ -126,6 +148,23 @@ where
         Ok(history)
     }
 
+    fn broadcast_transaction(&self, name: &str, passphrase: &str, transaction: Tx) -> Result<()> {
+        let mut witnesses = Vec::with_capacity(transaction.inputs.len());
+
+        for input in &transaction.inputs {
+            let input = self.index.output(&input.id, input.index)?;
+
+            match self.private_key(name, passphrase, &input.address)? {
+                None => return Err(ErrorKind::PrivateKeyNotFound.into()),
+                Some(private_key) => witnesses.push(private_key.sign(&transaction.id())?),
+            }
+        }
+
+        let tx_aux = TxAux::new(transaction, witnesses.into());
+
+        self.index.broadcast_transaction(&encode(&tx_aux))
+    }
+
     fn sync(&self) -> Result<()> {
         self.index.sync()
     }
@@ -139,6 +178,7 @@ where
 mod tests {
     use super::*;
 
+    use std::str::FromStr;
     use std::time::SystemTime;
 
     use chrono::DateTime;
@@ -146,6 +186,8 @@ mod tests {
     use chain_core::init::coin::Coin;
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::attribute::TxAttributes;
+    use chain_core::tx::data::input::TxoPointer;
+    use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
     use client_common::balance::{BalanceChange, TransactionChange};
     use client_common::storage::MemoryStorage;
@@ -180,10 +222,27 @@ mod tests {
 
         fn transaction(&self, _: &TxId) -> Result<Option<Tx>> {
             Ok(Some(Tx {
-                inputs: Default::default(),
+                inputs: vec![TxoPointer {
+                    id: TxId::zero(),
+                    index: 1,
+                }],
                 outputs: Default::default(),
                 attributes: TxAttributes::new(171),
             }))
+        }
+
+        fn output(&self, _id: &TxId, _index: usize) -> Result<TxOut> {
+            Ok(TxOut {
+                address: ExtendedAddr::BasicRedeem(
+                    RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+                ),
+                value: Coin::new(10000000000000000000).unwrap(),
+                valid_from: None,
+            })
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
+            Ok(())
         }
     }
 
@@ -198,6 +257,8 @@ mod tests {
             .expect("Unable to create a new wallet");
 
         assert_eq!(0, wallet.addresses("name", "passphrase").unwrap().len());
+        assert_eq!("name".to_string(), wallet.wallets().unwrap()[0]);
+        assert_eq!(1, wallet.wallets().unwrap().len());
 
         let address = wallet
             .new_address("name", "passphrase")
@@ -207,6 +268,11 @@ mod tests {
 
         assert_eq!(1, addresses.len());
         assert_eq!(address, addresses[0], "Addresses don't match");
+
+        assert!(wallet
+            .private_key("name", "passphrase", &address)
+            .unwrap()
+            .is_some());
 
         assert_eq!(
             ErrorKind::WalletNotFound,
@@ -247,5 +313,20 @@ mod tests {
 
         assert!(wallet.sync().is_ok());
         assert!(wallet.sync_all().is_ok());
+
+        assert!(wallet
+            .broadcast_transaction(
+                "name",
+                "passphrase",
+                Tx {
+                    inputs: vec![TxoPointer {
+                        id: TxId::zero(),
+                        index: 0,
+                    }],
+                    outputs: Default::default(),
+                    attributes: TxAttributes::new(171),
+                }
+            )
+            .is_err());
     }
 }
