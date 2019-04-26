@@ -5,6 +5,8 @@ pub use default_wallet_client::DefaultWalletClient;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
+use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use client_common::balance::TransactionChange;
 use client_common::Result;
@@ -47,6 +49,15 @@ pub trait WalletClient: Send + Sync {
 
     /// Retrieves transaction history of wallet
     fn history(&self, name: &str, passphrase: &str) -> Result<Vec<TransactionChange>>;
+
+    /// Creates and broadcasts a transaction to Crypto.com Chain
+    fn create_and_broadcast_transaction(
+        &self,
+        name: &str,
+        passphrase: &str,
+        outputs: Vec<TxOut>,
+        attributes: TxAttributes,
+    ) -> Result<()>;
 
     /// Broadcasts a transaction to Crypto.com Chain
     fn broadcast_transaction(&self, name: &str, passphrase: &str, transaction: Tx) -> Result<()>;
