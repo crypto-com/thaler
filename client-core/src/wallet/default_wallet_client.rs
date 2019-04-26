@@ -558,17 +558,21 @@ mod tests {
             )
             .is_ok());
 
-        assert!(wallet
-            .create_and_broadcast_transaction(
-                "wallet_2",
-                "passphrase",
-                vec![TxOut {
-                    address: addr_3.clone(),
-                    value: Coin::new(30).unwrap(),
-                    valid_from: None,
-                }],
-                TxAttributes::new(171),
-            )
-            .is_err());
+        assert_eq!(
+            ErrorKind::InsufficientBalance,
+            wallet
+                .create_and_broadcast_transaction(
+                    "wallet_2",
+                    "passphrase",
+                    vec![TxOut {
+                        address: addr_3.clone(),
+                        value: Coin::new(30).unwrap(),
+                        valid_from: None,
+                    }],
+                    TxAttributes::new(171),
+                )
+                .unwrap_err()
+                .kind()
+        );
     }
 }
