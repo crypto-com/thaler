@@ -13,6 +13,9 @@ use crate::{PrivateKey, PublicKey};
 
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {
+    /// Retrieves names of all wallets stored
+    fn wallets(&self) -> Result<Vec<String>>;
+
     /// Creates a new wallet with given name and returns wallet_id
     fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String>;
 
