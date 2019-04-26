@@ -16,6 +16,9 @@ pub trait WalletRpc {
 
     #[rpc(name = "wallet_addresses")]
     fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
+
+    #[rpc(name = "wallet_wallets")]
+    fn wallets(&self) -> jsonrpc_core::Result<Vec<String>>;
 }
 
 pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
@@ -56,6 +59,12 @@ impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'st
                     _ => Err(rpc_error_string("Unsupported address format".to_owned())),
                 }
             }).collect(),
+            Err(e) => Err(to_rpc_error(e)),
+        }
+    }
+    fn wallets(&self) -> jsonrpc_core::Result<Vec<String>> {
+        match self.client.wallets() {
+            Ok(wallets) => Ok(wallets),
             Err(e) => Err(to_rpc_error(e)),
         }
     }
