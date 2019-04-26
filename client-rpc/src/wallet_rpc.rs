@@ -1,3 +1,4 @@
+use client_common::balance::TransactionChange;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::init::coin::{Coin};
 use client_core::wallet::{WalletClient};
@@ -17,8 +18,17 @@ pub trait WalletRpc {
     #[rpc(name = "wallet_addresses")]
     fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
 
+    #[rpc(name = "wallet_transactions")]
+    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>>;
+
     #[rpc(name = "wallet_list")]
     fn list(&self) -> jsonrpc_core::Result<Vec<String>>;
+
+    #[rpc(name = "sync")]
+    fn sync(&self) -> jsonrpc_core::Result<()>;
+
+    #[rpc(name = "sync_all")]
+    fn sync_all(&self) -> jsonrpc_core::Result<()>;
 }
 
 pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
@@ -62,10 +72,34 @@ impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'st
             Err(e) => Err(to_rpc_error(e)),
         }
     }
+
+    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>> {
+        match self.client.history(&request.name, &request.passphrase) {
+            Ok(transaction_change) => Ok(transaction_change),
+            Err(e) => Err(to_rpc_error(e)),
+        }
+    }
+
     fn list(&self) -> jsonrpc_core::Result<Vec<String>> {
         match self.client.wallets() {
             Ok(wallets) => Ok(wallets),
             Err(e) => Err(to_rpc_error(e)),
+        }
+    }
+
+    fn sync(&self) -> jsonrpc_core::Result<()> {
+        if let Err(e) = self.client.sync() {
+            Err(to_rpc_error(e))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn sync_all(&self) -> jsonrpc_core::Result<()> {
+        if let Err(e) = self.client.sync_all() {
+            Err(to_rpc_error(e))
+        } else {
+            Ok(())
         }
     }
 }
@@ -330,6 +364,19 @@ mod tests {
         assert_eq!(
             Coin::new(30).unwrap(),
             wallet_rpc.balance(create_wallet_request("Default", "123456")).unwrap()
+        )
+    }
+
+    #[test]
+    fn test_wallet_transactions() {
+        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+        let wallet_rpc = WalletRpcImpl::new(wallet_client);
+        // let wallet_rpc = setup_wallet_rpc();
+
+        wallet_rpc.create(create_wallet_request("Default", "123456"));
+        assert_eq!(
+            1,
+            wallet_rpc.transactions(create_wallet_request("Default", "123456")).unwrap().len()
         )
     }
 

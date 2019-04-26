@@ -24,7 +24,7 @@ impl Server {
 
     pub fn start(&self) -> Result<()> {
         let storage = SledStorage::new(".storage")?;
-        let tendermint_client = RpcClient::new("http://localhost:8080/");
+        let tendermint_client = RpcClient::new("http://localhost:26657/");
         let index = DefaultIndex::new(storage.clone(), tendermint_client);
         let wallet_client = DefaultWalletClient::new(storage, index);
         let wallet_rpc = WalletRpcImpl::new(wallet_client.clone());
