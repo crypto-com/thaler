@@ -4,6 +4,7 @@ use std::str::FromStr;
 use chrono::offset::Utc;
 use chrono::DateTime;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Serialize, Deserialize};
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -13,7 +14,7 @@ use crate::balance::BalanceChange;
 use crate::Result;
 
 /// Represents balance change in a transaction
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransactionChange {
     /// ID of transaction which caused this change
     pub transaction_id: TxId,
