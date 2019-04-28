@@ -37,15 +37,13 @@ impl Block {
     pub fn transactions(&self) -> Result<Vec<TxAux>> {
         match &self.block.data.txs {
             None => Ok(Vec::new()),
-            Some(txs) => {
-                txs
+            Some(txs) => txs
                 .iter()
                 .map(|raw_tx| Ok(decode(&raw_tx).context(ErrorKind::DeserializationError)?))
                 .map(|bytes: Result<Vec<u8>>| {
                     Ok(rlp::decode(&bytes?).context(ErrorKind::DeserializationError)?)
                 })
-                .collect::<Result<Vec<TxAux>>>()
-            }
+                .collect::<Result<Vec<TxAux>>>(),
         }
     }
 
@@ -146,10 +144,8 @@ mod tests {
                     height: "1".to_owned(),
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
-                data: Data {
-                    txs: None
-                }
-            }
+                data: Data { txs: None },
+            },
         };
         assert_eq!(0, block.transactions().unwrap().len());
     }

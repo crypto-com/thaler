@@ -41,7 +41,8 @@ impl BlockResults {
 
                 for transaction in deliver_tx.iter() {
                     for tag in transaction.tags.iter() {
-                        let decoded = decode(&tag.value).context(ErrorKind::DeserializationError)?;
+                        let decoded =
+                            decode(&tag.value).context(ErrorKind::DeserializationError)?;
                         if 32 != decoded.len() {
                             return Err(ErrorKind::DeserializationError.into());
                         }
@@ -54,7 +55,7 @@ impl BlockResults {
                 }
 
                 Ok(transactions)
-            },
+            }
         }
     }
 }
@@ -100,9 +101,7 @@ mod tests {
     fn check_null_deliver_tx() {
         let block_results = BlockResults {
             height: "2".to_owned(),
-            results: Results {
-                deliver_tx: None,
-            },
+            results: Results { deliver_tx: None },
         };
         assert_eq!(0, block_results.ids().unwrap().len());
     }
