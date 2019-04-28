@@ -16,7 +16,7 @@ pub struct BalanceService<S: Storage> {
     storage: S,
 }
 
-impl<S: Storage> BalanceService<S>
+impl<S> BalanceService<S>
 where
     S: Storage,
 {
