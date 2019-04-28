@@ -3,6 +3,7 @@ use chrono::DateTime;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
+use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::TxAux;
 use client_common::balance::{BalanceChange, TransactionChange};
@@ -22,7 +23,6 @@ where
     address_service: AddressService<S>,
     balance_service: BalanceService<S>,
     global_state_service: GlobalStateService<S>,
-    transaction_outputs_service: TransactionOutputsService<S>,
     transaction_service: TransactionService<S>,
     client: C,
 }
@@ -38,7 +38,6 @@ where
             address_service: AddressService::new(storage.clone()),
             balance_service: BalanceService::new(storage.clone()),
             global_state_service: GlobalStateService::new(storage.clone()),
-            transaction_outputs_service: TransactionOutputsService::new(storage.clone()),
             transaction_service: TransactionService::new(storage),
             client,
         }
@@ -55,7 +54,6 @@ where
         self.address_service.clear()?;
         self.balance_service.clear()?;
         self.global_state_service.clear()?;
-        self.transaction_outputs_service.clear()?;
         self.transaction_service.clear()
     }
 
@@ -86,9 +84,6 @@ where
 
         for transaction in transactions {
             let id = transaction.id();
-
-            self.transaction_outputs_service
-                .set(&id, &transaction.outputs)?;
             self.transaction_service.set(&id, transaction)?;
         }
 
@@ -110,23 +105,24 @@ where
             let id = transaction.id();
 
             for input in transaction.inputs.iter() {
-                let index = input.index;
-                let input = self
-                    .transaction_outputs_service
-                    .get(&input.id)?
-                    .into_iter()
-                    .nth(index);
+                let transaction = self.transaction_service.get(&input.id)?;
 
-                match input {
+                match transaction {
                     None => return Err(ErrorKind::InvalidTransaction.into()),
-                    Some(input) => {
-                        changes.push(TransactionChange {
-                            transaction_id: id,
-                            address: input.address,
-                            balance_change: BalanceChange::Outgoing(input.value),
-                            height,
-                            time,
-                        });
+                    Some(transaction) => {
+                        let index = input.index;
+                        let input = transaction.outputs.into_iter().nth(index);
+
+                        match input {
+                            None => return Err(ErrorKind::InvalidTransaction.into()),
+                            Some(input) => changes.push(TransactionChange {
+                                transaction_id: id,
+                                address: input.address,
+                                balance_change: BalanceChange::Outgoing(input.value),
+                                height,
+                                time,
+                            }),
+                        }
                     }
                 }
             }
@@ -195,6 +191,20 @@ where
 
     fn transaction(&self, id: &TxId) -> Result<Option<Tx>> {
         self.transaction_service.get(id)
+    }
+
+    fn output(&self, id: &TxId, index: usize) -> Result<TxOut> {
+        match self.transaction(id)? {
+            None => Err(ErrorKind::TransactionNotFound.into()),
+            Some(transaction) => match transaction.outputs.into_iter().nth(index) {
+                None => Err(ErrorKind::TransactionNotFound.into()),
+                Some(output) => Ok(output),
+            },
+        }
+    }
+
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()> {
+        self.client.broadcast_transaction(transaction)
     }
 }
 
@@ -295,6 +305,7 @@ mod tests {
 
         for change in index.transaction_changes(&spend_address).unwrap().iter() {
             assert!(index.transaction(&change.transaction_id).unwrap().is_some());
+            assert!(index.output(&change.transaction_id, 0).is_ok());
         }
     }
 }

@@ -57,6 +57,15 @@ where
         }
     }
 
+    /// Retrieves names of all the stored wallets
+    pub fn names(&self) -> Result<Vec<String>> {
+        let keys = self.storage.keys(KEYSPACE)?;
+
+        keys.into_iter()
+            .map(|bytes| Ok(String::from_utf8(bytes).context(ErrorKind::DeserializationError)?))
+            .collect()
+    }
+
     /// Clears all storage
     pub fn clear(&self) -> Result<()> {
         self.storage.clear(KEYSPACE)
@@ -96,9 +105,11 @@ mod tests {
             .expect("Wallet with given name not found");
 
         assert_eq!(wallet_id, wallet_id_new, "Wallet ids should match");
+        assert_eq!("name".to_string(), wallet_service.names().unwrap()[0]);
 
         assert!(wallet_service.clear().is_ok());
 
         assert!(wallet_service.get("name", "passphrase").unwrap().is_none());
+        assert_eq!(0, wallet_service.names().unwrap().len());
     }
 }

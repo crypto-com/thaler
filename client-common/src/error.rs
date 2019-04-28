@@ -59,6 +59,12 @@ pub enum ErrorKind {
     /// Invalid transaction
     #[fail(display = "Invalid transaction")]
     InvalidTransaction,
+    /// Transaction not found
+    #[fail(display = "Transaction not found")]
+    TransactionNotFound,
+    /// Private key not found
+    #[fail(display = "Private key not found")]
+    PrivateKeyNotFound,
 }
 
 impl Fail for Error {
