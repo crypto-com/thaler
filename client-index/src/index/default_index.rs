@@ -3,6 +3,7 @@ use chrono::DateTime;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::TxAux;
@@ -24,6 +25,7 @@ where
     balance_service: BalanceService<S>,
     global_state_service: GlobalStateService<S>,
     transaction_service: TransactionService<S>,
+    unspent_transaction_service: UnspentTransactionService<S>,
     client: C,
 }
 
@@ -38,7 +40,8 @@ where
             address_service: AddressService::new(storage.clone()),
             balance_service: BalanceService::new(storage.clone()),
             global_state_service: GlobalStateService::new(storage.clone()),
-            transaction_service: TransactionService::new(storage),
+            transaction_service: TransactionService::new(storage.clone()),
+            unspent_transaction_service: UnspentTransactionService::new(storage),
             client,
         }
     }
@@ -73,72 +76,61 @@ where
         height: u64,
         time: DateTime<Utc>,
     ) -> Result<()> {
-        let changes = self.changes(transactions, height, time)?;
-
-        for change in changes {
-            self.balance_service
-                .change(&change.address, &change.balance_change)?;
-
-            self.address_service.add(change)?;
-        }
-
-        for transaction in transactions {
-            let id = transaction.id();
-            self.transaction_service.set(&id, transaction)?;
-        }
-
-        self.global_state_service.set_last_block_height(height)?;
-
-        Ok(())
-    }
-
-    /// Converts `[Tx] -> [TransactionChange]`
-    fn changes(
-        &self,
-        transactions: &[Tx],
-        height: u64,
-        time: DateTime<Utc>,
-    ) -> Result<Vec<TransactionChange>> {
-        let mut changes = Vec::new();
-
         for transaction in transactions {
             let id = transaction.id();
 
             for input in transaction.inputs.iter() {
-                let transaction = self.transaction_service.get(&input.id)?;
+                let output = self.output(&input.id, input.index)?;
 
-                match transaction {
-                    None => return Err(ErrorKind::InvalidTransaction.into()),
-                    Some(transaction) => {
-                        let index = input.index;
-                        let input = transaction.outputs.into_iter().nth(index);
+                let change = TransactionChange {
+                    transaction_id: id,
+                    address: output.address,
+                    balance_change: BalanceChange::Outgoing(output.value),
+                    height,
+                    time,
+                };
 
-                        match input {
-                            None => return Err(ErrorKind::InvalidTransaction.into()),
-                            Some(input) => changes.push(TransactionChange {
-                                transaction_id: id,
-                                address: input.address,
-                                balance_change: BalanceChange::Outgoing(input.value),
-                                height,
-                                time,
-                            }),
-                        }
-                    }
-                }
+                // Update balance
+                self.balance_service
+                    .change(&change.address, &change.balance_change)?;
+
+                // Update unspent transactions
+                self.unspent_transaction_service
+                    .remove(&change.address, input)?;
+
+                // Update transaction history
+                self.address_service.add(change)?;
             }
 
-            for output in transaction.outputs.iter() {
-                changes.push(TransactionChange {
+            for (i, output) in transaction.outputs.iter().enumerate() {
+                let change = TransactionChange {
                     transaction_id: id,
                     address: output.address.clone(),
                     balance_change: BalanceChange::Incoming(output.value),
                     height,
                     time,
-                });
+                };
+
+                // Update balance
+                self.balance_service
+                    .change(&change.address, &change.balance_change)?;
+
+                // Update unspent transactions
+                self.unspent_transaction_service
+                    .add(&change.address, (TxoPointer::new(id, i), output.value))?;
+
+                // Update transaction history
+                self.address_service.add(change)?;
             }
+
+            // Adding transaction to storage
+            self.transaction_service.set(&id, transaction)?;
         }
 
-        Ok(changes)
+        // Updating last block height
+        self.global_state_service.set_last_block_height(height)?;
+
+        Ok(())
     }
 }
 
@@ -187,6 +179,10 @@ where
 
     fn balance(&self, address: &ExtendedAddr) -> Result<Coin> {
         self.balance_service.get(address)
+    }
+
+    fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+        self.unspent_transaction_service.get(address)
     }
 
     fn transaction(&self, id: &TxId) -> Result<Option<Tx>> {
@@ -301,7 +297,9 @@ mod tests {
         );
 
         assert_eq!(2, index.transaction_changes(&spend_address).unwrap().len());
+        assert_eq!(0, index.unspent_transactions(&spend_address).unwrap().len());
         assert_eq!(1, index.transaction_changes(&view_address).unwrap().len());
+        assert_eq!(1, index.unspent_transactions(&view_address).unwrap().len());
 
         for change in index.transaction_changes(&spend_address).unwrap().iter() {
             assert!(index.transaction(&change.transaction_id).unwrap().is_some());
