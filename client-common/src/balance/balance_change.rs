@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use failure::ResultExt;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use chain_core::init::coin::Coin;
 

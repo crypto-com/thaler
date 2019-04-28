@@ -4,7 +4,7 @@ use std::str::FromStr;
 use chrono::offset::Utc;
 use chrono::DateTime;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
