@@ -65,6 +65,9 @@ pub enum ErrorKind {
     /// Private key not found
     #[fail(display = "Private key not found")]
     PrivateKeyNotFound,
+    /// Insufficient balance
+    #[fail(display = "Insufficient balance")]
+    InsufficientBalance,
 }
 
 impl Fail for Error {
