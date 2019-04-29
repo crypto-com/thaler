@@ -1,7 +1,5 @@
 #![cfg(feature = "rpc")]
 
-use std::sync::Arc;
-
 use failure::ResultExt;
 use jsonrpc::client::Client as JsonRpcClient;
 use serde::Deserialize;
@@ -14,27 +12,28 @@ use crate::{ErrorKind, Result};
 /// Tendermint RPC Client
 #[derive(Clone)]
 pub struct RpcClient {
-    inner: Arc<JsonRpcClient>,
+    url: String,
 }
 
 impl RpcClient {
     /// Creates a new instance of `RpcClient`
     pub fn new(url: &str) -> Self {
-        let inner = Arc::new(JsonRpcClient::new(url.to_owned(), None, None));
-
-        Self { inner }
+        Self {
+            url: url.to_owned(),
+        }
     }
 
     fn call<T>(&self, name: &str, params: &[Value]) -> Result<T>
     where
         for<'de> T: Deserialize<'de>,
     {
-        let request = self.inner.build_request(name, params);
+        // jsonrpc does not handle Hyper connection reset properly. The current
+        // inefficient workaround is to create a new client on every call.
+        // https://github.com/apoelstra/rust-jsonrpc/issues/26
+        let client = JsonRpcClient::new(self.url.to_owned(), None, None);
+        let request = client.build_request(name, params);
 
-        let response = self
-            .inner
-            .send_request(&request)
-            .context(ErrorKind::RpcError)?;
+        let response = client.send_request(&request).context(ErrorKind::RpcError)?;
 
         let result = response.result::<T>().context(ErrorKind::RpcError)?;
 
