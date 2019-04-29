@@ -142,109 +142,6 @@ pub struct WalletRequest {
     passphrase: String,
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     use client_core::{PrivateKey, PublicKey, WalletClient};
-//     use chain_core::init::address::RedeemAddress;
-//     use chain_core::init::coin::Coin;
-//     use chain_core::tx::data::address::ExtendedAddr;
-//     use chain_core::tx::data::Tx;
-//     use client_common::Result;
-//     use client_common::balance::TransactionChange;
-//     use std::str::FromStr;
-
-//     #[derive(Default)]
-//     pub struct MockClient;
-
-//     impl WalletClient for MockClient {
-//         fn wallets(&self) -> Result<Vec<String>> {
-//             Ok(vec!["Default".to_owned()])
-//         }
-
-//         /// Creates a new wallet with given name and returns wallet_id
-//         fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String> {
-//             Ok("Default".to_owned())
-//         }
-
-//         /// Retrieves all public keys corresponding to given wallet
-//         fn private_keys(&self, name: &str, passphrase: &str) -> Result<Vec<PrivateKey>> {
-//             Ok(vec![PrivateKey::new().unwrap()])
-//         }
-
-//         /// Retrieves all public keys corresponding to given wallet
-//         fn public_keys(&self, name: &str, passphrase: &str) -> Result<Vec<PublicKey>> {
-//             let private_key = PrivateKey::new().unwrap();
-//             Ok(vec![PublicKey::from(&private_key)])
-//         }
-
-//         /// Retrieves all addresses corresponding to given wallet
-//         fn addresses(&self, name: &str, passphrase: &str) -> Result<Vec<ExtendedAddr>> {
-//             Ok(vec![ExtendedAddr::BasicRedeem(
-//                 RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
-//             )])
-//         }
-
-//         /// Retrieves private key corresponding to given address
-//         fn private_key(
-//             &self,
-//             name: &str,
-//             passphrase: &str,
-//             address: &ExtendedAddr,
-//         ) -> Result<Option<PrivateKey>> {
-//             Ok(Some(PrivateKey::new().unwrap()))
-//         }
-
-//         /// Generates a new public key for given wallet
-//         fn new_public_key(&self, name: &str, passphrase: &str) -> Result<PublicKey> {
-//             Ok(PublicKey::from(&PrivateKey::new().unwrap()))
-//         }
-
-//         /// Generates a new address for given wallet
-//         fn new_address(&self, name: &str, passphrase: &str) -> Result<ExtendedAddr> {
-//             Ok(ExtendedAddr::BasicRedeem(
-//                 RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
-//             ))
-//         }
-
-//         /// Retrieves current balance of wallet
-//         fn balance(&self, name: &str, passphrase: &str) -> Result<Coin> {
-//             Ok(Coin::zero())
-//         }
-
-//         /// Retrieves transaction history of wallet
-//         fn history(&self, name: &str, passphrase: &str) -> Result<Vec<TransactionChange>> {
-//             Ok(vec![])
-//         }
-
-//         /// Broadcasts a transaction to Crypto.com Chain
-//         fn broadcast_transaction(&self, name: &str, passphrase: &str, transaction: Tx) -> Result<()> {
-//             Ok(())
-//         }
-
-//         /// Synchronizes index with Crypto.com Chain (from last known height)
-//         fn sync(&self) -> Result<()> {
-//             Ok(())
-//         }
-
-//         /// Synchronizes index with Crypto.com Chain (from genesis)
-//         fn sync_all(&self) -> Result<()> {
-//             Ok(())
-//         }
-//     }
-
-//     #[test]
-//     fn create_should_create_wallet() {
-//         let wallet_rpc = WalletRpcImpl::new(MockClient::default());
-
-//         assert_eq!("Default".to_owned(), wallet_rpc.create(WalletRequest {
-//             name: "Default".to_owned(),
-//             passphrase: "123456".to_owned(),
-//         }).unwrap());
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,6 +189,10 @@ mod tests {
             Ok(Coin::new(30).unwrap())
         }
 
+        fn unspent_transactions(&self, _address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+            Ok(Vec::new())
+        }
+
         fn transaction(&self, _: &TxId) -> Result<Option<Tx>> {
             Ok(Some(Tx {
                 inputs: vec![TxoPointer {
@@ -320,9 +221,7 @@ mod tests {
 
     #[test]
     fn test_create_duplicated_wallet() {
-        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
-        let wallet_rpc = WalletRpcImpl::new(wallet_client);
-        // let wallet_rpc = setup_wallet_rpc();
+        let wallet_rpc = setup_wallet_rpc();
 
         assert_eq!(
             "Default".to_owned(),
@@ -337,9 +236,7 @@ mod tests {
 
     #[test]
     fn test_create_and_list_wallet_flow() {
-        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
-        let wallet_rpc = WalletRpcImpl::new(wallet_client);
-        // let wallet_rpc = setup_wallet_rpc();
+        let wallet_rpc = setup_wallet_rpc();
 
         assert_eq!(
             0,
@@ -369,9 +266,7 @@ mod tests {
 
     #[test]
     fn test_create_and_list_wallet_addresses_flow() {
-        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
-        let wallet_rpc = WalletRpcImpl::new(wallet_client);
-        // let wallet_rpc = setup_wallet_rpc();
+        let wallet_rpc = setup_wallet_rpc();
 
         assert_eq!(
             to_rpc_error(Error::from(ErrorKind::WalletNotFound)),
@@ -388,11 +283,9 @@ mod tests {
 
     #[test]
     fn test_wallet_balance() {
-        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
-        let wallet_rpc = WalletRpcImpl::new(wallet_client);
-        // let wallet_rpc = setup_wallet_rpc();
+        let wallet_rpc = setup_wallet_rpc();
 
-        wallet_rpc.create(create_wallet_request("Default", "123456"));
+        wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap();
         assert_eq!(
             Coin::new(30).unwrap(),
             wallet_rpc.balance(create_wallet_request("Default", "123456")).unwrap()
@@ -401,22 +294,21 @@ mod tests {
 
     #[test]
     fn test_wallet_transactions() {
-        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
-        let wallet_rpc = WalletRpcImpl::new(wallet_client);
-        // let wallet_rpc = setup_wallet_rpc();
+        let wallet_rpc = setup_wallet_rpc();
 
-        wallet_rpc.create(create_wallet_request("Default", "123456"));
+        wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap();
         assert_eq!(
             1,
             wallet_rpc.transactions(create_wallet_request("Default", "123456")).unwrap().len()
         )
     }
 
-    // fn setup_wallet_rpc() -> WalletRpcImpl<DefaultWalletClient> {
-    //     let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+    fn setup_wallet_rpc() -> WalletRpcImpl<DefaultWalletClient<MemoryStorage, MockIndex>> {
+        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+        let chain_id = 171u8;
 
-    //     WalletRpcImpl::new(wallet_client)
-    // }
+        WalletRpcImpl::new(wallet_client, chain_id)
+    }
 
     fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
         WalletRequest {

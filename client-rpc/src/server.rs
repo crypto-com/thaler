@@ -34,7 +34,7 @@ impl Server {
         let tendermint_client = RpcClient::new("http://localhost:26657/");
         let index = DefaultIndex::new(storage.clone(), tendermint_client);
         let wallet_client = DefaultWalletClient::new(storage, index);
-        let wallet_rpc = WalletRpcImpl::new(wallet_client.clone(), self.chain_id);
+        let wallet_rpc = WalletRpcImpl::new(wallet_client, self.chain_id);
 
         let mut io = IoHandler::new();
         
