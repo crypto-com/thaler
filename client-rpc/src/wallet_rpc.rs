@@ -1,66 +1,60 @@
-use client_common::balance::TransactionChange;
-use chain_core::tx::data::address::ExtendedAddr;
-use chain_core::init::coin::{Coin};
-use client_core::wallet::{WalletClient};
 use jsonrpc_derive::rpc;
 use jsonrpc_http_server::jsonrpc_core;
 use serde::Deserialize;
+use std::str::FromStr;
+
+use client_common::balance::TransactionChange;
+use chain_core::tx::data::address::ExtendedAddr;
+use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::output::TxOut;
+use chain_core::init::address::RedeemAddress;
+use chain_core::init::coin::Coin;
+use client_core::wallet::WalletClient;
+
 use crate::server::{to_rpc_error, rpc_error_string};
 
 #[rpc]
 pub trait WalletRpc {
-    #[rpc(name = "wallet_create")]
-    fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String>;
+    #[rpc(name = "wallet_addresses")]
+    fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
 
     #[rpc(name = "wallet_balance")]
     fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin>;
 
-    #[rpc(name = "wallet_addresses")]
-    fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
-
-    #[rpc(name = "wallet_transactions")]
-    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>>;
+    #[rpc(name = "wallet_create")]
+    fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String>;
 
     #[rpc(name = "wallet_list")]
     fn list(&self) -> jsonrpc_core::Result<Vec<String>>;
+
+    #[rpc(name = "wallet_sendtoaddress")]
+    fn sendtoaddress(&self, request: WalletRequest, to_address: String, amount: u64) -> jsonrpc_core::Result<()>;
 
     #[rpc(name = "sync")]
     fn sync(&self) -> jsonrpc_core::Result<()>;
 
     #[rpc(name = "sync_all")]
     fn sync_all(&self) -> jsonrpc_core::Result<()>;
+
+    #[rpc(name = "wallet_transactions")]
+    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>>;
 }
 
 pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
     client: T,
+    chain_id: u8,
 }
 
 impl<T> WalletRpcImpl<T> where T: WalletClient + Send + Sync {
-    pub fn new(client: T) -> Self {
-        WalletRpcImpl { client }
+    pub fn new(client: T, chain_id: u8) -> Self {
+        WalletRpcImpl {
+            client,
+            chain_id,
+        }
     }
 }
 
 impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'static {
-    fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String> {
-        if let Err(e) = self.client.new_wallet(&request.name, &request.passphrase) {
-            return Err(to_rpc_error(e))
-        }
-
-        if let Err(e) = self.client.new_address(&request.name, &request.passphrase) {
-            Err(to_rpc_error(e))
-        } else {
-            Ok(request.name.clone())
-        }
-    }
-
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin> {
-        match self.client.balance(&request.name, &request.passphrase) {
-            Ok(balance) => Ok(balance),
-            Err(e) => Err(to_rpc_error(e)),
-        }
-    }
-
     fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>> {
         match self.client.addresses(&request.name, &request.passphrase) {
             Ok(addresses) => addresses.iter().map(|address| {
@@ -73,10 +67,22 @@ impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'st
         }
     }
 
-    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>> {
-        match self.client.history(&request.name, &request.passphrase) {
-            Ok(transaction_change) => Ok(transaction_change),
+    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin> {
+        match self.client.balance(&request.name, &request.passphrase) {
+            Ok(balance) => Ok(balance),
             Err(e) => Err(to_rpc_error(e)),
+        }
+    }
+
+    fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String> {
+        if let Err(e) = self.client.new_wallet(&request.name, &request.passphrase) {
+            return Err(to_rpc_error(e))
+        }
+
+        if let Err(e) = self.client.new_address(&request.name, &request.passphrase) {
+            Err(to_rpc_error(e))
+        } else {
+            Ok(request.name.clone())
         }
     }
 
@@ -84,6 +90,25 @@ impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'st
         match self.client.wallets() {
             Ok(wallets) => Ok(wallets),
             Err(e) => Err(to_rpc_error(e)),
+        }
+    }
+
+    fn sendtoaddress(&self, request: WalletRequest, to_address: String, amount: u64) -> jsonrpc_core::Result<()> {
+        let redeem_address = RedeemAddress::from_str(&to_address[..]).map_err(|err| rpc_error_string(format!("{}", err)))?;
+        let address = ExtendedAddr::BasicRedeem(redeem_address);
+        let coin = Coin::new(amount).map_err(|err| rpc_error_string(format!("{}", err)))?;
+        let tx_out = TxOut::new(address, coin);
+        let tx_attributes = TxAttributes::new(self.chain_id);
+
+        if let Err(e) = self.client.create_and_broadcast_transaction(
+            &request.name,
+            &request.passphrase,
+            vec![tx_out],
+            tx_attributes,
+        ) {
+            Err(to_rpc_error(e))
+        } else {
+            Ok(())
         }
     }
 
@@ -100,6 +125,13 @@ impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'st
             Err(to_rpc_error(e))
         } else {
             Ok(())
+        }
+    }
+
+    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>> {
+        match self.client.history(&request.name, &request.passphrase) {
+            Ok(transaction_change) => Ok(transaction_change),
+            Err(e) => Err(to_rpc_error(e)),
         }
     }
 }

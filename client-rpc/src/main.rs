@@ -2,6 +2,7 @@ mod server;
 mod wallet_rpc;
 
 use structopt::StructOpt;
+
 use server::Server;
 
 #[derive(StructOpt, Debug)]
@@ -15,10 +16,13 @@ struct Opt {
 
     #[structopt(name = "port", short, long, default_value = "9981", help = "JSON-RPC server port")]
     port: u16,
+
+    #[structopt(name = "chain-id", short, long, help = "Chain ID (Last two hex digits of chain-id)")]
+    chain_id: String,
 }
 
 fn main() {
     let opt = Opt::from_args();
 
-    Server::new(&opt.host[..], opt.port).start().unwrap();
+    Server::new(&opt.host[..], opt.port, &opt.chain_id[..]).unwrap().start().unwrap();
 }

@@ -209,8 +209,6 @@ where
     }
 
     fn broadcast_transaction(&self, name: &str, passphrase: &str, transaction: Tx) -> Result<()> {
-        println!("Tx: {:?}", transaction);
-
         let mut witnesses = Vec::with_capacity(transaction.inputs.len());
 
         for input in &transaction.inputs {
@@ -224,6 +222,7 @@ where
 
         let tx_aux = TxAux::new(transaction, witnesses.into());
 
+        println!("Hex: {:?}", &encode(&tx_aux));
         self.index.broadcast_transaction(&encode(&tx_aux))
     }
 
