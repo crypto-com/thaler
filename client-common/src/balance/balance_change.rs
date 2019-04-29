@@ -2,13 +2,14 @@ use std::ops::Add;
 
 use failure::ResultExt;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Deserialize, Serialize};
 
 use chain_core::init::coin::Coin;
 
 use crate::{ErrorKind, Result};
 
 /// Incoming or Outgoing balance change
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum BalanceChange {
     /// Represents balance addition
     Incoming(Coin),
