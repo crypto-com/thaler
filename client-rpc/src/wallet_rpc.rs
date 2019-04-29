@@ -77,6 +77,8 @@ where
     }
 
     fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin> {
+        self.sync()?;
+
         match self.client.balance(&request.name, &request.passphrase) {
             Ok(balance) => Ok(balance),
             Err(e) => Err(to_rpc_error(e)),
@@ -108,6 +110,8 @@ where
         to_address: String,
         amount: u64,
     ) -> jsonrpc_core::Result<()> {
+        self.sync()?;
+
         let redeem_address = RedeemAddress::from_str(&to_address[..])
             .map_err(|err| rpc_error_string(format!("{}", err)))?;
         let address = ExtendedAddr::BasicRedeem(redeem_address);
@@ -144,6 +148,8 @@ where
     }
 
     fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>> {
+        self.sync()?;
+
         match self.client.history(&request.name, &request.passphrase) {
             Ok(transaction_change) => Ok(transaction_change),
             Err(e) => Err(to_rpc_error(e)),
@@ -161,6 +167,7 @@ pub struct WalletRequest {
 mod tests {
     use super::*;
 
+    use chrono::DateTime;
     use std::str::FromStr;
     use std::time::SystemTime;
 
@@ -171,7 +178,6 @@ mod tests {
     use chain_core::tx::data::input::TxoPointer;
     use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
-    use chrono::DateTime;
     use client_common::balance::{BalanceChange, TransactionChange};
     use client_common::storage::MemoryStorage;
     use client_common::{Error, ErrorKind, Result};
