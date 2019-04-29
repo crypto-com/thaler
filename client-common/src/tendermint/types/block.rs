@@ -23,7 +23,7 @@ pub struct BlockInner {
 
 #[derive(Debug, Deserialize)]
 pub struct Data {
-    pub txs: Vec<String>,
+    pub txs: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -35,15 +35,16 @@ pub struct Header {
 impl Block {
     /// Returns transactions in a block (this may also contain invalid transactions)
     pub fn transactions(&self) -> Result<Vec<TxAux>> {
-        self.block
-            .data
-            .txs
-            .iter()
-            .map(|raw_tx| Ok(decode(&raw_tx).context(ErrorKind::DeserializationError)?))
-            .map(|bytes: Result<Vec<u8>>| {
-                Ok(rlp::decode(&bytes?).context(ErrorKind::DeserializationError)?)
-            })
-            .collect::<Result<Vec<TxAux>>>()
+        match &self.block.data.txs {
+            None => Ok(Vec::new()),
+            Some(txs) => txs
+                .iter()
+                .map(|raw_tx| Ok(decode(&raw_tx).context(ErrorKind::DeserializationError)?))
+                .map(|bytes: Result<Vec<u8>>| {
+                    Ok(rlp::decode(&bytes?).context(ErrorKind::DeserializationError)?)
+                })
+                .collect::<Result<Vec<TxAux>>>(),
+        }
     }
 
     /// Returns height of this block
@@ -77,7 +78,7 @@ mod tests {
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
                 data: Data {
-                    txs: vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()]
+                    txs: Some(vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()])
                 }
             }
         };
@@ -93,7 +94,7 @@ mod tests {
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
                 data: Data {
-                    txs: vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaA4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()]
+                    txs: Some(vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaA4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()])
                 }
             }
         };
@@ -110,7 +111,7 @@ mod tests {
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
                 data: Data {
-                    txs: vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()]
+                    txs: Some(vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()])
                 }
             }
         };
@@ -127,11 +128,25 @@ mod tests {
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
                 data: Data {
-                    txs: vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()]
+                    txs: Some(vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()])
                 }
             }
         };
 
         assert!(block.height().is_err());
+    }
+
+    #[test]
+    fn check_null_transactions() {
+        let block = Block {
+            block: BlockInner {
+                header: Header {
+                    height: "1".to_owned(),
+                    time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                },
+                data: Data { txs: None },
+            },
+        };
+        assert_eq!(0, block.transactions().unwrap().len());
     }
 }

@@ -17,7 +17,7 @@ pub struct BlockResults {
 #[derive(Debug, Deserialize)]
 pub struct Results {
     #[serde(rename = "DeliverTx")]
-    pub deliver_tx: Vec<DeliverTx>,
+    pub deliver_tx: Option<Vec<DeliverTx>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -34,23 +34,29 @@ pub struct Tag {
 impl BlockResults {
     /// Returns valid transaction ids in block results
     pub fn ids(&self) -> Result<HashSet<TxId>> {
-        let mut transactions: HashSet<TxId> = HashSet::with_capacity(self.results.deliver_tx.len());
+        match &self.results.deliver_tx {
+            None => Ok(HashSet::new()),
+            Some(deliver_tx) => {
+                let mut transactions: HashSet<TxId> = HashSet::with_capacity(deliver_tx.len());
 
-        for transaction in self.results.deliver_tx.iter() {
-            for tag in transaction.tags.iter() {
-                let decoded = decode(&tag.value).context(ErrorKind::DeserializationError)?;
-                if 32 != decoded.len() {
-                    return Err(ErrorKind::DeserializationError.into());
+                for transaction in deliver_tx.iter() {
+                    for tag in transaction.tags.iter() {
+                        let decoded =
+                            decode(&tag.value).context(ErrorKind::DeserializationError)?;
+                        if 32 != decoded.len() {
+                            return Err(ErrorKind::DeserializationError.into());
+                        }
+
+                        let mut id: [u8; 32] = [0; 32];
+                        id.copy_from_slice(&decoded);
+
+                        transactions.insert(id.into());
+                    }
                 }
 
-                let mut id: [u8; 32] = [0; 32];
-                id.copy_from_slice(&decoded);
-
-                transactions.insert(id.into());
+                Ok(transactions)
             }
         }
-
-        Ok(transactions)
     }
 }
 
@@ -63,12 +69,12 @@ mod tests {
         let block_results = BlockResults {
             height: "2".to_owned(),
             results: Results {
-                deliver_tx: vec![DeliverTx {
+                deliver_tx: Some(vec![DeliverTx {
                     tags: vec![Tag {
                         key: "dHhpZA==".to_owned(),
                         value: "kOzcmhZgAAaw5roBdqDNniwRjjKNe+foJEiDAOObTDQ=".to_owned(),
                     }],
-                }],
+                }]),
             },
         };
         assert_eq!(1, block_results.ids().unwrap().len());
@@ -79,15 +85,24 @@ mod tests {
         let block_results = BlockResults {
             height: "2".to_owned(),
             results: Results {
-                deliver_tx: vec![DeliverTx {
+                deliver_tx: Some(vec![DeliverTx {
                     tags: vec![Tag {
                         key: "dHhpZA==".to_owned(),
                         value: "kOzcmhZgAAaw5riwRjjKNe+foJEiDAOObTDQ=".to_owned(),
                     }],
-                }],
+                }]),
             },
         };
 
         assert!(block_results.ids().is_err());
+    }
+
+    #[test]
+    fn check_null_deliver_tx() {
+        let block_results = BlockResults {
+            height: "2".to_owned(),
+            results: Results { deliver_tx: None },
+        };
+        assert_eq!(0, block_results.ids().unwrap().len());
     }
 }
