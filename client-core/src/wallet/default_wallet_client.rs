@@ -222,7 +222,6 @@ where
 
         let tx_aux = TxAux::new(transaction, witnesses.into());
 
-        println!("Hex: {:?}", &encode(&tx_aux));
         self.index.broadcast_transaction(&encode(&tx_aux))
     }
 
