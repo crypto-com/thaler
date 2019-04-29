@@ -18,7 +18,9 @@ pub struct RpcClient {
 impl RpcClient {
     /// Creates a new instance of `RpcClient`
     pub fn new(url: &str) -> Self {
-        Self { url: url.to_owned() }
+        Self {
+            url: url.to_owned(),
+        }
     }
 
     fn call<T>(&self, name: &str, params: &[Value]) -> Result<T>
@@ -31,9 +33,7 @@ impl RpcClient {
         let client = JsonRpcClient::new(self.url.to_owned(), None, None);
         let request = client.build_request(name, params);
 
-        let response = client
-            .send_request(&request)
-            .context(ErrorKind::RpcError)?;
+        let response = client.send_request(&request).context(ErrorKind::RpcError)?;
 
         let result = response.result::<T>().context(ErrorKind::RpcError)?;
 

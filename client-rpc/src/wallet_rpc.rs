@@ -3,15 +3,15 @@ use jsonrpc_http_server::jsonrpc_core;
 use serde::Deserialize;
 use std::str::FromStr;
 
-use client_common::balance::TransactionChange;
+use chain_core::init::address::RedeemAddress;
+use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
-use chain_core::init::address::RedeemAddress;
-use chain_core::init::coin::Coin;
+use client_common::balance::TransactionChange;
 use client_core::wallet::WalletClient;
 
-use crate::server::{to_rpc_error, rpc_error_string};
+use crate::server::{rpc_error_string, to_rpc_error};
 
 #[rpc]
 pub trait WalletRpc {
@@ -28,7 +28,12 @@ pub trait WalletRpc {
     fn list(&self) -> jsonrpc_core::Result<Vec<String>>;
 
     #[rpc(name = "wallet_sendtoaddress")]
-    fn sendtoaddress(&self, request: WalletRequest, to_address: String, amount: u64) -> jsonrpc_core::Result<()>;
+    fn sendtoaddress(
+        &self,
+        request: WalletRequest,
+        to_address: String,
+        amount: u64,
+    ) -> jsonrpc_core::Result<()>;
 
     #[rpc(name = "sync")]
     fn sync(&self) -> jsonrpc_core::Result<()>;
@@ -45,24 +50,28 @@ pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
     chain_id: u8,
 }
 
-impl<T> WalletRpcImpl<T> where T: WalletClient + Send + Sync {
+impl<T> WalletRpcImpl<T>
+where
+    T: WalletClient + Send + Sync,
+{
     pub fn new(client: T, chain_id: u8) -> Self {
-        WalletRpcImpl {
-            client,
-            chain_id,
-        }
+        WalletRpcImpl { client, chain_id }
     }
 }
 
-impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'static {
+impl<T> WalletRpc for WalletRpcImpl<T>
+where
+    T: WalletClient + Send + Sync + 'static,
+{
     fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>> {
         match self.client.addresses(&request.name, &request.passphrase) {
-            Ok(addresses) => addresses.iter().map(|address| {
-                match address {
+            Ok(addresses) => addresses
+                .iter()
+                .map(|address| match address {
                     ExtendedAddr::BasicRedeem(address) => Ok(format!("{}", address)),
                     _ => Err(rpc_error_string("Unsupported address format".to_owned())),
-                }
-            }).collect(),
+                })
+                .collect(),
             Err(e) => Err(to_rpc_error(e)),
         }
     }
@@ -76,7 +85,7 @@ impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'st
 
     fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String> {
         if let Err(e) = self.client.new_wallet(&request.name, &request.passphrase) {
-            return Err(to_rpc_error(e))
+            return Err(to_rpc_error(e));
         }
 
         if let Err(e) = self.client.new_address(&request.name, &request.passphrase) {
@@ -93,8 +102,14 @@ impl<T> WalletRpc for WalletRpcImpl<T> where T: WalletClient + Send + Sync + 'st
         }
     }
 
-    fn sendtoaddress(&self, request: WalletRequest, to_address: String, amount: u64) -> jsonrpc_core::Result<()> {
-        let redeem_address = RedeemAddress::from_str(&to_address[..]).map_err(|err| rpc_error_string(format!("{}", err)))?;
+    fn sendtoaddress(
+        &self,
+        request: WalletRequest,
+        to_address: String,
+        amount: u64,
+    ) -> jsonrpc_core::Result<()> {
+        let redeem_address = RedeemAddress::from_str(&to_address[..])
+            .map_err(|err| rpc_error_string(format!("{}", err)))?;
         let address = ExtendedAddr::BasicRedeem(redeem_address);
         let coin = Coin::new(amount).map_err(|err| rpc_error_string(format!("{}", err)))?;
         let tx_out = TxOut::new(address, coin);
@@ -149,8 +164,6 @@ mod tests {
     use std::str::FromStr;
     use std::time::SystemTime;
 
-    use chrono::DateTime;
-    use client_core::wallet::DefaultWalletClient;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::tx::data::address::ExtendedAddr;
@@ -158,9 +171,11 @@ mod tests {
     use chain_core::tx::data::input::TxoPointer;
     use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
+    use chrono::DateTime;
     use client_common::balance::{BalanceChange, TransactionChange};
     use client_common::storage::MemoryStorage;
     use client_common::{Error, ErrorKind, Result};
+    use client_core::wallet::DefaultWalletClient;
     use client_index::Index;
 
     #[derive(Default)]
@@ -225,12 +240,16 @@ mod tests {
 
         assert_eq!(
             "Default".to_owned(),
-            wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap()
+            wallet_rpc
+                .create(create_wallet_request("Default", "123456"))
+                .unwrap()
         );
 
         assert_eq!(
             to_rpc_error(Error::from(ErrorKind::AlreadyExists)),
-            wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap_err()
+            wallet_rpc
+                .create(create_wallet_request("Default", "123456"))
+                .unwrap_err()
         );
     }
 
@@ -238,24 +257,22 @@ mod tests {
     fn test_create_and_list_wallet_flow() {
         let wallet_rpc = setup_wallet_rpc();
 
-        assert_eq!(
-            0,
-            wallet_rpc.list().unwrap().len()
-        );
+        assert_eq!(0, wallet_rpc.list().unwrap().len());
 
         assert_eq!(
             "Default".to_owned(),
-            wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap()
+            wallet_rpc
+                .create(create_wallet_request("Default", "123456"))
+                .unwrap()
         );
 
-        assert_eq!(
-            vec!["Default"],
-            wallet_rpc.list().unwrap()
-        );
+        assert_eq!(vec!["Default"], wallet_rpc.list().unwrap());
 
         assert_eq!(
             "Personal".to_owned(),
-            wallet_rpc.create(create_wallet_request("Personal", "123456")).unwrap()
+            wallet_rpc
+                .create(create_wallet_request("Personal", "123456"))
+                .unwrap()
         );
 
         let wallet_list = wallet_rpc.list().unwrap();
@@ -270,25 +287,39 @@ mod tests {
 
         assert_eq!(
             to_rpc_error(Error::from(ErrorKind::WalletNotFound)),
-            wallet_rpc.addresses(create_wallet_request("Default", "123456")).unwrap_err()
+            wallet_rpc
+                .addresses(create_wallet_request("Default", "123456"))
+                .unwrap_err()
         );
 
         assert_eq!(
             "Default".to_owned(),
-            wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap()
+            wallet_rpc
+                .create(create_wallet_request("Default", "123456"))
+                .unwrap()
         );
 
-        assert_eq!(1, wallet_rpc.addresses(create_wallet_request("Default", "123456")).unwrap().len());
+        assert_eq!(
+            1,
+            wallet_rpc
+                .addresses(create_wallet_request("Default", "123456"))
+                .unwrap()
+                .len()
+        );
     }
 
     #[test]
     fn test_wallet_balance() {
         let wallet_rpc = setup_wallet_rpc();
 
-        wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap();
+        wallet_rpc
+            .create(create_wallet_request("Default", "123456"))
+            .unwrap();
         assert_eq!(
             Coin::new(30).unwrap(),
-            wallet_rpc.balance(create_wallet_request("Default", "123456")).unwrap()
+            wallet_rpc
+                .balance(create_wallet_request("Default", "123456"))
+                .unwrap()
         )
     }
 
@@ -296,15 +327,21 @@ mod tests {
     fn test_wallet_transactions() {
         let wallet_rpc = setup_wallet_rpc();
 
-        wallet_rpc.create(create_wallet_request("Default", "123456")).unwrap();
+        wallet_rpc
+            .create(create_wallet_request("Default", "123456"))
+            .unwrap();
         assert_eq!(
             1,
-            wallet_rpc.transactions(create_wallet_request("Default", "123456")).unwrap().len()
+            wallet_rpc
+                .transactions(create_wallet_request("Default", "123456"))
+                .unwrap()
+                .len()
         )
     }
 
     fn setup_wallet_rpc() -> WalletRpcImpl<DefaultWalletClient<MemoryStorage, MockIndex>> {
-        let wallet_client = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+        let wallet_client =
+            DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
         let chain_id = 171u8;
 
         WalletRpcImpl::new(wallet_client, chain_id)
@@ -317,4 +354,3 @@ mod tests {
         }
     }
 }
-

@@ -1,11 +1,11 @@
+use failure::ResultExt;
 use hex;
 use jsonrpc_http_server::jsonrpc_core;
 use jsonrpc_http_server::jsonrpc_core::{IoHandler, Value};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
 use std::net::SocketAddr;
-use failure::ResultExt;
 
-use client_common::error::{Result, Error, ErrorKind};
+use client_common::error::{Error, ErrorKind, Result};
 use client_common::storage::SledStorage;
 use client_common::tendermint::RpcClient;
 use client_core::wallet::DefaultWalletClient;
@@ -20,7 +20,7 @@ pub struct Server {
 }
 
 impl Server {
-    pub fn new(host: &str, port: u16, chain_id: &str) -> Result<Server>{
+    pub fn new(host: &str, port: u16, chain_id: &str) -> Result<Server> {
         let chain_id = hex::decode(chain_id).context(ErrorKind::SerializationError)?[0];
         Ok(Server {
             host: String::from(host),
@@ -37,14 +37,14 @@ impl Server {
         let wallet_rpc = WalletRpcImpl::new(wallet_client, self.chain_id);
 
         let mut io = IoHandler::new();
-        
+
         io.extend_with(wallet_rpc.to_delegate());
-        io.add_method("say_hello", |_| {
-            Ok(Value::String("hello".into()))
-        });
+        io.add_method("say_hello", |_| Ok(Value::String("hello".into())));
 
         let server = ServerBuilder::new(io)
-            .cors(DomainsValidation::AllowOnly(vec![AccessControlAllowOrigin::Any]))
+            .cors(DomainsValidation::AllowOnly(vec![
+                AccessControlAllowOrigin::Any,
+            ]))
             .start_http(&SocketAddr::new(self.host.parse().unwrap(), self.port))
             .expect("Unable to start JSON-RPC server");
 
