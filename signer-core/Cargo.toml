@@ -12,7 +12,7 @@ failure = "0.1"
 zeroize = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 hex = "0.3"
-unicase = "2.2"
+unicase = "2.4"
 sled = "0.23"
 bincode = "1.1"
 miscreant = "^0.4.2"
