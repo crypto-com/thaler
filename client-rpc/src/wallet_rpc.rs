@@ -19,7 +19,7 @@ pub trait WalletRpc {
     fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
 
     #[rpc(name = "wallet_balance")]
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin>;
+    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<String>;
 
     #[rpc(name = "wallet_create")]
     fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String>;
@@ -32,7 +32,7 @@ pub trait WalletRpc {
         &self,
         request: WalletRequest,
         to_address: String,
-        amount: u64,
+        amount: String,
     ) -> jsonrpc_core::Result<()>;
 
     #[rpc(name = "sync")]
@@ -78,11 +78,11 @@ where
         }
     }
 
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin> {
+    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<String> {
         self.sync()?;
 
         match self.client.balance(&request.name, &request.passphrase) {
-            Ok(balance) => Ok(balance),
+            Ok(balance) => Ok(format!("{}", *balance)),
             Err(e) => Err(to_rpc_error(e)),
         }
     }
@@ -110,8 +110,9 @@ where
         &self,
         request: WalletRequest,
         to_address: String,
-        amount: u64,
+        amount: String,
     ) -> jsonrpc_core::Result<()> {
+        let amount: u64 = amount.parse::<u64>().map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         self.sync()?;
 
         let redeem_address = RedeemAddress::from_str(&to_address[..])
@@ -325,11 +326,11 @@ mod tests {
             .create(create_wallet_request("Default", "123456"))
             .unwrap();
         assert_eq!(
-            Coin::new(30).unwrap(),
+            "30".to_owned(),
             wallet_rpc
                 .balance(create_wallet_request("Default", "123456"))
                 .unwrap()
-        )
+        );
     }
 
     #[test]
@@ -345,6 +346,22 @@ mod tests {
                 .transactions(create_wallet_request("Default", "123456"))
                 .unwrap()
                 .len()
+        );
+    }
+
+    #[test]
+    fn test_wallet_sendtoaddress_with_invalid_amount() {
+        let wallet_rpc = setup_wallet_rpc();
+
+        wallet_rpc
+            .create(create_wallet_request("Default", "123456"))
+            .unwrap();
+        let to_address = "0x066102dfe35f769dab65c54a0cc886c463ce2291".to_owned();
+        let amount = "1234.1".to_owned();
+        assert!(
+            wallet_rpc
+                .sendtoaddress(create_wallet_request("Default", "123456"), to_address, amount)
+                .is_err()
         )
     }
 
