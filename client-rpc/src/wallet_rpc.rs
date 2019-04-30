@@ -11,7 +11,7 @@ use chain_core::tx::data::output::TxOut;
 use client_common::balance::TransactionChange;
 use client_core::wallet::WalletClient;
 
-use crate::server::{rpc_error_string, to_rpc_error};
+use crate::server::{rpc_error_from_string, to_rpc_error};
 
 #[rpc]
 pub trait WalletRpc {
@@ -69,7 +69,7 @@ where
                 .iter()
                 .map(|address| match address {
                     ExtendedAddr::BasicRedeem(address) => Ok(format!("{}", address)),
-                    _ => Err(rpc_error_string("Unsupported address format".to_owned())),
+                    _ => Err(rpc_error_from_string("Unsupported address format".to_owned())),
                 })
                 .collect(),
             Err(e) => Err(to_rpc_error(e)),
@@ -113,9 +113,9 @@ where
         self.sync()?;
 
         let redeem_address = RedeemAddress::from_str(&to_address[..])
-            .map_err(|err| rpc_error_string(format!("{}", err)))?;
+            .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let address = ExtendedAddr::BasicRedeem(redeem_address);
-        let coin = Coin::new(amount).map_err(|err| rpc_error_string(format!("{}", err)))?;
+        let coin = Coin::new(amount).map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let tx_out = TxOut::new(address, coin);
         let tx_attributes = TxAttributes::new(self.chain_id);
 

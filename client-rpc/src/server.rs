@@ -62,7 +62,7 @@ pub(crate) fn to_rpc_error(error: Error) -> jsonrpc_core::Error {
     }
 }
 
-pub(crate) fn rpc_error_string(error: String) -> jsonrpc_core::Error {
+pub(crate) fn rpc_error_from_string(error: String) -> jsonrpc_core::Error {
     jsonrpc_core::Error {
         code: jsonrpc_core::ErrorCode::InternalError,
         message: error,
