@@ -1,41 +1,41 @@
-# Crypto.com Chain Client
+# Crypto.com Chain Client (client-core)
 
-This crate exposes following functionalities for interacting with Crypto.com Chain:
+This crate provides `WalletClient` trait which is responsible for interacting with transaction index and provide
+following functionalities on per-wallet basis:
+
 - Wallet creation
 - Address generation
-- Transaction syncing and storage
 - Balance tracking
-- Transaction creation and signing
+- Transaction history
+- Transaction creation and signing (with automatic unspent transaction selection)
 
 ## Design
 
 Below is a high level design diagram of this crate:
 
 <div class = "design_diagram">
-    <img src="./client_design.png" alt="Client Design" />
+    <img src="./client-core.png" alt="Client Core Design" />
 </div>
 
-### `Storage` trait
+### `WalletClient` trait
 
-This trait declares APIs for different database operations such as `clear`, `get`, `set`, `contains_key`, etc. This 
-crate provides a default implementation (`SledStorage`) of this trait using `Sled` embedded database.
+This trait declares APIs for accessing various functionalities for a wallet:
 
-### `SecureStorage` trait
+- Wallet creation and retrieval: `new_wallet()` and `wallets()` functions.
+- Address generation and retrieval: `new_address()` and `addresses()` functions.
+- Balance tracking: `balance()` function.
+- Transaction history: `history()` function.
+- Transaction creation and signing: `create_and_broadcast_transaction()` function. This function also handles automatic
+unspent transaction selection.
 
-This trait exposes APIs for securely getting and setting values in `Storage`. This crates is automatically implemented
-for all the types implementing `Storage` trait.
-
-### `Chain` trait
-
-This trait exposes APIs for communicating with Crypto.com Chain via ABCI. Currently, this crate exposes following APIs:
-- `query_transaction_changes`: Queries Crypto.com chain for balance changes for different `addresses` from
-  `last_block_height`.
+Besides above functions, `WalletClient` also exposes `sync()` and `sync_all()` functions which are used to synchronize
+transaction index with Crypto.com Chain. This synchronization mechanism is subject to change. Currently, a default 
+implementation (`DefaultWalletClient`) of `WalletClient` is provided.
 
 ### Services
 
-`Storage` implementation provide generic APIs over any storage backend. In order to provide intended public interface
-(`Wallet`) through this crate, we need specific services for handling storage of different entities, like, keys, 
-wallets, balance, and transactions.
+`WalletClient` exposes a public interface for interacting with a **wallet**. In order to provide these capabilities, `DefaultWallet` delegates storage of each type of entity to its own _Service_. Currently, there are
+following services:
 
 #### `KeyService`
 
@@ -50,47 +50,9 @@ wallets, balance, and transactions.
    before storing it in `Storage`.
 - `get`: Retrieves a `wallet_id` from `Storage` and decrypts it with given `passphrase`.
 
-#### `BalanceService`
-
-`BalanceService` exposes balance related operations (`sync`, `sync_all` and `get_balance`) on top of any `Storage` and
-`Chain` implementation.
-- `sync`: Updates balance for given `wallet_id` and `addresses` after querying new transactions from Crypto.com Chain. 
-  This function first retrieves current `balance` and `last_block_height` from `Storage` and then queries `Chain` for 
-  any updates since `last_block_height`. After successful query, it updates the data in `Storage`.
-- `sync_all`: This works in similar way as `sync` except it sets `last_block_height = 0` and queries for all the
-  transactions since genesis block.
-- `get_balance`: Returns balance for a given `wallet_id` from `Storage`.
-
-### `Wallet` trait
-
-Crypto.com exposes public interface through `Wallet` trait which contains following functions with default 
-implementations: 
-
-- `new_wallet`: Creates a new wallet with given `name` and encrypts it with given `passphrase`. This function internally
-  calls `crate` function of `WalletService`. 
-- `get_public_keys`: Retrieves all public keys corresponding to given wallet `name` and `passphrase`. This function
-  internally uses `KeyService` for get this information.
-- `get_addresses`: Retrieves all addresses corresponding to given wallet `name` and `passphrase`. This function 
-  internally uses `KeyService` for get this information.
-- `generate_public_key`: Generates a new public key for given wallet `name` and `passphrase`. This function internally
-  uses `KeyService`.
-- `generate_address`: Generates a new address (redeem) for given wallet `name` and `passphrase`. This function 
-  internally uses `KeyService`.
-- `get_balance`: Retrieves current balance for given wallet `name` and `passphrase`. This function internally uses
-  `BalanceService` to get the balance.
-- `sync_balance`: Synchronizes and returns current balance for given wallet `name` and `passphrase`. This function
-  internally uses `BalanceService::sync` to synchronize balance.
-- `recalculate_balance`: Recalculate current balance for given wallet `name` and `passphrase` from genesis. This 
-  function internally uses `BalanceService::sync_all` to synchronize balance.
-
 ## API Documentation
 
 To see this crate's API docs. Run following command from `chain` directory.
 ```
 cargo doc --package client-core --no-deps --open
 ```
-
-### Warning
-
-This is a work-in-progress crate and is unusable in its current state. These is no implementation for Chain ABCI client
-(`Chain` trait) as of now.
