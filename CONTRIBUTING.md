@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in contributing to Chain! Good places to start are this document and [the official documentation](https://github.com/crypto-com/chain-docs). If you have any questions, feel free to ask on [Matrix](https://riot.im/app/#/room/#cro:matrix.org).
+Thank you for your interest in contributing to Chain! Good places to start are this document and [the official documentation](https://github.com/crypto-com/chain-docs). If you have any questions, feel free to ask on [Gitter](https://gitter.im/crypto-com/community?utm_source=share-link&utm_medium=link&utm_campaign=share-link).
 
 
 ## Code of Conduct
