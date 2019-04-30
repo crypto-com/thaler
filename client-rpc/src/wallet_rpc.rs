@@ -285,8 +285,8 @@ mod tests {
 
         let wallet_list = wallet_rpc.list().unwrap();
         assert_eq!(2, wallet_list.len());
-        assert_eq!("Default", wallet_list[0]);
-        assert_eq!("Personal", wallet_list[1]);
+        assert!(wallet_list.contains(&"Default".to_owned()));
+        assert!(wallet_list.contains(&"Personal".to_owned()));
     }
 
     #[test]
