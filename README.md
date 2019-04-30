@@ -5,7 +5,7 @@
 # Crypto.com Chain
 [![Build Status](https://travis-ci.org/crypto-com/chain.svg?branch=master)](https://travis-ci.org/crypto-com/chain)
 [![codecov](https://codecov.io/gh/crypto-com/chain/branch/master/graph/badge.svg)](https://codecov.io/gh/crypto-com/chain)
-[![riot.im](https://img.shields.io/badge/riot.im-JOIN%20CHAT-green.svg)](https://riot.im/app/#/room/#cro:matrix.org)
+[![Gitter](https://badges.gitter.im/crypto-com/community.svg)](https://gitter.im/crypto-com/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
 This repository contains the pre-alpha version prototype implementation of Crypto.com Chain. The current repository consists of the following Rust sub-crates:
 
@@ -167,4 +167,4 @@ http://localhost:26657/broadcast_tx_sync?tx=0xa200a30081a200982018f318bc18441829
 
 * [Project Website](http://crypto.com/chain)
 * Community chatrooms (non-technical): [Discord](https://discord.gg/nsp9JTC) [Telegram](https://t.me/CryptoComOfficial)
-* Developer community chatroom (technical): [![riot.im](https://img.shields.io/badge/riot.im-JOIN%20CHAT-green.svg)](https://riot.im/app/#/room/#cro:matrix.org)
+* Developer community chatroom (technical): [![Gitter](https://badges.gitter.im/crypto-com/community.svg)](https://gitter.im/crypto-com/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
