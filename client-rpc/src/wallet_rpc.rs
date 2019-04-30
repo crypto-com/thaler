@@ -159,6 +159,7 @@ where
     }
 }
 
+// TODO: should use secure string and cleared when no longer needed
 #[derive(Debug, Deserialize)]
 pub struct WalletRequest {
     name: String,
