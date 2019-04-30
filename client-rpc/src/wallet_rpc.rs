@@ -112,7 +112,9 @@ where
         to_address: String,
         amount: String,
     ) -> jsonrpc_core::Result<()> {
-        let amount: u64 = amount.parse::<u64>().map_err(|err| rpc_error_from_string(format!("{}", err)))?;
+        let amount: u64 = amount
+            .parse::<u64>()
+            .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         self.sync()?;
 
         let redeem_address = RedeemAddress::from_str(&to_address[..])
@@ -358,11 +360,13 @@ mod tests {
             .unwrap();
         let to_address = "0x066102dfe35f769dab65c54a0cc886c463ce2291".to_owned();
         let amount = "1234.1".to_owned();
-        assert!(
-            wallet_rpc
-                .sendtoaddress(create_wallet_request("Default", "123456"), to_address, amount)
-                .is_err()
-        )
+        assert!(wallet_rpc
+            .sendtoaddress(
+                create_wallet_request("Default", "123456"),
+                to_address,
+                amount
+            )
+            .is_err())
     }
 
     fn setup_wallet_rpc() -> WalletRpcImpl<DefaultWalletClient<MemoryStorage, MockIndex>> {
