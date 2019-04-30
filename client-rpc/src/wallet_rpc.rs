@@ -69,7 +69,9 @@ where
                 .iter()
                 .map(|address| match address {
                     ExtendedAddr::BasicRedeem(address) => Ok(format!("{}", address)),
-                    _ => Err(rpc_error_from_string("Unsupported address format".to_owned())),
+                    _ => Err(rpc_error_from_string(
+                        "Unsupported address format".to_owned(),
+                    )),
                 })
                 .collect(),
             Err(e) => Err(to_rpc_error(e)),
