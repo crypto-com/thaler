@@ -6,6 +6,7 @@ members = [
     "client-common",
     "client-core",
     "client-index",
+    "client-rpc",
     "dev-utils",
     "kvdb",
     "kvdb-memorydb",
