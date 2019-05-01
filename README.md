@@ -17,11 +17,12 @@ This repository contains the pre-alpha version prototype implementation of Crypt
 
 * *signer-[cli|core|rpc]*: work-in-progress infrastructure for client code, such as wallet implementations and third party integrations.
 
-* *client-[common|index|core]*: Client backend implementation for transaction creation and wallet management. Follow
+* *client-[common|index|core|rpc]*: Client backend implementation for transaction creation and wallet management. Follow
 these links for more details:
   - [client-common](./client-common/README.md)
   - [client-index](./client-index/README.md)
   - [client-core](./client-core/README.md)
+  - [client-rpc](./client-rpc/README.md)
 
 ## Contributing
 Please abide by the [Code of Conduct](CODE_OF_CONDUCT.md) in all interactions,
