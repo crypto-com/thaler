@@ -15,7 +15,7 @@ The string passed to `chain_id` is the last two hex digits of the chain id.
 - `host`: The host name of the server
 - `port`: The port the server should listen to
 
-## Wallet Reauest argument
+## Wallet Request argument
 
 Most of the JSON-RPC accepts a WalletRequest, which has the following structures:
 - name
@@ -29,7 +29,7 @@ Most of the JSON-RPC accepts a WalletRequest, which has the following structures
 }
 ```
 
-## JSON-RPC avaiable:
+## JSON-RPC available:
 
 - wallet_create
   - Create a wallet with a new address
@@ -56,9 +56,9 @@ Most of the JSON-RPC accepts a WalletRequest, which has the following structures
     2. To address: String
     3. Balance: String
 - wallet_transactions
-  - List all transactions of a walle
+  - List all transactions of a wallet
   - Arguments
-    1. Wallet Requestt
+    1. Wallet Request
   - Result
     - Transaction Change List: TransactionChange[]
 - sync
