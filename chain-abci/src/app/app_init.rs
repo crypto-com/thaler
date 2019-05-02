@@ -4,6 +4,7 @@ use chain_core::common::merkle::MerkleTree;
 use chain_core::common::Timespec;
 use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::init::config::InitConfig;
+use chain_core::state::BlockHeight;
 use chain_core::tx::{
     data::{attribute::TxAttributes, Tx, TxId},
     TxAux,
@@ -21,11 +22,9 @@ pub struct ChainNodeApp {
     /// the underlying key-value storage (+ possibly some info in the future)
     pub storage: Storage,
     /// last processed block height
-    pub last_block_height: i64,
+    pub last_block_height: BlockHeight,
     /// next block height
-    pub uncommitted_block_height: i64,
-    /// sanity check -- TODO: remove when this is checked in the ABCI lib
-    pub uncommitted_block: bool,
+    pub uncommitted_block_height: BlockHeight,
     /// valid transactions after DeliverTx before EndBlock/Commit
     pub delivered_txs: Vec<TxAux>,
     /// a reference to genesis (used when there is no committed state)
@@ -68,9 +67,8 @@ impl ChainNodeApp {
                 .expect("genesis app hash should be stored");
             ChainNodeApp {
                 storage,
-                last_block_height: 0,
-                uncommitted_block_height: 0,
-                uncommitted_block: false,
+                last_block_height: 0.into(),
+                uncommitted_block_height: 0.into(),
                 delivered_txs: Vec::new(),
                 last_apphash: None,
                 chain_hex_id,
@@ -119,9 +117,8 @@ impl ChainNodeApp {
             app_hash.copy_from_slice(&last_app_hash.unwrap()[..]);
             ChainNodeApp {
                 storage,
-                last_block_height,
-                uncommitted_block_height: 0,
-                uncommitted_block: false,
+                last_block_height: last_block_height.into(),
+                uncommitted_block_height: 0.into(),
                 delivered_txs: Vec::new(),
                 last_apphash: Some(app_hash.into()),
                 chain_hex_id,
@@ -232,7 +229,7 @@ impl ChainNodeApp {
             inittx.put(
                 COL_NODE_INFO,
                 LAST_BLOCK_HEIGHT_KEY,
-                &i64::encode_var_vec(self.last_block_height),
+                &i64::encode_var_vec(self.last_block_height.into()),
             );
             inittx.put(
                 COL_MERKLE_PROOFS,

@@ -33,7 +33,7 @@ impl ChainNodeApp {
             inittx.put(
                 COL_NODE_INFO,
                 LAST_BLOCK_HEIGHT_KEY,
-                &i64::encode_var_vec(self.uncommitted_block_height),
+                &i64::encode_var_vec(self.uncommitted_block_height.into()),
             );
             inittx.put(COL_MERKLE_PROOFS, &app_hash.as_bytes(), &tree.rlp_bytes());
             Some(app_hash)
@@ -44,17 +44,15 @@ impl ChainNodeApp {
         if app_hash.is_some() {
             inittx.put(
                 COL_APP_STATES,
-                &i64::encode_var_vec(self.uncommitted_block_height),
+                &i64::encode_var_vec(self.uncommitted_block_height.into()),
                 &app_hash.unwrap().as_bytes(),
             );
             let wr = self.storage.db.write(inittx);
             if wr.is_err() {
-                // TODO: panic?
-                println!("db write error: {}", wr.err().unwrap());
+                panic!("db write error: {}", wr.err().unwrap());
             } else {
                 self.last_block_height = self.uncommitted_block_height;
                 self.last_apphash = app_hash;
-                self.uncommitted_block = false;
                 resp.data = app_hash.unwrap().as_bytes().to_vec();
             }
         }

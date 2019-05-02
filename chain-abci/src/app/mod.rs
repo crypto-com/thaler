@@ -11,6 +11,7 @@ pub use self::app_init::ChainNodeApp;
 use crate::storage::tx::spend_utxos;
 use chain_core::tx::TxAux;
 
+/// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
 impl abci::Application for ChainNodeApp {
     /// Query Connection: Called on startup from Tendermint.  The application should normally
     /// return the last know state so Tendermint can determine if it needs to replay blocks
@@ -20,7 +21,7 @@ impl abci::Application for ChainNodeApp {
         let mut resp = ResponseInfo::new();
         if self.last_apphash.is_some() {
             resp.last_block_app_hash = self.last_apphash.unwrap().as_bytes().to_vec();
-            resp.last_block_height = self.last_block_height;
+            resp.last_block_height = self.last_block_height.into();
         } else {
             resp.last_block_app_hash = self.genesis_app_hash.as_bytes().to_vec();
         }
@@ -59,12 +60,7 @@ impl abci::Application for ChainNodeApp {
     /// commit()
     fn begin_block(&mut self, req: &RequestBeginBlock) -> ResponseBeginBlock {
         info!("received beginblock request");
-        assert!(
-            !self.uncommitted_block,
-            "received beginblock request while processing an uncomitted block"
-        );
         // TODO: process RequestBeginBlock -- e.g. rewards for validators? + punishment for malicious ByzantineValidators
-        self.uncommitted_block = true;
         // TODO: Check security implications once https://github.com/tendermint/tendermint/issues/2653 is closed
         self.block_time = Some(
             req.header
@@ -83,10 +79,6 @@ impl abci::Application for ChainNodeApp {
     /// state transistion.
     fn deliver_tx(&mut self, _req: &RequestDeliverTx) -> ResponseDeliverTx {
         info!("received delivertx request");
-        assert!(
-            self.uncommitted_block,
-            "received deliver_tx request, but haven't received begin_block"
-        );
         let mut resp = ResponseDeliverTx::new();
         let mtxaux = ChainNodeApp::validate_tx_req(self, _req, &mut resp);
         if let (0, Some(TxAux::TransferTx(tx, witness))) = (resp.code, mtxaux) {
@@ -107,10 +99,6 @@ impl abci::Application for ChainNodeApp {
     /// Consensus Connection: Called at the end of the block.  Often used to update the validator set.
     fn end_block(&mut self, _req: &RequestEndBlock) -> ResponseEndBlock {
         info!("received endblock request");
-        assert!(
-            self.uncommitted_block,
-            "received end_block request, but haven't received begin_block"
-        );
         let mut resp = ResponseEndBlock::new();
         let mut keys = self
             .delivered_txs
@@ -132,17 +120,13 @@ impl abci::Application for ChainNodeApp {
             resp.tags.push(kvpair);
         }
         // TODO: skipchain-based validator changes?
-        self.uncommitted_block_height = _req.height;
+        self.uncommitted_block_height = _req.height.into();
         resp
     }
 
     /// Consensus Connection: Commit the block with the latest state from the application.
     fn commit(&mut self, _req: &RequestCommit) -> ResponseCommit {
         info!("received commit request");
-        assert!(
-            self.uncommitted_block,
-            "received commit request, but haven't received begin_block"
-        );
         ChainNodeApp::commit_handler(self, _req)
     }
 }
@@ -429,18 +413,6 @@ mod tests {
     }
 
     #[test]
-    fn beginblocks_should_set_uncommitted_flag() {
-        let mut app = init_chain_for(
-            "0x0e7c045110b8dbf29765047380898919c5cb56f4"
-                .parse()
-                .unwrap(),
-        );
-        assert!(!app.uncommitted_block);
-        begin_block(&mut app);
-        assert!(app.uncommitted_block);
-    }
-
-    #[test]
     fn deliver_tx_should_reject_empty_tx() {
         let mut app = init_chain_for(
             "0x0e7c045110b8dbf29765047380898919c5cb56f4"
@@ -497,7 +469,9 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[ignore]
     fn delivertx_without_beginblocks_should_panic() {
+        // TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
         let mut app = init_chain_for(
             "0x0e7c045110b8dbf29765047380898919c5cb56f4"
                 .parse()
@@ -509,7 +483,9 @@ mod tests {
 
     #[test]
     #[should_panic]
+    #[ignore]
     fn endblock_without_beginblocks_should_panic() {
+        // TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
         let mut app = init_chain_for(
             "0x0e7c045110b8dbf29765047380898919c5cb56f4"
                 .parse()
@@ -529,15 +505,17 @@ mod tests {
         begin_block(&mut app);
         let mut creq = RequestEndBlock::default();
         creq.set_height(10);
-        assert_ne!(10, app.uncommitted_block_height);
+        assert_ne!(10, i64::from(app.uncommitted_block_height));
         let cresp = app.end_block(&creq);
-        assert_eq!(10, app.uncommitted_block_height);
+        assert_eq!(10, i64::from(app.uncommitted_block_height));
         assert_eq!(0, cresp.tags.len());
     }
 
     #[test]
     #[should_panic]
+    #[ignore]
     fn commit_without_beginblocks_should_panic() {
+        // TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
         let mut app = init_chain_for(
             "0x0e7c045110b8dbf29765047380898919c5cb56f4"
                 .parse()
@@ -578,8 +556,7 @@ mod tests {
             .get(COL_WITNESS, tx.id().as_bytes())
             .unwrap()
             .is_none());
-        assert_ne!(10, app.last_block_height);
-        assert!(app.uncommitted_block);
+        assert_ne!(10, i64::from(app.last_block_height));
         let cresp = app.commit(&RequestCommit::default());
         assert!(app
             .storage
@@ -593,7 +570,7 @@ mod tests {
             .get(COL_WITNESS, tx.id().as_bytes())
             .unwrap()
             .is_some());
-        assert_eq!(10, app.last_block_height);
+        assert_eq!(10, i64::from(app.last_block_height));
         assert_ne!(old_app_hash, app.last_apphash);
         assert_eq!(&app.last_apphash.unwrap()[..], &cresp.data[..]);
         assert!(app
@@ -602,7 +579,6 @@ mod tests {
             .get(COL_MERKLE_PROOFS, &cresp.data[..])
             .unwrap()
             .is_some());
-        assert!(!app.uncommitted_block);
         let old_utxos_after = BitVec::from_bytes(
             &app.storage
                 .db

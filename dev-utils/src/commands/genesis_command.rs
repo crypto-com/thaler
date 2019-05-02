@@ -52,7 +52,8 @@ impl GenesisCommand {
         println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
         println!(
             "\"app_state\": {{\"distribution\":[{{\"address\":\"{}\",\"amount\":{} }}]}}",
-            config.distribution[0].address, *config.distribution[0].amount
+            config.distribution[0].address,
+            u64::from(config.distribution[0].amount)
         );
         println!();
         println!("first tx: {:?}", utxos[0].id());
