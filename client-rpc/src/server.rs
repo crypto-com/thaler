@@ -47,6 +47,7 @@ impl Server {
         io.add_method("say_hello", |_| Ok(Value::String("hello".into())));
 
         let server = ServerBuilder::new(io)
+            // TODO: Either make CORS configurable or make it more strict
             .cors(DomainsValidation::AllowOnly(vec![
                 AccessControlAllowOrigin::Any,
             ]))
