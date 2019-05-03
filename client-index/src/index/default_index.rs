@@ -214,9 +214,10 @@ mod tests {
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::init::config::{ERC20Owner, InitConfig};
+    use chain_core::init::config::InitConfig;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
+    use std::collections::BTreeMap;
 
     /// Mock tendermint client
     #[derive(Default, Clone)]
@@ -224,15 +225,24 @@ mod tests {
 
     impl Client for MockClient {
         fn genesis(&self) -> Result<Genesis> {
+            let distribution: BTreeMap<RedeemAddress, Coin> = [(
+                RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+                Coin::max(),
+            )]
+            .iter()
+            .cloned()
+            .collect();
+
             Ok(Genesis {
                 genesis: GenesisInner {
                     genesis_time: DateTime::from_str("2019-04-09T09:33:10.592188Z").unwrap(),
                     chain_id: "test-chain-4UIy1Wab".to_owned(),
-                    app_state: InitConfig::new(vec![ERC20Owner::new(
-                        RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971")
-                            .unwrap(),
-                        Coin::new(10000000000000000000).unwrap(),
-                    )]),
+                    app_state: InitConfig::new(
+                        distribution,
+                        RedeemAddress::default(),
+                        RedeemAddress::default(),
+                        RedeemAddress::default(),
+                    ),
                 },
             })
         }

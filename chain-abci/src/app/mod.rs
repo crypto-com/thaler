@@ -141,7 +141,7 @@ mod tests {
     use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::init::config::{ERC20Owner, InitConfig};
+    use chain_core::init::config::InitConfig;
     use chain_core::tx::{
         data::{
             access::{TxAccess, TxAccessPolicy},
@@ -160,6 +160,7 @@ mod tests {
     use kvdb_memorydb::create;
     use rlp::{Decodable, Encodable, Rlp};
     use secp256k1::{key::PublicKey, key::SecretKey, Secp256k1};
+    use std::collections::BTreeMap;
     use std::sync::Arc;
 
     fn create_db() -> Arc<dyn KeyValueDB> {
@@ -244,7 +245,19 @@ mod tests {
 
     fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
         let db = create_db();
-        let c = InitConfig::new(vec![ERC20Owner::new(address, Coin::max())]);
+        let distribution: BTreeMap<RedeemAddress, Coin> = [
+            (address, Coin::max()),
+            (RedeemAddress::default(), Coin::zero()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+        let c = InitConfig::new(
+            distribution,
+            RedeemAddress::default(),
+            RedeemAddress::default(),
+            RedeemAddress::default(),
+        );
         let utxos = c.generate_utxos(&TxAttributes::new(0));
         let txids: Vec<TxId> = utxos.iter().map(|x| x.id()).collect();
         let tree = MerkleTree::new(&txids);
@@ -286,12 +299,25 @@ mod tests {
     #[should_panic]
     fn init_chain_panics_with_different_app_hash() {
         let db = create_db();
-        let c = InitConfig::new(vec![ERC20Owner::new(
-            "0x0e7c045110b8dbf29765047380898919c5cb56f4"
-                .parse()
-                .unwrap(),
-            Coin::max(),
-        )]);
+        let distribution: BTreeMap<RedeemAddress, Coin> = [
+            (
+                "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+                    .parse()
+                    .unwrap(),
+                Coin::max(),
+            ),
+            (RedeemAddress::default(), Coin::zero()),
+        ]
+        .iter()
+        .cloned()
+        .collect();
+        let c = InitConfig::new(
+            distribution,
+            RedeemAddress::default(),
+            RedeemAddress::default(),
+            RedeemAddress::default(),
+        );
+
         let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
         let mut app = ChainNodeApp::new_with_storage(
             &example_hash,
