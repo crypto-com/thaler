@@ -1,5 +1,6 @@
 use failure::ResultExt;
 use hex::encode;
+use secstr::SecStr;
 use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
@@ -25,7 +26,7 @@ where
     }
 
     /// Creates a new wallet and returns wallet ID
-    pub fn create(&self, name: &str, passphrase: &str) -> Result<String> {
+    pub fn create(&self, name: &str, passphrase: &SecStr) -> Result<String> {
         if self.storage.contains_key(KEYSPACE, name)? {
             Err(ErrorKind::AlreadyExists.into())
         } else {
@@ -44,7 +45,7 @@ where
     }
 
     /// Retrieves a wallet ID from storage
-    pub fn get(&self, name: &str, passphrase: &str) -> Result<Option<String>> {
+    pub fn get(&self, name: &str, passphrase: &SecStr) -> Result<Option<String>> {
         let address = self.storage.get_secure(KEYSPACE, name, passphrase)?;
 
         match address {
@@ -74,33 +75,32 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::WalletService;
+    use super::*;
 
     use client_common::storage::MemoryStorage;
-    use client_common::ErrorKind;
 
     #[test]
     fn check_flow() {
         let wallet_service = WalletService::new(MemoryStorage::default());
 
         let wallet = wallet_service
-            .get("name", "passphrase")
+            .get("name", &SecStr::from("passphrase"))
             .expect("Error while retrieving wallet information");
 
         assert!(wallet.is_none(), "Wallet is already present in storage");
 
         let wallet_id = wallet_service
-            .create("name", "passphrase")
+            .create("name", &SecStr::from("passphrase"))
             .expect("Unable to create new wallet");
 
         let error = wallet_service
-            .create("name", "passphrase_new")
+            .create("name", &SecStr::from("passphrase_new"))
             .expect_err("Able to create wallet with same name as previously created");
 
         assert_eq!(error.kind(), ErrorKind::AlreadyExists, "Invalid error kind");
 
         let wallet_id_new = wallet_service
-            .get("name", "passphrase")
+            .get("name", &SecStr::from("passphrase"))
             .expect("Error while retrieving wallet information")
             .expect("Wallet with given name not found");
 
@@ -109,7 +109,10 @@ mod tests {
 
         assert!(wallet_service.clear().is_ok());
 
-        assert!(wallet_service.get("name", "passphrase").unwrap().is_none());
+        assert!(wallet_service
+            .get("name", &SecStr::from("passphrase"))
+            .unwrap()
+            .is_none());
         assert_eq!(0, wallet_service.names().unwrap().len());
     }
 }
