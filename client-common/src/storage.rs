@@ -12,6 +12,7 @@ use failure::ResultExt;
 use miscreant::{Aead, Aes128PmacSivAead};
 use rand::rngs::OsRng;
 use rand::Rng;
+use secstr::SecStr;
 
 use crate::{ErrorKind, Result};
 
@@ -47,20 +48,20 @@ pub trait Storage: Send + Sync {
 /// Interface for a generic key-value storage (with encryption)
 pub trait SecureStorage {
     /// Returns value (after decryption) of key if it exists in given keyspace.
-    fn get_secure<S: AsRef<[u8]>, K: AsRef<[u8]>, P: AsRef<[u8]>>(
+    fn get_secure<S: AsRef<[u8]>, K: AsRef<[u8]>>(
         &self,
         keyspace: S,
         key: K,
-        passphrase: P,
+        passphrase: &SecStr,
     ) -> Result<Option<Vec<u8>>>;
 
     /// Set a key to a new value (after encryption) in given keyspace and return old value.
-    fn set_secure<S: AsRef<[u8]>, K: AsRef<[u8]>, P: AsRef<[u8]>>(
+    fn set_secure<S: AsRef<[u8]>, K: AsRef<[u8]>>(
         &self,
         keyspace: S,
         key: K,
         value: Vec<u8>,
-        passphrase: P,
+        passphrase: &SecStr,
     ) -> Result<Option<Vec<u8>>>;
 }
 
@@ -68,11 +69,11 @@ impl<T> SecureStorage for T
 where
     T: Storage,
 {
-    fn get_secure<S: AsRef<[u8]>, K: AsRef<[u8]>, P: AsRef<[u8]>>(
+    fn get_secure<S: AsRef<[u8]>, K: AsRef<[u8]>>(
         &self,
         keyspace: S,
         key: K,
-        passphrase: P,
+        passphrase: &SecStr,
     ) -> Result<Option<Vec<u8>>> {
         let value = self.get(keyspace, &key)?;
 
@@ -90,16 +91,16 @@ where
         }
     }
 
-    fn set_secure<S: AsRef<[u8]>, K: AsRef<[u8]>, P: AsRef<[u8]>>(
+    fn set_secure<S: AsRef<[u8]>, K: AsRef<[u8]>>(
         &self,
         keyspace: S,
         key: K,
         value: Vec<u8>,
-        passphrase: P,
+        passphrase: &SecStr,
     ) -> Result<Option<Vec<u8>>> {
-        let old_value = self.get_secure(&keyspace, &key, &passphrase)?;
+        let old_value = self.get_secure(&keyspace, &key, passphrase)?;
 
-        let mut algo = get_algo(&passphrase);
+        let mut algo = get_algo(passphrase);
 
         let mut nonce = [0u8; NONCE_SIZE];
         let mut rand = OsRng::new().context(ErrorKind::RngError)?;
@@ -114,9 +115,8 @@ where
     }
 }
 
-fn get_algo<P: AsRef<[u8]>>(passphrase: P) -> Aes128PmacSivAead {
+fn get_algo(passphrase: &SecStr) -> Aes128PmacSivAead {
     let mut hasher = Blake2s::new();
-    hasher.input(passphrase);
-
+    hasher.input(passphrase.unsecure());
     Aes128PmacSivAead::new(&hasher.result_reset())
 }

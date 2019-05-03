@@ -1,5 +1,6 @@
 use failure::ResultExt;
 use rlp::encode;
+use secstr::SecStr;
 use zeroize::Zeroize;
 
 use chain_core::init::address::RedeemAddress;
@@ -52,11 +53,11 @@ where
         self.wallet_service.names()
     }
 
-    fn new_wallet(&self, name: &str, passphrase: &str) -> Result<String> {
+    fn new_wallet(&self, name: &str, passphrase: &SecStr) -> Result<String> {
         self.wallet_service.create(name, passphrase)
     }
 
-    fn private_keys(&self, name: &str, passphrase: &str) -> Result<Vec<PrivateKey>> {
+    fn private_keys(&self, name: &str, passphrase: &SecStr) -> Result<Vec<PrivateKey>> {
         let wallet_id = self.wallet_service.get(name, passphrase)?;
 
         match wallet_id {
@@ -68,13 +69,13 @@ where
         }
     }
 
-    fn public_keys(&self, name: &str, passphrase: &str) -> Result<Vec<PublicKey>> {
+    fn public_keys(&self, name: &str, passphrase: &SecStr) -> Result<Vec<PublicKey>> {
         let keys = self.private_keys(name, passphrase)?;
         let public_keys = keys.iter().map(PublicKey::from).collect::<Vec<PublicKey>>();
         Ok(public_keys)
     }
 
-    fn addresses(&self, name: &str, passphrase: &str) -> Result<Vec<ExtendedAddr>> {
+    fn addresses(&self, name: &str, passphrase: &SecStr) -> Result<Vec<ExtendedAddr>> {
         let public_keys = self.public_keys(name, passphrase)?;
 
         let addresses = public_keys
@@ -88,7 +89,7 @@ where
     fn private_key(
         &self,
         name: &str,
-        passphrase: &str,
+        passphrase: &SecStr,
         address: &ExtendedAddr,
     ) -> Result<Option<PrivateKey>> {
         let private_keys = self.private_keys(name, passphrase)?;
@@ -103,7 +104,7 @@ where
         Ok(None)
     }
 
-    fn new_public_key(&self, name: &str, passphrase: &str) -> Result<PublicKey> {
+    fn new_public_key(&self, name: &str, passphrase: &SecStr) -> Result<PublicKey> {
         let wallet_id = self.wallet_service.get(name, passphrase)?;
 
         match wallet_id {
@@ -119,13 +120,13 @@ where
         }
     }
 
-    fn new_address(&self, name: &str, passphrase: &str) -> Result<ExtendedAddr> {
+    fn new_address(&self, name: &str, passphrase: &SecStr) -> Result<ExtendedAddr> {
         let public_key = self.new_public_key(name, passphrase)?;
 
         Ok(ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key)))
     }
 
-    fn balance(&self, name: &str, passphrase: &str) -> Result<Coin> {
+    fn balance(&self, name: &str, passphrase: &SecStr) -> Result<Coin> {
         let addresses = self.addresses(name, passphrase)?;
 
         let balances = addresses
@@ -136,7 +137,7 @@ where
         Ok(sum_coins(balances.into_iter()).context(ErrorKind::BalanceAdditionError)?)
     }
 
-    fn history(&self, name: &str, passphrase: &str) -> Result<Vec<TransactionChange>> {
+    fn history(&self, name: &str, passphrase: &SecStr) -> Result<Vec<TransactionChange>> {
         let addresses = self.addresses(name, passphrase)?;
 
         let history = addresses
@@ -153,7 +154,7 @@ where
     fn create_and_broadcast_transaction(
         &self,
         name: &str,
-        passphrase: &str,
+        passphrase: &SecStr,
         mut outputs: Vec<TxOut>,
         attributes: TxAttributes,
     ) -> Result<()> {
@@ -208,7 +209,12 @@ where
         self.broadcast_transaction(name, passphrase, transaction)
     }
 
-    fn broadcast_transaction(&self, name: &str, passphrase: &str, transaction: Tx) -> Result<()> {
+    fn broadcast_transaction(
+        &self,
+        name: &str,
+        passphrase: &SecStr,
+        transaction: Tx,
+    ) -> Result<()> {
         let mut witnesses = Vec::with_capacity(transaction.inputs.len());
 
         for input in &transaction.inputs {
@@ -434,34 +440,44 @@ mod tests {
     fn check_wallet_flow() {
         let wallet = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
 
-        assert!(wallet.addresses("name", "passphrase").is_err());
+        assert!(wallet
+            .addresses("name", &SecStr::from("passphrase"))
+            .is_err());
 
         wallet
-            .new_wallet("name", "passphrase")
+            .new_wallet("name", &SecStr::from("passphrase"))
             .expect("Unable to create a new wallet");
 
-        assert_eq!(0, wallet.addresses("name", "passphrase").unwrap().len());
+        assert_eq!(
+            0,
+            wallet
+                .addresses("name", &SecStr::from("passphrase"))
+                .unwrap()
+                .len()
+        );
         assert_eq!("name".to_string(), wallet.wallets().unwrap()[0]);
         assert_eq!(1, wallet.wallets().unwrap().len());
 
         let address = wallet
-            .new_address("name", "passphrase")
+            .new_address("name", &SecStr::from("passphrase"))
             .expect("Unable to generate new address");
 
-        let addresses = wallet.addresses("name", "passphrase").unwrap();
+        let addresses = wallet
+            .addresses("name", &SecStr::from("passphrase"))
+            .unwrap();
 
         assert_eq!(1, addresses.len());
         assert_eq!(address, addresses[0], "Addresses don't match");
 
         assert!(wallet
-            .private_key("name", "passphrase", &address)
+            .private_key("name", &SecStr::from("passphrase"), &address)
             .unwrap()
             .is_some());
 
         assert_eq!(
             ErrorKind::WalletNotFound,
             wallet
-                .public_keys("name_new", "passphrase")
+                .public_keys("name_new", &SecStr::from("passphrase"))
                 .expect_err("Found public keys for non existent wallet")
                 .kind(),
             "Invalid public key present in database"
@@ -470,7 +486,7 @@ mod tests {
         assert_eq!(
             ErrorKind::WalletNotFound,
             wallet
-                .new_public_key("name_new", "passphrase")
+                .new_public_key("name_new", &SecStr::from("passphrase"))
                 .expect_err("Generated public key for non existent wallet")
                 .kind(),
             "Error of invalid kind received"
@@ -481,12 +497,24 @@ mod tests {
     fn check_transaction_flow() {
         let storage = MemoryStorage::default();
         let temp_wallet = DefaultWalletClient::new(storage.clone(), MockIndex::default());
-        temp_wallet.new_wallet("wallet_1", "passphrase").unwrap();
-        let addr_1 = temp_wallet.new_address("wallet_1", "passphrase").unwrap();
-        temp_wallet.new_wallet("wallet_2", "passphrase").unwrap();
-        let addr_2 = temp_wallet.new_address("wallet_2", "passphrase").unwrap();
-        temp_wallet.new_wallet("wallet_3", "passphrase").unwrap();
-        let addr_3 = temp_wallet.new_address("wallet_3", "passphrase").unwrap();
+        temp_wallet
+            .new_wallet("wallet_1", &SecStr::from("passphrase"))
+            .unwrap();
+        let addr_1 = temp_wallet
+            .new_address("wallet_1", &SecStr::from("passphrase"))
+            .unwrap();
+        temp_wallet
+            .new_wallet("wallet_2", &SecStr::from("passphrase"))
+            .unwrap();
+        let addr_2 = temp_wallet
+            .new_address("wallet_2", &SecStr::from("passphrase"))
+            .unwrap();
+        temp_wallet
+            .new_wallet("wallet_3", &SecStr::from("passphrase"))
+            .unwrap();
+        let addr_3 = temp_wallet
+            .new_address("wallet_3", &SecStr::from("passphrase"))
+            .unwrap();
 
         let wallet = DefaultWalletClient::new(
             storage,
@@ -495,20 +523,44 @@ mod tests {
 
         assert_eq!(
             Coin::new(0).unwrap(),
-            wallet.balance("wallet_1", "passphrase").unwrap()
+            wallet
+                .balance("wallet_1", &SecStr::from("passphrase"))
+                .unwrap()
         );
         assert_eq!(
             Coin::new(30).unwrap(),
-            wallet.balance("wallet_2", "passphrase").unwrap()
+            wallet
+                .balance("wallet_2", &SecStr::from("passphrase"))
+                .unwrap()
         );
         assert_eq!(
             Coin::new(0).unwrap(),
-            wallet.balance("wallet_3", "passphrase").unwrap()
+            wallet
+                .balance("wallet_3", &SecStr::from("passphrase"))
+                .unwrap()
         );
 
-        assert_eq!(2, wallet.history("wallet_1", "passphrase").unwrap().len());
-        assert_eq!(1, wallet.history("wallet_2", "passphrase").unwrap().len());
-        assert_eq!(0, wallet.history("wallet_3", "passphrase").unwrap().len());
+        assert_eq!(
+            2,
+            wallet
+                .history("wallet_1", &SecStr::from("passphrase"))
+                .unwrap()
+                .len()
+        );
+        assert_eq!(
+            1,
+            wallet
+                .history("wallet_2", &SecStr::from("passphrase"))
+                .unwrap()
+                .len()
+        );
+        assert_eq!(
+            0,
+            wallet
+                .history("wallet_3", &SecStr::from("passphrase"))
+                .unwrap()
+                .len()
+        );
 
         assert!(wallet.sync().is_ok());
         assert!(wallet.sync_all().is_ok());
@@ -516,7 +568,7 @@ mod tests {
         assert!(wallet
             .create_and_broadcast_transaction(
                 "wallet_2",
-                "passphrase",
+                &SecStr::from("passphrase"),
                 vec![TxOut {
                     address: addr_3.clone(),
                     value: Coin::new(30).unwrap(),
@@ -528,25 +580,49 @@ mod tests {
 
         assert_eq!(
             Coin::new(0).unwrap(),
-            wallet.balance("wallet_1", "passphrase").unwrap()
+            wallet
+                .balance("wallet_1", &SecStr::from("passphrase"))
+                .unwrap()
         );
         assert_eq!(
             Coin::new(0).unwrap(),
-            wallet.balance("wallet_2", "passphrase").unwrap()
+            wallet
+                .balance("wallet_2", &SecStr::from("passphrase"))
+                .unwrap()
         );
         assert_eq!(
             Coin::new(30).unwrap(),
-            wallet.balance("wallet_3", "passphrase").unwrap()
+            wallet
+                .balance("wallet_3", &SecStr::from("passphrase"))
+                .unwrap()
         );
 
-        assert_eq!(2, wallet.history("wallet_1", "passphrase").unwrap().len());
-        assert_eq!(2, wallet.history("wallet_2", "passphrase").unwrap().len());
-        assert_eq!(1, wallet.history("wallet_3", "passphrase").unwrap().len());
+        assert_eq!(
+            2,
+            wallet
+                .history("wallet_1", &SecStr::from("passphrase"))
+                .unwrap()
+                .len()
+        );
+        assert_eq!(
+            2,
+            wallet
+                .history("wallet_2", &SecStr::from("passphrase"))
+                .unwrap()
+                .len()
+        );
+        assert_eq!(
+            1,
+            wallet
+                .history("wallet_3", &SecStr::from("passphrase"))
+                .unwrap()
+                .len()
+        );
 
         assert!(wallet
             .create_and_broadcast_transaction(
                 "wallet_3",
-                "passphrase",
+                &SecStr::from("passphrase"),
                 vec![TxOut {
                     address: addr_2.clone(),
                     value: Coin::new(20).unwrap(),
@@ -561,7 +637,7 @@ mod tests {
             wallet
                 .create_and_broadcast_transaction(
                     "wallet_2",
-                    "passphrase",
+                    &SecStr::from("passphrase"),
                     vec![TxOut {
                         address: addr_3.clone(),
                         value: Coin::new(30).unwrap(),

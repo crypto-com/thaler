@@ -1,5 +1,6 @@
 use jsonrpc_derive::rpc;
 use jsonrpc_http_server::jsonrpc_core;
+use secstr::SecStr;
 use serde::Deserialize;
 use std::str::FromStr;
 
@@ -95,7 +96,7 @@ where
         if let Err(e) = self.client.new_address(&request.name, &request.passphrase) {
             Err(to_rpc_error(e))
         } else {
-            Ok(request.name.clone())
+            Ok(request.name)
         }
     }
 
@@ -163,7 +164,7 @@ where
 #[derive(Debug, Deserialize)]
 pub struct WalletRequest {
     name: String,
-    passphrase: String,
+    passphrase: SecStr,
 }
 
 #[cfg(test)]
@@ -359,7 +360,7 @@ mod tests {
     fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
         WalletRequest {
             name: name.to_owned(),
-            passphrase: passphrase.to_owned(),
+            passphrase: SecStr::from(passphrase),
         }
     }
 }
