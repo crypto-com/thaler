@@ -55,20 +55,28 @@ mod tests {
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::init::config::ERC20Owner;
+    use std::collections::BTreeMap;
 
     #[test]
     fn check_transactions() {
         let time = DateTime::from(SystemTime::now());
-
+        let distribution: BTreeMap<RedeemAddress, Coin> = [(
+            RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+            Coin::max(),
+        )]
+        .iter()
+        .cloned()
+        .collect();
         let genesis = Genesis {
             genesis: GenesisInner {
                 genesis_time: time,
                 chain_id: "test-chain-4UIy1Wab".to_owned(),
-                app_state: InitConfig::new(vec![ERC20Owner::new(
-                    RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
-                    Coin::new(10000000000000000000).unwrap(),
-                )]),
+                app_state: InitConfig::new(
+                    distribution,
+                    RedeemAddress::default(),
+                    RedeemAddress::default(),
+                    RedeemAddress::default(),
+                ),
             },
         };
         assert_eq!(1, genesis.transactions().unwrap().len());
@@ -77,14 +85,25 @@ mod tests {
 
     #[test]
     fn check_wrong_transaction() {
+        let distribution: BTreeMap<RedeemAddress, Coin> = [(
+            RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+            Coin::max(),
+        )]
+        .iter()
+        .cloned()
+        .collect();
+
+        // wrong chain_id (not ending with hexadecimal)
         let genesis = Genesis {
             genesis: GenesisInner {
                 genesis_time: DateTime::from(SystemTime::now()),
                 chain_id: "test-chain-4UIy1Wb".to_owned(),
-                app_state: InitConfig::new(vec![ERC20Owner::new(
-                    RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
-                    Coin::new(10000000000000000000).unwrap(),
-                )]),
+                app_state: InitConfig::new(
+                    distribution,
+                    RedeemAddress::default(),
+                    RedeemAddress::default(),
+                    RedeemAddress::default(),
+                ),
             },
         };
 

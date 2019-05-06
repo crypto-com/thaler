@@ -26,7 +26,7 @@ pub const CHAIN_ID_KEY: &[u8] = b"chain_id";
 pub const GENESIS_APP_HASH_KEY: &[u8] = b"genesis_app_hash";
 pub const LAST_APP_HASH_KEY: &[u8] = b"last_app_hash";
 pub const LAST_BLOCK_HEIGHT_KEY: &[u8] = b"last_block_height";
-pub const BLOCK_TIME_KEY: &[u8] = b"block_time";
+pub const REWARDS_POOL_STATE_KEY: &[u8] = b"rewards_pool";
 
 /// Storage configuration -- currently only the path to RocksDB directory
 /// TODO: other options? e.g. HDD vs SDD?

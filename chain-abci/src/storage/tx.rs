@@ -362,7 +362,7 @@ pub mod tests {
             let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), block_time);
             expect_error(
                 &result,
-                Error::InvalidSum(CoinError::OutOfBound(*Coin::max())),
+                Error::InvalidSum(CoinError::OutOfBound(Coin::max().into())),
             );
         }
         // InputSpent
