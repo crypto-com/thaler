@@ -659,7 +659,7 @@ mod tests {
         let rewards_pool_part = app.rewards_pool.clone().unwrap().hash();
         let mut bs = Vec::new();
         bs.extend(proof.ops[1].data.iter());
-        bs.extend(rewards_pool_part.as_bytes().iter());
+        bs.extend(rewards_pool_part.as_bytes());
 
         assert_eq!(txid_hash(&bs).as_bytes().to_vec(), cresp.data);
         let mut qreq2 = RequestQuery::new();

@@ -131,8 +131,8 @@ impl MerkleNode {
             let a = MerkleNode::make_tree(&xs[0..i]);
             let b = MerkleNode::make_tree(&xs[i..]);
             let mut bs = vec![1u8];
-            bs.extend(a.get_root_hash().as_bytes().iter());
-            bs.extend(b.get_root_hash().as_bytes().iter());
+            bs.extend(a.get_root_hash().as_bytes());
+            bs.extend(b.get_root_hash().as_bytes());
             MerkleNode::Branch(txid_hash(&bs), Box::new(a), Box::new(b))
         }
     }
