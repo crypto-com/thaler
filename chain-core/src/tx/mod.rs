@@ -1,5 +1,7 @@
 /// Transaction internal structure
 pub mod data;
+/// Transaction fee calculation
+pub mod fee;
 /// Witness structures (e.g. signatures) for transactions
 pub mod witness;
 
