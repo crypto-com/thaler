@@ -3,6 +3,7 @@ use crate::storage::tx::update_utxos_commit;
 use crate::storage::*;
 use abci::*;
 use chain_core::common::merkle::MerkleTree;
+use chain_core::compute_app_hash;
 use chain_core::tx::data::TxId;
 use chain_core::tx::TxAux;
 use integer_encoding::VarInt;
@@ -28,7 +29,9 @@ impl ChainNodeApp {
                 inittx.put(COL_WITNESS, &txid.as_bytes(), &witness.rlp_bytes());
                 update_utxos_commit(&tx, self.storage.db.clone(), &mut inittx);
             }
-            let app_hash = tree.get_root_hash();
+            let rp = self.rewards_pool.clone().unwrap();
+            let app_hash = compute_app_hash(&tree, &rp);
+            inittx.put(COL_NODE_INFO, REWARDS_POOL_STATE_KEY, &rp.rlp_bytes());
             inittx.put(COL_NODE_INFO, LAST_APP_HASH_KEY, &app_hash.as_bytes());
             inittx.put(
                 COL_NODE_INFO,

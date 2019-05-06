@@ -139,6 +139,7 @@ mod tests {
     use abci::Application;
     use bit_vec::BitVec;
     use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
+    use chain_core::compute_app_hash;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::init::config::InitConfig;
@@ -259,9 +260,10 @@ mod tests {
             RedeemAddress::default(),
         );
         let utxos = c.generate_utxos(&TxAttributes::new(0));
+        let rp = c.get_genesis_rewards_pool();
         let txids: Vec<TxId> = utxos.iter().map(|x| x.id()).collect();
         let tree = MerkleTree::new(&txids);
-        let genesis_app_hash = tree.get_root_hash();
+        let genesis_app_hash = compute_app_hash(&tree, &rp);
         let example_hash = hex::encode_upper(genesis_app_hash);
         let mut app = ChainNodeApp::new_with_storage(
             &example_hash,
@@ -654,7 +656,12 @@ mod tests {
         let proof = qresp.proof.unwrap();
         assert_eq!(proof.ops.len(), 3);
         assert_eq!(proof.ops[0].data, tx.id().as_bytes());
-        assert_eq!(proof.ops[1].data, cresp.data);
+        let rewards_pool_part = app.rewards_pool.clone().unwrap().hash();
+        let mut bs = Vec::new();
+        bs.extend(proof.ops[1].data.iter());
+        bs.extend(rewards_pool_part.as_bytes().iter());
+
+        assert_eq!(txid_hash(&bs).as_bytes().to_vec(), cresp.data);
         let mut qreq2 = RequestQuery::new();
         qreq2.data = tx.id().as_bytes().to_vec();
         qreq2.path = "witness".into();

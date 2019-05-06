@@ -83,4 +83,11 @@ impl RewardsPoolState {
     pub fn hash(&self) -> H256 {
         hash256::<Blake2s>(&self.rlp_bytes())
     }
+
+    pub fn new(remaining: Coin, last_block_height: BlockHeight) -> Self {
+        RewardsPoolState {
+            remaining,
+            last_block_height,
+        }
+    }
 }

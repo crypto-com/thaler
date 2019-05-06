@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::init::MAX_COIN;
+use crate::state::RewardsPoolState;
 use crate::tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
 use std::collections::BTreeMap;
 
@@ -86,6 +87,31 @@ impl InitConfig {
         } else {
             Err(DistributionError::AddressNotInDistribution(*address))
         }
+    }
+
+    /// returns the initial rewards pool state
+    /// assumes one called [validate_distribution], otherwise it may panic
+    pub fn get_genesis_rewards_pool(&self) -> RewardsPoolState {
+        // for some reason, type inference goes bonkers when one calls [sum_coins] in rustc 1.34.1 (fc50f328b 2019-04-24)
+        // hence inlined the fold
+        // TODO: replace with sum_coins if possible, or file a bug in rustc
+        let amount = [
+            *self
+                .distribution
+                .get(&self.launch_incentive_from)
+                .expect("launch incentives from address"),
+            *self
+                .distribution
+                .get(&self.launch_incentive_to)
+                .expect("launch incentives to address"),
+            *self
+                .distribution
+                .get(&self.long_term_incentive)
+                .expect("long term incentives address"),
+        ]
+        .iter()
+        .fold(Coin::new(0), |acc, c| acc.and_then(|v| v + c));
+        RewardsPoolState::new(amount.expect("rewards pool amount"), 0.into())
     }
 
     /// checks if distribution is valid -- i.e. contains correct amounts and matches the expected total supply

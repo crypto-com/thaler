@@ -3,8 +3,9 @@ use bit_vec::BitVec;
 use chain_core::common::merkle::MerkleTree;
 use chain_core::common::Timespec;
 use chain_core::common::{H256, HASH_SIZE_256};
+use chain_core::compute_app_hash;
 use chain_core::init::config::InitConfig;
-use chain_core::state::BlockHeight;
+use chain_core::state::{BlockHeight, RewardsPoolState};
 use chain_core::tx::{
     data::{attribute::TxAttributes, Tx, TxId},
     TxAux,
@@ -13,7 +14,7 @@ use hex::decode;
 use integer_encoding::VarInt;
 use log::info;
 use protobuf::Message;
-use rlp::{Encodable, RlpStream};
+use rlp::{Decodable, Encodable, Rlp, RlpStream};
 
 use crate::storage::*;
 
@@ -35,6 +36,8 @@ pub struct ChainNodeApp {
     pub chain_hex_id: u8,
     /// time in previous block's header or genesis time
     pub block_time: Option<Timespec>,
+    /// last rewards pool state
+    pub rewards_pool: Option<RewardsPoolState>,
 }
 
 impl ChainNodeApp {
@@ -74,6 +77,7 @@ impl ChainNodeApp {
                 chain_hex_id,
                 genesis_app_hash: genesis_app_hash.into(),
                 block_time: None,
+                rewards_pool: None,
             }
         } else {
             info!("last app hash stored");
@@ -92,7 +96,7 @@ impl ChainNodeApp {
                 .db
                 .get(COL_EXTRA, CHAIN_ID_KEY)
                 .unwrap()
-                .expect("last app hash found, but chain id stored");
+                .expect("last app hash found, but no chain id stored");
             if stored_chain_id != chain_id.as_bytes() {
                 panic!(
                     "stored chain id: {:?} does not match the provided chain id: {:?}",
@@ -108,11 +112,18 @@ impl ChainNodeApp {
                     .to_vec(),
             )
             .0;
-            let block_time: Option<Timespec> = storage
-                .db
-                .get(COL_NODE_INFO, BLOCK_TIME_KEY)
-                .expect("Error while fetching value")
-                .map(|bytes| -> Timespec { i64::decode_var_vec(&bytes.to_vec()).0.into() });
+
+            let rewards_pool = RewardsPoolState::decode(&Rlp::new(
+                &storage
+                    .db
+                    .get(COL_NODE_INFO, REWARDS_POOL_STATE_KEY)
+                    .unwrap()
+                    .expect("last app hash found, but no rewards pool state stored"),
+            ))
+            .expect(
+                "failed to decode stored
+                rewards pool state",
+            );
             let mut app_hash = [0u8; HASH_SIZE_256];
             app_hash.copy_from_slice(&last_app_hash.unwrap()[..]);
             ChainNodeApp {
@@ -123,7 +134,8 @@ impl ChainNodeApp {
                 last_apphash: Some(app_hash.into()),
                 chain_hex_id,
                 genesis_app_hash: genesis_app_hash.into(),
-                block_time,
+                block_time: None,
+                rewards_pool: Some(rewards_pool),
             }
         }
     }
@@ -161,7 +173,9 @@ impl ChainNodeApp {
             let utxos = conf.generate_utxos(&TxAttributes::new(self.chain_hex_id));
             let ids: Vec<TxId> = utxos.iter().map(Tx::id).collect();
             let tree = MerkleTree::new(&ids);
-            let genesis_app_hash = tree.get_root_hash();
+            let rp = conf.get_genesis_rewards_pool();
+
+            let genesis_app_hash = compute_app_hash(&tree, &rp);
             if self.genesis_app_hash != genesis_app_hash {
                 panic!("initchain resulting genesis app hash: {:?} does not match the expected genesis app hash: {:?}", genesis_app_hash, self.genesis_app_hash);
             }
@@ -221,6 +235,7 @@ impl ChainNodeApp {
                     &BitVec::from_elem(1, false).to_bytes(),
                 );
             }
+            inittx.put(COL_NODE_INFO, REWARDS_POOL_STATE_KEY, &rp.rlp_bytes());
             inittx.put(
                 COL_NODE_INFO,
                 LAST_APP_HASH_KEY,
@@ -242,6 +257,7 @@ impl ChainNodeApp {
                 // TODO: panic?
                 println!("db write error: {}", wr.err().unwrap());
             } else {
+                self.rewards_pool = Some(rp);
                 self.last_apphash = Some(genesis_app_hash);
             }
 
