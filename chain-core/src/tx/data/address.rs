@@ -20,7 +20,7 @@ pub enum ExtendedAddr {
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ExtendedAddr::BasicRedeem(addr) => write!(f, "0x{}", addr),
+            ExtendedAddr::BasicRedeem(addr) => write!(f, "{}", addr),
             ExtendedAddr::OrTree(hash) => write!(f, "TODO (base58) 0x{}", hex::encode(hash)),
         }
     }

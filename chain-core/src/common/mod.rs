@@ -168,7 +168,7 @@ macro_rules! construct_fixed_hash {
 
 			/// Returns the size of this hash in bytes.
 			#[inline]
-			pub fn len_bytes() -> usize {
+			pub const fn len_bytes() -> usize {
 				$n_bytes
 			}
 
