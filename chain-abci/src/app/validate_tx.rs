@@ -67,7 +67,7 @@ impl ChainNodeApp {
                     &txaux,
                     self.chain_hex_id,
                     self.storage.db.clone(),
-                    self.block_time.expect("Last block's timestamp is expected"),
+                    self.last_state.as_ref().expect("the app state is expected"),
                 );
                 if v.is_ok() {
                     resp.set_code(0);

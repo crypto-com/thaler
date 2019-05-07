@@ -44,7 +44,10 @@ impl ChainNodeApp {
                     let mwitness = self.storage.db.get(COL_WITNESS, &_req.data[..]);
                     match mwitness {
                         Ok(Some(witness)) => {
-                            let last_height: i64 = self.last_block_height.into();
+                            let last_height: i64 = self
+                                .last_state
+                                .as_ref()
+                                .map_or(0, |x| x.last_block_height.into());
                             let height = if _req.height == 0 || _req.height > last_height {
                                 last_height
                             } else {

@@ -5,10 +5,11 @@ use crate::init::coin::Coin;
 use blake2::Blake2s;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use serde::{Deserialize, Serialize};
 
 /// Tendermint block height
 /// TODO: check > 0 ?
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Ord, PartialOrd)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct BlockHeight(i64);
 
 impl From<i64> for BlockHeight {
@@ -48,7 +49,7 @@ impl Decodable for BlockHeight {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct RewardsPoolState {
     /// remaining amount in the pool
     pub remaining: Coin,
