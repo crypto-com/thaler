@@ -7,10 +7,11 @@ use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::init::MAX_COIN;
 use crate::state::RewardsPoolState;
 use crate::tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
+use crate::tx::fee::LinearFee;
 use std::collections::BTreeMap;
 
 /// Initial configuration ("app_state" in genesis.json of Tendermint config)
-/// TODO: reward/treasury config, extra validator config, fee...
+/// TODO: reward/treasury config, extra validator config...
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct InitConfig {
     // Redeem mapping of ERC20 snapshot: Eth address => CRO tokens
@@ -21,6 +22,8 @@ pub struct InitConfig {
     pub launch_incentive_to: RedeemAddress,
     // 0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07 on Eth mainnet ERC20
     pub long_term_incentive: RedeemAddress,
+    // Initial fee setting
+    pub initial_fee_policy: LinearFee,
 }
 
 pub enum DistributionError {
@@ -52,12 +55,14 @@ impl InitConfig {
         launch_incentive_from: RedeemAddress,
         launch_incentive_to: RedeemAddress,
         long_term_incentive: RedeemAddress,
+        initial_fee_policy: LinearFee,
     ) -> Self {
         InitConfig {
             distribution: owners,
             launch_incentive_from,
             launch_incentive_to,
             long_term_incentive,
+            initial_fee_policy,
         }
     }
 

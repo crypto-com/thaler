@@ -143,6 +143,7 @@ mod tests {
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::init::config::InitConfig;
+    use chain_core::tx::fee::{LinearFee, Milli};
     use chain_core::tx::{
         data::{
             access::{TxAccess, TxAccessPolicy},
@@ -253,11 +254,13 @@ mod tests {
         .iter()
         .cloned()
         .collect();
+        let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
         let c = InitConfig::new(
             distribution,
             RedeemAddress::default(),
             RedeemAddress::default(),
             RedeemAddress::default(),
+            fee_policy,
         );
         let utxos = c.generate_utxos(&TxAttributes::new(0));
         let rp = c.get_genesis_rewards_pool();
@@ -313,11 +316,13 @@ mod tests {
         .iter()
         .cloned()
         .collect();
+        let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
         let c = InitConfig::new(
             distribution,
             RedeemAddress::default(),
             RedeemAddress::default(),
             RedeemAddress::default(),
+            fee_policy,
         );
 
         let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";

@@ -6,7 +6,11 @@
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::TxAux;
 use rlp::Encodable;
+use serde::{Deserialize, Serialize};
+use std::num::ParseIntError;
 use std::ops::{Add, Mul};
+use std::str::FromStr;
+use std::{error, fmt};
 
 /// A fee value that represent either a fee to pay, or a fee paid.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -23,7 +27,7 @@ impl Fee {
 }
 
 /// 4 digit fixed decimal
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct Milli(u64);
 impl Milli {
     pub fn new(i: u64, f: u64) -> Self {
@@ -52,6 +56,59 @@ impl Milli {
     }
 }
 
+#[derive(Debug)]
+pub enum MilliError {
+    /// An invalid length of parts (should be 2)
+    InvalidPartsLength(usize),
+    /// Number parsing error
+    InvalidInteger(ParseIntError),
+}
+
+impl fmt::Display for MilliError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            MilliError::InvalidPartsLength(len) => {
+                write!(f, "Invalid parts length: {} (2 expected)", len)
+            }
+            MilliError::InvalidInteger(ref err) => write!(f, "Integer parsing error: {}", err),
+        }
+    }
+}
+
+impl From<ParseIntError> for MilliError {
+    fn from(err: ParseIntError) -> Self {
+        MilliError::InvalidInteger(err)
+    }
+}
+
+impl FromStr for Milli {
+    type Err = MilliError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = s.split('.').collect::<Vec<&str>>();
+        let len = parts.len();
+        if len != 2 {
+            return Err(MilliError::InvalidPartsLength(len));
+        }
+        let integral: u64 = parts[0].parse()?;
+        let fractional: u64 = parts[1].parse()?;
+        Ok(Milli::new(integral, fractional))
+    }
+}
+
+impl error::Error for MilliError {
+    fn description(&self) -> &str {
+        "Milli parsing error"
+    }
+
+    fn cause(&self) -> Option<&dyn error::Error> {
+        match *self {
+            MilliError::InvalidInteger(ref err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
 impl Add for Milli {
     type Output = Milli;
     fn add(self, other: Self) -> Self {
@@ -70,7 +127,7 @@ impl Mul for Milli {
 }
 
 /// Linear fee using the basic affine formula `COEFFICIENT * rlp(txaux).len() + CONSTANT`
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct LinearFee {
     /// this is the minimal fee
     pub constant: Milli,

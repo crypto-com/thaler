@@ -55,6 +55,7 @@ mod tests {
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
+    use chain_core::tx::fee::{LinearFee, Milli};
     use std::collections::BTreeMap;
 
     #[test]
@@ -67,6 +68,7 @@ mod tests {
         .iter()
         .cloned()
         .collect();
+        let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
         let genesis = Genesis {
             genesis: GenesisInner {
                 genesis_time: time,
@@ -76,6 +78,7 @@ mod tests {
                     RedeemAddress::default(),
                     RedeemAddress::default(),
                     RedeemAddress::default(),
+                    fee_policy,
                 ),
             },
         };
@@ -85,6 +88,7 @@ mod tests {
 
     #[test]
     fn check_wrong_transaction() {
+        let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
         let distribution: BTreeMap<RedeemAddress, Coin> = [(
             RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
             Coin::max(),
@@ -103,6 +107,7 @@ mod tests {
                     RedeemAddress::default(),
                     RedeemAddress::default(),
                     RedeemAddress::default(),
+                    fee_policy,
                 ),
             },
         };
