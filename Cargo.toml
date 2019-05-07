@@ -3,6 +3,7 @@
 members = [
     "chain-abci",
     "chain-core",
+    "client-cli",
     "client-common",
     "client-core",
     "client-index",

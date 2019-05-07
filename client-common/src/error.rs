@@ -68,6 +68,12 @@ pub enum ErrorKind {
     /// Insufficient balance
     #[fail(display = "Insufficient balance")]
     InsufficientBalance,
+    /// IO error
+    #[fail(display = "IO error")]
+    IoError,
+    /// Invalid input
+    #[fail(display = "Invalid input")]
+    InvalidInput,
 }
 
 impl Fail for Error {
