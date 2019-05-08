@@ -26,14 +26,22 @@ impl Fee {
     }
 }
 
-/// 4 digit fixed decimal
+/// Represents a 4 digit fixed decimal
+/// TODO: overflow checks in Cargo?
+/// [profile.release]
+/// overflow-checks = true
 #[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Milli(u64);
 impl Milli {
+    /// takes the integer part and 4-digit fractional part
+    /// and returns the 4-digit fixed decimal number (i.ffff)
     pub fn new(i: u64, f: u64) -> Self {
         Milli(i * 1000 + f % 1000)
     }
 
+    /// takes the integer part
+    /// and returns the 4-digit fixed decimal number (i.0000)
     pub fn integral(i: u64) -> Self {
         Milli(i * 1000)
     }

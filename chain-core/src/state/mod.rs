@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 /// Tendermint block height
 /// TODO: check > 0 ?
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct BlockHeight(i64);
 
 impl From<i64> for BlockHeight {
