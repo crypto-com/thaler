@@ -153,21 +153,17 @@ impl LinearFee {
 
 /// Calculation of fees for a specific chosen algorithm
 pub trait FeeAlgorithm {
-    fn estimate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError>;
+    fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError>;
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError>;
 }
 
 impl FeeAlgorithm for LinearFee {
-    fn estimate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError> {
-        let msz = Milli::integral(num_bytes as u64);
-        let fee = self.coefficient * msz;
-        let coin = Coin::new(fee.to_integral())?;
-        Ok(Fee(coin))
+    fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError> {
+        self.estimate(num_bytes)
     }
 
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError> {
-        let txbytes = txaux.rlp_bytes();
-        self.estimate(txbytes.len())
+        self.estimate(txaux.rlp_bytes().len())
     }
 }
 

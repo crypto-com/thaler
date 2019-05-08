@@ -32,6 +32,7 @@ impl ChainNodeApp {
                 inittx.put(COL_WITNESS, &txid.as_bytes(), &witness.rlp_bytes());
                 update_utxos_commit(&tx, self.storage.db.clone(), &mut inittx);
             }
+            new_state.rewards_pool.last_block_height = new_state.last_block_height;
             let app_hash = compute_app_hash(&tree, &new_state.rewards_pool);
             inittx.put(COL_MERKLE_PROOFS, &app_hash.as_bytes(), &tree.rlp_bytes());
             new_state.last_apphash = app_hash;

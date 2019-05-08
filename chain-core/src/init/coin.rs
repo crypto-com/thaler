@@ -50,9 +50,14 @@ impl Coin {
         Coin(0)
     }
 
-    /// create of unitary coin (a coin of value `1`)
+    /// create of base unitary coin (a coin of value `1`)
     pub fn unit() -> Self {
         Coin(1)
+    }
+
+    /// create of non-base coin of value 1 (assuming 8 decimals)
+    pub fn one() -> Self {
+        Coin(100_000_000)
     }
 
     /// create of maximum coin

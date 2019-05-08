@@ -83,10 +83,19 @@ impl abci::Application for ChainNodeApp {
         info!("received delivertx request");
         let mut resp = ResponseDeliverTx::new();
         let mtxaux = ChainNodeApp::validate_tx_req(self, _req, &mut resp);
-        if let (0, Some(TxAux::TransferTx(tx, witness))) = (resp.code, mtxaux) {
+        if let (0, Some((TxAux::TransferTx(tx, witness), fee_paid))) = (resp.code, mtxaux) {
             let txid = tx.id();
             let mut inittx = self.storage.db.transaction();
             spend_utxos(&tx, self.storage.db.clone(), &mut inittx);
+            let rewards_pool = &mut self
+                .last_state
+                .as_mut()
+                .expect("deliver tx, but last state not initialized")
+                .rewards_pool;
+            let new_remaining = (rewards_pool.remaining + fee_paid.to_coin())
+                .expect("rewards pool + fee greater than max coin?");
+            rewards_pool.remaining = new_remaining;
+            // this "buffered write" shouldn't persist (persistence done in commit) -- TODO: check
             self.storage.db.write_buffered(inittx);
             self.delivered_txs.push(TxAux::TransferTx(tx, witness));
             let mut kvpair = KVPair::new();
@@ -421,7 +430,7 @@ mod tests {
             .push(TxAccessPolicy::new(public_key, TxAccess::AllData));
         let eaddr = ExtendedAddr::BasicRedeem(addr);
         tx.add_input(txp);
-        tx.add_output(TxOut::new(eaddr, (Coin::max() - Coin::unit()).unwrap()));
+        tx.add_output(TxOut::new(eaddr, Coin::one()));
         let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
         let pk2 = PublicKey::from_secret_key(&secp, &sk2);
         tx.add_output(TxOut::new(
@@ -499,11 +508,14 @@ mod tests {
 
     fn deliver_valid_tx() -> (ChainNodeApp, Tx, TxWitness, ResponseDeliverTx) {
         let (mut app, txaux) = prepare_app_valid_tx();
+        let rewards_pool_remaining_old = app.last_state.as_ref().unwrap().rewards_pool.remaining;
         assert_eq!(0, app.delivered_txs.len());
         begin_block(&mut app);
         let mut creq = RequestDeliverTx::default();
         creq.set_tx(txaux.rlp_bytes());
         let cresp = app.deliver_tx(&creq);
+        let rewards_pool_remaining_new = app.last_state.as_ref().unwrap().rewards_pool.remaining;
+        assert!(rewards_pool_remaining_new > rewards_pool_remaining_old);
         match txaux {
             TxAux::TransferTx(tx, witness) => (app, tx, witness, cresp),
         }
@@ -622,6 +634,10 @@ mod tests {
         )
         .unwrap();
         assert_ne!(10, i64::from(persisted_state.last_block_height));
+        assert_ne!(
+            10,
+            i64::from(persisted_state.rewards_pool.last_block_height)
+        );
         let cresp = app.commit(&RequestCommit::default());
         assert!(app
             .storage
@@ -638,6 +654,16 @@ mod tests {
         assert_eq!(
             10,
             i64::from(app.last_state.as_ref().unwrap().last_block_height)
+        );
+        assert_eq!(
+            10,
+            i64::from(
+                app.last_state
+                    .as_ref()
+                    .unwrap()
+                    .rewards_pool
+                    .last_block_height
+            )
         );
         assert_ne!(old_app_hash, app.last_state.as_ref().unwrap().last_apphash);
         assert_eq!(

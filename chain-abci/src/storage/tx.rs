@@ -2,6 +2,7 @@ use crate::app::ChainNodeState;
 use crate::storage::{COL_BODIES, COL_TX_META};
 use bit_vec::BitVec;
 use chain_core::init::coin::{Coin, CoinError};
+use chain_core::tx::fee::{Fee, FeeAlgorithm};
 use chain_core::tx::{data::Tx, TxAux};
 use kvdb::{DBTransaction, KeyValueDB};
 use rlp::{Decodable, Rlp};
@@ -44,7 +45,10 @@ impl fmt::Display for Error {
             InvalidSum(ref err) => write!(f, "input or output sum error: {}", err),
             InvalidInput => write!(f, "transaction spends an invalid input"),
             InputSpent => write!(f, "transaction spends an input that was already spent"),
-            InputOutputDoNotMatch => write!(f, "transaction input output coin sums don't match"),
+            InputOutputDoNotMatch => write!(
+                f,
+                "transaction input output coin (plus fee) sums don't match"
+            ),
             OutputInTimelock => write!(f, "output transaction is in timelock"),
             EcdsaCrypto(ref err) => write!(f, "ECDSA crypto error: {}", err),
             IoError(ref err) => write!(f, "IO error: {}", err),
@@ -81,14 +85,16 @@ pub fn update_utxos_commit(tx: &Tx, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransa
 }
 
 /// Checks TX against the current DB and returns an `Error` if something fails.
+/// If OK, returns the paid fee.
 /// TODO: when more address/sigs available, check Redeem addresses are never in outputs?
 pub fn verify(
     txaux: &TxAux,
+    txsize: usize,
     chain_hex_id: u8,
     db: Arc<dyn KeyValueDB>,
     app_state: &ChainNodeState,
-) -> Result<(), Error> {
-    match txaux {
+) -> Result<Fee, Error> {
+    let paid_fee = match txaux {
         TxAux::TransferTx(maintx, witness) => {
             // TODO: check other attributes?
             // check that chain IDs match
@@ -178,19 +184,26 @@ pub fn verify(
                     }
                 }
             }
-            // check sum(input amounts) == sum(output amounts)
-            // TODO: do we allow "burn"? i.e. sum(input amounts) >= sum(output amounts)
-            let outsum = maintx.get_output_total();
+            // check sum(input amounts) >= sum(output amounts) + minimum fee
+            // TODO: should the fee be fixed / validation would reject TX if it pays more than the below minimum?
+            let min_fee: Coin = app_state
+                .fee_policy
+                .calculate_fee(txsize)
+                .expect("invalid fee policy")
+                .to_coin();
+
+            let outsum = maintx.get_output_total().and_then(|x| x + min_fee);
             if outsum.is_err() {
                 return Err(Error::InvalidSum(outsum.unwrap_err()));
             }
             let outcoins = outsum.unwrap();
-            if incoins != outcoins {
+            if incoins < outcoins {
                 return Err(Error::InputOutputDoNotMatch);
             }
+            (incoins - outcoins).and_then(|x| x + min_fee).unwrap()
         }
-    }
-    Ok(())
+    };
+    Ok(Fee::new(paid_fee))
 }
 
 #[cfg(test)]
@@ -239,13 +252,13 @@ pub mod tests {
         if timelocked {
             old_tx.add_output(TxOut::new_with_timelock(
                 addr.clone(),
-                Coin::new(10).unwrap(),
+                Coin::one(),
                 20.into(),
             ));
         } else {
             old_tx.add_output(TxOut::new_with_timelock(
                 addr.clone(),
-                Coin::new(10).unwrap(),
+                Coin::one(),
                 (-20).into(),
             ));
         }
@@ -291,7 +304,8 @@ pub mod tests {
     #[test]
     fn existing_utxo_input_tx_should_verify() {
         let (db, txaux, _, _, _) = prepare_app_valid_tx(false);
-        let result = verify(&txaux, DEFAULT_CHAIN_ID, db, &get_dummy_app_state());
+        let len = txaux.rlp_bytes().len();
+        let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db, &get_dummy_app_state());
         assert!(result.is_ok());
     }
 
@@ -309,10 +323,11 @@ pub mod tests {
     #[test]
     fn test_verify_fail() {
         let (db, txaux, tx, witness, secret_key) = prepare_app_valid_tx(false);
+        let len = txaux.rlp_bytes().len();
         let app_state = get_dummy_app_state();
         // WrongChainHexId
         {
-            let result = verify(&txaux, DEFAULT_CHAIN_ID + 1, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID + 1, db.clone(), &app_state);
             expect_error(&result, Error::WrongChainHexId);
         }
         // NoInputs
@@ -320,7 +335,7 @@ pub mod tests {
             let mut tx = tx.clone();
             tx.inputs.clear();
             let txaux = TxAux::TransferTx(tx, witness.clone());
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(&result, Error::NoInputs);
         }
         // NoOutputs
@@ -328,7 +343,7 @@ pub mod tests {
             let mut tx = tx.clone();
             tx.outputs.clear();
             let txaux = TxAux::TransferTx(tx, witness.clone());
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(&result, Error::NoOutputs);
         }
         // DuplicateInputs
@@ -337,7 +352,7 @@ pub mod tests {
             let inp = tx.inputs[0].clone();
             tx.inputs.push(inp);
             let txaux = TxAux::TransferTx(tx, witness.clone());
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(&result, Error::DuplicateInputs);
         }
         // ZeroCoin
@@ -345,7 +360,7 @@ pub mod tests {
             let mut tx = tx.clone();
             tx.outputs[0].value = Coin::zero();
             let txaux = TxAux::TransferTx(tx, witness.clone());
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(&result, Error::ZeroCoin);
         }
         // UnexpectedWitnesses
@@ -354,13 +369,13 @@ pub mod tests {
             let wp = witness[0].clone();
             witness.push(wp);
             let txaux = TxAux::TransferTx(tx.clone(), witness);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(&result, Error::UnexpectedWitnesses);
         }
         // MissingWitnesses
         {
             let txaux = TxAux::TransferTx(tx.clone(), vec![].into());
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(&result, Error::MissingWitnesses);
         }
         // InvalidSum
@@ -372,7 +387,7 @@ pub mod tests {
             let mut witness = witness.clone();
             witness[0] = get_tx_witness(Secp256k1::new(), &tx, &secret_key);
             let txaux = TxAux::TransferTx(tx, witness);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(
                 &result,
                 Error::InvalidSum(CoinError::OutOfBound(Coin::max().into())),
@@ -388,7 +403,7 @@ pub mod tests {
             );
             db.write(inittx).unwrap();
 
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(&result, Error::InputSpent);
 
             let mut reset = db.transaction();
@@ -409,7 +424,7 @@ pub mod tests {
                 &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
             );
             let txaux = TxAux::TransferTx(tx.clone(), witness);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(
                 &result,
                 Error::EcdsaCrypto(secp256k1::Error::InvalidPublicKey),
@@ -417,7 +432,7 @@ pub mod tests {
         }
         // InvalidInput
         {
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, create_db(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, create_db(), &app_state);
             expect_error(&result, Error::InvalidInput);
         }
         // InputOutputDoNotMatch
@@ -425,16 +440,16 @@ pub mod tests {
             let mut tx = tx.clone();
             let mut witness = witness.clone();
 
-            tx.outputs[0].value = (tx.outputs[0].value + Coin::unit()).unwrap();
+            tx.outputs[0].value = (tx.outputs[0].value + Coin::one()).unwrap();
             witness[0] = get_tx_witness(Secp256k1::new(), &tx, &secret_key);
             let txaux = TxAux::TransferTx(tx, witness);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(&result, Error::InputOutputDoNotMatch);
         }
         // OutputInTimelock
         {
             let (db, txaux, _, _, _) = prepare_app_valid_tx(true);
-            let result = verify(&txaux, DEFAULT_CHAIN_ID, db.clone(), &app_state);
+            let result = verify(&txaux, len, DEFAULT_CHAIN_ID, db.clone(), &app_state);
             expect_error(&result, Error::OutputInTimelock);
         }
     }

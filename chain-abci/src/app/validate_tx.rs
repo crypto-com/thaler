@@ -1,6 +1,7 @@
 use super::ChainNodeApp;
 use crate::storage::tx::verify;
 use abci::*;
+use chain_core::tx::fee::Fee;
 use chain_core::tx::TxAux;
 use rlp::{Decodable, Rlp};
 
@@ -54,7 +55,7 @@ impl ChainNodeApp {
         &self,
         _req: &dyn RequestWithTx,
         resp: &mut dyn ResponseWithCodeAndLog,
-    ) -> Option<TxAux> {
+    ) -> Option<(TxAux, Fee)> {
         let dtx = TxAux::decode(&Rlp::new(_req.tx()));
         match dtx {
             Err(e) => {
@@ -65,17 +66,19 @@ impl ChainNodeApp {
             Ok(txaux) => {
                 let v = verify(
                     &txaux,
+                    _req.tx().len(),
                     self.chain_hex_id,
                     self.storage.db.clone(),
                     self.last_state.as_ref().expect("the app state is expected"),
                 );
                 if v.is_ok() {
                     resp.set_code(0);
+                    Some((txaux, v.unwrap()))
                 } else {
                     resp.set_code(1);
                     resp.add_log(&format!("verification failed: {}", v.unwrap_err()));
+                    None
                 }
-                Some(txaux)
             }
         }
     }
