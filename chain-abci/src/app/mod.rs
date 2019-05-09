@@ -95,7 +95,8 @@ impl abci::Application for ChainNodeApp {
             let new_remaining = (rewards_pool.remaining + fee_paid.to_coin())
                 .expect("rewards pool + fee greater than max coin?");
             rewards_pool.remaining = new_remaining;
-            // this "buffered write" shouldn't persist (persistence done in commit) -- TODO: check
+            // this "buffered write" shouldn't persist (persistence done in commit)
+            // but should change it in-memory -- TODO: check
             self.storage.db.write_buffered(inittx);
             self.delivered_txs.push(TxAux::TransferTx(tx, witness));
             let mut kvpair = KVPair::new();

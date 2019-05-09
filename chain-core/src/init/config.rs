@@ -22,7 +22,9 @@ pub struct InitConfig {
     pub launch_incentive_to: RedeemAddress,
     // 0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07 on Eth mainnet ERC20
     pub long_term_incentive: RedeemAddress,
-    // Initial fee setting -- TODO: change to be against T: FeeAlgorithm
+    // Initial fee setting
+    // -- TODO: perhaps change to be against T: FeeAlgorithm
+    // TBD here, the intention would be to "freeze" the genesis config, so not sure generic field is worth it
     pub initial_fee_policy: LinearFee,
 }
 
