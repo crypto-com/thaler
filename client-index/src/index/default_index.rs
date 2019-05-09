@@ -215,6 +215,7 @@ mod tests {
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::init::config::InitConfig;
+    use chain_core::tx::fee::{LinearFee, Milli};
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
     use std::collections::BTreeMap;
@@ -225,6 +226,7 @@ mod tests {
 
     impl Client for MockClient {
         fn genesis(&self) -> Result<Genesis> {
+            let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
             let distribution: BTreeMap<RedeemAddress, Coin> = [(
                 RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
                 Coin::max(),
@@ -242,6 +244,7 @@ mod tests {
                         RedeemAddress::default(),
                         RedeemAddress::default(),
                         RedeemAddress::default(),
+                        fee_policy,
                     ),
                 },
             })

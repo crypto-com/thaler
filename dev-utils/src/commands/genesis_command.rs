@@ -7,6 +7,7 @@ use structopt::StructOpt;
 use chain_core::common::merkle::MerkleTree;
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::tx::data::{attribute::TxAttributes, Tx, TxId};
+use chain_core::tx::fee::{LinearFee, Milli};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
@@ -51,6 +52,15 @@ pub enum GenesisCommand {
             help = "Network long-term incentives address"
         )]
         long_term_incentive: String,
+        #[structopt(name = "base_fee", short, long, help = "Base fee portion")]
+        base_fee: String,
+        #[structopt(
+            name = "per_byte_fee",
+            short,
+            long,
+            help = "A per byte in TX fee portion"
+        )]
+        per_byte_fee: String,
     },
 }
 
@@ -63,12 +73,16 @@ impl GenesisCommand {
                 launch_incentive_from,
                 launch_incentive_to,
                 long_term_incentive,
+                base_fee,
+                per_byte_fee,
             } => GenesisCommand::generate(
                 &mapping_file_path,
                 &launch_incentive_from,
                 &launch_incentive_to,
                 &long_term_incentive,
                 &chain_id,
+                &base_fee,
+                &per_byte_fee,
             ),
         }
     }
@@ -79,6 +93,8 @@ impl GenesisCommand {
         launch_incentive_to: &str,
         long_term_incentive: &str,
         chain_id: &str,
+        base_fee: &str,
+        per_byte_fee: &str,
     ) -> Result<(), Error> {
         let mapping_file = fs::read_to_string(mapping_file_path)
             .context(format_err!("Something went wrong reading the file"))?;
@@ -103,7 +119,18 @@ impl GenesisCommand {
             RedeemAddress::from_str(launch_incentive_to).context(format_err!("Invalid address"))?;
         let lti_address =
             RedeemAddress::from_str(long_term_incentive).context(format_err!("Invalid address"))?;
-        let config = InitConfig::new(distribution, li_from_address, li_to_address, lti_address);
+        let constant_fee =
+            Milli::from_str(base_fee).context(format_err!("Invalid constant fee"))?;
+        let coefficient_fee =
+            Milli::from_str(per_byte_fee).context(format_err!("Invalid per byte fee"))?;
+        let fee_policy = LinearFee::new(constant_fee, coefficient_fee);
+        let config = InitConfig::new(
+            distribution,
+            li_from_address,
+            li_to_address,
+            lti_address,
+            fee_policy,
+        );
 
         let chain_id = decode(chain_id).context(format_err!("Invalid chain-id"))?[0];
 

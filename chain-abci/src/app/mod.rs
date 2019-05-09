@@ -7,7 +7,7 @@ use abci::*;
 use ethbloom::{Bloom, Input};
 use log::info;
 
-pub use self::app_init::ChainNodeApp;
+pub use self::app_init::{ChainNodeApp, ChainNodeState};
 use crate::storage::tx::spend_utxos;
 use chain_core::tx::TxAux;
 
@@ -19,9 +19,10 @@ impl abci::Application for ChainNodeApp {
     fn info(&mut self, _req: &RequestInfo) -> ResponseInfo {
         info!("received info request");
         let mut resp = ResponseInfo::new();
-        if self.last_apphash.is_some() {
-            resp.last_block_app_hash = self.last_apphash.unwrap().as_bytes().to_vec();
-            resp.last_block_height = self.last_block_height.into();
+        if let Some(app_state) = &self.last_state {
+            resp.last_block_app_hash = app_state.last_apphash.as_bytes().to_vec();
+            resp.last_block_height = app_state.last_block_height.into();
+            resp.data = serde_json::to_string(&app_state).expect("serialize app state to json");
         } else {
             resp.last_block_app_hash = self.genesis_app_hash.as_bytes().to_vec();
         }
@@ -62,16 +63,17 @@ impl abci::Application for ChainNodeApp {
         info!("received beginblock request");
         // TODO: process RequestBeginBlock -- e.g. rewards for validators? + punishment for malicious ByzantineValidators
         // TODO: Check security implications once https://github.com/tendermint/tendermint/issues/2653 is closed
-        self.block_time = Some(
-            req.header
-                .as_ref()
-                .expect("Begin block request does not have header")
-                .time
-                .as_ref()
-                .expect("Header does not have a timestamp")
-                .seconds
-                .into(),
-        );
+        let block_time = req
+            .header
+            .as_ref()
+            .expect("Begin block request does not have header")
+            .time
+            .as_ref()
+            .expect("Header does not have a timestamp")
+            .seconds
+            .into();
+        self.last_state.as_mut().map(|mut x| x.block_time = block_time)
+            .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
         ResponseBeginBlock::new()
     }
 
@@ -81,10 +83,20 @@ impl abci::Application for ChainNodeApp {
         info!("received delivertx request");
         let mut resp = ResponseDeliverTx::new();
         let mtxaux = ChainNodeApp::validate_tx_req(self, _req, &mut resp);
-        if let (0, Some(TxAux::TransferTx(tx, witness))) = (resp.code, mtxaux) {
+        if let (0, Some((TxAux::TransferTx(tx, witness), fee_paid))) = (resp.code, mtxaux) {
             let txid = tx.id();
             let mut inittx = self.storage.db.transaction();
             spend_utxos(&tx, self.storage.db.clone(), &mut inittx);
+            let rewards_pool = &mut self
+                .last_state
+                .as_mut()
+                .expect("deliver tx, but last state not initialized")
+                .rewards_pool;
+            let new_remaining = (rewards_pool.remaining + fee_paid.to_coin())
+                .expect("rewards pool + fee greater than max coin?");
+            rewards_pool.remaining = new_remaining;
+            // this "buffered write" shouldn't persist (persistence done in commit)
+            // but should change it in-memory -- TODO: check
             self.storage.db.write_buffered(inittx);
             self.delivered_txs.push(TxAux::TransferTx(tx, witness));
             let mut kvpair = KVPair::new();
@@ -120,7 +132,8 @@ impl abci::Application for ChainNodeApp {
             resp.tags.push(kvpair);
         }
         // TODO: skipchain-based validator changes?
-        self.uncommitted_block_height = _req.height.into();
+        self.last_state.as_mut().map(|mut x| x.last_block_height = _req.height.into())
+            .expect("executing end block, but no app state stored (i.e. no initchain or recovery was executed)");
         resp
     }
 
@@ -137,12 +150,16 @@ mod tests {
     use crate::storage::tx::tests::get_tx_witness;
     use crate::storage::*;
     use abci::Application;
+    use bincode::{deserialize, serialize};
     use bit_vec::BitVec;
+    use chain_core::common::H256;
     use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
     use chain_core::compute_app_hash;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::init::config::InitConfig;
+    use chain_core::state::RewardsPoolState;
+    use chain_core::tx::fee::{LinearFee, Milli};
     use chain_core::tx::{
         data::{
             access::{TxAccess, TxAccessPolicy},
@@ -224,6 +241,16 @@ mod tests {
         );
     }
 
+    fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
+        ChainNodeState {
+            last_block_height: 0.into(),
+            last_apphash: app_hash,
+            block_time: 0.into(),
+            rewards_pool: RewardsPoolState::new(1.into(), 0.into()),
+            fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
+        }
+    }
+
     #[test]
     #[should_panic]
     fn previously_stored_hash_should_match() {
@@ -234,7 +261,11 @@ mod tests {
         genesis_app_hash.copy_from_slice(&decoded_gah[..]);
         let mut inittx = db.transaction();
         inittx.put(COL_NODE_INFO, GENESIS_APP_HASH_KEY, &genesis_app_hash);
-        inittx.put(COL_NODE_INFO, LAST_APP_HASH_KEY, &genesis_app_hash);
+        inittx.put(
+            COL_NODE_INFO,
+            LAST_STATE_KEY,
+            &serialize(&get_dummy_app_state(genesis_app_hash.into())).expect("serialize state"),
+        );
         db.write(inittx).unwrap();
         let example_hash2 = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
         let _app = ChainNodeApp::new_with_storage(
@@ -253,11 +284,13 @@ mod tests {
         .iter()
         .cloned()
         .collect();
+        let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
         let c = InitConfig::new(
             distribution,
             RedeemAddress::default(),
             RedeemAddress::default(),
             RedeemAddress::default(),
+            fee_policy,
         );
         let utxos = c.generate_utxos(&TxAttributes::new(0));
         let rp = c.get_genesis_rewards_pool();
@@ -287,14 +320,12 @@ mod tests {
         );
         let genesis_app_hash = app.genesis_app_hash;
         let db = app.storage.db;
-        let gah = db.get(COL_NODE_INFO, LAST_APP_HASH_KEY).unwrap().unwrap();
-        let mut stored_genesis = [0u8; HASH_SIZE_256];
-        stored_genesis.copy_from_slice(&gah[..]);
-        assert_eq!(genesis_app_hash, stored_genesis.into());
+        let state: ChainNodeState =
+            deserialize(&db.get(COL_NODE_INFO, LAST_STATE_KEY).unwrap().unwrap()[..]).unwrap();
+
+        assert_eq!(genesis_app_hash, state.last_apphash);
         assert_eq!(1, db.iter(COL_TX_META).count());
         assert_eq!(1, db.iter(COL_BODIES).count());
-        assert!(db.get(COL_MERKLE_PROOFS, &stored_genesis[..]).is_ok());
-        assert!(db.get(COL_NODE_INFO, LAST_BLOCK_HEIGHT_KEY).is_ok());
     }
 
     #[test]
@@ -313,11 +344,13 @@ mod tests {
         .iter()
         .cloned()
         .collect();
+        let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
         let c = InitConfig::new(
             distribution,
             RedeemAddress::default(),
             RedeemAddress::default(),
             RedeemAddress::default(),
+            fee_policy,
         );
 
         let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
@@ -398,7 +431,7 @@ mod tests {
             .push(TxAccessPolicy::new(public_key, TxAccess::AllData));
         let eaddr = ExtendedAddr::BasicRedeem(addr);
         tx.add_input(txp);
-        tx.add_output(TxOut::new(eaddr, (Coin::max() - Coin::unit()).unwrap()));
+        tx.add_output(TxOut::new(eaddr, Coin::one()));
         let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
         let pk2 = PublicKey::from_secret_key(&secp, &sk2);
         tx.add_output(TxOut::new(
@@ -476,11 +509,14 @@ mod tests {
 
     fn deliver_valid_tx() -> (ChainNodeApp, Tx, TxWitness, ResponseDeliverTx) {
         let (mut app, txaux) = prepare_app_valid_tx();
+        let rewards_pool_remaining_old = app.last_state.as_ref().unwrap().rewards_pool.remaining;
         assert_eq!(0, app.delivered_txs.len());
         begin_block(&mut app);
         let mut creq = RequestDeliverTx::default();
         creq.set_tx(txaux.rlp_bytes());
         let cresp = app.deliver_tx(&creq);
+        let rewards_pool_remaining_new = app.last_state.as_ref().unwrap().rewards_pool.remaining;
+        assert!(rewards_pool_remaining_new > rewards_pool_remaining_old);
         match txaux {
             TxAux::TransferTx(tx, witness) => (app, tx, witness, cresp),
         }
@@ -533,9 +569,15 @@ mod tests {
         begin_block(&mut app);
         let mut creq = RequestEndBlock::default();
         creq.set_height(10);
-        assert_ne!(10, i64::from(app.uncommitted_block_height));
+        assert_ne!(
+            10,
+            i64::from(app.last_state.as_ref().unwrap().last_block_height)
+        );
         let cresp = app.end_block(&creq);
-        assert_eq!(10, i64::from(app.uncommitted_block_height));
+        assert_eq!(
+            10,
+            i64::from(app.last_state.as_ref().unwrap().last_block_height)
+        );
         assert_eq!(0, cresp.tags.len());
     }
 
@@ -561,7 +603,7 @@ mod tests {
         ))
         .unwrap();
         let old_tx_id = old_tx.id();
-        let old_app_hash = app.last_apphash;
+        let old_app_hash = app.last_state.as_ref().unwrap().last_apphash;
         let mut endreq = RequestEndBlock::default();
         endreq.set_height(10);
         let cresp = app.end_block(&endreq);
@@ -584,7 +626,19 @@ mod tests {
             .get(COL_WITNESS, tx.id().as_bytes())
             .unwrap()
             .is_none());
-        assert_ne!(10, i64::from(app.last_block_height));
+        let persisted_state: ChainNodeState = deserialize(
+            &app.storage
+                .db
+                .get(COL_NODE_INFO, LAST_STATE_KEY)
+                .unwrap()
+                .unwrap()[..],
+        )
+        .unwrap();
+        assert_ne!(10, i64::from(persisted_state.last_block_height));
+        assert_ne!(
+            10,
+            i64::from(persisted_state.rewards_pool.last_block_height)
+        );
         let cresp = app.commit(&RequestCommit::default());
         assert!(app
             .storage
@@ -598,9 +652,25 @@ mod tests {
             .get(COL_WITNESS, tx.id().as_bytes())
             .unwrap()
             .is_some());
-        assert_eq!(10, i64::from(app.last_block_height));
-        assert_ne!(old_app_hash, app.last_apphash);
-        assert_eq!(&app.last_apphash.unwrap()[..], &cresp.data[..]);
+        assert_eq!(
+            10,
+            i64::from(app.last_state.as_ref().unwrap().last_block_height)
+        );
+        assert_eq!(
+            10,
+            i64::from(
+                app.last_state
+                    .as_ref()
+                    .unwrap()
+                    .rewards_pool
+                    .last_block_height
+            )
+        );
+        assert_ne!(old_app_hash, app.last_state.as_ref().unwrap().last_apphash);
+        assert_eq!(
+            &app.last_state.as_ref().unwrap().last_apphash[..],
+            &cresp.data[..]
+        );
         assert!(app
             .storage
             .db
@@ -636,7 +706,7 @@ mod tests {
         begin_block(&mut app);
         app.end_block(&RequestEndBlock::default());
         let cresp = app.commit(&RequestCommit::default());
-        assert_eq!(old_app_hash, app.last_apphash.unwrap());
+        assert_eq!(old_app_hash, app.last_state.as_ref().unwrap().last_apphash);
         assert_eq!(&old_app_hash[..], &cresp.data[..]);
     }
 
@@ -656,7 +726,7 @@ mod tests {
         let proof = qresp.proof.unwrap();
         assert_eq!(proof.ops.len(), 3);
         assert_eq!(proof.ops[0].data, tx.id().as_bytes());
-        let rewards_pool_part = app.rewards_pool.clone().unwrap().hash();
+        let rewards_pool_part = app.last_state.clone().unwrap().rewards_pool.hash();
         let mut bs = Vec::new();
         bs.extend(proof.ops[1].data.iter());
         bs.extend(rewards_pool_part.as_bytes());

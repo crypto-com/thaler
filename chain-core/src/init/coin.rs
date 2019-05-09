@@ -3,7 +3,7 @@
 //! Copyright (c) 2018, Input Output HK (licensed under the MIT License)
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
-use crate::init::MAX_COIN;
+use crate::init::{MAX_COIN, MAX_COIN_DECIMALS};
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
@@ -50,9 +50,14 @@ impl Coin {
         Coin(0)
     }
 
-    /// create of unitary coin (a coin of value `1`)
+    /// create of base unitary coin (a coin of value `1`)
     pub fn unit() -> Self {
         Coin(1)
+    }
+
+    /// create of non-base coin of value 1 (assuming 8 decimals)
+    pub fn one() -> Self {
+        Coin(MAX_COIN_DECIMALS)
     }
 
     /// create of maximum coin
@@ -73,7 +78,12 @@ impl Coin {
 impl fmt::Display for Coin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // 8 decimals
-        write!(f, "{}.{:08}", self.0 / 100_000_000, self.0 % 100_000_000)
+        write!(
+            f,
+            "{}.{:08}",
+            self.0 / MAX_COIN_DECIMALS,
+            self.0 % MAX_COIN_DECIMALS
+        )
     }
 }
 

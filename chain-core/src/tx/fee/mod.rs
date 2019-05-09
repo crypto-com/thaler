@@ -6,7 +6,11 @@
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::TxAux;
 use rlp::Encodable;
+use serde::{Deserialize, Serialize};
+use std::num::ParseIntError;
 use std::ops::{Add, Mul};
+use std::str::FromStr;
+use std::{error, fmt};
 
 /// A fee value that represent either a fee to pay, or a fee paid.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
@@ -22,14 +26,22 @@ impl Fee {
     }
 }
 
-/// 4 digit fixed decimal
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
+/// Represents a 4 digit fixed decimal
+/// TODO: overflow checks in Cargo?
+/// [profile.release]
+/// overflow-checks = true
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct Milli(u64);
 impl Milli {
+    /// takes the integer part and 4-digit fractional part
+    /// and returns the 4-digit fixed decimal number (i.ffff)
     pub fn new(i: u64, f: u64) -> Self {
         Milli(i * 1000 + f % 1000)
     }
 
+    /// takes the integer part
+    /// and returns the 4-digit fixed decimal number (i.0000)
     pub fn integral(i: u64) -> Self {
         Milli(i * 1000)
     }
@@ -52,6 +64,59 @@ impl Milli {
     }
 }
 
+#[derive(Debug)]
+pub enum MilliError {
+    /// An invalid length of parts (should be 2)
+    InvalidPartsLength(usize),
+    /// Number parsing error
+    InvalidInteger(ParseIntError),
+}
+
+impl fmt::Display for MilliError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            MilliError::InvalidPartsLength(len) => {
+                write!(f, "Invalid parts length: {} (2 expected)", len)
+            }
+            MilliError::InvalidInteger(ref err) => write!(f, "Integer parsing error: {}", err),
+        }
+    }
+}
+
+impl From<ParseIntError> for MilliError {
+    fn from(err: ParseIntError) -> Self {
+        MilliError::InvalidInteger(err)
+    }
+}
+
+impl FromStr for Milli {
+    type Err = MilliError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let parts = s.split('.').collect::<Vec<&str>>();
+        let len = parts.len();
+        if len != 2 {
+            return Err(MilliError::InvalidPartsLength(len));
+        }
+        let integral: u64 = parts[0].parse()?;
+        let fractional: u64 = parts[1].parse()?;
+        Ok(Milli::new(integral, fractional))
+    }
+}
+
+impl error::Error for MilliError {
+    fn description(&self) -> &str {
+        "Milli parsing error"
+    }
+
+    fn cause(&self) -> Option<&dyn error::Error> {
+        match *self {
+            MilliError::InvalidInteger(ref err) => Some(err),
+            _ => None,
+        }
+    }
+}
+
 impl Add for Milli {
     type Output = Milli;
     fn add(self, other: Self) -> Self {
@@ -70,7 +135,7 @@ impl Mul for Milli {
 }
 
 /// Linear fee using the basic affine formula `COEFFICIENT * rlp(txaux).len() + CONSTANT`
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct LinearFee {
     /// this is the minimal fee
     pub constant: Milli,
@@ -96,21 +161,17 @@ impl LinearFee {
 
 /// Calculation of fees for a specific chosen algorithm
 pub trait FeeAlgorithm {
-    fn estimate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError>;
+    fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError>;
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError>;
 }
 
 impl FeeAlgorithm for LinearFee {
-    fn estimate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError> {
-        let msz = Milli::integral(num_bytes as u64);
-        let fee = self.coefficient * msz;
-        let coin = Coin::new(fee.to_integral())?;
-        Ok(Fee(coin))
+    fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError> {
+        self.estimate(num_bytes)
     }
 
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError> {
-        let txbytes = txaux.rlp_bytes();
-        self.estimate(txbytes.len())
+        self.estimate(txaux.rlp_bytes().len())
     }
 }
 

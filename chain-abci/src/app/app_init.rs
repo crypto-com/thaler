@@ -1,4 +1,5 @@
 use abci::*;
+use bincode::{deserialize, serialize};
 use bit_vec::BitVec;
 use chain_core::common::merkle::MerkleTree;
 use chain_core::common::Timespec;
@@ -8,39 +9,92 @@ use chain_core::init::config::InitConfig;
 use chain_core::state::{BlockHeight, RewardsPoolState};
 use chain_core::tx::{
     data::{attribute::TxAttributes, Tx, TxId},
+    fee::LinearFee,
     TxAux,
 };
 use hex::decode;
-use integer_encoding::VarInt;
-use log::info;
+use kvdb::DBTransaction;
+use log::{info, warn};
+use protobuf::well_known_types::Timestamp;
 use protobuf::Message;
-use rlp::{Decodable, Encodable, Rlp, RlpStream};
+use rlp::{Encodable, RlpStream};
+use serde::{Deserialize, Serialize};
 
 use crate::storage::*;
+
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub struct ChainNodeState {
+    /// last processed block height
+    pub last_block_height: BlockHeight,
+    /// last committed merkle root
+    pub last_apphash: H256,
+    /// time in previous block's header or genesis time
+    pub block_time: Timespec,
+    /// last rewards pool state
+    pub rewards_pool: RewardsPoolState,
+    /// fee policy to apply -- TODO: change to be against T: FeeAlgorithm
+    pub fee_policy: LinearFee,
+}
 
 /// The global ABCI state
 pub struct ChainNodeApp {
     /// the underlying key-value storage (+ possibly some info in the future)
     pub storage: Storage,
-    /// last processed block height
-    pub last_block_height: BlockHeight,
-    /// next block height
-    pub uncommitted_block_height: BlockHeight,
     /// valid transactions after DeliverTx before EndBlock/Commit
     pub delivered_txs: Vec<TxAux>,
     /// a reference to genesis (used when there is no committed state)
     pub genesis_app_hash: H256,
-    /// last committed merkle root (if any)
-    pub last_apphash: Option<H256>,
     /// last two hex digits in chain_id
     pub chain_hex_id: u8,
-    /// time in previous block's header or genesis time
-    pub block_time: Option<Timespec>,
-    /// last rewards pool state
-    pub rewards_pool: Option<RewardsPoolState>,
+    /// last application state snapshot (if any)
+    pub last_state: Option<ChainNodeState>,
 }
 
 impl ChainNodeApp {
+    fn restore_from_storage(
+        last_app_state: Vec<u8>,
+        genesis_app_hash: [u8; HASH_SIZE_256],
+        chain_id: &str,
+        storage: Storage,
+    ) -> Self {
+        let stored_gah = storage
+            .db
+            .get(COL_NODE_INFO, GENESIS_APP_HASH_KEY)
+            .expect("genesis hash lookup")
+            .expect("last app state found, but genesis app hash not stored");
+        let mut stored_genesis = [0u8; HASH_SIZE_256];
+        stored_genesis.copy_from_slice(&stored_gah[..]);
+
+        if stored_genesis != genesis_app_hash {
+            panic!(
+                "stored genesis app hash: {:?} does not match the provided genesis app hash: {:?}",
+                stored_genesis, genesis_app_hash
+            );
+        }
+        let stored_chain_id = storage
+            .db
+            .get(COL_EXTRA, CHAIN_ID_KEY)
+            .expect("chain id lookup")
+            .expect("last app state found, but no chain id stored");
+        if stored_chain_id != chain_id.as_bytes() {
+            panic!(
+                "stored chain id: {:?} does not match the provided chain id: {:?}",
+                stored_chain_id, chain_id
+            );
+        }
+        let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
+            .expect("failed to decode two last hex digits in chain ID")[0];
+        let last_state: Option<ChainNodeState> =
+            Some(deserialize(&last_app_state[..]).expect("deserialize app state"));
+        ChainNodeApp {
+            storage,
+            delivered_txs: Vec::new(),
+            chain_hex_id,
+            genesis_app_hash: genesis_app_hash.into(),
+            last_state,
+        }
+    }
+
     /// Creates a new App initialized with a given storage (could be in-mem or persistent).
     /// If persistent storage is used, it'll try to recove stored arguments (e.g. last app hash / block height) from it.
     ///
@@ -53,16 +107,25 @@ impl ChainNodeApp {
         let decoded_gah = decode(gah).expect("failed to decode genesis app hash");
         let mut genesis_app_hash = [0u8; HASH_SIZE_256];
         genesis_app_hash.copy_from_slice(&decoded_gah[..]);
-        let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
-            .expect("failed to decode two last hex digits in chain ID")[0];
 
-        let last_app_hash = storage.db.get(COL_NODE_INFO, LAST_APP_HASH_KEY).unwrap();
-
-        if last_app_hash.is_none() {
-            info!("no last app hash stored");
+        if let Some(last_app_state) = storage
+            .db
+            .get(COL_NODE_INFO, LAST_STATE_KEY)
+            .expect("app state lookup")
+        {
+            info!("last app state stored");
+            ChainNodeApp::restore_from_storage(
+                last_app_state.to_vec(),
+                genesis_app_hash,
+                chain_id,
+                storage,
+            )
+        } else {
+            info!("no last app state stored");
+            let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
+                .expect("failed to decode two last hex digits in chain ID")[0];
             let mut inittx = storage.db.transaction();
             inittx.put(COL_NODE_INFO, GENESIS_APP_HASH_KEY, &genesis_app_hash);
-
             inittx.put(COL_EXTRA, CHAIN_ID_KEY, chain_id.as_bytes());
             storage
                 .db
@@ -70,72 +133,10 @@ impl ChainNodeApp {
                 .expect("genesis app hash should be stored");
             ChainNodeApp {
                 storage,
-                last_block_height: 0.into(),
-                uncommitted_block_height: 0.into(),
                 delivered_txs: Vec::new(),
-                last_apphash: None,
                 chain_hex_id,
                 genesis_app_hash: genesis_app_hash.into(),
-                block_time: None,
-                rewards_pool: None,
-            }
-        } else {
-            info!("last app hash stored");
-            let stored_gah = storage
-                .db
-                .get(COL_NODE_INFO, GENESIS_APP_HASH_KEY)
-                .unwrap()
-                .expect("last app hash found, but genesis app hash not stored");
-            let mut stored_genesis = [0u8; HASH_SIZE_256];
-            stored_genesis.copy_from_slice(&stored_gah[..]);
-
-            if stored_genesis != genesis_app_hash {
-                panic!("stored genesis app hash: {:?} does not match the provided genesis app hash: {:?}", stored_genesis, genesis_app_hash);
-            }
-            let stored_chain_id = storage
-                .db
-                .get(COL_EXTRA, CHAIN_ID_KEY)
-                .unwrap()
-                .expect("last app hash found, but no chain id stored");
-            if stored_chain_id != chain_id.as_bytes() {
-                panic!(
-                    "stored chain id: {:?} does not match the provided chain id: {:?}",
-                    stored_chain_id, chain_id
-                );
-            }
-            let last_block_height = i64::decode_var_vec(
-                &storage
-                    .db
-                    .get(COL_NODE_INFO, LAST_BLOCK_HEIGHT_KEY)
-                    .expect("last apphash found, but last block height not found")
-                    .unwrap()
-                    .to_vec(),
-            )
-            .0;
-
-            let rewards_pool = RewardsPoolState::decode(&Rlp::new(
-                &storage
-                    .db
-                    .get(COL_NODE_INFO, REWARDS_POOL_STATE_KEY)
-                    .unwrap()
-                    .expect("last app hash found, but no rewards pool state stored"),
-            ))
-            .expect(
-                "failed to decode stored
-                rewards pool state",
-            );
-            let mut app_hash = [0u8; HASH_SIZE_256];
-            app_hash.copy_from_slice(&last_app_hash.unwrap()[..]);
-            ChainNodeApp {
-                storage,
-                last_block_height: last_block_height.into(),
-                uncommitted_block_height: 0.into(),
-                delivered_txs: Vec::new(),
-                last_apphash: Some(app_hash.into()),
-                chain_hex_id,
-                genesis_app_hash: genesis_app_hash.into(),
-                block_time: None,
-                rewards_pool: Some(rewards_pool),
+                last_state: None,
             }
         }
     }
@@ -149,6 +150,95 @@ impl ChainNodeApp {
     /// * `storage_config` - configuration for storage (currently only the path, but TODO: more options, e.g. SSD or HDD params)
     pub fn new(gah: &str, chain_id: &str, storage_config: &StorageConfig<'_>) -> ChainNodeApp {
         ChainNodeApp::new_with_storage(gah, chain_id, Storage::new(storage_config))
+    }
+
+    fn check_and_store_consensus_params(
+        init_consensus_params: Option<&ConsensusParams>,
+        inittx: &mut DBTransaction,
+    ) {
+        // TODO: check consensus parameters
+        match init_consensus_params {
+            Some(cp) => {
+                inittx.put(
+                    COL_EXTRA,
+                    b"init_chain_consensus_params",
+                    &(cp as &dyn Message)
+                        .write_to_bytes()
+                        .expect("consensus params"),
+                );
+            }
+            None => {
+                info!("consensus params not in the initchain request");
+            }
+        }
+    }
+
+    fn check_and_store_validators(validators: &[ValidatorUpdate], inittx: &mut DBTransaction) {
+        // TODO: checking validators
+        let validators_serialized: Vec<Vec<u8>> = validators
+            .iter()
+            .map(|x| {
+                (x as &dyn Message)
+                    .write_to_bytes()
+                    .expect("genesis validators")
+            })
+            .collect();
+        let mut rlp = RlpStream::new();
+        rlp.begin_list(validators_serialized.len());
+        for v in validators_serialized.iter() {
+            rlp.append_list(v);
+        }
+        inittx.put(COL_EXTRA, b"init_chain_validators", &rlp.out());
+    }
+
+    fn store_valid_genesis_state(
+        initial_utxos: &[Tx],
+        genesis_time: Option<&Timestamp>,
+        genesis_app_hash: H256,
+        rewards_pool: RewardsPoolState,
+        fee_policy: LinearFee,
+        inittx: &mut DBTransaction,
+    ) -> ChainNodeState {
+        for utxo in initial_utxos.iter() {
+            let txid = utxo.id();
+            info!("creating genesis tx (id: {:?})", &txid);
+            inittx.put(COL_BODIES, &txid.as_bytes(), &utxo.rlp_bytes());
+            inittx.put(
+                COL_TX_META,
+                &txid.as_bytes(),
+                &BitVec::from_elem(1, false).to_bytes(),
+            );
+        }
+
+        let last_state = if let Some(time) = genesis_time {
+            inittx.put(
+                COL_EXTRA,
+                b"init_chain_time",
+                &(time as &dyn Message).write_to_bytes().expect("time"),
+            );
+            ChainNodeState {
+                last_block_height: 0.into(),
+                last_apphash: genesis_app_hash,
+                block_time: time.get_seconds().into(),
+                rewards_pool,
+                fee_policy,
+            }
+        } else {
+            warn!("time not in the initchain request");
+            ChainNodeState {
+                last_block_height: 0.into(),
+                last_apphash: genesis_app_hash,
+                block_time: 0.into(),
+                rewards_pool,
+                fee_policy,
+            }
+        };
+        inittx.put(
+            COL_NODE_INFO,
+            LAST_STATE_KEY,
+            &serialize(&last_state).expect("serialize state"),
+        );
+        last_state
     }
 
     /// Handles InitChain requests:
@@ -181,90 +271,33 @@ impl ChainNodeApp {
             }
 
             let mut inittx = db.transaction();
-            // TODO: check consensus parameters
-            match _req.consensus_params.as_ref() {
-                Some(cp) => {
-                    inittx.put(
-                        COL_EXTRA,
-                        b"init_chain_consensus_params",
-                        &(cp as &dyn Message)
-                            .write_to_bytes()
-                            .expect("consensus params"),
-                    );
-                }
-                None => {
-                    info!("consensus params not in the initchain request");
-                }
-            }
-            match _req.time.as_ref() {
-                Some(time) => {
-                    inittx.put(
-                        COL_EXTRA,
-                        b"init_chain_time",
-                        &(time as &dyn Message).write_to_bytes().expect("time"),
-                    );
-                }
-                None => {
-                    info!("time not in the initchain request");
-                }
-            }
-            // TODO: checking validators
-            let validators: Vec<Vec<u8>> = _req
-                .validators
-                .iter()
-                .map(|x| {
-                    (x as &dyn Message)
-                        .write_to_bytes()
-                        .expect("genesis validators")
-                })
-                .collect();
-            let mut rlp = RlpStream::new();
-            rlp.begin_list(validators.len());
-            for v in validators.iter() {
-                rlp.append_list(v);
-            }
-            inittx.put(COL_EXTRA, b"init_chain_validators", &rlp.out());
-
-            for utxo in utxos.iter() {
-                let txid = utxo.id();
-                info!("creating genesis tx (id: {:?})", &txid);
-                inittx.put(COL_BODIES, &txid.as_bytes(), &utxo.rlp_bytes());
-                inittx.put(
-                    COL_TX_META,
-                    &txid.as_bytes(),
-                    &BitVec::from_elem(1, false).to_bytes(),
-                );
-            }
-            inittx.put(COL_NODE_INFO, REWARDS_POOL_STATE_KEY, &rp.rlp_bytes());
-            inittx.put(
-                COL_NODE_INFO,
-                LAST_APP_HASH_KEY,
-                &genesis_app_hash.as_bytes(),
+            ChainNodeApp::check_and_store_consensus_params(
+                _req.consensus_params.as_ref(),
+                &mut inittx,
             );
-            inittx.put(
-                COL_NODE_INFO,
-                LAST_BLOCK_HEIGHT_KEY,
-                &i64::encode_var_vec(self.last_block_height.into()),
-            );
+            ChainNodeApp::check_and_store_validators(&_req.validators, &mut inittx);
             inittx.put(
                 COL_MERKLE_PROOFS,
                 &genesis_app_hash.as_bytes(),
                 &tree.rlp_bytes(),
             );
+            let last_state = ChainNodeApp::store_valid_genesis_state(
+                &utxos,
+                _req.time.as_ref(),
+                genesis_app_hash,
+                rp,
+                conf.initial_fee_policy,
+                &mut inittx,
+            );
 
             let wr = db.write(inittx);
             if wr.is_err() {
-                // TODO: panic?
-                println!("db write error: {}", wr.err().unwrap());
+                panic!("db write error: {}", wr.err().unwrap());
             } else {
-                self.rewards_pool = Some(rp);
-                self.last_apphash = Some(genesis_app_hash);
+                self.last_state = Some(last_state);
             }
-
-            self.block_time = Some(_req.time.as_ref().unwrap().seconds.into());
         } else {
-            // TODO: panic?
-            println!(
+            panic!(
                 "distribution validation error: {}",
                 dist_result.err().unwrap()
             );
