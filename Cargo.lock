@@ -247,7 +247,7 @@ dependencies = [
  "kvdb-rocksdb 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "quickcheck 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quickcheck 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rlp 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.12.2 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=4c178ca90965ccf5b1b235e346e836ca65b2a549)",
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -264,7 +264,7 @@ dependencies = [
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "quickcheck 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "quickcheck 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rlp 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.12.2 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=4c178ca90965ccf5b1b235e346e836ca65b2a549)",
  "serde 1.0.91 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1476,7 +1476,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "quickcheck"
-version = "0.8.2"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2662,7 +2662,7 @@ dependencies = [
 "checksum pulldown-cmark 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "8361e81576d2e02643b04950e487ec172b687180da65c731c03cf336784e6c07"
 "checksum quest 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "556af5f5c953a2ee13f45753e581a38f9778e6551bc3ccc56d90b14628fe59d8"
 "checksum quick-error 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9274b940887ce9addde99c4eee6b5c44cc494b182b97e73dc8ffdcb3397fd3f0"
-"checksum quickcheck 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "3568ae5409428feef71bf062778bf5acfadc3d496b7696afa829f9eef70e17dc"
+"checksum quickcheck 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)" = "8d467b6d7a927b98d31a9d726d84da692787ae8238da3bed081fa992b30cfa8a"
 "checksum quote 0.6.12 (registry+https://github.com/rust-lang/crates.io-index)" = "faf4799c5d274f3868a4aae320a0a182cbd2baee377b378f080e16a23e9d80db"
 "checksum rand 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)" = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
 "checksum rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)" = "c618c47cd3ebd209790115ab837de41425723956ad3ce2e6a7f09890947cacb9"
