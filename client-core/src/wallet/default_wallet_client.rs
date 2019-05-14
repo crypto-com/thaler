@@ -7,47 +7,52 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::Tx;
-use chain_core::tx::TxAux;
+use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
-use client_common::{Error, ErrorKind, Result, Storage};
+use client_common::{ErrorKind, Result, Storage};
 use client_index::Index;
 
 use crate::service::*;
-use crate::{PrivateKey, PublicKey, WalletClient};
+use crate::{PrivateKey, PublicKey, TransactionBuilder, WalletClient};
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Default, Clone)]
-pub struct DefaultWalletClient<S, I>
+pub struct DefaultWalletClient<S, I, T>
 where
     S: Storage,
     I: Index,
+    T: TransactionBuilder,
 {
     key_service: KeyService<S>,
     wallet_service: WalletService<S>,
     index: I,
+    transaction_builder: T,
 }
 
-impl<S, I> DefaultWalletClient<S, I>
+impl<S, I, T> DefaultWalletClient<S, I, T>
 where
     S: Storage + Clone,
     I: Index,
+    T: TransactionBuilder,
 {
     /// Creates a new instance of `DefaultWalletClient`
-    pub fn new(storage: S, index: I) -> Self {
+    pub fn new(storage: S, index: I, transaction_builder: T) -> Self {
         Self {
             key_service: KeyService::new(storage.clone()),
             wallet_service: WalletService::new(storage),
             index,
+            transaction_builder,
         }
     }
 }
 
-impl<S, I> WalletClient for DefaultWalletClient<S, I>
+impl<S, I, T> WalletClient for DefaultWalletClient<S, I, T>
 where
     S: Storage,
     I: Index,
+    T: TransactionBuilder,
 {
     fn wallets(&self) -> Result<Vec<String>> {
         self.wallet_service.names()
@@ -151,13 +156,11 @@ where
         Ok(history)
     }
 
-    fn create_and_broadcast_transaction(
+    fn unspent_transactions(
         &self,
         name: &str,
         passphrase: &SecStr,
-        mut outputs: Vec<TxOut>,
-        attributes: TxAttributes,
-    ) -> Result<()> {
+    ) -> Result<Vec<(TxoPointer, Coin)>> {
         let addresses = self.addresses(name, passphrase)?;
 
         let mut unspent_transactions = Vec::new();
@@ -165,68 +168,25 @@ where
             unspent_transactions.extend(self.index.unspent_transactions(&address)?);
         }
 
-        let mut amount_to_transfer = Coin::zero();
-        for output in outputs.iter() {
-            amount_to_transfer =
-                (amount_to_transfer + output.value).context(ErrorKind::BalanceAdditionError)?;
-        }
+        unspent_transactions.sort_by(|a, b| a.1.cmp(&b.1).reverse());
 
-        let mut selected_unspent_transactions = Vec::new();
-        let mut transferred_amount = Coin::zero();
-        for (unspent_transaction, value) in unspent_transactions {
-            selected_unspent_transactions.push(unspent_transaction);
-            transferred_amount =
-                (transferred_amount + value).context(ErrorKind::BalanceAdditionError)?;
-
-            if transferred_amount >= amount_to_transfer {
-                break;
-            }
-        }
-
-        let transaction = if transferred_amount < amount_to_transfer {
-            Err(Error::from(ErrorKind::InsufficientBalance))
-        } else if transferred_amount == amount_to_transfer {
-            Ok(Tx {
-                inputs: selected_unspent_transactions,
-                outputs,
-                attributes,
-            })
-        } else {
-            let new_address = self.new_address(name, passphrase)?;
-            outputs.push(TxOut::new(
-                new_address,
-                (transferred_amount - amount_to_transfer)
-                    .context(ErrorKind::BalanceAdditionError)?,
-            ));
-
-            Ok(Tx {
-                inputs: selected_unspent_transactions,
-                outputs,
-                attributes,
-            })
-        }?;
-
-        self.broadcast_transaction(name, passphrase, transaction)
+        Ok(unspent_transactions)
     }
 
-    fn broadcast_transaction(
+    fn output(&self, id: &TxId, index: usize) -> Result<TxOut> {
+        self.index.output(id, index)
+    }
+
+    fn create_and_broadcast_transaction(
         &self,
         name: &str,
         passphrase: &SecStr,
-        transaction: Tx,
+        outputs: Vec<TxOut>,
+        attributes: TxAttributes,
     ) -> Result<()> {
-        let mut witnesses = Vec::with_capacity(transaction.inputs.len());
-
-        for input in &transaction.inputs {
-            let input = self.index.output(&input.id, input.index)?;
-
-            match self.private_key(name, passphrase, &input.address)? {
-                None => return Err(ErrorKind::PrivateKeyNotFound.into()),
-                Some(private_key) => witnesses.push(private_key.sign(&transaction.id())?),
-            }
-        }
-
-        let tx_aux = TxAux::new(transaction, witnesses.into());
+        let tx_aux = self
+            .transaction_builder
+            .build(name, passphrase, outputs, attributes, self)?;
 
         self.index.broadcast_transaction(&encode(&tx_aux))
     }
@@ -250,16 +210,20 @@ mod tests {
 
     use chrono::DateTime;
 
-    use chain_core::init::coin::Coin;
+    use chain_core::init::coin::{Coin, CoinError};
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::attribute::TxAttributes;
     use chain_core::tx::data::input::TxoPointer;
     use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
+    use chain_core::tx::fee::{Fee, FeeAlgorithm};
+    use chain_core::tx::TxAux;
     use client_common::balance::{BalanceChange, TransactionChange};
     use client_common::storage::MemoryStorage;
     use client_common::Result;
     use client_index::Index;
+
+    use crate::transaction_builder::DefaultTransactionBuilder;
 
     pub struct MockIndex {
         addr_1: ExtendedAddr,
@@ -436,9 +400,26 @@ mod tests {
         }
     }
 
+    #[derive(Default)]
+    struct ZeroFeeAlgorithm;
+
+    impl FeeAlgorithm for ZeroFeeAlgorithm {
+        fn calculate_fee(&self, _num_bytes: usize) -> std::result::Result<Fee, CoinError> {
+            Ok(Fee::new(Coin::zero()))
+        }
+
+        fn calculate_for_txaux(&self, _txaux: &TxAux) -> std::result::Result<Fee, CoinError> {
+            Ok(Fee::new(Coin::zero()))
+        }
+    }
+
     #[test]
     fn check_wallet_flow() {
-        let wallet = DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+        let wallet = DefaultWalletClient::new(
+            MemoryStorage::default(),
+            MockIndex::default(),
+            DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()),
+        );
 
         assert!(wallet
             .addresses("name", &SecStr::from("passphrase"))
@@ -496,7 +477,11 @@ mod tests {
     #[test]
     fn check_transaction_flow() {
         let storage = MemoryStorage::default();
-        let temp_wallet = DefaultWalletClient::new(storage.clone(), MockIndex::default());
+        let temp_wallet = DefaultWalletClient::new(
+            storage.clone(),
+            MockIndex::default(),
+            DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()),
+        );
         temp_wallet
             .new_wallet("wallet_1", &SecStr::from("passphrase"))
             .unwrap();
@@ -519,6 +504,7 @@ mod tests {
         let wallet = DefaultWalletClient::new(
             storage,
             MockIndex::new(addr_1.clone(), addr_2.clone(), addr_3.clone()),
+            DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()),
         );
 
         assert_eq!(
