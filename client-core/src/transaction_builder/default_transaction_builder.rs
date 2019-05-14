@@ -3,11 +3,13 @@ use secstr::SecStr;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::fee::{Fee, FeeAlgorithm};
+use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TxAux;
-use client_common::{Error, ErrorKind, Result};
+use client_common::{ErrorKind, Result};
 
 use crate::{TransactionBuilder, WalletClient};
 
@@ -28,23 +30,21 @@ where
         Self { fee_algorithm }
     }
 
-    fn build_with_fee<W: WalletClient>(
-        &self,
-        name: &str,
-        passphrase: &SecStr,
-        mut outputs: Vec<TxOut>,
-        attributes: TxAttributes,
-        wallet_client: &W,
-        fee: Fee,
-    ) -> Result<TxAux> {
-        let unspent_transactions = wallet_client.unspent_transactions(name, passphrase)?;
-
+    fn amount_to_transfer(&self, outputs: &[TxOut], fee: Fee) -> Result<Coin> {
         let mut amount_to_transfer = fee.to_coin();
         for output in outputs.iter() {
             amount_to_transfer =
                 (amount_to_transfer + output.value).context(ErrorKind::BalanceAdditionError)?;
         }
 
+        Ok(amount_to_transfer)
+    }
+
+    fn select_transactions(
+        &self,
+        unspent_transactions: Vec<(TxoPointer, Coin)>,
+        amount_to_transfer: Coin,
+    ) -> Result<(Vec<TxoPointer>, Coin)> {
         let mut selected_unspent_transactions = Vec::new();
         let mut transferred_amount = Coin::zero();
         for (unspent_transaction, value) in unspent_transactions {
@@ -57,29 +57,24 @@ where
             }
         }
 
-        let transaction = if transferred_amount < amount_to_transfer {
-            Err(Error::from(ErrorKind::InsufficientBalance))
-        } else if transferred_amount == amount_to_transfer {
-            Ok(Tx {
-                inputs: selected_unspent_transactions,
-                outputs,
-                attributes,
-            })
+        if transferred_amount < amount_to_transfer {
+            Err(ErrorKind::InsufficientBalance.into())
         } else {
-            let new_address = wallet_client.new_address(name, passphrase)?;
-            outputs.push(TxOut::new(
-                new_address,
+            Ok((
+                selected_unspent_transactions,
                 (transferred_amount - amount_to_transfer)
                     .context(ErrorKind::BalanceAdditionError)?,
-            ));
+            ))
+        }
+    }
 
-            Ok(Tx {
-                inputs: selected_unspent_transactions,
-                outputs,
-                attributes,
-            })
-        }?;
-
+    fn witnesses<W: WalletClient>(
+        &self,
+        name: &str,
+        passphrase: &SecStr,
+        wallet_client: &W,
+        transaction: &Tx,
+    ) -> Result<TxWitness> {
         let mut witnesses = Vec::with_capacity(transaction.inputs.len());
 
         for input in &transaction.inputs {
@@ -91,7 +86,43 @@ where
             }
         }
 
-        Ok(TxAux::new(transaction, witnesses.into()))
+        Ok(witnesses.into())
+    }
+
+    fn build_with_fee<W: WalletClient>(
+        &self,
+        name: &str,
+        passphrase: &SecStr,
+        mut outputs: Vec<TxOut>,
+        attributes: TxAttributes,
+        wallet_client: &W,
+        fee: Fee,
+    ) -> Result<TxAux> {
+        let unspent_transactions = wallet_client.unspent_transactions(name, passphrase)?;
+        let amount_to_transfer = self.amount_to_transfer(&outputs, fee)?;
+        let (selected_unspent_transactions, difference_amount) =
+            self.select_transactions(unspent_transactions, amount_to_transfer)?;
+
+        let transaction = if Coin::zero() == difference_amount {
+            Tx {
+                inputs: selected_unspent_transactions,
+                outputs,
+                attributes,
+            }
+        } else {
+            let new_address = wallet_client.new_address(name, passphrase)?;
+            outputs.push(TxOut::new(new_address, difference_amount));
+
+            Tx {
+                inputs: selected_unspent_transactions,
+                outputs,
+                attributes,
+            }
+        };
+
+        let witnesses = self.witnesses(name, passphrase, wallet_client, &transaction)?;
+
+        Ok(TxAux::new(transaction, witnesses))
     }
 }
 
