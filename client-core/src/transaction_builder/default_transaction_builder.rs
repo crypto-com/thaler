@@ -42,9 +42,11 @@ where
 
     fn select_transactions(
         &self,
-        unspent_transactions: Vec<(TxoPointer, Coin)>,
+        mut unspent_transactions: Vec<(TxoPointer, Coin)>,
         amount_to_transfer: Coin,
     ) -> Result<(Vec<TxoPointer>, Coin)> {
+        unspent_transactions.sort_by(|a, b| a.1.cmp(&b.1).reverse());
+
         let mut selected_unspent_transactions = Vec::new();
         let mut transferred_amount = Coin::zero();
         for (unspent_transaction, value) in unspent_transactions {
@@ -99,6 +101,7 @@ where
         fee: Fee,
     ) -> Result<TxAux> {
         let unspent_transactions = wallet_client.unspent_transactions(name, passphrase)?;
+
         let amount_to_transfer = self.amount_to_transfer(&outputs, fee)?;
         let (selected_unspent_transactions, difference_amount) =
             self.select_transactions(unspent_transactions, amount_to_transfer)?;
@@ -169,5 +172,270 @@ where
         }
 
         Ok(tx_aux)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::str::FromStr;
+
+    use chain_core::init::address::RedeemAddress;
+    use chain_core::tx::data::address::ExtendedAddr;
+    use chain_core::tx::data::TxId;
+    use chain_core::tx::fee::{LinearFee, Milli};
+    use client_common::balance::TransactionChange;
+
+    use crate::{PrivateKey, PublicKey};
+
+    struct MockWalletClient {
+        txid_0: TxId,
+        txid_1: TxId,
+        txid_2: TxId,
+        addr_0: ExtendedAddr,
+        addr_1: ExtendedAddr,
+        addr_2: ExtendedAddr,
+    }
+
+    impl Default for MockWalletClient {
+        fn default() -> Self {
+            Self {
+                txid_0: TxId::repeat_byte(0),
+                txid_1: TxId::repeat_byte(1),
+                txid_2: TxId::repeat_byte(2),
+                addr_0: ExtendedAddr::BasicRedeem(
+                    RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+                ),
+                addr_1: ExtendedAddr::BasicRedeem(
+                    RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5").unwrap(),
+                ),
+                addr_2: ExtendedAddr::BasicRedeem(
+                    RedeemAddress::from_str("780661a2fd9da3fee53caab80859ecae105a20b6").unwrap(),
+                ),
+            }
+        }
+    }
+
+    impl WalletClient for MockWalletClient {
+        fn wallets(&self) -> Result<Vec<String>> {
+            unreachable!()
+        }
+
+        fn new_wallet(&self, _: &str, _: &SecStr) -> Result<String> {
+            unreachable!()
+        }
+
+        fn private_keys(&self, _: &str, _: &SecStr) -> Result<Vec<PrivateKey>> {
+            unreachable!()
+        }
+
+        fn public_keys(&self, _: &str, _: &SecStr) -> Result<Vec<PublicKey>> {
+            unreachable!()
+        }
+
+        fn addresses(&self, _: &str, _: &SecStr) -> Result<Vec<ExtendedAddr>> {
+            unreachable!()
+        }
+
+        fn private_key(
+            &self,
+            _: &str,
+            _: &SecStr,
+            address: &ExtendedAddr,
+        ) -> Result<Option<PrivateKey>> {
+            if address == &self.addr_0 {
+                Ok(Some(
+                    PrivateKey::deserialize_from(&[
+                        197, 83, 160, 54, 4, 35, 93, 248, 252, 209, 79, 198, 209, 229, 177, 138,
+                        33, 159, 188, 198, 233, 62, 255, 207, 207, 118, 142, 41, 119, 167, 78, 194,
+                    ])
+                    .unwrap(),
+                ))
+            } else if address == &self.addr_1 {
+                Ok(Some(
+                    PrivateKey::deserialize_from(&[
+                        197, 83, 160, 54, 4, 35, 93, 248, 252, 209, 79, 198, 209, 229, 177, 138,
+                        33, 159, 188, 198, 233, 62, 255, 207, 207, 118, 142, 41, 119, 167, 78, 195,
+                    ])
+                    .unwrap(),
+                ))
+            } else {
+                Ok(Some(
+                    PrivateKey::deserialize_from(&[
+                        197, 83, 160, 54, 4, 35, 93, 248, 252, 209, 79, 198, 209, 229, 177, 138,
+                        33, 159, 188, 198, 233, 62, 255, 207, 207, 118, 142, 41, 119, 167, 78, 196,
+                    ])
+                    .unwrap(),
+                ))
+            }
+        }
+
+        fn new_public_key(&self, _: &str, _: &SecStr) -> Result<PublicKey> {
+            unreachable!()
+        }
+
+        fn new_address(&self, _: &str, _: &SecStr) -> Result<ExtendedAddr> {
+            Ok(ExtendedAddr::BasicRedeem(
+                RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0baba").unwrap(),
+            ))
+        }
+
+        fn balance(&self, _: &str, _: &SecStr) -> Result<Coin> {
+            unreachable!()
+        }
+
+        fn history(&self, _: &str, _: &SecStr) -> Result<Vec<TransactionChange>> {
+            unreachable!()
+        }
+
+        fn unspent_transactions(&self, _: &str, _: &SecStr) -> Result<Vec<(TxoPointer, Coin)>> {
+            Ok(vec![
+                (
+                    TxoPointer {
+                        id: self.txid_0,
+                        index: 0,
+                    },
+                    Coin::new(200).unwrap(),
+                ),
+                (
+                    TxoPointer {
+                        id: self.txid_1,
+                        index: 0,
+                    },
+                    Coin::new(217).unwrap(),
+                ),
+                (
+                    TxoPointer {
+                        id: self.txid_2,
+                        index: 0,
+                    },
+                    Coin::new(100).unwrap(),
+                ),
+            ])
+        }
+
+        fn output(&self, id: &TxId, _: usize) -> Result<TxOut> {
+            if &self.txid_0 == id {
+                Ok(TxOut {
+                    address: self.addr_0.clone(),
+                    value: Coin::new(200).unwrap(),
+                    valid_from: None,
+                })
+            } else if &self.txid_1 == id {
+                Ok(TxOut {
+                    address: self.addr_1.clone(),
+                    value: Coin::new(217).unwrap(),
+                    valid_from: None,
+                })
+            } else {
+                Ok(TxOut {
+                    address: self.addr_2.clone(),
+                    value: Coin::new(100).unwrap(),
+                    valid_from: None,
+                })
+            }
+        }
+
+        fn create_and_broadcast_transaction(
+            &self,
+            _: &str,
+            _: &SecStr,
+            _: Vec<TxOut>,
+            _: TxAttributes,
+        ) -> Result<()> {
+            unreachable!()
+        }
+
+        fn sync(&self) -> Result<()> {
+            unreachable!()
+        }
+
+        fn sync_all(&self) -> Result<()> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn check_with_exact_fee_match() {
+        let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
+        let transaction_builder = DefaultTransactionBuilder::new(fee_algorithm);
+
+        let wallet_client = MockWalletClient::default();
+
+        let tx_aux = transaction_builder
+            .build(
+                "name",
+                &SecStr::from("passphrase"),
+                vec![TxOut {
+                    address: ExtendedAddr::BasicRedeem(
+                        RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20b4")
+                            .unwrap(),
+                    ),
+                    value: Coin::new(30).unwrap(),
+                    valid_from: None,
+                }],
+                TxAttributes::new(171),
+                &wallet_client,
+            )
+            .expect("Unable to build transaction");
+
+        match tx_aux {
+            TxAux::TransferTx(tx, _) => assert_eq!(1, tx.outputs.len()),
+        }
+    }
+
+    #[test]
+    fn check_with_fee() {
+        let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
+        let transaction_builder = DefaultTransactionBuilder::new(fee_algorithm);
+
+        let wallet_client = MockWalletClient::default();
+
+        let tx_aux = transaction_builder
+            .build(
+                "name",
+                &SecStr::from("passphrase"),
+                vec![TxOut {
+                    address: ExtendedAddr::BasicRedeem(
+                        RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20b4")
+                            .unwrap(),
+                    ),
+                    value: Coin::new(40).unwrap(),
+                    valid_from: None,
+                }],
+                TxAttributes::new(171),
+                &wallet_client,
+            )
+            .expect("Unable to build transaction");
+
+        match tx_aux {
+            TxAux::TransferTx(tx, _) => assert_eq!(2, tx.outputs.len()),
+        }
+    }
+
+    #[test]
+    fn check_insufficient_balance_with_fee() {
+        let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
+        let transaction_builder = DefaultTransactionBuilder::new(fee_algorithm);
+
+        let wallet_client = MockWalletClient::default();
+
+        let tx_aux = transaction_builder.build(
+            "name",
+            &SecStr::from("passphrase"),
+            vec![TxOut {
+                address: ExtendedAddr::BasicRedeem(
+                    RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20b4").unwrap(),
+                ),
+                value: Coin::new(400).unwrap(),
+                valid_from: None,
+            }],
+            TxAttributes::new(171),
+            &wallet_client,
+        );
+
+        assert!(tx_aux.is_err());
+        assert_eq!(ErrorKind::InsufficientBalance, tx_aux.unwrap_err().kind());
     }
 }

@@ -168,8 +168,6 @@ where
             unspent_transactions.extend(self.index.unspent_transactions(&address)?);
         }
 
-        unspent_transactions.sort_by(|a, b| a.1.cmp(&b.1).reverse());
-
         Ok(unspent_transactions)
     }
 
