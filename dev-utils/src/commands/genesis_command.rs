@@ -5,6 +5,7 @@ use hex::{decode, encode_upper};
 use structopt::StructOpt;
 
 use chain_core::common::merkle::MerkleTree;
+use chain_core::compute_app_hash;
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::tx::data::{attribute::TxAttributes, Tx, TxId};
 use chain_core::tx::fee::{LinearFee, Milli};
@@ -137,7 +138,8 @@ impl GenesisCommand {
         let utxos = config.generate_utxos(&TxAttributes::new(chain_id));
         let txids: Vec<TxId> = utxos.iter().map(Tx::id).collect();
         let tree = MerkleTree::new(&txids);
-        let genesis_app_hash = tree.get_root_hash();
+        let rp = config.get_genesis_rewards_pool();
+        let genesis_app_hash = compute_app_hash(&tree, &rp);
 
         println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
         let config_str = serde_json::to_string(&config).context(format_err!("Invalid config"))?;

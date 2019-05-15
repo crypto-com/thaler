@@ -70,7 +70,7 @@ $ docker run --security-opt seccomp=unconfined -v "$PWD:/volume" xd009642/tarpau
 ```
 
 ## How to run a full node
-1. generate address -- currently, there is a signer cli for this purpose
+1. generate address -- currently, there is a signer cli for this purpose (TODO / NOTE: signer-cli is going to be deprecated in favor of client-client )
 ```
 $ signer-cli -- address generate --name <NAME>
 ```
@@ -84,22 +84,31 @@ View address: <VIEW_ETH_ADDRESS_HEX_BYTES>
 ```
 
 2. generate initial state -- currently, a very naive way is in dev-utils. The `chain_id` will be used in Tendermint configuration later. At this point, just use two hex digits.
+
+2a. prepare a "mapping" / snapshot file (each line contains the address and the amount):
 ```
-$ dev-utils -- genesis generate -a <ETH_ADDRESS_HEX_BYTES> -c <CHAIN_ID>
+0x<ETH_ADDRESS_HEX_BYTES_1> <AMOUNT_1>
+0x<ETH_ADDRES_HEX_BYTES_2> <AMOUNT_2>
+...
 ```
+
+Note that the sum of amounts needs to equal to the total supply in base units.
+
+2b. run the dev-utils command:
+
+```
+$ dev-utils -- genesis generate --base_fee <x.xxxx> --chain-id <CHAIN_ID> --launch_incentive_from <SOME_ETH_ADDRESS_HEX_BYTES> --launch_incentive_to <SOME_ETH_ADDRESS_HEX_BYTES> --long_term_incentive <SOME_ETH_ADDRESS_HEX_BYTES> --mapping_file_path <PATH_TO_MAPPING_FILE> --per_byte_fee <x.xxxx>
+```
+
+Note that launch_incentive_from, launch_incentive_to and long_term_incentive need to be present in the mapping file (their amounts will be put in the initial rewards pool).
+
 In the end, you should get two pieces of data:
 ```
 "app_hash": "<APP_HASH_HEX_BYTES>",
-"app_state": {"distribution":[{"address":"0x<ETH_ADDRESS_HEX_BYTES>","amount":10000000000000000000 }]}
+"app_state": {"distribution":{"0x<ETH_ADDRESS_HEX_BYTES_1>":<AMOUNT_1>,...},"launch_incentive_from":"<SOME_ETH_ADDRESS_HEX_BYTES>","launch_incentive_to":"<SOME_ETH_ADDRESS_HEX_BYTES>","long_term_incentive":"<SOME_ETH_ADDRESS_HEX_BYTES>","initial_fee_policy":{"constant":xxxx,"coefficient":xxxx}}
 ```
 
-"app_hash" is the initial application hash -- currently, it's computed as a root of a merkle tree of transaction IDs. In the example above, there'll be only one TX:
-```
-(no inputs) => 1 output
-```
-where the output is saying `0x<ETH_ADDRESS_HEX_BYTES>` could redeem the full supply.
-
-"app_state" is the initial application state that will be passed to the application. Currently, it only contains the initial distribution that maps Ethereum-style addresses to the number of tokens they own.
+"app_hash" is the initial application hash -- currently, it's computed as a hash of the initial rewards pool state and a root of a merkle tree of initial transaction IDs.
 
 3. initialize a Tendermint node:
 ```
