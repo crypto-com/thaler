@@ -4,48 +4,12 @@ use crate::init::coin::Coin;
 use blake2::Blake2s;
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
-use std::mem;
+
+/// reference counter in the sparse patricia merkle tree/trie
+impl_u64_wrapper!(Count);
 
 /// account state update counter
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub struct Nonce(u64);
-
-impl From<u64> for Nonce {
-    fn from(v: u64) -> Self {
-        Nonce(v)
-    }
-}
-
-impl From<Nonce> for u64 {
-    fn from(bh: Nonce) -> u64 {
-        bh.0
-    }
-}
-
-impl Encodable for Nonce {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        let mut bs = [0u8; mem::size_of::<u64>()];
-        bs.as_mut()
-            .write_u64::<LittleEndian>(self.0)
-            .expect("Unable to write Nonce");
-        s.encoder().encode_value(&bs[..]);
-    }
-}
-
-impl Decodable for Nonce {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        rlp.decoder().decode_value(|mut bytes| match bytes.len() {
-            l if l == mem::size_of::<u64>() => {
-                let nonce = bytes
-                    .read_u64::<LittleEndian>()
-                    .map_err(|_| DecoderError::Custom("failed to read u64"))?;
-                Ok(Nonce(nonce))
-            }
-            l if l < mem::size_of::<u64>() => Err(DecoderError::RlpIsTooShort),
-            _ => Err(DecoderError::RlpIsTooBig),
-        })
-    }
-}
+impl_u64_wrapper!(Nonce);
 
 /// represents the account state (involved in staking)
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]

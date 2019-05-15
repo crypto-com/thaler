@@ -6,8 +6,8 @@
 //! TODO: WIP usage -- disallow dead_code when new TX types are added to work with accounts
 #![allow(dead_code)]
 use blake2::{Blake2s, Digest};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use chain_core::common::H256;
+use chain_core::state::account::Count;
 use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use starling::constants::KEY_LEN;
 use starling::merkle_bit::{BinaryMerkleTreeResult, MerkleBIT};
@@ -18,7 +18,6 @@ use starling::traits::{
 use starling::tree::tree_data::TreeData;
 use std::collections::HashMap;
 use std::error::Error;
-use std::mem;
 
 #[derive(Clone)]
 pub struct Blake2sHasher(Blake2s);
@@ -47,34 +46,6 @@ impl Hasher for Blake2sHasher {
 
 pub type TreeHasher = Blake2sHasher;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
-pub struct Count(u64);
-
-impl Encodable for Count {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        let mut bs = [0u8; mem::size_of::<u64>()];
-        bs.as_mut()
-            .write_u64::<LittleEndian>(self.0)
-            .expect("Unable to write Count");
-        s.encoder().encode_value(&bs[..]);
-    }
-}
-
-impl Decodable for Count {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        rlp.decoder().decode_value(|mut bytes| match bytes.len() {
-            l if l == mem::size_of::<u64>() => {
-                let count = bytes
-                    .read_u64::<LittleEndian>()
-                    .map_err(|_| DecoderError::Custom("failed to read u64"))?;
-                Ok(Count(count))
-            }
-            l if l < mem::size_of::<u64>() => Err(DecoderError::RlpIsTooShort),
-            _ => Err(DecoderError::RlpIsTooBig),
-        })
-    }
-}
-
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct TreeBranch {
     /// The number of leaf nodes under this branch.
@@ -94,7 +65,7 @@ impl Branch for TreeBranch {
     fn new() -> Self {
         let zero = [0u8; 32];
         TreeBranch {
-            count: Count(0),
+            count: 0.into(),
             zero: zero.into(),
             one: zero.into(),
             split_index: 0,
@@ -104,7 +75,7 @@ impl Branch for TreeBranch {
 
     #[inline]
     fn get_count(&self) -> u64 {
-        self.count.0
+        self.count.into()
     }
     #[inline]
     fn get_zero(&self) -> &[u8; KEY_LEN] {
@@ -125,7 +96,7 @@ impl Branch for TreeBranch {
 
     #[inline]
     fn set_count(&mut self, count: u64) {
-        self.count = Count(count)
+        self.count = count.into()
     }
     #[inline]
     fn set_zero(&mut self, zero: [u8; KEY_LEN]) {
@@ -295,21 +266,21 @@ impl Decodable for TreeNode {
 impl TreeNode {
     /// Creates a new `TreeNode`.
     #[inline]
-    pub const fn new(node_variant: NodeVariant<TreeBranch, TreeLeaf, TreeData>) -> Self {
+    pub fn new(node_variant: NodeVariant<TreeBranch, TreeLeaf, TreeData>) -> Self {
         Self {
-            references: Count(0),
+            references: 0.into(),
             node: node_variant,
         }
     }
 
     /// Gets the number of references to the node.
-    const fn get_references(&self) -> u64 {
-        self.references.0
+    fn get_references(&self) -> u64 {
+        self.references.into()
     }
 
     /// Sets the number of references to the node.
     fn set_references(&mut self, references: u64) {
-        self.references = Count(references);
+        self.references = references.into();
     }
 
     /// Sets the node as a `NodeVariant::Branch`.

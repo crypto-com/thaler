@@ -27,6 +27,7 @@ impl From<BlockHeight> for i64 {
     }
 }
 
+// TODO: change to u64 and BigEndian?
 impl Encodable for BlockHeight {
     fn rlp_append(&self, s: &mut RlpStream) {
         let mut bs = [0u8; mem::size_of::<i64>()];
