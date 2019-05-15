@@ -216,28 +216,16 @@ where
         &self,
         name: &str,
         passphrase: &SecStr,
-        inputs: Vec<TxoPointer>,
-        mut outputs: Vec<TxOut>,
-        attributes: TxAttributes,
+        mut transaction: Tx,
         difference_amount: Coin,
         wallet_client: &W,
     ) -> Result<TxAux> {
-        let transaction = if Coin::zero() == difference_amount {
-            Tx {
-                inputs,
-                outputs,
-                attributes,
-            }
-        } else {
+        if Coin::zero() != difference_amount {
             let new_address = wallet_client.new_address(name, passphrase)?;
-            outputs.push(TxOut::new(new_address, difference_amount));
-
-            Tx {
-                inputs,
-                outputs,
-                attributes,
-            }
-        };
+            transaction
+                .outputs
+                .push(TxOut::new(new_address, difference_amount));
+        }
 
         let witnesses = self.witnesses(name, passphrase, wallet_client, &transaction)?;
 
@@ -265,15 +253,19 @@ where
 
         unspent_transactions.truncate(select_until);
 
-        self.build_from_estimate(
-            name,
-            passphrase,
-            unspent_transactions
+        let transaction = Tx {
+            inputs: unspent_transactions
                 .into_iter()
                 .map(|(input, _)| input)
                 .collect(),
             outputs,
             attributes,
+        };
+
+        self.build_from_estimate(
+            name,
+            passphrase,
+            transaction,
             difference_amount,
             wallet_client,
         )
