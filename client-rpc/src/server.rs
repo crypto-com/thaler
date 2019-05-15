@@ -7,7 +7,8 @@ use std::net::SocketAddr;
 
 use client_common::error::{Error, ErrorKind, Result};
 use client_common::storage::SledStorage;
-use client_common::tendermint::RpcClient;
+use client_common::tendermint::{Client, RpcClient};
+use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
 use client_index::index::DefaultIndex;
 
@@ -37,8 +38,10 @@ impl Server {
     pub(crate) fn start(&self) -> Result<()> {
         let storage = SledStorage::new(&self.storage_dir)?;
         let tendermint_client = RpcClient::new(&self.tendermint_url);
+        let transaction_builder =
+            DefaultTransactionBuilder::new(tendermint_client.genesis()?.fee_policy());
         let index = DefaultIndex::new(storage.clone(), tendermint_client);
-        let wallet_client = DefaultWalletClient::new(storage, index);
+        let wallet_client = DefaultWalletClient::new(storage, index, transaction_builder);
         let wallet_rpc = WalletRpcImpl::new(wallet_client, self.chain_id);
 
         let mut io = IoHandler::new();

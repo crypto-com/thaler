@@ -9,6 +9,7 @@ use serde::Deserialize;
 use chain_core::init::config::InitConfig;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::Tx;
+use chain_core::tx::fee::LinearFee;
 
 use crate::{ErrorKind, Result};
 
@@ -43,6 +44,11 @@ impl Genesis {
     /// Returns time of genesis
     pub fn time(&self) -> DateTime<Utc> {
         self.genesis.genesis_time
+    }
+
+    /// Returns initial_fee_policy
+    pub fn fee_policy(&self) -> LinearFee {
+        self.genesis.app_state.initial_fee_policy
     }
 }
 
