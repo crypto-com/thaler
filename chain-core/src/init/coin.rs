@@ -186,6 +186,7 @@ impl<'de> Deserialize<'de> for Coin {
     }
 }
 
+// TODO: change to BigEndian?
 impl Encodable for Coin {
     fn rlp_append(&self, s: &mut RlpStream) {
         let mut bs = [0u8; mem::size_of::<u64>()];
