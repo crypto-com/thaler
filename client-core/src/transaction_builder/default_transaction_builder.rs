@@ -1,19 +1,42 @@
 use failure::ResultExt;
+use secp256k1::RecoveryId;
 use secstr::SecStr;
 
+use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
+use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::fee::{Fee, FeeAlgorithm};
-use chain_core::tx::witness::TxWitness;
+use chain_core::tx::witness::{EcdsaSignature, TxInWitness, TxWitness};
 use chain_core::tx::TxAux;
 use client_common::{ErrorKind, Result};
 
 use crate::{TransactionBuilder, WalletClient};
 
 /// Default implementation of `TransactionBuilder`
+///
+/// # Algorithm
+///
+/// 1. Retrieve a list of unspent transactions and sort it in descending order of amounts.
+/// 2. Calculate the number of unspent transactions to select from beginning and the amount to be returned back from
+///    transaction estimation algorithm.
+/// 3. Build a transaction from above data.
+///
+/// # Transaction Estimation Algorithm
+///
+/// 1. Initialize `fee = 0`.
+/// 2. Build a transaction with zero fee.
+/// 3. Calculate `new_fee`.
+/// 4. Do steps 5 - 8 until `fee < new_fee`.
+/// 5. Calculate amount to transfer (fee + sum of amounts of outputs).
+/// 6. Select unspent transactions from beginning such that amount of unspent transactions is greater than amount to
+///    transfer.
+/// 7. Add dummy values for output and witnesses and calculate `revised_fee`.
+/// 8. `fee = new_fee` and `new_fee = revised_fee`.
+/// 9. When the above loop is done, return number of selected unspent transactions and difference amount.
 pub struct DefaultTransactionBuilder<F>
 where
     F: FeeAlgorithm,
@@ -30,6 +53,7 @@ where
         Self { fee_algorithm }
     }
 
+    /// Adds amounts in all outputs and fee
     fn amount_to_transfer(&self, outputs: &[TxOut], fee: Fee) -> Result<Coin> {
         let mut amount_to_transfer = fee.to_coin();
         for output in outputs.iter() {
@@ -40,36 +64,32 @@ where
         Ok(amount_to_transfer)
     }
 
+    /// Returns the index until which transactions were selected and difference amount between selected transactions
+    /// and amount to transfer (`transferred_amount - amount_to_transfer`)
     fn select_transactions(
         &self,
-        mut unspent_transactions: Vec<(TxoPointer, Coin)>,
+        unspent_transactions: &[(TxoPointer, Coin)],
         amount_to_transfer: Coin,
-    ) -> Result<(Vec<TxoPointer>, Coin)> {
-        unspent_transactions.sort_by(|a, b| a.1.cmp(&b.1).reverse());
-
-        let mut selected_unspent_transactions = Vec::new();
+    ) -> Result<(usize, Coin)> {
         let mut transferred_amount = Coin::zero();
-        for (unspent_transaction, value) in unspent_transactions {
-            selected_unspent_transactions.push(unspent_transaction);
+
+        for (i, (_, value)) in unspent_transactions.iter().enumerate() {
             transferred_amount =
                 (transferred_amount + value).context(ErrorKind::BalanceAdditionError)?;
 
             if transferred_amount >= amount_to_transfer {
-                break;
+                return Ok((
+                    i + 1,
+                    (transferred_amount - amount_to_transfer)
+                        .context(ErrorKind::BalanceAdditionError)?,
+                ));
             }
         }
 
-        if transferred_amount < amount_to_transfer {
-            Err(ErrorKind::InsufficientBalance.into())
-        } else {
-            Ok((
-                selected_unspent_transactions,
-                (transferred_amount - amount_to_transfer)
-                    .context(ErrorKind::BalanceAdditionError)?,
-            ))
-        }
+        Err(ErrorKind::InsufficientBalance.into())
     }
 
+    /// Signs the transaction and returns witnesses
     fn witnesses<W: WalletClient>(
         &self,
         name: &str,
@@ -91,24 +111,120 @@ where
         Ok(witnesses.into())
     }
 
-    fn build_with_fee<W: WalletClient>(
+    /// Returns `(select_until, difference_amount)`
+    /// - `select_until`: It is the number of the unspent transactions to take from beginning of given unspent
+    ///   transactions to build valid transaction
+    /// - `difference_amount`: Amount to return back to sender's wallet
+    fn transaction_estimate(
+        &self,
+        outputs: &[TxOut],
+        attributes: &TxAttributes,
+        unspent_transactions: &[(TxoPointer, Coin)],
+    ) -> Result<(usize, Coin)> {
+        let mut fee = Fee::new(Coin::zero());
+        let (mut tx_aux, mut selected_until, mut difference_amount) =
+            self.transaction_estimate_with_fee(outputs, attributes, unspent_transactions, fee)?;
+        let mut new_fee = self
+            .fee_algorithm
+            .calculate_for_txaux(&tx_aux)
+            .context(ErrorKind::BalanceAdditionError)?;
+
+        while fee < new_fee {
+            fee = new_fee;
+            let (new_tx_aux, new_selected_until, new_difference_amount) =
+                self.transaction_estimate_with_fee(outputs, attributes, unspent_transactions, fee)?;
+
+            tx_aux = new_tx_aux;
+            selected_until = new_selected_until;
+            difference_amount = new_difference_amount;
+
+            new_fee = self
+                .fee_algorithm
+                .calculate_for_txaux(&tx_aux)
+                .context(ErrorKind::BalanceAdditionError)?;
+        }
+
+        Ok((selected_until, difference_amount))
+    }
+
+    /// Returns `(dummy_transaction, select_until, difference_amount)`
+    /// - `dummy_transaction`: Transaction with dummy values used for fee calculation
+    /// - `select_until`: It is the number of the unspent transactions to take from beginning of given unspent
+    ///   transactions to build valid transaction
+    /// - `difference_amount`: Amount to return back to sender's wallet
+    fn transaction_estimate_with_fee(
+        &self,
+        outputs: &[TxOut],
+        attributes: &TxAttributes,
+        unspent_transactions: &[(TxoPointer, Coin)],
+        fee: Fee,
+    ) -> Result<(TxAux, usize, Coin)> {
+        let amount_to_transfer = self.amount_to_transfer(&outputs, fee)?;
+
+        let (selected_until, difference_amount) =
+            self.select_transactions(unspent_transactions, amount_to_transfer)?;
+
+        let inputs = unspent_transactions[..selected_until]
+            .iter()
+            .map(|(input, _)| input.clone())
+            .collect::<Vec<TxoPointer>>();
+
+        let transaction_estimate = if Coin::zero() == difference_amount {
+            Tx {
+                inputs,
+                outputs: outputs.to_vec(),
+                attributes: attributes.clone(),
+            }
+        } else {
+            let mut outputs = outputs.to_vec();
+            outputs.push(TxOut {
+                address: ExtendedAddr::BasicRedeem(RedeemAddress([
+                    0x0e, 0x7c, 0x04, 0x51, 0x10, 0xb8, 0xdb, 0xf2, 0x97, 0x65, 0x04, 0x73, 0x80,
+                    0x89, 0x89, 0x19, 0xc5, 0xcb, 0x56, 0xf4,
+                ])),
+                value: Coin::zero(),
+                valid_from: None,
+            });
+
+            Tx {
+                inputs,
+                outputs,
+                attributes: attributes.clone(),
+            }
+        };
+
+        let witness_estimate = self.witness_estimate(selected_until);
+
+        let tx_aux = TxAux::TransferTx(transaction_estimate, witness_estimate);
+
+        Ok((tx_aux, selected_until, difference_amount))
+    }
+
+    /// Returns dummy witnesses
+    fn witness_estimate(&self, num_inputs: usize) -> TxWitness {
+        vec![
+            TxInWitness::BasicRedeem(
+                EcdsaSignature::from_compact(&[0; 64], RecoveryId::from_i32(0).unwrap()).unwrap(),
+            );
+            num_inputs
+        ]
+        .into()
+    }
+
+    /// Builds final transaction
+    fn build_from_estimate<W: WalletClient>(
         &self,
         name: &str,
         passphrase: &SecStr,
+        inputs: Vec<TxoPointer>,
         mut outputs: Vec<TxOut>,
         attributes: TxAttributes,
+        difference_amount: Coin,
         wallet_client: &W,
-        fee: Fee,
     ) -> Result<TxAux> {
-        let unspent_transactions = wallet_client.unspent_transactions(name, passphrase)?;
-
-        let amount_to_transfer = self.amount_to_transfer(&outputs, fee)?;
-        let (selected_unspent_transactions, difference_amount) =
-            self.select_transactions(unspent_transactions, amount_to_transfer)?;
-
         let transaction = if Coin::zero() == difference_amount {
             Tx {
-                inputs: selected_unspent_transactions,
+                inputs,
                 outputs,
                 attributes,
             }
@@ -117,7 +233,7 @@ where
             outputs.push(TxOut::new(new_address, difference_amount));
 
             Tx {
-                inputs: selected_unspent_transactions,
+                inputs,
                 outputs,
                 attributes,
             }
@@ -125,7 +241,7 @@ where
 
         let witnesses = self.witnesses(name, passphrase, wallet_client, &transaction)?;
 
-        Ok(TxAux::new(transaction, witnesses))
+        Ok(TxAux::TransferTx(transaction, witnesses))
     }
 }
 
@@ -141,37 +257,26 @@ where
         attributes: TxAttributes,
         wallet_client: &W,
     ) -> Result<TxAux> {
-        let mut fee = Fee::new(Coin::zero());
-        let mut tx_aux = self.build_with_fee(
+        let mut unspent_transactions = wallet_client.unspent_transactions(name, passphrase)?;
+        unspent_transactions.sort_by(|a, b| a.1.cmp(&b.1).reverse());
+
+        let (select_until, difference_amount) =
+            self.transaction_estimate(&outputs, &attributes, &unspent_transactions)?;
+
+        unspent_transactions.truncate(select_until);
+
+        self.build_from_estimate(
             name,
             passphrase,
-            outputs.clone(),
-            attributes.clone(),
+            unspent_transactions
+                .into_iter()
+                .map(|(input, _)| input)
+                .collect(),
+            outputs,
+            attributes,
+            difference_amount,
             wallet_client,
-            fee,
-        )?;
-        let mut new_fee = self
-            .fee_algorithm
-            .calculate_for_txaux(&tx_aux)
-            .context(ErrorKind::BalanceAdditionError)?;
-
-        while fee < new_fee {
-            fee = new_fee;
-            tx_aux = self.build_with_fee(
-                name,
-                passphrase,
-                outputs.clone(),
-                attributes.clone(),
-                wallet_client,
-                fee,
-            )?;
-            new_fee = self
-                .fee_algorithm
-                .calculate_for_txaux(&tx_aux)
-                .context(ErrorKind::BalanceAdditionError)?;
-        }
-
-        Ok(tx_aux)
+        )
     }
 }
 
@@ -182,6 +287,7 @@ mod tests {
     use std::str::FromStr;
 
     use chain_core::init::address::RedeemAddress;
+    use chain_core::init::coin::sum_coins;
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{LinearFee, Milli};
@@ -196,6 +302,32 @@ mod tests {
         addr_0: ExtendedAddr,
         addr_1: ExtendedAddr,
         addr_2: ExtendedAddr,
+    }
+
+    impl MockWalletClient {
+        fn assert_fee(&self, fee: Fee, transaction: Tx) {
+            let input_amounts = transaction
+                .inputs
+                .iter()
+                .map(|input| self.output(&input.id, input.index))
+                .collect::<Result<Vec<TxOut>>>()
+                .unwrap()
+                .into_iter()
+                .map(|input| input.value)
+                .collect::<Vec<Coin>>();
+
+            let input_amount = sum_coins(input_amounts.into_iter()).unwrap();
+
+            let output_amounts = transaction
+                .outputs
+                .into_iter()
+                .map(|output| output.value)
+                .collect::<Vec<Coin>>();
+
+            let output_amount = sum_coins(output_amounts.into_iter()).unwrap();
+
+            assert!(fee.to_coin() <= (input_amount - output_amount).unwrap());
+        }
     }
 
     impl Default for MockWalletClient {
@@ -380,8 +512,15 @@ mod tests {
             )
             .expect("Unable to build transaction");
 
+        println!("{:?}", tx_aux);
+
+        let fee = fee_algorithm.calculate_for_txaux(&tx_aux).unwrap();
+
         match tx_aux {
-            TxAux::TransferTx(tx, _) => assert_eq!(1, tx.outputs.len()),
+            TxAux::TransferTx(tx, _) => {
+                assert_eq!(1, tx.outputs.len());
+                wallet_client.assert_fee(fee, tx);
+            }
         }
     }
 
@@ -409,8 +548,13 @@ mod tests {
             )
             .expect("Unable to build transaction");
 
+        let fee = fee_algorithm.calculate_for_txaux(&tx_aux).unwrap();
+
         match tx_aux {
-            TxAux::TransferTx(tx, _) => assert_eq!(2, tx.outputs.len()),
+            TxAux::TransferTx(tx, _) => {
+                assert_eq!(2, tx.outputs.len());
+                wallet_client.assert_fee(fee, tx);
+            }
         }
     }
 
