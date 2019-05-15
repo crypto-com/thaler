@@ -1,3 +1,5 @@
+pub mod account;
+
 use std::mem;
 
 use crate::common::{hash256, H256};
