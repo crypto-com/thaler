@@ -8,8 +8,9 @@ use secstr::SecStr;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::Tx;
+use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
 use client_common::Result;
 
@@ -52,6 +53,16 @@ pub trait WalletClient: Send + Sync {
     /// Retrieves transaction history of wallet
     fn history(&self, name: &str, passphrase: &SecStr) -> Result<Vec<TransactionChange>>;
 
+    /// Retrieves all unspent transactions of wallet
+    fn unspent_transactions(
+        &self,
+        name: &str,
+        passphrase: &SecStr,
+    ) -> Result<Vec<(TxoPointer, Coin)>>;
+
+    /// Returns output of transaction with given id and index
+    fn output(&self, id: &TxId, index: usize) -> Result<TxOut>;
+
     /// Creates and broadcasts a transaction to Crypto.com Chain
     fn create_and_broadcast_transaction(
         &self,
@@ -60,10 +71,6 @@ pub trait WalletClient: Send + Sync {
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
     ) -> Result<()>;
-
-    /// Broadcasts a transaction to Crypto.com Chain
-    fn broadcast_transaction(&self, name: &str, passphrase: &SecStr, transaction: Tx)
-        -> Result<()>;
 
     /// Synchronizes index with Crypto.com Chain (from last known height)
     fn sync(&self) -> Result<()>;

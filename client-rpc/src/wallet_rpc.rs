@@ -176,15 +176,18 @@ mod tests {
     use std::time::SystemTime;
 
     use chain_core::init::address::RedeemAddress;
-    use chain_core::init::coin::Coin;
+    use chain_core::init::coin::{Coin, CoinError};
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::attribute::TxAttributes;
     use chain_core::tx::data::input::TxoPointer;
     use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
+    use chain_core::tx::fee::{Fee, FeeAlgorithm};
+    use chain_core::tx::TxAux;
     use client_common::balance::{BalanceChange, TransactionChange};
     use client_common::storage::MemoryStorage;
     use client_common::{Error, ErrorKind, Result};
+    use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
     use client_index::Index;
 
@@ -241,6 +244,19 @@ mod tests {
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
             Ok(())
+        }
+    }
+
+    #[derive(Default)]
+    struct ZeroFeeAlgorithm;
+
+    impl FeeAlgorithm for ZeroFeeAlgorithm {
+        fn calculate_fee(&self, _num_bytes: usize) -> std::result::Result<Fee, CoinError> {
+            Ok(Fee::new(Coin::zero()))
+        }
+
+        fn calculate_for_txaux(&self, _txaux: &TxAux) -> std::result::Result<Fee, CoinError> {
+            Ok(Fee::new(Coin::zero()))
         }
     }
 
@@ -349,9 +365,14 @@ mod tests {
         )
     }
 
-    fn setup_wallet_rpc() -> WalletRpcImpl<DefaultWalletClient<MemoryStorage, MockIndex>> {
-        let wallet_client =
-            DefaultWalletClient::new(MemoryStorage::default(), MockIndex::default());
+    fn setup_wallet_rpc() -> WalletRpcImpl<
+        DefaultWalletClient<MemoryStorage, MockIndex, DefaultTransactionBuilder<ZeroFeeAlgorithm>>,
+    > {
+        let wallet_client = DefaultWalletClient::new(
+            MemoryStorage::default(),
+            MockIndex::default(),
+            DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()),
+        );
         let chain_id = 171u8;
 
         WalletRpcImpl::new(wallet_client, chain_id)

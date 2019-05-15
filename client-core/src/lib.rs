@@ -10,10 +10,13 @@
 //! - Transaction broadcasting (WIP)
 pub mod key;
 pub mod service;
+pub mod transaction_builder;
 pub mod wallet;
 
 #[doc(inline)]
 pub use key::{PrivateKey, PublicKey};
+#[doc(inline)]
+pub use transaction_builder::TransactionBuilder;
 #[doc(inline)]
 pub use wallet::WalletClient;
 

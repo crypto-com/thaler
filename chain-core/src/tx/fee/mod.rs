@@ -160,7 +160,7 @@ impl LinearFee {
 }
 
 /// Calculation of fees for a specific chosen algorithm
-pub trait FeeAlgorithm {
+pub trait FeeAlgorithm: Send + Sync {
     fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError>;
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError>;
 }
