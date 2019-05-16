@@ -1,13 +1,14 @@
 #![deny(missing_docs, unsafe_code, unstable_features)]
 //! # Crypto.com Chain Client
 //!
-//! This crate exposes following functionalities for interacting with Crypto.com Chain:
+//! This crate provides `WalletClient` trait which is responsible for interacting with transaction index and provide
+//! following functionalities on per-wallet basis:
+//!
 //! - Wallet creation
 //! - Address generation
-//! - Transaction syncing and storage
 //! - Balance tracking
-//! - Transaction creation and signing (WIP)
-//! - Transaction broadcasting (WIP)
+//! - Transaction history
+//! - Transaction creation and signing (with automatic unspent transaction selection)
 pub mod key;
 pub mod service;
 pub mod transaction_builder;

@@ -1,3 +1,5 @@
+#![deny(missing_docs, unsafe_code, unstable_features)]
+//! CLI for interacting with Crypto.com Chain
 mod command;
 
 use failure::ResultExt;
@@ -30,6 +32,8 @@ fn main() {
 }
 
 fn execute() -> Result<()> {
+    let command = Command::from_args();
+
     let storage = SledStorage::new(storage_path())?;
     let tendermint_client = RpcClient::new(&tendermint_url());
     let transaction_builder =
@@ -37,7 +41,6 @@ fn execute() -> Result<()> {
     let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
 
     let wallet_client = DefaultWalletClient::new(storage, transaction_index, transaction_builder);
-    let command = Command::from_args();
 
     command.execute(wallet_client)
 }
