@@ -212,7 +212,7 @@ pub mod tests {
     use chain_core::tx::fee::{LinearFee, Milli};
     use chain_core::tx::witness::{TxInWitness, TxWitness};
     use kvdb_memorydb::create;
-    use rlp::Encodable;
+    use parity_codec::Encode;
     use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
     use std::fmt::Debug;
     use std::mem;
@@ -222,7 +222,7 @@ pub mod tests {
         tx: &Tx,
         secret_key: &SecretKey,
     ) -> TxInWitness {
-        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(&tx.id()[..]).expect("32 bytes");
         let sig = secp.sign_recoverable(&message, &secret_key);
         return TxInWitness::BasicRedeem(sig);
     }
@@ -245,28 +245,20 @@ pub mod tests {
         let mut old_tx = Tx::new();
 
         if timelocked {
-            old_tx.add_output(TxOut::new_with_timelock(
-                addr.clone(),
-                Coin::one(),
-                20.into(),
-            ));
+            old_tx.add_output(TxOut::new_with_timelock(addr.clone(), Coin::one(), 20));
         } else {
-            old_tx.add_output(TxOut::new_with_timelock(
-                addr.clone(),
-                Coin::one(),
-                (-20).into(),
-            ));
+            old_tx.add_output(TxOut::new_with_timelock(addr.clone(), Coin::one(), -20));
         }
 
         let old_tx_id = old_tx.id();
         let txp = TxoPointer::new(old_tx_id, 0);
 
         let mut inittx = db.transaction();
-        inittx.put(COL_BODIES, &old_tx_id.as_bytes(), &old_tx.rlp_bytes());
+        inittx.put(COL_BODIES, &old_tx_id[..], &old_tx.encode());
 
         inittx.put(
             COL_TX_META,
-            &old_tx_id.as_bytes(),
+            &old_tx_id[..],
             &BitVec::from_elem(1, false).to_bytes(),
         );
         db.write(inittx).unwrap();
@@ -294,7 +286,7 @@ pub mod tests {
                 .calculate_for_txaux(&txaux)
                 .expect("invalid fee policy"),
             chain_hex_id: DEFAULT_CHAIN_ID,
-            previous_block_time: 0.into(),
+            previous_block_time: 0,
         };
         let result = verify(&txaux, extra_info, db);
         assert!(result.is_ok());
@@ -319,7 +311,7 @@ pub mod tests {
                 .calculate_for_txaux(&txaux)
                 .expect("invalid fee policy"),
             chain_hex_id: DEFAULT_CHAIN_ID,
-            previous_block_time: 0.into(),
+            previous_block_time: 0,
         };
         // WrongChainHexId
         {
@@ -396,7 +388,7 @@ pub mod tests {
             let mut inittx = db.transaction();
             inittx.put(
                 COL_TX_META,
-                &tx.inputs[0].id.as_bytes(),
+                &tx.inputs[0].id[..],
                 &BitVec::from_elem(1, true).to_bytes(),
             );
             db.write(inittx).unwrap();
@@ -407,7 +399,7 @@ pub mod tests {
             let mut reset = db.transaction();
             reset.put(
                 COL_TX_META,
-                &tx.inputs[0].id.as_bytes(),
+                &tx.inputs[0].id[..],
                 &BitVec::from_elem(1, false).to_bytes(),
             );
             db.write(reset).unwrap();

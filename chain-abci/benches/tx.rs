@@ -116,7 +116,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         .iter()
         .map(|txaux| {
             let mut creq = RequestCheckTx::default();
-            creq.set_tx(txaux.rlp_bytes());
+            creq.set_tx(txaux.encode());
             creq
         })
         .collect();

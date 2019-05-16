@@ -149,7 +149,6 @@ mod tests {
     use crate::storage::tx::tests::get_tx_witness;
     use crate::storage::*;
     use abci::Application;
-    use bincode::{deserialize, serialize};
     use bit_vec::BitVec;
     use chain_core::common::H256;
     use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
@@ -175,7 +174,7 @@ mod tests {
     use hex::decode;
     use kvdb::KeyValueDB;
     use kvdb_memorydb::create;
-    use rlp::{Decodable, Encodable, Rlp};
+    use parity_codec::{Decode, Encode};
     use secp256k1::{key::PublicKey, key::SecretKey, Secp256k1};
     use std::collections::BTreeMap;
     use std::sync::Arc;
@@ -242,10 +241,10 @@ mod tests {
 
     fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         ChainNodeState {
-            last_block_height: 0.into(),
+            last_block_height: 0,
             last_apphash: app_hash,
-            block_time: 0.into(),
-            rewards_pool: RewardsPoolState::new(1.into(), 0.into()),
+            block_time: 0,
+            rewards_pool: RewardsPoolState::new(1.into(), 0),
             fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
         }
     }
@@ -263,7 +262,7 @@ mod tests {
         inittx.put(
             COL_NODE_INFO,
             LAST_STATE_KEY,
-            &serialize(&get_dummy_app_state(genesis_app_hash.into())).expect("serialize state"),
+            &get_dummy_app_state(genesis_app_hash).encode(),
         );
         db.write(inittx).unwrap();
         let example_hash2 = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
@@ -319,8 +318,15 @@ mod tests {
         );
         let genesis_app_hash = app.genesis_app_hash;
         let db = app.storage.db;
-        let state: ChainNodeState =
-            deserialize(&db.get(COL_NODE_INFO, LAST_STATE_KEY).unwrap().unwrap()[..]).unwrap();
+        let state = ChainNodeState::decode(
+            &mut db
+                .get(COL_NODE_INFO, LAST_STATE_KEY)
+                .unwrap()
+                .unwrap()
+                .to_vec()
+                .as_slice(),
+        )
+        .unwrap();
 
         assert_eq!(genesis_app_hash, state.last_apphash);
         assert_eq!(1, db.iter(COL_TX_META).count());
@@ -398,7 +404,7 @@ mod tests {
         );
         let mut creq = RequestCheckTx::default();
         let tx = TxAux::new(Tx::new(), TxWitness::new());
-        creq.set_tx(tx.rlp_bytes());
+        creq.set_tx(tx.encode());
         let cresp = app.check_tx(&creq);
         assert_ne!(0, cresp.code);
     }
@@ -409,15 +415,23 @@ mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let addr = RedeemAddress::from(&public_key);
         let app = init_chain_for(addr);
-        let old_tx: Tx = Tx::decode(&Rlp::new(
-            &app.storage.db.iter(COL_BODIES).next().unwrap().1,
-        ))
+        let old_tx: Tx = Tx::decode(
+            &mut app
+                .storage
+                .db
+                .iter(COL_BODIES)
+                .next()
+                .unwrap()
+                .1
+                .to_vec()
+                .as_slice(),
+        )
         .expect("tx");
         let old_tx_id = old_tx.id();
         let old_utxos_before = BitVec::from_bytes(
             &app.storage
                 .db
-                .get(COL_TX_META, &old_tx_id.as_bytes())
+                .get(COL_TX_META, &old_tx_id[..])
                 .unwrap()
                 .unwrap(),
         );
@@ -446,7 +460,7 @@ mod tests {
     fn check_tx_should_accept_valid_tx() {
         let (mut app, txaux) = prepare_app_valid_tx();
         let mut creq = RequestCheckTx::default();
-        creq.set_tx(txaux.rlp_bytes());
+        creq.set_tx(txaux.encode());
         let cresp = app.check_tx(&creq);
         assert_eq!(0, cresp.code);
     }
@@ -499,7 +513,7 @@ mod tests {
         begin_block(&mut app);
         let mut creq = RequestDeliverTx::default();
         let tx = TxAux::new(Tx::new(), TxWitness::new());
-        creq.set_tx(tx.rlp_bytes());
+        creq.set_tx(tx.encode());
         let cresp = app.deliver_tx(&creq);
         assert_ne!(0, cresp.code);
         assert_eq!(0, app.delivered_txs.len());
@@ -512,7 +526,7 @@ mod tests {
         assert_eq!(0, app.delivered_txs.len());
         begin_block(&mut app);
         let mut creq = RequestDeliverTx::default();
-        creq.set_tx(txaux.rlp_bytes());
+        creq.set_tx(txaux.encode());
         let cresp = app.deliver_tx(&creq);
         let rewards_pool_remaining_new = app.last_state.as_ref().unwrap().rewards_pool.remaining;
         assert!(rewards_pool_remaining_new > rewards_pool_remaining_old);
@@ -527,7 +541,7 @@ mod tests {
         assert_eq!(0, cresp.code);
         assert_eq!(1, app.delivered_txs.len());
         assert_eq!(1, cresp.tags.len());
-        assert_eq!(&tx.id().as_bytes()[..], &cresp.tags[0].value[..]);
+        assert_eq!(&tx.id()[..], &cresp.tags[0].value[..]);
     }
 
     #[test]
@@ -597,9 +611,17 @@ mod tests {
     #[test]
     fn valid_commit_should_persist() {
         let (mut app, tx, _, _) = deliver_valid_tx();
-        let old_tx: Tx = Tx::decode(&Rlp::new(
-            &app.storage.db.iter(COL_BODIES).next().unwrap().1,
-        ))
+        let old_tx: Tx = Tx::decode(
+            &mut app
+                .storage
+                .db
+                .iter(COL_BODIES)
+                .next()
+                .unwrap()
+                .1
+                .to_vec()
+                .as_slice(),
+        )
         .unwrap();
         let old_tx_id = old_tx.id();
         let old_app_hash = app.last_state.as_ref().unwrap().last_apphash;
@@ -617,21 +639,24 @@ mod tests {
         assert!(app
             .storage
             .db
-            .get(COL_BODIES, tx.id().as_bytes())
+            .get(COL_BODIES, &tx.id()[..])
             .unwrap()
             .is_none());
         assert!(app
             .storage
             .db
-            .get(COL_WITNESS, tx.id().as_bytes())
+            .get(COL_WITNESS, &tx.id()[..])
             .unwrap()
             .is_none());
-        let persisted_state: ChainNodeState = deserialize(
-            &app.storage
+        let persisted_state = ChainNodeState::decode(
+            &mut app
+                .storage
                 .db
                 .get(COL_NODE_INFO, LAST_STATE_KEY)
                 .unwrap()
-                .unwrap()[..],
+                .unwrap()
+                .to_vec()
+                .as_slice(),
         )
         .unwrap();
         assert_ne!(10, i64::from(persisted_state.last_block_height));
@@ -644,13 +669,13 @@ mod tests {
         assert!(app
             .storage
             .db
-            .get(COL_BODIES, tx.id().as_bytes())
+            .get(COL_BODIES, &tx.id()[..])
             .unwrap()
             .is_some());
         assert!(app
             .storage
             .db
-            .get(COL_WITNESS, tx.id().as_bytes())
+            .get(COL_WITNESS, &tx.id()[..])
             .unwrap()
             .is_some());
         assert_eq!(
@@ -681,7 +706,7 @@ mod tests {
         let old_utxos_after = BitVec::from_bytes(
             &app.storage
                 .db
-                .get(COL_TX_META, &old_tx_id.as_bytes())
+                .get(COL_TX_META, &old_tx_id[..])
                 .unwrap()
                 .unwrap(),
         );
@@ -689,7 +714,7 @@ mod tests {
         let new_utxos = BitVec::from_bytes(
             &app.storage
                 .db
-                .get(COL_TX_META, tx.id().as_bytes())
+                .get(COL_TX_META, &tx.id()[..])
                 .unwrap()
                 .unwrap(),
         );
@@ -719,26 +744,26 @@ mod tests {
         app.end_block(&endreq);
         let cresp = app.commit(&RequestCommit::default());
         let mut qreq = RequestQuery::new();
-        qreq.data = tx.id().as_bytes().to_vec();
+        qreq.data = tx.id().to_vec();
         qreq.path = "store".into();
         qreq.prove = true;
         let qresp = app.query(&qreq);
-        assert_eq!(tx, Tx::decode(&Rlp::new(&qresp.value)).unwrap());
+        assert_eq!(tx, Tx::decode(&mut qresp.value.as_slice()).unwrap());
         let proof = qresp.proof.unwrap();
         assert_eq!(proof.ops.len(), 3);
-        assert_eq!(proof.ops[0].data, tx.id().as_bytes());
+        assert_eq!(proof.ops[0].data, tx.id());
         let rewards_pool_part = app.last_state.clone().unwrap().rewards_pool.hash();
         let mut bs = Vec::new();
         bs.extend(proof.ops[1].data.iter());
-        bs.extend(rewards_pool_part.as_bytes());
+        bs.extend(&rewards_pool_part);
 
-        assert_eq!(txid_hash(&bs).as_bytes().to_vec(), cresp.data);
+        assert_eq!(txid_hash(&bs).to_vec(), cresp.data);
         let mut qreq2 = RequestQuery::new();
-        qreq2.data = tx.id().as_bytes().to_vec();
+        qreq2.data = tx.id().to_vec();
         qreq2.path = "witness".into();
         let qresp = app.query(&qreq2);
-        assert_eq!(qresp.value, witness.rlp_bytes());
-        assert_eq!(proof.ops[2].data, txid_hash(&qresp.value).as_bytes());
+        assert_eq!(qresp.value, witness.encode());
+        assert_eq!(proof.ops[2].data, txid_hash(&qresp.value));
     }
 
 }

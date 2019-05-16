@@ -20,7 +20,7 @@ use crate::common::{hash256, H256};
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
 
-/// Calculates hash of the input data -- if RLP-serialized TX is passed in, it's equivalent to TxId.
+/// Calculates hash of the input data -- if SCALE-serialized TX is passed in, it's equivalent to TxId.
 /// Currently, it uses blake2s.
 pub fn txid_hash(buf: &[u8]) -> H256 {
     hash256::<Blake2s>(buf)
@@ -29,7 +29,7 @@ pub fn txid_hash(buf: &[u8]) -> H256 {
 /// Key to identify the used TXID hash function, e.g. in ProofOps.
 pub const TXID_HASH_ID: &[u8; 7] = b"blake2s";
 
-/// Transaction ID -- currently, blake2s hash of RLP-serialized TX data
+/// Transaction ID -- currently, blake2s hash of SCALE-serialized TX data
 pub type TxId = H256;
 
 /// A Transaction containing tx inputs and tx outputs.

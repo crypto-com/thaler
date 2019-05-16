@@ -135,7 +135,7 @@ impl Mul for Milli {
     }
 }
 
-/// Linear fee using the basic affine formula `COEFFICIENT * rlp(txaux).len() + CONSTANT`
+/// Linear fee using the basic affine formula `COEFFICIENT * scale_bytes(txaux).len() + CONSTANT`
 #[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
 pub struct LinearFee {
     /// this is the minimal fee

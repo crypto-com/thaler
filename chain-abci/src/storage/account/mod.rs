@@ -85,6 +85,7 @@ mod test {
 
     use super::*;
     use chain_core::init::address::RedeemAddress;
+    use chain_core::init::coin::Coin;
     use chain_core::state::account::Account;
     use kvdb_memorydb::create;
     use std::sync::Arc;
@@ -96,13 +97,7 @@ mod test {
     #[test]
     fn test_account_insert_can_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = Account::new(
-            0.into(),
-            0.into(),
-            0.into(),
-            0.into(),
-            RedeemAddress::default(),
-        );
+        let account = Account::default();
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
@@ -115,25 +110,14 @@ mod test {
     #[test]
     fn test_account_update_can_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = Account::new(
-            0.into(),
-            0.into(),
-            0.into(),
-            0.into(),
-            RedeemAddress::default(),
-        );
+        let account = Account::default();
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree
             .insert(None, &mut [&key], &mut vec![&wrapped])
             .expect("insert");
-        let updated_account = Account::new(
-            1.into(),
-            1.into(),
-            1.into(),
-            1.into(),
-            RedeemAddress::default(),
-        );
+        let updated_account =
+            Account::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
         let wrapped_updated = AccountWrapper(updated_account);
         assert_ne!(wrapped, wrapped_updated);
         let new_root = tree
@@ -149,25 +133,14 @@ mod test {
     #[test]
     fn test_account_remove_cannot_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = Account::new(
-            0.into(),
-            0.into(),
-            0.into(),
-            0.into(),
-            RedeemAddress::default(),
-        );
+        let account = Account::default();
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree
             .insert(None, &mut [&key], &mut vec![&wrapped])
             .expect("insert");
-        let updated_account = Account::new(
-            1.into(),
-            1.into(),
-            1.into(),
-            1.into(),
-            RedeemAddress::default(),
-        );
+        let updated_account =
+            Account::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
         let wrapped_updated = AccountWrapper(updated_account);
         let new_root = tree
             .insert(Some(&old_root), &mut [&key], &mut vec![&wrapped_updated])

@@ -13,7 +13,7 @@ use common::{hash256, merkle::MerkleTree, H256};
 use state::RewardsPoolState;
 
 /// computes the "global" application hash (used by Tendermint to check consistency + block replaying)
-/// currently: app_hash = blake2s(root of valid TX merkle tree || blake2s(rlp_bytes(rewards pool state)))
+/// currently: app_hash = blake2s(root of valid TX merkle tree || blake2s(scale bytes(rewards pool state)))
 /// TODO: it should include the fee policy etc. once that becomes changeable
 pub fn compute_app_hash(valid_tx_id_tree: &MerkleTree, reward_pool: &RewardsPoolState) -> H256 {
     let valid_tx_part = valid_tx_id_tree.get_root_hash();

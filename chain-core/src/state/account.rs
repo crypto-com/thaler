@@ -21,6 +21,18 @@ pub struct Account {
     // TODO: slashing + jailing
 }
 
+impl Default for Account {
+    fn default() -> Self {
+        Account::new(
+            0,
+            Coin::zero(),
+            Coin::zero(),
+            0,
+            RedeemAddress::default(),
+        )
+    }
+}
+
 impl Account {
     pub fn new(
         nonce: Nonce,
