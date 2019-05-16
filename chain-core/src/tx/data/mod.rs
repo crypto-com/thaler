@@ -12,7 +12,8 @@ pub mod output;
 use std::fmt;
 
 use blake2::Blake2s;
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use parity_codec_derive::{Encode, Decode};
+use parity_codec::Encode;
 use serde::{Deserialize, Serialize};
 
 use crate::common::{hash256, H256};
@@ -33,7 +34,8 @@ pub type TxId = H256;
 
 /// A Transaction containing tx inputs and tx outputs.
 /// TODO: max input/output size?
-#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
+/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct Tx {
     pub inputs: Vec<TxoPointer>,
     pub outputs: Vec<TxOut>,
@@ -52,27 +54,6 @@ impl fmt::Display for Tx {
     }
 }
 
-impl Encodable for Tx {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        s.begin_list(3)
-            .append_list(&self.inputs)
-            .append_list(&self.outputs)
-            .append(&self.attributes);
-    }
-}
-
-impl Decodable for Tx {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        if rlp.item_count()? != 3 {
-            return Err(DecoderError::Custom("Cannot decode a transaction"));
-        }
-        let inputs: Vec<TxoPointer> = rlp.list_at(0)?;
-        let outputs: Vec<TxOut> = rlp.list_at(1)?;
-        let attributes: TxAttributes = rlp.val_at(2)?;
-        Ok(Tx::new_with(inputs, outputs, attributes))
-    }
-}
-
 impl Tx {
     /// creates an empty TX
     pub fn new() -> Self {
@@ -88,9 +69,9 @@ impl Tx {
         }
     }
 
-    /// retrieves a TX ID (currently blake2s(rlp_bytes(tx)))
+    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
     pub fn id(&self) -> TxId {
-        txid_hash(&self.rlp_bytes())
+        txid_hash(&self.encode())
     }
 
     /// adds an input to a TX (mainly for testing / tools)

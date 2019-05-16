@@ -4,13 +4,14 @@
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS};
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use parity_codec_derive::Encode;
+use parity_codec::{Decode, Input};
+
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::Serialize;
-use std::{fmt, mem, ops, result};
+use std::{fmt, mem, ops, result, slice};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Encode)]
 pub struct Coin(u64);
 
 /// error type relating to `Coin` operations
@@ -186,33 +187,22 @@ impl<'de> Deserialize<'de> for Coin {
     }
 }
 
-// TODO: change to BigEndian?
-impl Encodable for Coin {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        let mut bs = [0u8; mem::size_of::<u64>()];
-        bs.as_mut()
-            .write_u64::<LittleEndian>(self.0)
-            .expect("Unable to write Coin");
-        s.encoder().encode_value(&bs[..]);
-    }
-}
-
-impl Decodable for Coin {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        rlp.decoder().decode_value(|mut bytes| match bytes.len() {
-            l if l == mem::size_of::<u64>() => {
-                let amount = bytes
-                    .read_u64::<LittleEndian>()
-                    .map_err(|_| DecoderError::Custom("failed to read u64"))?;
-                if amount <= MAX_COIN {
-                    Ok(Coin(amount))
-                } else {
-                    Err(DecoderError::Custom("Coin is more than the total supply"))
-                }
-            }
-            l if l < mem::size_of::<u64>() => Err(DecoderError::RlpIsTooShort),
-            _ => Err(DecoderError::RlpIsTooBig),
-        })
+impl Decode for Coin {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+        let size = mem::size_of::<u64>();
+        let mut val: u64 = unsafe { mem::zeroed() };
+        unsafe {
+            let raw: &mut [u8] = slice::from_raw_parts_mut(
+                &mut val as *mut u64 as *mut u8,
+                size
+            );
+            if input.read(raw) != size { return None }
+        }
+        if val > MAX_COIN {
+            None
+        } else {
+            Some(Coin(val))
+        }
     }
 }
 

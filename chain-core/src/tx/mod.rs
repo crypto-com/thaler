@@ -7,13 +7,14 @@ pub mod witness;
 
 use std::fmt;
 
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use parity_codec_derive::{Encode, Decode};
 use serde::{Deserialize, Serialize};
 
 use self::data::Tx;
 use self::witness::TxWitness;
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 pub enum TxAux {
     /// Tx with the vector of witnesses
     TransferTx(Tx, TxWitness),
@@ -33,36 +34,6 @@ impl fmt::Display for TxAux {
                 writeln!(f, "Tx:\n{}", tx)?;
                 writeln!(f, "witnesses: {:?}\n", witness)
             }
-        }
-    }
-}
-
-impl Encodable for TxAux {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        match self {
-            TxAux::TransferTx(tx, witness) => {
-                s.begin_list(3).append(&0u8).append(tx).append(witness);
-            }
-        }
-    }
-}
-
-impl Decodable for TxAux {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        // TODO: this item count will be a range once there are more TX types
-        if rlp.item_count()? != 3 {
-            return Err(DecoderError::Custom(
-                "Cannot decode a transaction auxiliary structure",
-            ));
-        }
-        let type_tag: u8 = rlp.val_at(0)?;
-        match type_tag {
-            0 => {
-                let tx: Tx = rlp.val_at(1)?;
-                let witness = rlp.val_at(2)?;
-                Ok(TxAux::TransferTx(tx, witness))
-            }
-            _ => Err(DecoderError::Custom("Unknown transaction type")),
         }
     }
 }

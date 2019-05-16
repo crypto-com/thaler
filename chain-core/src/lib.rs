@@ -19,7 +19,7 @@ pub fn compute_app_hash(valid_tx_id_tree: &MerkleTree, reward_pool: &RewardsPool
     let valid_tx_part = valid_tx_id_tree.get_root_hash();
     let rewards_pool_part = reward_pool.hash();
     let mut bs = Vec::new();
-    bs.extend(valid_tx_part.as_bytes());
-    bs.extend(rewards_pool_part.as_bytes());
+    bs.extend(&valid_tx_part);
+    bs.extend(&rewards_pool_part);
     hash256::<Blake2s>(&bs)
 }

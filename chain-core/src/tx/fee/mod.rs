@@ -5,7 +5,7 @@
 
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::TxAux;
-use rlp::Encodable;
+use parity_codec::Encode;
 use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
 use std::ops::{Add, Mul};
@@ -171,7 +171,7 @@ impl FeeAlgorithm for LinearFee {
     }
 
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError> {
-        self.estimate(txaux.rlp_bytes().len())
+        self.estimate(txaux.encode().len())
     }
 }
 

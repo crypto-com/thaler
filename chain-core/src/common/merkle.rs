@@ -1,94 +1,22 @@
 use crate::common::{H256, HASH_SIZE_256};
 use crate::tx::data::{txid_hash, TxId};
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use parity_codec_derive::{Encode, Decode};
 
 /// hash digest
 pub type Hash256 = H256;
 
 /// Tree is either empty or has some nodes
+#[derive(Encode, Decode)]
 pub enum MerkleTree {
     Empty,
     Tree(usize, MerkleNode),
 }
 
-/// TODO: better encoding
-impl Encodable for MerkleTree {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        match self {
-            MerkleTree::Empty => {
-                s.begin_list(1).append(&0u8);
-            }
-            MerkleTree::Tree(size, node) => {
-                s.begin_list(3).append(&1u8).append(size).append(node);
-            }
-        }
-    }
-}
-
-impl Decodable for MerkleTree {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        let item_count = rlp.item_count()?;
-        if !(item_count == 1 || item_count == 3) {
-            return Err(DecoderError::Custom("Cannot decode a merkle tree"));
-        }
-        let type_tag: u8 = rlp.val_at(0)?;
-        match (type_tag, item_count) {
-            (0, 1) => Ok(MerkleTree::Empty),
-            (1, 3) => {
-                let size: usize = rlp.val_at(1)?;
-                let node: MerkleNode = rlp.val_at(2)?;
-                Ok(MerkleTree::Tree(size, node))
-            }
-            _ => Err(DecoderError::Custom("Unknown merkle tree type")),
-        }
-    }
-}
-
 /// Node is either an inner node (branch) or a leaf
+#[derive(Encode, Decode)]
 pub enum MerkleNode {
     Branch(Hash256, Box<MerkleNode>, Box<MerkleNode>),
     Leaf(Hash256),
-}
-
-/// TODO: better encoding
-impl Encodable for MerkleNode {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        match self {
-            MerkleNode::Leaf(h) => {
-                s.begin_list(2).append(&0u8).append(h);
-            }
-            MerkleNode::Branch(h, l, r) => {
-                s.begin_list(4)
-                    .append(&1u8)
-                    .append(h)
-                    .append_list(&l.rlp_bytes())
-                    .append_list(&r.rlp_bytes());
-            }
-        }
-    }
-}
-
-impl Decodable for MerkleNode {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        let item_count = rlp.item_count()?;
-        if !(item_count == 2 || item_count == 4) {
-            return Err(DecoderError::Custom("Cannot decode a merkle node"));
-        }
-        let type_tag: u8 = rlp.val_at(0)?;
-        match (type_tag, item_count) {
-            (0, 2) => {
-                let h: Hash256 = rlp.val_at(1)?;
-                Ok(MerkleNode::Leaf(h))
-            }
-            (1, 4) => {
-                let h: Hash256 = rlp.val_at(1)?;
-                let l: MerkleNode = rlp.val_at(2)?;
-                let r: MerkleNode = rlp.val_at(3)?;
-                Ok(MerkleNode::Branch(h, Box::new(l), Box::new(r)))
-            }
-            _ => Err(DecoderError::Custom("Unknown merkle node type")),
-        }
-    }
 }
 
 // txid_hash(&vec![])
@@ -131,8 +59,8 @@ impl MerkleNode {
             let a = MerkleNode::make_tree(&xs[0..i]);
             let b = MerkleNode::make_tree(&xs[i..]);
             let mut bs = vec![1u8];
-            bs.extend(a.get_root_hash().as_bytes());
-            bs.extend(b.get_root_hash().as_bytes());
+            bs.extend(a.get_root_hash());
+            bs.extend(b.get_root_hash());
             MerkleNode::Branch(txid_hash(&bs), Box::new(a), Box::new(b))
         }
     }
