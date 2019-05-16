@@ -8,7 +8,7 @@
 use blake2::{Blake2s, Digest};
 use chain_core::common::H256;
 use chain_core::state::account::Count;
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use parity_codec::{Decode as ScaleDecode, Encode as ScaleEncode, Input, Output};
 use starling::constants::KEY_LEN;
 use starling::merkle_bit::{BinaryMerkleTreeResult, MerkleBIT};
 use starling::traits::Hasher;
@@ -65,25 +65,25 @@ impl Branch for TreeBranch {
     fn new() -> Self {
         let zero = [0u8; 32];
         TreeBranch {
-            count: 0.into(),
-            zero: zero.into(),
-            one: zero.into(),
+            count: 0,
+            zero,
+            one: zero,
             split_index: 0,
-            key: zero.into(),
+            key: zero,
         }
     }
 
     #[inline]
     fn get_count(&self) -> u64 {
-        self.count.into()
+        self.count
     }
     #[inline]
     fn get_zero(&self) -> &[u8; KEY_LEN] {
-        &self.zero.0
+        &self.zero
     }
     #[inline]
     fn get_one(&self) -> &[u8; KEY_LEN] {
-        &self.one.0
+        &self.one
     }
     #[inline]
     fn get_split_index(&self) -> u8 {
@@ -91,20 +91,20 @@ impl Branch for TreeBranch {
     }
     #[inline]
     fn get_key(&self) -> &[u8; KEY_LEN] {
-        &self.key.0
+        &self.key
     }
 
     #[inline]
     fn set_count(&mut self, count: u64) {
-        self.count = count.into()
+        self.count = count
     }
     #[inline]
     fn set_zero(&mut self, zero: [u8; KEY_LEN]) {
-        self.zero = zero.into()
+        self.zero = zero
     }
     #[inline]
     fn set_one(&mut self, one: [u8; KEY_LEN]) {
-        self.one = one.into()
+        self.one = one
     }
     #[inline]
     fn set_split_index(&mut self, index: u8) {
@@ -112,17 +112,17 @@ impl Branch for TreeBranch {
     }
     #[inline]
     fn set_key(&mut self, key: [u8; KEY_LEN]) {
-        self.key = key.into()
+        self.key = key
     }
 
     #[inline]
     fn deconstruct(self) -> (u64, [u8; KEY_LEN], [u8; KEY_LEN], u8, [u8; KEY_LEN]) {
         (
             self.get_count(),
-            self.zero.0,
-            self.one.0,
+            self.zero,
+            self.one,
             self.get_split_index(),
-            self.key.0,
+            self.key,
         )
     }
 }
@@ -141,39 +141,39 @@ impl Leaf for TreeLeaf {
     fn new() -> Self {
         let zero = [0u8; 32];
         TreeLeaf {
-            key: zero.into(),
-            data: zero.into(),
+            key: zero,
+            data: zero,
         }
     }
 
     /// Gets the associated key with this node.
     #[inline]
     fn get_key(&self) -> &[u8; KEY_LEN] {
-        &self.key.0
+        &self.key
     }
 
     /// Gets the location of the `Data` node.
     #[inline]
     fn get_data(&self) -> &[u8; KEY_LEN] {
-        &self.data.0
+        &self.data
     }
 
     /// Sets the associated key with this node.
     #[inline]
     fn set_key(&mut self, key: [u8; KEY_LEN]) {
-        self.key = key.into()
+        self.key = key
     }
 
     /// Sets the location for the `Data` node.
     #[inline]
     fn set_data(&mut self, data: [u8; KEY_LEN]) {
-        self.data = data.into()
+        self.data = data
     }
 
     /// Decomposes the struct into its constituent parts.
     #[inline]
     fn deconstruct(self) -> ([u8; KEY_LEN], [u8; KEY_LEN]) {
-        (self.key.0, self.data.0)
+        (self.key, self.data)
     }
 }
 
@@ -186,68 +186,48 @@ pub struct TreeNode {
     pub node: NodeVariant<TreeBranch, TreeLeaf, TreeData>,
 }
 
-impl Encodable for TreeNode {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        match &self.node {
-            NodeVariant::Branch(tb) => {
+impl ScaleEncode for TreeNode {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        match self.node {
+            NodeVariant::Branch(ref tb) => {
                 // TreeBranch{count, zero, one, split_index, key}
-                s.begin_list(6)
-                    .append(&self.references)
-                    .append(&tb.count)
-                    .append(&tb.zero)
-                    .append(&tb.one)
-                    .append(&tb.split_index)
-                    .append(&tb.key);
+                dest.push_byte(0);
+                self.references.encode_to(dest);
+                tb.count.encode_to(dest);
+                tb.zero.encode_to(dest);
+                tb.one.encode_to(dest);
+                dest.push_byte(tb.split_index);
+                tb.key.encode_to(dest);
             }
-            NodeVariant::Leaf(tl) => {
+            NodeVariant::Leaf(ref tl) => {
                 // TreeLeaf{key, data}
-                s.begin_list(3)
-                    .append(&self.references)
-                    .append(&tl.key)
-                    .append(&tl.data);
+                dest.push_byte(1);
+                self.references.encode_to(dest);
+                tl.key.encode_to(dest);
+                tl.data.encode_to(dest);
             }
-            NodeVariant::Data(td) => {
+            NodeVariant::Data(ref td) => {
                 // TreeData{value}
-                s.begin_list(2)
-                    .append(&self.references)
-                    .append(&td.get_value());
+                dest.push_byte(2);
+                self.references.encode_to(dest);
+                td.get_value().encode_to(dest);
             }
         }
     }
 }
 
-impl Decodable for TreeNode {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        let count = rlp.item_count()?;
-        if count != 2 && count != 3 && count != 6 {
-            return Err(DecoderError::Custom("Cannot decode a tree node"));
-        }
-        let references: Count = rlp.val_at(0)?;
-        match count {
-            2 => {
-                let data: Vec<u8> = rlp.val_at(1)?;
-                let mut tree_data = TreeData::new();
-                tree_data.set_value(&data);
-                Ok(TreeNode {
-                    references,
-                    node: NodeVariant::Data(tree_data),
-                })
-            }
-            3 => {
-                let key: H256 = rlp.val_at(1)?;
-                let data: H256 = rlp.val_at(2)?;
-                Ok(TreeNode {
-                    references,
-                    node: NodeVariant::Leaf(TreeLeaf { key, data }),
-                })
-            }
-            6 => {
-                let count: Count = rlp.val_at(1)?;
-                let zero: H256 = rlp.val_at(2)?;
-                let one: H256 = rlp.val_at(3)?;
-                let split_index: u8 = rlp.val_at(4)?;
-                let key: H256 = rlp.val_at(5)?;
-                Ok(TreeNode {
+impl ScaleDecode for TreeNode {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+        let tag = input.read_byte()?;
+        let references = u64::decode(input)?;
+        match tag {
+            0 => {
+                let count = Count::decode(input)?;
+                let zero = H256::decode(input)?;
+                let one = H256::decode(input)?;
+                let split_index: u8 = input.read_byte()?;
+                let key = H256::decode(input)?;
+                Some(TreeNode {
                     references,
                     node: NodeVariant::Branch(TreeBranch {
                         count,
@@ -258,7 +238,24 @@ impl Decodable for TreeNode {
                     }),
                 })
             }
-            _ => unreachable!(),
+            1 => {
+                let key = H256::decode(input)?;
+                let data = H256::decode(input)?;
+                Some(TreeNode {
+                    references,
+                    node: NodeVariant::Leaf(TreeLeaf { key, data }),
+                })
+            }
+            2 => {
+                let data: Vec<u8> = ScaleDecode::decode(input)?;
+                let mut tree_data = TreeData::new();
+                tree_data.set_value(&data);
+                Some(TreeNode {
+                    references,
+                    node: NodeVariant::Data(tree_data),
+                })
+            }
+            _ => None,
         }
     }
 }
@@ -268,19 +265,19 @@ impl TreeNode {
     #[inline]
     pub fn new(node_variant: NodeVariant<TreeBranch, TreeLeaf, TreeData>) -> Self {
         Self {
-            references: 0.into(),
+            references: 0,
             node: node_variant,
         }
     }
 
     /// Gets the number of references to the node.
     fn get_references(&self) -> u64 {
-        self.references.into()
+        self.references
     }
 
     /// Sets the number of references to the node.
     fn set_references(&mut self, references: u64) {
-        self.references = references.into();
+        self.references = references;
     }
 
     /// Sets the node as a `NodeVariant::Branch`.
@@ -382,10 +379,5 @@ where
 
 #[inline]
 pub fn convert_io_err(e: std::io::Error) -> Exception {
-    Exception::new(e.description())
-}
-
-#[inline]
-pub fn convert_rlp_err(e: DecoderError) -> Exception {
     Exception::new(e.description())
 }

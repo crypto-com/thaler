@@ -23,7 +23,6 @@ use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
-use rlp::Encodable;
 use secp256k1::{
     key::{PublicKey, SecretKey},
     Message, Secp256k1, Signing,

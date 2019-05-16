@@ -1,5 +1,4 @@
 use abci::*;
-use bincode::{deserialize, serialize};
 use bit_vec::BitVec;
 use chain_core::common::merkle::MerkleTree;
 use chain_core::common::Timespec;
@@ -12,17 +11,17 @@ use chain_core::tx::{
     fee::LinearFee,
     TxAux,
 };
-use hex::decode;
 use kvdb::DBTransaction;
 use log::{info, warn};
+use parity_codec::{Decode, Encode};
+use parity_codec_derive::{Decode, Encode};
 use protobuf::well_known_types::Timestamp;
 use protobuf::Message;
-use rlp::{Encodable, RlpStream};
 use serde::{Deserialize, Serialize};
 
 use crate::storage::*;
 
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode)]
 pub struct ChainNodeState {
     /// last processed block height
     pub last_block_height: BlockHeight,
@@ -52,7 +51,7 @@ pub struct ChainNodeApp {
 
 impl ChainNodeApp {
     fn restore_from_storage(
-        last_app_state: Vec<u8>,
+        last_app_state: ChainNodeState,
         genesis_app_hash: [u8; HASH_SIZE_256],
         chain_id: &str,
         storage: Storage,
@@ -84,14 +83,12 @@ impl ChainNodeApp {
         }
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
-        let last_state: Option<ChainNodeState> =
-            Some(deserialize(&last_app_state[..]).expect("deserialize app state"));
         ChainNodeApp {
             storage,
             delivered_txs: Vec::new(),
             chain_hex_id,
-            genesis_app_hash: genesis_app_hash.into(),
-            last_state,
+            genesis_app_hash,
+            last_state: Some(last_app_state),
         }
     }
 
@@ -104,7 +101,7 @@ impl ChainNodeApp {
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `storage` - underlying storage to be used (in-mem or persistent)
     pub fn new_with_storage(gah: &str, chain_id: &str, storage: Storage) -> Self {
-        let decoded_gah = decode(gah).expect("failed to decode genesis app hash");
+        let decoded_gah = hex::decode(gah).expect("failed to decode genesis app hash");
         let mut genesis_app_hash = [0u8; HASH_SIZE_256];
         genesis_app_hash.copy_from_slice(&decoded_gah[..]);
 
@@ -114,12 +111,10 @@ impl ChainNodeApp {
             .expect("app state lookup")
         {
             info!("last app state stored");
-            ChainNodeApp::restore_from_storage(
-                last_app_state.to_vec(),
-                genesis_app_hash,
-                chain_id,
-                storage,
-            )
+            let data = last_app_state.to_vec();
+            let last_state =
+                ChainNodeState::decode(&mut data.as_slice()).expect("deserialize app state");
+            ChainNodeApp::restore_from_storage(last_state, genesis_app_hash, chain_id, storage)
         } else {
             info!("no last app state stored");
             let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
@@ -135,7 +130,7 @@ impl ChainNodeApp {
                 storage,
                 delivered_txs: Vec::new(),
                 chain_hex_id,
-                genesis_app_hash: genesis_app_hash.into(),
+                genesis_app_hash,
                 last_state: None,
             }
         }
@@ -183,12 +178,11 @@ impl ChainNodeApp {
                     .expect("genesis validators")
             })
             .collect();
-        let mut rlp = RlpStream::new();
-        rlp.begin_list(validators_serialized.len());
-        for v in validators_serialized.iter() {
-            rlp.append_list(v);
-        }
-        inittx.put(COL_EXTRA, b"init_chain_validators", &rlp.out());
+        inittx.put(
+            COL_EXTRA,
+            b"init_chain_validators",
+            &validators_serialized.encode(),
+        );
     }
 
     fn store_valid_genesis_state(
@@ -202,10 +196,10 @@ impl ChainNodeApp {
         for utxo in initial_utxos.iter() {
             let txid = utxo.id();
             info!("creating genesis tx (id: {:?})", &txid);
-            inittx.put(COL_BODIES, &txid.as_bytes(), &utxo.rlp_bytes());
+            inittx.put(COL_BODIES, &txid[..], &utxo.encode());
             inittx.put(
                 COL_TX_META,
-                &txid.as_bytes(),
+                &txid[..],
                 &BitVec::from_elem(1, false).to_bytes(),
             );
         }
@@ -217,27 +211,23 @@ impl ChainNodeApp {
                 &(time as &dyn Message).write_to_bytes().expect("time"),
             );
             ChainNodeState {
-                last_block_height: 0.into(),
+                last_block_height: 0,
                 last_apphash: genesis_app_hash,
-                block_time: time.get_seconds().into(),
+                block_time: time.get_seconds(),
                 rewards_pool,
                 fee_policy,
             }
         } else {
             warn!("time not in the initchain request");
             ChainNodeState {
-                last_block_height: 0.into(),
+                last_block_height: 0,
                 last_apphash: genesis_app_hash,
-                block_time: 0.into(),
+                block_time: 0,
                 rewards_pool,
                 fee_policy,
             }
         };
-        inittx.put(
-            COL_NODE_INFO,
-            LAST_STATE_KEY,
-            &serialize(&last_state).expect("serialize state"),
-        );
+        inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &last_state.encode());
         last_state
     }
 
@@ -276,11 +266,7 @@ impl ChainNodeApp {
                 &mut inittx,
             );
             ChainNodeApp::check_and_store_validators(&_req.validators, &mut inittx);
-            inittx.put(
-                COL_MERKLE_PROOFS,
-                &genesis_app_hash.as_bytes(),
-                &tree.rlp_bytes(),
-            );
+            inittx.put(COL_MERKLE_PROOFS, &genesis_app_hash[..], &tree.encode());
             let last_state = ChainNodeApp::store_valid_genesis_state(
                 &utxos,
                 _req.time.as_ref(),

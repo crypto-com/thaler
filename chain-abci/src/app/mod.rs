@@ -20,11 +20,11 @@ impl abci::Application for ChainNodeApp {
         info!("received info request");
         let mut resp = ResponseInfo::new();
         if let Some(app_state) = &self.last_state {
-            resp.last_block_app_hash = app_state.last_apphash.as_bytes().to_vec();
-            resp.last_block_height = app_state.last_block_height.into();
+            resp.last_block_app_hash = app_state.last_apphash.to_vec();
+            resp.last_block_height = app_state.last_block_height;
             resp.data = serde_json::to_string(&app_state).expect("serialize app state to json");
         } else {
-            resp.last_block_app_hash = self.genesis_app_hash.as_bytes().to_vec();
+            resp.last_block_app_hash = self.genesis_app_hash.to_vec();
         }
         resp
     }
@@ -70,8 +70,7 @@ impl abci::Application for ChainNodeApp {
             .time
             .as_ref()
             .expect("Header does not have a timestamp")
-            .seconds
-            .into();
+            .seconds;
         self.last_state.as_mut().map(|mut x| x.block_time = block_time)
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
         ResponseBeginBlock::new()
@@ -132,7 +131,7 @@ impl abci::Application for ChainNodeApp {
             resp.tags.push(kvpair);
         }
         // TODO: skipchain-based validator changes?
-        self.last_state.as_mut().map(|mut x| x.last_block_height = _req.height.into())
+        self.last_state.as_mut().map(|mut x| x.last_block_height = _req.height)
             .expect("executing end block, but no app state stored (i.e. no initchain or recovery was executed)");
         resp
     }

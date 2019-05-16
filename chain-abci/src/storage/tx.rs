@@ -5,7 +5,7 @@ use chain_core::init::coin::{Coin, CoinError};
 use chain_core::tx::fee::Fee;
 use chain_core::tx::{data::Tx, TxAux};
 use kvdb::{DBTransaction, KeyValueDB};
-use rlp::{Decodable, Rlp};
+use parity_codec::Decode;
 use secp256k1;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -69,7 +69,7 @@ pub fn spend_utxos(tx: &Tx, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
             .set(txin.index, true);
     }
     for (txid, bv) in &updated_txs {
-        dbtx.put(COL_TX_META, txid.as_bytes(), &bv.to_bytes());
+        dbtx.put(COL_TX_META, &txid[..], &bv.to_bytes());
     }
 }
 
@@ -79,7 +79,7 @@ pub fn update_utxos_commit(tx: &Tx, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransa
     spend_utxos(tx, db, dbtx);
     dbtx.put(
         COL_TX_META,
-        tx.id().as_bytes(),
+        &tx.id(),
         &BitVec::from_elem(tx.outputs.len(), false).to_bytes(),
     );
 }
@@ -153,10 +153,8 @@ pub fn verify(txaux: &TxAux, extra_info: ChainInfo, db: Arc<dyn KeyValueDB>) -> 
                         if bv.unwrap() {
                             return Err(Error::InputSpent);
                         }
-                        let tx = Tx::decode(&Rlp::new(
-                            &db.get(COL_BODIES, &txin.id[..]).unwrap().unwrap(),
-                        ))
-                        .unwrap();
+                        let txdata = db.get(COL_BODIES, &txin.id[..]).unwrap().unwrap().to_vec();
+                        let tx = Tx::decode(&mut txdata.as_slice()).unwrap();
                         if txin.index >= tx.outputs.len() {
                             return Err(Error::InvalidInput);
                         }

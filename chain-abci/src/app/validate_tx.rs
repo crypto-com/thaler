@@ -3,7 +3,7 @@ use crate::storage::tx::{verify, ChainInfo};
 use abci::*;
 use chain_core::tx::fee::{Fee, FeeAlgorithm};
 use chain_core::tx::TxAux;
-use rlp::{Decodable, Rlp};
+use parity_codec::Decode;
 
 /// Wrapper to astract over CheckTx and DeliverTx requests
 pub trait RequestWithTx {
@@ -56,14 +56,15 @@ impl ChainNodeApp {
         _req: &dyn RequestWithTx,
         resp: &mut dyn ResponseWithCodeAndLog,
     ) -> Option<(TxAux, Fee)> {
-        let dtx = TxAux::decode(&Rlp::new(_req.tx()));
+        let data = Vec::from(_req.tx());
+        let dtx = TxAux::decode(&mut data.as_slice());
         match dtx {
-            Err(e) => {
+            None => {
                 resp.set_code(1);
-                resp.add_log(&format!("failed to deserialize tx: {}", e));
+                resp.add_log("failed to deserialize tx");
                 None
             }
-            Ok(txaux) => {
+            Some(txaux) => {
                 let state = self.last_state.as_ref().expect("the app state is expected");
                 let min_fee = state
                     .fee_policy
