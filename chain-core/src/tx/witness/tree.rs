@@ -1,6 +1,6 @@
-use parity_codec_derive::{Encode, Decode};
+use parity_codec::{Decode, Encode, Input, Output};
+use parity_codec_derive::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use parity_codec::{Encode, Decode, Input, Output};
 
 use crate::common::{H256, H264, H512};
 
@@ -22,21 +22,21 @@ impl RawPubkey {
 }
 
 impl Encode for RawPubkey {
-	fn encode_to<W: Output>(&self, dest: &mut W) {
-		for item in self.0.iter() {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        for item in self.0.iter() {
             dest.push_byte(*item);
         }
-	}
+    }
 }
 
 impl Decode for RawPubkey {
-	fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
         let mut r = [0u8; 33];
-        for i in 0..33 {
-            r[i] = input.read_byte()?;
+        for item in (&mut r).iter_mut() {
+            *item = input.read_byte()?;
         }
         Some(RawPubkey(r))
-	}
+    }
 }
 
 pub type RawSignature = H512;

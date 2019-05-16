@@ -12,8 +12,8 @@ pub mod output;
 use std::fmt;
 
 use blake2::Blake2s;
-use parity_codec_derive::{Encode, Decode};
 use parity_codec::Encode;
+use parity_codec_derive::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::common::{hash256, H256};

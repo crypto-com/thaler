@@ -7,7 +7,7 @@ pub mod witness;
 
 use std::fmt;
 
-use parity_codec_derive::{Encode, Decode};
+use parity_codec_derive::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use self::data::Tx;
@@ -50,6 +50,7 @@ pub mod tests {
         tree::{MerklePath, ProofOp},
         TxInWitness,
     };
+    use parity_codec::{Decode, Encode};
     use secp256k1::{schnorrsig::schnorr_sign, Message, PublicKey, Secp256k1, SecretKey};
 
     // TODO: rewrite as quickcheck prop
@@ -78,7 +79,7 @@ pub mod tests {
             PublicKey::from_secret_key(&secp, &sk2),
             TxAccess::Output(0),
         ));
-        let msg = Message::from_slice(tx.id().as_bytes()).expect("msg");
+        let msg = Message::from_slice(&tx.id()).expect("msg");
         let w1 = TxInWitness::BasicRedeem(secp.sign_recoverable(&msg, &sk1));
         let w2 = TxInWitness::TreeSig(
             PublicKey::from_secret_key(&secp, &sk1),
@@ -88,11 +89,11 @@ pub mod tests {
                 ProofOp(MerklePath::RFound, [0xbb; 32].into()),
             ],
         );
-        assert_eq!(tx.id().as_bytes(), tx.id().as_bytes());
+        assert_eq!(tx.id(), tx.id());
         let txa = TxAux::TransferTx(tx, vec![w1, w2].into());
-        let encoded = txa.rlp_bytes();
-        let rlp = Rlp::new(&encoded);
-        let decoded = TxAux::decode(&rlp).expect("decode tx aux");
+        let mut encoded: Vec<u8> = txa.encode();
+        let mut data: &[u8] = encoded.as_mut();
+        let decoded = TxAux::decode(&mut data).expect("decode tx aux");
         assert_eq!(txa, decoded);
     }
 }

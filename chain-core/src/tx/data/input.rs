@@ -1,6 +1,6 @@
 use std::fmt;
 
-use parity_codec_derive::{Encode, Decode};
+use parity_codec_derive::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::tx::data::TxId;
@@ -8,7 +8,9 @@ use crate::tx::data::TxId;
 /// Structure used for addressing a specific output of a transaction
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
 /// transaction.
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(
+    Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Serialize, Deserialize, Encode, Decode,
+)]
 pub struct TxoPointer {
     pub id: TxId,
     pub index: usize,

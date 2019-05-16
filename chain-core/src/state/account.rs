@@ -2,7 +2,7 @@ use crate::common::{hash256, Timespec, HASH_SIZE_256};
 use crate::init::address::RedeemAddress;
 use crate::init::coin::Coin;
 use blake2::Blake2s;
-use parity_codec_derive::{Encode, Decode};
+use parity_codec_derive::{Decode, Encode};
 
 /// reference counter in the sparse patricia merkle tree/trie
 pub type Count = u64;

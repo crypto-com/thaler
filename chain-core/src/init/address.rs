@@ -11,9 +11,9 @@
 //!   These 20 bytes are the address.
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
+use parity_codec_derive::{Decode, Encode};
 use std::str::FromStr;
 use std::{error, fmt, ops};
-use parity_codec_derive::{Encode, Decode};
 
 use hex;
 use secp256k1::{self, key::PublicKey};

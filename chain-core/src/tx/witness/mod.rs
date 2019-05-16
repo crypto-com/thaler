@@ -3,8 +3,8 @@ pub mod tree;
 
 use std::fmt;
 
-use parity_codec_derive::{Encode, Decode};
-use parity_codec::{Encode, Decode, Input, Output};
+use parity_codec::{Decode, Encode, Input, Output};
+use parity_codec_derive::{Decode, Encode};
 use secp256k1::{
     self, key::PublicKey, schnorrsig::schnorr_verify, schnorrsig::SchnorrSignature, Message,
     RecoverableSignature, RecoveryId, Secp256k1,
@@ -69,18 +69,18 @@ impl fmt::Display for TxInWitness {
 }
 
 impl Encode for TxInWitness {
-	fn encode_to<W: Output>(&self, dest: &mut W) {
-		match *self {
-			TxInWitness::BasicRedeem(ref sig) => {
-				dest.push_byte(0);
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        match *self {
+            TxInWitness::BasicRedeem(ref sig) => {
+                dest.push_byte(0);
                 dest.push_byte(2);
                 let (recovery_id, serialized_sig) = sig.serialize_compact();
                 // recovery_id is one of 0 | 1 | 2 | 3
                 let rid = recovery_id.to_i32() as u8;
                 dest.push_byte(rid);
                 serialized_sig.encode_to(dest);
-			}
-			TxInWitness::TreeSig(ref pk, ref schnorrsig, ref ops) => {
+            }
+            TxInWitness::TreeSig(ref pk, ref schnorrsig, ref ops) => {
                 dest.push_byte(1);
                 dest.push_byte(3);
                 let serialized_pk: RawPubkey = pk.serialize().into();
@@ -89,33 +89,33 @@ impl Encode for TxInWitness {
                 serialized_sig.encode_to(dest);
                 ops.encode_to(dest);
             }
-		}
-	}
+        }
+    }
 }
 
 impl Decode for TxInWitness {
-	fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
         let tag = input.read_byte()?;
         let constructor_len = input.read_byte()?;
-		match (tag, constructor_len) {
-			(0, 2) => {
+        match (tag, constructor_len) {
+            (0, 2) => {
                 let rid: u8 = input.read_byte()?;
                 let raw_sig = RawSignature::decode(input)?;
                 let recovery_id = RecoveryId::from_i32(i32::from(rid)).ok()?;
                 let sig = RecoverableSignature::from_compact(&raw_sig, recovery_id).ok()?;
                 Some(TxInWitness::BasicRedeem(sig))
-            },
-			(1, 3) => {
+            }
+            (1, 3) => {
                 let raw_pk = RawPubkey::decode(input)?;
                 let pk = PublicKey::from_slice(raw_pk.as_bytes()).ok()?;
                 let raw_sig = RawSignature::decode(input)?;
                 let schnorrsig = SchnorrSignature::from_default(&raw_sig).ok()?;
                 let ops: Vec<ProofOp> = Vec::decode(input)?;
                 Some(TxInWitness::TreeSig(pk, schnorrsig, ops))
-            },
-			_ => None,
-		}
-	}
+            }
+            _ => None,
+        }
+    }
 }
 
 impl TxInWitness {
@@ -194,7 +194,7 @@ pub mod tests {
         tx: &Tx,
         secret_key: &SecretKey,
     ) -> TxInWitness {
-        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let sig = secp.sign_recoverable(&message, &secret_key);
         return TxInWitness::BasicRedeem(sig);
     }
@@ -212,7 +212,7 @@ pub mod tests {
         tx: &Tx,
         secret_key: &SecretKey,
     ) -> (TxInWitness, H256) {
-        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let sig = sign_single_schnorr(&secp, &message, &secret_key);
         let pk = PublicKey::from_secret_key(&secp, &secret_key);
 
@@ -231,7 +231,7 @@ pub mod tests {
         secret_key1: SecretKey,
         secret_key2: SecretKey,
     ) -> (SchnorrSignature, PublicKey, PublicKey) {
-        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let pk1 = PublicKey::from_secret_key(&secp, &secret_key1);
         let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
         let session_id1 = MuSigSessionID::from_slice(&[0x01; 32]).expect("32 bytes");
@@ -346,27 +346,27 @@ pub mod tests {
         assert!(witness2.verify_tx_address(&tx, &expected_addr2).is_err());
     }
 
-    // #[test]
-    // fn same_pk_recovered() {
-    //     let tx = Tx::new();
-    //     let secp = Secp256k1::new();
-    //     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
-    //     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-    //     let witness: TxWitness = vec![get_ecdsa_witness(&secp, &tx, &secret_key)].into();
-    //     let encoded = witness.rlp_bytes();
-    //     let rlp = Rlp::new(&encoded);
-    //     let decoded = TxWitness::decode(&rlp).expect("decode tx witness");
-    //     match &decoded[0] {
-    //         TxInWitness::BasicRedeem(sig) => {
-    //             let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
-    //             let pk = secp.recover(&message, &sig).unwrap();
-    //             assert_eq!(pk, public_key);
-    //         }
-    //         _ => {
-    //             assert!(false);
-    //         }
-    //     }
-    // }
+    #[test]
+    fn same_pk_recovered() {
+        let tx = Tx::new();
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+        let witness: TxWitness = vec![get_ecdsa_witness(&secp, &tx, &secret_key)].into();
+        let mut encoded = witness.encode();
+        let mut data: &[u8] = encoded.as_mut();
+        let decoded = TxWitness::decode(&mut data).expect("decode tx witness");
+        match &decoded[0] {
+            TxInWitness::BasicRedeem(sig) => {
+                let message = Message::from_slice(&tx.id()).expect("32 bytes");
+                let pk = secp.recover(&message, &sig).unwrap();
+                assert_eq!(pk, public_key);
+            }
+            _ => {
+                assert!(false);
+            }
+        }
+    }
 
     #[test]
     fn signed_tx_should_verify() {

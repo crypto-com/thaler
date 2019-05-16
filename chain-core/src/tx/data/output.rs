@@ -1,6 +1,6 @@
 use std::fmt;
 
-use parity_codec_derive::{Encode, Decode};
+use parity_codec_derive::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::common::Timespec;

@@ -1,7 +1,7 @@
+use parity_codec::{Decode, Encode, Input, Output};
+use parity_codec_derive::{Decode, Encode};
 use secp256k1::key::PublicKey;
 use serde::{Deserialize, Serialize};
-use parity_codec_derive::{Encode, Decode};
-use parity_codec::{Encode, Decode, Input, Output};
 
 use crate::tx::witness::tree::RawPubkey;
 
@@ -29,29 +29,29 @@ pub struct TxAccessPolicy {
 }
 
 impl Encode for TxAccessPolicy {
-	fn encode_to<W: Output>(&self, dest: &mut W) {
-		dest.push_byte(0);
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        dest.push_byte(0);
         dest.push_byte(2);
         let vk: RawPubkey = self.view_key.serialize().into();
         vk.encode_to(dest);
         self.access.encode_to(dest);
-	}
+    }
 }
 
 impl Decode for TxAccessPolicy {
-	fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
         let tag = input.read_byte()?;
         let constructor_len = input.read_byte()?;
-		match (tag, constructor_len) {
-			(0, 2) => {
+        match (tag, constructor_len) {
+            (0, 2) => {
                 let rawkey = RawPubkey::decode(input)?;
                 let view_key = PublicKey::from_slice(rawkey.as_bytes()).ok()?;
                 let access = TxAccess::decode(input)?;
                 Some(TxAccessPolicy::new(view_key, access))
-            },
-			_ => None,
-		}
-	}
+            }
+            _ => None,
+        }
+    }
 }
 
 impl TxAccessPolicy {

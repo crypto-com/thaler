@@ -1,6 +1,6 @@
 use crate::common::{H256, HASH_SIZE_256};
 use crate::tx::data::{txid_hash, TxId};
-use parity_codec_derive::{Encode, Decode};
+use parity_codec_derive::{Decode, Encode};
 
 /// hash digest
 pub type Hash256 = H256;
@@ -38,7 +38,7 @@ impl MerkleTree {
     /// returns the merkle root == hash of the root node in a non-empty tree
     pub fn get_root_hash(&self) -> Hash256 {
         match self {
-            MerkleTree::Empty => EMPTY_HASH.into(),
+            MerkleTree::Empty => EMPTY_HASH,
             MerkleTree::Tree(_, node) => *node.get_root_hash(),
         }
     }

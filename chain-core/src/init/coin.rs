@@ -4,8 +4,8 @@
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS};
-use parity_codec_derive::Encode;
 use parity_codec::{Decode, Input};
+use parity_codec_derive::Encode;
 
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::Serialize;
@@ -192,11 +192,10 @@ impl Decode for Coin {
         let size = mem::size_of::<u64>();
         let mut val: u64 = unsafe { mem::zeroed() };
         unsafe {
-            let raw: &mut [u8] = slice::from_raw_parts_mut(
-                &mut val as *mut u64 as *mut u8,
-                size
-            );
-            if input.read(raw) != size { return None }
+            let raw: &mut [u8] = slice::from_raw_parts_mut(&mut val as *mut u64 as *mut u8, size);
+            if input.read(raw) != size {
+                return None;
+            }
         }
         if val > MAX_COIN {
             None
