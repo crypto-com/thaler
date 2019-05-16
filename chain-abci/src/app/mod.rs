@@ -608,6 +608,7 @@ mod tests {
         endreq.set_height(10);
         let cresp = app.end_block(&endreq);
         assert_eq!(1, cresp.tags.len());
+        assert_eq!(1, app.delivered_txs.len());
         let bloom = Bloom::from(&cresp.tags[0].value[..]);
         assert!(bloom.contains_input(Input::Raw(
             &tx.attributes.allowed_view[0].view_key.serialize()
@@ -640,6 +641,7 @@ mod tests {
             i64::from(persisted_state.rewards_pool.last_block_height)
         );
         let cresp = app.commit(&RequestCommit::default());
+        assert_eq!(0, app.delivered_txs.len());
         assert!(app
             .storage
             .db

@@ -54,6 +54,7 @@ impl ChainNodeApp {
         } else {
             resp.data = new_state.last_apphash.as_bytes().to_vec();
             self.last_state = Some(new_state);
+            self.delivered_txs.clear();
         }
 
         resp
