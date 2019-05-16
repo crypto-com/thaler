@@ -34,7 +34,8 @@ implementation (`DefaultWalletClient`) of `WalletClient` is provided.
 
 ### Services
 
-`WalletClient` exposes a public interface for interacting with a **wallet**. In order to provide these capabilities, `DefaultWallet` delegates storage of each type of entity to its own _Service_. Currently, there are
+`WalletClient` exposes a public interface for interacting with a **wallet**. In order to provide these capabilities, 
+`DefaultWallet` delegates storage of each type of entity to its own _Service_. Currently, there are
 following services:
 
 #### `KeyService`

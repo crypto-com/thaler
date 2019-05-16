@@ -48,6 +48,8 @@ pub enum Command {
         #[structopt(subcommand)]
         transaction_command: TransactionCommand,
     },
+    #[structopt(name = "resync", about = "Re-synchronize client with Crypto.com Chain")]
+    Resync,
 }
 
 impl Command {
@@ -60,6 +62,7 @@ impl Command {
             Command::Transaction {
                 transaction_command,
             } => transaction_command.execute(wallet_client),
+            Command::Resync => Self::resync(wallet_client),
         }
     }
 
@@ -111,5 +114,9 @@ impl Command {
         }
 
         Ok(())
+    }
+
+    fn resync<T: WalletClient>(wallet_client: T) -> Result<()> {
+        wallet_client.sync_all()
     }
 }
