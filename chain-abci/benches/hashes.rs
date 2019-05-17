@@ -33,8 +33,8 @@ impl<D: Digest> GenericMerkleNode<D> {
             let a = GenericMerkleNode::make_tree(&xs[0..i]);
             let b = GenericMerkleNode::make_tree(&xs[i..]);
             let mut bs = vec![1u8];
-            bs.extend(a.get_root_hash().as_bytes());
-            bs.extend(b.get_root_hash().as_bytes());
+            bs.extend(a.get_root_hash());
+            bs.extend(b.get_root_hash());
             GenericMerkleNode::Branch(hash256::<D>(&bs), Box::new(a), Box::new(b))
         }
     }

@@ -5,7 +5,7 @@ use chain_core::common::merkle::MerkleTree;
 use chain_core::init::{
     address::RedeemAddress,
     coin::Coin,
-    config::{ERC20Owner, InitConfig},
+    config::InitConfig,
 };
 use chain_core::tx::witness::TxInWitness;
 use chain_core::tx::{
@@ -28,6 +28,10 @@ use secp256k1::{
     Message, Secp256k1, Signing,
 };
 use std::sync::Arc;
+use parity_codec::Encode;
+use std::collections::BTreeMap;
+use chain_core::tx::fee::{Milli, LinearFee};
+use chain_core::compute_app_hash;
 
 fn create_db() -> Arc<dyn KeyValueDB> {
     Arc::new(create(NUM_COLUMNS.unwrap()))
@@ -40,26 +44,36 @@ pub fn get_tx_witness<C: Signing>(
     tx: &Tx,
     secret_key: &SecretKey,
 ) -> TxInWitness {
-    let message = Message::from_slice(&tx.id().as_bytes()).expect("32 bytes");
+    let message = Message::from_slice(&tx.id()).expect("32 bytes");
     let sig = secp.sign_recoverable(&message, &secret_key);
     return TxInWitness::BasicRedeem(sig);
 }
 
 fn init_chain_for(addresses: &Vec<RedeemAddress>) -> (ChainNodeApp, Vec<TxId>) {
     let db = create_db();
-    let total = Coin::from(addresses.len() as u32);
+    let total = Coin::from((addresses.len() * 1_0000_0000usize) as u32);
     let remaining = (Coin::max() - total).unwrap();
-    let mut initial: Vec<ERC20Owner> = addresses
+    let mut distribution: BTreeMap<RedeemAddress, Coin> = addresses
         .iter()
-        .map(|address| ERC20Owner::new(*address, Coin::unit()))
+        .map(|address| (*address, Coin::from(1_0000_0000 as u32)))
         .collect();
-    initial.push(ERC20Owner::new(RedeemAddress::default(), remaining));
+    distribution.insert(RedeemAddress::default(), remaining);
+    distribution.insert([1u8; 20].into(), Coin::zero());
+    distribution.insert([2u8; 20].into(), Coin::zero());
+    let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
-    let c = InitConfig::new(initial);
+    let c = InitConfig::new(
+            distribution,
+            RedeemAddress::default(),
+            [1u8; 20].into(),
+            [2u8; 20].into(),
+            fee_policy,
+        );
     let utxos = c.generate_utxos(&TxAttributes::new(0));
+    let rp = c.get_genesis_rewards_pool();
     let txids: Vec<TxId> = utxos.iter().map(|x| x.id()).collect();
     let tree = MerkleTree::new(&txids);
-    let genesis_app_hash = tree.get_root_hash();
+    let genesis_app_hash = compute_app_hash(&tree, &rp);
     let example_hash = hex::encode_upper(genesis_app_hash);
     let mut app =
         ChainNodeApp::new_with_storage(&example_hash, TEST_CHAIN_ID, Storage::new_db(db.clone()));
