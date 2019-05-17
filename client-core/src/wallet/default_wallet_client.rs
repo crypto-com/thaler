@@ -298,11 +298,7 @@ where
 
     /// Builds `DefaultWalletClient`
     pub fn build(self) -> Result<DefaultWalletClient<S, I, T>> {
-        if (self.storage_set && self.index_set && self.transaction_builder_set)
-            || (self.storage_set && self.index_set && !self.transaction_builder_set)
-            || (self.storage_set && !self.index_set && !self.transaction_builder_set)
-            || (!self.transaction_builder_set && !self.storage_set && !self.index_set)
-        {
+        if !self.index_set && !self.transaction_builder_set || self.storage_set && self.index_set {
             Ok(DefaultWalletClient::new(
                 self.storage,
                 self.index,
