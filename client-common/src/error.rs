@@ -74,6 +74,9 @@ pub enum ErrorKind {
     /// Invalid input
     #[fail(display = "Invalid input")]
     InvalidInput,
+    /// Permission denied
+    #[fail(display = "Permission denied")]
+    PermissionDenied,
 }
 
 impl Fail for Error {

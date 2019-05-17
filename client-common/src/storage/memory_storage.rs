@@ -5,7 +5,7 @@ use crate::{Error, ErrorKind, Result, Storage};
 
 /// Storage backed by `HashMap`
 #[allow(clippy::type_complexity)]
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct MemoryStorage(Arc<RwLock<HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<u8>>>>>);
 
 impl Storage for MemoryStorage {

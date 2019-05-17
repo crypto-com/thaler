@@ -37,6 +37,7 @@ use crate::{TransactionBuilder, WalletClient};
 /// 7. Add dummy values for output and witnesses and calculate `revised_fee`.
 /// 8. `fee = new_fee` and `new_fee = revised_fee`.
 /// 9. When the above loop is done, return number of selected unspent transactions and difference amount.
+#[derive(Debug)]
 pub struct DefaultTransactionBuilder<F>
 where
     F: FeeAlgorithm,

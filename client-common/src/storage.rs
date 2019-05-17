@@ -2,10 +2,12 @@
 mod memory_storage;
 #[cfg(feature = "sled")]
 mod sled_storage;
+mod unauthorized_storage;
 
 pub use memory_storage::MemoryStorage;
 #[cfg(feature = "sled")]
 pub use sled_storage::SledStorage;
+pub use unauthorized_storage::UnauthorizedStorage;
 
 use blake2::{Blake2s, Digest};
 use failure::ResultExt;

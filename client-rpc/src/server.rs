@@ -41,7 +41,11 @@ impl Server {
         let transaction_builder =
             DefaultTransactionBuilder::new(tendermint_client.genesis()?.fee_policy());
         let index = DefaultIndex::new(storage.clone(), tendermint_client);
-        let wallet_client = DefaultWalletClient::new(storage, index, transaction_builder);
+        let wallet_client = DefaultWalletClient::builder()
+            .with_wallet(storage)
+            .with_transaction_read(index)
+            .with_transaction_write(transaction_builder)
+            .build()?;
         let wallet_rpc = WalletRpcImpl::new(wallet_client, self.chain_id);
 
         let mut io = IoHandler::new();
