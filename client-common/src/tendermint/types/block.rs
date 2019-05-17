@@ -5,7 +5,7 @@ use chrono::offset::Utc;
 use chrono::DateTime;
 use failure::ResultExt;
 use serde::Deserialize;
-
+use parity_codec::Decode;
 use chain_core::tx::TxAux;
 
 use crate::{ErrorKind, Result};
@@ -41,7 +41,7 @@ impl Block {
                 .iter()
                 .map(|raw_tx| Ok(decode(&raw_tx).context(ErrorKind::DeserializationError)?))
                 .map(|bytes: Result<Vec<u8>>| {
-                    Ok(rlp::decode(&bytes?).context(ErrorKind::DeserializationError)?)
+                    Ok(TxAux::decode(&mut bytes?.as_slice()).ok_or(ErrorKind::DeserializationError)?)
                 })
                 .collect::<Result<Vec<TxAux>>>(),
         }

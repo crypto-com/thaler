@@ -1,7 +1,7 @@
 use failure::{format_err, Error, ResultExt};
 use hex::{decode, encode};
 use quest::{ask, choose, success, text, yesno};
-use rlp::Encodable;
+use parity_codec::Encode;
 use structopt::StructOpt;
 
 use chain_core::init::coin::Coin;
@@ -148,7 +148,7 @@ impl TransactionCommand {
         let txa = TxAux::new(transaction, witnesses);
 
         ask("Transaction: ");
-        success(&encode(&txa.rlp_bytes()).to_string());
+        success(&encode(&txa.encode()).to_string());
 
         Ok(())
     }

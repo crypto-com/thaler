@@ -33,7 +33,7 @@ pub fn get_transaction_witnesses(
     secrets: &Secrets,
     required_signature_types: &[SignatureType],
 ) -> Result<TxWitness, Error> {
-    let message = Message::from_slice(&transaction.id().as_bytes())?;
+    let message = Message::from_slice(&transaction.id())?;
 
     let ecdsa_signature = secrets.get_ecdsa_signature(&message)?;
     let schnorr_signature = secrets.get_schnorr_signature(&message)?;

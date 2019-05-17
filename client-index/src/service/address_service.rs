@@ -1,8 +1,7 @@
-use rlp::{decode_list, encode, encode_list};
-
+use parity_codec::{Encode, Decode};
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::balance::TransactionChange;
-use client_common::{Result, Storage};
+use client_common::{Result, ErrorKind, Storage};
 
 const KEYSPACE: &str = "index_address";
 
@@ -25,11 +24,11 @@ where
 
     /// Retrieves transaction changes for given address
     pub fn get(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>> {
-        let bytes = self.storage.get(KEYSPACE, encode(address))?;
+        let bytes = self.storage.get(KEYSPACE, address.encode())?;
 
         match bytes {
             None => Ok(Default::default()),
-            Some(bytes) => Ok(decode_list(&bytes)),
+            Some(bytes) => Ok(Vec::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?),
         }
     }
 
@@ -41,7 +40,7 @@ where
         changes.push(change);
 
         self.storage
-            .set(KEYSPACE, encode(&address), encode_list(&changes))?;
+            .set(KEYSPACE, &address.encode(), changes.encode())?;
 
         Ok(())
     }

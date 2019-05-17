@@ -1,6 +1,4 @@
-use failure::ResultExt;
-use rlp::{decode, encode};
-
+use parity_codec::{Decode, Encode};
 use chain_core::tx::data::{Tx, TxId};
 use client_common::{ErrorKind, Result, Storage};
 
@@ -29,15 +27,13 @@ where
 
         match bytes {
             None => Ok(None),
-            Some(bytes) => Ok(Some(
-                decode(&bytes).context(ErrorKind::DeserializationError)?,
-            )),
+            Some(bytes) => Ok(Tx::decode(&mut bytes.as_slice())),
         }
     }
 
     /// Sets transaction with given id and value
     pub fn set(&self, id: &TxId, transaction: &Tx) -> Result<()> {
-        self.storage.set(KEYSPACE, id, encode(transaction))?;
+        self.storage.set(KEYSPACE, id, transaction.encode())?;
 
         Ok(())
     }

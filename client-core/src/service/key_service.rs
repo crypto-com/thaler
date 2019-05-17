@@ -1,9 +1,7 @@
-use bincode::{deserialize, serialize};
-use failure::ResultExt;
 use secstr::SecStr;
-
+use parity_codec::{Encode, Decode};
 use client_common::{ErrorKind, Result, SecureStorage, Storage};
-
+use zeroize::Zeroize;
 use crate::PrivateKey;
 
 const KEYSPACE: &str = "core_key";
@@ -29,10 +27,10 @@ where
 
         let private_keys = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
 
-        let mut private_keys = match private_keys {
+        let mut private_keys: Vec<Vec<u8>> = match private_keys {
             None => Vec::new(),
             Some(private_keys) => {
-                deserialize(&private_keys).context(ErrorKind::DeserializationError)?
+                Vec::decode(&mut private_keys.as_slice()).ok_or(ErrorKind::DeserializationError)?
             }
         };
 
@@ -41,9 +39,12 @@ where
         self.storage.set_secure(
             KEYSPACE,
             wallet_id,
-            serialize(&private_keys).context(ErrorKind::SerializationError)?,
+            private_keys.encode(),
             passphrase,
         )?;
+        for pk in &mut private_keys {
+            pk.zeroize();
+        }
 
         Ok(private_key)
     }
@@ -59,13 +60,16 @@ where
         match private_keys {
             None => Ok(None),
             Some(bytes) => {
-                let private_keys: Vec<Vec<u8>> =
-                    deserialize(&bytes).context(ErrorKind::DeserializationError)?;
+                let mut pks: Vec<Vec<u8>> =
+                    Vec::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?;
 
-                let private_keys = private_keys
+                let private_keys = pks
                     .iter()
                     .map(|inner| -> Result<PrivateKey> { PrivateKey::deserialize_from(inner) })
                     .collect::<Result<Vec<PrivateKey>>>()?;
+                for pk in &mut pks {
+                    pk.zeroize();
+                }                    
 
                 Ok(Some(private_keys))
             }

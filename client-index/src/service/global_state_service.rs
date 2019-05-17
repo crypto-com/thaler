@@ -1,6 +1,4 @@
-use bincode::{deserialize, serialize};
-use failure::ResultExt;
-
+use parity_codec::{Encode, Decode};
 use client_common::{ErrorKind, Result, Storage};
 
 const KEYSPACE: &str = "index_global_state";
@@ -28,25 +26,21 @@ where
         match bytes {
             None => Ok(None),
             Some(bytes) => {
-                let last_block_height: u64 =
-                    deserialize(&bytes).context(ErrorKind::DeserializationError)?;
-                Ok(Some(last_block_height))
+                Ok(u64::decode(&mut bytes.as_slice()))
             }
         }
     }
 
     /// Updates last block height with given value and returns old value
     pub fn set_last_block_height(&self, last_block_height: u64) -> Result<Option<u64>> {
-        let bytes = serialize(&last_block_height).context(ErrorKind::SerializationError)?;
+        let bytes = last_block_height.encode();
 
         let old_bytes = self.storage.set(KEYSPACE, LAST_BLOCK_HEIGHT, bytes)?;
 
         match old_bytes {
             None => Ok(None),
             Some(bytes) => {
-                let last_block_height: u64 =
-                    deserialize(&bytes).context(ErrorKind::DeserializationError)?;
-                Ok(Some(last_block_height))
+                Ok(u64::decode(&mut bytes.as_slice()))
             }
         }
     }

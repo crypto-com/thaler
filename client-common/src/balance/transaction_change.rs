@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use chrono::offset::Utc;
 use chrono::DateTime;
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use parity_codec::{Encode, Decode, Input, Output};
 use serde::{Deserialize, Serialize};
 
 use chain_core::init::coin::Coin;
@@ -28,30 +28,30 @@ pub struct TransactionChange {
     pub time: DateTime<Utc>,
 }
 
-impl Encodable for TransactionChange {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        s.begin_list(5)
-            .append(&self.transaction_id)
-            .append(&self.address)
-            .append(&self.balance_change)
-            .append(&self.height)
-            .append(&self.time.to_rfc3339());
+
+impl Encode for TransactionChange {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        self.transaction_id.encode_to(dest);
+        self.address.encode_to(dest);
+        self.balance_change.encode_to(dest);
+        self.height.encode_to(dest);
+        self.time.to_rfc3339().encode_to(dest);
     }
 }
 
-impl Decodable for TransactionChange {
-    fn decode(rlp: &Rlp) -> core::result::Result<Self, DecoderError> {
-        if rlp.item_count()? != 5 {
-            return Err(DecoderError::Custom("Invalid item count"));
-        }
-
-        Ok(TransactionChange {
-            transaction_id: rlp.val_at(0)?,
-            address: rlp.val_at(1)?,
-            balance_change: rlp.val_at(2)?,
-            height: rlp.val_at(3)?,
-            time: DateTime::from_str(&rlp.val_at::<String>(4)?)
-                .map_err(|_| DecoderError::Custom("Unable to decode DateTime"))?,
+impl Decode for TransactionChange {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+        let transaction_id = TxId::decode(input)?;
+        let address = ExtendedAddr::decode(input)?;
+        let balance_change = BalanceChange::decode(input)?;
+        let height = u64::decode(input)?;
+        let time = DateTime::from_str(&String::decode(input)?).ok()?;
+        Some(TransactionChange {
+            transaction_id,
+            address,
+            balance_change,
+            height,
+            time,
         })
     }
 }
@@ -77,8 +77,6 @@ mod tests {
     use super::*;
 
     use std::time::SystemTime;
-
-    use rlp::{decode, encode};
 
     use chain_core::tx::data::txid_hash;
 
@@ -140,13 +138,4 @@ mod tests {
         assert!(coin.is_err(), "Created negative coin")
     }
 
-    #[test]
-    fn check_encoding() {
-        let change = get_transaction_change(BalanceChange::Incoming(
-            Coin::new(32).expect("Unable to create new coin"),
-        ));
-        let new_change = decode(&encode(&change)).expect("Unable to decode transaction change");
-
-        assert_eq!(change, new_change, "Incorrect transaction change encoding");
-    }
 }

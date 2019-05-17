@@ -1,8 +1,7 @@
 use failure::ResultExt;
-use rlp::encode;
 use secstr::SecStr;
 use zeroize::Zeroize;
-
+use parity_codec::Encode;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -186,7 +185,7 @@ where
             .transaction_builder
             .build(name, passphrase, outputs, attributes, self)?;
 
-        self.index.broadcast_transaction(&encode(&tx_aux))
+        self.index.broadcast_transaction(&tx_aux.encode())
     }
 
     fn sync(&self) -> Result<()> {
