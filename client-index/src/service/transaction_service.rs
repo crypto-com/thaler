@@ -1,6 +1,6 @@
-use parity_codec::{Decode, Encode};
 use chain_core::tx::data::{Tx, TxId};
-use client_common::{ErrorKind, Result, Storage};
+use client_common::{Result, Storage};
+use parity_codec::{Decode, Encode};
 
 const KEYSPACE: &str = "index_transaction";
 
@@ -53,7 +53,7 @@ mod tests {
     #[test]
     fn check_flow() {
         let transaction_service = TransactionService::new(MemoryStorage::default());
-        let id = TxId::zero();
+        let id = [0u8; 32];
         let transaction = Tx::default();
 
         assert_eq!(None, transaction_service.get(&id).unwrap());

@@ -325,9 +325,9 @@ mod tests {
     impl Default for MockWalletClient {
         fn default() -> Self {
             Self {
-                txid_0: TxId::repeat_byte(0),
-                txid_1: TxId::repeat_byte(1),
-                txid_2: TxId::repeat_byte(2),
+                txid_0: [0u8; 32],
+                txid_1: [1u8; 32],
+                txid_2: [2u8; 32],
                 addr_0: ExtendedAddr::BasicRedeem(
                     RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
                 ),
@@ -496,7 +496,7 @@ mod tests {
                         RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20b4")
                             .unwrap(),
                     ),
-                    value: Coin::new(30).unwrap(),
+                    value: Coin::new(40).unwrap(),
                     valid_from: None,
                 }],
                 TxAttributes::new(171),
@@ -532,7 +532,7 @@ mod tests {
                         RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20b4")
                             .unwrap(),
                     ),
-                    value: Coin::new(40).unwrap(),
+                    value: Coin::new(30).unwrap(),
                     valid_from: None,
                 }],
                 TxAttributes::new(171),

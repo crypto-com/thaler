@@ -23,13 +23,7 @@ pub struct Account {
 
 impl Default for Account {
     fn default() -> Self {
-        Account::new(
-            0,
-            Coin::zero(),
-            Coin::zero(),
-            0,
-            RedeemAddress::default(),
-        )
+        Account::new(0, Coin::zero(), Coin::zero(), 0, RedeemAddress::default())
     }
 }
 

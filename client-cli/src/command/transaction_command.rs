@@ -5,7 +5,7 @@ use hex::decode;
 use quest::{ask, choose, text, yesno};
 use structopt::StructOpt;
 
-use chain_core::common::HASH_SIZE_256;
+use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -101,9 +101,8 @@ impl TransactionCommand {
                     address,
                     amount,
                     timelock
-                        .parse::<i64>()
-                        .context(ErrorKind::DeserializationError)?
-                        .into(),
+                        .parse::<Timespec>()
+                        .context(ErrorKind::DeserializationError)?,
                 ));
             }
 

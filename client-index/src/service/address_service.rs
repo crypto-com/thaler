@@ -1,7 +1,7 @@
-use parity_codec::{Encode, Decode};
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::balance::TransactionChange;
-use client_common::{Result, ErrorKind, Storage};
+use client_common::{ErrorKind, Result, Storage};
+use parity_codec::{Decode, Encode};
 
 const KEYSPACE: &str = "index_address";
 
@@ -28,7 +28,9 @@ where
 
         match bytes {
             None => Ok(Default::default()),
-            Some(bytes) => Ok(Vec::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?),
+            Some(bytes) => {
+                Ok(Vec::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?)
+            }
         }
     }
 

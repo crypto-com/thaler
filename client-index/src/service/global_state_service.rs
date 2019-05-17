@@ -1,5 +1,5 @@
-use parity_codec::{Encode, Decode};
-use client_common::{ErrorKind, Result, Storage};
+use client_common::{Result, Storage};
+use parity_codec::{Decode, Encode};
 
 const KEYSPACE: &str = "index_global_state";
 const LAST_BLOCK_HEIGHT: &str = "last_block_height";
@@ -25,9 +25,7 @@ where
 
         match bytes {
             None => Ok(None),
-            Some(bytes) => {
-                Ok(u64::decode(&mut bytes.as_slice()))
-            }
+            Some(bytes) => Ok(u64::decode(&mut bytes.as_slice())),
         }
     }
 
@@ -39,9 +37,7 @@ where
 
         match old_bytes {
             None => Ok(None),
-            Some(bytes) => {
-                Ok(u64::decode(&mut bytes.as_slice()))
-            }
+            Some(bytes) => Ok(u64::decode(&mut bytes.as_slice())),
         }
     }
 

@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use chrono::offset::Utc;
 use chrono::DateTime;
-use parity_codec::{Encode, Decode, Input, Output};
+use parity_codec::{Decode, Encode, Input, Output};
 use serde::{Deserialize, Serialize};
 
 use chain_core::init::coin::Coin;
@@ -27,7 +27,6 @@ pub struct TransactionChange {
     /// Time of block which has this transaction
     pub time: DateTime<Utc>,
 }
-
 
 impl Encode for TransactionChange {
     fn encode_to<W: Output>(&self, dest: &mut W) {

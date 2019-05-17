@@ -29,7 +29,7 @@ impl Decode for TxAttributes {
                 let chain_hex_id: u8 = input.read_byte()?;
                 let allowed_view: Vec<TxAccessPolicy> = Vec::decode(input)?;
                 Some(TxAttributes::new_with_access(chain_hex_id, allowed_view))
-            },
+            }
             _ => None,
         }
     }

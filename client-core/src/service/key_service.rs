@@ -1,8 +1,8 @@
-use secstr::SecStr;
-use parity_codec::{Encode, Decode};
-use client_common::{ErrorKind, Result, SecureStorage, Storage};
-use zeroize::Zeroize;
 use crate::PrivateKey;
+use client_common::{ErrorKind, Result, SecureStorage, Storage};
+use parity_codec::{Decode, Encode};
+use secstr::SecStr;
+use zeroize::Zeroize;
 
 const KEYSPACE: &str = "core_key";
 
@@ -36,12 +36,8 @@ where
 
         private_keys.push(private_key.serialize()?);
 
-        self.storage.set_secure(
-            KEYSPACE,
-            wallet_id,
-            private_keys.encode(),
-            passphrase,
-        )?;
+        self.storage
+            .set_secure(KEYSPACE, wallet_id, private_keys.encode(), passphrase)?;
         for pk in &mut private_keys {
             pk.zeroize();
         }
@@ -69,7 +65,7 @@ where
                     .collect::<Result<Vec<PrivateKey>>>()?;
                 for pk in &mut pks {
                     pk.zeroize();
-                }                    
+                }
 
                 Ok(Some(private_keys))
             }
