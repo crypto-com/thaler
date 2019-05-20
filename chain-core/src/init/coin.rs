@@ -4,8 +4,7 @@
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS};
-use parity_codec::{Decode, Input};
-use parity_codec_derive::Encode;
+use parity_codec::{Decode, Encode, Input};
 
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::Serialize;

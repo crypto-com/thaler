@@ -11,8 +11,7 @@ structopt = "0.2"
 failure = "0.1"
 quest = "0.3"
 hex = "0.3"
-parity-codec = "3.5.1"
-parity-codec-derive = "3.3.0"
+parity-codec = { features = ["derive"], version = "3.5.1" }
 
 # will be removed once client-* has all signer-* functionality
 [badges]

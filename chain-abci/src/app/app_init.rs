@@ -14,7 +14,6 @@ use chain_core::tx::{
 use kvdb::DBTransaction;
 use log::{info, warn};
 use parity_codec::{Decode, Encode};
-use parity_codec_derive::{Decode, Encode};
 use protobuf::well_known_types::Timestamp;
 use protobuf::Message;
 use serde::{Deserialize, Serialize};

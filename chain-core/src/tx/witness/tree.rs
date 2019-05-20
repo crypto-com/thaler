@@ -1,5 +1,4 @@
 use parity_codec::{Decode, Encode, Input, Output};
-use parity_codec_derive::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::common::{H256, H264, H512};

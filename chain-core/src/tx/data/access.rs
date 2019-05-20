@@ -1,5 +1,4 @@
 use parity_codec::{Decode, Encode, Input, Output};
-use parity_codec_derive::{Decode, Encode};
 use secp256k1::key::PublicKey;
 use serde::{Deserialize, Serialize};
 

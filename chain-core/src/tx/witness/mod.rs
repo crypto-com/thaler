@@ -4,7 +4,6 @@ pub mod tree;
 use std::fmt;
 
 use parity_codec::{Decode, Encode, Input, Output};
-use parity_codec_derive::{Decode, Encode};
 use secp256k1::{
     self, key::PublicKey, schnorrsig::schnorr_verify, schnorrsig::SchnorrSignature, Message,
     RecoverableSignature, RecoveryId, Secp256k1,

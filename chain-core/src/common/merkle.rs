@@ -1,6 +1,6 @@
 use crate::common::{H256, HASH_SIZE_256};
 use crate::tx::data::{txid_hash, TxId};
-use parity_codec_derive::{Decode, Encode};
+use parity_codec::{Decode, Encode};
 
 /// hash digest
 pub type Hash256 = H256;

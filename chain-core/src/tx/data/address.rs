@@ -1,4 +1,4 @@
-use parity_codec_derive::{Decode, Encode};
+use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

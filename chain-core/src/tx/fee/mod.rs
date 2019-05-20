@@ -5,8 +5,7 @@
 
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::TxAux;
-use parity_codec::Encode;
-use parity_codec_derive::{Decode, Encode};
+use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
 use std::ops::{Add, Mul};

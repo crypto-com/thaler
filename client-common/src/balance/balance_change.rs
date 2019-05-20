@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use chain_core::init::coin::Coin;
 use failure::ResultExt;
-use parity_codec_derive::{Decode, Encode};
+use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use crate::{ErrorKind, Result};
