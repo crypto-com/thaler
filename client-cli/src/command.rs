@@ -8,14 +8,18 @@ use quest::success;
 use structopt::StructOpt;
 
 use client_common::balance::BalanceChange;
+use client_common::storage::SledStorage;
+use client_common::tendermint::{Client, RpcClient};
 use client_common::Result;
-use client_core::WalletClient;
+use client_core::transaction_builder::DefaultTransactionBuilder;
+use client_core::wallet::{DefaultWalletClient, WalletClient};
+use client_index::index::DefaultIndex;
 
 use self::address_command::AddressCommand;
 use self::transaction_command::TransactionCommand;
 use self::wallet_command::WalletCommand;
 
-use crate::ask_passphrase;
+use crate::{ask_passphrase, storage_path, tendermint_url};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -53,16 +57,67 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn execute<T: WalletClient>(&self, wallet_client: T) -> Result<()> {
+    pub fn execute(&self) -> Result<()> {
         match self {
-            Command::Wallet { wallet_command } => wallet_command.execute(wallet_client),
-            Command::Address { address_command } => address_command.execute(wallet_client),
-            Command::Balance { name } => Self::get_balance(wallet_client, name),
-            Command::History { name } => Self::get_history(wallet_client, name),
+            Command::Wallet { wallet_command } => {
+                let storage = SledStorage::new(storage_path())?;
+                let wallet_client = DefaultWalletClient::builder()
+                    .with_wallet(storage)
+                    .build()?;
+                wallet_command.execute(wallet_client)
+            }
+            Command::Address { address_command } => {
+                let storage = SledStorage::new(storage_path())?;
+                let wallet_client = DefaultWalletClient::builder()
+                    .with_wallet(storage)
+                    .build()?;
+                address_command.execute(wallet_client)
+            }
+            Command::Balance { name } => {
+                let storage = SledStorage::new(storage_path())?;
+                let tendermint_client = RpcClient::new(&tendermint_url());
+                let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
+                let wallet_client = DefaultWalletClient::builder()
+                    .with_wallet(storage)
+                    .with_transaction_read(transaction_index)
+                    .build()?;
+                Self::get_balance(wallet_client, name)
+            }
+            Command::History { name } => {
+                let storage = SledStorage::new(storage_path())?;
+                let tendermint_client = RpcClient::new(&tendermint_url());
+                let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
+                let wallet_client = DefaultWalletClient::builder()
+                    .with_wallet(storage)
+                    .with_transaction_read(transaction_index)
+                    .build()?;
+                Self::get_history(wallet_client, name)
+            }
             Command::Transaction {
                 transaction_command,
-            } => transaction_command.execute(wallet_client),
-            Command::Resync => Self::resync(wallet_client),
+            } => {
+                let storage = SledStorage::new(storage_path())?;
+                let tendermint_client = RpcClient::new(&tendermint_url());
+                let transaction_builder =
+                    DefaultTransactionBuilder::new(tendermint_client.genesis()?.fee_policy());
+                let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
+                let wallet_client = DefaultWalletClient::builder()
+                    .with_wallet(storage)
+                    .with_transaction_read(transaction_index)
+                    .with_transaction_write(transaction_builder)
+                    .build()?;
+                transaction_command.execute(wallet_client)
+            }
+            Command::Resync => {
+                let storage = SledStorage::new(storage_path())?;
+                let tendermint_client = RpcClient::new(&tendermint_url());
+                let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
+                let wallet_client = DefaultWalletClient::builder()
+                    .with_wallet(storage)
+                    .with_transaction_read(transaction_index)
+                    .build()?;
+                Self::resync(wallet_client)
+            }
         }
     }
 

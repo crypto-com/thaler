@@ -11,7 +11,7 @@ use crate::{PrivateKey, PublicKey};
 const KEYSPACE: &str = "core_wallet";
 
 /// Exposes functionality for managing wallets
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct WalletService<T: Storage> {
     storage: T,
 }

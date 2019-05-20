@@ -1,7 +1,9 @@
 //! Transaction index operations
 mod default_index;
+mod unauthorized_index;
 
 pub use default_index::DefaultIndex;
+pub use unauthorized_index::UnauthorizedIndex;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;

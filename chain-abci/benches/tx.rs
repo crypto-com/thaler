@@ -2,11 +2,9 @@ use abci::{Application, RequestCheckTx, RequestInitChain};
 use chain_abci::app::ChainNodeApp;
 use chain_abci::storage::{Storage, NUM_COLUMNS};
 use chain_core::common::merkle::MerkleTree;
-use chain_core::init::{
-    address::RedeemAddress,
-    coin::Coin,
-    config::InitConfig,
-};
+use chain_core::compute_app_hash;
+use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
+use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::TxInWitness;
 use chain_core::tx::{
     data::{
@@ -23,15 +21,13 @@ use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
+use parity_codec::Encode;
 use secp256k1::{
     key::{PublicKey, SecretKey},
     Message, Secp256k1, Signing,
 };
-use std::sync::Arc;
-use parity_codec::Encode;
 use std::collections::BTreeMap;
-use chain_core::tx::fee::{Milli, LinearFee};
-use chain_core::compute_app_hash;
+use std::sync::Arc;
 
 fn create_db() -> Arc<dyn KeyValueDB> {
     Arc::new(create(NUM_COLUMNS.unwrap()))
@@ -63,12 +59,12 @@ fn init_chain_for(addresses: &Vec<RedeemAddress>) -> (ChainNodeApp, Vec<TxId>) {
     let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
     let c = InitConfig::new(
-            distribution,
-            RedeemAddress::default(),
-            [1u8; 20].into(),
-            [2u8; 20].into(),
-            fee_policy,
-        );
+        distribution,
+        RedeemAddress::default(),
+        [1u8; 20].into(),
+        [2u8; 20].into(),
+        fee_policy,
+    );
     let utxos = c.generate_utxos(&TxAttributes::new(0));
     let rp = c.get_genesis_rewards_pool();
     let txids: Vec<TxId> = utxos.iter().map(|x| x.id()).collect();

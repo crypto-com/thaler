@@ -151,11 +151,7 @@ impl TransactionOutput {
 
         match self.valid_from {
             None => Ok(TxOut::new(address, self.value)),
-            Some(timespec) => Ok(TxOut::new_with_timelock(
-                address,
-                self.value,
-                timespec.into(),
-            )),
+            Some(timespec) => Ok(TxOut::new_with_timelock(address, self.value, timespec)),
         }
     }
 }
