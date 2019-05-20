@@ -1,10 +1,8 @@
-use bincode::{deserialize, serialize};
-use failure::ResultExt;
-
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use client_common::{ErrorKind, Result, Storage};
+use parity_codec::{Decode, Encode};
 
 const KEYSPACE: &str = "index_unspent_transaction";
 /// Exposes functionalities for managing unspent transactions
@@ -26,14 +24,13 @@ where
 
     /// Retrieves all the unspent transactions for an address
     pub fn get(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
-        let bytes = self.storage.get(
-            KEYSPACE,
-            serialize(address).context(ErrorKind::SerializationError)?,
-        )?;
+        let bytes = self.storage.get(KEYSPACE, address.encode())?;
 
         match bytes {
             None => Ok(Default::default()),
-            Some(bytes) => Ok(deserialize(&bytes).context(ErrorKind::DeserializationError)?),
+            Some(bytes) => {
+                Ok(Vec::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?)
+            }
         }
     }
 
@@ -47,11 +44,7 @@ where
         unspent_transactions.push(unspent_transaction);
 
         self.storage
-            .set(
-                KEYSPACE,
-                serialize(address).context(ErrorKind::SerializationError)?,
-                serialize(&unspent_transactions).context(ErrorKind::SerializationError)?,
-            )
+            .set(KEYSPACE, address.encode(), unspent_transactions.encode())
             .map(|_| ())
     }
 
@@ -72,11 +65,7 @@ where
         }
 
         self.storage
-            .set(
-                KEYSPACE,
-                serialize(address).context(ErrorKind::SerializationError)?,
-                serialize(&unspent_transactions).context(ErrorKind::SerializationError)?,
-            )
+            .set(KEYSPACE, address.encode(), unspent_transactions.encode())
             .map(|_| ())
     }
 }

@@ -1,8 +1,3 @@
-use failure::ResultExt;
-use rlp::encode;
-use secstr::SecStr;
-use zeroize::Zeroize;
-
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -14,6 +9,10 @@ use client_common::balance::TransactionChange;
 use client_common::storage::UnauthorizedStorage;
 use client_common::{ErrorKind, Result, Storage};
 use client_index::index::{Index, UnauthorizedIndex};
+use failure::ResultExt;
+use parity_codec::Encode;
+use secstr::SecStr;
+use zeroize::Zeroize;
 
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedTransactionBuilder;
@@ -199,7 +198,7 @@ where
             .transaction_builder
             .build(name, passphrase, outputs, attributes, self)?;
 
-        self.index.broadcast_transaction(&encode(&tx_aux))
+        self.index.broadcast_transaction(&tx_aux.encode())
     }
 
     fn sync(&self) -> Result<()> {
@@ -384,14 +383,14 @@ mod tests {
             if address == &self.addr_1 {
                 Ok(vec![
                     TransactionChange {
-                        transaction_id: TxId::repeat_byte(0),
+                        transaction_id: [0u8; 32],
                         address: address.clone(),
                         balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
                         height: 1,
                         time: DateTime::from(SystemTime::now()),
                     },
                     TransactionChange {
-                        transaction_id: TxId::repeat_byte(1),
+                        transaction_id: [1u8; 32],
                         address: address.clone(),
                         balance_change: BalanceChange::Outgoing(Coin::new(30).unwrap()),
                         height: 2,
@@ -402,14 +401,14 @@ mod tests {
                 if *self.changed.read().unwrap() {
                     Ok(vec![
                         TransactionChange {
-                            transaction_id: TxId::repeat_byte(1),
+                            transaction_id: [1u8; 32],
                             address: address.clone(),
                             balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
                             height: 1,
                             time: DateTime::from(SystemTime::now()),
                         },
                         TransactionChange {
-                            transaction_id: TxId::repeat_byte(2),
+                            transaction_id: [2u8; 32],
                             address: address.clone(),
                             balance_change: BalanceChange::Outgoing(Coin::new(30).unwrap()),
                             height: 2,
@@ -418,7 +417,7 @@ mod tests {
                     ])
                 } else {
                     Ok(vec![TransactionChange {
-                        transaction_id: TxId::repeat_byte(1),
+                        transaction_id: [1u8; 32],
                         address: address.clone(),
                         balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
                         height: 2,
@@ -427,7 +426,7 @@ mod tests {
                 }
             } else if *self.changed.read().unwrap() && address == &self.addr_3 {
                 Ok(vec![TransactionChange {
-                    transaction_id: TxId::repeat_byte(1),
+                    transaction_id: [1u8; 32],
                     address: address.clone(),
                     balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
                     height: 2,
@@ -462,13 +461,13 @@ mod tests {
                     Ok(Default::default())
                 } else {
                     Ok(vec![(
-                        TxoPointer::new(TxId::repeat_byte(1), 0),
+                        TxoPointer::new([1u8; 32], 0),
                         Coin::new(30).unwrap(),
                     )])
                 }
             } else if *self.changed.read().unwrap() && address == &self.addr_3 {
                 Ok(vec![(
-                    TxoPointer::new(TxId::repeat_byte(2), 0),
+                    TxoPointer::new([2u8; 32], 0),
                     Coin::new(30).unwrap(),
                 )])
             } else {
@@ -481,19 +480,19 @@ mod tests {
         }
 
         fn output(&self, id: &TxId, index: usize) -> Result<TxOut> {
-            if id == &TxId::repeat_byte(0) && index == 0 {
+            if id == &[0u8; 32] && index == 0 {
                 Ok(TxOut {
                     address: self.addr_1.clone(),
                     value: Coin::new(30).unwrap(),
                     valid_from: None,
                 })
-            } else if id == &TxId::repeat_byte(1) && index == 0 {
+            } else if id == &[1u8; 32] && index == 0 {
                 Ok(TxOut {
                     address: self.addr_2.clone(),
                     value: Coin::new(30).unwrap(),
                     valid_from: None,
                 })
-            } else if *self.changed.read().unwrap() && id == &TxId::repeat_byte(2) && index == 0 {
+            } else if *self.changed.read().unwrap() && id == &[2u8; 32] && index == 0 {
                 Ok(TxOut {
                     address: self.addr_3.clone(),
                     value: Coin::new(30).unwrap(),
@@ -863,7 +862,7 @@ mod tests {
 
         assert_eq!(
             ErrorKind::PermissionDenied,
-            wallet.output(&TxId::repeat_byte(1), 0).unwrap_err().kind()
+            wallet.output(&[1u8; 32], 0).unwrap_err().kind()
         );
 
         assert_eq!(

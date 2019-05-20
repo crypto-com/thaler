@@ -1,12 +1,12 @@
 #![allow(missing_docs)]
 
 use base64::decode;
+use chain_core::tx::TxAux;
 use chrono::offset::Utc;
 use chrono::DateTime;
 use failure::ResultExt;
+use parity_codec::Decode;
 use serde::Deserialize;
-
-use chain_core::tx::TxAux;
 
 use crate::{ErrorKind, Result};
 
@@ -41,7 +41,8 @@ impl Block {
                 .iter()
                 .map(|raw_tx| Ok(decode(&raw_tx).context(ErrorKind::DeserializationError)?))
                 .map(|bytes: Result<Vec<u8>>| {
-                    Ok(rlp::decode(&bytes?).context(ErrorKind::DeserializationError)?)
+                    Ok(TxAux::decode(&mut bytes?.as_slice())
+                        .ok_or(ErrorKind::DeserializationError)?)
                 })
                 .collect::<Result<Vec<TxAux>>>(),
         }
@@ -78,7 +79,7 @@ mod tests {
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
                 data: Data {
-                    txs: Some(vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()])
+                    txs: Some(vec!["AAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAgAqqqqqqqqqqqqqqqqqqqqqqqqqqoBAAAAAAAAAAABu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7sBAAAAAAAAAAAAAgAIAAICuVwknYT0F+PjlaEnQlQotUBnHMFYgeuCjBe3IqU/xZkAAAIC7YNwTJXYKQRvGsJ4BiERMhAsNOmsf/obcREGWOW50b0BAAAAAAAAAAAIAAIAoV8+HKEaYx7BTan0dqjf4wRgQsF20TOzcyIWS5DGOlhZgYCYHGGJeKQFoW/SFQ9ro0T6wCUQGKx5bwI1fQLuNgEDArlcJJ2E9Bfj45WhJ0JUKLVAZxzBWIHrgowXtyKlP8WZ+Qqa2DMw1XO5CdN5z9iYlTXavEIr2yo8Nju1LTXR3o9DR7y1V+3BaXTX0CPbtXutT7nd3K38covYnDoywrXyGwgBqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqoCu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7s=".to_owned()])
                 }
             }
         };

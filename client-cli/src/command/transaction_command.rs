@@ -5,7 +5,7 @@ use hex::decode;
 use quest::{ask, choose, text, yesno};
 use structopt::StructOpt;
 
-use chain_core::common::H256;
+use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -74,12 +74,12 @@ impl TransactionCommand {
                 "Tree" => {
                     let decoded = decode(&address).context(ErrorKind::DeserializationError)?;
 
-                    if H256::len_bytes() != address.len() {
+                    if HASH_SIZE_256 != address.len() {
                         return Err(ErrorKind::DeserializationError.into());
                     } else {
-                        let mut addr = [0; H256::len_bytes()];
+                        let mut addr = [0; HASH_SIZE_256];
                         addr.copy_from_slice(&decoded);
-                        ExtendedAddr::OrTree(addr.into())
+                        ExtendedAddr::OrTree(addr)
                     }
                 }
                 _ => unreachable!(),
@@ -101,9 +101,8 @@ impl TransactionCommand {
                     address,
                     amount,
                     timelock
-                        .parse::<i64>()
-                        .context(ErrorKind::DeserializationError)?
-                        .into(),
+                        .parse::<Timespec>()
+                        .context(ErrorKind::DeserializationError)?,
                 ));
             }
 

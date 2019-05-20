@@ -3,7 +3,7 @@ pub mod tree;
 
 use std::fmt;
 
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use parity_codec::{Decode, Encode, Input, Output};
 use secp256k1::{
     self, key::PublicKey, schnorrsig::schnorr_verify, schnorrsig::SchnorrSignature, Message,
     RecoverableSignature, RecoveryId, Secp256k1,
@@ -18,22 +18,9 @@ use crate::tx::witness::tree::{MerklePath, ProofOp, RawPubkey, RawSignature};
 pub type EcdsaSignature = RecoverableSignature;
 
 /// A transaction witness is a vector of input witnesses
-#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 #[serde(transparent)]
 pub struct TxWitness(Vec<TxInWitness>);
-
-impl Encodable for TxWitness {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        s.append_list(&self.0);
-    }
-}
-
-impl Decodable for TxWitness {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        let witnesses: Vec<TxInWitness> = rlp.as_list()?;
-        Ok(witnesses.into())
-    }
-}
 
 impl TxWitness {
     /// creates an empty witness (for testing/tools)
@@ -80,60 +67,52 @@ impl fmt::Display for TxInWitness {
     }
 }
 
-impl Encodable for TxInWitness {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        match self {
-            TxInWitness::BasicRedeem(sig) => {
+impl Encode for TxInWitness {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        match *self {
+            TxInWitness::BasicRedeem(ref sig) => {
+                dest.push_byte(0);
+                dest.push_byte(2);
                 let (recovery_id, serialized_sig) = sig.serialize_compact();
-                let signature: RawSignature = serialized_sig.into();
                 // recovery_id is one of 0 | 1 | 2 | 3
                 let rid = recovery_id.to_i32() as u8;
-                s.begin_list(3).append(&0u8).append(&rid).append(&signature);
+                dest.push_byte(rid);
+                serialized_sig.encode_to(dest);
             }
-            TxInWitness::TreeSig(pk, schnorrsig, ops) => {
+            TxInWitness::TreeSig(ref pk, ref schnorrsig, ref ops) => {
+                dest.push_byte(1);
+                dest.push_byte(3);
                 let serialized_pk: RawPubkey = pk.serialize().into();
-                let serialized_sig: RawSignature = schnorrsig.serialize_default().into();
-                // TODO: better proof op encoding
-                s.begin_list(4)
-                    .append(&1u8)
-                    .append(&serialized_pk)
-                    .append(&serialized_sig)
-                    .append_list(&ops);
+                let serialized_sig: RawSignature = schnorrsig.serialize_default();
+                serialized_pk.encode_to(dest);
+                serialized_sig.encode_to(dest);
+                ops.encode_to(dest);
             }
         }
     }
 }
 
-impl Decodable for TxInWitness {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        let item_count = rlp.item_count()?;
-        if !(item_count >= 3 && item_count <= 4) {
-            return Err(DecoderError::Custom("Cannot decode a transaction witness"));
-        }
-        let type_tag: u8 = rlp.val_at(0)?;
-        match (type_tag, item_count) {
-            (0, 3) => {
-                let rid: u8 = rlp.val_at(1)?;
-                let raw_sig: RawSignature = rlp.val_at(2)?;
-                let recovery_id = RecoveryId::from_i32(i32::from(rid))
-                    .map_err(|_| DecoderError::Custom("failed to decode recovery id"))?;
-                let sig = RecoverableSignature::from_compact(&raw_sig.as_bytes(), recovery_id)
-                    .map_err(|_| DecoderError::Custom("failed to decode recoverable signature"))?;
-                Ok(TxInWitness::BasicRedeem(sig))
+impl Decode for TxInWitness {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+        let tag = input.read_byte()?;
+        let constructor_len = input.read_byte()?;
+        match (tag, constructor_len) {
+            (0, 2) => {
+                let rid: u8 = input.read_byte()?;
+                let raw_sig = RawSignature::decode(input)?;
+                let recovery_id = RecoveryId::from_i32(i32::from(rid)).ok()?;
+                let sig = RecoverableSignature::from_compact(&raw_sig, recovery_id).ok()?;
+                Some(TxInWitness::BasicRedeem(sig))
             }
-            (1, 4) => {
-                let raw_pk: RawPubkey = rlp.val_at(1)?;
-                let pk = PublicKey::from_slice(&raw_pk.as_bytes())
-                    .map_err(|_| DecoderError::Custom("failed to public key"))?;
-
-                let raw_sig: RawSignature = rlp.val_at(2)?;
-                let schnorrsig = SchnorrSignature::from_default(&raw_sig.as_bytes())
-                    .map_err(|_| DecoderError::Custom("failed to decode schnorr signature"))?;
-                // TODO: max tree depth?
-                let ops: Vec<ProofOp> = rlp.list_at(3)?;
-                Ok(TxInWitness::TreeSig(pk, schnorrsig, ops))
+            (1, 3) => {
+                let raw_pk = RawPubkey::decode(input)?;
+                let pk = PublicKey::from_slice(raw_pk.as_bytes()).ok()?;
+                let raw_sig = RawSignature::decode(input)?;
+                let schnorrsig = SchnorrSignature::from_default(&raw_sig).ok()?;
+                let ops: Vec<ProofOp> = Vec::decode(input)?;
+                Some(TxInWitness::TreeSig(pk, schnorrsig, ops))
             }
-            _ => Err(DecoderError::Custom("Unknown transaction type")),
+            _ => None,
         }
     }
 }
@@ -149,7 +128,7 @@ impl TxInWitness {
         address: &ExtendedAddr,
     ) -> Result<(), secp256k1::Error> {
         let secp = Secp256k1::verification_only();
-        let message = Message::from_slice(tx.id().as_bytes())?;
+        let message = Message::from_slice(&tx.id()[..])?;
 
         match (&self, address) {
             (TxInWitness::BasicRedeem(sig), ExtendedAddr::BasicRedeem(addr)) => {
@@ -214,7 +193,7 @@ pub mod tests {
         tx: &Tx,
         secret_key: &SecretKey,
     ) -> TxInWitness {
-        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let sig = secp.sign_recoverable(&message, &secret_key);
         return TxInWitness::BasicRedeem(sig);
     }
@@ -232,7 +211,7 @@ pub mod tests {
         tx: &Tx,
         secret_key: &SecretKey,
     ) -> (TxInWitness, H256) {
-        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let sig = sign_single_schnorr(&secp, &message, &secret_key);
         let pk = PublicKey::from_secret_key(&secp, &secret_key);
 
@@ -251,7 +230,7 @@ pub mod tests {
         secret_key1: SecretKey,
         secret_key2: SecretKey,
     ) -> (SchnorrSignature, PublicKey, PublicKey) {
-        let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
+        let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let pk1 = PublicKey::from_secret_key(&secp, &secret_key1);
         let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
         let session_id1 = MuSigSessionID::from_slice(&[0x01; 32]).expect("32 bytes");
@@ -373,12 +352,12 @@ pub mod tests {
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let witness: TxWitness = vec![get_ecdsa_witness(&secp, &tx, &secret_key)].into();
-        let encoded = witness.rlp_bytes();
-        let rlp = Rlp::new(&encoded);
-        let decoded = TxWitness::decode(&rlp).expect("decode tx witness");
+        let mut encoded = witness.encode();
+        let mut data: &[u8] = encoded.as_mut();
+        let decoded = TxWitness::decode(&mut data).expect("decode tx witness");
         match &decoded[0] {
             TxInWitness::BasicRedeem(sig) => {
-                let message = Message::from_slice(tx.id().as_bytes()).expect("32 bytes");
+                let message = Message::from_slice(&tx.id()).expect("32 bytes");
                 let pk = secp.recover(&message, &sig).unwrap();
                 assert_eq!(pk, public_key);
             }

@@ -164,7 +164,7 @@ $ signer-cli transaction generate -n <NAME> -c <CHAIN_ID>
 
 Right now there is no concept of fee, you must spend the whole input in the output(s).
 
-After entering all the required data, this will print out a hex-encoded TXID (blake2s hash) and a hex-encoded RLP-serialized TX structure / content. You can decode it and transform it as necessary, e.g. into base64.
+After entering all the required data, this will print out a hex-encoded TXID (blake2s hash) and a hex-encoded SCALE-serialized TX structure / content. You can decode it and transform it as necessary, e.g. into base64.
 
 3. You can then send a TX using the `broadcast_tx` Tendermint RPC command (e.g. JSONRPC over HTTP or websockets). 
 For example, for the [URI/HTTP option](https://tendermint.com/rpc/#uri-http), it can look like this:

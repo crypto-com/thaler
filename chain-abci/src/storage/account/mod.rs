@@ -3,10 +3,9 @@ mod tree;
 
 use crate::storage::Storage;
 use chain_core::state::account::Account;
-use rlp::{Decodable, Encodable, Rlp};
+use parity_codec::{Decode as ScaleDecode, Encode as ScaleEncode};
 use starling::constants::KEY_LEN;
 use starling::traits::{Database, Decode, Encode, Exception};
-use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -20,15 +19,16 @@ pub struct AccountWrapper(Account);
 impl Encode for AccountWrapper {
     #[inline]
     fn encode(&self) -> Result<Vec<u8>, Exception> {
-        Ok(self.0.rlp_bytes())
+        Ok(self.0.encode())
     }
 }
 
 impl Decode for AccountWrapper {
     #[inline]
     fn decode(buffer: &[u8]) -> Result<Self, Exception> {
-        let account =
-            Account::decode(&Rlp::new(buffer)).map_err(|e| Exception::new(e.description()))?;
+        let data = Vec::from(buffer);
+        let account = Account::decode(&mut data.as_slice())
+            .ok_or_else(|| Exception::new("failed to decode"))?;
         Ok(AccountWrapper(account))
     }
 }
@@ -48,10 +48,8 @@ impl Database for Storage {
     #[inline]
     fn get_node(&self, key: &[u8; KEY_LEN]) -> Result<Option<Self::NodeType>, Exception> {
         if let Some(buffer) = self.db.get(None, key).map_err(tree::convert_io_err)? {
-            Ok(Some(
-                Self::NodeType::decode(&Rlp::new(buffer.as_ref()))
-                    .map_err(tree::convert_rlp_err)?,
-            ))
+            let data = buffer.to_vec();
+            Ok(Self::NodeType::decode(&mut data.as_slice()))
         } else {
             Ok(None)
         }
@@ -59,7 +57,7 @@ impl Database for Storage {
 
     #[inline]
     fn insert(&mut self, key: [u8; KEY_LEN], value: Self::NodeType) -> Result<(), Exception> {
-        let serialized = value.rlp_bytes();
+        let serialized = value.encode();
         let mut insert_tx = self.db.transaction();
         insert_tx.put(None, &key, &serialized);
         // this "buffered write" shouldn't persist (persistence done in batch write)
@@ -87,6 +85,7 @@ mod test {
 
     use super::*;
     use chain_core::init::address::RedeemAddress;
+    use chain_core::init::coin::Coin;
     use chain_core::state::account::Account;
     use kvdb_memorydb::create;
     use std::sync::Arc;
@@ -98,13 +97,7 @@ mod test {
     #[test]
     fn test_account_insert_can_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = Account::new(
-            0.into(),
-            0.into(),
-            0.into(),
-            0.into(),
-            RedeemAddress::default(),
-        );
+        let account = Account::default();
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
@@ -117,25 +110,14 @@ mod test {
     #[test]
     fn test_account_update_can_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = Account::new(
-            0.into(),
-            0.into(),
-            0.into(),
-            0.into(),
-            RedeemAddress::default(),
-        );
+        let account = Account::default();
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree
             .insert(None, &mut [&key], &mut vec![&wrapped])
             .expect("insert");
-        let updated_account = Account::new(
-            1.into(),
-            1.into(),
-            1.into(),
-            1.into(),
-            RedeemAddress::default(),
-        );
+        let updated_account =
+            Account::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
         let wrapped_updated = AccountWrapper(updated_account);
         assert_ne!(wrapped, wrapped_updated);
         let new_root = tree
@@ -151,25 +133,14 @@ mod test {
     #[test]
     fn test_account_remove_cannot_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = Account::new(
-            0.into(),
-            0.into(),
-            0.into(),
-            0.into(),
-            RedeemAddress::default(),
-        );
+        let account = Account::default();
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree
             .insert(None, &mut [&key], &mut vec![&wrapped])
             .expect("insert");
-        let updated_account = Account::new(
-            1.into(),
-            1.into(),
-            1.into(),
-            1.into(),
-            RedeemAddress::default(),
-        );
+        let updated_account =
+            Account::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
         let wrapped_updated = AccountWrapper(updated_account);
         let new_root = tree
             .insert(Some(&old_root), &mut [&key], &mut vec![&wrapped_updated])

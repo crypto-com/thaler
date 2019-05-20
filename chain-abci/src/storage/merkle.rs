@@ -33,7 +33,7 @@ impl MerklePath {
         let mut op = ProofOp::new();
         op.set_field_type("path".into());
         op.set_key(vec![self as u8]);
-        op.set_data(t.as_bytes().to_vec());
+        op.set_data(t.to_vec());
         op
     }
 }
@@ -90,13 +90,13 @@ mod test {
         let mut bs = vec![1u8];
         match path_op {
             Some(MerklePath::LFound) => {
-                bs.extend(prev_hash.as_bytes());
+                bs.extend(prev_hash);
                 bs.extend(&op.data[..]);
                 Some(txid_hash(&bs))
             }
             Some(MerklePath::RFound) => {
                 bs.extend(&op.data[..]);
-                bs.extend(prev_hash.as_bytes());
+                bs.extend(prev_hash);
                 Some(txid_hash(&bs))
             }
             _ => None,

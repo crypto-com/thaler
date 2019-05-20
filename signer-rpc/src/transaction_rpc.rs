@@ -5,7 +5,7 @@ use hex::decode;
 use hex::encode;
 use jsonrpc_derive::rpc;
 use jsonrpc_http_server::jsonrpc_core;
-use rlp::Encodable;
+use parity_codec::Encode;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
@@ -62,7 +62,7 @@ impl TransactionRpc for TransactionRpcImpl {
 
         let response = TransactionResponse {
             transaction_id: txid,
-            transaction: encode(&txa.rlp_bytes()).to_string(),
+            transaction: encode(&txa.encode()).to_string(),
         };
 
         Ok(response)
@@ -151,11 +151,7 @@ impl TransactionOutput {
 
         match self.valid_from {
             None => Ok(TxOut::new(address, self.value)),
-            Some(timespec) => Ok(TxOut::new_with_timelock(
-                address,
-                self.value,
-                timespec.into(),
-            )),
+            Some(timespec) => Ok(TxOut::new_with_timelock(address, self.value, timespec)),
         }
     }
 }

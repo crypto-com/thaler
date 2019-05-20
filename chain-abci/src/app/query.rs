@@ -6,7 +6,7 @@ use chain_core::common::merkle::MerkleTree;
 use chain_core::common::HASH_SIZE_256;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
-use rlp::{Decodable, Rlp};
+use parity_codec::Decode;
 
 impl ChainNodeApp {
     /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).
@@ -28,7 +28,7 @@ impl ChainNodeApp {
         let mut op = ProofOp::new();
         op.set_field_type("witness".into());
         op.set_key(TXID_HASH_ID.to_vec());
-        op.set_data(txid_hash(witness).as_bytes().to_vec());
+        op.set_data(txid_hash(witness).to_vec());
         op
     }
 
@@ -44,10 +44,8 @@ impl ChainNodeApp {
                     let mwitness = self.storage.db.get(COL_WITNESS, &_req.data[..]);
                     match mwitness {
                         Ok(Some(witness)) => {
-                            let last_height: i64 = self
-                                .last_state
-                                .as_ref()
-                                .map_or(0, |x| x.last_block_height.into());
+                            let last_height: i64 =
+                                self.last_state.as_ref().map_or(0, |x| x.last_block_height);
                             let height = if _req.height == 0 || _req.height > last_height {
                                 last_height
                             } else {
@@ -59,19 +57,19 @@ impl ChainNodeApp {
                                 .get(COL_APP_STATES, &i64::encode_var_vec(height))
                                 .unwrap()
                                 .unwrap();
-                            let tree = MerkleTree::decode(&Rlp::new(
-                                &self
-                                    .storage
-                                    .db
-                                    .get(COL_MERKLE_PROOFS, &app_hash[..])
-                                    .unwrap()
-                                    .unwrap()[..],
-                            ))
-                            .expect("merkle tree");
+                            let data = self
+                                .storage
+                                .db
+                                .get(COL_MERKLE_PROOFS, &app_hash[..])
+                                .unwrap()
+                                .unwrap()
+                                .to_vec();
+                            let tree =
+                                MerkleTree::decode(&mut data.as_slice()).expect("merkle tree");
 
                             let mut txid = [0u8; HASH_SIZE_256];
                             txid.copy_from_slice(&_req.data[..]);
-                            let mut proofl = get_proof(&tree, &txid.into());
+                            let mut proofl = get_proof(&tree, &txid);
                             proofl.push(ChainNodeApp::get_witness_proof_op(&witness[..]));
                             let mut proof = Proof::new();
                             proof.set_ops(proofl.into());
