@@ -368,11 +368,12 @@ mod tests {
     fn setup_wallet_rpc() -> WalletRpcImpl<
         DefaultWalletClient<MemoryStorage, MockIndex, DefaultTransactionBuilder<ZeroFeeAlgorithm>>,
     > {
-        let wallet_client = DefaultWalletClient::new(
-            MemoryStorage::default(),
-            MockIndex::default(),
-            DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()),
-        );
+        let wallet_client = DefaultWalletClient::builder()
+            .with_wallet(MemoryStorage::default())
+            .with_transaction_read(MockIndex::default())
+            .with_transaction_write(DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()))
+            .build()
+            .unwrap();
         let chain_id = 171u8;
 
         WalletRpcImpl::new(wallet_client, chain_id)

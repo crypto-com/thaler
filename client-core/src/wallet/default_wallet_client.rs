@@ -11,14 +11,16 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
+use client_common::storage::UnauthorizedStorage;
 use client_common::{ErrorKind, Result, Storage};
-use client_index::Index;
+use client_index::index::{Index, UnauthorizedIndex};
 
 use crate::service::*;
+use crate::transaction_builder::UnauthorizedTransactionBuilder;
 use crate::{PrivateKey, PublicKey, TransactionBuilder, WalletClient};
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct DefaultWalletClient<S, I, T>
 where
     S: Storage,
@@ -38,13 +40,24 @@ where
     T: TransactionBuilder,
 {
     /// Creates a new instance of `DefaultWalletClient`
-    pub fn new(storage: S, index: I, transaction_builder: T) -> Self {
+    fn new(storage: S, index: I, transaction_builder: T) -> Self {
         Self {
             key_service: KeyService::new(storage.clone()),
             wallet_service: WalletService::new(storage),
             index,
             transaction_builder,
         }
+    }
+}
+
+impl DefaultWalletClient<UnauthorizedStorage, UnauthorizedIndex, UnauthorizedTransactionBuilder> {
+    /// Returns builder for `DefaultWalletClient`
+    pub fn builder() -> DefaultWalletClientBuilder<
+        UnauthorizedStorage,
+        UnauthorizedIndex,
+        UnauthorizedTransactionBuilder,
+    > {
+        DefaultWalletClientBuilder::default()
     }
 }
 
@@ -198,6 +211,105 @@ where
     }
 }
 
+#[derive(Debug)]
+pub struct DefaultWalletClientBuilder<S, I, T>
+where
+    S: Storage + Clone,
+    I: Index,
+    T: TransactionBuilder,
+{
+    storage: S,
+    index: I,
+    transaction_builder: T,
+    storage_set: bool,
+    index_set: bool,
+    transaction_builder_set: bool,
+}
+
+impl Default
+    for DefaultWalletClientBuilder<
+        UnauthorizedStorage,
+        UnauthorizedIndex,
+        UnauthorizedTransactionBuilder,
+    >
+{
+    fn default() -> Self {
+        DefaultWalletClientBuilder {
+            storage: UnauthorizedStorage,
+            index: UnauthorizedIndex,
+            transaction_builder: UnauthorizedTransactionBuilder,
+            storage_set: false,
+            index_set: false,
+            transaction_builder_set: false,
+        }
+    }
+}
+
+impl<S, I, T> DefaultWalletClientBuilder<S, I, T>
+where
+    S: Storage + Clone,
+    I: Index,
+    T: TransactionBuilder,
+{
+    /// Adds functionality for address generation and storage
+    pub fn with_wallet<NS: Storage + Clone>(
+        self,
+        storage: NS,
+    ) -> DefaultWalletClientBuilder<NS, I, T> {
+        DefaultWalletClientBuilder {
+            storage,
+            index: self.index,
+            transaction_builder: self.transaction_builder,
+            storage_set: true,
+            index_set: self.index_set,
+            transaction_builder_set: self.transaction_builder_set,
+        }
+    }
+
+    /// Adds functionality for balance tracking and transaction history
+    pub fn with_transaction_read<NI: Index>(
+        self,
+        index: NI,
+    ) -> DefaultWalletClientBuilder<S, NI, T> {
+        DefaultWalletClientBuilder {
+            storage: self.storage,
+            index,
+            transaction_builder: self.transaction_builder,
+            storage_set: self.storage_set,
+            index_set: true,
+            transaction_builder_set: self.transaction_builder_set,
+        }
+    }
+
+    /// Adds functionality for transaction creation and broadcasting
+    pub fn with_transaction_write<NT: TransactionBuilder>(
+        self,
+        transaction_builder: NT,
+    ) -> DefaultWalletClientBuilder<S, I, NT> {
+        DefaultWalletClientBuilder {
+            storage: self.storage,
+            index: self.index,
+            transaction_builder,
+            storage_set: self.storage_set,
+            index_set: self.index_set,
+            transaction_builder_set: true,
+        }
+    }
+
+    /// Builds `DefaultWalletClient`
+    pub fn build(self) -> Result<DefaultWalletClient<S, I, T>> {
+        if !self.index_set && !self.transaction_builder_set || self.storage_set && self.index_set {
+            Ok(DefaultWalletClient::new(
+                self.storage,
+                self.index,
+                self.transaction_builder,
+            ))
+        } else {
+            Err(ErrorKind::InvalidInput.into())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,6 +335,7 @@ mod tests {
 
     use crate::transaction_builder::DefaultTransactionBuilder;
 
+    #[derive(Debug)]
     pub struct MockIndex {
         addr_1: ExtendedAddr,
         addr_2: ExtendedAddr,
@@ -398,7 +511,7 @@ mod tests {
         }
     }
 
-    #[derive(Default)]
+    #[derive(Debug, Default)]
     struct ZeroFeeAlgorithm;
 
     impl FeeAlgorithm for ZeroFeeAlgorithm {
@@ -413,11 +526,10 @@ mod tests {
 
     #[test]
     fn check_wallet_flow() {
-        let wallet = DefaultWalletClient::new(
-            MemoryStorage::default(),
-            MockIndex::default(),
-            DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()),
-        );
+        let wallet = DefaultWalletClient::builder()
+            .with_wallet(MemoryStorage::default())
+            .build()
+            .unwrap();
 
         assert!(wallet
             .addresses("name", &SecStr::from("passphrase"))
@@ -475,35 +587,47 @@ mod tests {
     #[test]
     fn check_transaction_flow() {
         let storage = MemoryStorage::default();
-        let temp_wallet = DefaultWalletClient::new(
-            storage.clone(),
-            MockIndex::default(),
-            DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()),
-        );
-        temp_wallet
+        let wallet = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+
+        wallet
             .new_wallet("wallet_1", &SecStr::from("passphrase"))
             .unwrap();
-        let addr_1 = temp_wallet
+        let addr_1 = wallet
             .new_address("wallet_1", &SecStr::from("passphrase"))
             .unwrap();
-        temp_wallet
+        wallet
             .new_wallet("wallet_2", &SecStr::from("passphrase"))
             .unwrap();
-        let addr_2 = temp_wallet
+        let addr_2 = wallet
             .new_address("wallet_2", &SecStr::from("passphrase"))
             .unwrap();
-        temp_wallet
+        wallet
             .new_wallet("wallet_3", &SecStr::from("passphrase"))
             .unwrap();
-        let addr_3 = temp_wallet
+        let addr_3 = wallet
             .new_address("wallet_3", &SecStr::from("passphrase"))
             .unwrap();
 
-        let wallet = DefaultWalletClient::new(
-            storage,
-            MockIndex::new(addr_1.clone(), addr_2.clone(), addr_3.clone()),
-            DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()),
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .balance("wallet_1", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
         );
+
+        let wallet = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
+            .with_transaction_read(MockIndex::new(
+                addr_1.clone(),
+                addr_2.clone(),
+                addr_3.clone(),
+            ))
+            .build()
+            .unwrap();
 
         assert_eq!(
             Coin::new(0).unwrap(),
@@ -548,6 +672,13 @@ mod tests {
 
         assert!(wallet.sync().is_ok());
         assert!(wallet.sync_all().is_ok());
+
+        let wallet = DefaultWalletClient::builder()
+            .with_wallet(storage)
+            .with_transaction_read(wallet.index)
+            .with_transaction_write(DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()))
+            .build()
+            .unwrap();
 
         assert!(wallet
             .create_and_broadcast_transaction(
@@ -632,5 +763,138 @@ mod tests {
                 .unwrap_err()
                 .kind()
         );
+    }
+
+    #[test]
+    fn check_unauthorized_wallet() {
+        let wallet = DefaultWalletClient::builder().build().unwrap();
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet.wallets().unwrap_err().kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .new_wallet("name", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .private_keys("name", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .public_keys("name", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .addresses("name", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .private_key(
+                    "name",
+                    &SecStr::from("passphrase"),
+                    &ExtendedAddr::BasicRedeem(
+                        RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5")
+                            .unwrap(),
+                    )
+                )
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .new_public_key("name", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .new_address("name", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .balance("name", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .history("name", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .unspent_transactions("name", &SecStr::from("passphrase"))
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet.output(&TxId::repeat_byte(1), 0).unwrap_err().kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet
+                .create_and_broadcast_transaction(
+                    "name",
+                    &SecStr::from("passphrase"),
+                    Vec::new(),
+                    TxAttributes::new(171)
+                )
+                .unwrap_err()
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet.sync().unwrap_err().kind()
+        );
+
+        assert_eq!(
+            ErrorKind::PermissionDenied,
+            wallet.sync_all().unwrap_err().kind()
+        );
+    }
+
+    #[test]
+    fn invalid_wallet_building() {
+        let builder = DefaultWalletClient::builder()
+            .with_transaction_write(DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()));
+
+        assert_eq!(ErrorKind::InvalidInput, builder.build().unwrap_err().kind());
     }
 }

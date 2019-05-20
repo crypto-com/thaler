@@ -9,7 +9,7 @@ use crate::PrivateKey;
 const KEYSPACE: &str = "core_key";
 
 /// Exposes functionality for managing public and private keys
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct KeyService<T: Storage> {
     storage: T,
 }

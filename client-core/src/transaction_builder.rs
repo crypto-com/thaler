@@ -1,7 +1,9 @@
 //! Transaction building
 mod default_transaction_builder;
+mod unauthorized_transaction_builder;
 
 pub use default_transaction_builder::DefaultTransactionBuilder;
+pub use unauthorized_transaction_builder::UnauthorizedTransactionBuilder;
 
 use secstr::SecStr;
 
