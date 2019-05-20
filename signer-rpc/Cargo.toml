@@ -14,7 +14,7 @@ structopt = "0.2"
 failure = "0.1"
 quest = "0.3"
 hex = "0.3"
-zeroize = "0.6"
+zeroize = "0.7"
 parity-codec = { features = ["derive"], version = "3.5.1" }
 
 # will be removed once client-* has all signer-* functionality

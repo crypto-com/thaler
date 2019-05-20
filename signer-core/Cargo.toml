@@ -9,7 +9,7 @@ chain-core = { path = "../chain-core/" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "4c178ca90965ccf5b1b235e346e836ca65b2a549", features = ["serde", "zeroize", "rand"] }
 rand = "0.6"
 failure = "0.1"
-zeroize = "0.6"
+zeroize = "0.7"
 serde = { version = "1.0", features = ["derive"] }
 hex = "0.3"
 unicase = "2.4"
