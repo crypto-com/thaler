@@ -43,7 +43,10 @@ pub trait WalletRpc {
     fn sync_all(&self) -> jsonrpc_core::Result<()>;
 
     #[rpc(name = "wallet_transactions")]
-    fn transactions(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<Vec<TransactionChange>>;
+    fn transactions(
+        &self,
+        request: WalletRequestWithString,
+    ) -> jsonrpc_core::Result<Vec<TransactionChange>>;
 }
 
 pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
@@ -158,7 +161,10 @@ where
         }
     }
 
-    fn transactions(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<Vec<TransactionChange>> {
+    fn transactions(
+        &self,
+        request: WalletRequestWithString,
+    ) -> jsonrpc_core::Result<Vec<TransactionChange>> {
         let request: WalletRequest = request.into();
 
         self.sync()?;
