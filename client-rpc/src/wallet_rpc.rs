@@ -17,13 +17,13 @@ use crate::server::{rpc_error_from_string, to_rpc_error};
 #[rpc]
 pub trait WalletRpc {
     #[rpc(name = "wallet_addresses")]
-    fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
+    fn addresses(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<Vec<String>>;
 
     #[rpc(name = "wallet_balance")]
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin>;
+    fn balance(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<Coin>;
 
     #[rpc(name = "wallet_create")]
-    fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String>;
+    fn create(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<String>;
 
     #[rpc(name = "wallet_list")]
     fn list(&self) -> jsonrpc_core::Result<Vec<String>>;
@@ -31,7 +31,7 @@ pub trait WalletRpc {
     #[rpc(name = "wallet_sendtoaddress")]
     fn sendtoaddress(
         &self,
-        request: WalletRequest,
+        request: WalletRequestWithString,
         to_address: String,
         amount: u64,
     ) -> jsonrpc_core::Result<()>;
@@ -43,7 +43,7 @@ pub trait WalletRpc {
     fn sync_all(&self) -> jsonrpc_core::Result<()>;
 
     #[rpc(name = "wallet_transactions")]
-    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>>;
+    fn transactions(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<Vec<TransactionChange>>;
 }
 
 pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
@@ -64,7 +64,9 @@ impl<T> WalletRpc for WalletRpcImpl<T>
 where
     T: WalletClient + Send + Sync + 'static,
 {
-    fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>> {
+    fn addresses(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<Vec<String>> {
+        let request: WalletRequest = request.into();
+
         match self.client.addresses(&request.name, &request.passphrase) {
             Ok(addresses) => addresses
                 .iter()
@@ -79,7 +81,9 @@ where
         }
     }
 
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin> {
+    fn balance(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<Coin> {
+        let request: WalletRequest = request.into();
+
         self.sync()?;
 
         match self.client.balance(&request.name, &request.passphrase) {
@@ -88,7 +92,9 @@ where
         }
     }
 
-    fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String> {
+    fn create(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<String> {
+        let request: WalletRequest = request.into();
+
         if let Err(e) = self.client.new_wallet(&request.name, &request.passphrase) {
             return Err(to_rpc_error(e));
         }
@@ -109,10 +115,12 @@ where
 
     fn sendtoaddress(
         &self,
-        request: WalletRequest,
+        request: WalletRequestWithString,
         to_address: String,
         amount: u64,
     ) -> jsonrpc_core::Result<()> {
+        let request: WalletRequest = request.into();
+
         self.sync()?;
 
         let redeem_address = RedeemAddress::from_str(&to_address[..])
@@ -150,7 +158,9 @@ where
         }
     }
 
-    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>> {
+    fn transactions(&self, request: WalletRequestWithString) -> jsonrpc_core::Result<Vec<TransactionChange>> {
+        let request: WalletRequest = request.into();
+
         self.sync()?;
 
         match self.client.history(&request.name, &request.passphrase) {
@@ -160,11 +170,25 @@ where
     }
 }
 
-// TODO: should use secure string and cleared when no longer needed
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct WalletRequest {
     name: String,
     passphrase: SecStr,
+}
+
+impl From<WalletRequestWithString> for WalletRequest {
+    fn from(inner: WalletRequestWithString) -> Self {
+        WalletRequest {
+            name: inner.name,
+            passphrase: SecStr::new(inner.passphrase.into_bytes()),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WalletRequestWithString {
+    name: String,
+    passphrase: String,
 }
 
 #[cfg(test)]
@@ -379,10 +403,10 @@ mod tests {
         WalletRpcImpl::new(wallet_client, chain_id)
     }
 
-    fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
-        WalletRequest {
+    fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequestWithString {
+        WalletRequestWithString {
             name: name.to_owned(),
-            passphrase: SecStr::from(passphrase),
+            passphrase: passphrase.to_owned(),
         }
     }
 }
