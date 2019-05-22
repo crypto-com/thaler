@@ -304,6 +304,31 @@ mod tests {
     }
 
     #[test]
+    fn test_access_wallet_with_incorrect_passphrase() {
+        let wallet_rpc = setup_wallet_rpc();
+
+        assert_eq!(
+            "Default".to_owned(),
+            wallet_rpc
+                .create(create_wallet_request("Default", "123456"))
+                .unwrap()
+        );
+
+        assert_eq!(
+            to_rpc_error(Error::from(ErrorKind::DecryptionError)),
+            wallet_rpc
+                .addresses(create_wallet_request("Default", "789012"))
+                .unwrap_err()
+        );
+        assert_eq!(
+            to_rpc_error(Error::from(ErrorKind::DecryptionError)),
+            wallet_rpc
+                .balance(create_wallet_request("Default", "789012"))
+                .unwrap_err()
+        );
+    }
+
+    #[test]
     fn test_create_and_list_wallet_flow() {
         let wallet_rpc = setup_wallet_rpc();
 
