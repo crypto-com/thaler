@@ -215,37 +215,73 @@ mod tests {
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::init::config::InitConfig;
+    use chain_core::tx::data::attribute::TxAttributes;
     use chain_core::tx::fee::{LinearFee, Milli};
+
+    use chain_core::tx::data::address::ExtendedAddr;
+    use chain_core::tx::data::input::TxoPointer;
+    use chain_core::tx::data::output::TxOut;
+    use chain_core::tx::data::Tx;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
+    use parity_codec::Encode;
     use std::collections::BTreeMap;
 
     /// Mock tendermint client
     #[derive(Default, Clone)]
     pub struct MockClient;
 
-    impl Client for MockClient {
-        fn genesis(&self) -> Result<Genesis> {
+    impl MockClient {
+        fn get_init_config(&self) -> InitConfig {
             let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
             let distribution: BTreeMap<RedeemAddress, Coin> = [(
-                RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
+                RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
                 Coin::max(),
             )]
             .iter()
             .cloned()
             .collect();
+            InitConfig::new(
+                distribution,
+                RedeemAddress::default(),
+                RedeemAddress::default(),
+                RedeemAddress::default(),
+                fee_policy,
+            )
+        }
 
+        fn get_mock_tx(&self) -> Tx {
+            let init_config = self.get_init_config();
+            let orig_tx_id = init_config.generate_utxos(&TxAttributes::new(0xab))[0].id();
+            // invalid tx for testing
+            let mut tx = Tx::new();
+            tx.add_input(TxoPointer::new(orig_tx_id, 0));
+            tx.add_output(TxOut::new(
+                ExtendedAddr::BasicRedeem(
+                    RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5").unwrap(),
+                ),
+                Coin::max(),
+            ));
+            tx
+        }
+
+        fn get_mock_tx_id_b64(&self) -> String {
+            base64::encode(&self.get_mock_tx().id()[..])
+        }
+
+        fn get_mock_tx_b64(&self) -> String {
+            let encoded: Vec<u8> = TxAux::TransferTx(self.get_mock_tx(), vec![].into()).encode();
+            base64::encode(&encoded)
+        }
+    }
+
+    impl Client for MockClient {
+        fn genesis(&self) -> Result<Genesis> {
             Ok(Genesis {
                 genesis: GenesisInner {
                     genesis_time: DateTime::from_str("2019-04-09T09:33:10.592188Z").unwrap(),
                     chain_id: "test-chain-4UIy1Wab".to_owned(),
-                    app_state: InitConfig::new(
-                        distribution,
-                        RedeemAddress::default(),
-                        RedeemAddress::default(),
-                        RedeemAddress::default(),
-                        fee_policy,
-                    ),
+                    app_state: self.get_init_config(),
                 },
             })
         }
@@ -260,16 +296,16 @@ mod tests {
 
         fn block(&self, _: u64) -> Result<Block> {
             Ok(Block {
-            block: BlockInner {
-                header: Header {
-                    height: "1".to_owned(),
-                    time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                block: BlockInner {
+                    header: Header {
+                        height: "1".to_owned(),
+                        time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                    },
+                    data: Data {
+                        txs: Some(vec![self.get_mock_tx_b64()]),
+                    },
                 },
-                data: Data {
-                    txs: Some(vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()])
-                }
-            }
-        })
+            })
         }
 
         fn block_results(&self, _: u64) -> Result<BlockResults> {
@@ -279,7 +315,7 @@ mod tests {
                     deliver_tx: Some(vec![DeliverTx {
                         tags: vec![Tag {
                             key: "dHhpZA==".to_owned(),
-                            value: "kOzcmhZgAAaw5roBdqDNniwRjjKNe+foJEiDAOObTDQ=".to_owned(),
+                            value: self.get_mock_tx_id_b64(),
                         }],
                     }]),
                 },

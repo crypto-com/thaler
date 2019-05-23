@@ -1,10 +1,8 @@
-use failure::ResultExt;
-use rlp::{decode, encode};
-
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::balance::BalanceChange;
 use client_common::{ErrorKind, Result, Storage};
+use parity_codec::{Decode, Encode};
 
 const KEYSPACE: &str = "index_balance";
 
@@ -27,11 +25,13 @@ where
 
     /// Retrieves current balance for given address
     pub fn get(&self, address: &ExtendedAddr) -> Result<Coin> {
-        let bytes = self.storage.get(KEYSPACE, encode(address))?;
+        let bytes = self.storage.get(KEYSPACE, address.encode())?;
 
         match bytes {
             None => Ok(Coin::zero()),
-            Some(bytes) => Ok(decode(&bytes).context(ErrorKind::DeserializationError)?),
+            Some(bytes) => {
+                Ok(Coin::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?)
+            }
         }
     }
 
@@ -40,7 +40,7 @@ where
         let current = self.get(address)?;
         let new = (current + change)?;
 
-        self.storage.set(KEYSPACE, encode(address), encode(&new))?;
+        self.storage.set(KEYSPACE, address.encode(), new.encode())?;
 
         Ok(new)
     }

@@ -11,11 +11,11 @@
 //!   These 20 bytes are the address.
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
+use parity_codec::{Decode, Encode};
 use std::str::FromStr;
-use std::{cmp, error, fmt, ops};
+use std::{error, fmt, ops};
 
 use hex;
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
 use secp256k1::{self, key::PublicKey};
 use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -110,10 +110,8 @@ pub const REDEEM_ADDRESS_BYTES: usize = 20;
 pub type RedeemAddressRaw = [u8; REDEEM_ADDRESS_BYTES];
 
 /// Eth-style Account address (20 bytes)
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 pub struct RedeemAddress(pub RedeemAddressRaw);
-impl_encodable_for_hash!(RedeemAddress);
-impl_decodable_for_hash!(RedeemAddress, REDEEM_ADDRESS_BYTES);
 
 impl RedeemAddress {
     /// Try to convert a byte vector to `RedeemAddress`.

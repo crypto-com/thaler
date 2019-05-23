@@ -33,7 +33,7 @@ pub fn get_transaction_witnesses(
     secrets: &Secrets,
     required_signature_types: &[SignatureType],
 ) -> Result<TxWitness, Error> {
-    let message = Message::from_slice(&transaction.id().as_bytes())?;
+    let message = Message::from_slice(&transaction.id())?;
 
     let ecdsa_signature = secrets.get_ecdsa_signature(&message)?;
     let schnorr_signature = secrets.get_schnorr_signature(&message)?;
@@ -58,7 +58,7 @@ pub fn verify_transaction_id(transaction_id: String) -> Result<TxId, Error> {
     } else {
         let mut new_transaction_id = [0; HASH_SIZE_256];
         new_transaction_id.copy_from_slice(&transaction_id);
-        Ok(new_transaction_id.into())
+        Ok(new_transaction_id)
     }
 }
 
@@ -84,6 +84,6 @@ pub fn verify_tree_address(address: String) -> Result<ExtendedAddr, Error> {
     } else {
         let mut addr = [0; HASH_SIZE_256];
         addr.copy_from_slice(&address);
-        Ok(ExtendedAddr::OrTree(addr.into()))
+        Ok(ExtendedAddr::OrTree(addr))
     }
 }

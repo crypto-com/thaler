@@ -7,13 +7,14 @@ pub mod witness;
 
 use std::fmt;
 
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use self::data::Tx;
 use self::witness::TxWitness;
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 pub enum TxAux {
     /// Tx with the vector of witnesses
     TransferTx(Tx, TxWitness),
@@ -37,36 +38,6 @@ impl fmt::Display for TxAux {
     }
 }
 
-impl Encodable for TxAux {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        match self {
-            TxAux::TransferTx(tx, witness) => {
-                s.begin_list(3).append(&0u8).append(tx).append(witness);
-            }
-        }
-    }
-}
-
-impl Decodable for TxAux {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        // TODO: this item count will be a range once there are more TX types
-        if rlp.item_count()? != 3 {
-            return Err(DecoderError::Custom(
-                "Cannot decode a transaction auxiliary structure",
-            ));
-        }
-        let type_tag: u8 = rlp.val_at(0)?;
-        match type_tag {
-            0 => {
-                let tx: Tx = rlp.val_at(1)?;
-                let witness = rlp.val_at(2)?;
-                Ok(TxAux::TransferTx(tx, witness))
-            }
-            _ => Err(DecoderError::Custom("Unknown transaction type")),
-        }
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
@@ -79,6 +50,7 @@ pub mod tests {
         tree::{MerklePath, ProofOp},
         TxInWitness,
     };
+    use parity_codec::{Decode, Encode};
     use secp256k1::{schnorrsig::schnorr_sign, Message, PublicKey, Secp256k1, SecretKey};
 
     // TODO: rewrite as quickcheck prop
@@ -107,7 +79,7 @@ pub mod tests {
             PublicKey::from_secret_key(&secp, &sk2),
             TxAccess::Output(0),
         ));
-        let msg = Message::from_slice(tx.id().as_bytes()).expect("msg");
+        let msg = Message::from_slice(&tx.id()).expect("msg");
         let w1 = TxInWitness::BasicRedeem(secp.sign_recoverable(&msg, &sk1));
         let w2 = TxInWitness::TreeSig(
             PublicKey::from_secret_key(&secp, &sk1),
@@ -117,11 +89,11 @@ pub mod tests {
                 ProofOp(MerklePath::RFound, [0xbb; 32].into()),
             ],
         );
-        assert_eq!(tx.id().as_bytes(), tx.id().as_bytes());
+        assert_eq!(tx.id(), tx.id());
         let txa = TxAux::TransferTx(tx, vec![w1, w2].into());
-        let encoded = txa.rlp_bytes();
-        let rlp = Rlp::new(&encoded);
-        let decoded = TxAux::decode(&rlp).expect("decode tx aux");
+        let mut encoded: Vec<u8> = txa.encode();
+        let mut data: &[u8] = encoded.as_mut();
+        let decoded = TxAux::decode(&mut data).expect("decode tx aux");
         assert_eq!(txa, decoded);
     }
 }

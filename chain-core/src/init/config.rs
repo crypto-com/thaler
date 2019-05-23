@@ -118,7 +118,7 @@ impl InitConfig {
         ]
         .iter()
         .fold(Coin::new(0), |acc, c| acc.and_then(|v| v + c));
-        RewardsPoolState::new(amount.expect("rewards pool amount"), 0.into())
+        RewardsPoolState::new(amount.expect("rewards pool amount"), 0)
     }
 
     /// checks if distribution is valid -- i.e. contains correct amounts and matches the expected total supply

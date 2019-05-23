@@ -235,7 +235,7 @@ mod tests {
 
         fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>> {
             Ok(vec![TransactionChange {
-                transaction_id: TxId::zero(),
+                transaction_id: [0u8; 32],
                 address: address.clone(),
                 balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
                 height: 1,
@@ -254,7 +254,7 @@ mod tests {
         fn transaction(&self, _: &TxId) -> Result<Option<Tx>> {
             Ok(Some(Tx {
                 inputs: vec![TxoPointer {
-                    id: TxId::zero(),
+                    id: [0u8; 32],
                     index: 1,
                 }],
                 outputs: Default::default(),

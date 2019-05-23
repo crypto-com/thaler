@@ -1,4 +1,4 @@
-use rlp::{Decodable, DecoderError, Encodable, Rlp, RlpStream};
+use parity_codec::{Decode, Encode, Input, Output};
 use serde::{Deserialize, Serialize};
 
 use crate::tx::data::access::TxAccessPolicy;
@@ -11,23 +11,27 @@ pub struct TxAttributes {
     // TODO: other attributes, e.g. versioning info
 }
 
-impl Encodable for TxAttributes {
-    fn rlp_append(&self, s: &mut RlpStream) {
-        s.begin_list(2)
-            .append(&self.chain_hex_id)
-            .append_list(&self.allowed_view);
+impl Encode for TxAttributes {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        dest.push_byte(0);
+        dest.push_byte(2);
+        dest.push_byte(self.chain_hex_id);
+        self.allowed_view.encode_to(dest);
     }
 }
 
-impl Decodable for TxAttributes {
-    fn decode(rlp: &Rlp) -> Result<Self, DecoderError> {
-        // TODO: this item count will be a range once there are more TX types
-        if rlp.item_count()? != 2 {
-            return Err(DecoderError::Custom("Cannot decode transaction attributes"));
+impl Decode for TxAttributes {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+        let tag = input.read_byte()?;
+        let constructor_len = input.read_byte()?;
+        match (tag, constructor_len) {
+            (0, 2) => {
+                let chain_hex_id: u8 = input.read_byte()?;
+                let allowed_view: Vec<TxAccessPolicy> = Vec::decode(input)?;
+                Some(TxAttributes::new_with_access(chain_hex_id, allowed_view))
+            }
+            _ => None,
         }
-        let chain_hex_id: u8 = rlp.val_at(0)?;
-        let allowed_view: Vec<TxAccessPolicy> = rlp.list_at(1)?;
-        Ok(TxAttributes::new_with_access(chain_hex_id, allowed_view))
     }
 }
 

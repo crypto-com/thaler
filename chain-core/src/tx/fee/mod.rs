@@ -5,7 +5,7 @@
 
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::TxAux;
-use rlp::Encodable;
+use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
 use std::ops::{Add, Mul};
@@ -30,7 +30,7 @@ impl Fee {
 /// TODO: overflow checks in Cargo?
 /// [profile.release]
 /// overflow-checks = true
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
 #[serde(transparent)]
 pub struct Milli(u64);
 impl Milli {
@@ -134,8 +134,8 @@ impl Mul for Milli {
     }
 }
 
-/// Linear fee using the basic affine formula `COEFFICIENT * rlp(txaux).len() + CONSTANT`
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize)]
+/// Linear fee using the basic affine formula `COEFFICIENT * scale_bytes(txaux).len() + CONSTANT`
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
 pub struct LinearFee {
     /// this is the minimal fee
     pub constant: Milli,
@@ -171,7 +171,7 @@ impl FeeAlgorithm for LinearFee {
     }
 
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError> {
-        self.estimate(txaux.rlp_bytes().len())
+        self.estimate(txaux.encode().len())
     }
 }
 

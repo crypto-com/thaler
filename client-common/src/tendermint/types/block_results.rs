@@ -50,7 +50,7 @@ impl BlockResults {
                         let mut id: [u8; 32] = [0; 32];
                         id.copy_from_slice(&decoded);
 
-                        transactions.insert(id.into());
+                        transactions.insert(id);
                     }
                 }
 
