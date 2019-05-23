@@ -3,6 +3,7 @@
 /.storage
 /chain-abci/target
 /.cro-storage
+.DS_Store
 
 # IDE
 .vscode

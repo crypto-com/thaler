@@ -1,0 +1,12 @@
+/.git
+/target
+/chain-abci/target
+**/*.rs.bk
+/.storage
+/.cro-storage
+/integration-tests
+/docker/**/Dockerfile
+.DS_Store
+
+# IDE
+.vscode
