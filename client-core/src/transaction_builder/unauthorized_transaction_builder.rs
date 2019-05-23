@@ -1,4 +1,4 @@
-use secstr::SecStr;
+use secstr::SecUtf8;
 
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
@@ -15,7 +15,7 @@ impl TransactionBuilder for UnauthorizedTransactionBuilder {
     fn build<W: WalletClient>(
         &self,
         _name: &str,
-        _passphrase: &SecStr,
+        _passphrase: &SecUtf8,
         _outputs: Vec<TxOut>,
         _attributes: TxAttributes,
         _wallet_client: &W,

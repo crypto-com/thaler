@@ -1,7 +1,7 @@
 use crate::PrivateKey;
 use client_common::{ErrorKind, Result, SecureStorage, Storage};
 use parity_codec::{Decode, Encode};
-use secstr::SecStr;
+use secstr::SecUtf8;
 use zeroize::Zeroize;
 
 const KEYSPACE: &str = "core_key";
@@ -22,7 +22,7 @@ where
     }
 
     /// Generates a new address for given wallet ID
-    pub fn generate(&self, wallet_id: &str, passphrase: &SecStr) -> Result<PrivateKey> {
+    pub fn generate(&self, wallet_id: &str, passphrase: &SecUtf8) -> Result<PrivateKey> {
         let private_key = PrivateKey::new()?;
 
         let private_keys = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
@@ -49,7 +49,7 @@ where
     pub fn get_keys(
         &self,
         wallet_id: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
     ) -> Result<Option<Vec<PrivateKey>>> {
         let private_keys = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
 
@@ -89,15 +89,15 @@ mod tests {
         let key_service = KeyService::new(MemoryStorage::default());
 
         let private_key = key_service
-            .generate("wallet_id", &SecStr::from("passphrase"))
+            .generate("wallet_id", &SecUtf8::from("passphrase"))
             .expect("Unable to generate private key");
 
         let new_private_key = key_service
-            .generate("wallet_id", &SecStr::from("passphrase"))
+            .generate("wallet_id", &SecUtf8::from("passphrase"))
             .expect("Unable to generate private key");
 
         let keys = key_service
-            .get_keys("wallet_id", &SecStr::from("passphrase"))
+            .get_keys("wallet_id", &SecUtf8::from("passphrase"))
             .expect("Unable to get keys from storage")
             .expect("No keys found");
 
@@ -106,7 +106,7 @@ mod tests {
         assert_eq!(new_private_key, keys[1], "Invalid private key found");
 
         let error = key_service
-            .get_keys("wallet_id", &SecStr::from("incorrect_passphrase"))
+            .get_keys("wallet_id", &SecUtf8::from("incorrect_passphrase"))
             .expect_err("Decryption worked with incorrect passphrase");
 
         assert_eq!(
@@ -118,7 +118,7 @@ mod tests {
         assert!(key_service.clear().is_ok());
 
         assert!(key_service
-            .get_keys("wallet_id", &SecStr::from("passphrase"))
+            .get_keys("wallet_id", &SecUtf8::from("passphrase"))
             .unwrap()
             .is_none());
     }

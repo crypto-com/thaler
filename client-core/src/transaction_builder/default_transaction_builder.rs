@@ -1,6 +1,6 @@
 use failure::ResultExt;
 use secp256k1::RecoveryId;
-use secstr::SecStr;
+use secstr::SecUtf8;
 
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
@@ -94,7 +94,7 @@ where
     fn witnesses<W: WalletClient>(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
         wallet_client: &W,
         transaction: &Tx,
     ) -> Result<TxWitness> {
@@ -216,7 +216,7 @@ where
     fn build_from_estimate<W: WalletClient>(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
         mut transaction: Tx,
         difference_amount: Coin,
         wallet_client: &W,
@@ -241,7 +241,7 @@ where
     fn build<W: WalletClient>(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
         wallet_client: &W,
@@ -347,26 +347,26 @@ mod tests {
             unreachable!()
         }
 
-        fn new_wallet(&self, _: &str, _: &SecStr) -> Result<String> {
+        fn new_wallet(&self, _: &str, _: &SecUtf8) -> Result<String> {
             unreachable!()
         }
 
-        fn private_keys(&self, _: &str, _: &SecStr) -> Result<Vec<PrivateKey>> {
+        fn private_keys(&self, _: &str, _: &SecUtf8) -> Result<Vec<PrivateKey>> {
             unreachable!()
         }
 
-        fn public_keys(&self, _: &str, _: &SecStr) -> Result<Vec<PublicKey>> {
+        fn public_keys(&self, _: &str, _: &SecUtf8) -> Result<Vec<PublicKey>> {
             unreachable!()
         }
 
-        fn addresses(&self, _: &str, _: &SecStr) -> Result<Vec<ExtendedAddr>> {
+        fn addresses(&self, _: &str, _: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
             unreachable!()
         }
 
         fn private_key(
             &self,
             _: &str,
-            _: &SecStr,
+            _: &SecUtf8,
             address: &ExtendedAddr,
         ) -> Result<Option<PrivateKey>> {
             if address == &self.addr_0 {
@@ -396,25 +396,25 @@ mod tests {
             }
         }
 
-        fn new_public_key(&self, _: &str, _: &SecStr) -> Result<PublicKey> {
+        fn new_public_key(&self, _: &str, _: &SecUtf8) -> Result<PublicKey> {
             unreachable!()
         }
 
-        fn new_address(&self, _: &str, _: &SecStr) -> Result<ExtendedAddr> {
+        fn new_address(&self, _: &str, _: &SecUtf8) -> Result<ExtendedAddr> {
             Ok(ExtendedAddr::BasicRedeem(
                 RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0baba").unwrap(),
             ))
         }
 
-        fn balance(&self, _: &str, _: &SecStr) -> Result<Coin> {
+        fn balance(&self, _: &str, _: &SecUtf8) -> Result<Coin> {
             unreachable!()
         }
 
-        fn history(&self, _: &str, _: &SecStr) -> Result<Vec<TransactionChange>> {
+        fn history(&self, _: &str, _: &SecUtf8) -> Result<Vec<TransactionChange>> {
             unreachable!()
         }
 
-        fn unspent_transactions(&self, _: &str, _: &SecStr) -> Result<Vec<(TxoPointer, Coin)>> {
+        fn unspent_transactions(&self, _: &str, _: &SecUtf8) -> Result<Vec<(TxoPointer, Coin)>> {
             Ok(vec![
                 (
                     TxoPointer {
@@ -465,7 +465,7 @@ mod tests {
         fn create_and_broadcast_transaction(
             &self,
             _: &str,
-            _: &SecStr,
+            _: &SecUtf8,
             _: Vec<TxOut>,
             _: TxAttributes,
         ) -> Result<()> {
@@ -491,7 +491,7 @@ mod tests {
         let tx_aux = transaction_builder
             .build(
                 "name",
-                &SecStr::from("passphrase"),
+                &SecUtf8::from("passphrase"),
                 vec![TxOut {
                     address: ExtendedAddr::BasicRedeem(
                         RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20b4")
@@ -527,7 +527,7 @@ mod tests {
         let tx_aux = transaction_builder
             .build(
                 "name",
-                &SecStr::from("passphrase"),
+                &SecUtf8::from("passphrase"),
                 vec![TxOut {
                     address: ExtendedAddr::BasicRedeem(
                         RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20b4")
@@ -560,7 +560,7 @@ mod tests {
 
         let tx_aux = transaction_builder.build(
             "name",
-            &SecStr::from("passphrase"),
+            &SecUtf8::from("passphrase"),
             vec![TxOut {
                 address: ExtendedAddr::BasicRedeem(
                     RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20b4").unwrap(),
