@@ -2,12 +2,14 @@
 # It is not intended for manual editing.
 [[package]]
 name = "abci"
-version = "0.5.0"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
+ "env_logger 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "integer-encoding 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "mockstream 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf-codegen-pure 2.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -233,7 +235,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "chain-abci"
 version = "0.0.1"
 dependencies = [
- "abci 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "abci 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2525,7 +2527,7 @@ dependencies = [
 ]
 
 [metadata]
-"checksum abci 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "677103d777f67b11bbe84e5b61d73b4f9413c477fd178092418327b39b00e773"
+"checksum abci 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "651711edf9c933fc52d418468de3d88aab391be9e4b18a9f9818f4a19290bc8c"
 "checksum aesni 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2f70a6b5f971e473091ab7cfb5ffac6cde81666c4556751d8d5620ead8abf100"
 "checksum aho-corasick 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)" = "81ce3d38065e618af2d7b77e10c5ad9a069859b4be3c2250f674af3840d9c8a5"
 "checksum aho-corasick 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)" = "e6f484ae0c99fec2e858eb6134949117399f222608d84cadb3f58c1f97c2364c"
