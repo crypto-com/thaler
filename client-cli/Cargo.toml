@@ -12,6 +12,6 @@ client-core = { path = "../client-core" }
 structopt = "0.2"
 failure = "0.1"
 quest = "0.3"
-secstr = "0.3"
+secstr = { git = "https://github.com/myfreeweb/secstr", tag = "v0.3.2" }
 hex = "0.3"
 prettytable-rs = "0.8"

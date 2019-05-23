@@ -1,6 +1,6 @@
 use jsonrpc_derive::rpc;
 use jsonrpc_http_server::jsonrpc_core;
-use secstr::SecStr;
+use secstr::SecUtf8;
 use serde::Deserialize;
 use std::str::FromStr;
 
@@ -160,11 +160,10 @@ where
     }
 }
 
-// TODO: should use secure string and cleared when no longer needed
 #[derive(Debug, Deserialize)]
 pub struct WalletRequest {
     name: String,
-    passphrase: SecStr,
+    passphrase: SecUtf8,
 }
 
 #[cfg(test)]
@@ -382,7 +381,7 @@ mod tests {
     fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
         WalletRequest {
             name: name.to_owned(),
-            passphrase: SecStr::from(passphrase),
+            passphrase: SecUtf8::from(passphrase),
         }
     }
 }
