@@ -1,0 +1,34 @@
+{
+  "name": "chain-rpc-integration-tests",
+  "version": "1.0.0",
+  "description": "Integration Tests for chain RPC",
+  "main": "index.js",
+  "author": "Calvin Lau (calvin@crypto.com)",
+  "license": "Apache-2.0",
+  "scripts": {
+    "test": "mocha --recursive --exit --require ./node_modules/ts-node/register --require source-map-support/register './{,!(node_modules)/**/}*.test.ts' --timeout 10000"
+  },
+  "devDependencies": {
+    "@types/axios": "^0.14.0",
+    "@types/bignumber.js": "^5.0.0",
+    "@types/chai": "^4.1.7",
+    "@types/chai-as-promised": "^7.1.0",
+    "@types/mocha": "^5.2.6",
+    "@types/sinon": "^7.0.11",
+    "axios": "^0.18.0",
+    "bignumber.js": "^8.1.1",
+    "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
+    "json-bigint": "^0.3.0",
+    "lossless-json": "^1.0.3",
+    "mocha": "^6.1.4",
+    "sinon": "^7.3.2",
+    "source-map-support": "^0.5.12",
+    "ts-node": "^8.1.0"
+  },
+  "dependencies": {
+    "@types/bluebird-global": "^3.5.11",
+    "@types/node": "^12.0.2",
+    "typescript": "^3.4.5"
+  }
+}
