@@ -27,7 +27,8 @@ fn main() {
         ChainNodeApp::new(
             &genesis_app_hash,
             &chain_id,
-            &StorageConfig { db_path: data },
+            &StorageConfig::new(data, StorageType::Node),
+            &StorageConfig::new(data, StorageType::AccountTrie),
         ),
     );
 }

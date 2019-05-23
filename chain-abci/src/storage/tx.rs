@@ -198,6 +198,7 @@ pub fn verify(txaux: &TxAux, extra_info: ChainInfo, db: Arc<dyn KeyValueDB>) -> 
             }
             (incoins - outcoins).and_then(|x| x + min_fee).unwrap()
         }
+        _ => unimplemented!("TODO -- account-related TX validation"),
     };
     Ok(Fee::new(paid_fee))
 }

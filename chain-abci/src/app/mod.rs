@@ -114,8 +114,16 @@ impl abci::Application for ChainNodeApp {
         let mut keys = self
             .delivered_txs
             .iter()
+            .filter(|x| match x {
+                TxAux::TransferTx(_, _) => true,
+                _ => {
+                    // TODO: perhaps unbond withdraw should have it in attributes as well?
+                    false
+                }
+            })
             .flat_map(|x| match x {
                 TxAux::TransferTx(tx, _) => tx.attributes.allowed_view.iter().map(|x| x.view_key),
+                _ => unreachable!(),
             })
             .peekable();
         if keys.peek().is_some() {
@@ -146,6 +154,7 @@ impl abci::Application for ChainNodeApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::account::AccountStorage;
     use crate::storage::tx::tests::get_tx_witness;
     use crate::storage::*;
     use abci::Application;
@@ -183,6 +192,10 @@ mod tests {
         Arc::new(create(NUM_COLUMNS.unwrap()))
     }
 
+    fn create_account_db() -> AccountStorage {
+        AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db")
+    }
+
     const TEST_CHAIN_ID: &str = "test-00";
 
     #[test]
@@ -193,6 +206,7 @@ mod tests {
             example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
+            create_account_db(),
         );
         let decoded_gah = decode(example_hash).unwrap();
         let stored_gah = db
@@ -215,6 +229,7 @@ mod tests {
             example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
+            create_account_db(),
         );
     }
 
@@ -223,8 +238,12 @@ mod tests {
     fn chain_id_without_hex_digits_should_panic() {
         let db = create_db();
         let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
-        let _app =
-            ChainNodeApp::new_with_storage(example_hash, "test", Storage::new_db(db.clone()));
+        let _app = ChainNodeApp::new_with_storage(
+            example_hash,
+            "test",
+            Storage::new_db(db.clone()),
+            create_account_db(),
+        );
     }
 
     #[test]
@@ -236,6 +255,7 @@ mod tests {
             example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
+            create_account_db(),
         );
     }
 
@@ -270,6 +290,7 @@ mod tests {
             example_hash2,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
+            create_account_db(),
         );
     }
 
@@ -300,6 +321,7 @@ mod tests {
             &example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
+            create_account_db(),
         );
         let mut req = RequestInitChain::default();
         req.set_time(::protobuf::well_known_types::Timestamp::new());
@@ -363,6 +385,7 @@ mod tests {
             &example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
+            create_account_db(),
         );
         let mut req = RequestInitChain::default();
         req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
@@ -378,6 +401,7 @@ mod tests {
             &example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
+            create_account_db(),
         );
         let req = RequestInitChain::default();
         app.init_chain(&req);
@@ -532,6 +556,7 @@ mod tests {
         assert!(rewards_pool_remaining_new > rewards_pool_remaining_old);
         match txaux {
             TxAux::TransferTx(tx, witness) => (app, tx, witness, cresp),
+            _ => unreachable!("prepare_app_valid_tx should prepare transfer tx"),
         }
     }
 

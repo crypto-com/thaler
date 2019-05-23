@@ -514,6 +514,9 @@ mod tests {
                 assert_eq!(1, tx.outputs.len());
                 wallet_client.assert_fee(fee, tx);
             }
+            _ => unreachable!(
+                "TODO: client-core transaction builder doesn't do account/staking-related TX"
+            ),
         }
     }
 
@@ -548,6 +551,9 @@ mod tests {
                 assert_eq!(2, tx.outputs.len());
                 wallet_client.assert_fee(fee, tx);
             }
+            _ => unreachable!(
+                "TODO: client-core transaction builder doesn't do account/staking-related TX"
+            ),
         }
     }
 

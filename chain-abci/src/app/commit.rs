@@ -20,16 +20,19 @@ impl ChainNodeApp {
             let ids: Vec<TxId> = self
                 .delivered_txs
                 .iter()
-                .map(|x| match x {
-                    TxAux::TransferTx(tx, _) => tx.id(),
-                })
+                .map(chain_core::tx::TxAux::tx_id)
                 .collect();
             let tree = MerkleTree::new(&ids);
-            for TxAux::TransferTx(tx, witness) in self.delivered_txs.iter() {
-                let txid: TxId = tx.id();
-                inittx.put(COL_BODIES, &txid[..], &tx.encode());
-                inittx.put(COL_WITNESS, &txid[..], &witness.encode());
-                update_utxos_commit(&tx, self.storage.db.clone(), &mut inittx);
+            for txaux in self.delivered_txs.iter() {
+                match txaux {
+                    TxAux::TransferTx(tx, witness) => {
+                        let txid: TxId = tx.id();
+                        inittx.put(COL_BODIES, &txid[..], &tx.encode());
+                        inittx.put(COL_WITNESS, &txid[..], &witness.encode());
+                        update_utxos_commit(&tx, self.storage.db.clone(), &mut inittx);
+                    }
+                    _ => unimplemented!("TODO -- account-related TX commits"),
+                }
             }
             new_state.rewards_pool.last_block_height = new_state.last_block_height;
             let app_hash = compute_app_hash(&tree, &new_state.rewards_pool);
