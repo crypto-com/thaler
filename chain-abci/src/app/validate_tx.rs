@@ -76,8 +76,10 @@ impl ChainNodeApp {
                         min_fee_computed: min_fee,
                         chain_hex_id: self.chain_hex_id,
                         previous_block_time: state.block_time,
+                        last_account_root_hash: state.last_account_root_hash,
                     },
                     self.storage.db.clone(),
+                    &self.accounts,
                 );
                 if fee_paid.is_ok() {
                     resp.set_code(0);

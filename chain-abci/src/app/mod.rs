@@ -266,6 +266,7 @@ mod tests {
             block_time: 0,
             rewards_pool: RewardsPoolState::new(1.into(), 0),
             fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
+            last_account_root_hash: [0u8; 32],
         }
     }
 

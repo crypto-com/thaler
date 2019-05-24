@@ -1,3 +1,6 @@
+use crate::storage::account::AccountStorage;
+use crate::storage::tx::StarlingFixedKey;
+use crate::storage::*;
 use abci::*;
 use bit_vec::BitVec;
 use chain_core::common::merkle::MerkleTree;
@@ -18,9 +21,6 @@ use protobuf::well_known_types::Timestamp;
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
-use crate::storage::account::AccountStorage;
-use crate::storage::*;
-
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode)]
 pub struct ChainNodeState {
     /// last processed block height
@@ -29,6 +29,8 @@ pub struct ChainNodeState {
     pub last_apphash: H256,
     /// time in previous block's header or genesis time
     pub block_time: Timespec,
+    /// root hash of the sparse merkle patricia trie of staking account states
+    pub last_account_root_hash: StarlingFixedKey,
     /// last rewards pool state
     pub rewards_pool: RewardsPoolState,
     /// fee policy to apply -- TODO: change to be against T: FeeAlgorithm
@@ -242,6 +244,7 @@ impl ChainNodeApp {
                 last_block_height: 0,
                 last_apphash: genesis_app_hash,
                 block_time: time.get_seconds(),
+                last_account_root_hash: [0u8; 32], // MUST_TODO: compute
                 rewards_pool,
                 fee_policy,
             }
@@ -251,6 +254,7 @@ impl ChainNodeApp {
                 last_block_height: 0,
                 last_apphash: genesis_app_hash,
                 block_time: 0,
+                last_account_root_hash: [0u8; 32], // MUST_TODO: compute
                 rewards_pool,
                 fee_policy,
             }
@@ -278,6 +282,7 @@ impl ChainNodeApp {
                     stored_chain_id, _req.chain_id
                 );
             }
+            // MUST_TODO: replace zero-input UTXO-init with creating unbonded (from genesis time) accounts
             let utxos = conf.generate_utxos(&TxAttributes::new(self.chain_hex_id));
             let ids: Vec<TxId> = utxos.iter().map(Tx::id).collect();
             let tree = MerkleTree::new(&ids);

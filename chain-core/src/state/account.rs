@@ -59,10 +59,32 @@ impl Account {
 }
 
 /// attributes in account-related transactions
-#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct AccountOpAttributes {
-    pub chain_hex_id: [u8; 1],
+    pub chain_hex_id: u8,
     // TODO: Other attributes?
+}
+
+impl Encode for AccountOpAttributes {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        dest.push_byte(0);
+        dest.push_byte(1);
+        dest.push_byte(self.chain_hex_id);
+    }
+}
+
+impl Decode for AccountOpAttributes {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+        let tag = input.read_byte()?;
+        let constructor_len = input.read_byte()?;
+        match (tag, constructor_len) {
+            (0, 1) => {
+                let chain_hex_id: u8 = input.read_byte()?;
+                Some(AccountOpAttributes { chain_hex_id })
+            }
+            _ => None,
+        }
+    }
 }
 
 /// takes UTXOs inputs, deposits them in the specified account's bonded amount - fee

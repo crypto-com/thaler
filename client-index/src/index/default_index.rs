@@ -159,7 +159,7 @@ where
                 .map(|tx_aux| match tx_aux {
                     TxAux::TransferTx(tx, _) => tx,
                     _ => unimplemented!(
-                        "TODO: client-index processing of account/staking-related operations"
+                        "MUST_TODO: client-index processing of account/staking-related operations"
                     ),
                 })
                 .filter(|tx| valid_ids.contains(&tx.id()))

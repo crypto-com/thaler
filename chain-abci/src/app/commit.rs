@@ -31,7 +31,7 @@ impl ChainNodeApp {
                         inittx.put(COL_WITNESS, &txid[..], &witness.encode());
                         update_utxos_commit(&tx, self.storage.db.clone(), &mut inittx);
                     }
-                    _ => unimplemented!("TODO -- account-related TX commits"),
+                    _ => unimplemented!("MUST_TODO -- account-related TX commits"),
                 }
             }
             new_state.rewards_pool.last_block_height = new_state.last_block_height;
