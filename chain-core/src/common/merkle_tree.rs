@@ -4,7 +4,7 @@ use blake2::Blake2s;
 
 use super::{hash256, H256, H512, HASH_SIZE_256};
 
-// txid_hash(&vec![])
+// hash(&vec![])
 const EMPTY_HASH: H256 = [
     105, 33, 122, 48, 121, 144, 128, 148, 225, 17, 33, 208, 66, 53, 74, 124, 31, 85, 182, 72, 44,
     161, 165, 30, 27, 37, 13, 253, 30, 208, 238, 249,
@@ -309,10 +309,7 @@ impl<T> Iterator for PairIter<T> {
     type Item = (T, Option<T>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.inner.next() {
-            None => None,
-            Some(next) => Some((next, self.inner.next())),
-        }
+        self.inner.next().map(|next| (next, self.inner.next()))
     }
 }
 
@@ -325,6 +322,7 @@ mod tests {
         let values: Vec<H256> = vec![];
         let tree = MerkleTree::new(values);
 
+        assert!(tree.is_empty());
         assert_eq!(EMPTY_HASH, tree.root_hash());
         assert_eq!(0, tree.height());
         assert_eq!(0, tree.len());
@@ -340,10 +338,7 @@ mod tests {
         assert_eq!(0, tree.height());
         assert_eq!(1, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
-        assert_eq!(
-            true,
-            tree.generate_proof("one").unwrap().verify(tree.root_hash())
-        );
+        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
     }
 
     #[test]
@@ -360,14 +355,8 @@ mod tests {
         assert_eq!(2, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert_eq!(
-            true,
-            tree.generate_proof("one").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("two").unwrap().verify(tree.root_hash())
-        );
+        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
+        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
     }
 
     #[test]
@@ -385,20 +374,12 @@ mod tests {
         assert_eq!(3, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert_eq!(
-            true,
-            tree.generate_proof("one").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("two").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("three")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
+        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
+        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("three")
+            .unwrap()
+            .verify(tree.root_hash()));
     }
 
     #[test]
@@ -418,26 +399,16 @@ mod tests {
         assert_eq!(4, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert_eq!(
-            true,
-            tree.generate_proof("one").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("two").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("three")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("four")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
+        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
+        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("three")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("four")
+            .unwrap()
+            .verify(tree.root_hash()));
     }
 
     #[test]
@@ -458,32 +429,20 @@ mod tests {
         assert_eq!(5, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert_eq!(
-            true,
-            tree.generate_proof("one").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("two").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("three")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("four")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("five")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
+        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
+        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("three")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("four")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("five")
+            .unwrap()
+            .verify(tree.root_hash()));
     }
 
     #[test]
@@ -506,36 +465,21 @@ mod tests {
         assert_eq!(6, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert_eq!(
-            true,
-            tree.generate_proof("one").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("two").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("three")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("four")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("five")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("six").unwrap().verify(tree.root_hash())
-        );
+        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
+        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("three")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("four")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("five")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree.generate_proof("six").unwrap().verify(tree.root_hash()));
     }
 
     #[test]
@@ -559,42 +503,25 @@ mod tests {
         assert_eq!(7, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert_eq!(
-            true,
-            tree.generate_proof("one").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("two").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("three")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("four")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("five")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("six").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("seven")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
+        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
+        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("three")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("four")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("five")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree.generate_proof("six").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("seven")
+            .unwrap()
+            .verify(tree.root_hash()));
     }
 
     #[test]
@@ -621,48 +548,29 @@ mod tests {
         assert_eq!(8, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert_eq!(
-            true,
-            tree.generate_proof("one").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("two").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("three")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("four")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("five")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("six").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("seven")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("eight")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
+        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
+        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("three")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("four")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("five")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree.generate_proof("six").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("seven")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("eight")
+            .unwrap()
+            .verify(tree.root_hash()));
     }
 
     #[test]
@@ -690,53 +598,46 @@ mod tests {
         assert_eq!(9, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert_eq!(
-            true,
-            tree.generate_proof("one").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("two").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("three")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("four")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("five")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("six").unwrap().verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("seven")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("eight")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
-        assert_eq!(
-            true,
-            tree.generate_proof("nine")
-                .unwrap()
-                .verify(tree.root_hash())
-        );
+        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
+        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("three")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("four")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("five")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree.generate_proof("six").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("seven")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("eight")
+            .unwrap()
+            .verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("nine")
+            .unwrap()
+            .verify(tree.root_hash()));
+    }
+
+    #[test]
+    fn check_wrong_proof() {
+        let values = vec!["one", "two", "three", "four"];
+        let tree = MerkleTree::new(values);
+
+        let new_values = vec!["one", "two", "three", "five"];
+        let new_tree = MerkleTree::new(new_values);
+
+        assert!(!tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(new_tree.root_hash()));
     }
 }
