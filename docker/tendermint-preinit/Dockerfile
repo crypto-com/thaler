@@ -3,7 +3,8 @@ LABEL maintainer="hello@tendermint.com"
 LABEL maintainer="calvin@crypto.com"
 
 ARG VERSION=0.31.5
-ARG FEE_SCHEMA
+
+ENV FEE_SCHEMA="WITH_FEE"
 
 # Tendermint will be looking for the genesis file in /tendermint/config/genesis.json
 # (unless you change `genesis_file` in config.toml). You can put your config.toml and
