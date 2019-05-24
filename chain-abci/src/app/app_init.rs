@@ -3,7 +3,7 @@ use crate::storage::tx::StarlingFixedKey;
 use crate::storage::*;
 use abci::*;
 use bit_vec::BitVec;
-use chain_core::common::merkle::MerkleTree;
+use chain_core::common::MerkleTree;
 use chain_core::common::Timespec;
 use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
@@ -285,7 +285,7 @@ impl ChainNodeApp {
             // MUST_TODO: replace zero-input UTXO-init with creating unbonded (from genesis time) accounts
             let utxos = conf.generate_utxos(&TxAttributes::new(self.chain_hex_id));
             let ids: Vec<TxId> = utxos.iter().map(Tx::id).collect();
-            let tree = MerkleTree::new(&ids);
+            let tree = MerkleTree::new(ids);
             let rp = conf.get_genesis_rewards_pool();
 
             let genesis_app_hash = compute_app_hash(&tree, &rp);

@@ -1,12 +1,10 @@
 use super::ChainNodeApp;
-use crate::storage::merkle::get_proof;
 use crate::storage::*;
 use abci::*;
-use chain_core::common::merkle::MerkleTree;
-use chain_core::common::HASH_SIZE_256;
+use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
-use parity_codec::Decode;
+use parity_codec::{Decode, Encode};
 
 impl ChainNodeApp {
     /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).
@@ -69,10 +67,18 @@ impl ChainNodeApp {
 
                             let mut txid = [0u8; HASH_SIZE_256];
                             txid.copy_from_slice(&_req.data[..]);
-                            let mut proofl = get_proof(&tree, &txid);
-                            proofl.push(ChainNodeApp::get_witness_proof_op(&witness[..]));
+
+                            // TODO: Change this in future to include individual ops?
+                            let proof_ops = match tree.generate_proof(txid) {
+                                None => vec![ChainNodeApp::get_witness_proof_op(&witness[..])],
+                                Some(merkle_proof) => vec![
+                                    into_proof_op(tree.root_hash(), merkle_proof),
+                                    ChainNodeApp::get_witness_proof_op(&witness[..]),
+                                ],
+                            };
+
                             let mut proof = Proof::new();
-                            proof.set_ops(proofl.into());
+                            proof.set_ops(proof_ops.into());
                             resp.set_proof(proof);
                         }
                         _ => {
@@ -103,4 +109,14 @@ impl ChainNodeApp {
         }
         resp
     }
+}
+
+fn into_proof_op<T: Encode>(root_hash: H256, proof: MerkleProof<T>) -> ProofOp {
+    let mut proof_op = ProofOp::new();
+
+    proof_op.set_field_type("transaction".into());
+    proof_op.set_key(root_hash.to_vec());
+    proof_op.set_data(proof.encode());
+
+    proof_op
 }

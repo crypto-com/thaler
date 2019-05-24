@@ -8,14 +8,13 @@ pub mod witness;
 use std::fmt;
 
 use parity_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
 
 use self::data::Tx;
 use self::witness::TxWitness;
 use crate::state::account::{AccountOpWitness, DepositBondTx, UnbondTx, WithdrawUnbondedTx};
 use crate::tx::data::{txid_hash, TxId};
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 pub enum TxAux {
     /// normal value transfer Tx with the vector of witnesses
@@ -68,15 +67,14 @@ impl fmt::Display for TxAux {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::common::MerkleTree;
     use crate::init::coin::Coin;
     use crate::tx::data::access::{TxAccess, TxAccessPolicy};
     use crate::tx::data::address::ExtendedAddr;
     use crate::tx::data::input::TxoPointer;
     use crate::tx::data::output::TxOut;
-    use crate::tx::witness::{
-        tree::{MerklePath, ProofOp},
-        TxInWitness,
-    };
+    use crate::tx::witness::tree::RawPubkey;
+    use crate::tx::witness::TxInWitness;
     use parity_codec::{Decode, Encode};
     use secp256k1::{schnorrsig::schnorr_sign, Message, PublicKey, Secp256k1, SecretKey};
 
@@ -98,23 +96,28 @@ pub mod tests {
         let secp = Secp256k1::new();
         let sk1 = SecretKey::from_slice(&[0xcc; 32][..]).expect("secret key");
         let sk2 = SecretKey::from_slice(&[0xdd; 32][..]).expect("secret key");
-        tx.attributes.allowed_view.push(TxAccessPolicy::new(
-            PublicKey::from_secret_key(&secp, &sk1),
-            TxAccess::AllData,
-        ));
-        tx.attributes.allowed_view.push(TxAccessPolicy::new(
-            PublicKey::from_secret_key(&secp, &sk2),
-            TxAccess::Output(0),
-        ));
+        let pk1 = PublicKey::from_secret_key(&secp, &sk1);
+        let pk2 = PublicKey::from_secret_key(&secp, &sk2);
+        let raw_pk1 = RawPubkey::from(pk1.serialize());
+        let raw_pk2 = RawPubkey::from(pk2.serialize());
+
+        let raw_public_keys = vec![raw_pk1, raw_pk2];
+
+        tx.attributes
+            .allowed_view
+            .push(TxAccessPolicy::new(pk1.clone(), TxAccess::AllData));
+        tx.attributes
+            .allowed_view
+            .push(TxAccessPolicy::new(pk2.clone(), TxAccess::Output(0)));
+
         let msg = Message::from_slice(&tx.id()).expect("msg");
+
+        let merkle = MerkleTree::new(raw_public_keys.clone());
+
         let w1 = TxInWitness::BasicRedeem(secp.sign_recoverable(&msg, &sk1));
         let w2 = TxInWitness::TreeSig(
-            PublicKey::from_secret_key(&secp, &sk1),
             schnorr_sign(&secp, &msg, &sk1).0,
-            vec![
-                ProofOp(MerklePath::LFound, [0xaa; 32].into()),
-                ProofOp(MerklePath::RFound, [0xbb; 32].into()),
-            ],
+            merkle.generate_proof(raw_public_keys[0].clone()).unwrap(),
         );
         assert_eq!(tx.id(), tx.id());
         let txa = TxAux::TransferTx(tx, vec![w1, w2].into());
