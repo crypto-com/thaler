@@ -1,3 +1,6 @@
+use crate::storage::account::AccountStorage;
+use crate::storage::tx::StarlingFixedKey;
+use crate::storage::*;
 use abci::*;
 use bit_vec::BitVec;
 use chain_core::common::merkle::MerkleTree;
@@ -18,8 +21,6 @@ use protobuf::well_known_types::Timestamp;
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
-use crate::storage::*;
-
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode)]
 pub struct ChainNodeState {
     /// last processed block height
@@ -28,6 +29,8 @@ pub struct ChainNodeState {
     pub last_apphash: H256,
     /// time in previous block's header or genesis time
     pub block_time: Timespec,
+    /// root hash of the sparse merkle patricia trie of staking account states
+    pub last_account_root_hash: StarlingFixedKey,
     /// last rewards pool state
     pub rewards_pool: RewardsPoolState,
     /// fee policy to apply -- TODO: change to be against T: FeeAlgorithm
@@ -38,6 +41,8 @@ pub struct ChainNodeState {
 pub struct ChainNodeApp {
     /// the underlying key-value storage (+ possibly some info in the future)
     pub storage: Storage,
+    /// account trie storage
+    pub accounts: AccountStorage,
     /// valid transactions after DeliverTx before EndBlock/Commit
     pub delivered_txs: Vec<TxAux>,
     /// a reference to genesis (used when there is no committed state)
@@ -54,6 +59,7 @@ impl ChainNodeApp {
         genesis_app_hash: [u8; HASH_SIZE_256],
         chain_id: &str,
         storage: Storage,
+        accounts: AccountStorage,
     ) -> Self {
         let stored_gah = storage
             .db
@@ -84,6 +90,7 @@ impl ChainNodeApp {
             .expect("failed to decode two last hex digits in chain ID")[0];
         ChainNodeApp {
             storage,
+            accounts,
             delivered_txs: Vec::new(),
             chain_hex_id,
             genesis_app_hash,
@@ -99,7 +106,13 @@ impl ChainNodeApp {
     /// * `gah` - hex-encoded genesis app hash
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `storage` - underlying storage to be used (in-mem or persistent)
-    pub fn new_with_storage(gah: &str, chain_id: &str, storage: Storage) -> Self {
+    /// * `accounts` - underlying storage for account tries to be used (in-mem or persistent)    
+    pub fn new_with_storage(
+        gah: &str,
+        chain_id: &str,
+        storage: Storage,
+        accounts: AccountStorage,
+    ) -> Self {
         let decoded_gah = hex::decode(gah).expect("failed to decode genesis app hash");
         let mut genesis_app_hash = [0u8; HASH_SIZE_256];
         genesis_app_hash.copy_from_slice(&decoded_gah[..]);
@@ -113,7 +126,13 @@ impl ChainNodeApp {
             let data = last_app_state.to_vec();
             let last_state =
                 ChainNodeState::decode(&mut data.as_slice()).expect("deserialize app state");
-            ChainNodeApp::restore_from_storage(last_state, genesis_app_hash, chain_id, storage)
+            ChainNodeApp::restore_from_storage(
+                last_state,
+                genesis_app_hash,
+                chain_id,
+                storage,
+                accounts,
+            )
         } else {
             info!("no last app state stored");
             let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
@@ -127,6 +146,7 @@ impl ChainNodeApp {
                 .expect("genesis app hash should be stored");
             ChainNodeApp {
                 storage,
+                accounts,
                 delivered_txs: Vec::new(),
                 chain_hex_id,
                 genesis_app_hash,
@@ -141,9 +161,20 @@ impl ChainNodeApp {
     ///
     /// * `gah` - hex-encoded genesis app hash
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
-    /// * `storage_config` - configuration for storage (currently only the path, but TODO: more options, e.g. SSD or HDD params)
-    pub fn new(gah: &str, chain_id: &str, storage_config: &StorageConfig<'_>) -> ChainNodeApp {
-        ChainNodeApp::new_with_storage(gah, chain_id, Storage::new(storage_config))
+    /// * `node_storage_config` - configuration for node storage (currently only the path, but TODO: more options, e.g. SSD or HDD params)
+    /// * `account_storage_config` - configuration for account storage
+    pub fn new(
+        gah: &str,
+        chain_id: &str,
+        node_storage_config: &StorageConfig<'_>,
+        account_storage_config: &StorageConfig<'_>,
+    ) -> ChainNodeApp {
+        ChainNodeApp::new_with_storage(
+            gah,
+            chain_id,
+            Storage::new(node_storage_config),
+            AccountStorage::new(Storage::new(account_storage_config), 20).expect("account db"),
+        )
     }
 
     fn check_and_store_consensus_params(
@@ -213,6 +244,7 @@ impl ChainNodeApp {
                 last_block_height: 0,
                 last_apphash: genesis_app_hash,
                 block_time: time.get_seconds(),
+                last_account_root_hash: [0u8; 32], // MUST_TODO: compute
                 rewards_pool,
                 fee_policy,
             }
@@ -222,6 +254,7 @@ impl ChainNodeApp {
                 last_block_height: 0,
                 last_apphash: genesis_app_hash,
                 block_time: 0,
+                last_account_root_hash: [0u8; 32], // MUST_TODO: compute
                 rewards_pool,
                 fee_policy,
             }
@@ -249,6 +282,7 @@ impl ChainNodeApp {
                     stored_chain_id, _req.chain_id
                 );
             }
+            // MUST_TODO: replace zero-input UTXO-init with creating unbonded (from genesis time) accounts
             let utxos = conf.generate_utxos(&TxAttributes::new(self.chain_hex_id));
             let ids: Vec<TxId> = utxos.iter().map(Tx::id).collect();
             let tree = MerkleTree::new(&ids);
