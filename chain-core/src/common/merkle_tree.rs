@@ -1,13 +1,44 @@
+//! Merkle tree with values of type `T` with support for inclusion proofs
+//!
+//! # Usage
+//!
+//! ## Creating a `MerkleTree`
+//! ```
+//! # use chain_core::common::merkle_tree::MerkleTree;
+//! #
+//! let values = vec!["one", "two", "three", "four"];
+//! let tree = MerkleTree::new(values);
+//! ```
+//!
+//! ## Generating inclusion proof
+//! ```
+//! # use chain_core::common::merkle_tree::MerkleTree;
+//! #
+//! # let values = vec!["one", "two", "three", "four"];
+//! # let tree = MerkleTree::new(values);
+//! #
+//! let one_proof = tree.generate_proof("one").expect("Unable to generate inclusion proof");
+//! ```
+//!
+//! ## Verifying inclusion proof
+//! ```
+//! # use chain_core::common::merkle_tree::MerkleTree;
+//! #
+//! # let values = vec!["one", "two", "three", "four"];
+//! # let tree = MerkleTree::new(values);
+//! #
+//! # let one_proof = tree.generate_proof("one").expect("Unable to generate inclusion proof");
+//! assert!(one_proof.verify(tree.root_hash()));
 use std::vec::IntoIter;
 
 use blake2::Blake2s;
 
 use super::{hash256, H256, H512, HASH_SIZE_256};
 
-// hash(&vec![])
+/// Hash of leaf node with empty slice `hash(&[], NodeType::Leaf)`
 const EMPTY_HASH: H256 = [
-    105, 33, 122, 48, 121, 144, 128, 148, 225, 17, 33, 208, 66, 53, 74, 124, 31, 85, 182, 72, 44,
-    161, 165, 30, 27, 37, 13, 253, 30, 208, 238, 249,
+    227, 77, 116, 219, 175, 79, 244, 198, 171, 216, 113, 204, 34, 4, 81, 210, 234, 38, 72, 132,
+    108, 119, 87, 251, 170, 200, 47, 229, 26, 214, 75, 234,
 ];
 
 /// Represents inner tree structure of Merkle Tree
@@ -39,7 +70,7 @@ impl<T> Tree<T> {
         T: AsRef<[u8]>,
     {
         Tree::Leaf {
-            hash: hash(&value),
+            hash: hash(&value, NodeType::Leaf),
             value,
         }
     }
@@ -75,7 +106,7 @@ impl<T> Tree<T> {
             Tree::Leaf {
                 hash: node_hash, ..
             } => {
-                if &hash(value) == node_hash {
+                if &hash(value, NodeType::Leaf) == node_hash {
                     Some(Path {
                         node_hash: *node_hash,
                         sibling: None,
@@ -275,6 +306,12 @@ impl<T> MerkleTree<T> {
     }
 }
 
+/// A node can either be a leaf or intermediate node in a merkle tree
+pub enum NodeType {
+    Leaf,
+    Intermediate,
+}
+
 #[inline]
 fn combine(left: &H256, right: &H256) -> H512 {
     let mut hash = [0; HASH_SIZE_256 * 2];
@@ -284,14 +321,24 @@ fn combine(left: &H256, right: &H256) -> H512 {
     hash
 }
 
-#[inline]
-fn hash<T: AsRef<[u8]>>(value: T) -> H256 {
-    hash256::<Blake2s>(value.as_ref())
+fn hash<T: AsRef<[u8]>>(value: T, node_type: NodeType) -> H256 {
+    match node_type {
+        NodeType::Leaf => hash256::<Blake2s>(&prefix_with_byte(value, 0)),
+        NodeType::Intermediate => hash256::<Blake2s>(&prefix_with_byte(value, 1)),
+    }
+}
+
+fn prefix_with_byte<T: AsRef<[u8]>>(value: T, prefix: u8) -> Vec<u8> {
+    let value = value.as_ref();
+    let mut bytes = Vec::with_capacity(value.len() + 1);
+    bytes.push(prefix);
+    bytes.extend_from_slice(value);
+    bytes
 }
 
 #[inline]
 fn combined_hash(left: &H256, right: &H256) -> H256 {
-    hash(&combine(left, right)[..])
+    hash(&combine(left, right)[..], NodeType::Intermediate)
 }
 
 /// An iterator which iterates over pair of values
@@ -318,6 +365,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn check_empty_hash() {
+        let values: [u8; 0] = [];
+        assert_eq!(EMPTY_HASH, hash(&values, NodeType::Leaf));
+    }
+
+    #[test]
     fn check_empty() {
         let values: Vec<H256> = vec![];
         let tree = MerkleTree::new(values);
@@ -334,7 +387,7 @@ mod tests {
         let values = vec!["one"];
         let tree = MerkleTree::new(values);
 
-        assert_eq!(hash("one"), tree.root_hash());
+        assert_eq!(hash("one", NodeType::Leaf), tree.root_hash());
         assert_eq!(0, tree.height());
         assert_eq!(1, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
@@ -344,7 +397,10 @@ mod tests {
     #[test]
     fn check_vec_2() {
         let values = vec!["one", "two"];
-        let hashes = values.iter().map(hash).collect::<Vec<H256>>();
+        let hashes = values
+            .iter()
+            .map(|value| hash(value, NodeType::Leaf))
+            .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
@@ -362,7 +418,10 @@ mod tests {
     #[test]
     fn check_vec_3() {
         let values = vec!["one", "two", "three"];
-        let hashes = values.iter().map(hash).collect::<Vec<H256>>();
+        let hashes = values
+            .iter()
+            .map(|value| hash(value, NodeType::Leaf))
+            .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
@@ -385,7 +444,10 @@ mod tests {
     #[test]
     fn check_vec_4() {
         let values = vec!["one", "two", "three", "four"];
-        let hashes = values.iter().map(hash).collect::<Vec<H256>>();
+        let hashes = values
+            .iter()
+            .map(|value| hash(value, NodeType::Leaf))
+            .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
@@ -414,7 +476,10 @@ mod tests {
     #[test]
     fn check_vec_5() {
         let values = vec!["one", "two", "three", "four", "five"];
-        let hashes = values.iter().map(hash).collect::<Vec<H256>>();
+        let hashes = values
+            .iter()
+            .map(|value| hash(value, NodeType::Leaf))
+            .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
@@ -448,7 +513,10 @@ mod tests {
     #[test]
     fn check_vec_6() {
         let values = vec!["one", "two", "three", "four", "five", "six"];
-        let hashes = values.iter().map(hash).collect::<Vec<H256>>();
+        let hashes = values
+            .iter()
+            .map(|value| hash(value, NodeType::Leaf))
+            .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
@@ -485,7 +553,10 @@ mod tests {
     #[test]
     fn check_vec_7() {
         let values = vec!["one", "two", "three", "four", "five", "six", "seven"];
-        let hashes = values.iter().map(hash).collect::<Vec<H256>>();
+        let hashes = values
+            .iter()
+            .map(|value| hash(value, NodeType::Leaf))
+            .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
@@ -529,7 +600,10 @@ mod tests {
         let values = vec![
             "one", "two", "three", "four", "five", "six", "seven", "eight",
         ];
-        let hashes = values.iter().map(hash).collect::<Vec<H256>>();
+        let hashes = values
+            .iter()
+            .map(|value| hash(value, NodeType::Leaf))
+            .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
@@ -578,7 +652,10 @@ mod tests {
         let values = vec![
             "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
         ];
-        let hashes = values.iter().map(hash).collect::<Vec<H256>>();
+        let hashes = values
+            .iter()
+            .map(|value| hash(value, NodeType::Leaf))
+            .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
