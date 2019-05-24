@@ -4,7 +4,7 @@ mod command;
 
 use failure::ResultExt;
 use quest::{ask, error, password};
-use secstr::SecStr;
+use secstr::SecUtf8;
 use structopt::StructOpt;
 
 use client_common::{ErrorKind, Result};
@@ -45,7 +45,7 @@ pub(crate) fn tendermint_url() -> String {
     }
 }
 
-pub(crate) fn ask_passphrase() -> Result<SecStr> {
+pub(crate) fn ask_passphrase() -> Result<SecUtf8> {
     ask("Enter passphrase: ");
     Ok(password().context(ErrorKind::IoError)?.into())
 }

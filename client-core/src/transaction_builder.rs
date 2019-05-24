@@ -5,7 +5,7 @@ mod unauthorized_transaction_builder;
 pub use default_transaction_builder::DefaultTransactionBuilder;
 pub use unauthorized_transaction_builder::UnauthorizedTransactionBuilder;
 
-use secstr::SecStr;
+use secstr::SecUtf8;
 
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
@@ -21,7 +21,7 @@ pub trait TransactionBuilder: Send + Sync {
     fn build<W: WalletClient>(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
         wallet_client: &W,

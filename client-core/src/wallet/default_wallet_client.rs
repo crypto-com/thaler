@@ -11,7 +11,7 @@ use client_common::{ErrorKind, Result, Storage};
 use client_index::index::{Index, UnauthorizedIndex};
 use failure::ResultExt;
 use parity_codec::Encode;
-use secstr::SecStr;
+use secstr::SecUtf8;
 use zeroize::Zeroize;
 
 use crate::service::*;
@@ -70,11 +70,11 @@ where
         self.wallet_service.names()
     }
 
-    fn new_wallet(&self, name: &str, passphrase: &SecStr) -> Result<String> {
+    fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<String> {
         self.wallet_service.create(name, passphrase)
     }
 
-    fn private_keys(&self, name: &str, passphrase: &SecStr) -> Result<Vec<PrivateKey>> {
+    fn private_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PrivateKey>> {
         let wallet_id = self.wallet_service.get(name, passphrase)?;
 
         match wallet_id {
@@ -86,13 +86,13 @@ where
         }
     }
 
-    fn public_keys(&self, name: &str, passphrase: &SecStr) -> Result<Vec<PublicKey>> {
+    fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>> {
         let keys = self.private_keys(name, passphrase)?;
         let public_keys = keys.iter().map(PublicKey::from).collect::<Vec<PublicKey>>();
         Ok(public_keys)
     }
 
-    fn addresses(&self, name: &str, passphrase: &SecStr) -> Result<Vec<ExtendedAddr>> {
+    fn addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
         let public_keys = self.public_keys(name, passphrase)?;
 
         let addresses = public_keys
@@ -106,7 +106,7 @@ where
     fn private_key(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
         address: &ExtendedAddr,
     ) -> Result<Option<PrivateKey>> {
         let private_keys = self.private_keys(name, passphrase)?;
@@ -121,7 +121,7 @@ where
         Ok(None)
     }
 
-    fn new_public_key(&self, name: &str, passphrase: &SecStr) -> Result<PublicKey> {
+    fn new_public_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
         let wallet_id = self.wallet_service.get(name, passphrase)?;
 
         match wallet_id {
@@ -137,13 +137,13 @@ where
         }
     }
 
-    fn new_address(&self, name: &str, passphrase: &SecStr) -> Result<ExtendedAddr> {
+    fn new_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr> {
         let public_key = self.new_public_key(name, passphrase)?;
 
         Ok(ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key)))
     }
 
-    fn balance(&self, name: &str, passphrase: &SecStr) -> Result<Coin> {
+    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin> {
         let addresses = self.addresses(name, passphrase)?;
 
         let balances = addresses
@@ -154,7 +154,7 @@ where
         Ok(sum_coins(balances.into_iter()).context(ErrorKind::BalanceAdditionError)?)
     }
 
-    fn history(&self, name: &str, passphrase: &SecStr) -> Result<Vec<TransactionChange>> {
+    fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>> {
         let addresses = self.addresses(name, passphrase)?;
 
         let history = addresses
@@ -171,7 +171,7 @@ where
     fn unspent_transactions(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
     ) -> Result<Vec<(TxoPointer, Coin)>> {
         let addresses = self.addresses(name, passphrase)?;
 
@@ -190,7 +190,7 @@ where
     fn create_and_broadcast_transaction(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
     ) -> Result<()> {
@@ -531,17 +531,17 @@ mod tests {
             .unwrap();
 
         assert!(wallet
-            .addresses("name", &SecStr::from("passphrase"))
+            .addresses("name", &SecUtf8::from("passphrase"))
             .is_err());
 
         wallet
-            .new_wallet("name", &SecStr::from("passphrase"))
+            .new_wallet("name", &SecUtf8::from("passphrase"))
             .expect("Unable to create a new wallet");
 
         assert_eq!(
             0,
             wallet
-                .addresses("name", &SecStr::from("passphrase"))
+                .addresses("name", &SecUtf8::from("passphrase"))
                 .unwrap()
                 .len()
         );
@@ -549,25 +549,25 @@ mod tests {
         assert_eq!(1, wallet.wallets().unwrap().len());
 
         let address = wallet
-            .new_address("name", &SecStr::from("passphrase"))
+            .new_address("name", &SecUtf8::from("passphrase"))
             .expect("Unable to generate new address");
 
         let addresses = wallet
-            .addresses("name", &SecStr::from("passphrase"))
+            .addresses("name", &SecUtf8::from("passphrase"))
             .unwrap();
 
         assert_eq!(1, addresses.len());
         assert_eq!(address, addresses[0], "Addresses don't match");
 
         assert!(wallet
-            .private_key("name", &SecStr::from("passphrase"), &address)
+            .private_key("name", &SecUtf8::from("passphrase"), &address)
             .unwrap()
             .is_some());
 
         assert_eq!(
             ErrorKind::WalletNotFound,
             wallet
-                .public_keys("name_new", &SecStr::from("passphrase"))
+                .public_keys("name_new", &SecUtf8::from("passphrase"))
                 .expect_err("Found public keys for non existent wallet")
                 .kind(),
             "Invalid public key present in database"
@@ -576,7 +576,7 @@ mod tests {
         assert_eq!(
             ErrorKind::WalletNotFound,
             wallet
-                .new_public_key("name_new", &SecStr::from("passphrase"))
+                .new_public_key("name_new", &SecUtf8::from("passphrase"))
                 .expect_err("Generated public key for non existent wallet")
                 .kind(),
             "Error of invalid kind received"
@@ -592,28 +592,28 @@ mod tests {
             .unwrap();
 
         wallet
-            .new_wallet("wallet_1", &SecStr::from("passphrase"))
+            .new_wallet("wallet_1", &SecUtf8::from("passphrase"))
             .unwrap();
         let addr_1 = wallet
-            .new_address("wallet_1", &SecStr::from("passphrase"))
+            .new_address("wallet_1", &SecUtf8::from("passphrase"))
             .unwrap();
         wallet
-            .new_wallet("wallet_2", &SecStr::from("passphrase"))
+            .new_wallet("wallet_2", &SecUtf8::from("passphrase"))
             .unwrap();
         let addr_2 = wallet
-            .new_address("wallet_2", &SecStr::from("passphrase"))
+            .new_address("wallet_2", &SecUtf8::from("passphrase"))
             .unwrap();
         wallet
-            .new_wallet("wallet_3", &SecStr::from("passphrase"))
+            .new_wallet("wallet_3", &SecUtf8::from("passphrase"))
             .unwrap();
         let addr_3 = wallet
-            .new_address("wallet_3", &SecStr::from("passphrase"))
+            .new_address("wallet_3", &SecUtf8::from("passphrase"))
             .unwrap();
 
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .balance("wallet_1", &SecStr::from("passphrase"))
+                .balance("wallet_1", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -631,40 +631,40 @@ mod tests {
         assert_eq!(
             Coin::new(0).unwrap(),
             wallet
-                .balance("wallet_1", &SecStr::from("passphrase"))
+                .balance("wallet_1", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
         assert_eq!(
             Coin::new(30).unwrap(),
             wallet
-                .balance("wallet_2", &SecStr::from("passphrase"))
+                .balance("wallet_2", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
         assert_eq!(
             Coin::new(0).unwrap(),
             wallet
-                .balance("wallet_3", &SecStr::from("passphrase"))
+                .balance("wallet_3", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
 
         assert_eq!(
             2,
             wallet
-                .history("wallet_1", &SecStr::from("passphrase"))
+                .history("wallet_1", &SecUtf8::from("passphrase"))
                 .unwrap()
                 .len()
         );
         assert_eq!(
             1,
             wallet
-                .history("wallet_2", &SecStr::from("passphrase"))
+                .history("wallet_2", &SecUtf8::from("passphrase"))
                 .unwrap()
                 .len()
         );
         assert_eq!(
             0,
             wallet
-                .history("wallet_3", &SecStr::from("passphrase"))
+                .history("wallet_3", &SecUtf8::from("passphrase"))
                 .unwrap()
                 .len()
         );
@@ -682,7 +682,7 @@ mod tests {
         assert!(wallet
             .create_and_broadcast_transaction(
                 "wallet_2",
-                &SecStr::from("passphrase"),
+                &SecUtf8::from("passphrase"),
                 vec![TxOut {
                     address: addr_3.clone(),
                     value: Coin::new(30).unwrap(),
@@ -695,40 +695,40 @@ mod tests {
         assert_eq!(
             Coin::new(0).unwrap(),
             wallet
-                .balance("wallet_1", &SecStr::from("passphrase"))
+                .balance("wallet_1", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
         assert_eq!(
             Coin::new(0).unwrap(),
             wallet
-                .balance("wallet_2", &SecStr::from("passphrase"))
+                .balance("wallet_2", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
         assert_eq!(
             Coin::new(30).unwrap(),
             wallet
-                .balance("wallet_3", &SecStr::from("passphrase"))
+                .balance("wallet_3", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
 
         assert_eq!(
             2,
             wallet
-                .history("wallet_1", &SecStr::from("passphrase"))
+                .history("wallet_1", &SecUtf8::from("passphrase"))
                 .unwrap()
                 .len()
         );
         assert_eq!(
             2,
             wallet
-                .history("wallet_2", &SecStr::from("passphrase"))
+                .history("wallet_2", &SecUtf8::from("passphrase"))
                 .unwrap()
                 .len()
         );
         assert_eq!(
             1,
             wallet
-                .history("wallet_3", &SecStr::from("passphrase"))
+                .history("wallet_3", &SecUtf8::from("passphrase"))
                 .unwrap()
                 .len()
         );
@@ -736,7 +736,7 @@ mod tests {
         assert!(wallet
             .create_and_broadcast_transaction(
                 "wallet_3",
-                &SecStr::from("passphrase"),
+                &SecUtf8::from("passphrase"),
                 vec![TxOut {
                     address: addr_2.clone(),
                     value: Coin::new(20).unwrap(),
@@ -751,7 +751,7 @@ mod tests {
             wallet
                 .create_and_broadcast_transaction(
                     "wallet_2",
-                    &SecStr::from("passphrase"),
+                    &SecUtf8::from("passphrase"),
                     vec![TxOut {
                         address: addr_3.clone(),
                         value: Coin::new(30).unwrap(),
@@ -776,7 +776,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .new_wallet("name", &SecStr::from("passphrase"))
+                .new_wallet("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -784,7 +784,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .private_keys("name", &SecStr::from("passphrase"))
+                .private_keys("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -792,7 +792,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .public_keys("name", &SecStr::from("passphrase"))
+                .public_keys("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -800,7 +800,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .addresses("name", &SecStr::from("passphrase"))
+                .addresses("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -810,7 +810,7 @@ mod tests {
             wallet
                 .private_key(
                     "name",
-                    &SecStr::from("passphrase"),
+                    &SecUtf8::from("passphrase"),
                     &ExtendedAddr::BasicRedeem(
                         RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5")
                             .unwrap(),
@@ -823,7 +823,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .new_public_key("name", &SecStr::from("passphrase"))
+                .new_public_key("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -831,7 +831,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .new_address("name", &SecStr::from("passphrase"))
+                .new_address("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -839,7 +839,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .balance("name", &SecStr::from("passphrase"))
+                .balance("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -847,7 +847,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .history("name", &SecStr::from("passphrase"))
+                .history("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -855,7 +855,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .unspent_transactions("name", &SecStr::from("passphrase"))
+                .unspent_transactions("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -870,7 +870,7 @@ mod tests {
             wallet
                 .create_and_broadcast_transaction(
                     "name",
-                    &SecStr::from("passphrase"),
+                    &SecUtf8::from("passphrase"),
                     Vec::new(),
                     TxAttributes::new(171)
                 )

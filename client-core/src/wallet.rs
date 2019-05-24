@@ -3,7 +3,7 @@ mod default_wallet_client;
 
 pub use default_wallet_client::DefaultWalletClient;
 
-use secstr::SecStr;
+use secstr::SecUtf8;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -22,42 +22,42 @@ pub trait WalletClient: Send + Sync {
     fn wallets(&self) -> Result<Vec<String>>;
 
     /// Creates a new wallet with given name and returns wallet_id
-    fn new_wallet(&self, name: &str, passphrase: &SecStr) -> Result<String>;
+    fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<String>;
 
     /// Retrieves all public keys corresponding to given wallet
-    fn private_keys(&self, name: &str, passphrase: &SecStr) -> Result<Vec<PrivateKey>>;
+    fn private_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PrivateKey>>;
 
     /// Retrieves all public keys corresponding to given wallet
-    fn public_keys(&self, name: &str, passphrase: &SecStr) -> Result<Vec<PublicKey>>;
+    fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>>;
 
     /// Retrieves all addresses corresponding to given wallet
-    fn addresses(&self, name: &str, passphrase: &SecStr) -> Result<Vec<ExtendedAddr>>;
+    fn addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
 
     /// Retrieves private key corresponding to given address
     fn private_key(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
         address: &ExtendedAddr,
     ) -> Result<Option<PrivateKey>>;
 
     /// Generates a new public key for given wallet
-    fn new_public_key(&self, name: &str, passphrase: &SecStr) -> Result<PublicKey>;
+    fn new_public_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
 
     /// Generates a new address for given wallet
-    fn new_address(&self, name: &str, passphrase: &SecStr) -> Result<ExtendedAddr>;
+    fn new_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr>;
 
     /// Retrieves current balance of wallet
-    fn balance(&self, name: &str, passphrase: &SecStr) -> Result<Coin>;
+    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin>;
 
     /// Retrieves transaction history of wallet
-    fn history(&self, name: &str, passphrase: &SecStr) -> Result<Vec<TransactionChange>>;
+    fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>>;
 
     /// Retrieves all unspent transactions of wallet
     fn unspent_transactions(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
     ) -> Result<Vec<(TxoPointer, Coin)>>;
 
     /// Returns output of transaction with given id and index
@@ -67,7 +67,7 @@ pub trait WalletClient: Send + Sync {
     fn create_and_broadcast_transaction(
         &self,
         name: &str,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
     ) -> Result<()>;

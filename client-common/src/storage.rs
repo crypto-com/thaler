@@ -14,7 +14,7 @@ use failure::ResultExt;
 use miscreant::{Aead, Aes128PmacSivAead};
 use rand::rngs::OsRng;
 use rand::Rng;
-use secstr::SecStr;
+use secstr::SecUtf8;
 
 use crate::{ErrorKind, Result};
 
@@ -54,7 +54,7 @@ pub trait SecureStorage {
         &self,
         keyspace: S,
         key: K,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
     ) -> Result<Option<Vec<u8>>>;
 
     /// Set a key to a new value (after encryption) in given keyspace and return old value.
@@ -63,7 +63,7 @@ pub trait SecureStorage {
         keyspace: S,
         key: K,
         value: Vec<u8>,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
     ) -> Result<Option<Vec<u8>>>;
 }
 
@@ -75,7 +75,7 @@ where
         &self,
         keyspace: S,
         key: K,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
     ) -> Result<Option<Vec<u8>>> {
         let value = self.get(keyspace, &key)?;
 
@@ -98,7 +98,7 @@ where
         keyspace: S,
         key: K,
         value: Vec<u8>,
-        passphrase: &SecStr,
+        passphrase: &SecUtf8,
     ) -> Result<Option<Vec<u8>>> {
         let old_value = self.get_secure(&keyspace, &key, passphrase)?;
 
@@ -117,7 +117,7 @@ where
     }
 }
 
-fn get_algo(passphrase: &SecStr) -> Aes128PmacSivAead {
+fn get_algo(passphrase: &SecUtf8) -> Aes128PmacSivAead {
     let mut hasher = Blake2s::new();
     hasher.input(passphrase.unsecure());
     Aes128PmacSivAead::new(&hasher.result_reset())
