@@ -116,7 +116,7 @@ impl Branch for TreeBranch {
     }
 
     #[inline]
-    fn deconstruct(self) -> (u64, [u8; KEY_LEN], [u8; KEY_LEN], u8, [u8; KEY_LEN]) {
+    fn decompose(self) -> (u64, [u8; KEY_LEN], [u8; KEY_LEN], u8, [u8; KEY_LEN]) {
         (
             self.get_count(),
             self.zero,
@@ -172,7 +172,7 @@ impl Leaf for TreeLeaf {
 
     /// Decomposes the struct into its constituent parts.
     #[inline]
-    fn deconstruct(self) -> ([u8; KEY_LEN], [u8; KEY_LEN]) {
+    fn decompose(self) -> ([u8; KEY_LEN], [u8; KEY_LEN]) {
         (self.key, self.data)
     }
 }

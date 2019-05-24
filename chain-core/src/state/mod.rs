@@ -1,7 +1,9 @@
 pub mod account;
 
 use crate::common::{hash256, H256};
+use crate::init::address::RedeemAddress;
 use crate::init::coin::Coin;
+use crate::tx::witness::tree::RawPubkey;
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
@@ -30,4 +32,27 @@ impl RewardsPoolState {
             last_block_height,
         }
     }
+}
+
+/// The protobuf structure currently has "String" to denote the type / length
+/// and variable length byte array. In this internal representation,
+/// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
+#[derive(Encode, Decode)]
+pub enum TendermintValidatorPubKey {
+    Ed25519([u8; 32]),
+    Secp256k1(RawPubkey),
+    // there's also PubKeyMultisigThreshold, but that probably wouldn't be used for individual nodes / validators
+    // TODO: some other schemes when they are added in TM?
+}
+
+/// holds state about a node responsible for transaction validation / block signing and service node whitelist management
+#[derive(Encode, Decode)]
+pub struct CouncilNode {
+    // account with the required staked amount
+    pub staking_account_address: RedeemAddress,
+    // Tendermint consensus validator-associated public key
+    pub consensus_pubkey: TendermintValidatorPubKey,
+    // update counter
+    pub nonce: usize,
+    // TODO: public keys / addresses for other operations
 }
