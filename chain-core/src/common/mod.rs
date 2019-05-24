@@ -2,6 +2,7 @@ use digest::Digest;
 
 /// Generic merkle tree
 pub mod merkle;
+pub mod merkle_tree;
 
 /// Size in bytes of a 256-bit hash
 pub const HASH_SIZE_256: usize = 32;
