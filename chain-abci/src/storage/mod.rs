@@ -3,6 +3,7 @@ pub mod merkle;
 pub mod tx;
 
 use kvdb::KeyValueDB;
+use std::path::Path;
 use std::sync::Arc;
 
 // database columns
@@ -27,10 +28,40 @@ pub const CHAIN_ID_KEY: &[u8] = b"chain_id";
 pub const GENESIS_APP_HASH_KEY: &[u8] = b"genesis_app_hash";
 pub const LAST_STATE_KEY: &[u8] = b"last_state";
 
+pub enum StorageType {
+    Node,
+    AccountTrie,
+}
+
 /// Storage configuration -- currently only the path to RocksDB directory
 /// TODO: other options? e.g. HDD vs SDD?
 pub struct StorageConfig<'a> {
-    pub db_path: &'a str,
+    base_dbs_path: &'a str,
+    purpose: StorageType,
+}
+
+impl<'a> StorageConfig<'a> {
+    pub fn new(base_dbs_path: &'a str, purpose: StorageType) -> Self {
+        StorageConfig {
+            base_dbs_path,
+            purpose,
+        }
+    }
+
+    pub fn db_path(&self) -> String {
+        match self.purpose {
+            StorageType::Node => Path::new(self.base_dbs_path)
+                .join("chain")
+                .to_str()
+                .expect("invalid storage path")
+                .to_string(),
+            StorageType::AccountTrie => Path::new(self.base_dbs_path)
+                .join("account")
+                .to_str()
+                .expect("invalid storage path")
+                .to_string(),
+        }
+    }
 }
 
 /// Storage wrapper -- currently only holds the reference to KV DB.
@@ -51,7 +82,7 @@ impl Storage {
         let db = Arc::new(
             kvdb_rocksdb::Database::open(
                 &kvdb_rocksdb::DatabaseConfig::with_columns(NUM_COLUMNS),
-                config.db_path,
+                &config.db_path(),
             )
             .expect("failed to open db"),
         );

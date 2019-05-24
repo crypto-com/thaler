@@ -12,12 +12,20 @@ use serde::{Deserialize, Serialize};
 
 use self::data::Tx;
 use self::witness::TxWitness;
+use crate::state::account::{AccountOpWitness, DepositBondTx, UnbondTx, WithdrawUnbondedTx};
+use crate::tx::data::{txid_hash, TxId};
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 pub enum TxAux {
-    /// Tx with the vector of witnesses
+    /// normal value transfer Tx with the vector of witnesses
     TransferTx(Tx, TxWitness),
+    /// Tx "spends" utxos to be deposited as bonded stake in an account (witnesses as in transfer)
+    DepositStakeTx(DepositBondTx, TxWitness),
+    /// Tx that modifies account state -- moves some bonded stake into unbonded (witness for account)
+    UnbondStakeTx(UnbondTx, AccountOpWitness),
+    /// Tx that "creates" utxos out of account state; withdraws unbonded stake (witness for account)
+    WithdrawUnbondedStakeTx(WithdrawUnbondedTx, AccountOpWitness),
 }
 
 impl TxAux {
@@ -25,15 +33,34 @@ impl TxAux {
     pub fn new(tx: Tx, witness: TxWitness) -> Self {
         TxAux::TransferTx(tx, witness)
     }
+
+    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
+    pub fn tx_id(&self) -> TxId {
+        match self {
+            TxAux::TransferTx(tx, _) => tx.id(),
+            TxAux::DepositStakeTx(tx, _) => txid_hash(&tx.encode()),
+            TxAux::UnbondStakeTx(tx, _) => txid_hash(&tx.encode()),
+            TxAux::WithdrawUnbondedStakeTx(tx, _) => txid_hash(&tx.encode()),
+        }
+    }
+}
+
+fn display_tx_witness<T: fmt::Display, W: fmt::Debug>(
+    f: &mut fmt::Formatter<'_>,
+    tx: T,
+    witness: W,
+) -> fmt::Result {
+    writeln!(f, "Tx:\n{}", tx)?;
+    writeln!(f, "witnesses: {:?}\n", witness)
 }
 
 impl fmt::Display for TxAux {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TxAux::TransferTx(tx, witness) => {
-                writeln!(f, "Tx:\n{}", tx)?;
-                writeln!(f, "witnesses: {:?}\n", witness)
-            }
+            TxAux::TransferTx(tx, witness) => display_tx_witness(f, tx, witness),
+            TxAux::DepositStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
+            TxAux::UnbondStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
+            TxAux::WithdrawUnbondedStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
         }
     }
 }
