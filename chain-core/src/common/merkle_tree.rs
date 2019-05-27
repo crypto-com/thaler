@@ -1,37 +1,7 @@
-//! Merkle tree with values of type `T` with support for inclusion proofs
-//!
-//! # Usage
-//!
-//! ## Creating a `MerkleTree`
-//! ```
-//! # use chain_core::common::merkle_tree::MerkleTree;
-//! #
-//! let values = vec!["one", "two", "three", "four"];
-//! let tree = MerkleTree::new(values);
-//! ```
-//!
-//! ## Generating inclusion proof
-//! ```
-//! # use chain_core::common::merkle_tree::MerkleTree;
-//! #
-//! # let values = vec!["one", "two", "three", "four"];
-//! # let tree = MerkleTree::new(values);
-//! #
-//! let one_proof = tree.generate_proof("one").expect("Unable to generate inclusion proof");
-//! ```
-//!
-//! ## Verifying inclusion proof
-//! ```
-//! # use chain_core::common::merkle_tree::MerkleTree;
-//! #
-//! # let values = vec!["one", "two", "three", "four"];
-//! # let tree = MerkleTree::new(values);
-//! #
-//! # let one_proof = tree.generate_proof("one").expect("Unable to generate inclusion proof");
-//! assert!(one_proof.verify(tree.root_hash()));
 use std::vec::IntoIter;
 
 use blake2::Blake2s;
+use parity_codec::{Decode, Encode};
 
 use super::{hash256, H256, H512, HASH_SIZE_256};
 
@@ -42,7 +12,7 @@ const EMPTY_HASH: H256 = [
 ];
 
 /// Represents inner tree structure of Merkle Tree
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub enum Tree<T> {
     /// Empty Node
     Empty,
@@ -141,14 +111,14 @@ impl<T> Tree<T> {
 }
 
 /// Sibling's hash
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub enum Sibling {
     Left(H256),
     Right(H256),
 }
 
 /// Merkle path for inclusion proof
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct Path {
     node_hash: H256,
     sibling: Option<Sibling>,
@@ -189,8 +159,9 @@ impl Path {
     }
 }
 
+// TODO: Consider implementing `Encode`/`Decode` traits using BitVec + Vec of hashes for efficiency
 /// Inclusion proof of a value
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct Proof<T> {
     root_hash: H256,
     path: Path,
@@ -200,16 +171,58 @@ pub struct Proof<T> {
 impl<T> Proof<T> {
     /// Verifies inclusion proof in given merkle tree
     #[inline]
-    pub fn verify(&self, root_hash: H256) -> bool
+    pub fn verify(&self, root_hash: &H256) -> bool
     where
         T: AsRef<[u8]>,
     {
-        root_hash == self.root_hash && root_hash == self.path.node_hash && self.path.verify()
+        root_hash == &self.root_hash && root_hash == &self.path.node_hash && self.path.verify()
+    }
+
+    /// Returns a borrow of value contained in this proof
+    #[inline]
+    pub fn value(&self) -> &T {
+        &self.value
+    }
+
+    /// Returns root hash of this proof
+    pub fn root_hash(&self) -> H256 {
+        self.root_hash
     }
 }
 
-/// Merkle tree with values of type `T`
-#[derive(Debug)]
+/// Merkle tree with values of type `T` and support for inclusion proofs
+///
+/// # Usage
+///
+/// ## Creating a `MerkleTree`
+/// ```
+/// # use chain_core::common::MerkleTree;
+/// #
+/// let values = vec!["one", "two", "three", "four"];
+/// let tree = MerkleTree::new(values);
+/// ```
+///
+/// ## Generating inclusion proof
+/// ```
+/// # use chain_core::common::MerkleTree;
+/// #
+/// # let values = vec!["one", "two", "three", "four"];
+/// # let tree = MerkleTree::new(values);
+/// #
+/// let one_proof = tree.generate_proof("one").expect("Unable to generate inclusion proof");
+/// ```
+///
+/// ## Verifying inclusion proof
+/// ```
+/// # use chain_core::common::MerkleTree;
+/// #
+/// # let values = vec!["one", "two", "three", "four"];
+/// # let tree = MerkleTree::new(values);
+/// #
+/// # let one_proof = tree.generate_proof("one").expect("Unable to generate inclusion proof");
+/// assert!(one_proof.verify(&tree.root_hash()));
+/// ```
+#[derive(Debug, Encode, Decode)]
 pub struct MerkleTree<T> {
     tree: Tree<T>,
     len: usize,
@@ -307,6 +320,7 @@ impl<T> MerkleTree<T> {
 }
 
 /// A node can either be a leaf or intermediate node in a merkle tree
+#[derive(Debug)]
 pub enum NodeType {
     Leaf,
     Intermediate,
@@ -321,7 +335,7 @@ fn combine(left: &H256, right: &H256) -> H512 {
     hash
 }
 
-fn hash<T: AsRef<[u8]>>(value: T, node_type: NodeType) -> H256 {
+pub fn hash<T: AsRef<[u8]>>(value: T, node_type: NodeType) -> H256 {
     match node_type {
         NodeType::Leaf => hash256::<Blake2s>(&prefix_with_byte(value, 0)),
         NodeType::Intermediate => hash256::<Blake2s>(&prefix_with_byte(value, 1)),
@@ -391,7 +405,10 @@ mod tests {
         assert_eq!(0, tree.height());
         assert_eq!(1, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
-        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(&tree.root_hash()));
     }
 
     #[test]
@@ -411,8 +428,14 @@ mod tests {
         assert_eq!(2, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
-        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("two")
+            .unwrap()
+            .verify(&tree.root_hash()));
     }
 
     #[test]
@@ -433,12 +456,18 @@ mod tests {
         assert_eq!(3, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
-        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("two")
+            .unwrap()
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("three")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
     }
 
     #[test]
@@ -461,16 +490,22 @@ mod tests {
         assert_eq!(4, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
-        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("two")
+            .unwrap()
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("three")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("four")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
     }
 
     #[test]
@@ -494,20 +529,26 @@ mod tests {
         assert_eq!(5, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
-        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("two")
+            .unwrap()
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("three")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("four")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("five")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
     }
 
     #[test]
@@ -533,21 +574,30 @@ mod tests {
         assert_eq!(6, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
-        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("two")
+            .unwrap()
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("three")
             .unwrap()
-            .verify(tree.root_hash()));
-        assert!(tree
+            .verify(&tree.root_hash()));
+        &assert!(tree
             .generate_proof("four")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("five")
             .unwrap()
-            .verify(tree.root_hash()));
-        assert!(tree.generate_proof("six").unwrap().verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("six")
+            .unwrap()
+            .verify(&tree.root_hash()));
     }
 
     #[test]
@@ -574,25 +624,34 @@ mod tests {
         assert_eq!(7, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
-        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("two")
+            .unwrap()
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("three")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("four")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("five")
             .unwrap()
-            .verify(tree.root_hash()));
-        assert!(tree.generate_proof("six").unwrap().verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("six")
+            .unwrap()
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("seven")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
     }
 
     #[test]
@@ -622,29 +681,38 @@ mod tests {
         assert_eq!(8, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
-        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
         assert!(tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("two")
+            .unwrap()
+            .verify(&tree.root_hash()));
+        assert!(&tree
             .generate_proof("three")
             .unwrap()
-            .verify(tree.root_hash()));
-        assert!(tree
+            .verify(&tree.root_hash()));
+        assert!(&tree
             .generate_proof("four")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("five")
             .unwrap()
-            .verify(tree.root_hash()));
-        assert!(tree.generate_proof("six").unwrap().verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("six")
+            .unwrap()
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("seven")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("eight")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
     }
 
     #[test]
@@ -675,33 +743,42 @@ mod tests {
         assert_eq!(9, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
 
-        assert!(tree.generate_proof("one").unwrap().verify(tree.root_hash()));
-        assert!(tree.generate_proof("two").unwrap().verify(tree.root_hash()));
+        assert!(tree
+            .generate_proof("one")
+            .unwrap()
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("two")
+            .unwrap()
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("three")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("four")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("five")
             .unwrap()
-            .verify(tree.root_hash()));
-        assert!(tree.generate_proof("six").unwrap().verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
+        assert!(tree
+            .generate_proof("six")
+            .unwrap()
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("seven")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("eight")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
         assert!(tree
             .generate_proof("nine")
             .unwrap()
-            .verify(tree.root_hash()));
+            .verify(&tree.root_hash()));
     }
 
     #[test]
@@ -715,6 +792,6 @@ mod tests {
         assert!(!tree
             .generate_proof("one")
             .unwrap()
-            .verify(new_tree.root_hash()));
+            .verify(&new_tree.root_hash()));
     }
 }

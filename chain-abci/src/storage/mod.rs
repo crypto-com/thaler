@@ -1,5 +1,4 @@
 pub mod account;
-pub mod merkle;
 pub mod tx;
 
 use kvdb::KeyValueDB;

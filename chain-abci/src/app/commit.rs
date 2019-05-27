@@ -2,7 +2,7 @@ use super::ChainNodeApp;
 use crate::storage::tx::update_utxos_commit;
 use crate::storage::*;
 use abci::*;
-use chain_core::common::merkle::MerkleTree;
+use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::tx::data::TxId;
 use chain_core::tx::TxAux;
@@ -22,7 +22,7 @@ impl ChainNodeApp {
                 .iter()
                 .map(chain_core::tx::TxAux::tx_id)
                 .collect();
-            let tree = MerkleTree::new(&ids);
+            let tree = MerkleTree::new(ids);
             for txaux in self.delivered_txs.iter() {
                 match txaux {
                     TxAux::TransferTx(tx, witness) => {
