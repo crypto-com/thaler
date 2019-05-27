@@ -14,7 +14,9 @@ use serde::{Deserialize, Serialize};
 use unicase::eq_ascii;
 use zeroize::Zeroize;
 
+use chain_core::common::MerkleTree;
 use chain_core::init::address::RedeemAddress;
+use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::TxInWitness;
 
 // NOTE: Verification is needed for combining public keys
@@ -138,7 +140,14 @@ impl Secrets {
             let partial_sigs = vec![session1.partial_sign()?, session2.partial_sign()?];
             let sig = session1.partial_sig_combine(&partial_sigs)?;
 
-            Ok(TxInWitness::TreeSig(combined_pk, sig, vec![]))
+            let raw_public_key = RawPubkey::from(combined_pk.serialize());
+
+            let tree = MerkleTree::new(vec![raw_public_key.clone()]);
+
+            Ok(TxInWitness::TreeSig(
+                sig,
+                tree.generate_proof(raw_public_key).unwrap(),
+            ))
         })
     }
 }

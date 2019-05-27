@@ -1,7 +1,7 @@
 use abci::{Application, RequestCheckTx, RequestInitChain};
 use chain_abci::app::ChainNodeApp;
 use chain_abci::storage::{Storage, NUM_COLUMNS};
-use chain_core::common::merkle::MerkleTree;
+use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::tx::fee::{LinearFee, Milli};
@@ -68,7 +68,7 @@ fn init_chain_for(addresses: &Vec<RedeemAddress>) -> (ChainNodeApp, Vec<TxId>) {
     let utxos = c.generate_utxos(&TxAttributes::new(0));
     let rp = c.get_genesis_rewards_pool();
     let txids: Vec<TxId> = utxos.iter().map(|x| x.id()).collect();
-    let tree = MerkleTree::new(&txids);
+    let tree = MerkleTree::new(txids);
     let genesis_app_hash = compute_app_hash(&tree, &rp);
     let example_hash = hex::encode_upper(genesis_app_hash);
     let mut app =

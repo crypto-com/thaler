@@ -8,18 +8,17 @@ use secp256k1::{
     self, key::PublicKey, schnorrsig::schnorr_verify, schnorrsig::SchnorrSignature, Message,
     RecoverableSignature, RecoveryId, Secp256k1,
 };
-use serde::{Deserialize, Serialize};
 
+use crate::common::Proof;
 use crate::init::address::RedeemAddress;
 use crate::tx::data::address::ExtendedAddr;
-use crate::tx::data::{txid_hash, TxId};
-use crate::tx::witness::tree::{MerklePath, ProofOp, RawPubkey, RawSignature};
+use crate::tx::data::TxId;
+use crate::tx::witness::tree::{RawPubkey, RawSignature};
 
 pub type EcdsaSignature = RecoverableSignature;
 
 /// A transaction witness is a vector of input witnesses
-#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
-#[serde(transparent)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct TxWitness(Vec<TxInWitness>);
 
 impl TxWitness {
@@ -55,10 +54,10 @@ impl ::std::ops::DerefMut for TxWitness {
 }
 
 // normally should be some structure: e.g. indicate a type of signature
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TxInWitness {
     BasicRedeem(EcdsaSignature),
-    TreeSig(PublicKey, SchnorrSignature, Vec<ProofOp>),
+    TreeSig(SchnorrSignature, Proof<RawPubkey>),
 }
 
 impl fmt::Display for TxInWitness {
@@ -79,14 +78,12 @@ impl Encode for TxInWitness {
                 dest.push_byte(rid);
                 serialized_sig.encode_to(dest);
             }
-            TxInWitness::TreeSig(ref pk, ref schnorrsig, ref ops) => {
+            TxInWitness::TreeSig(ref schnorrsig, ref proof) => {
                 dest.push_byte(1);
                 dest.push_byte(3);
-                let serialized_pk: RawPubkey = pk.serialize().into();
                 let serialized_sig: RawSignature = schnorrsig.serialize_default();
-                serialized_pk.encode_to(dest);
                 serialized_sig.encode_to(dest);
-                ops.encode_to(dest);
+                proof.encode_to(dest);
             }
         }
     }
@@ -105,12 +102,10 @@ impl Decode for TxInWitness {
                 Some(TxInWitness::BasicRedeem(sig))
             }
             (1, 3) => {
-                let raw_pk = RawPubkey::decode(input)?;
-                let pk = PublicKey::from_slice(raw_pk.as_bytes()).ok()?;
                 let raw_sig = RawSignature::decode(input)?;
                 let schnorrsig = SchnorrSignature::from_default(&raw_sig).ok()?;
-                let ops: Vec<ProofOp> = Vec::decode(input)?;
-                Some(TxInWitness::TreeSig(pk, schnorrsig, ops))
+                let proof = Proof::decode(input)?;
+                Some(TxInWitness::TreeSig(schnorrsig, proof))
             }
             _ => None,
         }
@@ -128,7 +123,7 @@ impl TxInWitness {
         address: &ExtendedAddr,
     ) -> Result<(), secp256k1::Error> {
         let secp = Secp256k1::verification_only();
-        let message = Message::from_slice(txid)?;
+        let message = Message::from_slice(&txid[..])?;
 
         match (&self, address) {
             (TxInWitness::BasicRedeem(sig), ExtendedAddr::BasicRedeem(addr)) => {
@@ -141,30 +136,16 @@ impl TxInWitness {
                     secp.verify(&message, &sig.to_standard(), &pk)
                 }
             }
-            (TxInWitness::TreeSig(pk, sig, ops), ExtendedAddr::OrTree(roothash)) => {
-                let mut pk_hash = txid_hash(&pk.serialize());
-                // TODO: blake2 tree hashing?
-                for op in ops.iter() {
-                    let mut bs = vec![1u8];
-                    match op {
-                        ProofOp(MerklePath::LFound, data) => {
-                            bs.extend(&pk_hash[..]);
-                            bs.extend(&data[..]);
-                            pk_hash = txid_hash(&bs);
-                        }
-                        ProofOp(MerklePath::RFound, data) => {
-                            bs.extend(&data[..]);
-                            bs.extend(&pk_hash[..]);
-                            pk_hash = txid_hash(&bs);
-                        }
-                    }
-                }
-                // TODO: constant time eq?
-                if pk_hash != *roothash {
+            (TxInWitness::TreeSig(sig, proof), ExtendedAddr::OrTree(root_hash)) => {
+                if !proof.verify(root_hash) {
                     Err(secp256k1::Error::InvalidPublicKey)
-                // TODO: migrate to upstream secp256k1 when Schnorr is available
                 } else {
-                    schnorr_verify(&secp, &message, &sig, &pk)
+                    schnorr_verify(
+                        &secp,
+                        &message,
+                        &sig,
+                        &PublicKey::from_slice(proof.value().as_bytes())?,
+                    )
                 }
             }
             (_, _) => Err(secp256k1::Error::InvalidSignature),
@@ -175,11 +156,8 @@ impl TxInWitness {
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::common::merkle::MerkleTree;
-    use crate::common::H256;
-    use crate::tx::data::txid_hash;
+    use crate::common::{MerkleTree, H256};
     use crate::tx::data::Tx;
-    use crate::tx::witness::tree::MerklePath;
     use crate::tx::TransactionId;
     use secp256k1::{
         key::pubkey_combine,
@@ -216,13 +194,15 @@ pub mod tests {
         let message = Message::from_slice(&tx.id()).expect("32 bytes");
         let sig = sign_single_schnorr(&secp, &message, &secret_key);
         let pk = PublicKey::from_secret_key(&secp, &secret_key);
+        let raw_pk = RawPubkey::from(pk.serialize());
 
-        let pk_hash = txid_hash(&pk.serialize());
-        let merkle = MerkleTree::new(&vec![pk_hash]);
+        let public_keys = vec![raw_pk];
+
+        let merkle = MerkleTree::new(public_keys.clone());
 
         return (
-            TxInWitness::TreeSig(pk, sig, vec![]),
-            merkle.get_root_hash(),
+            TxInWitness::TreeSig(sig, merkle.generate_proof(public_keys[0].clone()).unwrap()),
+            merkle.root_hash(),
         );
     }
 
@@ -292,12 +272,14 @@ pub mod tests {
         let (sig, pk1, pk2) = get_2_of_2_sig(&secp, tx, secret_key1, secret_key2);
 
         let pk = pubkey_combine(&secp, &vec![pk1, pk2]).unwrap().0;
-        let pk_hash = txid_hash(&pk.serialize()[..]);
-        let merkle = MerkleTree::new(&vec![pk_hash]);
+        let raw_pk = RawPubkey::from(pk.serialize());
+        let public_keys = vec![raw_pk];
+
+        let merkle = MerkleTree::new(public_keys.clone());
 
         return (
-            TxInWitness::TreeSig(pk, sig, vec![]),
-            merkle.get_root_hash(),
+            TxInWitness::TreeSig(sig, merkle.generate_proof(public_keys[0].clone()).unwrap()),
+            merkle.root_hash(),
         );
     }
 
@@ -311,26 +293,22 @@ pub mod tests {
         let pk1 = PublicKey::from_secret_key(&secp, &secret_key1);
         let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
         let pk3 = PublicKey::from_secret_key(&secp, &secret_key3);
+
         let pkc1 = pubkey_combine(&secp, &vec![pk1, pk2]).unwrap().0;
         let pkc2 = pubkey_combine(&secp, &vec![pk1, pk3]).unwrap().0;
         let pkc3 = pubkey_combine(&secp, &vec![pk2, pk3]).unwrap().0;
-        let pk_hashes: Vec<H256> = vec![pkc1, pkc2, pkc3]
-            .iter()
-            .map(|x| txid_hash(&x.serialize()[..]))
-            .collect();
-        let merkle = MerkleTree::new(&pk_hashes);
 
-        let path: Vec<ProofOp> = vec![
-            ProofOp(MerklePath::LFound, pk_hashes[1]),
-            ProofOp(MerklePath::LFound, pk_hashes[2]),
-        ];
+        let public_keys: Vec<RawPubkey> = vec![pkc1, pkc2, pkc3]
+            .iter()
+            .map(|x| RawPubkey::from(x.serialize()))
+            .collect();
+
+        let merkle = MerkleTree::new(public_keys.clone());
+        let proof = merkle.generate_proof(public_keys[0].clone()).unwrap();
 
         let (sig, _, _) = get_2_of_2_sig(&secp, tx, secret_key1, secret_key2);
 
-        return (
-            TxInWitness::TreeSig(pkc1, sig, path),
-            merkle.get_root_hash(),
-        );
+        return (TxInWitness::TreeSig(sig, proof), merkle.root_hash());
     }
 
     #[test]
