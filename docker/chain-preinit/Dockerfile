@@ -1,5 +1,5 @@
 # Build
-FROM rust:1.34.2 as rust-builder
+FROM rust:1.35.0 as rust-builder
 
 ENV RUSTFLAGS "-Ctarget-feature=+aes,+ssse3"
 
@@ -16,7 +16,7 @@ RUN mv target/release/chain-abci /usr/bin/chain/chain-abci
 RUN mv target/release/client-rpc /usr/bin/chain/client-rpc
 
 # Image
-FROM rust:1.34.2-slim
+FROM rust:1.35.0-slim
 
 WORKDIR /usr/src/chain
 
