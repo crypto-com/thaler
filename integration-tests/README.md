@@ -55,7 +55,8 @@ Runtime Environments
 
 #### Initialized Genesis
 
-Distribution of Gensis Funds
+Distribution of Genesis Funds
+
 | Address | Amount (in Basic Unit) |
 | --- | --- |
 | 0xfb135596b941711a1611e59284424d412ee8fd9d | 2500000000000000000 |
@@ -66,6 +67,7 @@ Distribution of Gensis Funds
 | 0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07 | 500000000000000000 |
 
 Incentive
+
 | Incentive | Address |
 | --- | --- |
 | Launch Incentive From | 0x35f517cab9a37bc31091c2f155d965af84e0bc85 |
@@ -77,6 +79,7 @@ Incentive
 Build the `chain-abci` and `client-rpc` in the chain project. A pre-setup wallet will be created:
 
 Pre-setup Wallet
+
 | Wallet Name | First Address |
 | --- | --- |
 | Default | 0xfb135596b941711a1611e59284424d412ee8fd9d |
