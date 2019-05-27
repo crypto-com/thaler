@@ -159,6 +159,7 @@ impl Path {
     }
 }
 
+// TODO: Consider implementing `Encode`/`Decode` traits using BitVec + Vec of hashes for efficiency
 /// Inclusion proof of a value
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct Proof<T> {
