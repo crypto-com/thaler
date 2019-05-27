@@ -9,6 +9,7 @@ use chain_core::compute_app_hash;
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::tx::data::{attribute::TxAttributes, Tx, TxId};
 use chain_core::tx::fee::{LinearFee, Milli};
+use chain_core::tx::TransactionId;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;

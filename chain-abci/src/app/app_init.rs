@@ -9,6 +9,7 @@ use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
 use chain_core::init::config::InitConfig;
 use chain_core::state::{BlockHeight, RewardsPoolState};
+use chain_core::tx::TransactionId;
 use chain_core::tx::{
     data::{attribute::TxAttributes, Tx, TxId},
     fee::LinearFee,

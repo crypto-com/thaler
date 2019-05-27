@@ -13,8 +13,8 @@ use std::sync::Arc;
 #[allow(dead_code)]
 pub type AccountStorage = tree::HashTree<AccountWrapper, Storage>;
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct AccountWrapper(Account);
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct AccountWrapper(pub Account);
 
 impl Encode for AccountWrapper {
     #[inline]

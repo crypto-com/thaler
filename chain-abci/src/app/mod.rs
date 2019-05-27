@@ -9,6 +9,7 @@ use log::info;
 
 pub use self::app_init::{ChainNodeApp, ChainNodeState};
 use crate::storage::tx::spend_utxos;
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49

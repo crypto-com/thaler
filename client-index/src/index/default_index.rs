@@ -6,6 +6,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use client_common::balance::{BalanceChange, TransactionChange};
 use client_common::tendermint::Client;

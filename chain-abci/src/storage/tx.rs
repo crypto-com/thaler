@@ -1,11 +1,20 @@
 use crate::storage::account::AccountStorage;
+use crate::storage::account::AccountWrapper;
 use crate::storage::{COL_BODIES, COL_TX_META};
 use bit_vec::BitVec;
 use chain_core::common::Timespec;
+use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{Coin, CoinError};
-use chain_core::state::account::{AccountOpWitness, DepositBondTx, UnbondTx, WithdrawUnbondedTx};
+use chain_core::state::account::Account;
+use chain_core::state::account::{
+    to_account_key, AccountOpWitness, DepositBondTx, UnbondTx, WithdrawUnbondedTx,
+};
+use chain_core::tx::data::input::TxoPointer;
+use chain_core::tx::data::output::TxOut;
+use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::TxWitness;
+use chain_core::tx::TransactionId;
 use chain_core::tx::{data::Tx, TxAux};
 use kvdb::{DBTransaction, KeyValueDB};
 use parity_codec::Decode;
@@ -35,6 +44,10 @@ pub enum Error {
     OutputInTimelock,
     EcdsaCrypto(secp256k1::Error),
     IoError(io::Error),
+    AccountLookupError(starling::traits::Exception),
+    AccountNotFound,
+    AccountNotUnbonded,
+    AccountWithdrawOutputNotLocked,
 }
 
 impl fmt::Display for Error {
@@ -58,6 +71,13 @@ impl fmt::Display for Error {
             OutputInTimelock => write!(f, "output transaction is in timelock"),
             EcdsaCrypto(ref err) => write!(f, "ECDSA crypto error: {}", err),
             IoError(ref err) => write!(f, "IO error: {}", err),
+            AccountLookupError(ref err) => write!(f, "Account lookup error: {}", err),
+            AccountNotFound => write!(f, "account not found"),
+            AccountNotUnbonded => write!(f, "account not unbonded for withdrawal"),
+            AccountWithdrawOutputNotLocked => write!(
+                f,
+                "account withdrawal outputs not time-locked to unbonded_from"
+            ),
         }
     }
 }
@@ -99,59 +119,50 @@ pub struct ChainInfo {
     pub last_account_root_hash: StarlingFixedKey,
 }
 
-/// checks TransferTx -- TODO: this will be moved to an enclave
-/// TODO: when more address/sigs available, check Redeem addresses are never in outputs?
-fn verify_transfer(
-    maintx: &Tx,
-    witness: &TxWitness,
-    extra_info: ChainInfo,
-    db: Arc<dyn KeyValueDB>,
-) -> Result<Coin, Error> {
+fn check_attributes(tx_chain_hex_id: u8, extra_info: &ChainInfo) -> Result<(), Error> {
     // TODO: check other attributes?
     // check that chain IDs match
-    if extra_info.chain_hex_id != maintx.attributes.chain_hex_id {
+    if extra_info.chain_hex_id != tx_chain_hex_id {
         return Err(Error::WrongChainHexId);
     }
+    Ok(())
+}
+
+fn check_inputs_basic(inputs: &[TxoPointer], witness: &TxWitness) -> Result<(), Error> {
     // check that there are inputs
-    if maintx.inputs.is_empty() {
+    if inputs.is_empty() {
         return Err(Error::NoInputs);
     }
 
-    // check that there are outputs
-    if maintx.outputs.is_empty() {
-        return Err(Error::NoOutputs);
-    }
-
     // check that there are no duplicate inputs
-    let mut inputs = BTreeSet::new();
-    if !maintx.inputs.iter().all(|x| inputs.insert(x)) {
+    let mut inputs_s = BTreeSet::new();
+    if !inputs.iter().all(|x| inputs_s.insert(x)) {
         return Err(Error::DuplicateInputs);
     }
 
-    // check that all outputs have a non-zero amount
-    if !maintx.outputs.iter().all(|x| x.value > Coin::zero()) {
-        return Err(Error::ZeroCoin);
-    }
-
-    // Note: we don't need to check against MAX_COIN because Coin's
-    // constructor should already do it.
-
-    // TODO: check address attributes?
-
     // verify transaction witnesses
-    if maintx.inputs.len() < witness.len() {
+    if inputs.len() < witness.len() {
         return Err(Error::UnexpectedWitnesses);
     }
 
-    if maintx.inputs.len() > witness.len() {
+    if inputs.len() > witness.len() {
         return Err(Error::MissingWitnesses);
     }
 
-    let mut incoins = Coin::zero();
+    Ok(())
+}
 
+fn check_inputs_lookup(
+    main_txid: &TxId,
+    inputs: &[TxoPointer],
+    witness: &TxWitness,
+    extra_info: &ChainInfo,
+    db: Arc<dyn KeyValueDB>,
+) -> Result<Coin, Error> {
+    let mut incoins = Coin::zero();
     // verify that txids of inputs correspond to the owner/signer
     // and it'd check they are not spent
-    for (txin, in_witness) in maintx.inputs.iter().zip(witness.iter()) {
+    for (txin, in_witness) in inputs.iter().zip(witness.iter()) {
         let txo = db.get(COL_TX_META, &txin.id[..]);
         match txo {
             Ok(Some(v)) => {
@@ -174,13 +185,13 @@ fn verify_transfer(
                     }
                 }
 
-                let wv = in_witness.verify_tx_address(&maintx, &txout.address);
-                if wv.is_err() {
-                    return Err(Error::EcdsaCrypto(wv.unwrap_err()));
+                let wv = in_witness.verify_tx_address(main_txid, &txout.address);
+                if let Err(e) = wv {
+                    return Err(Error::EcdsaCrypto(e));
                 }
                 let sum = incoins + txout.value;
-                if sum.is_err() {
-                    return Err(Error::InvalidSum(sum.unwrap_err()));
+                if let Err(e) = sum {
+                    return Err(Error::InvalidSum(e));
                 } else {
                     incoins = sum.unwrap();
                 }
@@ -193,51 +204,141 @@ fn verify_transfer(
             }
         }
     }
-    // check sum(input amounts) >= sum(output amounts) + minimum fee
-    // TODO: should the fee be fixed / validation would reject TX if it pays more than the below minimum?
-    let min_fee: Coin = extra_info.min_fee_computed.to_coin();
+    Ok(incoins)
+}
 
-    let outsum = maintx.get_output_total().and_then(|x| x + min_fee);
-    if outsum.is_err() {
-        return Err(Error::InvalidSum(outsum.unwrap_err()));
+fn check_outputs_basic(outputs: &[TxOut]) -> Result<(), Error> {
+    // check that there are outputs
+    if outputs.is_empty() {
+        return Err(Error::NoOutputs);
     }
-    let outcoins = outsum.unwrap();
-    if incoins < outcoins {
+
+    // check that all outputs have a non-zero amount
+    if !outputs.iter().all(|x| x.value > Coin::zero()) {
+        return Err(Error::ZeroCoin);
+    }
+
+    // Note: we don't need to check against MAX_COIN because Coin's
+    // constructor should already do it.
+
+    // TODO: check address attributes?
+    Ok(())
+}
+
+fn check_input_output_sums(
+    incoins: Coin,
+    outcoins: Coin,
+    extra_info: &ChainInfo,
+) -> Result<Coin, Error> {
+    // check sum(input amounts) >= sum(output amounts) + minimum fee
+    let min_fee: Coin = extra_info.min_fee_computed.to_coin();
+    let total_outsum = outcoins + min_fee;
+    if let Err(coin_err) = total_outsum {
+        return Err(Error::InvalidSum(coin_err));
+    }
+    if incoins < total_outsum.unwrap() {
         return Err(Error::InputOutputDoNotMatch);
     }
-    Ok((incoins - outcoins).and_then(|x| x + min_fee).unwrap())
+    let fee_paid = (incoins - outcoins).unwrap();
+    Ok(fee_paid)
 }
 
-// MUST_TODO
+/// checks TransferTx -- TODO: this will be moved to an enclave
+/// TODO: when more address/sigs available, check Redeem addresses are never in outputs?
+fn verify_transfer(
+    maintx: &Tx,
+    witness: &TxWitness,
+    extra_info: ChainInfo,
+    db: Arc<dyn KeyValueDB>,
+) -> Result<Coin, Error> {
+    check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
+    check_inputs_basic(&maintx.inputs, witness)?;
+    check_outputs_basic(&maintx.outputs)?;
+    let incoins = check_inputs_lookup(&maintx.id(), &maintx.inputs, witness, &extra_info, db)?;
+    let outcoins = maintx.get_output_total();
+    if let Err(coin_err) = outcoins {
+        return Err(Error::InvalidSum(coin_err));
+    }
+    check_input_output_sums(incoins, outcoins.unwrap(), &extra_info)
+}
+
 fn verify_bonded_deposit(
-    _maintx: &DepositBondTx,
-    _witness: &TxWitness,
-    _extra_info: ChainInfo,
-    _db: Arc<dyn KeyValueDB>,
+    maintx: &DepositBondTx,
+    witness: &TxWitness,
+    extra_info: ChainInfo,
+    db: Arc<dyn KeyValueDB>,
     _accounts: &AccountStorage,
 ) -> Result<Coin, Error> {
-    unimplemented!("MUST_TODO -- account-related TX validation")
+    check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
+    check_inputs_basic(&maintx.inputs, witness)?;
+    let incoins = check_inputs_lookup(&maintx.id(), &maintx.inputs, witness, &extra_info, db)?;
+    check_input_output_sums(incoins, maintx.value, &extra_info)
+    // TODO: check account not jailed etc.?
 }
 
-// MUST_TODO
+/// checks that the account can be retrieved from the trie storage
+fn get_account(
+    account_address: &RedeemAddress,
+    extra_info: &ChainInfo,
+    accounts: &AccountStorage,
+) -> Result<Account, Error> {
+    let account_key = to_account_key(account_address);
+    let items = accounts.get(&extra_info.last_account_root_hash, &mut [&account_key]);
+    if let Err(e) = items {
+        return Err(Error::AccountLookupError(e));
+    }
+    let account = items.unwrap()[&account_key].clone();
+    match account {
+        None => Err(Error::AccountNotFound),
+        Some(AccountWrapper(a)) => Ok(a),
+    }
+}
+
 fn verify_unbonding(
-    _maintx: &UnbondTx,
-    _witness: &AccountOpWitness,
-    _extra_info: ChainInfo,
-    _accounts: &AccountStorage,
+    maintx: &UnbondTx,
+    witness: &AccountOpWitness,
+    extra_info: ChainInfo,
+    accounts: &AccountStorage,
 ) -> Result<Coin, Error> {
-    unimplemented!("MUST_TODO -- account-related TX validation")
+    check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
+    let account_address = witness.verify_tx_recover_address(&maintx.id());
+    if let Err(e) = account_address {
+        return Err(Error::EcdsaCrypto(e));
+    }
+    let account = get_account(&account_address.unwrap(), &extra_info, accounts)?;
+    check_input_output_sums(account.bonded, maintx.value, &extra_info)
 }
 
-// MUST_TODO
 fn verify_unbonded_withdraw(
-    _maintx: &WithdrawUnbondedTx,
-    _witness: &AccountOpWitness,
-    _extra_info: ChainInfo,
-    _db: Arc<dyn KeyValueDB>,
-    _accounts: &AccountStorage,
+    maintx: &WithdrawUnbondedTx,
+    witness: &AccountOpWitness,
+    extra_info: ChainInfo,
+    accounts: &AccountStorage,
 ) -> Result<Coin, Error> {
-    unimplemented!("MUST_TODO -- account-related TX validation")
+    check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
+    check_outputs_basic(&maintx.outputs)?;
+    let account_address = witness.verify_tx_recover_address(&maintx.id());
+    if let Err(e) = account_address {
+        return Err(Error::EcdsaCrypto(e));
+    }
+    let account = get_account(&account_address.unwrap(), &extra_info, accounts)?;
+    // checks that account can withdraw to outputs
+    if account.unbonded_from > extra_info.previous_block_time {
+        return Err(Error::AccountNotUnbonded);
+    }
+    // checks that outputs are locked to the unbonded time
+    if !maintx
+        .outputs
+        .iter()
+        .all(|x| x.valid_from == Some(account.unbonded_from))
+    {
+        return Err(Error::AccountWithdrawOutputNotLocked);
+    }
+    let outcoins = maintx.get_output_total();
+    if let Err(coin_err) = outcoins {
+        return Err(Error::InvalidSum(coin_err));
+    }
+    check_input_output_sums(account.unbonded, outcoins.unwrap(), &extra_info)
 }
 
 /// Checks TX against the current DB and returns an `Error` if something fails.
@@ -257,7 +358,7 @@ pub fn verify(
             verify_unbonding(maintx, witness, extra_info, accounts)?
         }
         TxAux::WithdrawUnbondedStakeTx(maintx, witness) => {
-            verify_unbonded_withdraw(maintx, witness, extra_info, db, accounts)?
+            verify_unbonded_withdraw(maintx, witness, extra_info, accounts)?
         }
     };
     Ok(Fee::new(paid_fee))
