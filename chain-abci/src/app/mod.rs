@@ -159,8 +159,7 @@ mod tests {
     use crate::storage::*;
     use abci::Application;
     use bit_vec::BitVec;
-    use chain_core::common::H256;
-    use chain_core::common::{merkle::MerkleTree, HASH_SIZE_256};
+    use chain_core::common::{MerkleTree, Proof, H256, HASH_SIZE_256};
     use chain_core::compute_app_hash;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
@@ -315,7 +314,7 @@ mod tests {
         let utxos = c.generate_utxos(&TxAttributes::new(0));
         let rp = c.get_genesis_rewards_pool();
         let txids: Vec<TxId> = utxos.iter().map(|x| x.id()).collect();
-        let tree = MerkleTree::new(&txids);
+        let tree = MerkleTree::new(txids);
         let genesis_app_hash = compute_app_hash(&tree, &rp);
         let example_hash = hex::encode_upper(genesis_app_hash);
         let mut app = ChainNodeApp::new_with_storage(
@@ -776,11 +775,20 @@ mod tests {
         let qresp = app.query(&qreq);
         assert_eq!(tx, Tx::decode(&mut qresp.value.as_slice()).unwrap());
         let proof = qresp.proof.unwrap();
-        assert_eq!(proof.ops.len(), 3);
-        assert_eq!(proof.ops[0].data, tx.id());
+
+        assert_eq!(proof.ops.len(), 2);
+
+        let mut transaction_root_hash = [0u8; 32];
+        transaction_root_hash.copy_from_slice(proof.ops[0].key.as_slice());
+
+        let mut transaction_proof_data = proof.ops[0].data.as_slice();
+        let transaction_proof = <Proof<H256>>::decode(&mut transaction_proof_data).unwrap();
+
+        assert!(transaction_proof.verify(&transaction_root_hash));
+
         let rewards_pool_part = app.last_state.clone().unwrap().rewards_pool.hash();
         let mut bs = Vec::new();
-        bs.extend(proof.ops[1].data.iter());
+        bs.extend(transaction_root_hash.to_vec());
         bs.extend(&rewards_pool_part);
 
         assert_eq!(txid_hash(&bs).to_vec(), cresp.data);
@@ -789,7 +797,7 @@ mod tests {
         qreq2.path = "witness".into();
         let qresp = app.query(&qreq2);
         assert_eq!(qresp.value, witness.encode());
-        assert_eq!(proof.ops[2].data, txid_hash(&qresp.value));
+        assert_eq!(proof.ops[1].data, txid_hash(&qresp.value));
     }
 
 }

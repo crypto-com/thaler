@@ -1,14 +1,38 @@
-use parity_codec::{Decode, Encode, Input, Output};
-use serde::{Deserialize, Serialize};
+use std::fmt;
 
-use crate::common::{H256, H264, H512};
+use parity_codec::{Decode, Encode, Input, Output};
+
+use crate::common::{H264, H512};
 
 /// there's no [T; 33] / [u8; 33] impl in parity-codec :/
+#[derive(Clone)]
 pub struct RawPubkey(H264);
 
 impl From<H264> for RawPubkey {
     fn from(h: H264) -> Self {
         RawPubkey(h)
+    }
+}
+
+impl AsRef<[u8]> for RawPubkey {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+impl PartialEq for RawPubkey {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.as_bytes() == other.as_bytes()
+    }
+}
+
+impl Eq for RawPubkey {}
+
+impl fmt::Debug for RawPubkey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&&self.0[..], f)
     }
 }
 
@@ -39,18 +63,3 @@ impl Decode for RawPubkey {
 }
 
 pub type RawSignature = H512;
-
-/// Encodes whether a left or right branch was taken
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
-pub enum MerklePath {
-    LFound = 1,
-    RFound = 2,
-}
-
-/// Contains the path taken + the other branch's hash
-/// TODO: it's a probably bit wasteful encoding now, perhaps more efficient encoding
-/// One option would be (a level up / in TxInWitness) to have a N-bit BitVec that denotes
-/// in each bit whether the left or right branch was taken
-/// followed by N*32 bytes (N hashes of the other branches)
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
-pub struct ProofOp(pub MerklePath, pub H256);
