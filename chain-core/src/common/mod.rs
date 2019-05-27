@@ -3,7 +3,7 @@ use digest::Digest;
 /// Generic merkle tree
 mod merkle_tree;
 
-pub use merkle_tree::{hash, MerkleTree, NodeType, Proof};
+pub use merkle_tree::{MerkleTree, Proof};
 
 /// Size in bytes of a 256-bit hash
 pub const HASH_SIZE_256: usize = 32;
