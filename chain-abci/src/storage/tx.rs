@@ -231,7 +231,7 @@ fn check_input_output_sums(
     incoins: Coin,
     outcoins: Coin,
     extra_info: &ChainInfo,
-) -> Result<Coin, Error> {
+) -> Result<Fee, Error> {
     // check sum(input amounts) >= sum(output amounts) + minimum fee
     let min_fee: Coin = extra_info.min_fee_computed.to_coin();
     let total_outsum = outcoins + min_fee;
@@ -242,7 +242,7 @@ fn check_input_output_sums(
         return Err(Error::InputOutputDoNotMatch);
     }
     let fee_paid = (incoins - outcoins).unwrap();
-    Ok(fee_paid)
+    Ok(Fee::new(fee_paid))
 }
 
 /// checks TransferTx -- TODO: this will be moved to an enclave
@@ -252,7 +252,7 @@ fn verify_transfer(
     witness: &TxWitness,
     extra_info: ChainInfo,
     db: Arc<dyn KeyValueDB>,
-) -> Result<Coin, Error> {
+) -> Result<Fee, Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_inputs_basic(&maintx.inputs, witness)?;
     check_outputs_basic(&maintx.outputs)?;
@@ -270,11 +270,14 @@ fn verify_bonded_deposit(
     extra_info: ChainInfo,
     db: Arc<dyn KeyValueDB>,
     _accounts: &AccountStorage,
-) -> Result<Coin, Error> {
+) -> Result<Fee, Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_inputs_basic(&maintx.inputs, witness)?;
     let incoins = check_inputs_lookup(&maintx.id(), &maintx.inputs, witness, &extra_info, db)?;
-    check_input_output_sums(incoins, maintx.value, &extra_info)
+    if incoins <= extra_info.min_fee_computed.to_coin() {
+        return Err(Error::InputOutputDoNotMatch);
+    }
+    Ok(extra_info.min_fee_computed)
     // TODO: check account not jailed etc.?
 }
 
@@ -301,7 +304,7 @@ fn verify_unbonding(
     witness: &AccountOpWitness,
     extra_info: ChainInfo,
     accounts: &AccountStorage,
-) -> Result<Coin, Error> {
+) -> Result<Fee, Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     let account_address = witness.verify_tx_recover_address(&maintx.id());
     if let Err(e) = account_address {
@@ -312,7 +315,13 @@ fn verify_unbonding(
     if maintx.nonce != account.nonce {
         return Err(Error::AccountIncorrectNonce);
     }
-    check_input_output_sums(account.bonded, maintx.value, &extra_info)
+    // check that a non-zero amount is being unbound
+    if maintx.value == Coin::zero() {
+        return Err(Error::ZeroCoin);
+    }
+    check_input_output_sums(account.bonded, maintx.value, &extra_info)?;
+    // only pay the minimal fee from the bonded amount if correct; the rest remains in bonded
+    Ok(extra_info.min_fee_computed)
 }
 
 fn verify_unbonded_withdraw(
@@ -320,7 +329,7 @@ fn verify_unbonded_withdraw(
     witness: &AccountOpWitness,
     extra_info: ChainInfo,
     accounts: &AccountStorage,
-) -> Result<Coin, Error> {
+) -> Result<Fee, Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_outputs_basic(&maintx.outputs)?;
     let account_address = witness.verify_tx_recover_address(&maintx.id());
@@ -371,7 +380,7 @@ pub fn verify(
             verify_unbonded_withdraw(maintx, witness, extra_info, accounts)?
         }
     };
-    Ok(Fee::new(paid_fee))
+    Ok(paid_fee)
 }
 
 #[cfg(test)]
@@ -558,10 +567,20 @@ pub mod tests {
             let result = verify(&txaux, extra_info, db.clone(), &accounts);
             expect_error(&result, Error::AccountIncorrectNonce);
         }
+        // ZeroCoin
+        {
+            let mut tx = tx.clone();
+            tx.value = Coin::zero();
+            let txaux = TxAux::UnbondStakeTx(
+                tx.clone(),
+                get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            );
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(&result, Error::ZeroCoin);
+        }
         // InputOutputDoNotMatch
         {
             let mut tx = tx.clone();
-
             tx.value = (tx.value + Coin::one()).unwrap();
             let txaux = TxAux::UnbondStakeTx(
                 tx.clone(),
@@ -572,6 +591,165 @@ pub mod tests {
         }
     }
 
+    fn prepare_app_valid_withdraw_tx(
+        unbonded_from: Timespec,
+    ) -> (
+        TxAux,
+        WithdrawUnbondedTx,
+        AccountOpWitness,
+        SecretKey,
+        AccountStorage,
+        StarlingFixedKey,
+    ) {
+        let mut tree = AccountStorage::new(Storage::new_db(create_db()), 20).expect("account db");
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+
+        let addr = RedeemAddress::from(&public_key);
+        let account = Account::new(1, Coin::zero(), Coin::one(), unbonded_from, addr);
+        let key = account.key();
+        let wrapped = AccountWrapper(account);
+        let new_root = tree
+            .insert(None, &mut [&key], &mut vec![&wrapped])
+            .expect("insert");
+
+        let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
+        let pk2 = PublicKey::from_secret_key(&secp, &sk2);
+
+        let outputs = vec![
+            TxOut::new_with_timelock(ExtendedAddr::BasicRedeem(addr), Coin::new(9).unwrap(), 0),
+            TxOut::new_with_timelock(
+                ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
+                Coin::new(1).unwrap(),
+                0,
+            ),
+        ];
+
+        let tx = WithdrawUnbondedTx::new(1, outputs, AccountOpAttributes::new(DEFAULT_CHAIN_ID));
+        let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
+        let txaux = TxAux::WithdrawUnbondedStakeTx(tx.clone(), witness.clone());
+        (txaux, tx.clone(), witness, secret_key, tree, new_root)
+    }
+
+    #[test]
+    fn existing_account_withdraw_tx_should_verify() {
+        let (txaux, _, _, _, accounts, last_account_root_hash) = prepare_app_valid_withdraw_tx(0);
+        let extra_info = ChainInfo {
+            min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
+                .calculate_for_txaux(&txaux)
+                .expect("invalid fee policy"),
+            chain_hex_id: DEFAULT_CHAIN_ID,
+            previous_block_time: 0,
+            last_account_root_hash,
+        };
+        let result = verify(&txaux, extra_info, create_db(), &accounts);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_account_withdraw_verify_fail() {
+        let db = create_db();
+        let (txaux, tx, witness, secret_key, accounts, last_account_root_hash) =
+            prepare_app_valid_withdraw_tx(0);
+        let extra_info = ChainInfo {
+            min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
+                .calculate_for_txaux(&txaux)
+                .expect("invalid fee policy"),
+            chain_hex_id: DEFAULT_CHAIN_ID,
+            previous_block_time: 0,
+            last_account_root_hash,
+        };
+        // WrongChainHexId
+        {
+            let mut extra_info = extra_info.clone();
+            extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(&result, Error::WrongChainHexId);
+        }
+        // NoOutputs
+        {
+            let mut tx = tx.clone();
+            tx.outputs.clear();
+            let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness.clone());
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(&result, Error::NoOutputs);
+        }
+        // ZeroCoin
+        {
+            let mut tx = tx.clone();
+            tx.outputs[0].value = Coin::zero();
+            let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness.clone());
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(&result, Error::ZeroCoin);
+        }
+        // InvalidSum
+        {
+            let mut tx = tx.clone();
+            tx.outputs[0].value = Coin::max();
+            let outp = tx.outputs[0].clone();
+            tx.outputs.push(outp);
+            let txaux = TxAux::WithdrawUnbondedStakeTx(
+                tx.clone(),
+                get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            );
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(
+                &result,
+                Error::InvalidSum(CoinError::OutOfBound(Coin::max().into())),
+            );
+        }
+        // InputOutputDoNotMatch
+        {
+            let mut tx = tx.clone();
+            tx.outputs[0].value = (tx.outputs[0].value + Coin::one()).unwrap();
+            let txaux = TxAux::WithdrawUnbondedStakeTx(
+                tx.clone(),
+                get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            );
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(&result, Error::InputOutputDoNotMatch);
+        }
+        // AccountNotFound
+        {
+            let mut extra_info = extra_info.clone();
+            extra_info.last_account_root_hash = [0; 32];
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(&result, Error::AccountNotFound);
+        }
+        // AccountIncorrectNonce
+        {
+            let mut tx = tx.clone();
+            tx.nonce = 0;
+            let txaux = TxAux::WithdrawUnbondedStakeTx(
+                tx.clone(),
+                get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            );
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(&result, Error::AccountIncorrectNonce);
+        }
+        // AccountWithdrawOutputNotLocked
+        {
+            let mut tx = tx.clone();
+            tx.outputs[0].valid_from = None;
+            let txaux = TxAux::WithdrawUnbondedStakeTx(
+                tx.clone(),
+                get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            );
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(&result, Error::AccountWithdrawOutputNotLocked);
+        }
+        // AccountNotUnbonded
+        {
+            let (txaux, _, _, _, accounts, last_account_root_hash) =
+                prepare_app_valid_withdraw_tx(20);
+            let mut extra_info = extra_info.clone();
+            extra_info.last_account_root_hash = last_account_root_hash;
+            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            expect_error(&result, Error::AccountNotUnbonded);
+        }
+    }
+
     fn prepare_app_valid_deposit_tx(
         timelocked: bool,
     ) -> (
@@ -579,7 +757,6 @@ pub mod tests {
         TxAux,
         DepositBondTx,
         TxWitness,
-        SecretKey,
         AccountStorage,
     ) {
         let (db, txp, _, secret_key) = prepate_init_tx(timelocked);
@@ -589,7 +766,6 @@ pub mod tests {
         let tx = DepositBondTx::new(
             vec![txp],
             RedeemAddress::from(&pk2),
-            Coin::new(9).unwrap(),
             AccountOpAttributes::new(DEFAULT_CHAIN_ID),
         );
 
@@ -600,7 +776,6 @@ pub mod tests {
             txaux,
             tx.clone(),
             witness.into(),
-            secret_key,
             AccountStorage::new(Storage::new_db(create_db()), 20).expect("account db"),
         )
     }
@@ -620,7 +795,7 @@ pub mod tests {
         };
         let result = verify(&txaux, extra_info, db, &accounts);
         assert!(result.is_ok());
-        let (db, txaux, _, _, _, accounts) = prepare_app_valid_deposit_tx(false);
+        let (db, txaux, _, _, accounts) = prepare_app_valid_deposit_tx(false);
         let result = verify(&txaux, extra_info, db, &accounts);
         assert!(result.is_ok());
     }
@@ -638,7 +813,7 @@ pub mod tests {
 
     #[test]
     fn test_deposit_verify_fail() {
-        let (db, txaux, tx, witness, secret_key, accounts) = prepare_app_valid_deposit_tx(false);
+        let (db, txaux, tx, witness, accounts) = prepare_app_valid_deposit_tx(false);
         let extra_info = ChainInfo {
             min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
                 .calculate_for_txaux(&txaux)
@@ -730,12 +905,8 @@ pub mod tests {
         }
         // InputOutputDoNotMatch
         {
-            let mut tx = tx.clone();
-            let mut witness = witness.clone();
-
-            tx.value = (tx.value + Coin::one()).unwrap();
-            witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key);
-            let txaux = TxAux::DepositStakeTx(tx, witness);
+            let mut extra_info = extra_info.clone();
+            extra_info.min_fee_computed = Fee::new(Coin::one());
             let result = verify(&txaux, extra_info, db.clone(), &accounts);
             expect_error(&result, Error::InputOutputDoNotMatch);
         }

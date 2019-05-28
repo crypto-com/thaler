@@ -110,7 +110,6 @@ impl Decode for AccountOpAttributes {
 pub struct DepositBondTx {
     pub inputs: Vec<TxoPointer>,
     pub to_account: RedeemAddress,
-    pub value: Coin,
     pub attributes: AccountOpAttributes,
 }
 
@@ -120,13 +119,11 @@ impl DepositBondTx {
     pub fn new(
         inputs: Vec<TxoPointer>,
         to_account: RedeemAddress,
-        value: Coin,
         attributes: AccountOpAttributes,
     ) -> Self {
         DepositBondTx {
             inputs,
             to_account,
-            value,
             attributes,
         }
     }
@@ -137,7 +134,7 @@ impl fmt::Display for DepositBondTx {
         for input in self.inputs.iter() {
             writeln!(f, "-> {}", input)?;
         }
-        writeln!(f, "   {} {} (bonded) ->", self.to_account, self.value)?;
+        writeln!(f, "   {} (bonded) ->", self.to_account)?;
         write!(f, "")
     }
 }
@@ -174,7 +171,6 @@ impl fmt::Display for UnbondTx {
 /// (update's account's unbonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct WithdrawUnbondedTx {
-    pub value: Coin,
     pub nonce: Nonce,
     pub outputs: Vec<TxOut>,
     pub attributes: AccountOpAttributes,
@@ -183,14 +179,8 @@ pub struct WithdrawUnbondedTx {
 impl TransactionId for WithdrawUnbondedTx {}
 
 impl WithdrawUnbondedTx {
-    pub fn new(
-        value: Coin,
-        nonce: Nonce,
-        outputs: Vec<TxOut>,
-        attributes: AccountOpAttributes,
-    ) -> Self {
+    pub fn new(nonce: Nonce, outputs: Vec<TxOut>, attributes: AccountOpAttributes) -> Self {
         WithdrawUnbondedTx {
-            value,
             nonce,
             outputs,
             attributes,
@@ -207,7 +197,7 @@ impl WithdrawUnbondedTx {
 
 impl fmt::Display for WithdrawUnbondedTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "-> {} (unbonded) (nonce: {})", self.value, self.nonce)?;
+        writeln!(f, "-> (unbonded) (nonce: {})", self.nonce)?;
         for output in self.outputs.iter() {
             writeln!(f, "   {} ->", output)?;
         }
