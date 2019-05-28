@@ -76,6 +76,12 @@ pub struct AccountOpAttributes {
     // TODO: Other attributes?
 }
 
+impl AccountOpAttributes {
+    pub fn new(chain_hex_id: u8) -> Self {
+        AccountOpAttributes { chain_hex_id }
+    }
+}
+
 impl Encode for AccountOpAttributes {
     fn encode_to<W: Output>(&self, dest: &mut W) {
         dest.push_byte(0);
@@ -110,6 +116,22 @@ pub struct DepositBondTx {
 
 impl TransactionId for DepositBondTx {}
 
+impl DepositBondTx {
+    pub fn new(
+        inputs: Vec<TxoPointer>,
+        to_account: RedeemAddress,
+        value: Coin,
+        attributes: AccountOpAttributes,
+    ) -> Self {
+        DepositBondTx {
+            inputs,
+            to_account,
+            value,
+            attributes,
+        }
+    }
+}
+
 impl fmt::Display for DepositBondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for input in self.inputs.iter() {
@@ -131,6 +153,16 @@ pub struct UnbondTx {
 
 impl TransactionId for UnbondTx {}
 
+impl UnbondTx {
+    pub fn new(value: Coin, nonce: Nonce, attributes: AccountOpAttributes) -> Self {
+        UnbondTx {
+            value,
+            nonce,
+            attributes,
+        }
+    }
+}
+
 impl fmt::Display for UnbondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "unbonded: {} (nonce: {})", self.value, self.nonce)?;
@@ -149,6 +181,22 @@ pub struct WithdrawUnbondedTx {
 }
 
 impl TransactionId for WithdrawUnbondedTx {}
+
+impl WithdrawUnbondedTx {
+    pub fn new(
+        value: Coin,
+        nonce: Nonce,
+        outputs: Vec<TxOut>,
+        attributes: AccountOpAttributes,
+    ) -> Self {
+        WithdrawUnbondedTx {
+            value,
+            nonce,
+            outputs,
+            attributes,
+        }
+    }
+}
 
 impl WithdrawUnbondedTx {
     /// returns the total transaction output amount (sum of all output amounts)
@@ -173,6 +221,10 @@ impl fmt::Display for WithdrawUnbondedTx {
 pub struct AccountOpWitness(EcdsaSignature);
 
 impl AccountOpWitness {
+    pub fn new(sig: EcdsaSignature) -> Self {
+        AccountOpWitness(sig)
+    }
+
     /// verify the signature against the given transation `Tx`
     /// and recovers the address from it
     ///

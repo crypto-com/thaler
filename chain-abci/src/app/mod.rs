@@ -476,7 +476,7 @@ mod tests {
             ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
             Coin::unit(),
         ));
-        let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx, &secret_key)];
+        let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx.id(), &secret_key)];
         let txaux = TxAux::new(tx, witness.into());
         (app, txaux)
     }
