@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt;
 
 use parity_codec::{Decode, Encode, Input, Output};
@@ -29,6 +30,36 @@ impl PartialEq for RawPubkey {
 }
 
 impl Eq for RawPubkey {}
+
+impl PartialOrd for RawPubkey {
+    #[inline]
+    fn partial_cmp(&self, other: &RawPubkey) -> Option<Ordering> {
+        PartialOrd::partial_cmp(&&self.0[..], &&other.0[..])
+    }
+    #[inline]
+    fn lt(&self, other: &RawPubkey) -> bool {
+        PartialOrd::lt(&&self.0[..], &&other.0[..])
+    }
+    #[inline]
+    fn le(&self, other: &RawPubkey) -> bool {
+        PartialOrd::le(&&self.0[..], &&other.0[..])
+    }
+    #[inline]
+    fn ge(&self, other: &RawPubkey) -> bool {
+        PartialOrd::ge(&&self.0[..], &&other.0[..])
+    }
+    #[inline]
+    fn gt(&self, other: &RawPubkey) -> bool {
+        PartialOrd::gt(&&self.0[..], &&other.0[..])
+    }
+}
+
+impl Ord for RawPubkey {
+    #[inline]
+    fn cmp(&self, other: &RawPubkey) -> Ordering {
+        Ord::cmp(&&self.0[..], &&other.0[..])
+    }
+}
 
 impl fmt::Debug for RawPubkey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

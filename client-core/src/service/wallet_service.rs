@@ -1,16 +1,21 @@
 use failure::ResultExt;
-use hex::encode;
+use parity_codec::{Decode, Encode};
 use secstr::SecUtf8;
-use zeroize::Zeroize;
 
-use chain_core::init::address::RedeemAddress;
+use chain_core::common::H256;
 use client_common::{ErrorKind, Result, SecureStorage, Storage};
 
-use crate::{PrivateKey, PublicKey};
+use crate::PublicKey;
 
 const KEYSPACE: &str = "core_wallet";
 
-/// Exposes functionality for managing wallets
+#[derive(Debug, Default, Encode, Decode)]
+struct Wallet {
+    pub public_keys: Vec<PublicKey>,
+    pub multi_sig_addresses: Vec<H256>,
+}
+
+/// Maintains mapping `wallet-name -> Vec<public-key>`
 #[derive(Debug, Default, Clone)]
 pub struct WalletService<T: Storage> {
     storage: T,
@@ -25,37 +30,66 @@ where
         WalletService { storage }
     }
 
-    /// Creates a new wallet and returns wallet ID
-    pub fn create(&self, name: &str, passphrase: &SecUtf8) -> Result<String> {
-        if self.storage.contains_key(KEYSPACE, name)? {
-            Err(ErrorKind::AlreadyExists.into())
-        } else {
-            let mut private_key = PrivateKey::new()?;
-            let public_key = PublicKey::from(&private_key);
+    fn get_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<Wallet> {
+        let wallet_bytes = self.storage.get_secure(KEYSPACE, name, passphrase)?;
 
-            private_key.zeroize();
-
-            let address = RedeemAddress::from(&public_key);
-
-            self.storage
-                .set_secure(KEYSPACE, name, address.0.to_vec(), passphrase)?;
-
-            Ok(encode(address.0))
+        match wallet_bytes {
+            None => Err(ErrorKind::WalletNotFound.into()),
+            Some(wallet_bytes) => Wallet::decode(&mut wallet_bytes.as_slice())
+                .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError)),
         }
     }
 
-    /// Retrieves a wallet ID from storage
-    pub fn get(&self, name: &str, passphrase: &SecUtf8) -> Result<Option<String>> {
-        let address = self.storage.get_secure(KEYSPACE, name, passphrase)?;
+    fn set_wallet(&self, name: &str, passphrase: &SecUtf8, wallet: Wallet) -> Result<()> {
+        self.storage
+            .set_secure(KEYSPACE, name, wallet.encode(), passphrase)?;
 
-        match address {
-            None => Ok(None),
-            Some(inner) => {
-                let address =
-                    RedeemAddress::try_from(&inner).context(ErrorKind::DeserializationError)?;
-                Ok(Some(encode(address.0)))
-            }
+        Ok(())
+    }
+
+    /// Creates a new wallet and returns wallet ID
+    pub fn create(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
+        if self.storage.contains_key(KEYSPACE, name)? {
+            Err(ErrorKind::AlreadyExists.into())
+        } else {
+            self.set_wallet(name, passphrase, Wallet::default())
         }
+    }
+
+    /// Returns all public keys stored in a wallet
+    pub fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>> {
+        let wallet = self.get_wallet(name, passphrase)?;
+        Ok(wallet.public_keys)
+    }
+
+    /// Returns all multi-sig addresses stored in a wallet
+    pub fn multi_sig_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<H256>> {
+        let wallet = self.get_wallet(name, passphrase)?;
+        Ok(wallet.multi_sig_addresses)
+    }
+
+    /// Adds a public key to given wallet
+    pub fn add_public_key(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        public_key: PublicKey,
+    ) -> Result<()> {
+        let mut wallet = self.get_wallet(name, passphrase)?;
+        wallet.public_keys.push(public_key);
+        self.set_wallet(name, passphrase, wallet)
+    }
+
+    /// Adds a multi-sig address to given wallet
+    pub fn add_multi_sig_address(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        address: H256,
+    ) -> Result<()> {
+        let mut wallet = self.get_wallet(name, passphrase)?;
+        wallet.multi_sig_addresses.push(address);
+        self.set_wallet(name, passphrase, wallet)
     }
 
     /// Retrieves names of all the stored wallets
@@ -79,19 +113,35 @@ mod tests {
 
     use client_common::storage::MemoryStorage;
 
+    use crate::PrivateKey;
+
     #[test]
     fn check_flow() {
         let wallet_service = WalletService::new(MemoryStorage::default());
 
-        let wallet = wallet_service
-            .get("name", &SecUtf8::from("passphrase"))
-            .expect("Error while retrieving wallet information");
+        let passphrase = SecUtf8::from("passphrase");
 
-        assert!(wallet.is_none(), "Wallet is already present in storage");
+        let error = wallet_service
+            .public_keys("name", &passphrase)
+            .expect_err("Retrieved public keys for non-existent wallet");
 
-        let wallet_id = wallet_service
-            .create("name", &SecUtf8::from("passphrase"))
-            .expect("Unable to create new wallet");
+        assert_eq!(error.kind(), ErrorKind::WalletNotFound);
+
+        assert!(wallet_service.create("name", &passphrase).is_ok());
+
+        let error = wallet_service
+            .create("name", &SecUtf8::from("new_passphrase"))
+            .expect_err("Created duplicate wallet");
+
+        assert_eq!(error.kind(), ErrorKind::AlreadyExists);
+
+        assert_eq!(
+            0,
+            wallet_service
+                .public_keys("name", &passphrase)
+                .unwrap()
+                .len()
+        );
 
         let error = wallet_service
             .create("name", &SecUtf8::from("passphrase_new"))
@@ -99,20 +149,27 @@ mod tests {
 
         assert_eq!(error.kind(), ErrorKind::AlreadyExists, "Invalid error kind");
 
-        let wallet_id_new = wallet_service
-            .get("name", &SecUtf8::from("passphrase"))
-            .expect("Error while retrieving wallet information")
-            .expect("Wallet with given name not found");
+        let private_key = PrivateKey::new().unwrap();
+        let public_key = PublicKey::from(&private_key);
 
-        assert_eq!(wallet_id, wallet_id_new, "Wallet ids should match");
-        assert_eq!("name".to_string(), wallet_service.names().unwrap()[0]);
+        wallet_service
+            .add_public_key("name", &passphrase, public_key)
+            .unwrap();
 
-        assert!(wallet_service.clear().is_ok());
+        assert_eq!(
+            1,
+            wallet_service
+                .public_keys("name", &passphrase)
+                .unwrap()
+                .len()
+        );
 
-        assert!(wallet_service
-            .get("name", &SecUtf8::from("passphrase"))
-            .unwrap()
-            .is_none());
-        assert_eq!(0, wallet_service.names().unwrap().len());
+        wallet_service.clear().unwrap();
+
+        let error = wallet_service
+            .public_keys("name", &passphrase)
+            .expect_err("Retrieved public keys for non-existent wallet");
+
+        assert_eq!(error.kind(), ErrorKind::WalletNotFound);
     }
 }

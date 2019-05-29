@@ -2,6 +2,7 @@ use failure::ResultExt;
 use secp256k1::RecoveryId;
 use secstr::SecUtf8;
 
+use crate::{TransactionBuilder, WalletClient};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -11,10 +12,9 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::fee::{Fee, FeeAlgorithm};
 use chain_core::tx::witness::{EcdsaSignature, TxInWitness, TxWitness};
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use client_common::{ErrorKind, Result};
-
-use crate::{TransactionBuilder, WalletClient};
 
 /// Default implementation of `TransactionBuilder`
 ///
@@ -103,9 +103,12 @@ where
         for input in &transaction.inputs {
             let input = wallet_client.output(&input.id, input.index)?;
 
-            match wallet_client.private_key(name, passphrase, &input.address)? {
-                None => return Err(ErrorKind::PrivateKeyNotFound.into()),
-                Some(private_key) => witnesses.push(private_key.sign(&transaction.id())?),
+            match wallet_client.public_key(name, passphrase, &input.address)? {
+                None => return Err(ErrorKind::WalletNotFound.into()),
+                Some(public_key) => match wallet_client.private_key(passphrase, &public_key)? {
+                    None => return Err(ErrorKind::PrivateKeyNotFound.into()),
+                    Some(private_key) => witnesses.push(private_key.sign(&transaction.id())?),
+                },
             }
         }
 
@@ -292,6 +295,12 @@ mod tests {
         txid_0: TxId,
         txid_1: TxId,
         txid_2: TxId,
+        private_key_0: PrivateKey,
+        private_key_1: PrivateKey,
+        private_key_2: PrivateKey,
+        public_key_0: PublicKey,
+        public_key_1: PublicKey,
+        public_key_2: PublicKey,
         addr_0: ExtendedAddr,
         addr_1: ExtendedAddr,
         addr_2: ExtendedAddr,
@@ -325,19 +334,43 @@ mod tests {
 
     impl Default for MockWalletClient {
         fn default() -> Self {
+            let private_key_0 = PrivateKey::deserialize_from(&[
+                197, 83, 160, 54, 4, 35, 93, 248, 252, 209, 79, 198, 209, 229, 177, 138, 33, 159,
+                188, 198, 233, 62, 255, 207, 207, 118, 142, 41, 119, 167, 78, 194,
+            ])
+            .unwrap();
+            let private_key_1 = PrivateKey::deserialize_from(&[
+                197, 83, 160, 54, 4, 35, 93, 248, 252, 209, 79, 198, 209, 229, 177, 138, 33, 159,
+                188, 198, 233, 62, 255, 207, 207, 118, 142, 41, 119, 167, 78, 195,
+            ])
+            .unwrap();
+            let private_key_2 = PrivateKey::deserialize_from(&[
+                197, 83, 160, 54, 4, 35, 93, 248, 252, 209, 79, 198, 209, 229, 177, 138, 33, 159,
+                188, 198, 233, 62, 255, 207, 207, 118, 142, 41, 119, 167, 78, 196,
+            ])
+            .unwrap();
+
+            let public_key_0 = PublicKey::from(&private_key_0);
+            let public_key_1 = PublicKey::from(&private_key_1);
+            let public_key_2 = PublicKey::from(&private_key_2);
+
+            let addr_0 = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key_0));
+            let addr_1 = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key_1));
+            let addr_2 = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key_2));
+
             Self {
                 txid_0: [0u8; 32],
                 txid_1: [1u8; 32],
                 txid_2: [2u8; 32],
-                addr_0: ExtendedAddr::BasicRedeem(
-                    RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
-                ),
-                addr_1: ExtendedAddr::BasicRedeem(
-                    RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5").unwrap(),
-                ),
-                addr_2: ExtendedAddr::BasicRedeem(
-                    RedeemAddress::from_str("780661a2fd9da3fee53caab80859ecae105a20b6").unwrap(),
-                ),
+                private_key_0,
+                private_key_1,
+                private_key_2,
+                public_key_0,
+                public_key_1,
+                public_key_2,
+                addr_0,
+                addr_1,
+                addr_2,
             }
         }
     }
@@ -347,11 +380,7 @@ mod tests {
             unreachable!()
         }
 
-        fn new_wallet(&self, _: &str, _: &SecUtf8) -> Result<String> {
-            unreachable!()
-        }
-
-        fn private_keys(&self, _: &str, _: &SecUtf8) -> Result<Vec<PrivateKey>> {
+        fn new_wallet(&self, _: &str, _: &SecUtf8) -> Result<()> {
             unreachable!()
         }
 
@@ -363,36 +392,28 @@ mod tests {
             unreachable!()
         }
 
-        fn private_key(
+        fn public_key(
             &self,
             _: &str,
             _: &SecUtf8,
             address: &ExtendedAddr,
-        ) -> Result<Option<PrivateKey>> {
+        ) -> Result<Option<PublicKey>> {
             if address == &self.addr_0 {
-                Ok(Some(
-                    PrivateKey::deserialize_from(&[
-                        197, 83, 160, 54, 4, 35, 93, 248, 252, 209, 79, 198, 209, 229, 177, 138,
-                        33, 159, 188, 198, 233, 62, 255, 207, 207, 118, 142, 41, 119, 167, 78, 194,
-                    ])
-                    .unwrap(),
-                ))
+                Ok(Some(self.public_key_0.clone()))
             } else if address == &self.addr_1 {
-                Ok(Some(
-                    PrivateKey::deserialize_from(&[
-                        197, 83, 160, 54, 4, 35, 93, 248, 252, 209, 79, 198, 209, 229, 177, 138,
-                        33, 159, 188, 198, 233, 62, 255, 207, 207, 118, 142, 41, 119, 167, 78, 195,
-                    ])
-                    .unwrap(),
-                ))
+                Ok(Some(self.public_key_1.clone()))
             } else {
-                Ok(Some(
-                    PrivateKey::deserialize_from(&[
-                        197, 83, 160, 54, 4, 35, 93, 248, 252, 209, 79, 198, 209, 229, 177, 138,
-                        33, 159, 188, 198, 233, 62, 255, 207, 207, 118, 142, 41, 119, 167, 78, 196,
-                    ])
-                    .unwrap(),
-                ))
+                Ok(Some(self.public_key_2.clone()))
+            }
+        }
+
+        fn private_key(&self, _: &SecUtf8, public_key: &PublicKey) -> Result<Option<PrivateKey>> {
+            if public_key == &self.public_key_0 {
+                Ok(Some(self.private_key_0.clone()))
+            } else if public_key == &self.public_key_1 {
+                Ok(Some(self.private_key_1.clone()))
+            } else {
+                Ok(Some(self.private_key_2.clone()))
             }
         }
 

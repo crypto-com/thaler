@@ -12,7 +12,7 @@ use secp256k1::{
 use crate::common::Proof;
 use crate::init::address::RedeemAddress;
 use crate::tx::data::address::ExtendedAddr;
-use crate::tx::data::Tx;
+use crate::tx::data::TxId;
 use crate::tx::witness::tree::{RawPubkey, RawSignature};
 
 pub type EcdsaSignature = RecoverableSignature;
@@ -119,11 +119,11 @@ impl TxInWitness {
     ///
     pub fn verify_tx_address(
         &self,
-        tx: &Tx,
+        txid: &TxId,
         address: &ExtendedAddr,
     ) -> Result<(), secp256k1::Error> {
         let secp = Secp256k1::verification_only();
-        let message = Message::from_slice(&tx.id()[..])?;
+        let message = Message::from_slice(&txid[..])?;
 
         match (&self, address) {
             (TxInWitness::BasicRedeem(sig), ExtendedAddr::BasicRedeem(addr)) => {
@@ -157,6 +157,8 @@ impl TxInWitness {
 pub mod tests {
     use super::*;
     use crate::common::{MerkleTree, H256};
+    use crate::tx::data::Tx;
+    use crate::tx::TransactionId;
     use secp256k1::{
         key::pubkey_combine,
         key::PublicKey,
@@ -317,10 +319,14 @@ pub mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let expected_addr1 = ExtendedAddr::OrTree([0x00; 32].into());
         let witness1 = get_ecdsa_witness(&secp, &tx, &secret_key);
-        assert!(witness1.verify_tx_address(&tx, &expected_addr1).is_err());
+        assert!(witness1
+            .verify_tx_address(&tx.id(), &expected_addr1)
+            .is_err());
         let expected_addr2 = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key));
         let (witness2, _) = get_single_tx_witness(secp, &tx, &secret_key);
-        assert!(witness2.verify_tx_address(&tx, &expected_addr2).is_err());
+        assert!(witness2
+            .verify_tx_address(&tx.id(), &expected_addr2)
+            .is_err());
     }
 
     #[test]
@@ -353,7 +359,7 @@ pub mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let expected_addr = ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key));
         let witness = get_ecdsa_witness(&secp, &tx, &secret_key);
-        assert!(witness.verify_tx_address(&tx, &expected_addr).is_ok());
+        assert!(witness.verify_tx_address(&tx.id(), &expected_addr).is_ok());
     }
 
     #[test]
@@ -363,7 +369,7 @@ pub mod tests {
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let (witness, addr) = get_single_tx_witness(secp, &tx, &secret_key);
         let expected_addr = ExtendedAddr::OrTree(addr);
-        let r = witness.verify_tx_address(&tx, &expected_addr);
+        let r = witness.verify_tx_address(&tx.id(), &expected_addr);
         assert!(r.is_ok());
     }
 
@@ -375,7 +381,7 @@ pub mod tests {
         let secret_key2 = SecretKey::from_slice(&[0xde; 32]).expect("32 bytes, within curve order");
         let (witness, addr) = get_2_of_2_tx_witness(secp, &tx, secret_key1, secret_key2);
         let expected_addr = ExtendedAddr::OrTree(addr);
-        assert!(witness.verify_tx_address(&tx, &expected_addr).is_ok());
+        assert!(witness.verify_tx_address(&tx.id(), &expected_addr).is_ok());
     }
 
     #[test]
@@ -388,7 +394,7 @@ pub mod tests {
         let (witness, addr) =
             get_2_of_3_tx_witness(secp, &tx, secret_key1, secret_key2, secret_key3);
         let expected_addr = ExtendedAddr::OrTree(addr);
-        assert!(witness.verify_tx_address(&tx, &expected_addr).is_ok());
+        assert!(witness.verify_tx_address(&tx.id(), &expected_addr).is_ok());
     }
 
     #[test]
@@ -399,7 +405,7 @@ pub mod tests {
 
         let witness = get_ecdsa_witness(&secp, &tx, &secret_key);
         let wrong_addr = ExtendedAddr::BasicRedeem(RedeemAddress::default());
-        assert!(witness.verify_tx_address(&tx, &wrong_addr).is_err());
+        assert!(witness.verify_tx_address(&tx.id(), &wrong_addr).is_err());
     }
 
     #[test]
@@ -411,7 +417,7 @@ pub mod tests {
         let sign = secp.sign_recoverable(&message, &secret_key);
         let witness = TxInWitness::BasicRedeem(sign);
         let addr = ExtendedAddr::BasicRedeem(RedeemAddress::default());
-        assert!(witness.verify_tx_address(&tx, &addr).is_err());
+        assert!(witness.verify_tx_address(&tx.id(), &addr).is_err());
     }
 
 }

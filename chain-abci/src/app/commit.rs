@@ -5,6 +5,7 @@ use abci::*;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::tx::data::TxId;
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use integer_encoding::VarInt;
 use parity_codec::Encode;

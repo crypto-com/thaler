@@ -21,11 +21,8 @@ pub trait WalletClient: Send + Sync {
     /// Retrieves names of all wallets stored
     fn wallets(&self) -> Result<Vec<String>>;
 
-    /// Creates a new wallet with given name and returns wallet_id
-    fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<String>;
-
-    /// Retrieves all public keys corresponding to given wallet
-    fn private_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PrivateKey>>;
+    /// Creates a new wallet with given name and passphrase
+    fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()>;
 
     /// Retrieves all public keys corresponding to given wallet
     fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>>;
@@ -33,12 +30,19 @@ pub trait WalletClient: Send + Sync {
     /// Retrieves all addresses corresponding to given wallet
     fn addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
 
-    /// Retrieves private key corresponding to given address
-    fn private_key(
+    /// Retrieves public key corresponding to given address
+    fn public_key(
         &self,
         name: &str,
         passphrase: &SecUtf8,
         address: &ExtendedAddr,
+    ) -> Result<Option<PublicKey>>;
+
+    /// Retrieves private key corresponding to given public key
+    fn private_key(
+        &self,
+        passphrase: &SecUtf8,
+        public_key: &PublicKey,
     ) -> Result<Option<PrivateKey>>;
 
     /// Generates a new public key for given wallet
@@ -77,4 +81,28 @@ pub trait WalletClient: Send + Sync {
 
     /// Synchronizes index with Crypto.com Chain (from genesis)
     fn sync_all(&self) -> Result<()>;
+}
+
+/// Interface for a generic wallet for multi-signature transactions
+pub trait MultiSigWalletClient: WalletClient {
+    /// Creates multi-sig address for creating m-of-n transactions
+    ///
+    /// # Arguments
+    ///
+    /// `name`: Name of wallet
+    /// `passphrase`: passphrase of wallet
+    /// `public_keys`: Public keys of co-signers
+    /// `m`: Number of required co-signers
+    /// `n`: Total number of co-signers
+    fn new_multi_sig_address(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        public_keys: Vec<PublicKey>,
+        m: usize,
+        n: usize,
+    ) -> Result<ExtendedAddr>;
+
+    /// Returns all the multi-sig addresses in current wallet
+    fn multi_sig_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
 }
