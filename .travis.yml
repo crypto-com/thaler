@@ -56,19 +56,21 @@ jobs:
       rust: beta
     - <<: *rust
       rust: nightly
-    - language: node_js
-      sudo: required
+    - name: Integration Tests
+      language: node_js
       node_js:
         - "10"
       services:
         - docker
       before_script:
-        - cp integration-tests/docker/wait-for-it.sh /usr/local/bin
-        - chmod +x /usr/local/bin/wait-for-it.sh
-        - cd integration-tests
-        - docker-compose up -d
-        - docker-compose ps
-        - docker-compose logs -t --tail="all"
+        - |
+          sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
+          sudo chmod +x /usr/local/bin/wait-for-it.sh
+        - |
+          cd integration-tests
+          docker-compose up -d
+          docker-compose ps
+          docker-compose logs -t --tail="all"
       script:
         - |
           cd client-rpc
