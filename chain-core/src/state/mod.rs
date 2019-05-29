@@ -56,3 +56,16 @@ pub struct CouncilNode {
     pub nonce: usize,
     // TODO: public keys / addresses for other operations
 }
+
+impl CouncilNode {
+    pub fn new(
+        staking_account_address: RedeemAddress,
+        consensus_pubkey: TendermintValidatorPubKey,
+    ) -> Self {
+        CouncilNode {
+            staking_account_address,
+            consensus_pubkey,
+            nonce: 0,
+        }
+    }
+}

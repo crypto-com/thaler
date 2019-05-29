@@ -61,6 +61,31 @@ impl Account {
         }
     }
 
+    pub fn new_init(
+        amount: Coin,
+        genesis_time: Timespec,
+        address: RedeemAddress,
+        bonded: bool,
+    ) -> Self {
+        if bonded {
+            Account {
+                nonce: 0,
+                bonded: amount,
+                unbonded: Coin::zero(),
+                unbonded_from: genesis_time,
+                address,
+            }
+        } else {
+            Account {
+                nonce: 0,
+                bonded: Coin::zero(),
+                unbonded: amount,
+                unbonded_from: genesis_time,
+                address,
+            }
+        }
+    }
+
     /// the tree used in account storage db has a hardcoded 32-byte keys,
     /// this computes a key as blake2s(account.address) where
     /// the account address itself is ETH-style address (20 bytes from keccak hash of public key)
