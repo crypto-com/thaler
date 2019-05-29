@@ -16,8 +16,6 @@ jobs:
       cache: cargo
       rust:
         - stable
-        - beta
-        - nightly
       env:
         - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
       matrix:
@@ -28,6 +26,7 @@ jobs:
       - cargo clean
       - cargo build
       - cargo test
+      - echo "$TRAVIS_RUST_VERSION"
       - |
         if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
           (rustfmt --version || rustup component add rustfmt) &&
