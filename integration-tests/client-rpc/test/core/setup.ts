@@ -1,9 +1,10 @@
 import { RpcClient } from "./rpc-client";
+import * as addressList from "../../../address-list.json";
 
-export const DEFAULT_WALLET_ADDRESS = "0xfb135596b941711a1611e59284424d412ee8fd9d";
-export const SPEND_WALLET_ADDRESS = "0x4234ddd8fca1f213180526413042fe2ee6bceac8";
-export const VIEW_WALLET_ADDRESS = "0x9c58f8fca74d7a555c2c52f3aa49f898dd1fc37b";
-export const RECEIVE_WALLET_ADDRESS = "0x9af90833742a9c5552a0c3336540c8d083c9a79a";
+export const DEFAULT_WALLET_ADDRESS = (<any>addressList).default;
+export const SPEND_WALLET_ADDRESS = (<any>addressList).spend;
+export const VIEW_WALLET_ADDRESS = (<any>addressList).view;
+export const RECEIVE_WALLET_ADDRESS = (<any>addressList).receive;
 
 const clientRpcPort = Number(process.env.CLIENT_RPC_ZERO_FEE_PORT) || 16659;
 

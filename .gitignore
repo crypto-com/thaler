@@ -1,8 +1,13 @@
+# Rust
 /target
-**/*.rs.bk
-/.storage
 /chain-abci/target
+**/*.rs.bk
+
+# Storage
+/.storage
 /.cro-storage
+
+# OS
 .DS_Store
 
 # IDE

@@ -1,11 +1,19 @@
+# Git
 /.git
+
+# Rust
 /target
 /chain-abci/target
 **/*.rs.bk
+
+# Storage
 /.storage
 /.cro-storage
-/integration-tests
-/docker/**/Dockerfile
+
+# Integration Tests
+/integration-tests/client-rpc
+
+# OS
 .DS_Store
 
 # IDE
