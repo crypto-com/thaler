@@ -1,12 +1,13 @@
-use crate::PrivateKey;
-use client_common::{ErrorKind, Result, SecureStorage, Storage};
-use parity_codec::{Decode, Encode};
 use secstr::SecUtf8;
 use zeroize::Zeroize;
 
+use client_common::{Result, SecureStorage, Storage};
+
+use crate::{PrivateKey, PublicKey};
+
 const KEYSPACE: &str = "core_key";
 
-/// Exposes functionality for managing public and private keys
+/// Maintains mapping `public-key -> private-key`
 #[derive(Debug, Default, Clone)]
 pub struct KeyService<T: Storage> {
     storage: T,
@@ -21,53 +22,37 @@ where
         KeyService { storage }
     }
 
-    /// Generates a new address for given wallet ID
-    pub fn generate(&self, wallet_id: &str, passphrase: &SecUtf8) -> Result<PrivateKey> {
+    /// Generates a new public-private keypair
+    pub fn generate_keypair(&self, passphrase: &SecUtf8) -> Result<(PublicKey, PrivateKey)> {
         let private_key = PrivateKey::new()?;
+        let public_key = PublicKey::from(&private_key);
 
-        let private_keys = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
+        self.storage.set_secure(
+            KEYSPACE,
+            public_key.serialize(),
+            private_key.serialize()?,
+            passphrase,
+        )?;
 
-        let mut private_keys: Vec<Vec<u8>> = match private_keys {
-            None => Vec::new(),
-            Some(private_keys) => {
-                Vec::decode(&mut private_keys.as_slice()).ok_or(ErrorKind::DeserializationError)?
-            }
-        };
-
-        private_keys.push(private_key.serialize()?);
-
-        self.storage
-            .set_secure(KEYSPACE, wallet_id, private_keys.encode(), passphrase)?;
-        for pk in &mut private_keys {
-            pk.zeroize();
-        }
-
-        Ok(private_key)
+        Ok((public_key, private_key))
     }
 
-    /// Returns all the keys stored for given wallet ID
-    pub fn get_keys(
+    /// Retrieves private key corresponding to given public key
+    pub fn private_key(
         &self,
-        wallet_id: &str,
+        public_key: &PublicKey,
         passphrase: &SecUtf8,
-    ) -> Result<Option<Vec<PrivateKey>>> {
-        let private_keys = self.storage.get_secure(KEYSPACE, wallet_id, passphrase)?;
+    ) -> Result<Option<PrivateKey>> {
+        let private_key_bytes =
+            self.storage
+                .get_secure(KEYSPACE, public_key.serialize(), passphrase)?;
 
-        match private_keys {
+        match private_key_bytes {
             None => Ok(None),
-            Some(bytes) => {
-                let mut pks: Vec<Vec<u8>> =
-                    Vec::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?;
-
-                let private_keys = pks
-                    .iter()
-                    .map(|inner| -> Result<PrivateKey> { PrivateKey::deserialize_from(inner) })
-                    .collect::<Result<Vec<PrivateKey>>>()?;
-                for pk in &mut pks {
-                    pk.zeroize();
-                }
-
-                Ok(Some(private_keys))
+            Some(mut private_key_bytes) => {
+                let private_key = PrivateKey::deserialize_from(&private_key_bytes)?;
+                private_key_bytes.zeroize();
+                Ok(Some(private_key))
             }
         }
     }
@@ -83,30 +68,26 @@ mod tests {
     use super::*;
 
     use client_common::storage::MemoryStorage;
+    use client_common::ErrorKind;
 
     #[test]
     fn check_flow() {
         let key_service = KeyService::new(MemoryStorage::default());
+        let passphrase = SecUtf8::from("passphrase");
 
-        let private_key = key_service
-            .generate("wallet_id", &SecUtf8::from("passphrase"))
+        let (public_key, private_key) = key_service
+            .generate_keypair(&passphrase)
             .expect("Unable to generate private key");
 
-        let new_private_key = key_service
-            .generate("wallet_id", &SecUtf8::from("passphrase"))
-            .expect("Unable to generate private key");
+        let retrieved_private_key = key_service
+            .private_key(&public_key, &passphrase)
+            .unwrap()
+            .unwrap();
 
-        let keys = key_service
-            .get_keys("wallet_id", &SecUtf8::from("passphrase"))
-            .expect("Unable to get keys from storage")
-            .expect("No keys found");
-
-        assert_eq!(2, keys.len(), "Unexpected key length");
-        assert_eq!(private_key, keys[0], "Invalid private key found");
-        assert_eq!(new_private_key, keys[1], "Invalid private key found");
+        assert_eq!(private_key, retrieved_private_key);
 
         let error = key_service
-            .get_keys("wallet_id", &SecUtf8::from("incorrect_passphrase"))
+            .private_key(&public_key, &SecUtf8::from("incorrect_passphrase"))
             .expect_err("Decryption worked with incorrect passphrase");
 
         assert_eq!(
@@ -116,10 +97,5 @@ mod tests {
         );
 
         assert!(key_service.clear().is_ok());
-
-        assert!(key_service
-            .get_keys("wallet_id", &SecUtf8::from("passphrase"))
-            .unwrap()
-            .is_none());
     }
 }

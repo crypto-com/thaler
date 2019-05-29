@@ -12,11 +12,10 @@ use client_index::index::{Index, UnauthorizedIndex};
 use failure::ResultExt;
 use parity_codec::Encode;
 use secstr::SecUtf8;
-use zeroize::Zeroize;
 
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedTransactionBuilder;
-use crate::{PrivateKey, PublicKey, TransactionBuilder, WalletClient};
+use crate::{MultiSigWalletClient, PrivateKey, PublicKey, TransactionBuilder, WalletClient};
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Debug, Default, Clone)]
@@ -28,6 +27,7 @@ where
 {
     key_service: KeyService<S>,
     wallet_service: WalletService<S>,
+    multi_sig_service: MultiSigService<S>,
     index: I,
     transaction_builder: T,
 }
@@ -42,7 +42,8 @@ where
     fn new(storage: S, index: I, transaction_builder: T) -> Self {
         Self {
             key_service: KeyService::new(storage.clone()),
-            wallet_service: WalletService::new(storage),
+            wallet_service: WalletService::new(storage.clone()),
+            multi_sig_service: MultiSigService::new(storage),
             index,
             transaction_builder,
         }
@@ -70,26 +71,12 @@ where
         self.wallet_service.names()
     }
 
-    fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<String> {
+    fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
         self.wallet_service.create(name, passphrase)
     }
 
-    fn private_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PrivateKey>> {
-        let wallet_id = self.wallet_service.get(name, passphrase)?;
-
-        match wallet_id {
-            None => Err(ErrorKind::WalletNotFound.into()),
-            Some(wallet_id) => Ok(self
-                .key_service
-                .get_keys(&wallet_id, passphrase)?
-                .unwrap_or_default()),
-        }
-    }
-
     fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>> {
-        let keys = self.private_keys(name, passphrase)?;
-        let public_keys = keys.iter().map(PublicKey::from).collect::<Vec<PublicKey>>();
-        Ok(public_keys)
+        self.wallet_service.public_keys(name, passphrase)
     }
 
     fn addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
@@ -103,38 +90,38 @@ where
         Ok(addresses)
     }
 
-    fn private_key(
+    fn public_key(
         &self,
         name: &str,
         passphrase: &SecUtf8,
         address: &ExtendedAddr,
-    ) -> Result<Option<PrivateKey>> {
-        let private_keys = self.private_keys(name, passphrase)?;
+    ) -> Result<Option<PublicKey>> {
+        let public_keys = self.public_keys(name, passphrase)?;
         let addresses = self.addresses(name, passphrase)?;
 
         for (i, known_address) in addresses.iter().enumerate() {
             if known_address == address {
-                return Ok(Some(private_keys[i].clone()));
+                return Ok(Some(public_keys[i].clone()));
             }
         }
 
         Ok(None)
     }
 
+    fn private_key(
+        &self,
+        passphrase: &SecUtf8,
+        public_key: &PublicKey,
+    ) -> Result<Option<PrivateKey>> {
+        self.key_service.private_key(public_key, passphrase)
+    }
+
     fn new_public_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
-        let wallet_id = self.wallet_service.get(name, passphrase)?;
+        let (public_key, _) = self.key_service.generate_keypair(passphrase)?;
+        self.wallet_service
+            .add_public_key(name, passphrase, public_key.clone())?;
 
-        match wallet_id {
-            None => Err(ErrorKind::WalletNotFound.into()),
-            Some(wallet_id) => {
-                let mut private_key = self.key_service.generate(&wallet_id, passphrase)?;
-                let public_key = PublicKey::from(&private_key);
-
-                private_key.zeroize();
-
-                Ok(public_key)
-            }
-        }
+        Ok(public_key)
     }
 
     fn new_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr> {
@@ -207,6 +194,43 @@ where
 
     fn sync_all(&self) -> Result<()> {
         self.index.sync_all()
+    }
+}
+
+impl<S, I, T> MultiSigWalletClient for DefaultWalletClient<S, I, T>
+where
+    S: Storage,
+    I: Index,
+    T: TransactionBuilder,
+{
+    fn new_multi_sig_address(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        public_keys: Vec<PublicKey>,
+        m: usize,
+        n: usize,
+    ) -> Result<ExtendedAddr> {
+        // To verify if the passphrase is correct or not
+        self.multi_sig_addresses(name, passphrase)?;
+
+        let multi_sig_address =
+            self.multi_sig_service
+                .new_multi_sig_address(public_keys, m, n, passphrase)?;
+
+        self.wallet_service
+            .add_multi_sig_address(name, passphrase, multi_sig_address)?;
+
+        Ok(ExtendedAddr::OrTree(multi_sig_address))
+    }
+
+    fn multi_sig_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
+        Ok(self
+            .wallet_service
+            .multi_sig_addresses(name, passphrase)?
+            .into_iter()
+            .map(ExtendedAddr::OrTree)
+            .collect())
     }
 }
 
@@ -560,7 +584,18 @@ mod tests {
         assert_eq!(address, addresses[0], "Addresses don't match");
 
         assert!(wallet
-            .private_key("name", &SecUtf8::from("passphrase"), &address)
+            .public_key("name", &SecUtf8::from("passphrase"), &address)
+            .unwrap()
+            .is_some());
+
+        assert!(wallet
+            .private_key(
+                &SecUtf8::from("passphrase"),
+                &wallet
+                    .public_key("name", &SecUtf8::from("passphrase"), &address)
+                    .unwrap()
+                    .unwrap()
+            )
             .unwrap()
             .is_some());
 
@@ -784,14 +819,6 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .private_keys("name", &SecUtf8::from("passphrase"))
-                .unwrap_err()
-                .kind()
-        );
-
-        assert_eq!(
-            ErrorKind::PermissionDenied,
-            wallet
                 .public_keys("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
@@ -809,12 +836,8 @@ mod tests {
             ErrorKind::PermissionDenied,
             wallet
                 .private_key(
-                    "name",
                     &SecUtf8::from("passphrase"),
-                    &ExtendedAddr::BasicRedeem(
-                        RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5")
-                            .unwrap(),
-                    )
+                    &PublicKey::from(&PrivateKey::new().unwrap())
                 )
                 .unwrap_err()
                 .kind()
@@ -895,5 +918,49 @@ mod tests {
             .with_transaction_write(DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()));
 
         assert_eq!(ErrorKind::InvalidInput, builder.build().unwrap_err().kind());
+    }
+
+    #[test]
+    fn check_multi_sig_address_generation() {
+        let storage = MemoryStorage::default();
+        let wallet = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+
+        let passphrase = SecUtf8::from("passphrase");
+        let name = "name";
+
+        assert_eq!(
+            ErrorKind::WalletNotFound,
+            wallet
+                .multi_sig_addresses(name, &passphrase)
+                .expect_err("Found non-existent addresses")
+                .kind()
+        );
+
+        wallet
+            .new_wallet(name, &passphrase)
+            .expect("Unable to create a new wallet");
+
+        assert_eq!(
+            0,
+            wallet.multi_sig_addresses(name, &passphrase).unwrap().len()
+        );
+
+        let public_keys = vec![
+            PublicKey::from(&PrivateKey::new().unwrap()),
+            PublicKey::from(&PrivateKey::new().unwrap()),
+            PublicKey::from(&PrivateKey::new().unwrap()),
+        ];
+
+        assert!(wallet
+            .new_multi_sig_address(name, &passphrase, public_keys.clone(), 2, 3)
+            .is_ok());
+
+        assert_eq!(
+            1,
+            wallet.multi_sig_addresses(name, &passphrase).unwrap().len()
+        );
     }
 }

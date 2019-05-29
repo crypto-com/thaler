@@ -44,6 +44,9 @@ pub enum ErrorKind {
     /// Wallet not found
     #[fail(display = "Wallet not found")]
     WalletNotFound,
+    /// Address not found
+    #[fail(display = "Address not found")]
+    AddressNotFound,
     /// Error while locking a shared resource
     #[fail(display = "Error while locking a shared resource")]
     LockError,
