@@ -1,57 +1,61 @@
+rust: &rust
+  language: rust
+  sudo: required
+  dist: trusty
+  addons:
+      apt:
+          packages:
+              - libssl-dev
+              - libcurl4-openssl-dev
+              - libelf-dev
+              - libdw-dev
+              - cmake
+              - gcc
+              - binutils-dev    
+  cache: cargo
+  env:
+    - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
+  matrix:
+    allow_failures:
+      - rust: nightly
+
+  script:
+  - cargo clean
+  - cargo build
+  - cargo test
+  - |
+    if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+      (rustfmt --version || rustup component add rustfmt) &&
+      cargo fmt -- --check --color=auto &&
+      (cargo-clippy --version || rustup component add clippy) &&
+      cargo clippy -- -D warnings 
+    fi
+
+  after_success: |
+    if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
+      wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
+      tar xzf master.tar.gz &&
+      cd kcov-master &&
+      mkdir build &&
+      cd build &&
+      cmake .. &&
+      make &&
+      sudo make install &&
+      cd ../.. &&
+      rm -rf kcov-master &&  
+      cargo-kcov --version || cargo install cargo-kcov;
+      travis_wait 30 cargo kcov --all;
+      bash <(curl -s https://codecov.io/bash);
+    fi
+
 jobs:
   include:
-    - language: rust
-      sudo: required
-      dist: trusty
-      addons:
-          apt:
-              packages:
-                  - libssl-dev
-                  - libcurl4-openssl-dev
-                  - libelf-dev
-                  - libdw-dev
-                  - cmake
-                  - gcc
-                  - binutils-dev    
-      cache: cargo
-      env:
-        - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
-      matrix:
-        include:
-          - rust:stable
-          - rust:beta
-          - rust:nightly
-        allow_failures:
-          - rust: nightly
-
-      script:
-      - cargo clean
-      - cargo build
-      - cargo test
-      - |
-        if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
-          (rustfmt --version || rustup component add rustfmt) &&
-          cargo fmt -- --check --color=auto &&
-          (cargo-clippy --version || rustup component add clippy) &&
-          cargo clippy -- -D warnings 
-        fi
-
-      after_success: |
-        if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-          wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
-          tar xzf master.tar.gz &&
-          cd kcov-master &&
-          mkdir build &&
-          cd build &&
-          cmake .. &&
-          make &&
-          sudo make install &&
-          cd ../.. &&
-          rm -rf kcov-master &&  
-          cargo-kcov --version || cargo install cargo-kcov;
-          travis_wait 30 cargo kcov --all;
-          bash <(curl -s https://codecov.io/bash);
-        fi
+    - <<: *rust
+      rust: stable
+    - <<: *rust
+      rust: beta
+    - <<: *rust
+      rust: nightly
     - language: node_js
       sudo: required
       node_js:
@@ -59,8 +63,8 @@ jobs:
       services:
         - docker
       before_script:
-        - sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
-        - sudo chmod +x /usr/local/bin/wait-for-it.sh
+        - cp integration-tests/docker/wait-for-it.sh /usr/local/bin
+        - chmod +x /usr/local/bin/wait-for-it.sh
         - cd integration-tests
         - docker-compose up -d
         - docker-compose ps
