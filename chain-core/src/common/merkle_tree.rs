@@ -185,6 +185,7 @@ impl<T> Proof<T> {
     }
 
     /// Returns root hash of this proof
+    #[inline]
     pub fn root_hash(&self) -> H256 {
         self.root_hash
     }
@@ -295,7 +296,6 @@ impl<T> MerkleTree<T> {
     }
 
     /// Generates inclusion proof for given value. Returns `None` if given value is not present in merkle tree
-    #[inline]
     pub fn generate_proof(&self, value: T) -> Option<Proof<T>>
     where
         T: AsRef<[u8]> + Clone,
@@ -326,7 +326,6 @@ pub enum NodeType {
     Intermediate,
 }
 
-#[inline]
 fn combine(left: &H256, right: &H256) -> H512 {
     let mut hash = [0; HASH_SIZE_256 * 2];
     hash[0..HASH_SIZE_256].copy_from_slice(left);
@@ -361,6 +360,7 @@ pub struct PairIter<T> {
 }
 
 impl<T> From<IntoIter<T>> for PairIter<T> {
+    #[inline]
     fn from(inner: IntoIter<T>) -> Self {
         Self { inner }
     }

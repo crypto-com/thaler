@@ -27,9 +27,9 @@ impl WalletCommand {
 
     fn new_wallet<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
         let passphrase = ask_passphrase()?;
-        let wallet_id = wallet_client.new_wallet(name, &passphrase)?;
+        wallet_client.new_wallet(name, &passphrase)?;
 
-        success(&format!("Wallet created with ID: {}", wallet_id));
+        success(&format!("Wallet created with name: {}", name));
         Ok(())
     }
 

@@ -19,7 +19,7 @@ pub use key::{PrivateKey, PublicKey};
 #[doc(inline)]
 pub use transaction_builder::TransactionBuilder;
 #[doc(inline)]
-pub use wallet::WalletClient;
+pub use wallet::{MultiSigWalletClient, WalletClient};
 
 use secp256k1::{All, Secp256k1};
 
