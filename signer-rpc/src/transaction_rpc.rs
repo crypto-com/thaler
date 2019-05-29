@@ -14,6 +14,7 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use signer_core::{
     get_transaction_witnesses, verify_redeem_address, verify_transaction_id, verify_tree_address,

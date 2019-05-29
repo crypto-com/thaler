@@ -2,6 +2,7 @@ use failure::ResultExt;
 use secp256k1::RecoveryId;
 use secstr::SecUtf8;
 
+use crate::{TransactionBuilder, WalletClient};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -11,10 +12,9 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::fee::{Fee, FeeAlgorithm};
 use chain_core::tx::witness::{EcdsaSignature, TxInWitness, TxWitness};
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use client_common::{ErrorKind, Result};
-
-use crate::{TransactionBuilder, WalletClient};
 
 /// Default implementation of `TransactionBuilder`
 ///

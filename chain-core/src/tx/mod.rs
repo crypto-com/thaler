@@ -27,6 +27,13 @@ pub enum TxAux {
     WithdrawUnbondedStakeTx(WithdrawUnbondedTx, AccountOpWitness),
 }
 
+pub trait TransactionId: Encode {
+    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
+    fn id(&self) -> TxId {
+        txid_hash(&self.encode())
+    }
+}
+
 impl TxAux {
     /// creates a new Tx with a vector of witnesses (mainly for testing/tools)
     pub fn new(tx: Tx, witness: TxWitness) -> Self {
@@ -37,9 +44,9 @@ impl TxAux {
     pub fn tx_id(&self) -> TxId {
         match self {
             TxAux::TransferTx(tx, _) => tx.id(),
-            TxAux::DepositStakeTx(tx, _) => txid_hash(&tx.encode()),
-            TxAux::UnbondStakeTx(tx, _) => txid_hash(&tx.encode()),
-            TxAux::WithdrawUnbondedStakeTx(tx, _) => txid_hash(&tx.encode()),
+            TxAux::DepositStakeTx(tx, _) => tx.id(),
+            TxAux::UnbondStakeTx(tx, _) => tx.id(),
+            TxAux::WithdrawUnbondedStakeTx(tx, _) => tx.id(),
         }
     }
 }

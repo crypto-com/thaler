@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::common::{hash256, H256};
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
+use crate::tx::TransactionId;
 
 /// Calculates hash of the input data -- if SCALE-serialized TX is passed in, it's equivalent to TxId.
 /// Currently, it uses blake2s.
@@ -53,6 +54,8 @@ impl fmt::Display for Tx {
     }
 }
 
+impl TransactionId for Tx {}
+
 impl Tx {
     /// creates an empty TX
     pub fn new() -> Self {
@@ -66,11 +69,6 @@ impl Tx {
             outputs: outs,
             attributes: attr,
         }
-    }
-
-    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
-    pub fn id(&self) -> TxId {
-        txid_hash(&self.encode())
     }
 
     /// adds an input to a TX (mainly for testing / tools)

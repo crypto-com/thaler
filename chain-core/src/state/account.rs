@@ -1,11 +1,15 @@
 use crate::common::{hash256, Timespec, HASH_SIZE_256};
 use crate::init::address::RedeemAddress;
 use crate::init::coin::Coin;
+use crate::init::coin::{sum_coins, CoinError};
 use crate::tx::data::input::TxoPointer;
 use crate::tx::data::output::TxOut;
+use crate::tx::data::TxId;
 use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
+use crate::tx::TransactionId;
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode, Input, Output};
+use secp256k1::{Message, Secp256k1};
 use secp256k1::{RecoverableSignature, RecoveryId};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -17,7 +21,7 @@ pub type Count = u64;
 pub type Nonce = u64;
 
 /// represents the account state (involved in staking)
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 pub struct Account {
     pub nonce: Nonce,
     pub bonded: Coin,
@@ -25,6 +29,13 @@ pub struct Account {
     pub unbonded_from: Timespec,
     pub address: RedeemAddress,
     // TODO: slashing + jailing
+}
+
+/// the tree used in account storage db has a hardcoded 32-byte keys,
+/// this computes a key as blake2s(account.address) where
+/// the account address itself is ETH-style address (20 bytes from keccak hash of public key)
+pub fn to_account_key(address: &RedeemAddress) -> [u8; HASH_SIZE_256] {
+    hash256::<Blake2s>(address)
 }
 
 impl Default for Account {
@@ -54,7 +65,7 @@ impl Account {
     /// this computes a key as blake2s(account.address) where
     /// the account address itself is ETH-style address (20 bytes from keccak hash of public key)
     pub fn key(&self) -> [u8; HASH_SIZE_256] {
-        hash256::<Blake2s>(&self.address)
+        to_account_key(&self.address)
     }
 }
 
@@ -63,6 +74,12 @@ impl Account {
 pub struct AccountOpAttributes {
     pub chain_hex_id: u8,
     // TODO: Other attributes?
+}
+
+impl AccountOpAttributes {
+    pub fn new(chain_hex_id: u8) -> Self {
+        AccountOpAttributes { chain_hex_id }
+    }
 }
 
 impl Encode for AccountOpAttributes {
@@ -93,8 +110,23 @@ impl Decode for AccountOpAttributes {
 pub struct DepositBondTx {
     pub inputs: Vec<TxoPointer>,
     pub to_account: RedeemAddress,
-    pub value: Coin,
     pub attributes: AccountOpAttributes,
+}
+
+impl TransactionId for DepositBondTx {}
+
+impl DepositBondTx {
+    pub fn new(
+        inputs: Vec<TxoPointer>,
+        to_account: RedeemAddress,
+        attributes: AccountOpAttributes,
+    ) -> Self {
+        DepositBondTx {
+            inputs,
+            to_account,
+            attributes,
+        }
+    }
 }
 
 impl fmt::Display for DepositBondTx {
@@ -102,7 +134,7 @@ impl fmt::Display for DepositBondTx {
         for input in self.inputs.iter() {
             writeln!(f, "-> {}", input)?;
         }
-        writeln!(f, "   {} {} (bonded) ->", self.to_account, self.value)?;
+        writeln!(f, "   {} (bonded) ->", self.to_account)?;
         write!(f, "")
     }
 }
@@ -116,6 +148,18 @@ pub struct UnbondTx {
     pub attributes: AccountOpAttributes,
 }
 
+impl TransactionId for UnbondTx {}
+
+impl UnbondTx {
+    pub fn new(value: Coin, nonce: Nonce, attributes: AccountOpAttributes) -> Self {
+        UnbondTx {
+            value,
+            nonce,
+            attributes,
+        }
+    }
+}
+
 impl fmt::Display for UnbondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "unbonded: {} (nonce: {})", self.value, self.nonce)?;
@@ -127,15 +171,33 @@ impl fmt::Display for UnbondTx {
 /// (update's account's unbonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct WithdrawUnbondedTx {
-    pub value: Coin,
     pub nonce: Nonce,
     pub outputs: Vec<TxOut>,
     pub attributes: AccountOpAttributes,
 }
 
+impl TransactionId for WithdrawUnbondedTx {}
+
+impl WithdrawUnbondedTx {
+    pub fn new(nonce: Nonce, outputs: Vec<TxOut>, attributes: AccountOpAttributes) -> Self {
+        WithdrawUnbondedTx {
+            nonce,
+            outputs,
+            attributes,
+        }
+    }
+}
+
+impl WithdrawUnbondedTx {
+    /// returns the total transaction output amount (sum of all output amounts)
+    pub fn get_output_total(&self) -> Result<Coin, CoinError> {
+        sum_coins(self.outputs.iter().map(|x| x.value))
+    }
+}
+
 impl fmt::Display for WithdrawUnbondedTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "-> {} (unbonded) (nonce: {})", self.value, self.nonce)?;
+        writeln!(f, "-> (unbonded) (nonce: {})", self.nonce)?;
         for output in self.outputs.iter() {
             writeln!(f, "   {} ->", output)?;
         }
@@ -147,6 +209,26 @@ impl fmt::Display for WithdrawUnbondedTx {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct AccountOpWitness(EcdsaSignature);
+
+impl AccountOpWitness {
+    pub fn new(sig: EcdsaSignature) -> Self {
+        AccountOpWitness(sig)
+    }
+
+    /// verify the signature against the given transation `Tx`
+    /// and recovers the address from it
+    ///
+    pub fn verify_tx_recover_address(
+        &self,
+        txid: &TxId,
+    ) -> Result<RedeemAddress, secp256k1::Error> {
+        let secp = Secp256k1::verification_only();
+        let message = Message::from_slice(txid)?;
+        let pk = secp.recover(&message, &self.0)?;
+        secp.verify(&message, &self.0.to_standard(), &pk)?;
+        Ok(RedeemAddress::from(&pk))
+    }
+}
 
 impl Encode for AccountOpWitness {
     fn encode_to<W: Output>(&self, dest: &mut W) {

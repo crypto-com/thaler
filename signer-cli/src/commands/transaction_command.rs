@@ -4,18 +4,18 @@ use parity_codec::Encode;
 use quest::{ask, choose, success, text, yesno};
 use structopt::StructOpt;
 
+use crate::commands::AddressCommand;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use signer_core::{
     get_transaction_witnesses, verify_redeem_address, verify_transaction_id, verify_tree_address,
     SecretsService, SignatureType,
 };
-
-use crate::commands::AddressCommand;
 
 /// Enum used to specify different subcommands under transaction command.
 /// Refer to main documentation for more details.

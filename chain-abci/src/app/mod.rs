@@ -9,6 +9,7 @@ use log::info;
 
 pub use self::app_init::{ChainNodeApp, ChainNodeState};
 use crate::storage::tx::spend_utxos;
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
@@ -475,7 +476,7 @@ mod tests {
             ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
             Coin::unit(),
         ));
-        let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx, &secret_key)];
+        let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx.id(), &secret_key)];
         let txaux = TxAux::new(tx, witness.into());
         (app, txaux)
     }

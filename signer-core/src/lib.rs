@@ -17,6 +17,7 @@ use chain_core::init::address::REDEEM_ADDRESS_BYTES;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::{TxInWitness, TxWitness};
+use chain_core::tx::TransactionId;
 
 /// Enum specifying different signature types
 #[derive(Debug, Serialize, Deserialize)]
