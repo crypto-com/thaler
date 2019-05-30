@@ -9,9 +9,4 @@ members = [
     "client-index",
     "client-rpc",
     "dev-utils",
-    "kvdb",
-    "kvdb-memorydb",
-    "signer-cli",
-    "signer-core",
-    "signer-rpc",
 ]

@@ -1,3 +1,9 @@
+use failure::ResultExt;
+use parity_codec::Encode;
+use secp256k1::schnorrsig::SchnorrSignature;
+use secstr::SecUtf8;
+
+use chain_core::common::{Proof, H256};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -5,13 +11,11 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
+use chain_core::tx::witness::tree::RawPubkey;
 use client_common::balance::TransactionChange;
 use client_common::storage::UnauthorizedStorage;
 use client_common::{ErrorKind, Result, Storage};
 use client_index::index::{Index, UnauthorizedIndex};
-use failure::ResultExt;
-use parity_codec::Encode;
-use secstr::SecUtf8;
 
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedTransactionBuilder;
@@ -27,7 +31,8 @@ where
 {
     key_service: KeyService<S>,
     wallet_service: WalletService<S>,
-    multi_sig_service: MultiSigService<S>,
+    multi_sig_address_service: MultiSigAddressService<S>,
+    multi_sig_session_service: MultiSigSessionService<S>,
     index: I,
     transaction_builder: T,
 }
@@ -43,7 +48,8 @@ where
         Self {
             key_service: KeyService::new(storage.clone()),
             wallet_service: WalletService::new(storage.clone()),
-            multi_sig_service: MultiSigService::new(storage),
+            multi_sig_address_service: MultiSigAddressService::new(storage.clone()),
+            multi_sig_session_service: MultiSigSessionService::new(storage),
             index,
             transaction_builder,
         }
@@ -215,13 +221,32 @@ where
         self.multi_sig_addresses(name, passphrase)?;
 
         let multi_sig_address =
-            self.multi_sig_service
+            self.multi_sig_address_service
                 .new_multi_sig_address(public_keys, m, n, passphrase)?;
 
         self.wallet_service
             .add_multi_sig_address(name, passphrase, multi_sig_address)?;
 
         Ok(ExtendedAddr::OrTree(multi_sig_address))
+    }
+
+    fn generate_proof(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        address: &ExtendedAddr,
+        public_keys: Vec<PublicKey>,
+    ) -> Result<Proof<RawPubkey>> {
+        // To verify if the passphrase is correct or not
+        self.multi_sig_addresses(name, passphrase)?;
+
+        match address {
+            ExtendedAddr::BasicRedeem(_) => Err(ErrorKind::InvalidInput.into()),
+            ExtendedAddr::OrTree(ref address) => {
+                self.multi_sig_address_service
+                    .generate_proof(address, public_keys, passphrase)
+            }
+        }
     }
 
     fn multi_sig_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
@@ -231,6 +256,89 @@ where
             .into_iter()
             .map(ExtendedAddr::OrTree)
             .collect())
+    }
+
+    fn new_multi_sig_session(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        message: H256,
+        signer_public_keys: Vec<PublicKey>,
+        self_public_key: PublicKey,
+    ) -> Result<H256> {
+        // To verify if the passphrase is correct or not
+        self.multi_sig_addresses(name, passphrase)?;
+
+        match self.private_key(passphrase, &self_public_key)? {
+            None => Err(ErrorKind::PrivateKeyNotFound.into()),
+            Some(self_private_key) => self.multi_sig_session_service.new_session(
+                message,
+                signer_public_keys,
+                self_public_key,
+                self_private_key,
+                passphrase,
+            ),
+        }
+    }
+
+    fn nonce_commitment(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<H256> {
+        self.multi_sig_session_service
+            .nonce_commitment(session_id, passphrase)
+    }
+
+    fn add_nonce_commitment(
+        &self,
+        session_id: &H256,
+        passphrase: &SecUtf8,
+        nonce_commitment: H256,
+        public_key: &PublicKey,
+    ) -> Result<()> {
+        self.multi_sig_session_service.add_nonce_commitment(
+            session_id,
+            nonce_commitment,
+            public_key,
+            passphrase,
+        )
+    }
+
+    fn nonce(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<PublicKey> {
+        self.multi_sig_session_service.nonce(session_id, passphrase)
+    }
+
+    fn add_nonce(
+        &self,
+        session_id: &H256,
+        passphrase: &SecUtf8,
+        nonce: PublicKey,
+        public_key: &PublicKey,
+    ) -> Result<()> {
+        self.multi_sig_session_service
+            .add_nonce(session_id, nonce, public_key, passphrase)
+    }
+
+    fn partial_signature(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<H256> {
+        self.multi_sig_session_service
+            .partial_signature(session_id, passphrase)
+    }
+
+    fn add_partial_signature(
+        &self,
+        session_id: &H256,
+        passphrase: &SecUtf8,
+        partial_signature: H256,
+        public_key: &PublicKey,
+    ) -> Result<()> {
+        self.multi_sig_session_service.add_partial_signature(
+            session_id,
+            partial_signature,
+            public_key,
+            passphrase,
+        )
+    }
+
+    fn signature(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<SchnorrSignature> {
+        self.multi_sig_session_service
+            .signature(session_id, passphrase)
     }
 }
 
@@ -350,7 +458,8 @@ mod tests {
     use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
-    use chain_core::tx::TxAux;
+    use chain_core::tx::witness::TxInWitness;
+    use chain_core::tx::{TransactionId, TxAux};
     use client_common::balance::{BalanceChange, TransactionChange};
     use client_common::storage::MemoryStorage;
     use client_common::Result;
@@ -962,5 +1071,110 @@ mod tests {
             1,
             wallet.multi_sig_addresses(name, &passphrase).unwrap().len()
         );
+    }
+
+    #[test]
+    fn check_multi_sig_transaction_signing() {
+        let storage = MemoryStorage::default();
+        let wallet = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+
+        let passphrase = &SecUtf8::from("passphrase");
+        let name = "name";
+
+        wallet.new_wallet(name, passphrase).unwrap();
+
+        let public_key_1 = wallet.new_public_key(name, passphrase).unwrap();
+        let public_key_2 = wallet.new_public_key(name, passphrase).unwrap();
+        let public_key_3 = wallet.new_public_key(name, passphrase).unwrap();
+
+        let public_keys = vec![
+            public_key_1.clone(),
+            public_key_2.clone(),
+            public_key_3.clone(),
+        ];
+
+        let multi_sig_address = wallet
+            .new_multi_sig_address(name, passphrase, public_keys.clone(), 2, 3)
+            .unwrap();
+
+        let transaction = Tx::new();
+
+        let session_id_1 = wallet
+            .new_multi_sig_session(
+                name,
+                passphrase,
+                transaction.id(),
+                vec![public_key_1.clone(), public_key_2.clone()],
+                public_key_1.clone(),
+            )
+            .unwrap();
+        let session_id_2 = wallet
+            .new_multi_sig_session(
+                name,
+                passphrase,
+                transaction.id(),
+                vec![public_key_1.clone(), public_key_2.clone()],
+                public_key_2.clone(),
+            )
+            .unwrap();
+
+        let nonce_commitment_1 = wallet.nonce_commitment(&session_id_1, passphrase).unwrap();
+        let nonce_commitment_2 = wallet.nonce_commitment(&session_id_2, passphrase).unwrap();
+
+        assert!(wallet
+            .add_nonce_commitment(&session_id_1, passphrase, nonce_commitment_2, &public_key_2)
+            .is_ok());
+        assert!(wallet
+            .add_nonce_commitment(&session_id_2, passphrase, nonce_commitment_1, &public_key_1)
+            .is_ok());
+
+        let nonce_1 = wallet.nonce(&session_id_1, passphrase).unwrap();
+        let nonce_2 = wallet.nonce(&session_id_2, passphrase).unwrap();
+
+        assert!(wallet
+            .add_nonce(&session_id_1, passphrase, nonce_2, &public_key_2)
+            .is_ok());
+        assert!(wallet
+            .add_nonce(&session_id_2, passphrase, nonce_1, &public_key_1)
+            .is_ok());
+
+        let partial_signature_1 = wallet.partial_signature(&session_id_1, passphrase).unwrap();
+        let partial_signature_2 = wallet.partial_signature(&session_id_2, passphrase).unwrap();
+
+        assert!(wallet
+            .add_partial_signature(
+                &session_id_1,
+                passphrase,
+                partial_signature_2,
+                &public_key_2
+            )
+            .is_ok());
+        assert!(wallet
+            .add_partial_signature(
+                &session_id_2,
+                passphrase,
+                partial_signature_1,
+                &public_key_1
+            )
+            .is_ok());
+
+        let signature = wallet.signature(&session_id_1, passphrase).unwrap();
+        let proof = wallet
+            .generate_proof(
+                name,
+                passphrase,
+                &multi_sig_address,
+                vec![public_key_1.clone(), public_key_2.clone()],
+            )
+            .unwrap();
+
+        let witness = TxInWitness::TreeSig(signature, proof);
+
+        assert!(witness
+            .verify_tx_address(&transaction.id(), &multi_sig_address)
+            .is_ok())
     }
 }

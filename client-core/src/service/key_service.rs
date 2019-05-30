@@ -30,7 +30,7 @@ where
         self.storage.set_secure(
             KEYSPACE,
             public_key.serialize(),
-            private_key.serialize()?,
+            private_key.serialize(),
             passphrase,
         )?;
 
