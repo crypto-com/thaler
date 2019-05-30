@@ -1,0 +1,28 @@
+{
+  "genesis_time": "2019-05-21T09:47:56.206264Z",
+  "chain_id": "test-chain-y3m1e6-AB",
+  "consensus_params": {
+    "block": {
+      "max_bytes": "22020096",
+      "max_gas": "-1",
+      "time_iota_ms": "1000"
+    },
+    "evidence": {
+      "max_age": "100000"
+    },
+    "validator": {
+      "pub_key_types": ["ed25519"]
+    }
+  },
+  "validators": [
+    {
+      "address": "91A26F2D061827567FE1E2ADC1C22206D4AD0FEF",
+      "pub_key": {
+        "type": "tendermint/PubKeyEd25519",
+        "value": "MFgW9OkoKufCrdAjk7Zx0LMWKA/0ixkmuBpO0flyRtU="
+      },
+      "power": "10",
+      "name": ""
+    }
+  ],"app_hash": "1D50299A4D888921C5510DE6CEE438C0263BCECD7813C03AF38761A316B606A5",
+"app_state": {"distribution":{"0x20a0bee429d6907e556205ef9d48ab6fe6a55531":500000000000000000,"0x35f517cab9a37bc31091c2f155d965af84e0bc85":500000000000000000,"0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de":2500000000000000000,"0x3c747bbc06d1f57e66c6655f37d8157b4b3def96":3000000000000000000,"0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07":500000000000000000,"0xc3ea1251f8793456bb4435c50abf2ab2bfc99db6":3000000000000000000},"launch_incentive_from":"0x35f517cab9a37bc31091c2f155d965af84e0bc85","launch_incentive_to":"0x20a0bee429d6907e556205ef9d48ab6fe6a55531","long_term_incentive":"0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07","initial_fee_policy":{"constant":1055,"coefficient":16}}}
