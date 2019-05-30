@@ -92,7 +92,7 @@ impl Drop for PrivateKey {
 
 #[cfg(test)]
 mod tests {
-    use super::PrivateKey;
+    use super::*;
 
     #[test]
     fn check_serialization() {
@@ -125,6 +125,17 @@ mod tests {
         assert_eq!(
             private_key, secret_key,
             "Serialization / Deserialization is implemented incorrectly"
+        );
+    }
+
+    #[test]
+    fn check_encoding() {
+        let private_key = PrivateKey::new().unwrap();
+        let new_private_key = PrivateKey::decode(&mut private_key.encode().as_slice()).unwrap();
+
+        assert_eq!(
+            private_key, new_private_key,
+            "Encoding / Decoding is implemented incorrectly"
         );
     }
 }
