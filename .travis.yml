@@ -15,9 +15,6 @@ rust: &rust
   cache: cargo
   env:
     - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
-  matrix:
-    allow_failures:
-      - rust: nightly
 
   script:
   - cargo clean
@@ -49,6 +46,8 @@ rust: &rust
     fi
 
 jobs:
+  allow_failures:
+    - rust: nightly
   include:
     - <<: *rust
       rust: stable
