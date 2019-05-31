@@ -43,15 +43,13 @@ impl MultiSigSession {
         nonce_commitment: H256,
     ) -> Result<()> {
         let signer_index = self.signer_index(public_key)?;
-        self.signers[signer_index].nonce_commitment = Some(nonce_commitment);
-        Ok(())
+        self.signers[signer_index].add_nonce_commitment(nonce_commitment)
     }
 
     /// Adds nonce for signer corresponding to given public key
     pub fn add_nonce(&mut self, public_key: &PublicKey, nonce: PublicKey) -> Result<()> {
         let signer_index = self.signer_index(public_key)?;
-        self.signers[signer_index].nonce = Some(nonce);
-        Ok(())
+        self.signers[signer_index].add_nonce(nonce)
     }
 
     /// Adds partial signature for signer corresponding to given public key
@@ -61,8 +59,7 @@ impl MultiSigSession {
         partial_signature: H256,
     ) -> Result<()> {
         let signer_index = self.signer_index(public_key)?;
-        self.signers[signer_index].partial_signature = Some(partial_signature);
-        Ok(())
+        self.signers[signer_index].add_partial_signature(partial_signature)
     }
 
     /// Returns nonce commitment of current signer
@@ -293,6 +290,41 @@ struct Signer {
     pub nonce: Option<PublicKey>,
     /// Partial signature of signer (when available)
     pub partial_signature: Option<H256>,
+}
+
+impl Signer {
+    /// Adds nonce commitment to current signer if not already added.
+    pub fn add_nonce_commitment(&mut self, nonce_commitment: H256) -> Result<()> {
+        let nonce_commitment = match self.nonce_commitment {
+            None => Ok(nonce_commitment),
+            Some(_) => Err(Error::from(ErrorKind::InvalidInput)),
+        }?;
+
+        self.nonce_commitment = Some(nonce_commitment);
+        Ok(())
+    }
+
+    /// Adds nonce to current signer if not already added.
+    pub fn add_nonce(&mut self, nonce: PublicKey) -> Result<()> {
+        let nonce = match self.nonce {
+            None => Ok(nonce),
+            Some(_) => Err(Error::from(ErrorKind::InvalidInput)),
+        }?;
+
+        self.nonce = Some(nonce);
+        Ok(())
+    }
+
+    /// Adds partial signature to current signer if not already added.
+    pub fn add_partial_signature(&mut self, partial_signature: H256) -> Result<()> {
+        let partial_signature = match self.partial_signature {
+            None => Ok(partial_signature),
+            Some(_) => Err(Error::from(ErrorKind::InvalidInput)),
+        }?;
+
+        self.partial_signature = Some(partial_signature);
+        Ok(())
+    }
 }
 
 /// Maintains mapping `multi-sig session-id -> multi-sig session`
@@ -539,6 +571,9 @@ mod tests {
         multi_sig_service
             .add_nonce(&session_id_1, nonce_2, &public_key_2, &passphrase)
             .expect("Unable to add nonce to session 1");
+        multi_sig_service
+            .add_nonce(&session_id_1, nonce_1.clone(), &public_key_2, &passphrase)
+            .expect_err("Can modify an already existing nonce");
         multi_sig_service
             .add_nonce(&session_id_2, nonce_1, &public_key_1, &passphrase)
             .expect("Unable to add nonce to session 2");
