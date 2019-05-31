@@ -9,7 +9,7 @@ use client_common::{ErrorKind, Result, SecureStorage, Storage};
 
 use crate::PublicKey;
 
-const KEYSPACE: &str = "core_multi_sig";
+const KEYSPACE: &str = "core_multi_sig_address";
 
 /// m-of-n multi-sig address
 #[derive(Debug, Encode, Decode)]
@@ -24,15 +24,15 @@ struct MultiSigAddress {
 
 /// Maintains mapping `multi-sig-public-key -> multi-sig address`
 #[derive(Debug, Default, Clone)]
-pub struct MultiSigService<T: Storage> {
+pub struct MultiSigAddressService<T: Storage> {
     storage: T,
 }
 
-impl<T> MultiSigService<T>
+impl<T> MultiSigAddressService<T>
 where
     T: Storage,
 {
-    /// Creates a new instance of multi-sig service
+    /// Creates a new instance of multi-sig address service
     pub fn new(storage: T) -> Self {
         Self { storage }
     }
@@ -81,7 +81,7 @@ where
                 public_keys.sort();
 
                 let raw_public_key = RawPubkey::from(
-                    SecpPublicKey::from(PublicKey::combine(&public_keys)?).serialize(),
+                    SecpPublicKey::from(PublicKey::combine(&public_keys)?.0).serialize(),
                 );
 
                 match address.merkle_tree.generate_proof(raw_public_key) {
@@ -121,7 +121,7 @@ fn combinations(public_keys: Vec<PublicKey>, n: usize) -> Result<Vec<RawPubkey>>
         .map(|mut combination| {
             combination.sort();
             Ok(RawPubkey::from(
-                SecpPublicKey::from(PublicKey::combine(&combination)?).serialize(),
+                SecpPublicKey::from(PublicKey::combine(&combination)?.0).serialize(),
             ))
         })
         .collect::<Result<Vec<RawPubkey>>>()?;
@@ -139,8 +139,8 @@ mod tests {
     use crate::PrivateKey;
 
     #[test]
-    fn check_multi_sig_flow() {
-        let multi_sig_service = MultiSigService::new(MemoryStorage::default());
+    fn check_multi_sig_address_flow() {
+        let multi_sig_service = MultiSigAddressService::new(MemoryStorage::default());
         let passphrase = SecUtf8::from("passphrase");
 
         let public_keys = vec![
@@ -230,8 +230,9 @@ mod tests {
         let mut signers = vec![public_keys[0].clone(), public_keys[1].clone()];
         signers.sort();
 
-        let signer =
-            RawPubkey::from(SecpPublicKey::from(PublicKey::combine(&signers).unwrap()).serialize());
+        let signer = RawPubkey::from(
+            SecpPublicKey::from(PublicKey::combine(&signers).unwrap().0).serialize(),
+        );
 
         assert_eq!(proof.value(), &signer);
     }

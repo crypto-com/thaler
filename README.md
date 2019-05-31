@@ -15,8 +15,6 @@ This repository contains the pre-alpha version prototype implementation of Crypt
 
 * *dev-utils*: currently a minimal development tool for generating genesis.json
 
-* *signer-[cli|core|rpc]*: work-in-progress infrastructure for client code, such as wallet implementations and third party integrations.
-
 * *client-[common|index|core|rpc]*: Client backend implementation for transaction creation and wallet management. Follow
 these links for more details:
   - [client-common](./client-common/README.md)
