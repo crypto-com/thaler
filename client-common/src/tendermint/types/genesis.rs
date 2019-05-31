@@ -36,7 +36,8 @@ impl Genesis {
 
         let app_state = &self.genesis.app_state;
 
-        let transactions = app_state.generate_utxos(&TxAttributes::new(chain_id));
+        let transactions =
+            unimplemented!("MUST_TODO: no transactions in genesis, only state of accounts");
 
         Ok(transactions)
     }
@@ -48,7 +49,7 @@ impl Genesis {
 
     /// Returns initial_fee_policy
     pub fn fee_policy(&self) -> LinearFee {
-        self.genesis.app_state.initial_fee_policy
+        self.genesis.app_state.network_params.initial_fee_policy
     }
 }
 

@@ -206,7 +206,7 @@ impl InitConfig {
     /// - initial validator configuration is correct
     /// - the total amount doesn't go over the maximum supply
     /// - ...
-    /// if valid, it'll return the genesis "state" 
+    /// if valid, it'll return the genesis "state"
     pub fn validate_config_get_genesis(
         &self,
         genesis_time: Timespec,

@@ -36,7 +36,11 @@ impl ChainNodeApp {
                 }
             }
             new_state.rewards_pool.last_block_height = new_state.last_block_height;
-            let app_hash = compute_app_hash(&tree, &new_state.rewards_pool);
+            let app_hash = compute_app_hash(
+                &tree,
+                &new_state.last_account_root_hash,
+                &new_state.rewards_pool,
+            );
             inittx.put(COL_MERKLE_PROOFS, &app_hash[..], &tree.encode());
             new_state.last_apphash = app_hash;
         }

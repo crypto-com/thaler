@@ -1,68 +1,59 @@
 use std::str::FromStr;
 
 use failure::{format_err, Error, ResultExt};
-use hex::{decode, encode_upper};
+use hex::encode_upper;
 use structopt::StructOpt;
 
+use chain_abci::storage::account::{AccountStorage, AccountWrapper};
+use chain_abci::storage::tx::StarlingFixedKey;
+use chain_abci::storage::Storage;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
+use chain_core::init::config::{AccountType, InitNetworkParameters, InitialValidator};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
-use chain_core::tx::data::{attribute::TxAttributes, Tx, TxId};
 use chain_core::tx::fee::{LinearFee, Milli};
-use chain_core::tx::TransactionId;
+use chrono::offset::Utc;
+use chrono::DateTime;
+use kvdb_memorydb::create;
+use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
+
+#[derive(Deserialize)]
+pub struct GenesisDevConfig {
+    distribution: BTreeMap<RedeemAddress, Coin>,
+    unbonding_period: u32,
+    required_council_node_stake: Coin,
+    initial_fee_policy: InitialFeePolicy,
+    council_nodes: Vec<InitialValidator>,
+    launch_incentive_from: RedeemAddress,
+    launch_incentive_to: RedeemAddress,
+    long_term_incentive: RedeemAddress,
+    genesis_time: DateTime<Utc>,
+}
+
+#[derive(Deserialize)]
+pub struct InitialFeePolicy {
+    base_fee: String,
+    per_byte_fee: String,
+}
 
 #[derive(Debug, StructOpt)]
 pub enum GenesisCommand {
-    #[structopt(name = "generate", about = "Generate new genesis.json parameters")]
+    #[structopt(
+        name = "generate",
+        about = "Generate new genesis.json parameters (app_hash + app_state)"
+    )]
     Generate {
         #[structopt(
-            name = "mapping_file_path",
+            name = "genesis_dev_config_path",
             short,
             long,
-            help = "Path to a file containing the ERC20 holdership; each line is of this format: 
-            \"<ETH_ADDRESS> <INTEGER_AMOUNT_IN_BASE_UNITS>\" (i.e. 1 base unit == 0.00000001)"
+            help = "Path to a file containing the genesis-related configuration (e.g. ERC20 holdership) -- see example-dev-conf.json"
         )]
-        mapping_file_path: PathBuf,
-        #[structopt(
-            name = "chain-id",
-            short,
-            long,
-            help = "Chain ID for transaction (Last two hex digits of chain-id)"
-        )]
-        chain_id: String,
-        #[structopt(
-            name = "launch_incentive_from",
-            short = "f",
-            long,
-            help = "Secondary distribution and launch incentives address (the origin)"
-        )]
-        launch_incentive_from: String,
-        #[structopt(
-            name = "launch_incentive_to",
-            short = "t",
-            long,
-            help = "Secondary distribution and launch incentives address (the destination)"
-        )]
-        launch_incentive_to: String,
-        #[structopt(
-            name = "long_term_incentive",
-            short = "l",
-            long,
-            help = "Network long-term incentives address"
-        )]
-        long_term_incentive: String,
-        #[structopt(name = "base_fee", short, long, help = "Base fee portion")]
-        base_fee: String,
-        #[structopt(
-            name = "per_byte_fee",
-            short,
-            long,
-            help = "A per byte in TX fee portion"
-        )]
-        per_byte_fee: String,
+        genesis_dev_config_path: PathBuf,
     },
 }
 
@@ -70,83 +61,67 @@ impl GenesisCommand {
     pub fn execute(&self) -> Result<(), Error> {
         match self {
             GenesisCommand::Generate {
-                mapping_file_path,
-                chain_id,
-                launch_incentive_from,
-                launch_incentive_to,
-                long_term_incentive,
-                base_fee,
-                per_byte_fee,
-            } => GenesisCommand::generate(
-                &mapping_file_path,
-                &launch_incentive_from,
-                &launch_incentive_to,
-                &long_term_incentive,
-                &chain_id,
-                &base_fee,
-                &per_byte_fee,
-            ),
+                genesis_dev_config_path,
+            } => GenesisCommand::generate(&genesis_dev_config_path),
         }
     }
 
-    fn generate(
-        mapping_file_path: &PathBuf,
-        launch_incentive_from: &str,
-        launch_incentive_to: &str,
-        long_term_incentive: &str,
-        chain_id: &str,
-        base_fee: &str,
-        per_byte_fee: &str,
-    ) -> Result<(), Error> {
-        let mapping_file = fs::read_to_string(mapping_file_path)
+    fn generate(genesis_dev_config_path: &PathBuf) -> Result<(), Error> {
+        let genesis_dev_config = fs::read_to_string(genesis_dev_config_path)
             .context(format_err!("Something went wrong reading the file"))?;
-        let mut distribution = BTreeMap::new();
-        for line in mapping_file.lines() {
-            let mut l = line.split_whitespace();
-            let address = RedeemAddress::from_str(l.next().expect("Missing address"))
-                .context(format_err!("Invalid address"))?;
-            let amount: u64 = l
-                .next()
-                .expect("Missing amount")
-                .parse::<u64>()
-                .context(format_err!("Invalid amount"))?;
-            distribution.insert(
-                address,
-                Coin::new(amount).context(format_err!("Invalid amount"))?,
-            );
+        let genesis_dev: GenesisDevConfig =
+            serde_json::from_str(&genesis_dev_config).expect("failed to parse genesis dev config");
+        let mut dist: BTreeMap<RedeemAddress, (Coin, AccountType)> = BTreeMap::new();
+
+        for (address, amount) in genesis_dev.distribution.iter() {
+            dist.insert(*address, (*amount, AccountType::ExternallyOwnedAccount));
         }
-        let li_from_address = RedeemAddress::from_str(launch_incentive_from)
-            .context(format_err!("Invalid address"))?;
-        let li_to_address =
-            RedeemAddress::from_str(launch_incentive_to).context(format_err!("Invalid address"))?;
-        let lti_address =
-            RedeemAddress::from_str(long_term_incentive).context(format_err!("Invalid address"))?;
-        let constant_fee =
-            Milli::from_str(base_fee).context(format_err!("Invalid constant fee"))?;
-        let coefficient_fee =
-            Milli::from_str(per_byte_fee).context(format_err!("Invalid per byte fee"))?;
+        let constant_fee = Milli::from_str(&genesis_dev.initial_fee_policy.base_fee)
+            .context(format_err!("Invalid constant fee"))?;
+        let coefficient_fee = Milli::from_str(&genesis_dev.initial_fee_policy.per_byte_fee)
+            .context(format_err!("Invalid per byte fee"))?;
         let fee_policy = LinearFee::new(constant_fee, coefficient_fee);
+        let params = InitNetworkParameters {
+            initial_fee_policy: fee_policy,
+            required_council_node_stake: genesis_dev.required_council_node_stake,
+            unbonding_period: genesis_dev.unbonding_period,
+        };
         let config = InitConfig::new(
-            distribution,
-            li_from_address,
-            li_to_address,
-            lti_address,
-            fee_policy,
+            dist,
+            genesis_dev.launch_incentive_from,
+            genesis_dev.launch_incentive_to,
+            genesis_dev.long_term_incentive,
+            params,
+            genesis_dev.council_nodes,
         );
+        let result = config.validate_config_get_genesis(genesis_dev.genesis_time.timestamp());
+        if let Ok((accounts, rp, _nodes)) = result {
+            let tx_tree = MerkleTree::empty();
+            let mut account_tree =
+                AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db");
 
-        let chain_id = decode(chain_id).context(format_err!("Invalid chain-id"))?[0];
+            let keys: Vec<StarlingFixedKey> = accounts.iter().map(|x| x.key()).collect();
+            // TODO: get rid of the extra allocations
+            let wrapped: Vec<AccountWrapper> =
+                accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
+            let new_account_root = account_tree
+                .insert(
+                    None,
+                    &mut keys.iter().collect::<Vec<_>>(),
+                    &mut wrapped.iter().collect::<Vec<_>>(),
+                )
+                .expect("initial insert");
 
-        let utxos = config.generate_utxos(&TxAttributes::new(chain_id));
-        let txids: Vec<TxId> = utxos.iter().map(Tx::id).collect();
-        let tree = MerkleTree::new(txids);
-        let rp = config.get_genesis_rewards_pool();
-        let genesis_app_hash = compute_app_hash(&tree, &rp);
+            let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
+            println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
+            let config_str =
+                serde_json::to_string(&config).context(format_err!("Invalid config"))?;
+            println!("\"app_state\": {}", config_str);
+        } else {
+            panic!("distribution validation error: {}", result.err().unwrap());
+        }
 
-        println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
-        let config_str = serde_json::to_string(&config).context(format_err!("Invalid config"))?;
-        println!("\"app_state\": {}", config_str);
         println!();
-        println!("first tx: {:?}", utxos[0].id());
 
         Ok(())
     }

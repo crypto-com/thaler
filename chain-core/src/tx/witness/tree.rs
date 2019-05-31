@@ -9,6 +9,27 @@ use crate::common::{H264, H512};
 #[derive(Clone)]
 pub struct RawPubkey(H264);
 
+impl ::serde::Serialize for RawPubkey {
+    fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_bytes(&self.0)
+    }
+}
+
+impl<'de> ::serde::Deserialize<'de> for RawPubkey {
+    fn deserialize<D: ::serde::Deserializer<'de>>(d: D) -> Result<RawPubkey, D::Error> {
+        use ::serde::de::Error;
+
+        let sl: &[u8] = ::serde::Deserialize::deserialize(d)?;
+        if sl.len() == 33 {
+            let mut out: H264 = [0u8; 33];
+            out.copy_from_slice(sl);
+            Ok(RawPubkey(out))
+        } else {
+            Err(D::Error::custom("incorrect public key length"))
+        }
+    }
+}
+
 impl From<H264> for RawPubkey {
     fn from(h: H264) -> Self {
         RawPubkey(h)

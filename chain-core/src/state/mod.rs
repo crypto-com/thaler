@@ -37,7 +37,7 @@ impl RewardsPoolState {
 /// The protobuf structure currently has "String" to denote the type / length
 /// and variable length byte array. In this internal representation,
 /// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
-#[derive(Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub enum TendermintValidatorPubKey {
     Ed25519([u8; 32]),
     Secp256k1(RawPubkey),
@@ -45,8 +45,25 @@ pub enum TendermintValidatorPubKey {
     // TODO: some other schemes when they are added in TM?
 }
 
+impl TendermintValidatorPubKey {
+    pub fn to_validator_update(&self) -> (String, Vec<u8>) {
+        match self {
+            TendermintValidatorPubKey::Ed25519(key) => {
+                let mut v = Vec::with_capacity(32);
+                v.extend_from_slice(&key[..]);
+                ("tendermint/PubKeyEd25519".to_string(), v)
+            }
+            TendermintValidatorPubKey::Secp256k1(key) => {
+                let mut v = Vec::with_capacity(33);
+                v.extend_from_slice(key.as_bytes());
+                ("tendermint/PubKeySecp256k1".to_string(), v)
+            }
+        }
+    }
+}
+
 /// holds state about a node responsible for transaction validation / block signing and service node whitelist management
-#[derive(Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct CouncilNode {
     // account with the required staked amount
     pub staking_account_address: RedeemAddress,
