@@ -5,6 +5,7 @@ use parity_codec::{Decode, Encode, Input, Output};
 use secp256k1::key::pubkey_combine;
 use secp256k1::PublicKey as SecpPublicKey;
 
+use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use client_common::{ErrorKind, Result};
 
@@ -28,9 +29,9 @@ impl PublicKey {
         Ok(PublicKey(public_key))
     }
 
-    /// Combines multiple public keys into one
-    pub fn combine(public_keys: &[Self]) -> Result<Self> {
-        let (public_key, _) = SECP
+    /// Combines multiple public keys into one and also returns hash of combined public key
+    pub fn combine(public_keys: &[Self]) -> Result<(Self, H256)> {
+        let (public_key, public_key_hash) = SECP
             .with(|secp| {
                 pubkey_combine(
                     secp,
@@ -42,7 +43,7 @@ impl PublicKey {
             })
             .context(ErrorKind::InvalidInput)?;
 
-        Ok(Self(public_key))
+        Ok((Self(public_key), public_key_hash.serialize()))
     }
 }
 
@@ -66,6 +67,12 @@ impl From<&PublicKey> for RedeemAddress {
 
 impl From<PublicKey> for SecpPublicKey {
     fn from(public_key: PublicKey) -> SecpPublicKey {
+        public_key.0
+    }
+}
+
+impl From<&PublicKey> for SecpPublicKey {
+    fn from(public_key: &PublicKey) -> SecpPublicKey {
         public_key.0
     }
 }
@@ -145,8 +152,9 @@ mod tests {
         let public_key_1 = PublicKey::from(&PrivateKey::new().unwrap());
         let public_key_2 = PublicKey::from(&PrivateKey::new().unwrap());
 
-        let combination =
-            PublicKey::combine(&[public_key_1.clone(), public_key_2.clone()]).unwrap();
+        let combination = PublicKey::combine(&[public_key_1.clone(), public_key_2.clone()])
+            .unwrap()
+            .0;
 
         let manual_combination = PublicKey::from(SECP.with(|secp| {
             pubkey_combine(secp, &[public_key_1.into(), public_key_2.into()])

@@ -1,9 +1,0 @@
-[package]
-name = "kvdb-memorydb"
-version = "0.1.0"
-authors = ["Yu H. <yuhlau@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-kvdb = { version = "0.1", path = "../kvdb" }
-failure = "0.1"

@@ -80,6 +80,33 @@ pub enum ErrorKind {
     /// Permission denied
     #[fail(display = "Permission denied")]
     PermissionDenied,
+    /// Multi-sig session not found
+    #[fail(display = "Multi-sig session not found")]
+    SessionNotFound,
+    /// Co-signer not found
+    #[fail(display = "Co-signer not found")]
+    SignerNotFound,
+    /// Session creation error
+    #[fail(display = "Session creation error")]
+    SessionCreationError,
+    /// Missing nonce commitment
+    #[fail(display = "Missing nonce commitment")]
+    MissingNonceCommitment,
+    /// Missing nonce
+    #[fail(display = "Missing nonce")]
+    MissingNonce,
+    /// Missing partial signature
+    #[fail(display = "Missing partial signature")]
+    MissingPartialSignature,
+    /// Nonce combining error
+    #[fail(display = "Nonce combining error")]
+    NonceCombiningError,
+    /// Partial signature computation error
+    #[fail(display = "Partial signature computation error")]
+    PartialSignError,
+    /// Signing error
+    #[fail(display = "Signing error")]
+    SigningError,
 }
 
 impl Fail for Error {

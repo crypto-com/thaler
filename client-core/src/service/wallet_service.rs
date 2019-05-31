@@ -15,7 +15,7 @@ struct Wallet {
     pub multi_sig_addresses: Vec<H256>,
 }
 
-/// Maintains mapping `wallet-name -> Vec<public-key>`
+/// Maintains mapping `wallet-name -> Vec<wallet>`
 #[derive(Debug, Default, Clone)]
 pub struct WalletService<T: Storage> {
     storage: T,
