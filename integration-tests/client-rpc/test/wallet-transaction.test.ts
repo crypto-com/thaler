@@ -31,7 +31,7 @@ describe("Wallet transaction", () => {
     expectTransactionShouldBe(firstTransaction, {
       address: SPEND_WALLET_ADDRESS,
       direction: TransactionDirection.INCOMING,
-      amount: new BigNumber("3000000000000000000"),
+      amount: "3000000000000000000",
       height: 0
     });
   });
@@ -39,7 +39,7 @@ describe("Wallet transaction", () => {
   it("User cannot send funds larger than wallet balance", async () => {
     const walletRequest = newWalletRequest("Spend");
 
-    const totalCROSupply = 10000000000000000000;
+    const totalCROSupply = "10000000000000000000";
     return expect(
       client.request("wallet_sendtoaddress", [
         walletRequest,
@@ -61,7 +61,7 @@ describe("Wallet transaction", () => {
       [spendWalletRequest]
     );
 
-    const amountToSpend = 500000000000000000;
+    const amountToSpend = "500000000000000000";
     await expect(
       client.request("wallet_sendtoaddress", [
         spendWalletRequest,
@@ -133,13 +133,13 @@ describe("Wallet transaction", () => {
 
     await expect(
       client.request("wallet_balance", [receiveWalletRequest])
-    ).to.eventually.deep.eq(new BigNumber(0));
+    ).to.eventually.deep.eq(0);
 
     await expect(
       client.request("wallet_sendtoaddress", [
         spendWalletRequest,
         receiveWalletAddress,
-        500000000000000000
+        "500000000000000000"
       ])
     ).to.eventually.deep.eq(null);
 
@@ -154,12 +154,12 @@ describe("Wallet transaction", () => {
     expectTransactionShouldBe(lastTransaction, {
       address: receiveWalletAddress,
       direction: TransactionDirection.INCOMING,
-      amount: new BigNumber("500000000000000000")
+      amount: "500000000000000000"
     });
 
     return expect(
       client.request("wallet_balance", [receiveWalletRequest])
-    ).to.eventually.deep.eq(new BigNumber("500000000000000000"));
+    ).to.eventually.deep.eq("500000000000000000");
   });
 
   it("User can receive funds", async () => {
@@ -179,7 +179,7 @@ describe("Wallet transaction", () => {
       client.request("wallet_sendtoaddress", [
         spendWalletRequest,
         RECEIVE_WALLET_ADDRESS,
-        500000000000000000
+        "500000000000000000"
       ])
     ).to.eventually.deep.eq(null);
 
@@ -200,7 +200,7 @@ describe("Wallet transaction", () => {
     expectTransactionShouldBe(lastTransaction, {
       address: RECEIVE_WALLET_ADDRESS,
       direction: TransactionDirection.INCOMING,
-      amount: new BigNumber("500000000000000000")
+      amount: "500000000000000000"
     });
 
     const expectedReceiveWalletBalanceAfterSend = receiveWalletBalanceBeforeSend.plus(
@@ -230,7 +230,7 @@ describe("Wallet transaction", () => {
       client.request("wallet_sendtoaddress", [
         walletRequest,
         RECEIVE_WALLET_ADDRESS,
-        500000000000000000
+        "500000000000000000"
       ])
     ).to.eventually.deep.eq(null);
 
@@ -296,7 +296,7 @@ const expectTransactionShouldBe = (
   });
 
   if (typeof expected.height !== "undefined") {
-    expect(actual.height).to.deep.eq(new BigNumber(expected.height));
+    expect(actual.height).to.deep.eq(expected.height);
   } else {
     expect(actual.height.isGreaterThan(0)).to.eq(true);
   }

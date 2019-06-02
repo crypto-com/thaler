@@ -17,7 +17,7 @@ describe("Wallet balance", () => {
 
     return expect(
       client.request("wallet_balance", [walletRequest])
-    ).to.eventually.deep.eq(new BigNumber("2500000000000000000"));
+    ).to.eventually.deep.eq("2500000000000000000");
   });
 
   it("User can retrieve correct balance after send funds", async () => {
@@ -25,7 +25,7 @@ describe("Wallet balance", () => {
 
     await expect(
       client.request("wallet_balance", [walletRequest])
-    ).to.eventually.deep.eq(new BigNumber("2500000000000000000"));
+    ).to.eventually.deep.eq("2500000000000000000");
 
     await client.request("wallet_sendtoaddress", [
       walletRequest,
@@ -37,7 +37,7 @@ describe("Wallet balance", () => {
 
     return expect(
       client.request("wallet_balance", [walletRequest])
-    ).to.eventually.deep.eq(new BigNumber("2000000000000000000"));
+    ).to.eventually.deep.eq("2000000000000000000");
   });
 
   it("User can retrieve correct balance after receive funds", async () => {
@@ -46,7 +46,7 @@ describe("Wallet balance", () => {
 
     await expect(
       client.request("wallet_balance", [viewWalletRequest])
-    ).to.eventually.deep.eq(new BigNumber("3000000000000000000"));
+    ).to.eventually.deep.eq("3000000000000000000");
 
     const amountToSpend = 500000000000000000;
     await client.request("wallet_sendtoaddress", [
@@ -59,6 +59,6 @@ describe("Wallet balance", () => {
 
     return expect(
       client.request("wallet_balance", [viewWalletRequest])
-    ).to.eventually.deep.eq(new BigNumber("3000000000000000000").plus(amountToSpend));
+    ).to.eventually.deep.eq("3000000000000000000").plus(amountToSpend);
   });
 });
