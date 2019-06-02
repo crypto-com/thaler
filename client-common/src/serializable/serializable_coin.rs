@@ -12,8 +12,8 @@ pub struct SerializableCoin(pub Coin);
 
 impl SerializableCoin {
     /// Returns the inner Coin
-    pub fn inner(&self) -> Coin {
-        self.0.clone()
+    pub fn inner(self) -> Coin {
+        self.0
     }
 }
 

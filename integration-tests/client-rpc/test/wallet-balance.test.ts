@@ -1,7 +1,6 @@
 import "mocha";
 import chaiAsPromised = require("chai-as-promised");
 import { use as chaiUse, expect } from "chai";
-import BigNumber from "bignumber.js";
 import { RpcClient } from "./core/rpc-client";
 import { newRpcClient, newWalletRequest, sleep, RECEIVE_WALLET_ADDRESS, VIEW_WALLET_ADDRESS } from "./core/setup";
 chaiUse(chaiAsPromised);
@@ -30,7 +29,7 @@ describe("Wallet balance", () => {
     await client.request("wallet_sendtoaddress", [
       walletRequest,
       RECEIVE_WALLET_ADDRESS,
-      500000000000000000
+      "500000000000000000"
     ]);
 
     await sleep(2000);
@@ -48,17 +47,16 @@ describe("Wallet balance", () => {
       client.request("wallet_balance", [viewWalletRequest])
     ).to.eventually.deep.eq("3000000000000000000");
 
-    const amountToSpend = 500000000000000000;
     await client.request("wallet_sendtoaddress", [
       spendWalletRequest,
       VIEW_WALLET_ADDRESS,
-      amountToSpend
+      "500000000000000000"
     ]);
 
     await sleep(2000);
 
     return expect(
       client.request("wallet_balance", [viewWalletRequest])
-    ).to.eventually.deep.eq("3000000000000000000").plus(amountToSpend);
+    ).to.eventually.deep.eq("8000000000000000000");
   });
 });
