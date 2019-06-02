@@ -7,7 +7,6 @@ use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 
 use chain_core::common::{Proof, H256};
-use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
@@ -15,6 +14,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
 use client_common::balance::TransactionChange;
+use client_common::serializable::SerializableCoin;
 use client_common::Result;
 
 use crate::{PrivateKey, PublicKey};
@@ -55,7 +55,7 @@ pub trait WalletClient: Send + Sync {
     fn new_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr>;
 
     /// Retrieves current balance of wallet
-    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin>;
+    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<SerializableCoin>;
 
     /// Retrieves transaction history of wallet
     fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>>;
@@ -65,7 +65,7 @@ pub trait WalletClient: Send + Sync {
         &self,
         name: &str,
         passphrase: &SecUtf8,
-    ) -> Result<Vec<(TxoPointer, Coin)>>;
+    ) -> Result<Vec<(TxoPointer, SerializableCoin)>>;
 
     /// Returns output of transaction with given id and index
     fn output(&self, id: &TxId, index: usize) -> Result<TxOut>;

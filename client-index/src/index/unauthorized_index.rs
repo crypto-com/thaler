@@ -1,9 +1,9 @@
-use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use client_common::balance::TransactionChange;
+use client_common::serializable::SerializableCoin;
 use client_common::{ErrorKind, Result};
 
 use crate::Index;
@@ -25,11 +25,11 @@ impl Index for UnauthorizedIndex {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn balance(&self, _address: &ExtendedAddr) -> Result<Coin> {
+    fn balance(&self, _address: &ExtendedAddr) -> Result<SerializableCoin> {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn unspent_transactions(&self, _address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+    fn unspent_transactions(&self, _address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
         Err(ErrorKind::PermissionDenied.into())
     }
 

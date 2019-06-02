@@ -3,6 +3,7 @@
 
 pub mod balance;
 pub mod error;
+pub mod serializable;
 pub mod storage;
 pub mod tendermint;
 

@@ -251,9 +251,11 @@ where
     ) -> Result<TxAux> {
         let mut unspent_transactions = wallet_client.unspent_transactions(name, passphrase)?;
         unspent_transactions.sort_by(|a, b| a.1.cmp(&b.1).reverse());
+        let mut unspent_transactions = unspent_transactions.iter().map(|(tx_out, serializable_coin)| (tx_out.clone(), serializable_coin.inner())).collect::<Vec<(TxoPointer, Coin)>>();
+        let unspent_transactions_slice = unspent_transactions.as_slice();
 
         let (select_until, difference_amount) =
-            self.transaction_estimate(&outputs, &attributes, &unspent_transactions)?;
+            self.transaction_estimate(&outputs, &attributes, unspent_transactions_slice)?;
 
         unspent_transactions.truncate(select_until);
 
@@ -288,6 +290,7 @@ mod tests {
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{LinearFee, Milli};
     use client_common::balance::TransactionChange;
+    use client_common::serializable::SerializableCoin;
 
     use crate::{PrivateKey, PublicKey};
 
@@ -427,7 +430,7 @@ mod tests {
             ))
         }
 
-        fn balance(&self, _: &str, _: &SecUtf8) -> Result<Coin> {
+        fn balance(&self, _: &str, _: &SecUtf8) -> Result<SerializableCoin> {
             unreachable!()
         }
 
@@ -435,28 +438,28 @@ mod tests {
             unreachable!()
         }
 
-        fn unspent_transactions(&self, _: &str, _: &SecUtf8) -> Result<Vec<(TxoPointer, Coin)>> {
+        fn unspent_transactions(&self, _: &str, _: &SecUtf8) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
             Ok(vec![
                 (
                     TxoPointer {
                         id: self.txid_0,
                         index: 0,
                     },
-                    Coin::new(200).unwrap(),
+                    SerializableCoin(Coin::new(200).unwrap()),
                 ),
                 (
                     TxoPointer {
                         id: self.txid_1,
                         index: 0,
                     },
-                    Coin::new(217).unwrap(),
+                    SerializableCoin(Coin::new(217).unwrap()),
                 ),
                 (
                     TxoPointer {
                         id: self.txid_2,
                         index: 0,
                     },
-                    Coin::new(100).unwrap(),
+                    SerializableCoin(Coin::new(100).unwrap()),
                 ),
             ])
         }

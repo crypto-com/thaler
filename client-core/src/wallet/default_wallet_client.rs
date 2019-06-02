@@ -5,7 +5,7 @@ use secstr::SecUtf8;
 
 use chain_core::common::{Proof, H256};
 use chain_core::init::address::RedeemAddress;
-use chain_core::init::coin::{sum_coins, Coin};
+use chain_core::init::coin::sum_coins;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
@@ -13,6 +13,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
 use client_common::balance::TransactionChange;
+use client_common::serializable::SerializableCoin;
 use client_common::storage::UnauthorizedStorage;
 use client_common::{ErrorKind, Result, Storage};
 use client_index::index::{Index, UnauthorizedIndex};
@@ -136,15 +137,16 @@ where
         Ok(ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key)))
     }
 
-    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin> {
+    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<SerializableCoin> {
         let addresses = self.addresses(name, passphrase)?;
 
         let balances = addresses
             .iter()
             .map(|address| self.index.balance(address))
-            .collect::<Result<Vec<Coin>>>()?;
+            .collect::<Result<Vec<SerializableCoin>>>()?;
+        let balances = balances.iter().map(|balance| balance.inner());
 
-        Ok(sum_coins(balances.into_iter()).context(ErrorKind::BalanceAdditionError)?)
+        Ok(SerializableCoin(sum_coins(balances.into_iter()).context(ErrorKind::BalanceAdditionError)?))
     }
 
     fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>> {
@@ -165,7 +167,7 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-    ) -> Result<Vec<(TxoPointer, Coin)>> {
+    ) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
         let addresses = self.addresses(name, passphrase)?;
 
         let mut unspent_transactions = Vec::new();
@@ -461,6 +463,7 @@ mod tests {
     use chain_core::tx::witness::TxInWitness;
     use chain_core::tx::{TransactionId, TxAux};
     use client_common::balance::{BalanceChange, TransactionChange};
+    use client_common::serializable::SerializableCoin;
     use client_common::storage::MemoryStorage;
     use client_common::Result;
     use client_index::Index;
@@ -518,14 +521,14 @@ mod tests {
                     TransactionChange {
                         transaction_id: [0u8; 32],
                         address: address.clone(),
-                        balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                        balance_change: BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())),
                         height: 1,
                         time: DateTime::from(SystemTime::now()),
                     },
                     TransactionChange {
                         transaction_id: [1u8; 32],
                         address: address.clone(),
-                        balance_change: BalanceChange::Outgoing(Coin::new(30).unwrap()),
+                        balance_change: BalanceChange::Outgoing(SerializableCoin(Coin::new(30).unwrap())),
                         height: 2,
                         time: DateTime::from(SystemTime::now()),
                     },
@@ -536,14 +539,14 @@ mod tests {
                         TransactionChange {
                             transaction_id: [1u8; 32],
                             address: address.clone(),
-                            balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                            balance_change: BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())),
                             height: 1,
                             time: DateTime::from(SystemTime::now()),
                         },
                         TransactionChange {
                             transaction_id: [2u8; 32],
                             address: address.clone(),
-                            balance_change: BalanceChange::Outgoing(Coin::new(30).unwrap()),
+                            balance_change: BalanceChange::Outgoing(SerializableCoin(Coin::new(30).unwrap())),
                             height: 2,
                             time: DateTime::from(SystemTime::now()),
                         },
@@ -552,7 +555,7 @@ mod tests {
                     Ok(vec![TransactionChange {
                         transaction_id: [1u8; 32],
                         address: address.clone(),
-                        balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                        balance_change: BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())),
                         height: 2,
                         time: DateTime::from(SystemTime::now()),
                     }])
@@ -561,7 +564,7 @@ mod tests {
                 Ok(vec![TransactionChange {
                     transaction_id: [1u8; 32],
                     address: address.clone(),
-                    balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                    balance_change: BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())),
                     height: 2,
                     time: DateTime::from(SystemTime::now()),
                 }])
@@ -570,23 +573,23 @@ mod tests {
             }
         }
 
-        fn balance(&self, address: &ExtendedAddr) -> Result<Coin> {
+        fn balance(&self, address: &ExtendedAddr) -> Result<SerializableCoin> {
             if address == &self.addr_1 {
-                Ok(Coin::zero())
+                Ok(SerializableCoin(Coin::zero()))
             } else if address == &self.addr_2 {
                 if *self.changed.read().unwrap() {
-                    Ok(Coin::zero())
+                    Ok(SerializableCoin(Coin::zero()))
                 } else {
-                    Ok(Coin::new(30).unwrap())
+                    Ok(SerializableCoin(Coin::new(30).unwrap()))
                 }
             } else if *self.changed.read().unwrap() && address == &self.addr_3 {
-                Ok(Coin::new(30).unwrap())
+                Ok(SerializableCoin(Coin::new(30).unwrap()))
             } else {
-                Ok(Coin::zero())
+                Ok(SerializableCoin(Coin::zero()))
             }
         }
 
-        fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+        fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
             if address == &self.addr_1 {
                 Ok(Default::default())
             } else if address == &self.addr_2 {
@@ -595,13 +598,13 @@ mod tests {
                 } else {
                     Ok(vec![(
                         TxoPointer::new([1u8; 32], 0),
-                        Coin::new(30).unwrap(),
+                        SerializableCoin(Coin::new(30).unwrap()),
                     )])
                 }
             } else if *self.changed.read().unwrap() && address == &self.addr_3 {
                 Ok(vec![(
                     TxoPointer::new([2u8; 32], 0),
-                    Coin::new(30).unwrap(),
+                    SerializableCoin(Coin::new(30).unwrap()),
                 )])
             } else {
                 Ok(Default::default())
@@ -773,19 +776,19 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            Coin::new(0).unwrap(),
+            SerializableCoin(Coin::new(0).unwrap()),
             wallet
                 .balance("wallet_1", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
         assert_eq!(
-            Coin::new(30).unwrap(),
+            SerializableCoin(Coin::new(30).unwrap()),
             wallet
                 .balance("wallet_2", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
         assert_eq!(
-            Coin::new(0).unwrap(),
+            SerializableCoin(Coin::new(0).unwrap()),
             wallet
                 .balance("wallet_3", &SecUtf8::from("passphrase"))
                 .unwrap()
@@ -837,19 +840,19 @@ mod tests {
             .is_ok());
 
         assert_eq!(
-            Coin::new(0).unwrap(),
+            SerializableCoin(Coin::new(0).unwrap()),
             wallet
                 .balance("wallet_1", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
         assert_eq!(
-            Coin::new(0).unwrap(),
+            SerializableCoin(Coin::new(0).unwrap()),
             wallet
                 .balance("wallet_2", &SecUtf8::from("passphrase"))
                 .unwrap()
         );
         assert_eq!(
-            Coin::new(30).unwrap(),
+            SerializableCoin(Coin::new(30).unwrap()),
             wallet
                 .balance("wallet_3", &SecUtf8::from("passphrase"))
                 .unwrap()

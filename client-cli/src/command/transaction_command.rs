@@ -7,11 +7,11 @@ use structopt::StructOpt;
 
 use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::address::RedeemAddress;
-use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use client_common::{ErrorKind, Result};
+use client_common::serializable::SerializableCoin;
 use client_core::WalletClient;
 
 use crate::ask_passphrase;
@@ -88,8 +88,9 @@ impl TransactionCommand {
             ask("Enter amount: ");
             let amount = text()
                 .context(ErrorKind::IoError)?
-                .parse::<Coin>()
+                .parse::<SerializableCoin>()
                 .context(ErrorKind::DeserializationError)?;
+            let amount = amount.inner();
 
             ask("Enter timelock (seconds from UNIX epoch) (leave blank if output is not time locked): ");
             let timelock = text().context(ErrorKind::IoError)?;

@@ -79,6 +79,8 @@ mod tests {
 
     use chain_core::tx::data::txid_hash;
 
+    use crate::serializable::SerializableCoin;
+
     fn get_transaction_change(balance_change: BalanceChange) -> TransactionChange {
         TransactionChange {
             transaction_id: txid_hash(&[0, 1, 2]),
@@ -93,7 +95,7 @@ mod tests {
     fn add_incoming() {
         let coin = Coin::zero()
             + get_transaction_change(BalanceChange::Incoming(
-                Coin::new(30).expect("Unable to create new coin"),
+                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
             ));
 
         assert_eq!(
@@ -107,7 +109,7 @@ mod tests {
     fn add_incoming_fail() {
         let coin = Coin::max()
             + get_transaction_change(BalanceChange::Incoming(
-                Coin::new(30).expect("Unable to create new coin"),
+                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
             ));
 
         assert!(coin.is_err(), "Created coin greater than max value")
@@ -117,7 +119,7 @@ mod tests {
     fn add_outgoing() {
         let coin = Coin::new(40).expect("Unable to create new coin")
             + get_transaction_change(BalanceChange::Outgoing(
-                Coin::new(30).expect("Unable to create new coin"),
+                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
             ));
 
         assert_eq!(
@@ -131,7 +133,7 @@ mod tests {
     fn add_outgoing_fail() {
         let coin = Coin::zero()
             + get_transaction_change(BalanceChange::Outgoing(
-                Coin::new(30).expect("Unable to create new coin"),
+                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
             ));
 
         assert!(coin.is_err(), "Created negative coin")

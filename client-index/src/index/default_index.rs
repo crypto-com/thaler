@@ -1,7 +1,6 @@
 use chrono::offset::Utc;
 use chrono::DateTime;
 
-use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
@@ -9,6 +8,7 @@ use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use client_common::balance::{BalanceChange, TransactionChange};
+use client_common::serializable::SerializableCoin;
 use client_common::tendermint::Client;
 use client_common::{ErrorKind, Result, Storage};
 
@@ -86,7 +86,7 @@ where
                 let change = TransactionChange {
                     transaction_id: id,
                     address: output.address,
-                    balance_change: BalanceChange::Outgoing(output.value),
+                    balance_change: BalanceChange::Outgoing(SerializableCoin(output.value)),
                     height,
                     time,
                 };
@@ -107,7 +107,7 @@ where
                 let change = TransactionChange {
                     transaction_id: id,
                     address: output.address.clone(),
-                    balance_change: BalanceChange::Incoming(output.value),
+                    balance_change: BalanceChange::Incoming(SerializableCoin(output.value)),
                     height,
                     time,
                 };
@@ -118,7 +118,7 @@ where
 
                 // Update unspent transactions
                 self.unspent_transaction_service
-                    .add(&change.address, (TxoPointer::new(id, i), output.value))?;
+                    .add(&change.address, (TxoPointer::new(id, i), SerializableCoin(output.value)))?;
 
                 // Update transaction history
                 self.address_service.add(change)?;
@@ -181,11 +181,11 @@ where
         self.address_service.get(address)
     }
 
-    fn balance(&self, address: &ExtendedAddr) -> Result<Coin> {
+    fn balance(&self, address: &ExtendedAddr) -> Result<SerializableCoin> {
         self.balance_service.get(address)
     }
 
-    fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+    fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
         self.unspent_transaction_service.get(address)
     }
 
@@ -343,9 +343,9 @@ mod tests {
         );
 
         assert!(index.sync_all().is_ok());
-        assert_eq!(Coin::zero(), index.balance(&spend_address).unwrap());
+        assert_eq!(SerializableCoin(Coin::zero()), index.balance(&spend_address).unwrap());
         assert_eq!(
-            Coin::new(10000000000000000000).unwrap(),
+            SerializableCoin(Coin::new(10000000000000000000).unwrap()),
             index.balance(&view_address).unwrap()
         );
 

@@ -64,6 +64,7 @@ mod tests {
     use chain_core::init::coin::Coin;
     use chain_core::tx::data::txid_hash;
     use client_common::balance::BalanceChange;
+    use client_common::serializable::SerializableCoin;
     use client_common::storage::MemoryStorage;
 
     #[test]
@@ -74,7 +75,7 @@ mod tests {
             transaction_id: txid_hash(&[0, 1, 2]),
             address: address.clone(),
             balance_change: BalanceChange::Incoming(
-                Coin::new(30).expect("Unable to create new coin"),
+                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
             ),
             height: 1,
             time: DateTime::from(SystemTime::now()),

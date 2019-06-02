@@ -10,6 +10,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use client_common::balance::TransactionChange;
+use client_common::serializable::SerializableCoin;
 use client_core::wallet::WalletClient;
 
 use crate::server::{rpc_error_from_string, to_rpc_error};
@@ -20,7 +21,7 @@ pub trait WalletRpc {
     fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
 
     #[rpc(name = "wallet_balance")]
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin>;
+    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<SerializableCoin>;
 
     #[rpc(name = "wallet_create")]
     fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String>;
@@ -33,7 +34,7 @@ pub trait WalletRpc {
         &self,
         request: WalletRequest,
         to_address: String,
-        amount: u64,
+        amount: SerializableCoin,
     ) -> jsonrpc_core::Result<()>;
 
     #[rpc(name = "sync")]
@@ -79,7 +80,7 @@ where
         }
     }
 
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin> {
+    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<SerializableCoin> {
         self.sync()?;
 
         match self.client.balance(&request.name, &request.passphrase) {
@@ -111,14 +112,14 @@ where
         &self,
         request: WalletRequest,
         to_address: String,
-        amount: u64,
+        amount: SerializableCoin,
     ) -> jsonrpc_core::Result<()> {
         self.sync()?;
 
         let redeem_address = RedeemAddress::from_str(&to_address[..])
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let address = ExtendedAddr::BasicRedeem(redeem_address);
-        let coin = Coin::new(amount).map_err(|err| rpc_error_from_string(format!("{}", err)))?;
+        let coin: Coin = amount.into();
         let tx_out = TxOut::new(address, coin);
         let tx_attributes = TxAttributes::new(self.chain_id);
 
@@ -184,6 +185,7 @@ mod tests {
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
     use client_common::balance::{BalanceChange, TransactionChange};
+    use client_common::serializable::SerializableCoin;
     use client_common::storage::MemoryStorage;
     use client_common::{Error, ErrorKind, Result};
     use client_core::transaction_builder::DefaultTransactionBuilder;
@@ -206,17 +208,17 @@ mod tests {
             Ok(vec![TransactionChange {
                 transaction_id: [0u8; 32],
                 address: address.clone(),
-                balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                balance_change: BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())),
                 height: 1,
                 time: DateTime::from(SystemTime::now()),
             }])
         }
 
-        fn balance(&self, _: &ExtendedAddr) -> Result<Coin> {
-            Ok(Coin::new(30).unwrap())
+        fn balance(&self, _: &ExtendedAddr) -> Result<SerializableCoin> {
+            Ok(SerializableCoin(Coin::new(30).unwrap()))
         }
 
-        fn unspent_transactions(&self, _address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+        fn unspent_transactions(&self, _address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
             Ok(Vec::new())
         }
 
@@ -341,7 +343,7 @@ mod tests {
             .create(create_wallet_request("Default", "123456"))
             .unwrap();
         assert_eq!(
-            Coin::new(30).unwrap(),
+            SerializableCoin(Coin::new(30).unwrap()),
             wallet_rpc
                 .balance(create_wallet_request("Default", "123456"))
                 .unwrap()

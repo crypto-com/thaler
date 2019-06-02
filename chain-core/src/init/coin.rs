@@ -150,6 +150,12 @@ impl From<Coin> for u64 {
     }
 }
 
+impl From<Coin> for String {
+    fn from(c: Coin) -> String {
+        c.0.to_string()
+    }
+}
+
 impl From<u32> for Coin {
     fn from(c: u32) -> Coin {
         Coin(u64::from(c))
@@ -222,5 +228,21 @@ mod test {
             Coin::new(v as u64).is_ok()
         }
 
+    }
+
+    #[test]
+    fn test_coin_into_u64() {
+        let coin = Coin::new(10000000000000000000).unwrap();
+        let result: u64 = coin.into();
+
+        assert_eq!(result, 10000000000000000000);
+    }
+
+    #[test]
+    fn test_coin_into_string() {
+        let coin = Coin::new(10000000000000000000).unwrap();
+        let result: String = coin.into();
+
+        assert_eq!(result, "10000000000000000000");
     }
 }

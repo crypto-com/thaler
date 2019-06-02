@@ -5,12 +5,12 @@ mod unauthorized_index;
 pub use default_index::DefaultIndex;
 pub use unauthorized_index::UnauthorizedIndex;
 
-use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use client_common::balance::TransactionChange;
+use client_common::serializable::SerializableCoin;
 use client_common::Result;
 
 /// Interface for interacting with transaction index
@@ -25,10 +25,10 @@ pub trait Index: Send + Sync {
     fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>>;
 
     /// Returns current balance for given address
-    fn balance(&self, address: &ExtendedAddr) -> Result<Coin>;
+    fn balance(&self, address: &ExtendedAddr) -> Result<SerializableCoin>;
 
     /// Returns all the unspent transactions corresponding to given address
-    fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>>;
+    fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>>;
 
     /// Returns transaction with given id
     fn transaction(&self, id: &TxId) -> Result<Option<Tx>>;
