@@ -28,7 +28,10 @@ pub trait Index: Send + Sync {
     fn balance(&self, address: &ExtendedAddr) -> Result<SerializableCoin>;
 
     /// Returns all the unspent transactions corresponding to given address
-    fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>>;
+    fn unspent_transactions(
+        &self,
+        address: &ExtendedAddr,
+    ) -> Result<Vec<(TxoPointer, SerializableCoin)>>;
 
     /// Returns transaction with given id
     fn transaction(&self, id: &TxId) -> Result<Option<Tx>>;

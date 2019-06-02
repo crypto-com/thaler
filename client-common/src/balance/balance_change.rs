@@ -69,7 +69,9 @@ mod tests {
     #[test]
     fn add_incoming() {
         let coin = Coin::zero()
-            + BalanceChange::Incoming(SerializableCoin(Coin::new(30).expect("Unable to create new coin")));
+            + BalanceChange::Incoming(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            ));
 
         assert_eq!(
             Coin::new(30).expect("Unable to create new coin"),
@@ -81,7 +83,9 @@ mod tests {
     #[test]
     fn add_incoming_fail() {
         let coin = Coin::max()
-            + BalanceChange::Incoming(SerializableCoin(Coin::new(30).expect("Unable to create new coin")));
+            + BalanceChange::Incoming(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            ));
 
         assert!(coin.is_err(), "Created coin greater than max value")
     }
@@ -89,7 +93,9 @@ mod tests {
     #[test]
     fn add_outgoing() {
         let coin = Coin::new(40).expect("Unable to create new coin")
-            + BalanceChange::Outgoing(SerializableCoin(Coin::new(30).expect("Unable to create new coin")));
+            + BalanceChange::Outgoing(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            ));
 
         assert_eq!(
             Coin::new(10).expect("Unable to create new coin"),
@@ -101,7 +107,9 @@ mod tests {
     #[test]
     fn add_outgoing_fail() {
         let coin = Coin::zero()
-            + BalanceChange::Outgoing(SerializableCoin(Coin::new(30).expect("Unable to create new coin")));
+            + BalanceChange::Outgoing(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            ));
 
         assert!(coin.is_err(), "Created negative coin")
     }
@@ -112,8 +120,9 @@ mod tests {
 
         #[test]
         fn test_serialize_should_return_coin_amount_in_numeric_string() {
-            let balance_change =
-                BalanceChange::Incoming(SerializableCoin(Coin::new(99999).expect("Unable to create new coin")));
+            let balance_change = BalanceChange::Incoming(SerializableCoin(
+                Coin::new(99999).expect("Unable to create new coin"),
+            ));
             let actual_json =
                 serde_json::to_string(&balance_change).expect("Unable to serialize BalanceChange");
 
@@ -122,8 +131,9 @@ mod tests {
 
         #[test]
         fn test_serialize_incoming_balance_change_should_work() {
-            let balance_change =
-                BalanceChange::Incoming(SerializableCoin(Coin::new(30).expect("Unable to create new coin")));
+            let balance_change = BalanceChange::Incoming(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            ));
             let actual_json =
                 serde_json::to_string(&balance_change).expect("Unable to serialize BalanceChange");
 
@@ -132,8 +142,9 @@ mod tests {
 
         #[test]
         fn test_serialize_outgoing_balance_change_should_work() {
-            let balance_change =
-                BalanceChange::Outgoing(SerializableCoin(Coin::new(30).expect("Unable to create new coin")));
+            let balance_change = BalanceChange::Outgoing(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            ));
             let actual_json =
                 serde_json::to_string(&balance_change).expect("Unable to serialize BalanceChange");
 
@@ -142,9 +153,9 @@ mod tests {
 
         #[test]
         fn test_serialize_large_amount_should_work() {
-            let balance_change = BalanceChange::Incoming(
-                SerializableCoin(Coin::new(10000000000000000000).expect("Unable to create new coin")),
-            );
+            let balance_change = BalanceChange::Incoming(SerializableCoin(
+                Coin::new(10000000000000000000).expect("Unable to create new coin"),
+            ));
             let actual_json =
                 serde_json::to_string(&balance_change).expect("Unable to serialize BalanceChange");
 

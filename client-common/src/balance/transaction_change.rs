@@ -94,9 +94,9 @@ mod tests {
     #[test]
     fn add_incoming() {
         let coin = Coin::zero()
-            + get_transaction_change(BalanceChange::Incoming(
-                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
-            ));
+            + get_transaction_change(BalanceChange::Incoming(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            )));
 
         assert_eq!(
             Coin::new(30).expect("Unable to create new coin"),
@@ -108,9 +108,9 @@ mod tests {
     #[test]
     fn add_incoming_fail() {
         let coin = Coin::max()
-            + get_transaction_change(BalanceChange::Incoming(
-                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
-            ));
+            + get_transaction_change(BalanceChange::Incoming(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            )));
 
         assert!(coin.is_err(), "Created coin greater than max value")
     }
@@ -118,9 +118,9 @@ mod tests {
     #[test]
     fn add_outgoing() {
         let coin = Coin::new(40).expect("Unable to create new coin")
-            + get_transaction_change(BalanceChange::Outgoing(
-                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
-            ));
+            + get_transaction_change(BalanceChange::Outgoing(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            )));
 
         assert_eq!(
             Coin::new(10).expect("Unable to create new coin"),
@@ -132,9 +132,9 @@ mod tests {
     #[test]
     fn add_outgoing_fail() {
         let coin = Coin::zero()
-            + get_transaction_change(BalanceChange::Outgoing(
-                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
-            ));
+            + get_transaction_change(BalanceChange::Outgoing(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            )));
 
         assert!(coin.is_err(), "Created negative coin")
     }

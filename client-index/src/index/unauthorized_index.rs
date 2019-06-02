@@ -29,7 +29,10 @@ impl Index for UnauthorizedIndex {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn unspent_transactions(&self, _address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
+    fn unspent_transactions(
+        &self,
+        _address: &ExtendedAddr,
+    ) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
         Err(ErrorKind::PermissionDenied.into())
     }
 

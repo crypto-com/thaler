@@ -1,8 +1,8 @@
-use std::convert::From;
-use std::fmt;
 use parity_codec::{Decode, Encode};
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::{Serialize, Serializer};
+use std::convert::From;
+use std::fmt;
 
 use chain_core::init::coin::{Coin, CoinError};
 
@@ -119,7 +119,8 @@ mod test {
             let coin = Coin::new(10000000000000000000).expect("Unable to create new coin");
             let serializable_coin = SerializableCoin(coin);
 
-            let json = serde_json::to_string(&serializable_coin).expect("Unable to serialize SerializableCoin");
+            let json = serde_json::to_string(&serializable_coin)
+                .expect("Unable to serialize SerializableCoin");
             assert_eq!(json, "\"10000000000000000000\"");
         }
 
@@ -195,7 +196,9 @@ mod test {
 
             assert_eq!(
                 deserialize_result.expect("Unable to deserialize to SerializableCoin"),
-                SerializableCoin(Coin::new(10000000000000000000).expect("Unable to create new coin"))
+                SerializableCoin(
+                    Coin::new(10000000000000000000).expect("Unable to create new coin")
+                )
             );
         }
     }

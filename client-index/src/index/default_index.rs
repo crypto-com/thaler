@@ -117,8 +117,10 @@ where
                     .change(&change.address, &change.balance_change)?;
 
                 // Update unspent transactions
-                self.unspent_transaction_service
-                    .add(&change.address, (TxoPointer::new(id, i), SerializableCoin(output.value)))?;
+                self.unspent_transaction_service.add(
+                    &change.address,
+                    (TxoPointer::new(id, i), SerializableCoin(output.value)),
+                )?;
 
                 // Update transaction history
                 self.address_service.add(change)?;
@@ -185,7 +187,10 @@ where
         self.balance_service.get(address)
     }
 
-    fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
+    fn unspent_transactions(
+        &self,
+        address: &ExtendedAddr,
+    ) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
         self.unspent_transaction_service.get(address)
     }
 
@@ -343,7 +348,10 @@ mod tests {
         );
 
         assert!(index.sync_all().is_ok());
-        assert_eq!(SerializableCoin(Coin::zero()), index.balance(&spend_address).unwrap());
+        assert_eq!(
+            SerializableCoin(Coin::zero()),
+            index.balance(&spend_address).unwrap()
+        );
         assert_eq!(
             SerializableCoin(Coin::new(10000000000000000000).unwrap()),
             index.balance(&view_address).unwrap()

@@ -10,8 +10,8 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
-use client_common::{ErrorKind, Result};
 use client_common::serializable::SerializableCoin;
+use client_common::{ErrorKind, Result};
 use client_core::WalletClient;
 
 use crate::ask_passphrase;

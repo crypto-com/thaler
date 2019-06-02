@@ -74,9 +74,9 @@ mod tests {
         let transaction_change = TransactionChange {
             transaction_id: txid_hash(&[0, 1, 2]),
             address: address.clone(),
-            balance_change: BalanceChange::Incoming(
-                SerializableCoin(Coin::new(30).expect("Unable to create new coin")),
-            ),
+            balance_change: BalanceChange::Incoming(SerializableCoin(
+                Coin::new(30).expect("Unable to create new coin"),
+            )),
             height: 1,
             time: DateTime::from(SystemTime::now()),
         };

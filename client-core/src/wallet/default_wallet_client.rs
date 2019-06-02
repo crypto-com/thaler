@@ -146,7 +146,9 @@ where
             .collect::<Result<Vec<SerializableCoin>>>()?;
         let balances = balances.iter().map(|balance| balance.inner());
 
-        Ok(SerializableCoin(sum_coins(balances.into_iter()).context(ErrorKind::BalanceAdditionError)?))
+        Ok(SerializableCoin(
+            sum_coins(balances.into_iter()).context(ErrorKind::BalanceAdditionError)?,
+        ))
     }
 
     fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>> {
@@ -521,14 +523,18 @@ mod tests {
                     TransactionChange {
                         transaction_id: [0u8; 32],
                         address: address.clone(),
-                        balance_change: BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())),
+                        balance_change: BalanceChange::Incoming(SerializableCoin(
+                            Coin::new(30).unwrap(),
+                        )),
                         height: 1,
                         time: DateTime::from(SystemTime::now()),
                     },
                     TransactionChange {
                         transaction_id: [1u8; 32],
                         address: address.clone(),
-                        balance_change: BalanceChange::Outgoing(SerializableCoin(Coin::new(30).unwrap())),
+                        balance_change: BalanceChange::Outgoing(SerializableCoin(
+                            Coin::new(30).unwrap(),
+                        )),
                         height: 2,
                         time: DateTime::from(SystemTime::now()),
                     },
@@ -539,14 +545,18 @@ mod tests {
                         TransactionChange {
                             transaction_id: [1u8; 32],
                             address: address.clone(),
-                            balance_change: BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())),
+                            balance_change: BalanceChange::Incoming(SerializableCoin(
+                                Coin::new(30).unwrap(),
+                            )),
                             height: 1,
                             time: DateTime::from(SystemTime::now()),
                         },
                         TransactionChange {
                             transaction_id: [2u8; 32],
                             address: address.clone(),
-                            balance_change: BalanceChange::Outgoing(SerializableCoin(Coin::new(30).unwrap())),
+                            balance_change: BalanceChange::Outgoing(SerializableCoin(
+                                Coin::new(30).unwrap(),
+                            )),
                             height: 2,
                             time: DateTime::from(SystemTime::now()),
                         },
@@ -555,7 +565,9 @@ mod tests {
                     Ok(vec![TransactionChange {
                         transaction_id: [1u8; 32],
                         address: address.clone(),
-                        balance_change: BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())),
+                        balance_change: BalanceChange::Incoming(SerializableCoin(
+                            Coin::new(30).unwrap(),
+                        )),
                         height: 2,
                         time: DateTime::from(SystemTime::now()),
                     }])
@@ -564,7 +576,9 @@ mod tests {
                 Ok(vec![TransactionChange {
                     transaction_id: [1u8; 32],
                     address: address.clone(),
-                    balance_change: BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())),
+                    balance_change: BalanceChange::Incoming(SerializableCoin(
+                        Coin::new(30).unwrap(),
+                    )),
                     height: 2,
                     time: DateTime::from(SystemTime::now()),
                 }])
@@ -589,7 +603,10 @@ mod tests {
             }
         }
 
-        fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
+        fn unspent_transactions(
+            &self,
+            address: &ExtendedAddr,
+        ) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
             if address == &self.addr_1 {
                 Ok(Default::default())
             } else if address == &self.addr_2 {

@@ -218,7 +218,10 @@ mod tests {
             Ok(SerializableCoin(Coin::new(30).unwrap()))
         }
 
-        fn unspent_transactions(&self, _address: &ExtendedAddr) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
+        fn unspent_transactions(
+            &self,
+            _address: &ExtendedAddr,
+        ) -> Result<Vec<(TxoPointer, SerializableCoin)>> {
             Ok(Vec::new())
         }
 

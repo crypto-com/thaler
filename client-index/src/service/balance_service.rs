@@ -30,14 +30,17 @@ where
 
         match bytes {
             None => Ok(SerializableCoin(Coin::zero())),
-            Some(bytes) => {
-                Ok(SerializableCoin::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?)
-            }
+            Some(bytes) => Ok(SerializableCoin::decode(&mut bytes.as_slice())
+                .ok_or(ErrorKind::DeserializationError)?),
         }
     }
 
     /// Changes balance for an address with given balance change
-    pub fn change(&self, address: &ExtendedAddr, change: &BalanceChange) -> Result<SerializableCoin> {
+    pub fn change(
+        &self,
+        address: &ExtendedAddr,
+        change: &BalanceChange,
+    ) -> Result<SerializableCoin> {
         let current = self.get(address)?;
         let new = (current.inner() + change)?;
 
@@ -66,17 +69,26 @@ mod tests {
         let balance_service = BalanceService::new(MemoryStorage::default());
         let address = ExtendedAddr::BasicRedeem(Default::default());
 
-        assert_eq!(SerializableCoin(Coin::zero()), balance_service.get(&address).unwrap());
+        assert_eq!(
+            SerializableCoin(Coin::zero()),
+            balance_service.get(&address).unwrap()
+        );
         assert_eq!(
             SerializableCoin(Coin::new(30).unwrap()),
             balance_service
-                .change(&address, &BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap())))
+                .change(
+                    &address,
+                    &BalanceChange::Incoming(SerializableCoin(Coin::new(30).unwrap()))
+                )
                 .unwrap()
         );
         assert_eq!(
             SerializableCoin(Coin::new(10).unwrap()),
             balance_service
-                .change(&address, &BalanceChange::Outgoing(SerializableCoin(Coin::new(20).unwrap())))
+                .change(
+                    &address,
+                    &BalanceChange::Outgoing(SerializableCoin(Coin::new(20).unwrap()))
+                )
                 .unwrap()
         );
         assert_eq!(
@@ -84,6 +96,9 @@ mod tests {
             balance_service.get(&address).unwrap()
         );
         assert!(balance_service.clear().is_ok());
-        assert_eq!(SerializableCoin(Coin::zero()), balance_service.get(&address).unwrap());
+        assert_eq!(
+            SerializableCoin(Coin::zero()),
+            balance_service.get(&address).unwrap()
+        );
     }
 }
