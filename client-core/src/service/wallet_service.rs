@@ -75,6 +75,7 @@ where
         passphrase: &SecUtf8,
         public_key: PublicKey,
     ) -> Result<()> {
+        // TODO: Implement compare and swap?
         let mut wallet = self.get_wallet(name, passphrase)?;
         wallet.public_keys.push(public_key);
         self.set_wallet(name, passphrase, wallet)
@@ -87,6 +88,7 @@ where
         passphrase: &SecUtf8,
         address: H256,
     ) -> Result<()> {
+        // TODO: Implement compare and swap?
         let mut wallet = self.get_wallet(name, passphrase)?;
         wallet.multi_sig_addresses.push(address);
         self.set_wallet(name, passphrase, wallet)

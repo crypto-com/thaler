@@ -1,6 +1,7 @@
 use failure::ResultExt;
 use parity_codec::{Decode, Encode, Input, Output};
 use rand::rngs::OsRng;
+use secp256k1::schnorrsig::{schnorr_sign, SchnorrSignature};
 use secp256k1::{Message, PublicKey as SecpPublicKey, SecretKey};
 use zeroize::Zeroize;
 
@@ -41,6 +42,14 @@ impl PrivateKey {
             Message::from_slice(bytes.as_ref()).context(ErrorKind::DeserializationError)?;
         let signature = SECP.with(|secp| secp.sign_recoverable(&message, &self.0));
         Ok(TxInWitness::BasicRedeem(signature))
+    }
+
+    /// Signs a message with current private key (uses schnorr signature algorithm)
+    pub fn schnorr_sign<T: AsRef<[u8]>>(&self, bytes: T) -> Result<SchnorrSignature> {
+        let message =
+            Message::from_slice(bytes.as_ref()).context(ErrorKind::DeserializationError)?;
+        let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0).0);
+        Ok(signature)
     }
 }
 

@@ -118,6 +118,15 @@ pub trait MultiSigWalletClient: WalletClient {
     /// Returns all the multi-sig addresses in current wallet
     fn multi_sig_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
 
+    /// Creates a 1-of-n schnorr signature.
+    fn schnorr_signature(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        message: &H256,
+        public_key: &PublicKey,
+    ) -> Result<SchnorrSignature>;
+
     /// Creates a new multi-sig session and returns session-id
     ///
     /// # Arguments

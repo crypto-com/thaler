@@ -14,7 +14,7 @@ use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
 use client_common::balance::TransactionChange;
 use client_common::storage::UnauthorizedStorage;
-use client_common::{ErrorKind, Result, Storage};
+use client_common::{Error, ErrorKind, Result, Storage};
 use client_index::index::{Index, UnauthorizedIndex};
 
 use crate::service::*;
@@ -256,6 +256,23 @@ where
             .into_iter()
             .map(ExtendedAddr::OrTree)
             .collect())
+    }
+
+    fn schnorr_signature(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        message: &H256,
+        public_key: &PublicKey,
+    ) -> Result<SchnorrSignature> {
+        // To verify if the passphrase is correct or not
+        self.multi_sig_addresses(name, passphrase)?;
+
+        let private_key = match self.private_key(passphrase, public_key)? {
+            None => Err(Error::from(ErrorKind::PrivateKeyNotFound)),
+            Some(private_key) => Ok(private_key),
+        }?;
+        private_key.schnorr_sign(message)
     }
 
     fn new_multi_sig_session(
@@ -1168,6 +1185,57 @@ mod tests {
                 passphrase,
                 &multi_sig_address,
                 vec![public_key_1.clone(), public_key_2.clone()],
+            )
+            .unwrap();
+
+        let witness = TxInWitness::TreeSig(signature, proof);
+
+        assert!(witness
+            .verify_tx_address(&transaction.id(), &multi_sig_address)
+            .is_ok())
+    }
+
+    #[test]
+    fn check_1_of_n_schnorr_signature() {
+        let storage = MemoryStorage::default();
+        let wallet = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+
+        let passphrase = &SecUtf8::from("passphrase");
+        let name = "name";
+
+        wallet.new_wallet(name, passphrase).unwrap();
+
+        let public_key_1 = wallet.new_public_key(name, passphrase).unwrap();
+        let public_key_2 = wallet.new_public_key(name, passphrase).unwrap();
+        let public_key_3 = wallet.new_public_key(name, passphrase).unwrap();
+
+        let public_keys = vec![
+            public_key_1.clone(),
+            public_key_2.clone(),
+            public_key_3.clone(),
+        ];
+
+        let multi_sig_address = wallet
+            .new_multi_sig_address(name, passphrase, public_keys.clone(), 1, 3)
+            .unwrap();
+
+        let transaction = Tx::new();
+
+        let signature = wallet
+            .schnorr_signature(name, passphrase, &transaction.id(), &public_key_1)
+            .unwrap();
+
+        println!("Signature");
+
+        let proof = wallet
+            .generate_proof(
+                name,
+                passphrase,
+                &multi_sig_address,
+                vec![public_key_1.clone()],
             )
             .unwrap();
 

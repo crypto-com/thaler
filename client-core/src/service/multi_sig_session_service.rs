@@ -359,13 +359,9 @@ where
         self_private_key: PrivateKey,
         passphrase: &SecUtf8,
     ) -> Result<H256> {
-        if PublicKey::from(&self_private_key) != self_public_key {
+        if PublicKey::from(&self_private_key) != self_public_key || signer_public_keys.len() <= 1 {
             return Err(ErrorKind::InvalidInput.into());
         }
-
-        let mut rng = OsRng::new().context(ErrorKind::KeyGenerationError)?;
-        let session_id = H256::try_from(&MuSigSessionID::new(&mut rng)[..])
-            .context(ErrorKind::DeserializationError)?;
 
         signer_public_keys.sort();
 
@@ -385,6 +381,10 @@ where
                 partial_signature: None,
             })
             .collect::<Vec<Signer>>();
+
+        let mut rng = OsRng::new().context(ErrorKind::KeyGenerationError)?;
+        let session_id = H256::try_from(&MuSigSessionID::new(&mut rng)[..])
+            .context(ErrorKind::DeserializationError)?;
 
         let session = MultiSigSession {
             id: session_id,
@@ -420,6 +420,7 @@ where
         public_key: &PublicKey,
         passphrase: &SecUtf8,
     ) -> Result<()> {
+        // TODO: Implement compare and swap?
         let mut session = self.get_session(session_id, passphrase)?;
         session.add_nonce_commitment(public_key, nonce_commitment)?;
         self.set_session(session_id, session, passphrase)
@@ -443,6 +444,7 @@ where
         public_key: &PublicKey,
         passphrase: &SecUtf8,
     ) -> Result<()> {
+        // TODO: Implement compare and swap?
         let mut session = self.get_session(session_id, passphrase)?;
         session.add_nonce(public_key, nonce)?;
         self.set_session(session_id, session, passphrase)
@@ -466,6 +468,7 @@ where
         public_key: &PublicKey,
         passphrase: &SecUtf8,
     ) -> Result<()> {
+        // TODO: Implement compare and swap?
         let mut session = self.get_session(session_id, passphrase)?;
         session.add_partial_signature(public_key, partial_signature)?;
         self.set_session(session_id, session, passphrase)
