@@ -7,6 +7,7 @@ use secp256k1::PublicKey as SecpPublicKey;
 
 use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
+use chain_core::tx::witness::tree::RawPubkey;
 use client_common::{ErrorKind, Result};
 
 use crate::SECP;
@@ -74,6 +75,18 @@ impl From<PublicKey> for SecpPublicKey {
 impl From<&PublicKey> for SecpPublicKey {
     fn from(public_key: &PublicKey) -> SecpPublicKey {
         public_key.0
+    }
+}
+
+impl From<PublicKey> for RawPubkey {
+    fn from(public_key: PublicKey) -> RawPubkey {
+        RawPubkey::from(SecpPublicKey::from(public_key).serialize())
+    }
+}
+
+impl From<&PublicKey> for RawPubkey {
+    fn from(public_key: &PublicKey) -> RawPubkey {
+        RawPubkey::from(SecpPublicKey::from(public_key).serialize())
     }
 }
 
