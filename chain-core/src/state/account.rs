@@ -2,6 +2,7 @@ use crate::common::{hash256, Timespec, HASH_SIZE_256};
 use crate::init::address::RedeemAddress;
 use crate::init::coin::Coin;
 use crate::init::coin::{sum_coins, CoinError};
+use crate::tx::data::attribute::TxAttributes;
 use crate::tx::data::input::TxoPointer;
 use crate::tx::data::output::TxOut;
 use crate::tx::data::TxId;
@@ -45,6 +46,7 @@ impl Default for Account {
 }
 
 impl Account {
+    /// creates a new account with given parameters
     pub fn new(
         nonce: Nonce,
         bonded: Coin,
@@ -61,6 +63,7 @@ impl Account {
         }
     }
 
+    /// creates a account at "genesis" (amount is either all bonded or unbonded depending on `bonded` argument)
     pub fn new_init(
         amount: Coin,
         genesis_time: Timespec,
@@ -86,18 +89,23 @@ impl Account {
         }
     }
 
+    /// in-place update after depositing a stake
     pub fn deposit(&mut self, amount: Coin) {
         self.nonce += 1;
         self.bonded = (self.bonded + amount).expect("should not be over the max supply");
     }
 
-    pub fn unbond(&mut self, amount: Coin, unbonded_from: Timespec) {
+    /// in-place update after unbonding a bonded stake
+    pub fn unbond(&mut self, amount: Coin, fee: Coin, unbonded_from: Timespec) {
         self.nonce += 1;
         self.unbonded_from = unbonded_from;
-        self.bonded = (self.bonded - amount).expect("should not go below zero");
+        self.bonded = (self.bonded - amount)
+            .and_then(|x| x - fee)
+            .expect("should not go below zero");
         self.unbonded = (self.unbonded + amount).expect("should not be over the max supply");
     }
 
+    /// in-place update after withdrawing unbonded stake
     pub fn withdraw(&mut self) {
         self.nonce += 1;
         self.bonded = Coin::zero();
@@ -215,13 +223,13 @@ impl fmt::Display for UnbondTx {
 pub struct WithdrawUnbondedTx {
     pub nonce: Nonce,
     pub outputs: Vec<TxOut>,
-    pub attributes: AccountOpAttributes,
+    pub attributes: TxAttributes,
 }
 
 impl TransactionId for WithdrawUnbondedTx {}
 
 impl WithdrawUnbondedTx {
-    pub fn new(nonce: Nonce, outputs: Vec<TxOut>, attributes: AccountOpAttributes) -> Self {
+    pub fn new(nonce: Nonce, outputs: Vec<TxOut>, attributes: TxAttributes) -> Self {
         WithdrawUnbondedTx {
             nonce,
             outputs,

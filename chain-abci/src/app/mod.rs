@@ -192,27 +192,22 @@ impl abci::Application for ChainNodeApp {
     fn end_block(&mut self, _req: &RequestEndBlock) -> ResponseEndBlock {
         info!("received endblock request");
         let mut resp = ResponseEndBlock::new();
-        let mut keys = self
-            .delivered_txs
-            .iter()
-            .filter(|x| match x {
-                TxAux::TransferTx(_, _) => true,
-                _ => {
-                    // TODO: perhaps unbond withdraw should have it in attributes as well?
-                    false
-                }
-            })
-            .flat_map(|x| match x {
-                TxAux::TransferTx(tx, _) => tx.attributes.allowed_view.iter().map(|x| x.view_key),
-                _ => unreachable!(),
-            })
-            .peekable();
-        if keys.peek().is_some() {
-            // TODO: explore alternatives, e.g. https://github.com/bitcoin/bips/blob/master/bip-0158.mediawiki
-            let mut bloom = Bloom::default();
-            for key in keys {
-                bloom.accrue(Input::Raw(&key.serialize()[..]));
+        let mut add_bloom = false;
+        let mut bloom = Bloom::default();
+        let empty = vec![];
+        for txaux in self.delivered_txs.iter() {
+            let views = match txaux {
+                TxAux::TransferTx(tx, _) => &tx.attributes.allowed_view,
+                TxAux::WithdrawUnbondedStakeTx(tx, _) => &tx.attributes.allowed_view,
+                _ => &empty,
+            };
+            for view in views.iter() {
+                add_bloom = true;
+                bloom.accrue(Input::Raw(&view.view_key.serialize()[..]));
             }
+        }
+        if add_bloom {
+            // TODO: explore alternatives, e.g. https://github.com/bitcoin/bips/blob/master/bip-0158.mediawiki
             let mut kvpair = KVPair::new();
             kvpair.key = Vec::from(&b"ethbloom"[..]);
             // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?

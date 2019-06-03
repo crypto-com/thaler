@@ -5,6 +5,7 @@ use chain_abci::app::*;
 use chain_abci::storage::account::AccountStorage;
 use chain_abci::storage::account::AccountWrapper;
 use chain_abci::storage::tx::StarlingFixedKey;
+use chain_abci::storage::tx::TxWithOutputs;
 use chain_abci::storage::*;
 use chain_core::common::{MerkleTree, Proof, H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
@@ -14,6 +15,7 @@ use chain_core::init::config::AccountType;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
 use chain_core::state::account::to_account_key;
+use chain_core::state::account::{AccountOpAttributes, AccountOpWitness, WithdrawUnbondedTx};
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::TransactionId;
@@ -38,14 +40,14 @@ use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-pub fn get_tx_witness<C: Signing>(
+pub fn get_account_tx_witness<C: Signing>(
     secp: Secp256k1<C>,
     txid: &TxId,
     secret_key: &SecretKey,
-) -> TxInWitness {
+) -> AccountOpWitness {
     let message = Message::from_slice(&txid[..]).expect("32 bytes");
     let sig = secp.sign_recoverable(&message, &secret_key);
-    return TxInWitness::BasicRedeem(sig);
+    return AccountOpWitness::new(sig);
 }
 
 fn create_db() -> Arc<dyn KeyValueDB> {
@@ -185,7 +187,6 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
     );
     let t = ::protobuf::well_known_types::Timestamp::new();
     let result = c.validate_config_get_genesis(t.get_seconds());
-    let mut app_r = None;
     if let Ok((accounts, rp, _nodes)) = result {
         let tx_tree = MerkleTree::empty();
         let mut account_tree =
@@ -217,11 +218,10 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
         req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
         req.set_chain_id(String::from(TEST_CHAIN_ID));
         app.init_chain(&req);
-        app_r = Some(app);
+        app
     } else {
         panic!("distribution validation error: {}", result.err().unwrap());
     }
-    return app_r.expect("initialized app");
 }
 
 #[test]
@@ -348,44 +348,25 @@ fn prepare_app_valid_tx() -> (ChainNodeApp, TxAux) {
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     let addr = RedeemAddress::from(&public_key);
     let app = init_chain_for(addr);
-    let old_tx: Tx = Tx::decode(
-        &mut app
-            .storage
-            .db
-            .iter(COL_BODIES)
-            .next()
-            .unwrap()
-            .1
-            .to_vec()
-            .as_slice(),
-    )
-    .expect("tx");
-    let old_tx_id = old_tx.id();
-    let old_utxos_before = BitVec::from_bytes(
-        &app.storage
-            .db
-            .get(COL_TX_META, &old_tx_id[..])
-            .unwrap()
-            .unwrap(),
-    );
-    assert!(!old_utxos_before.any());
 
-    let txp = TxoPointer::new(old_tx_id, 0);
-    let mut tx = Tx::new();
-    tx.attributes
-        .allowed_view
-        .push(TxAccessPolicy::new(public_key, TxAccess::AllData));
     let eaddr = ExtendedAddr::BasicRedeem(addr);
-    tx.add_input(txp);
-    tx.add_output(TxOut::new(eaddr, Coin::one()));
     let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
     let pk2 = PublicKey::from_secret_key(&secp, &sk2);
-    tx.add_output(TxOut::new(
-        ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
-        Coin::unit(),
-    ));
-    let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx.id(), &secret_key)];
-    let txaux = TxAux::new(tx, witness.into());
+    let tx = WithdrawUnbondedTx::new(
+        0,
+        vec![
+            TxOut::new_with_timelock(eaddr, Coin::one(), 0),
+            TxOut::new_with_timelock(
+                ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
+                Coin::unit(),
+                0,
+            ),
+        ],
+        TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
+    );
+
+    let witness = get_account_tx_witness(secp, &tx.id(), &secret_key);
+    let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness);
     (app, txaux)
 }
 
@@ -453,7 +434,12 @@ fn deliver_tx_should_reject_invalid_tx() {
     assert_eq!(0, cresp.tags.len());
 }
 
-fn deliver_valid_tx() -> (ChainNodeApp, Tx, TxWitness, ResponseDeliverTx) {
+fn deliver_valid_tx() -> (
+    ChainNodeApp,
+    WithdrawUnbondedTx,
+    AccountOpWitness,
+    ResponseDeliverTx,
+) {
     let (mut app, txaux) = prepare_app_valid_tx();
     let rewards_pool_remaining_old = app.last_state.as_ref().unwrap().rewards_pool.remaining;
     assert_eq!(0, app.delivered_txs.len());
@@ -464,8 +450,8 @@ fn deliver_valid_tx() -> (ChainNodeApp, Tx, TxWitness, ResponseDeliverTx) {
     let rewards_pool_remaining_new = app.last_state.as_ref().unwrap().rewards_pool.remaining;
     assert!(rewards_pool_remaining_new > rewards_pool_remaining_old);
     match txaux {
-        TxAux::TransferTx(tx, witness) => (app, tx, witness, cresp),
-        _ => unreachable!("prepare_app_valid_tx should prepare transfer tx"),
+        TxAux::WithdrawUnbondedStakeTx(tx, witness) => (app, tx, witness, cresp),
+        _ => unreachable!("prepare_app_valid_tx should prepare stake withdrawal tx"),
     }
 }
 
@@ -545,19 +531,7 @@ fn commit_without_beginblocks_should_panic() {
 #[test]
 fn valid_commit_should_persist() {
     let (mut app, tx, _, _) = deliver_valid_tx();
-    let old_tx: Tx = Tx::decode(
-        &mut app
-            .storage
-            .db
-            .iter(COL_BODIES)
-            .next()
-            .unwrap()
-            .1
-            .to_vec()
-            .as_slice(),
-    )
-    .unwrap();
-    let old_tx_id = old_tx.id();
+
     let old_app_hash = app.last_state.as_ref().unwrap().last_apphash;
     let mut endreq = RequestEndBlock::default();
     endreq.set_height(10);
@@ -637,14 +611,7 @@ fn valid_commit_should_persist() {
         .get(COL_MERKLE_PROOFS, &cresp.data[..])
         .unwrap()
         .is_some());
-    let old_utxos_after = BitVec::from_bytes(
-        &app.storage
-            .db
-            .get(COL_TX_META, &old_tx_id[..])
-            .unwrap()
-            .unwrap(),
-    );
-    assert!(old_utxos_after.get(0).unwrap());
+    // TODO: check account
     let new_utxos = BitVec::from_bytes(
         &app.storage
             .db
@@ -682,7 +649,14 @@ fn query_should_return_proof_for_committed_tx() {
     qreq.path = "store".into();
     qreq.prove = true;
     let qresp = app.query(&qreq);
-    assert_eq!(tx, Tx::decode(&mut qresp.value.as_slice()).unwrap());
+    let returned_tx = TxWithOutputs::decode(&mut qresp.value.as_slice()).unwrap();
+    match returned_tx {
+        TxWithOutputs::StakeWithdraw(stx) => {
+            assert_eq!(tx, stx);
+        }
+        _ => panic!("expected stake withdrawal to be returned to a query"),
+    }
+
     let proof = qresp.proof.unwrap();
 
     assert_eq!(proof.ops.len(), 2);
@@ -698,9 +672,10 @@ fn query_should_return_proof_for_committed_tx() {
     let rewards_pool_part = app.last_state.clone().unwrap().rewards_pool.hash();
     let mut bs = Vec::new();
     bs.extend(transaction_root_hash.to_vec());
+    bs.extend(&app.last_state.clone().unwrap().last_account_root_hash[..]);
     bs.extend(&rewards_pool_part);
 
-    assert_eq!(txid_hash(&bs).to_vec(), cresp.data);
+    //assert_eq!(txid_hash(&bs).to_vec(), cresp.data);
     let mut qreq2 = RequestQuery::new();
     qreq2.data = tx.id().to_vec();
     qreq2.path = "witness".into();

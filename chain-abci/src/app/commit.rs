@@ -81,6 +81,7 @@ impl ChainNodeApp {
                 }
             }
             new_state.rewards_pool.last_block_height = new_state.last_block_height;
+            new_state.last_account_root_hash = self.uncommitted_account_root_hash;
             let app_hash = compute_app_hash(
                 &tree,
                 &new_state.last_account_root_hash,
@@ -88,7 +89,6 @@ impl ChainNodeApp {
             );
             inittx.put(COL_MERKLE_PROOFS, &app_hash[..], &tree.encode());
             new_state.last_apphash = app_hash;
-            new_state.last_account_root_hash = self.uncommitted_account_root_hash;
         }
 
         inittx.put(

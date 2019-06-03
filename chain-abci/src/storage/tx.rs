@@ -332,9 +332,9 @@ fn verify_unbonding(
         return Err(Error::ZeroCoin);
     }
     check_input_output_sums(account.bonded, maintx.value, &extra_info)?;
-    let unbond_amount = (maintx.value - extra_info.min_fee_computed.to_coin()).expect("init");
     account.unbond(
-        unbond_amount,
+        maintx.value,
+        extra_info.min_fee_computed.to_coin(),
         extra_info.previous_block_time + i64::from(extra_info.unbonding_period),
     );
     // only pay the minimal fee from the bonded amount if correct; the rest remains in bonded
@@ -418,7 +418,9 @@ pub mod tests {
     use crate::storage::{Storage, COL_TX_META, NUM_COLUMNS};
     use chain_core::init::address::RedeemAddress;
     use chain_core::state::account::AccountOpAttributes;
-    use chain_core::tx::data::{address::ExtendedAddr, input::TxoPointer, output::TxOut};
+    use chain_core::tx::data::{
+        address::ExtendedAddr, attribute::TxAttributes, input::TxoPointer, output::TxOut,
+    };
     use chain_core::tx::fee::FeeAlgorithm;
     use chain_core::tx::fee::{LinearFee, Milli};
     use chain_core::tx::witness::{TxInWitness, TxWitness};
@@ -473,7 +475,11 @@ pub mod tests {
         let old_tx_id = old_tx.id();
 
         let mut inittx = db.transaction();
-        inittx.put(COL_BODIES, &old_tx_id[..], &old_tx.encode());
+        inittx.put(
+            COL_BODIES,
+            &old_tx_id[..],
+            &TxWithOutputs::Transfer(old_tx).encode(),
+        );
 
         inittx.put(
             COL_TX_META,
@@ -553,6 +559,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash,
+            unbonding_period: 1,
         };
         let result = verify(&txaux, extra_info, create_db(), &accounts);
         assert!(result.is_ok());
@@ -570,6 +577,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash,
+            unbonding_period: 1,
         };
         // WrongChainHexId
         {
@@ -655,7 +663,7 @@ pub mod tests {
             ),
         ];
 
-        let tx = WithdrawUnbondedTx::new(1, outputs, AccountOpAttributes::new(DEFAULT_CHAIN_ID));
+        let tx = WithdrawUnbondedTx::new(1, outputs, TxAttributes::new(DEFAULT_CHAIN_ID));
         let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
         let txaux = TxAux::WithdrawUnbondedStakeTx(tx.clone(), witness.clone());
         (txaux, tx.clone(), witness, secret_key, tree, new_root)
@@ -671,6 +679,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash,
+            unbonding_period: 1,
         };
         let result = verify(&txaux, extra_info, create_db(), &accounts);
         assert!(result.is_ok());
@@ -688,6 +697,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash,
+            unbonding_period: 1,
         };
         // WrongChainHexId
         {
@@ -821,6 +831,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash: [0u8; 32],
+            unbonding_period: 1,
         };
         let result = verify(&txaux, extra_info, db, &accounts);
         assert!(result.is_ok());
@@ -850,6 +861,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash: [0u8; 32],
+            unbonding_period: 1,
         };
         // WrongChainHexId
         {
@@ -951,6 +963,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash: [0u8; 32],
+            unbonding_period: 1,
         };
         // WrongChainHexId
         {
