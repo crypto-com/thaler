@@ -50,6 +50,8 @@ pub struct ChainNodeApp {
     pub accounts: AccountStorage,
     /// valid transactions after DeliverTx before EndBlock/Commit
     pub delivered_txs: Vec<TxAux>,
+    /// root hash of the sparse merkle patricia trie of staking account states after DeliverTx before EndBlock/Commit
+    pub uncommitted_account_root_hash: StarlingFixedKey,
     /// a reference to genesis (used when there is no committed state)
     pub genesis_app_hash: H256,
     /// last two hex digits in chain_id
@@ -97,6 +99,7 @@ impl ChainNodeApp {
             storage,
             accounts,
             delivered_txs: Vec::new(),
+            uncommitted_account_root_hash: last_app_state.last_account_root_hash,
             chain_hex_id,
             genesis_app_hash,
             last_state: Some(last_app_state),
@@ -153,6 +156,7 @@ impl ChainNodeApp {
                 storage,
                 accounts,
                 delivered_txs: Vec::new(),
+                uncommitted_account_root_hash: [0u8; 32],
                 chain_hex_id,
                 genesis_app_hash,
                 last_state: None,
@@ -312,6 +316,7 @@ impl ChainNodeApp {
             if wr.is_err() {
                 panic!("db write error: {}", wr.err().unwrap());
             } else {
+                self.uncommitted_account_root_hash = last_state.last_account_root_hash;
                 self.last_state = Some(last_state);
             }
 

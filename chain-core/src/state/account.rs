@@ -86,6 +86,23 @@ impl Account {
         }
     }
 
+    pub fn deposit(&mut self, amount: Coin) {
+        self.nonce += 1;
+        self.bonded = (self.bonded + amount).expect("should not be over the max supply");
+    }
+
+    pub fn unbond(&mut self, amount: Coin, unbonded_from: Timespec) {
+        self.nonce += 1;
+        self.unbonded_from = unbonded_from;
+        self.bonded = (self.bonded - amount).expect("should not go below zero");
+        self.unbonded = (self.unbonded + amount).expect("should not be over the max supply");
+    }
+
+    pub fn withdraw(&mut self) {
+        self.nonce += 1;
+        self.bonded = Coin::zero();
+    }
+
     /// the tree used in account storage db has a hardcoded 32-byte keys,
     /// this computes a key as blake2s(account.address) where
     /// the account address itself is ETH-style address (20 bytes from keccak hash of public key)

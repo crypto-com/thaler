@@ -214,6 +214,7 @@ impl InitConfig {
         self.check_address(&self.launch_incentive_from)?;
         self.check_address(&self.launch_incentive_to)?;
         self.check_address(&self.long_term_incentive)?;
+        // TODO: check validators / council_nodes are non-empty
         let mut validators = Vec::with_capacity(self.council_nodes.len());
         let mut validator_addresses = HashSet::new();
         for node in self.council_nodes.iter() {
