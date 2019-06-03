@@ -13,7 +13,7 @@ secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", r
 rand = "0.6"
 failure = "0.1"
 hex = "0.3"
-zeroize = "0.6"
+zeroize = "0.8"
 byteorder = "1.3"
 parity-codec = { features = ["derive"], version = "3.5.1" }
 secstr = "0.3.2"
