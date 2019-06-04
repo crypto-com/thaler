@@ -55,23 +55,24 @@ jobs:
       rust: beta
     - <<: *rust
       rust: nightly
-    - name: Integration Tests
-      language: node_js
-      node_js:
-        - "10"
-      services:
-        - docker
-      before_script:
-        - |
-          sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
-          sudo chmod +x /usr/local/bin/wait-for-it.sh
-        - |
-          cd integration-tests
-          docker-compose up -d
-          docker-compose ps
-          docker-compose logs -t --tail="all"
-      script:
-        - |
-          cd client-rpc
-          yarn
-          /usr/local/bin/wait-for-it.sh 127.0.0.1:16659 --strict -- yarn test
+    # MUST_TODO: enable when tests are ported to use the new dev-utils + client support
+    # - name: Integration Tests
+    #   language: node_js
+    #   node_js:
+    #     - "10"
+    #   services:
+    #     - docker
+    #   before_script:
+    #     - |
+    #       sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
+    #       sudo chmod +x /usr/local/bin/wait-for-it.sh
+    #     - |
+    #       cd integration-tests
+    #       docker-compose up -d
+    #       docker-compose ps
+    #       docker-compose logs -t --tail="all"
+    #   script:
+    #     - |
+    #       cd client-rpc
+    #       yarn
+    #       /usr/local/bin/wait-for-it.sh 127.0.0.1:16659 --strict -- yarn test

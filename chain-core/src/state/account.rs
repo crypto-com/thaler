@@ -108,7 +108,7 @@ impl Account {
     /// in-place update after withdrawing unbonded stake
     pub fn withdraw(&mut self) {
         self.nonce += 1;
-        self.bonded = Coin::zero();
+        self.unbonded = Coin::zero();
     }
 
     /// the tree used in account storage db has a hardcoded 32-byte keys,

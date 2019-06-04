@@ -15,9 +15,13 @@ use chain_core::init::config::AccountType;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
 use chain_core::state::account::to_account_key;
-use chain_core::state::account::{AccountOpAttributes, AccountOpWitness, WithdrawUnbondedTx};
+use chain_core::state::account::Account;
+use chain_core::state::account::{
+    AccountOpAttributes, AccountOpWitness, DepositBondTx, UnbondTx, WithdrawUnbondedTx,
+};
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::fee::{LinearFee, Milli};
+use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::TransactionId;
 use chain_core::tx::{
     data::{
@@ -40,14 +44,14 @@ use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-pub fn get_account_tx_witness<C: Signing>(
-    secp: Secp256k1<C>,
+pub fn get_ecdsa_witness<C: Signing>(
+    secp: &Secp256k1<C>,
     txid: &TxId,
     secret_key: &SecretKey,
-) -> AccountOpWitness {
+) -> EcdsaSignature {
     let message = Message::from_slice(&txid[..]).expect("32 bytes");
     let sig = secp.sign_recoverable(&message, &secret_key);
-    return AccountOpWitness::new(sig);
+    return sig;
 }
 
 fn create_db() -> Arc<dyn KeyValueDB> {
@@ -365,7 +369,7 @@ fn prepare_app_valid_tx() -> (ChainNodeApp, TxAux) {
         TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
     );
 
-    let witness = get_account_tx_witness(secp, &tx.id(), &secret_key);
+    let witness = AccountOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
     let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness);
     (app, txaux)
 }
@@ -623,7 +627,7 @@ fn valid_commit_should_persist() {
 }
 
 #[test]
-fn no_delivered_tx_commit_should() {
+fn no_delivered_tx_commit_should_keep_apphash() {
     let mut app = init_chain_for(
         "0x0e7c045110b8dbf29765047380898919c5cb56f4"
             .parse()
@@ -675,11 +679,149 @@ fn query_should_return_proof_for_committed_tx() {
     bs.extend(&app.last_state.clone().unwrap().last_account_root_hash[..]);
     bs.extend(&rewards_pool_part);
 
-    //assert_eq!(txid_hash(&bs).to_vec(), cresp.data);
+    assert_eq!(txid_hash(&bs).to_vec(), cresp.data);
     let mut qreq2 = RequestQuery::new();
     qreq2.data = tx.id().to_vec();
     qreq2.path = "witness".into();
     let qresp = app.query(&qreq2);
     assert_eq!(qresp.value, witness.encode());
     assert_eq!(proof.ops[1].data, txid_hash(&qresp.value));
+}
+
+fn block_commit(app: &mut ChainNodeApp, tx: TxAux, block_height: i64) {
+    let mut creq = RequestCheckTx::default();
+    creq.set_tx(tx.encode());
+    println!("checktx: {:?}", app.check_tx(&creq));
+    println!("beginblock: {:?}", begin_block(app));
+    let mut dreq = RequestDeliverTx::default();
+    dreq.set_tx(tx.encode());
+    println!("delivertx: {:?}", app.deliver_tx(&dreq));
+    let mut breq = RequestEndBlock::default();
+    breq.set_height(block_height);
+    println!("endblock: {:?}", app.end_block(&breq));
+    println!("commit: {:?}", app.commit(&RequestCommit::default()));
+}
+
+fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp) -> Account {
+    println!(
+        "uncommitted root hash: {:?}",
+        app.uncommitted_account_root_hash
+    );
+    let account_key = to_account_key(account_address);
+    let state = app.last_state.clone().expect("app state");
+    println!("committed root hash: {:?}", &state.last_account_root_hash);
+    let items = app
+        .accounts
+        .get(&state.last_account_root_hash, &mut [&account_key]);
+
+    let account = items.expect("account lookup problem")[&account_key].clone();
+    match account {
+        None => panic!("account not found"),
+        Some(AccountWrapper(a)) => a,
+    }
+}
+
+fn get_tx_meta(txid: &TxId, app: &ChainNodeApp) -> BitVec {
+    BitVec::from_bytes(&app.storage.db.get(COL_TX_META, &txid[..]).unwrap().unwrap())
+}
+
+#[test]
+fn all_valid_tx_types_should_commit() {
+    let secp = Secp256k1::new();
+    let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+    let addr = RedeemAddress::from(&public_key);
+    let mut app = init_chain_for(addr);
+
+    let eaddr = ExtendedAddr::BasicRedeem(addr);
+    let tx0 = WithdrawUnbondedTx::new(
+        0,
+        vec![
+            TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
+            TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
+        ],
+        TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
+    );
+    let txid = &tx0.id();
+    let witness0 = AccountOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
+    let withdrawtx = TxAux::WithdrawUnbondedStakeTx(tx0, witness0);
+    {
+        let account = get_account(&addr, &app);
+        // TODO: more precise amount assertions
+        assert!(account.unbonded > Coin::zero());
+        assert_eq!(account.nonce, 0);
+    }
+    block_commit(&mut app, withdrawtx, 1);
+    {
+        let account = get_account(&addr, &app);
+        assert_eq!(account.unbonded, Coin::zero());
+        assert_eq!(account.nonce, 1);
+        let spend_utxos = get_tx_meta(&txid, &app);
+        assert!(!spend_utxos.any());
+    }
+    let halfcoin = Coin::from(5000_0000u32);
+    let utxo1 = TxoPointer::new(*txid, 0);
+    let mut tx1 = Tx::new();
+    tx1.add_input(utxo1);
+    tx1.add_output(TxOut::new(eaddr.clone(), halfcoin));
+    let txid1 = &tx1.id();
+    let witness1 = vec![TxInWitness::BasicRedeem(get_ecdsa_witness(
+        &secp,
+        &txid1,
+        &secret_key,
+    ))]
+    .into();
+    let transfertx = TxAux::TransferTx(tx1, witness1);
+    {
+        let spent_utxos = get_tx_meta(&txid, &app);
+        assert!(!spent_utxos.any());
+    }
+    block_commit(&mut app, transfertx, 2);
+    {
+        let spent_utxos0 = get_tx_meta(&txid, &app);
+        assert!(spent_utxos0[0] && !spent_utxos0[1]);
+        let spent_utxos1 = get_tx_meta(&txid1, &app);
+        assert!(!spent_utxos1.any());
+    }
+    let utxo2 = TxoPointer::new(*txid, 1);
+    let tx2 = DepositBondTx::new(vec![utxo2], addr, AccountOpAttributes::new(0));
+    let witness2 = vec![TxInWitness::BasicRedeem(get_ecdsa_witness(
+        &secp,
+        &tx2.id(),
+        &secret_key,
+    ))]
+    .into();
+    let depositx = TxAux::DepositStakeTx(tx2, witness2);
+    {
+        let spent_utxos0 = get_tx_meta(&txid, &app);
+        assert!(spent_utxos0[0] && !spent_utxos0[1]);
+        let account = get_account(&addr, &app);
+        assert_eq!(account.bonded, Coin::zero());
+        assert_eq!(account.nonce, 1);
+    }
+    block_commit(&mut app, depositx, 3);
+    {
+        let spent_utxos0 = get_tx_meta(&txid, &app);
+        assert!(spent_utxos0[0] && spent_utxos0[1]);
+        let account = get_account(&addr, &app);
+        // TODO: more precise amount assertions
+        assert!(account.bonded > Coin::zero());
+        assert_eq!(account.nonce, 2);
+    }
+
+    let tx3 = UnbondTx::new(halfcoin, 2, AccountOpAttributes::new(0));
+    let witness3 = AccountOpWitness::new(get_ecdsa_witness(&secp, &tx3.id(), &secret_key));
+    let unbondtx = TxAux::UnbondStakeTx(tx3, witness3);
+    {
+        let account = get_account(&addr, &app);
+        assert_eq!(account.unbonded, Coin::zero());
+        assert_eq!(account.nonce, 2);
+    }
+    block_commit(&mut app, unbondtx, 4);
+    {
+        let account = get_account(&addr, &app);
+        // TODO: more precise amount assertions
+        assert!(account.unbonded > Coin::zero());
+        assert_eq!(account.nonce, 3);
+    }
 }
