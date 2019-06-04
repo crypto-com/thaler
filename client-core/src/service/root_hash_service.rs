@@ -8,7 +8,7 @@ use client_common::{ErrorKind, Result, SecureStorage, Storage};
 
 use crate::PublicKey;
 
-const KEYSPACE: &str = "core_multi_sig_address";
+const KEYSPACE: &str = "core_root_hash";
 
 /// m-of-n multi-sig address
 #[derive(Debug, Encode, Decode)]
@@ -23,11 +23,11 @@ struct MultiSigAddress {
 
 /// Maintains mapping `multi-sig-public-key -> multi-sig address`
 #[derive(Debug, Default, Clone)]
-pub struct MultiSigAddressService<T: Storage> {
+pub struct RootHashService<T: Storage> {
     storage: T,
 }
 
-impl<T> MultiSigAddressService<T>
+impl<T> RootHashService<T>
 where
     T: Storage,
 {
@@ -36,8 +36,8 @@ where
         Self { storage }
     }
 
-    /// Creates and persists new multi-sig address
-    pub fn new_multi_sig_address(
+    /// Creates and persists new multi-sig address and returns its root hash
+    pub fn new_root_hash(
         &self,
         public_keys: Vec<PublicKey>,
         m: usize,
@@ -60,14 +60,14 @@ where
         Ok(root_hash)
     }
 
-    /// Generates inclusion proof for set of addresses in multi-sig address
+    /// Generates inclusion proof for set of public keys in merkle root hash
     pub fn generate_proof(
         &self,
-        address: &H256,
+        root_hash: &H256,
         mut public_keys: Vec<PublicKey>,
         passphrase: &SecUtf8,
     ) -> Result<Proof<RawPubkey>> {
-        match self.storage.get_secure(KEYSPACE, address, passphrase)? {
+        match self.storage.get_secure(KEYSPACE, root_hash, passphrase)? {
             None => Err(ErrorKind::AddressNotFound.into()),
             Some(address_bytes) => {
                 let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
@@ -93,9 +93,9 @@ where
         }
     }
 
-    /// Returns the number of required cosigners for given address
-    pub fn required_signers(&self, address: &H256, passphrase: &SecUtf8) -> Result<usize> {
-        match self.storage.get_secure(KEYSPACE, address, passphrase)? {
+    /// Returns the number of required cosigners for given root_hash
+    pub fn required_signers(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<usize> {
+        match self.storage.get_secure(KEYSPACE, root_hash, passphrase)? {
             None => Err(ErrorKind::AddressNotFound.into()),
             Some(address_bytes) => {
                 let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
@@ -144,8 +144,8 @@ mod tests {
     use crate::PrivateKey;
 
     #[test]
-    fn check_multi_sig_address_flow() {
-        let multi_sig_service = MultiSigAddressService::new(MemoryStorage::default());
+    fn check_root_hash_flow() {
+        let root_hash_service = RootHashService::new(MemoryStorage::default());
         let passphrase = SecUtf8::from("passphrase");
 
         let public_keys = vec![
@@ -156,34 +156,34 @@ mod tests {
 
         assert_eq!(
             ErrorKind::InvalidInput,
-            multi_sig_service
-                .new_multi_sig_address(public_keys.clone(), 2, 4, &passphrase)
+            root_hash_service
+                .new_root_hash(public_keys.clone(), 2, 4, &passphrase)
                 .expect_err("Created invalid multi-sig address")
                 .kind()
         );
 
         assert_eq!(
             ErrorKind::InvalidInput,
-            multi_sig_service
-                .new_multi_sig_address(vec![], 0, 0, &passphrase)
+            root_hash_service
+                .new_root_hash(vec![], 0, 0, &passphrase)
                 .expect_err("Created invalid multi-sig address")
                 .kind()
         );
 
-        let multi_sig_address = multi_sig_service
-            .new_multi_sig_address(public_keys.clone(), 2, 3, &passphrase)
+        let root_hash = root_hash_service
+            .new_root_hash(public_keys.clone(), 2, 3, &passphrase)
             .unwrap();
 
         assert_eq!(
             2,
-            multi_sig_service
-                .required_signers(&multi_sig_address, &passphrase)
+            root_hash_service
+                .required_signers(&root_hash, &passphrase)
                 .unwrap()
         );
 
         assert_eq!(
             ErrorKind::AddressNotFound,
-            multi_sig_service
+            root_hash_service
                 .required_signers(&[0u8; 32], &passphrase)
                 .expect_err("Found non-existent address")
                 .kind()
@@ -191,25 +191,25 @@ mod tests {
 
         assert_eq!(
             ErrorKind::InvalidInput,
-            multi_sig_service
-                .generate_proof(&multi_sig_address, public_keys.clone(), &passphrase)
+            root_hash_service
+                .generate_proof(&root_hash, public_keys.clone(), &passphrase)
                 .expect_err("Generated proof for invalid signer count")
                 .kind()
         );
 
-        let proof = multi_sig_service
+        let proof = root_hash_service
             .generate_proof(
-                &multi_sig_address,
+                &root_hash,
                 vec![public_keys[0].clone(), public_keys[1].clone()],
                 &passphrase,
             )
             .unwrap();
 
-        assert!(proof.verify(&multi_sig_address));
+        assert!(proof.verify(&root_hash));
 
-        let rev_proof = multi_sig_service
+        let rev_proof = root_hash_service
             .generate_proof(
-                &multi_sig_address,
+                &root_hash,
                 vec![public_keys[1].clone(), public_keys[0].clone()],
                 &passphrase,
             )
@@ -219,9 +219,9 @@ mod tests {
 
         assert_eq!(
             ErrorKind::InvalidInput,
-            multi_sig_service
+            root_hash_service
                 .generate_proof(
-                    &multi_sig_address,
+                    &root_hash,
                     vec![
                         public_keys[0].clone(),
                         PublicKey::from(&PrivateKey::new().unwrap())

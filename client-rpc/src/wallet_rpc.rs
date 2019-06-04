@@ -93,7 +93,10 @@ where
             return Err(to_rpc_error(e));
         }
 
-        if let Err(e) = self.client.new_address(&request.name, &request.passphrase) {
+        if let Err(e) = self
+            .client
+            .new_redeem_address(&request.name, &request.passphrase)
+        {
             Err(to_rpc_error(e))
         } else {
             Ok(request.name)
