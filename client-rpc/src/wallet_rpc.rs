@@ -33,7 +33,7 @@ pub trait WalletRpc {
         &self,
         request: WalletRequest,
         to_address: String,
-        amount: u64,
+        amount: Coin,
     ) -> jsonrpc_core::Result<()>;
 
     #[rpc(name = "sync")]
@@ -111,15 +111,14 @@ where
         &self,
         request: WalletRequest,
         to_address: String,
-        amount: u64,
+        amount: Coin,
     ) -> jsonrpc_core::Result<()> {
         self.sync()?;
 
         let redeem_address = RedeemAddress::from_str(&to_address[..])
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let address = ExtendedAddr::BasicRedeem(redeem_address);
-        let coin = Coin::new(amount).map_err(|err| rpc_error_from_string(format!("{}", err)))?;
-        let tx_out = TxOut::new(address, coin);
+        let tx_out = TxOut::new(address, amount);
         let tx_attributes = TxAttributes::new(self.chain_id);
 
         if let Err(e) = self.client.create_and_broadcast_transaction(
