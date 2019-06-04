@@ -1,3 +1,4 @@
+use either::Either;
 use failure::ResultExt;
 use secp256k1::RecoveryId;
 use secstr::SecUtf8;
@@ -103,12 +104,17 @@ where
         for input in &transaction.inputs {
             let input = wallet_client.output(&input.id, input.index)?;
 
-            match wallet_client.public_key(name, passphrase, &input.address)? {
-                None => return Err(ErrorKind::WalletNotFound.into()),
-                Some(public_key) => match wallet_client.private_key(passphrase, &public_key)? {
-                    None => return Err(ErrorKind::PrivateKeyNotFound.into()),
-                    Some(private_key) => witnesses.push(private_key.sign(&transaction.id())?),
-                },
+            match wallet_client.find(name, passphrase, &input.address)? {
+                None => return Err(ErrorKind::AddressNotFound.into()),
+                Some(Either::Left(public_key)) => {
+                    match wallet_client.private_key(passphrase, &public_key)? {
+                        None => return Err(ErrorKind::PrivateKeyNotFound.into()),
+                        Some(private_key) => witnesses.push(private_key.sign(&transaction.id())?),
+                    }
+                }
+                Some(Either::Right(_root_hash)) => {
+                    return Err(ErrorKind::InvalidInput.into());
+                }
             }
         }
 
@@ -225,7 +231,7 @@ where
         wallet_client: &W,
     ) -> Result<TxAux> {
         if Coin::zero() != difference_amount {
-            let new_address = wallet_client.new_address(name, passphrase)?;
+            let new_address = wallet_client.new_redeem_address(name, passphrase)?;
             transaction
                 .outputs
                 .push(TxOut::new(new_address, difference_amount));
@@ -282,11 +288,13 @@ mod tests {
 
     use std::str::FromStr;
 
+    use chain_core::common::{Proof, H256};
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::sum_coins;
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{LinearFee, Milli};
+    use chain_core::tx::witness::tree::RawPubkey;
     use client_common::balance::TransactionChange;
 
     use crate::{PrivateKey, PublicKey};
@@ -388,22 +396,34 @@ mod tests {
             unreachable!()
         }
 
+        fn root_hashes(&self, _: &str, _: &SecUtf8) -> Result<Vec<H256>> {
+            unreachable!()
+        }
+
+        fn redeem_addresses(&self, _: &str, _: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
+            unreachable!()
+        }
+
+        fn tree_addresses(&self, _: &str, _: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
+            unreachable!()
+        }
+
         fn addresses(&self, _: &str, _: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
             unreachable!()
         }
 
-        fn public_key(
+        fn find(
             &self,
             _: &str,
             _: &SecUtf8,
             address: &ExtendedAddr,
-        ) -> Result<Option<PublicKey>> {
+        ) -> Result<Option<Either<PublicKey, H256>>> {
             if address == &self.addr_0 {
-                Ok(Some(self.public_key_0.clone()))
+                Ok(Some(Either::Left(self.public_key_0.clone())))
             } else if address == &self.addr_1 {
-                Ok(Some(self.public_key_1.clone()))
+                Ok(Some(Either::Left(self.public_key_1.clone())))
             } else {
-                Ok(Some(self.public_key_2.clone()))
+                Ok(Some(Either::Left(self.public_key_2.clone())))
             }
         }
 
@@ -421,10 +441,31 @@ mod tests {
             unreachable!()
         }
 
-        fn new_address(&self, _: &str, _: &SecUtf8) -> Result<ExtendedAddr> {
+        fn new_redeem_address(&self, _: &str, _: &SecUtf8) -> Result<ExtendedAddr> {
             Ok(ExtendedAddr::BasicRedeem(
                 RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0baba").unwrap(),
             ))
+        }
+
+        fn new_tree_address(
+            &self,
+            _: &str,
+            _: &SecUtf8,
+            _: Vec<PublicKey>,
+            _: usize,
+            _: usize,
+        ) -> Result<ExtendedAddr> {
+            unreachable!()
+        }
+
+        fn generate_proof(
+            &self,
+            _: &str,
+            _: &SecUtf8,
+            _: &ExtendedAddr,
+            _: Vec<PublicKey>,
+        ) -> Result<Proof<RawPubkey>> {
+            unreachable!()
         }
 
         fn balance(&self, _: &str, _: &SecUtf8) -> Result<Coin> {
