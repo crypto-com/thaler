@@ -3,6 +3,7 @@ mod default_wallet_client;
 
 pub use default_wallet_client::DefaultWalletClient;
 
+use either::Either;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 
@@ -30,16 +31,25 @@ pub trait WalletClient: Send + Sync {
     /// Retrieves all public keys corresponding to given wallet
     fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>>;
 
+    /// Retrieves all root hashes corresponding to given wallet
+    fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<H256>>;
+
+    /// Returns all redeem addresses in current wallet
+    fn redeem_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
+
+    /// Returns all the multi-sig tree addresses in current wallet
+    fn tree_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
+
     /// Retrieves all addresses corresponding to given wallet
     fn addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
 
-    /// Retrieves public key corresponding to given address
-    fn public_key(
+    /// Finds an address in wallet and returns corresponding public key or root hash
+    fn find(
         &self,
         name: &str,
         passphrase: &SecUtf8,
         address: &ExtendedAddr,
-    ) -> Result<Option<PublicKey>>;
+    ) -> Result<Option<Either<PublicKey, H256>>>;
 
     /// Retrieves private key corresponding to given public key
     fn private_key(
@@ -51,8 +61,35 @@ pub trait WalletClient: Send + Sync {
     /// Generates a new public key for given wallet
     fn new_public_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
 
-    /// Generates a new address for given wallet
-    fn new_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr>;
+    /// Generates a new redeem address for given wallet
+    fn new_redeem_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr>;
+
+    /// Generates a new tree address for creating m-of-n transactions
+    ///
+    /// # Arguments
+    ///
+    /// `name`: Name of wallet
+    /// `passphrase`: passphrase of wallet
+    /// `public_keys`: Public keys of co-signers
+    /// `m`: Number of required co-signers
+    /// `n`: Total number of co-signers
+    fn new_tree_address(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        public_keys: Vec<PublicKey>,
+        m: usize,
+        n: usize,
+    ) -> Result<ExtendedAddr>;
+
+    /// Generates inclusion proof for set of public keys in multi-sig address
+    fn generate_proof(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        address: &ExtendedAddr,
+        public_keys: Vec<PublicKey>,
+    ) -> Result<Proof<RawPubkey>>;
 
     /// Retrieves current balance of wallet
     fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin>;
@@ -88,36 +125,6 @@ pub trait WalletClient: Send + Sync {
 
 /// Interface for a generic wallet for multi-signature transactions
 pub trait MultiSigWalletClient: WalletClient {
-    /// Creates multi-sig address for creating m-of-n transactions
-    ///
-    /// # Arguments
-    ///
-    /// `name`: Name of wallet
-    /// `passphrase`: passphrase of wallet
-    /// `public_keys`: Public keys of co-signers
-    /// `m`: Number of required co-signers
-    /// `n`: Total number of co-signers
-    fn new_multi_sig_address(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-        public_keys: Vec<PublicKey>,
-        m: usize,
-        n: usize,
-    ) -> Result<ExtendedAddr>;
-
-    /// Generates inclusion proof for set of public keys in multi-sig address
-    fn generate_proof(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-        address: &ExtendedAddr,
-        public_keys: Vec<PublicKey>,
-    ) -> Result<Proof<RawPubkey>>;
-
-    /// Returns all the multi-sig addresses in current wallet
-    fn multi_sig_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
-
     /// Creates a 1-of-n schnorr signature.
     fn schnorr_signature(
         &self,

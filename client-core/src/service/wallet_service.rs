@@ -1,8 +1,11 @@
+use either::Either;
 use failure::ResultExt;
 use parity_codec::{Decode, Encode};
 use secstr::SecUtf8;
 
 use chain_core::common::H256;
+use chain_core::init::address::RedeemAddress;
+use chain_core::tx::data::address::ExtendedAddr;
 use client_common::{ErrorKind, Result, SecureStorage, Storage};
 
 use crate::PublicKey;
@@ -12,7 +15,7 @@ const KEYSPACE: &str = "core_wallet";
 #[derive(Debug, Default, Encode, Decode)]
 struct Wallet {
     pub public_keys: Vec<PublicKey>,
-    pub multi_sig_addresses: Vec<H256>,
+    pub root_hashes: Vec<H256>,
 }
 
 /// Maintains mapping `wallet-name -> Vec<wallet>`
@@ -47,6 +50,41 @@ where
         Ok(())
     }
 
+    /// Finds an address in wallet and returns corresponding public key or root hash
+    pub fn find(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        address: &ExtendedAddr,
+    ) -> Result<Option<Either<PublicKey, H256>>> {
+        match address {
+            ExtendedAddr::BasicRedeem(ref address) => {
+                let public_keys = self.public_keys(name, passphrase)?;
+
+                for public_key in public_keys {
+                    let known_address = RedeemAddress::from(&public_key);
+
+                    if known_address == *address {
+                        return Ok(Some(Either::Left(public_key)));
+                    }
+                }
+
+                Ok(None)
+            }
+            ExtendedAddr::OrTree(ref root_hash) => {
+                let root_hashes = self.root_hashes(name, passphrase)?;
+
+                for known_hash in root_hashes {
+                    if known_hash == *root_hash {
+                        return Ok(Some(Either::Right(known_hash)));
+                    }
+                }
+
+                Ok(None)
+            }
+        }
+    }
+
     /// Creates a new wallet and returns wallet ID
     pub fn create(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
         if self.storage.contains_key(KEYSPACE, name)? {
@@ -63,9 +101,46 @@ where
     }
 
     /// Returns all multi-sig addresses stored in a wallet
-    pub fn multi_sig_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<H256>> {
+    pub fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<H256>> {
         let wallet = self.get_wallet(name, passphrase)?;
-        Ok(wallet.multi_sig_addresses)
+        Ok(wallet.root_hashes)
+    }
+
+    /// Returns all addresses stored in a wallet
+    pub fn addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
+        let mut addresses = Vec::new();
+
+        addresses.extend(
+            self.public_keys(name, passphrase)?
+                .iter()
+                .map(|public_key| ExtendedAddr::BasicRedeem(RedeemAddress::from(public_key))),
+        );
+
+        addresses.extend(
+            self.root_hashes(name, passphrase)?
+                .into_iter()
+                .map(ExtendedAddr::OrTree),
+        );
+
+        Ok(addresses)
+    }
+
+    /// Returns all redeem addresses stored in a wallet
+    pub fn redeem_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
+        Ok(self
+            .public_keys(name, passphrase)?
+            .iter()
+            .map(|public_key| ExtendedAddr::BasicRedeem(RedeemAddress::from(public_key)))
+            .collect())
+    }
+
+    /// Returns all tree addresses stored in a wallet
+    pub fn tree_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
+        Ok(self
+            .root_hashes(name, passphrase)?
+            .into_iter()
+            .map(ExtendedAddr::OrTree)
+            .collect())
     }
 
     /// Adds a public key to given wallet
@@ -82,15 +157,10 @@ where
     }
 
     /// Adds a multi-sig address to given wallet
-    pub fn add_multi_sig_address(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-        address: H256,
-    ) -> Result<()> {
+    pub fn add_root_hash(&self, name: &str, passphrase: &SecUtf8, root_hash: H256) -> Result<()> {
         // TODO: Implement compare and swap?
         let mut wallet = self.get_wallet(name, passphrase)?;
-        wallet.multi_sig_addresses.push(address);
+        wallet.root_hashes.push(root_hash);
         self.set_wallet(name, passphrase, wallet)
     }
 

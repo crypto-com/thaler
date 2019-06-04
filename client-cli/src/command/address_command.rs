@@ -30,7 +30,7 @@ impl AddressCommand {
 
     fn new_address<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
         let passphrase = ask_passphrase()?;
-        let address = wallet_client.new_address(name, &passphrase)?;
+        let address = wallet_client.new_redeem_address(name, &passphrase)?;
 
         success(&format!("New address: {}", address));
         Ok(())
