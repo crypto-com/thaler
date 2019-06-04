@@ -103,7 +103,7 @@ Note that launch_incentive_from, launch_incentive_to and long_term_incentive nee
 In the end, you should get two pieces of data:
 ```
 "app_hash": "<APP_HASH_HEX_BYTES>",
-"app_state": {"distribution":{"0x<ETH_ADDRESS_HEX_BYTES_1>":<AMOUNT_1>,...},"launch_incentive_from":"<SOME_ETH_ADDRESS_HEX_BYTES>","launch_incentive_to":"<SOME_ETH_ADDRESS_HEX_BYTES>","long_term_incentive":"<SOME_ETH_ADDRESS_HEX_BYTES>","initial_fee_policy":{"constant":xxxx,"coefficient":xxxx}}
+"app_state": {"distribution":{"0x<ETH_ADDRESS_HEX_BYTES_1>":"<AMOUNT_1>",...},"launch_incentive_from":"<SOME_ETH_ADDRESS_HEX_BYTES>","launch_incentive_to":"<SOME_ETH_ADDRESS_HEX_BYTES>","long_term_incentive":"<SOME_ETH_ADDRESS_HEX_BYTES>","initial_fee_policy":{"constant":xxxx,"coefficient":xxxx}}
 ```
 
 "app_hash" is the initial application hash -- currently, it's computed as a hash of the initial rewards pool state and a root of a merkle tree of initial transaction IDs.
