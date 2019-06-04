@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 # Working Directory
 cd "$(dirname "${0}")"
@@ -44,14 +45,14 @@ EOF
 # @argument Base Fee
 # @argument Per Byte Fee
 function generate_genesis() {
-    cd ../chain && cargo run --package dev-utils -- \
+    cd .. && cargo run --package dev-utils -- \
         genesis generate \
         --base_fee "$1" \
         --chain-id AB \
         --launch_incentive_from "${LAUNCH_INCENTIVE_FROM}" \
         --launch_incentive_to "${LAUNCH_INCENTIVE_TO}" \
         --long_term_incentive "${LONG_TERM_INCENTIVE}" \
-        --mapping_file_path ../integration-tests/docker/tendermint-preinit/genesis_distribution_mapping \
+        --mapping_file_path ./integration-tests/docker/tendermint-preinit/genesis_distribution_mapping \
         --per_byte_fee "$2" | head -n 2
 }
 
