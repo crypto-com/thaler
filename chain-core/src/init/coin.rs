@@ -196,36 +196,6 @@ impl<'de> Deserialize<'de> for Coin {
     }
 }
 
-// impl<'de> Deserialize<'de> for Coin {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         struct CoinVisitor;
-
-//         impl<'de> Visitor<'de> for CoinVisitor {
-//             type Value = Coin;
-//             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-//                 formatter.write_str("the coin amount in a range (0..total supply]")
-//             }
-
-//             #[inline]
-//             fn visit_newtype_struct<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-//             where
-//                 D: Deserializer<'de>,
-//             {
-//                 let amount = <u64 as Deserialize>::deserialize(deserializer);
-//                 match amount {
-//                     Ok(v) if v <= MAX_COIN => Ok(Coin(v)),
-//                     Ok(v) => Err(D::Error::custom(format!("{}", CoinError::OutOfBound(v)))),
-//                     Err(e) => Err(e),
-//                 }
-//             }
-//         }
-//         deserializer.deserialize_newtype_struct("Coin", CoinVisitor)
-//     }
-// }
-
 impl Decode for Coin {
     fn decode<I: Input>(input: &mut I) -> Option<Self> {
         let size = mem::size_of::<u64>();
