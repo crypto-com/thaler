@@ -219,7 +219,10 @@ mod tests {
             Ok(Coin::new(30).unwrap())
         }
 
-        fn unspent_transactions(&self, _address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+        fn unspent_transactions(
+            &self,
+            _address: &ExtendedAddr,
+        ) -> Result<Vec<(TxoPointer, TxOut)>> {
             Ok(Vec::new())
         }
 
