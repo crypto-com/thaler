@@ -111,3 +111,91 @@ impl Decorator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use rand::random;
+
+    use chain_core::init::address::RedeemAddress;
+    use chain_core::init::coin::Coin;
+
+    use crate::{PrivateKey, PublicKey};
+
+    fn sample() -> UnspentTransactions {
+        let mut unspent_transactions = Vec::new();
+
+        unspent_transactions.push((
+            TxoPointer::new(random(), 0),
+            TxOut::new(
+                ExtendedAddr::BasicRedeem(RedeemAddress::from(&PublicKey::from(
+                    &PrivateKey::new().unwrap(),
+                ))),
+                Coin::new(100).unwrap(),
+            ),
+        ));
+
+        unspent_transactions.push((
+            TxoPointer::new(random(), 0),
+            TxOut::new(
+                ExtendedAddr::BasicRedeem(RedeemAddress::from(&PublicKey::from(
+                    &PrivateKey::new().unwrap(),
+                ))),
+                Coin::new(200).unwrap(),
+            ),
+        ));
+
+        unspent_transactions.push((
+            TxoPointer::new(random(), 0),
+            TxOut::new(
+                ExtendedAddr::BasicRedeem(RedeemAddress::from(&PublicKey::from(
+                    &PrivateKey::new().unwrap(),
+                ))),
+                Coin::new(300).unwrap(),
+            ),
+        ));
+
+        unspent_transactions.push((
+            TxoPointer::new(random(), 0),
+            TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(150).unwrap()),
+        ));
+
+        unspent_transactions.push((
+            TxoPointer::new(random(), 0),
+            TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(250).unwrap()),
+        ));
+
+        UnspentTransactions {
+            inner: unspent_transactions,
+        }
+    }
+
+    #[test]
+    fn check_only_redeem_addresses() {
+        let mut unspent_transactions = sample();
+        unspent_transactions.decorate_with(Decorator::OnlyRedeemAddresses);
+        assert_eq!(3, unspent_transactions.len());
+    }
+
+    #[test]
+    fn check_only_tree_addresses() {
+        let mut unspent_transactions = sample();
+        unspent_transactions.decorate_with(Decorator::OnlyTreeAddresses);
+        assert_eq!(2, unspent_transactions.len());
+    }
+
+    #[test]
+    fn check_highest_value_first() {
+        let mut unspent_transactions = sample();
+        unspent_transactions.decorate_with(Decorator::HighestValueFirst);
+        assert_eq!(5, unspent_transactions.len());
+
+        let mut coin = Coin::max();
+
+        for (_, tx_out) in unspent_transactions.iter() {
+            assert!(tx_out.value < coin);
+            coin = tx_out.value;
+        }
+    }
+}
