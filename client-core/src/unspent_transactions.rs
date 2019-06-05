@@ -198,4 +198,19 @@ mod tests {
             coin = tx_out.value;
         }
     }
+
+    #[test]
+    fn check_decorate_with_all() {
+        let mut unspent_transactions = sample();
+        unspent_transactions
+            .decorate_with_all(&[Decorator::OnlyRedeemAddresses, Decorator::HighestValueFirst]);
+        assert_eq!(3, unspent_transactions.len());
+
+        let mut coin = Coin::max();
+
+        for (_, tx_out) in unspent_transactions.iter() {
+            assert!(tx_out.value < coin);
+            coin = tx_out.value;
+        }
+    }
 }
