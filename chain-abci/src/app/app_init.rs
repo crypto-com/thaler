@@ -1,27 +1,26 @@
 use crate::storage::account::AccountStorage;
+use crate::storage::account::AccountWrapper;
 use crate::storage::tx::StarlingFixedKey;
 use crate::storage::*;
 use abci::*;
-use bit_vec::BitVec;
 use chain_core::common::MerkleTree;
 use chain_core::common::Timespec;
 use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
+use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
+use chain_core::init::config::InitNetworkParameters;
+use chain_core::state::CouncilNode;
 use chain_core::state::{BlockHeight, RewardsPoolState};
-use chain_core::tx::TransactionId;
-use chain_core::tx::{
-    data::{attribute::TxAttributes, Tx, TxId},
-    fee::LinearFee,
-    TxAux,
-};
+use chain_core::tx::{fee::LinearFee, TxAux};
 use kvdb::DBTransaction;
 use log::{info, warn};
 use parity_codec::{Decode, Encode};
-use protobuf::well_known_types::Timestamp;
-use protobuf::Message;
+use protobuf::{Message, RepeatedField};
 use serde::{Deserialize, Serialize};
+use std::convert::TryInto;
 
+/// ABCI app state snapshot
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode)]
 pub struct ChainNodeState {
     /// last processed block height
@@ -36,6 +35,12 @@ pub struct ChainNodeState {
     pub rewards_pool: RewardsPoolState,
     /// fee policy to apply -- TODO: change to be against T: FeeAlgorithm
     pub fee_policy: LinearFee,
+    /// time when unbonded stake can be withdrawn
+    pub unbonding_period: u32,
+    /// (minimal?) amount required to be bonded in validator-associated accounts
+    pub required_council_node_stake: Coin,
+    /// council nodes metadata
+    pub council_nodes: Vec<CouncilNode>,
 }
 
 /// The global ABCI state
@@ -46,6 +51,8 @@ pub struct ChainNodeApp {
     pub accounts: AccountStorage,
     /// valid transactions after DeliverTx before EndBlock/Commit
     pub delivered_txs: Vec<TxAux>,
+    /// root hash of the sparse merkle patricia trie of staking account states after DeliverTx before EndBlock/Commit
+    pub uncommitted_account_root_hash: StarlingFixedKey,
     /// a reference to genesis (used when there is no committed state)
     pub genesis_app_hash: H256,
     /// last two hex digits in chain_id
@@ -93,6 +100,7 @@ impl ChainNodeApp {
             storage,
             accounts,
             delivered_txs: Vec::new(),
+            uncommitted_account_root_hash: last_app_state.last_account_root_hash,
             chain_hex_id,
             genesis_app_hash,
             last_state: Some(last_app_state),
@@ -149,6 +157,7 @@ impl ChainNodeApp {
                 storage,
                 accounts,
                 delivered_txs: Vec::new(),
+                uncommitted_account_root_hash: [0u8; 32],
                 chain_hex_id,
                 genesis_app_hash,
                 last_state: None,
@@ -180,11 +189,18 @@ impl ChainNodeApp {
 
     fn check_and_store_consensus_params(
         init_consensus_params: Option<&ConsensusParams>,
+        _validators: &[CouncilNode],
+        _network_params: &InitNetworkParameters,
         inittx: &mut DBTransaction,
     ) {
-        // TODO: check consensus parameters
         match init_consensus_params {
             Some(cp) => {
+                // TODO: check validators only used allowed key types
+                // TODO: check unbonding period == cp.evidence.max_age
+                // NOTE: cp.evidence.max_age is currently in the number of blocks
+                // but it should be migrated to "time", in which case this check will make sense
+                // (as unbonding time is in seconds, not blocks)
+                warn!("consensus parameters not checked (TODO)");
                 inittx.put(
                     COL_EXTRA,
                     b"init_chain_consensus_params",
@@ -199,68 +215,29 @@ impl ChainNodeApp {
         }
     }
 
-    fn check_and_store_validators(validators: &[ValidatorUpdate], inittx: &mut DBTransaction) {
-        // TODO: checking validators
-        let validators_serialized: Vec<Vec<u8>> = validators
-            .iter()
-            .map(|x| {
-                (x as &dyn Message)
-                    .write_to_bytes()
-                    .expect("genesis validators")
-            })
-            .collect();
-        inittx.put(
-            COL_EXTRA,
-            b"init_chain_validators",
-            &validators_serialized.encode(),
-        );
-    }
-
     fn store_valid_genesis_state(
-        initial_utxos: &[Tx],
-        genesis_time: Option<&Timestamp>,
+        genesis_time: Timespec,
         genesis_app_hash: H256,
         rewards_pool: RewardsPoolState,
-        fee_policy: LinearFee,
+        network_params: InitNetworkParameters,
+        last_account_root_hash: StarlingFixedKey,
+        council_nodes: Vec<CouncilNode>,
         inittx: &mut DBTransaction,
     ) -> ChainNodeState {
-        for utxo in initial_utxos.iter() {
-            let txid = utxo.id();
-            info!("creating genesis tx (id: {:?})", &txid);
-            inittx.put(COL_BODIES, &txid[..], &utxo.encode());
-            inittx.put(
-                COL_TX_META,
-                &txid[..],
-                &BitVec::from_elem(1, false).to_bytes(),
-            );
-        }
-
-        let last_state = if let Some(time) = genesis_time {
-            inittx.put(
-                COL_EXTRA,
-                b"init_chain_time",
-                &(time as &dyn Message).write_to_bytes().expect("time"),
-            );
-            ChainNodeState {
-                last_block_height: 0,
-                last_apphash: genesis_app_hash,
-                block_time: time.get_seconds(),
-                last_account_root_hash: [0u8; 32], // MUST_TODO: compute
-                rewards_pool,
-                fee_policy,
-            }
-        } else {
-            warn!("time not in the initchain request");
-            ChainNodeState {
-                last_block_height: 0,
-                last_apphash: genesis_app_hash,
-                block_time: 0,
-                last_account_root_hash: [0u8; 32], // MUST_TODO: compute
-                rewards_pool,
-                fee_policy,
-            }
+        let last_state = ChainNodeState {
+            last_block_height: 0,
+            last_apphash: genesis_app_hash,
+            block_time: genesis_time,
+            last_account_root_hash,
+            rewards_pool,
+            fee_policy: network_params.initial_fee_policy,
+            unbonding_period: network_params.unbonding_period,
+            required_council_node_stake: network_params.required_council_node_stake,
+            council_nodes,
         };
-        inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &last_state.encode());
+        let encoded = last_state.encode();
+        inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &encoded);
+        inittx.put(COL_EXTRA, b"init_chain_state", &encoded);
         last_state
     }
 
@@ -269,10 +246,11 @@ impl ChainNodeApp {
     /// provided as arguments.
     pub fn init_chain_handler(&mut self, _req: &RequestInitChain) -> ResponseInitChain {
         let db = &self.storage.db;
+        let genesis_time = _req.time.as_ref().expect("genesis time").get_seconds();
         let conf: InitConfig =
             serde_json::from_slice(&_req.app_state_bytes).expect("failed to parse initial config");
-        let dist_result = conf.validate_distribution();
-        if dist_result.is_ok() {
+        let dist_result = conf.validate_config_get_genesis(genesis_time);
+        if let Ok((accounts, rp, nodes)) = dist_result {
             let stored_chain_id = db
                 .get(COL_EXTRA, CHAIN_ID_KEY)
                 .unwrap()
@@ -283,13 +261,23 @@ impl ChainNodeApp {
                     stored_chain_id, _req.chain_id
                 );
             }
-            // MUST_TODO: replace zero-input UTXO-init with creating unbonded (from genesis time) accounts
-            let utxos = conf.generate_utxos(&TxAttributes::new(self.chain_hex_id));
-            let ids: Vec<TxId> = utxos.iter().map(Tx::id).collect();
-            let tree = MerkleTree::new(ids);
-            let rp = conf.get_genesis_rewards_pool();
 
-            let genesis_app_hash = compute_app_hash(&tree, &rp);
+            let tx_tree = MerkleTree::empty();
+
+            let keys: Vec<StarlingFixedKey> = accounts.iter().map(|x| x.key()).collect();
+            // TODO: get rid of the extra allocations
+            let wrapped: Vec<AccountWrapper> =
+                accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
+            let new_account_root = self
+                .accounts
+                .insert(
+                    None,
+                    &mut keys.iter().collect::<Vec<_>>(),
+                    &mut wrapped.iter().collect::<Vec<_>>(),
+                )
+                .expect("initial insert");
+
+            let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
             if self.genesis_app_hash != genesis_app_hash {
                 panic!("initchain resulting genesis app hash: {:?} does not match the expected genesis app hash: {:?}", genesis_app_hash, self.genesis_app_hash);
             }
@@ -297,16 +285,38 @@ impl ChainNodeApp {
             let mut inittx = db.transaction();
             ChainNodeApp::check_and_store_consensus_params(
                 _req.consensus_params.as_ref(),
+                &nodes,
+                &conf.network_params,
                 &mut inittx,
             );
-            ChainNodeApp::check_and_store_validators(&_req.validators, &mut inittx);
-            inittx.put(COL_MERKLE_PROOFS, &genesis_app_hash[..], &tree.encode());
+            // NOTE: &_req.validators are ignored / replaced by init config
+            let mut validators = Vec::with_capacity(nodes.len());
+            // TODO: check not empty here or in initconfig validation?
+            for node in nodes.iter() {
+                let mut validator = ValidatorUpdate::default();
+                // TODO: validator power in coins rather than base units (i.e. divide by 1_0000_0000?)
+                validator.set_power(
+                    conf.distribution[&node.staking_account_address]
+                        .0
+                        .try_into()
+                        .expect("initial validator power exceeds i64"),
+                );
+                let mut pk = PubKey::new();
+                let (keytype, key) = node.consensus_pubkey.to_validator_update();
+                pk.set_field_type(keytype);
+                pk.set_data(key);
+                validator.set_pub_key(pk);
+                validators.push(validator);
+            }
+            let mut resp = ResponseInitChain::new();
+            resp.set_validators(RepeatedField::from(validators));
             let last_state = ChainNodeApp::store_valid_genesis_state(
-                &utxos,
-                _req.time.as_ref(),
+                genesis_time,
                 genesis_app_hash,
                 rp,
-                conf.initial_fee_policy,
+                conf.network_params,
+                new_account_root,
+                nodes,
                 &mut inittx,
             );
 
@@ -314,14 +324,16 @@ impl ChainNodeApp {
             if wr.is_err() {
                 panic!("db write error: {}", wr.err().unwrap());
             } else {
+                self.uncommitted_account_root_hash = last_state.last_account_root_hash;
                 self.last_state = Some(last_state);
             }
+
+            resp
         } else {
             panic!(
                 "distribution validation error: {}",
                 dist_result.err().unwrap()
             );
         }
-        ResponseInitChain::new()
     }
 }

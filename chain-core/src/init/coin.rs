@@ -8,6 +8,7 @@ use parity_codec::{Decode, Encode, Input};
 
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::Serialize;
+use std::convert::TryFrom;
 use std::{fmt, mem, ops, result, slice};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Encode)]
@@ -147,6 +148,14 @@ impl ops::Sub<Coin> for CoinResult {
 impl From<Coin> for u64 {
     fn from(c: Coin) -> u64 {
         c.0
+    }
+}
+
+impl TryFrom<Coin> for i64 {
+    type Error = std::num::TryFromIntError;
+
+    fn try_from(c: Coin) -> Result<Self, Self::Error> {
+        i64::try_from(c.0)
     }
 }
 

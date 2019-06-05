@@ -1,0 +1,17 @@
+{
+    "distribution":{"0x0db221c4f57d5d38b968139c06e9132aaf84e8df":2500000000000000000,
+        "0x20a0bee429d6907e556205ef9d48ab6fe6a55531":2500000000000000000,
+        "0x35f517cab9a37bc31091c2f155d965af84e0bc85":2500000000000000000,
+        "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de":1250000000000000000,
+        "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07":1250000000000000000},
+    "unbonding_period": 60,
+    "required_council_node_stake": 1250000000000000000,
+    "initial_fee_policy": {"base_fee":"1.1","per_byte_fee":"1.25"},
+    "council_nodes": [{"staking_account_address":"0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de",
+        "consensus_pubkey_type":"Ed25519",
+        "consensus_pubkey_b64":"EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE="}],
+    "launch_incentive_from":"0x35f517cab9a37bc31091c2f155d965af84e0bc85",
+    "launch_incentive_to":"0x20a0bee429d6907e556205ef9d48ab6fe6a55531",
+    "long_term_incentive":"0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07",     
+    "genesis_time": "2019-03-21T02:26:51.366017Z"
+}

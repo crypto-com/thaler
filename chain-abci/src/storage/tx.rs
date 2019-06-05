@@ -16,11 +16,10 @@ use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TransactionId;
 use chain_core::tx::{data::Tx, TxAux};
-use kvdb::{DBTransaction, KeyValueDB};
-use parity_codec::Decode;
+use kvdb::KeyValueDB;
+use parity_codec::{Decode, Encode};
 use secp256k1;
 use starling::constants::KEY_LEN;
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::{fmt, io};
@@ -84,34 +83,6 @@ impl fmt::Display for Error {
     }
 }
 
-/// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
-/// in the TX_META storage.
-pub fn spend_utxos(tx: &Tx, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
-    let mut updated_txs = BTreeMap::new();
-    for txin in tx.inputs.iter() {
-        updated_txs
-            .entry(txin.id)
-            .or_insert_with(|| {
-                BitVec::from_bytes(&db.get(COL_TX_META, &txin.id[..]).unwrap().unwrap())
-            })
-            .set(txin.index, true);
-    }
-    for (txid, bv) in &updated_txs {
-        dbtx.put(COL_TX_META, &txid[..], &bv.to_bytes());
-    }
-}
-
-/// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
-/// in the TX_META storage and it will create a new entry for TX in TX_META with all outputs marked as unspent.
-pub fn update_utxos_commit(tx: &Tx, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
-    spend_utxos(tx, db, dbtx);
-    dbtx.put(
-        COL_TX_META,
-        &tx.id(),
-        &BitVec::from_elem(tx.outputs.len(), false).to_bytes(),
-    );
-}
-
 /// External information needed for TX validation
 #[derive(Clone, Copy)]
 pub struct ChainInfo {
@@ -119,6 +90,7 @@ pub struct ChainInfo {
     pub chain_hex_id: u8,
     pub previous_block_time: Timespec,
     pub last_account_root_hash: StarlingFixedKey,
+    pub unbonding_period: u32,
 }
 
 fn check_attributes(tx_chain_hex_id: u8, extra_info: &ChainInfo) -> Result<(), Error> {
@@ -154,6 +126,21 @@ fn check_inputs_basic(inputs: &[TxoPointer], witness: &TxWitness) -> Result<(), 
     Ok(())
 }
 
+#[derive(Encode, Decode)]
+pub enum TxWithOutputs {
+    Transfer(Tx),
+    StakeWithdraw(WithdrawUnbondedTx),
+}
+
+impl TxWithOutputs {
+    pub fn outputs(&self) -> &[TxOut] {
+        match self {
+            TxWithOutputs::Transfer(tx) => &tx.outputs,
+            TxWithOutputs::StakeWithdraw(tx) => &tx.outputs,
+        }
+    }
+}
+
 fn check_inputs_lookup(
     main_txid: &TxId,
     inputs: &[TxoPointer],
@@ -176,11 +163,13 @@ fn check_inputs_lookup(
                     return Err(Error::InputSpent);
                 }
                 let txdata = db.get(COL_BODIES, &txin.id[..]).unwrap().unwrap().to_vec();
-                let tx = Tx::decode(&mut txdata.as_slice()).unwrap();
-                if txin.index >= tx.outputs.len() {
+                // only TxWithOutputs should have an entry in COL_TX_META
+                let tx = TxWithOutputs::decode(&mut txdata.as_slice()).unwrap();
+                let outputs = tx.outputs();
+                if txin.index >= outputs.len() {
                     return Err(Error::InvalidInput);
                 }
-                let txout = &tx.outputs[txin.index];
+                let txout = &outputs[txin.index];
                 if let Some(valid_from) = &txout.valid_from {
                     if *valid_from > extra_info.previous_block_time {
                         return Err(Error::OutputInTimelock);
@@ -269,26 +258,45 @@ fn verify_bonded_deposit(
     witness: &TxWitness,
     extra_info: ChainInfo,
     db: Arc<dyn KeyValueDB>,
-    _accounts: &AccountStorage,
-) -> Result<Fee, Error> {
+    accounts: &AccountStorage,
+) -> Result<(Fee, Option<Account>), Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_inputs_basic(&maintx.inputs, witness)?;
     let incoins = check_inputs_lookup(&maintx.id(), &maintx.inputs, witness, &extra_info, db)?;
     if incoins <= extra_info.min_fee_computed.to_coin() {
         return Err(Error::InputOutputDoNotMatch);
     }
-    Ok(extra_info.min_fee_computed)
+    let deposit_amount = (incoins - extra_info.min_fee_computed.to_coin()).expect("init");
     // TODO: check account not jailed etc.?
+    let maccount = get_account(
+        &maintx.to_account,
+        &extra_info.last_account_root_hash,
+        accounts,
+    );
+    let account = match maccount {
+        Ok(mut a) => {
+            a.deposit(deposit_amount);
+            Ok(a)
+        }
+        Err(Error::AccountNotFound) => Ok(Account::new_init(
+            deposit_amount,
+            extra_info.previous_block_time,
+            maintx.to_account,
+            true,
+        )),
+        e => e,
+    };
+    Ok((extra_info.min_fee_computed, Some(account?)))
 }
 
 /// checks that the account can be retrieved from the trie storage
 fn get_account(
     account_address: &RedeemAddress,
-    extra_info: &ChainInfo,
+    last_root: &StarlingFixedKey,
     accounts: &AccountStorage,
 ) -> Result<Account, Error> {
     let account_key = to_account_key(account_address);
-    let items = accounts.get(&extra_info.last_account_root_hash, &mut [&account_key]);
+    let items = accounts.get(last_root, &mut [&account_key]);
     if let Err(e) = items {
         return Err(Error::AccountLookupError(e));
     }
@@ -304,13 +312,17 @@ fn verify_unbonding(
     witness: &AccountOpWitness,
     extra_info: ChainInfo,
     accounts: &AccountStorage,
-) -> Result<Fee, Error> {
+) -> Result<(Fee, Option<Account>), Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     let account_address = witness.verify_tx_recover_address(&maintx.id());
     if let Err(e) = account_address {
         return Err(Error::EcdsaCrypto(e));
     }
-    let account = get_account(&account_address.unwrap(), &extra_info, accounts)?;
+    let mut account = get_account(
+        &account_address.unwrap(),
+        &extra_info.last_account_root_hash,
+        accounts,
+    )?;
     // checks that account transaction count matches to the one in transaction
     if maintx.nonce != account.nonce {
         return Err(Error::AccountIncorrectNonce);
@@ -320,8 +332,13 @@ fn verify_unbonding(
         return Err(Error::ZeroCoin);
     }
     check_input_output_sums(account.bonded, maintx.value, &extra_info)?;
+    account.unbond(
+        maintx.value,
+        extra_info.min_fee_computed.to_coin(),
+        extra_info.previous_block_time + i64::from(extra_info.unbonding_period),
+    );
     // only pay the minimal fee from the bonded amount if correct; the rest remains in bonded
-    Ok(extra_info.min_fee_computed)
+    Ok((extra_info.min_fee_computed, Some(account)))
 }
 
 fn verify_unbonded_withdraw(
@@ -329,14 +346,18 @@ fn verify_unbonded_withdraw(
     witness: &AccountOpWitness,
     extra_info: ChainInfo,
     accounts: &AccountStorage,
-) -> Result<Fee, Error> {
+) -> Result<(Fee, Option<Account>), Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_outputs_basic(&maintx.outputs)?;
     let account_address = witness.verify_tx_recover_address(&maintx.id());
     if let Err(e) = account_address {
         return Err(Error::EcdsaCrypto(e));
     }
-    let account = get_account(&account_address.unwrap(), &extra_info, accounts)?;
+    let mut account = get_account(
+        &account_address.unwrap(),
+        &extra_info.last_account_root_hash,
+        accounts,
+    )?;
     // checks that account transaction count matches to the one in transaction
     if maintx.nonce != account.nonce {
         return Err(Error::AccountIncorrectNonce);
@@ -344,6 +365,10 @@ fn verify_unbonded_withdraw(
     // checks that account can withdraw to outputs
     if account.unbonded_from > extra_info.previous_block_time {
         return Err(Error::AccountNotUnbonded);
+    }
+    // checks that there is something to wihdraw
+    if account.unbonded == Coin::zero() {
+        return Err(Error::ZeroCoin);
     }
     // checks that outputs are locked to the unbonded time
     if !maintx
@@ -357,7 +382,9 @@ fn verify_unbonded_withdraw(
     if let Err(coin_err) = outcoins {
         return Err(Error::InvalidSum(coin_err));
     }
-    check_input_output_sums(account.unbonded, outcoins.unwrap(), &extra_info)
+    let fee = check_input_output_sums(account.unbonded, outcoins.unwrap(), &extra_info)?;
+    account.withdraw();
+    Ok((fee, Some(account)))
 }
 
 /// Checks TX against the current DB and returns an `Error` if something fails.
@@ -367,9 +394,11 @@ pub fn verify(
     extra_info: ChainInfo,
     db: Arc<dyn KeyValueDB>,
     accounts: &AccountStorage,
-) -> Result<Fee, Error> {
+) -> Result<(Fee, Option<Account>), Error> {
     let paid_fee = match txaux {
-        TxAux::TransferTx(maintx, witness) => verify_transfer(maintx, witness, extra_info, db)?,
+        TxAux::TransferTx(maintx, witness) => {
+            (verify_transfer(maintx, witness, extra_info, db)?, None)
+        }
         TxAux::DepositStakeTx(maintx, witness) => {
             verify_bonded_deposit(maintx, witness, extra_info, db, accounts)?
         }
@@ -389,7 +418,9 @@ pub mod tests {
     use crate::storage::{Storage, COL_TX_META, NUM_COLUMNS};
     use chain_core::init::address::RedeemAddress;
     use chain_core::state::account::AccountOpAttributes;
-    use chain_core::tx::data::{address::ExtendedAddr, input::TxoPointer, output::TxOut};
+    use chain_core::tx::data::{
+        address::ExtendedAddr, attribute::TxAttributes, input::TxoPointer, output::TxOut,
+    };
     use chain_core::tx::fee::FeeAlgorithm;
     use chain_core::tx::fee::{LinearFee, Milli};
     use chain_core::tx::witness::{TxInWitness, TxWitness};
@@ -444,7 +475,11 @@ pub mod tests {
         let old_tx_id = old_tx.id();
 
         let mut inittx = db.transaction();
-        inittx.put(COL_BODIES, &old_tx_id[..], &old_tx.encode());
+        inittx.put(
+            COL_BODIES,
+            &old_tx_id[..],
+            &TxWithOutputs::Transfer(old_tx).encode(),
+        );
 
         inittx.put(
             COL_TX_META,
@@ -524,6 +559,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash,
+            unbonding_period: 1,
         };
         let result = verify(&txaux, extra_info, create_db(), &accounts);
         assert!(result.is_ok());
@@ -541,6 +577,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash,
+            unbonding_period: 1,
         };
         // WrongChainHexId
         {
@@ -626,7 +663,7 @@ pub mod tests {
             ),
         ];
 
-        let tx = WithdrawUnbondedTx::new(1, outputs, AccountOpAttributes::new(DEFAULT_CHAIN_ID));
+        let tx = WithdrawUnbondedTx::new(1, outputs, TxAttributes::new(DEFAULT_CHAIN_ID));
         let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
         let txaux = TxAux::WithdrawUnbondedStakeTx(tx.clone(), witness.clone());
         (txaux, tx.clone(), witness, secret_key, tree, new_root)
@@ -642,6 +679,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash,
+            unbonding_period: 1,
         };
         let result = verify(&txaux, extra_info, create_db(), &accounts);
         assert!(result.is_ok());
@@ -659,6 +697,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash,
+            unbonding_period: 1,
         };
         // WrongChainHexId
         {
@@ -792,6 +831,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash: [0u8; 32],
+            unbonding_period: 1,
         };
         let result = verify(&txaux, extra_info, db, &accounts);
         assert!(result.is_ok());
@@ -821,6 +861,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash: [0u8; 32],
+            unbonding_period: 1,
         };
         // WrongChainHexId
         {
@@ -922,6 +963,7 @@ pub mod tests {
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
             last_account_root_hash: [0u8; 32],
+            unbonding_period: 1,
         };
         // WrongChainHexId
         {

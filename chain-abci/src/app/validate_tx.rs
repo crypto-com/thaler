@@ -1,6 +1,7 @@
 use super::ChainNodeApp;
 use crate::storage::tx::{verify, ChainInfo};
 use abci::*;
+use chain_core::state::account::Account;
 use chain_core::tx::fee::{Fee, FeeAlgorithm};
 use chain_core::tx::TxAux;
 use parity_codec::Decode;
@@ -55,7 +56,7 @@ impl ChainNodeApp {
         &self,
         _req: &dyn RequestWithTx,
         resp: &mut dyn ResponseWithCodeAndLog,
-    ) -> Option<(TxAux, Fee)> {
+    ) -> Option<(TxAux, (Fee, Option<Account>))> {
         let data = Vec::from(_req.tx());
         let dtx = TxAux::decode(&mut data.as_slice());
         match dtx {
@@ -76,7 +77,8 @@ impl ChainNodeApp {
                         min_fee_computed: min_fee,
                         chain_hex_id: self.chain_hex_id,
                         previous_block_time: state.block_time,
-                        last_account_root_hash: state.last_account_root_hash,
+                        last_account_root_hash: self.uncommitted_account_root_hash,
+                        unbonding_period: state.unbonding_period,
                     },
                     self.storage.db.clone(),
                     &self.accounts,
