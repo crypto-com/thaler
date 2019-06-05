@@ -151,9 +151,11 @@ impl From<Coin> for u64 {
     }
 }
 
-impl From<Coin> for i64 {
-    fn from(c: Coin) -> i64 {
-        i64::try_from(c.0).expect("COIN_MAX should be less than i64::MAX")
+impl TryFrom<Coin> for i64 {
+    type Error = std::num::TryFromIntError;
+
+    fn try_from(c: Coin) -> Result<Self, Self::Error> {
+        i64::try_from(c.0)
     }
 }
 

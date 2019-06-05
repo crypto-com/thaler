@@ -126,6 +126,7 @@ impl abci::Application for ChainNodeApp {
         let mtxaux = ChainNodeApp::validate_tx_req(self, _req, &mut resp);
         if let (0, Some((txaux, fee_acc))) = (resp.code, mtxaux) {
             let mut inittx = self.storage.db.transaction();
+            // MUST_TODO: keep track of changed accounts and update validator power in end_block
             let next_account_root = match &txaux {
                 TxAux::TransferTx(tx, _) => {
                     // here the original idea was "conservative" that it "spent" utxos here

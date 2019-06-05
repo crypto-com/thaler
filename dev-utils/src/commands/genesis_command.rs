@@ -118,7 +118,10 @@ impl GenesisCommand {
                 serde_json::to_string(&config).context(format_err!("Invalid config"))?;
             println!("\"app_state\": {}", config_str);
         } else {
-            panic!("distribution validation error: {}", result.err().unwrap());
+            return Err(format_err!(
+                "distribution validation error: {} ",
+                result.unwrap_err()
+            ));
         }
 
         println!();
