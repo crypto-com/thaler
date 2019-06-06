@@ -17,6 +17,24 @@ pub enum ExtendedAddr {
     OrTree(TreeRoot),
 }
 
+impl ExtendedAddr {
+    /// Returns true if current address is redeem address, false otherwise.
+    pub fn is_redeem(&self) -> bool {
+        match self {
+            ExtendedAddr::BasicRedeem(_) => true,
+            ExtendedAddr::OrTree(_) => false,
+        }
+    }
+
+    /// Returns true if current address is tree address, false otherwise.
+    pub fn is_tree(&self) -> bool {
+        match self {
+            ExtendedAddr::BasicRedeem(_) => false,
+            ExtendedAddr::OrTree(_) => true,
+        }
+    }
+}
+
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
