@@ -16,7 +16,7 @@ use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use client_common::{ErrorKind, Result};
 
-use crate::unspent_transactions::Decorator::*;
+use crate::unspent_transactions::{Filter, Operation, Sorter};
 use crate::{TransactionBuilder, UnspentTransactions, WalletClient};
 
 /// Default implementation of `TransactionBuilder`
@@ -257,10 +257,12 @@ where
         attributes: TxAttributes,
         wallet_client: &W,
     ) -> Result<TxAux> {
+        let operations = &[
+            Operation::Filter(Filter::OnlyRedeemAddresses),
+            Operation::Sort(Sorter::HighestValueFirst),
+        ];
         let mut unspent_transactions = wallet_client.unspent_transactions(name, passphrase)?;
-        unspent_transactions
-            .decorate_with(OnlyRedeemAddresses)
-            .decorate_with(HighestValueFirst);
+        unspent_transactions.apply_all(operations);
 
         let (select_until, difference_amount) =
             self.transaction_estimate(&outputs, &attributes, &unspent_transactions)?;
