@@ -9,10 +9,7 @@ use chain_core::tx::data::output::TxOut;
 /// # Usage
 ///
 /// ```no_run
-/// # use chain_core::tx::data::input::TxoPointer;
-/// # use chain_core::tx::data::output::TxOut;
 /// # use client_core::unspent_transactions::*;
-/// # use client_core::wallet::DefaultWalletClient;
 /// // Retrieve a list of unspent transactions from an external source (e.g. WalletClient)
 /// let mut unspent_transactions = UnspentTransactions::default();
 ///
