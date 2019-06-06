@@ -45,7 +45,7 @@ impl DerefMut for UnspentTransactions {
 impl UnspentTransactions {
     /// Creates a new instance of unspent transactions
     #[inline]
-    pub fn new(unspent_transactions: Vec<(TxoPointer, TxOut)>) -> UnspentTransactions {
+    pub fn new(unspent_transactions: Vec<(TxoPointer, TxOut)>) -> Self {
         Self {
             inner: unspent_transactions,
         }
@@ -87,7 +87,7 @@ enum Inner {
 impl Builder {
     /// Creates a new instance of unspent transaction builder
     #[inline]
-    fn new(unspent_transactions: Vec<(TxoPointer, TxOut)>) -> Builder {
+    fn new(unspent_transactions: Vec<(TxoPointer, TxOut)>) -> Self {
         Self {
             inner: Inner::Normal(unspent_transactions),
         }
@@ -169,6 +169,7 @@ impl Builder {
 
                 let mut unspent_transactions = left.build();
                 unspent_transactions.extend(right.build().unwrap());
+                unspent_transactions.shrink_to_fit();
                 unspent_transactions
             }
         }
