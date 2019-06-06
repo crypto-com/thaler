@@ -56,7 +56,7 @@ impl UnspentTransactions {
         let mut temp = UnspentTransactions::default();
         std::mem::swap(self, &mut temp);
 
-        let mut builder = Builder::new(temp.unwrap());
+        let mut builder = Builder::normal(temp.unwrap());
 
         for operation in operations {
             builder = builder.apply(*operation);
@@ -75,95 +75,85 @@ impl UnspentTransactions {
 }
 
 /// Builder for unspent transactions
-struct Builder {
-    inner: Inner,
-}
-
-enum Inner {
+enum Builder {
     Normal(Vec<(TxoPointer, TxOut)>),
     Grouped(Box<Builder>, Box<Builder>),
 }
 
 impl Builder {
-    /// Creates a new instance of unspent transaction builder
+    /// Creates a new instance of normal unspent transaction builder
     #[inline]
-    fn new(unspent_transactions: Vec<(TxoPointer, TxOut)>) -> Self {
-        Self {
-            inner: Inner::Normal(unspent_transactions),
-        }
+    fn normal(unspent_transactions: Vec<(TxoPointer, TxOut)>) -> Self {
+        Builder::Normal(unspent_transactions)
+    }
+
+    /// Creates a new instance of grouped unspent transaction builder
+    #[inline]
+    fn grouped(left: Vec<(TxoPointer, TxOut)>, right: Vec<(TxoPointer, TxOut)>) -> Self {
+        Builder::Grouped(
+            Box::new(Builder::normal(left)),
+            Box::new(Builder::normal(right)),
+        )
     }
 
     /// Applies sorting operation
-    fn sort_by(&mut self, sorter: Sorter) {
-        match self.inner {
-            Inner::Normal(ref mut unspent_transactions) => sorter.sort(unspent_transactions),
-            Inner::Grouped(ref mut left, ref mut right) => {
-                left.sort_by(sorter);
-                right.sort_by(sorter);
+    fn sort_by(self, sorter: Sorter) -> Self {
+        match self {
+            Builder::Normal(unspent_transactions) => {
+                Builder::normal(sorter.sort(unspent_transactions))
             }
+            Builder::Grouped(left, right) => Builder::Grouped(
+                Box::new(left.sort_by(sorter)),
+                Box::new(right.sort_by(sorter)),
+            ),
         }
     }
 
     /// Applies filtering operation
-    fn filter_by(&mut self, filter: Filter) {
-        match self.inner {
-            Inner::Normal(ref mut unspent_transactions) => filter.filter(unspent_transactions),
-            Inner::Grouped(ref mut left, ref mut right) => {
-                left.filter_by(filter);
-                right.filter_by(filter);
+    fn filter_by(self, filter: Filter) -> Self {
+        match self {
+            Builder::Normal(unspent_transactions) => {
+                Builder::Normal(filter.filter(unspent_transactions))
             }
+            Builder::Grouped(left, right) => Builder::Grouped(
+                Box::new(left.filter_by(filter)),
+                Box::new(right.filter_by(filter)),
+            ),
         }
     }
 
     /// Applies grouping operation
-    fn group_by(&mut self, group_by: GroupBy) {
-        let mut temp = Inner::Normal(Vec::new());
-        std::mem::swap(&mut self.inner, &mut temp);
-
-        let (left, right) = match temp {
-            Inner::Normal(unspent_transactions) => {
+    fn group_by(self, group_by: GroupBy) -> Self {
+        match self {
+            Builder::Normal(unspent_transactions) => {
                 let (left, right) = group_by.group_by(unspent_transactions);
-                (
-                    Box::new(Builder {
-                        inner: Inner::Normal(left),
-                    }),
-                    Box::new(Builder {
-                        inner: Inner::Normal(right),
-                    }),
-                )
-            }
-            Inner::Grouped(mut left, mut right) => {
-                left.group_by(group_by);
-                right.group_by(group_by);
 
-                (left, right)
+                Builder::grouped(left, right)
             }
-        };
-
-        self.inner = Inner::Grouped(left, right);
+            Builder::Grouped(left, right) => Builder::Grouped(
+                Box::new(left.group_by(group_by)),
+                Box::new(right.group_by(group_by)),
+            ),
+        }
     }
 
     /// Applies an operation
-    fn apply(mut self, operation: Operation) -> Self {
+    fn apply(self, operation: Operation) -> Self {
         match operation {
             Operation::Filter(filter_by) => self.filter_by(filter_by),
             Operation::Sort(sort_by) => self.sort_by(sort_by),
             Operation::Group(group_by) => self.group_by(group_by),
         }
-
-        self
     }
 
     /// Freezes current builder and returns unspent transactions after applying all operations
     fn build(self) -> UnspentTransactions {
-        match self.inner {
-            Inner::Normal(mut unspent_transactions) => {
+        match self {
+            Builder::Normal(mut unspent_transactions) => {
                 unspent_transactions.shrink_to_fit();
-                UnspentTransactions {
-                    inner: unspent_transactions,
-                }
+                UnspentTransactions::new(unspent_transactions)
             }
-            Inner::Grouped(left, right) => {
+            Builder::Grouped(left, right) => {
                 let left: Builder = *left;
                 let right: Builder = *right;
 
@@ -198,13 +188,18 @@ pub enum Filter {
 
 impl Filter {
     /// Filters unspent transactions
-    fn filter(self, unspent_transactions: &mut Vec<(TxoPointer, TxOut)>) {
+    fn filter(
+        self,
+        mut unspent_transactions: Vec<(TxoPointer, TxOut)>,
+    ) -> Vec<(TxoPointer, TxOut)> {
         match self {
             Filter::OnlyRedeemAddresses => unspent_transactions
                 .retain(|(_, unspent_transaction)| unspent_transaction.address.is_redeem()),
             Filter::OnlyTreeAddresses => unspent_transactions
                 .retain(|(_, unspent_transaction)| unspent_transaction.address.is_tree()),
         }
+
+        unspent_transactions
     }
 }
 
@@ -219,7 +214,7 @@ pub enum Sorter {
 
 impl Sorter {
     /// Sorts unspent transactions
-    fn sort(self, unspent_transactions: &mut Vec<(TxoPointer, TxOut)>) {
+    fn sort(self, mut unspent_transactions: Vec<(TxoPointer, TxOut)>) -> Vec<(TxoPointer, TxOut)> {
         match self {
             Sorter::HighestValueFirst => {
                 unspent_transactions.sort_by(|(_, a), (_, b)| a.value.cmp(&b.value).reverse())
@@ -228,6 +223,8 @@ impl Sorter {
                 unspent_transactions.sort_by(|(_, a), (_, b)| a.value.cmp(&b.value))
             }
         }
+
+        unspent_transactions
     }
 }
 
