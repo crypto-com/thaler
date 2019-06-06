@@ -11,14 +11,13 @@ use chain_core::common::{Proof, H256};
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
 use client_common::balance::TransactionChange;
 use client_common::Result;
 
-use crate::{PrivateKey, PublicKey};
+use crate::{PrivateKey, PublicKey, UnspentTransactions};
 
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {
@@ -91,6 +90,14 @@ pub trait WalletClient: Send + Sync {
         public_keys: Vec<PublicKey>,
     ) -> Result<Proof<RawPubkey>>;
 
+    /// Returns number of cosigners required to sign the transaction
+    fn required_cosigners(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        root_hash: &H256,
+    ) -> Result<usize>;
+
     /// Retrieves current balance of wallet
     fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin>;
 
@@ -98,11 +105,8 @@ pub trait WalletClient: Send + Sync {
     fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>>;
 
     /// Retrieves all unspent transactions of wallet
-    fn unspent_transactions(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-    ) -> Result<Vec<(TxoPointer, Coin)>>;
+    fn unspent_transactions(&self, name: &str, passphrase: &SecUtf8)
+        -> Result<UnspentTransactions>;
 
     /// Returns output of transaction with given id and index
     fn output(&self, id: &TxId, index: usize) -> Result<TxOut>;

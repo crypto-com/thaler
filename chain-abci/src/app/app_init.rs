@@ -10,6 +10,7 @@ use chain_core::compute_app_hash;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
+use chain_core::state::account::Account;
 use chain_core::state::CouncilNode;
 use chain_core::state::{BlockHeight, RewardsPoolState};
 use chain_core::tx::{fee::LinearFee, TxAux};
@@ -264,7 +265,7 @@ impl ChainNodeApp {
 
             let tx_tree = MerkleTree::empty();
 
-            let keys: Vec<StarlingFixedKey> = accounts.iter().map(|x| x.key()).collect();
+            let keys: Vec<StarlingFixedKey> = accounts.iter().map(Account::key).collect();
             // TODO: get rid of the extra allocations
             let wrapped: Vec<AccountWrapper> =
                 accounts.iter().map(|x| AccountWrapper(x.clone())).collect();

@@ -1,13 +1,13 @@
-use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
+use chain_core::tx::data::output::TxOut;
 use client_common::{ErrorKind, Result, Storage};
 use parity_codec::{Decode, Encode};
 
 const KEYSPACE: &str = "index_unspent_transaction";
 /// Exposes functionalities for managing unspent transactions
 ///
-/// Stores `address -> [(TxoPointer, Coin)]` mapping
+/// Stores `address -> [(TxoPointer, TxOut)]` mapping
 #[derive(Default, Clone)]
 pub struct UnspentTransactionService<S: Storage> {
     storage: S,
@@ -23,7 +23,7 @@ where
     }
 
     /// Retrieves all the unspent transactions for an address
-    pub fn get(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+    pub fn get(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, TxOut)>> {
         let bytes = self.storage.get(KEYSPACE, address.encode())?;
 
         match bytes {
@@ -38,8 +38,9 @@ where
     pub fn add(
         &self,
         address: &ExtendedAddr,
-        unspent_transaction: (TxoPointer, Coin),
+        unspent_transaction: (TxoPointer, TxOut),
     ) -> Result<()> {
+        // TODO: Implement compare and swap?
         let mut unspent_transactions = self.get(address)?;
         unspent_transactions.push(unspent_transaction);
 
@@ -50,6 +51,7 @@ where
 
     /// Removes an unspent transaction for given address
     pub fn remove(&self, address: &ExtendedAddr, pointer: &TxoPointer) -> Result<()> {
+        // TODO: Implement compare and swap?
         let mut unspent_transactions = self.get(address)?;
         let mut index = None;
 

@@ -3,7 +3,6 @@ use failure::ResultExt;
 use secp256k1::RecoveryId;
 use secstr::SecUtf8;
 
-use crate::{TransactionBuilder, WalletClient};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -16,6 +15,9 @@ use chain_core::tx::witness::{EcdsaSignature, TxInWitness, TxWitness};
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use client_common::{ErrorKind, Result};
+
+use crate::unspent_transactions::Decorator::*;
+use crate::{TransactionBuilder, UnspentTransactions, WalletClient};
 
 /// Default implementation of `TransactionBuilder`
 ///
@@ -70,14 +72,14 @@ where
     /// and amount to transfer (`transferred_amount - amount_to_transfer`)
     fn select_transactions(
         &self,
-        unspent_transactions: &[(TxoPointer, Coin)],
+        unspent_transactions: &UnspentTransactions,
         amount_to_transfer: Coin,
     ) -> Result<(usize, Coin)> {
         let mut transferred_amount = Coin::zero();
 
-        for (i, (_, value)) in unspent_transactions.iter().enumerate() {
-            transferred_amount =
-                (transferred_amount + value).context(ErrorKind::BalanceAdditionError)?;
+        for (i, (_, unspent_transaction)) in unspent_transactions.iter().enumerate() {
+            transferred_amount = (transferred_amount + unspent_transaction.value)
+                .context(ErrorKind::BalanceAdditionError)?;
 
             if transferred_amount >= amount_to_transfer {
                 return Ok((
@@ -129,7 +131,7 @@ where
         &self,
         outputs: &[TxOut],
         attributes: &TxAttributes,
-        unspent_transactions: &[(TxoPointer, Coin)],
+        unspent_transactions: &UnspentTransactions,
     ) -> Result<(usize, Coin)> {
         let mut fee = Fee::new(Coin::zero());
         let (mut tx_aux, mut selected_until, mut difference_amount) =
@@ -166,7 +168,7 @@ where
         &self,
         outputs: &[TxOut],
         attributes: &TxAttributes,
-        unspent_transactions: &[(TxoPointer, Coin)],
+        unspent_transactions: &UnspentTransactions,
         fee: Fee,
     ) -> Result<(TxAux, usize, Coin)> {
         let amount_to_transfer = self.amount_to_transfer(&outputs, fee)?;
@@ -256,7 +258,9 @@ where
         wallet_client: &W,
     ) -> Result<TxAux> {
         let mut unspent_transactions = wallet_client.unspent_transactions(name, passphrase)?;
-        unspent_transactions.sort_by(|a, b| a.1.cmp(&b.1).reverse());
+        unspent_transactions
+            .decorate_with(OnlyRedeemAddresses)
+            .decorate_with(HighestValueFirst);
 
         let (select_until, difference_amount) =
             self.transaction_estimate(&outputs, &attributes, &unspent_transactions)?;
@@ -265,6 +269,7 @@ where
 
         let transaction = Tx {
             inputs: unspent_transactions
+                .unwrap()
                 .into_iter()
                 .map(|(input, _)| input)
                 .collect(),
@@ -468,6 +473,10 @@ mod tests {
             unreachable!()
         }
 
+        fn required_cosigners(&self, _: &str, _: &SecUtf8, _: &H256) -> Result<usize> {
+            unreachable!()
+        }
+
         fn balance(&self, _: &str, _: &SecUtf8) -> Result<Coin> {
             unreachable!()
         }
@@ -476,30 +485,42 @@ mod tests {
             unreachable!()
         }
 
-        fn unspent_transactions(&self, _: &str, _: &SecUtf8) -> Result<Vec<(TxoPointer, Coin)>> {
-            Ok(vec![
+        fn unspent_transactions(&self, _: &str, _: &SecUtf8) -> Result<UnspentTransactions> {
+            Ok(UnspentTransactions::new(vec![
                 (
                     TxoPointer {
                         id: self.txid_0,
                         index: 0,
                     },
-                    Coin::new(200).unwrap(),
+                    TxOut {
+                        address: self.addr_0.clone(),
+                        value: Coin::new(200).unwrap(),
+                        valid_from: None,
+                    },
                 ),
                 (
                     TxoPointer {
                         id: self.txid_1,
                         index: 0,
                     },
-                    Coin::new(217).unwrap(),
+                    TxOut {
+                        address: self.addr_1.clone(),
+                        value: Coin::new(217).unwrap(),
+                        valid_from: None,
+                    },
                 ),
                 (
                     TxoPointer {
                         id: self.txid_2,
                         index: 0,
                     },
-                    Coin::new(100).unwrap(),
+                    TxOut {
+                        address: self.addr_2.clone(),
+                        value: Coin::new(100).unwrap(),
+                        valid_from: None,
+                    },
                 ),
-            ])
+            ]))
         }
 
         fn output(&self, id: &TxId, _: usize) -> Result<TxOut> {

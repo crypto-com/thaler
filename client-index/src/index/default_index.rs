@@ -117,7 +117,7 @@ where
 
                 // Update unspent transactions
                 self.unspent_transaction_service
-                    .add(&change.address, (TxoPointer::new(id, i), output.value))?;
+                    .add(&change.address, (TxoPointer::new(id, i), output.clone()))?;
 
                 // Update transaction history
                 self.address_service.add(change)?;
@@ -184,7 +184,7 @@ where
         self.balance_service.get(address)
     }
 
-    fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+    fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, TxOut)>> {
         self.unspent_transaction_service.get(address)
     }
 

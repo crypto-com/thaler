@@ -9,7 +9,6 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
@@ -20,7 +19,10 @@ use client_index::index::{Index, UnauthorizedIndex};
 
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedTransactionBuilder;
-use crate::{MultiSigWalletClient, PrivateKey, PublicKey, TransactionBuilder, WalletClient};
+use crate::{
+    MultiSigWalletClient, PrivateKey, PublicKey, TransactionBuilder, UnspentTransactions,
+    WalletClient,
+};
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Debug, Default, Clone)]
@@ -172,6 +174,19 @@ where
         }
     }
 
+    fn required_cosigners(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        root_hash: &H256,
+    ) -> Result<usize> {
+        // To verify if the passphrase is correct or not
+        self.tree_addresses(name, passphrase)?;
+
+        self.root_hash_service
+            .required_signers(root_hash, passphrase)
+    }
+
     fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin> {
         let addresses = self.addresses(name, passphrase)?;
 
@@ -201,7 +216,7 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-    ) -> Result<Vec<(TxoPointer, Coin)>> {
+    ) -> Result<UnspentTransactions> {
         let addresses = self.addresses(name, passphrase)?;
 
         let mut unspent_transactions = Vec::new();
@@ -209,7 +224,7 @@ where
             unspent_transactions.extend(self.index.unspent_transactions(&address)?);
         }
 
-        Ok(unspent_transactions)
+        Ok(UnspentTransactions::new(unspent_transactions))
     }
 
     fn output(&self, id: &TxId, index: usize) -> Result<TxOut> {
@@ -590,7 +605,7 @@ mod tests {
             }
         }
 
-        fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, Coin)>> {
+        fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, TxOut)>> {
             if address == &self.addr_1 {
                 Ok(Default::default())
             } else if address == &self.addr_2 {
@@ -599,13 +614,21 @@ mod tests {
                 } else {
                     Ok(vec![(
                         TxoPointer::new([1u8; 32], 0),
-                        Coin::new(30).unwrap(),
+                        TxOut {
+                            address: self.addr_2.clone(),
+                            value: Coin::new(30).unwrap(),
+                            valid_from: None,
+                        },
                     )])
                 }
             } else if *self.changed.read().unwrap() && address == &self.addr_3 {
                 Ok(vec![(
                     TxoPointer::new([2u8; 32], 0),
-                    Coin::new(30).unwrap(),
+                    TxOut {
+                        address: self.addr_3.clone(),
+                        value: Coin::new(30).unwrap(),
+                        valid_from: None,
+                    },
                 )])
             } else {
                 Ok(Default::default())
@@ -1066,11 +1089,25 @@ mod tests {
             PublicKey::from(&PrivateKey::new().unwrap()),
         ];
 
-        assert!(wallet
+        let tree_address = wallet
             .new_tree_address(name, &passphrase, public_keys.clone(), 2, 3)
-            .is_ok());
+            .unwrap();
 
         assert_eq!(1, wallet.tree_addresses(name, &passphrase).unwrap().len());
+
+        let root_hash = wallet
+            .find(name, &passphrase, &tree_address)
+            .unwrap()
+            .unwrap()
+            .right()
+            .unwrap();
+
+        assert_eq!(
+            2,
+            wallet
+                .required_cosigners(name, &passphrase, &root_hash)
+                .unwrap()
+        );
     }
 
     #[test]
