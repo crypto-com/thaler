@@ -12,6 +12,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use client_common::{ErrorKind, Result};
+use client_core::unspent_transactions::{Filter, Operation, Sorter};
 use client_core::WalletClient;
 
 use crate::ask_passphrase;
@@ -51,7 +52,22 @@ impl TransactionCommand {
             TxAttributes::new(decode(chain_id).context(ErrorKind::DeserializationError)?[0]);
         let outputs = Self::ask_outputs()?;
 
-        wallet_client.create_and_broadcast_transaction(name, &passphrase, outputs, attributes)
+        let return_address = wallet_client.new_redeem_address(name, &passphrase)?;
+        let operations = &[
+            Operation::Filter(Filter::OnlyRedeemAddresses),
+            Operation::Sort(Sorter::HighestValueFirst),
+        ];
+
+        let transaction = wallet_client.create_transaction(
+            name,
+            &passphrase,
+            outputs,
+            attributes,
+            operations,
+            return_address,
+        )?;
+
+        wallet_client.broadcast_transaction(&transaction)
     }
 
     fn ask_outputs() -> Result<Vec<TxOut>> {

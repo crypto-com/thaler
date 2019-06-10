@@ -14,9 +14,11 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
 use client_common::Result;
 
+use crate::unspent_transactions::Operation;
 use crate::{PrivateKey, PublicKey, UnspentTransactions};
 
 /// Interface for a generic wallet
@@ -69,7 +71,8 @@ pub trait WalletClient: Send + Sync {
     ///
     /// `name`: Name of wallet
     /// `passphrase`: passphrase of wallet
-    /// `public_keys`: Public keys of co-signers
+    /// `public_keys`: Public keys of co-signers (including public key of current co-signer)
+    /// `self_public_key`: Public key of current co-signer
     /// `m`: Number of required co-signers
     /// `n`: Total number of co-signers
     fn new_tree_address(
@@ -77,6 +80,7 @@ pub trait WalletClient: Send + Sync {
         name: &str,
         passphrase: &SecUtf8,
         public_keys: Vec<PublicKey>,
+        self_public_key: PublicKey,
         m: usize,
         n: usize,
     ) -> Result<ExtendedAddr>;
@@ -111,14 +115,28 @@ pub trait WalletClient: Send + Sync {
     /// Returns output of transaction with given id and index
     fn output(&self, id: &TxId, index: usize) -> Result<TxOut>;
 
-    /// Creates and broadcasts a transaction to Crypto.com Chain
-    fn create_and_broadcast_transaction(
+    /// Builds a transaction
+    ///
+    /// # Attributes
+    ///
+    /// - `name`: Name of wallet
+    /// - `passphrase`: Passphrase of wallet
+    /// - `outputs`: Transaction outputs
+    /// - `attributes`: Transaction attributes,
+    /// - `operations`: Operations to apply on unspent transactions before selecting
+    /// - `return_address`: Address to which change amount will get returned
+    fn create_transaction(
         &self,
         name: &str,
         passphrase: &SecUtf8,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
-    ) -> Result<()>;
+        operations: &[Operation],
+        return_address: ExtendedAddr,
+    ) -> Result<TxAux>;
+
+    /// Broadcasts a transaction to Crypto.com Chain
+    fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()>;
 
     /// Synchronizes index with Crypto.com Chain (from last known height)
     fn sync(&self) -> Result<()>;

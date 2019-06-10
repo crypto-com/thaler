@@ -18,7 +18,7 @@ struct Wallet {
     pub root_hashes: Vec<H256>,
 }
 
-/// Maintains mapping `wallet-name -> Vec<wallet>`
+/// Maintains mapping `wallet-name -> wallet-details`
 #[derive(Debug, Default, Clone)]
 pub struct WalletService<T: Storage> {
     storage: T,

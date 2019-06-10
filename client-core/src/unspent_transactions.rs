@@ -1,8 +1,14 @@
 //! Operations on unspent transactions
 use std::ops::{Deref, DerefMut};
 
+use failure::ResultExt;
+
+use chain_core::init::coin::Coin;
+use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
+use chain_core::tx::data::Tx;
+use client_common::{ErrorKind, Result};
 
 /// An iterator over unspent transactions
 ///
@@ -26,6 +32,12 @@ pub struct UnspentTransactions {
     inner: Vec<(TxoPointer, TxOut)>,
 }
 
+/// An iterator over selected unspent transactions
+#[derive(Debug)]
+pub struct SelectedUnspentTransactions<'a> {
+    inner: &'a [(TxoPointer, TxOut)],
+}
+
 impl Deref for UnspentTransactions {
     type Target = Vec<(TxoPointer, TxOut)>;
 
@@ -39,6 +51,15 @@ impl DerefMut for UnspentTransactions {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
+    }
+}
+
+impl<'a> Deref for SelectedUnspentTransactions<'a> {
+    type Target = [(TxoPointer, TxOut)];
+
+    #[inline]
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
@@ -71,6 +92,38 @@ impl UnspentTransactions {
     #[inline]
     pub fn unwrap(self) -> Vec<(TxoPointer, TxOut)> {
         self.inner
+    }
+
+    /// Selects unspent transactions for given amount and returns difference amount
+    pub fn select(&self, amount: Coin) -> Result<(SelectedUnspentTransactions, Coin)> {
+        let mut selected_amount = Coin::zero();
+
+        for (i, (_, unspent_transaction)) in self.inner.iter().enumerate() {
+            selected_amount = (selected_amount + unspent_transaction.value)
+                .context(ErrorKind::BalanceAdditionError)?;
+
+            if selected_amount >= amount {
+                return Ok((
+                    SelectedUnspentTransactions {
+                        inner: &self.inner[..=i],
+                    },
+                    (selected_amount - amount).context(ErrorKind::BalanceAdditionError)?,
+                ));
+            }
+        }
+
+        Err(ErrorKind::InsufficientBalance.into())
+    }
+}
+
+impl<'a> SelectedUnspentTransactions<'a> {
+    /// Builds a transaction from current selected unspent transactions
+    pub fn to_transaction(&self, outputs: Vec<TxOut>, attributes: TxAttributes) -> Tx {
+        Tx {
+            inputs: self.iter().map(|(input, _)| input.clone()).collect(),
+            outputs,
+            attributes,
+        }
     }
 }
 

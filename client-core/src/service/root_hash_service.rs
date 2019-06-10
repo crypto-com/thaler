@@ -17,6 +17,8 @@ struct MultiSigAddress {
     pub m: usize,
     /// Total number of co-signers
     pub n: usize,
+    /// Public key of current signer
+    pub self_public_key: PublicKey,
     /// Merkle tree with different combinations of `n` public keys as leaf nodes
     pub merkle_tree: MerkleTree<RawPubkey>,
 }
@@ -40,11 +42,17 @@ where
     pub fn new_root_hash(
         &self,
         public_keys: Vec<PublicKey>,
+        self_public_key: PublicKey,
         m: usize,
         n: usize,
         passphrase: &SecUtf8,
     ) -> Result<H256> {
-        if m > n || public_keys.is_empty() || public_keys.len() != n || m == 0 {
+        if m > n
+            || public_keys.is_empty()
+            || public_keys.len() != n
+            || m == 0
+            || !public_keys.contains(&self_public_key)
+        {
             return Err(ErrorKind::InvalidInput.into());
         }
 
@@ -52,7 +60,12 @@ where
         let merkle_tree = MerkleTree::new(combinations);
         let root_hash = merkle_tree.root_hash();
 
-        let multi_sig_address = MultiSigAddress { m, n, merkle_tree };
+        let multi_sig_address = MultiSigAddress {
+            m,
+            n,
+            self_public_key,
+            merkle_tree,
+        };
 
         self.storage
             .set_secure(KEYSPACE, root_hash, multi_sig_address.encode(), passphrase)?;
@@ -101,6 +114,18 @@ where
                 let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
                     .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError))?;
                 Ok(address.m)
+            }
+        }
+    }
+
+    /// Returns public key of current signer
+    pub fn public_key(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<PublicKey> {
+        match self.storage.get_secure(KEYSPACE, root_hash, passphrase)? {
+            None => Err(ErrorKind::AddressNotFound.into()),
+            Some(address_bytes) => {
+                let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
+                    .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError))?;
+                Ok(address.self_public_key)
             }
         }
     }
@@ -157,7 +182,13 @@ mod tests {
         assert_eq!(
             ErrorKind::InvalidInput,
             root_hash_service
-                .new_root_hash(public_keys.clone(), 2, 4, &passphrase)
+                .new_root_hash(
+                    public_keys.clone(),
+                    public_keys[0].clone(),
+                    2,
+                    4,
+                    &passphrase
+                )
                 .expect_err("Created invalid multi-sig address")
                 .kind()
         );
@@ -165,13 +196,33 @@ mod tests {
         assert_eq!(
             ErrorKind::InvalidInput,
             root_hash_service
-                .new_root_hash(vec![], 0, 0, &passphrase)
+                .new_root_hash(
+                    public_keys.clone(),
+                    PublicKey::from(&PrivateKey::new().unwrap()),
+                    2,
+                    3,
+                    &passphrase
+                )
+                .expect_err("Created multi-sig address without self public key")
+                .kind()
+        );
+
+        assert_eq!(
+            ErrorKind::InvalidInput,
+            root_hash_service
+                .new_root_hash(vec![], public_keys[0].clone(), 0, 0, &passphrase)
                 .expect_err("Created invalid multi-sig address")
                 .kind()
         );
 
         let root_hash = root_hash_service
-            .new_root_hash(public_keys.clone(), 2, 3, &passphrase)
+            .new_root_hash(
+                public_keys.clone(),
+                public_keys[0].clone(),
+                2,
+                3,
+                &passphrase,
+            )
             .unwrap();
 
         assert_eq!(
