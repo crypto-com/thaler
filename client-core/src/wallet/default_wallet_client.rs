@@ -12,6 +12,7 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
 use client_common::storage::UnauthorizedStorage;
 use client_common::{Error, ErrorKind, Result, Storage};
@@ -20,8 +21,8 @@ use client_index::index::{Index, UnauthorizedIndex};
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedTransactionBuilder;
 use crate::{
-    MultiSigWalletClient, PrivateKey, PublicKey, TransactionBuilder, UnspentTransactions,
-    WalletClient,
+    InputSelectionStrategy, MultiSigWalletClient, PrivateKey, PublicKey, TransactionBuilder,
+    UnspentTransactions, WalletClient,
 };
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
@@ -139,15 +140,16 @@ where
         name: &str,
         passphrase: &SecUtf8,
         public_keys: Vec<PublicKey>,
+        self_public_key: PublicKey,
         m: usize,
         n: usize,
     ) -> Result<ExtendedAddr> {
         // To verify if the passphrase is correct or not
         self.tree_addresses(name, passphrase)?;
 
-        let root_hash = self
-            .root_hash_service
-            .new_root_hash(public_keys, m, n, passphrase)?;
+        let root_hash =
+            self.root_hash_service
+                .new_root_hash(public_keys, self_public_key, m, n, passphrase)?;
 
         self.wallet_service
             .add_root_hash(name, passphrase, root_hash)?;
@@ -231,17 +233,29 @@ where
         self.index.output(id, index)
     }
 
-    fn create_and_broadcast_transaction(
+    fn create_transaction(
         &self,
         name: &str,
         passphrase: &SecUtf8,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
-    ) -> Result<()> {
-        let tx_aux = self
-            .transaction_builder
-            .build(name, passphrase, outputs, attributes, self)?;
+        input_selection_strategy: Option<InputSelectionStrategy>,
+        return_address: ExtendedAddr,
+    ) -> Result<TxAux> {
+        let mut unspent_transactions = self.unspent_transactions(name, passphrase)?;
+        unspent_transactions.apply_all(input_selection_strategy.unwrap_or_default().as_ref());
 
+        self.transaction_builder.build(
+            name,
+            passphrase,
+            outputs,
+            attributes,
+            unspent_transactions,
+            return_address,
+        )
+    }
+
+    fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()> {
         self.index.broadcast_transaction(&tx_aux.encode())
     }
 
@@ -470,20 +484,16 @@ mod tests {
 
     use chrono::DateTime;
 
-    use chain_core::init::coin::{Coin, CoinError};
-    use chain_core::tx::data::address::ExtendedAddr;
-    use chain_core::tx::data::attribute::TxAttributes;
+    use chain_core::init::coin::CoinError;
     use chain_core::tx::data::input::TxoPointer;
-    use chain_core::tx::data::output::TxOut;
-    use chain_core::tx::data::{Tx, TxId};
+    use chain_core::tx::data::Tx;
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::witness::TxInWitness;
-    use chain_core::tx::{TransactionId, TxAux};
-    use client_common::balance::{BalanceChange, TransactionChange};
+    use chain_core::tx::TransactionId;
+    use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
-    use client_common::Result;
-    use client_index::Index;
 
+    use crate::signer::DefaultSigner;
     use crate::transaction_builder::DefaultTransactionBuilder;
 
     #[derive(Debug)]
@@ -845,15 +855,20 @@ mod tests {
         assert!(wallet.sync().is_ok());
         assert!(wallet.sync_all().is_ok());
 
+        let signer = DefaultSigner::new(storage.clone());
+
         let wallet = DefaultWalletClient::builder()
             .with_wallet(storage)
             .with_transaction_read(wallet.index)
-            .with_transaction_write(DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()))
+            .with_transaction_write(DefaultTransactionBuilder::new(
+                signer,
+                ZeroFeeAlgorithm::default(),
+            ))
             .build()
             .unwrap();
 
-        assert!(wallet
-            .create_and_broadcast_transaction(
+        let transaction = wallet
+            .create_transaction(
                 "wallet_2",
                 &SecUtf8::from("passphrase"),
                 vec![TxOut {
@@ -862,8 +877,12 @@ mod tests {
                     valid_from: None,
                 }],
                 TxAttributes::new(171),
+                None,
+                addr_1.clone(),
             )
-            .is_ok());
+            .unwrap();
+
+        assert!(wallet.broadcast_transaction(&transaction).is_ok());
 
         assert_eq!(
             Coin::new(0).unwrap(),
@@ -906,8 +925,8 @@ mod tests {
                 .len()
         );
 
-        assert!(wallet
-            .create_and_broadcast_transaction(
+        let transaction = wallet
+            .create_transaction(
                 "wallet_3",
                 &SecUtf8::from("passphrase"),
                 vec![TxOut {
@@ -916,13 +935,17 @@ mod tests {
                     valid_from: None,
                 }],
                 TxAttributes::new(171),
+                None,
+                addr_1.clone(),
             )
-            .is_ok());
+            .unwrap();
+
+        assert!(wallet.broadcast_transaction(&transaction).is_ok());
 
         assert_eq!(
             ErrorKind::InsufficientBalance,
             wallet
-                .create_and_broadcast_transaction(
+                .create_transaction(
                     "wallet_2",
                     &SecUtf8::from("passphrase"),
                     vec![TxOut {
@@ -931,6 +954,8 @@ mod tests {
                         valid_from: None,
                     }],
                     TxAttributes::new(171),
+                    None,
+                    addr_1.clone()
                 )
                 .unwrap_err()
                 .kind()
@@ -1029,11 +1054,15 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .create_and_broadcast_transaction(
+                .create_transaction(
                     "name",
                     &SecUtf8::from("passphrase"),
                     Vec::new(),
-                    TxAttributes::new(171)
+                    TxAttributes::new(171),
+                    None,
+                    ExtendedAddr::BasicRedeem(RedeemAddress::from(&PublicKey::from(
+                        &PrivateKey::new().unwrap()
+                    )))
                 )
                 .unwrap_err()
                 .kind()
@@ -1052,8 +1081,11 @@ mod tests {
 
     #[test]
     fn invalid_wallet_building() {
-        let builder = DefaultWalletClient::builder()
-            .with_transaction_write(DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()));
+        let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage);
+        let builder = DefaultWalletClient::builder().with_transaction_write(
+            DefaultTransactionBuilder::new(signer, ZeroFeeAlgorithm::default()),
+        );
 
         assert_eq!(ErrorKind::InvalidInput, builder.build().unwrap_err().kind());
     }
@@ -1090,7 +1122,14 @@ mod tests {
         ];
 
         let tree_address = wallet
-            .new_tree_address(name, &passphrase, public_keys.clone(), 2, 3)
+            .new_tree_address(
+                name,
+                &passphrase,
+                public_keys.clone(),
+                public_keys[0].clone(),
+                2,
+                3,
+            )
             .unwrap();
 
         assert_eq!(1, wallet.tree_addresses(name, &passphrase).unwrap().len());
@@ -1134,7 +1173,14 @@ mod tests {
         ];
 
         let multi_sig_address = wallet
-            .new_tree_address(name, passphrase, public_keys.clone(), 2, 3)
+            .new_tree_address(
+                name,
+                passphrase,
+                public_keys.clone(),
+                public_keys[0].clone(),
+                2,
+                3,
+            )
             .unwrap();
 
         let transaction = Tx::new();
@@ -1239,7 +1285,14 @@ mod tests {
         ];
 
         let tree_address = wallet
-            .new_tree_address(name, passphrase, public_keys.clone(), 1, 3)
+            .new_tree_address(
+                name,
+                passphrase,
+                public_keys.clone(),
+                public_keys[0].clone(),
+                1,
+                3,
+            )
             .unwrap();
 
         let transaction = Tx::new();

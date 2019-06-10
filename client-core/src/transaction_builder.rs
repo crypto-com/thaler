@@ -7,23 +7,34 @@ pub use unauthorized_transaction_builder::UnauthorizedTransactionBuilder;
 
 use secstr::SecUtf8;
 
+use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
 use client_common::Result;
 
-use crate::WalletClient;
+use crate::UnspentTransactions;
 
 /// Interface for transaction building from output addresses and amount. This trait is also responsible for UTXO
 /// selection.
 pub trait TransactionBuilder: Send + Sync {
-    /// Builds a transaction by returning extra coins to `return_address`.
-    fn build<W: WalletClient>(
+    /// Builds a transaction
+    ///
+    /// # Attributes
+    ///
+    /// - `name`: Name of wallet
+    /// - `passphrase`: Passphrase of wallet
+    /// - `outputs`: Transaction outputs
+    /// - `attributes`: Transaction attributes,
+    /// - `unspent_transactions`: Unspent transactions
+    /// - `return_address`: Address to which change amount will get returned
+    fn build(
         &self,
         name: &str,
         passphrase: &SecUtf8,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
-        wallet_client: &W,
+        unspent_transactions: UnspentTransactions,
+        return_address: ExtendedAddr,
     ) -> Result<TxAux>;
 }

@@ -155,7 +155,7 @@ fn check_inputs_lookup(
         let txo = db.get(COL_TX_META, &txin.id[..]);
         match txo {
             Ok(Some(v)) => {
-                let bv = BitVec::from_bytes(&v).get(txin.index);
+                let bv = BitVec::from_bytes(&v).get(txin.index as usize);
                 if bv.is_none() {
                     return Err(Error::InvalidInput);
                 }
@@ -166,10 +166,10 @@ fn check_inputs_lookup(
                 // only TxWithOutputs should have an entry in COL_TX_META
                 let tx = TxWithOutputs::decode(&mut txdata.as_slice()).unwrap();
                 let outputs = tx.outputs();
-                if txin.index >= outputs.len() {
+                if txin.index >= outputs.len() as u64 {
                     return Err(Error::InvalidInput);
                 }
-                let txout = &outputs[txin.index];
+                let txout = &outputs[txin.index as usize];
                 if let Some(valid_from) = &txout.valid_from {
                     if *valid_from > extra_info.previous_block_time {
                         return Err(Error::OutputInTimelock);

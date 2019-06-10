@@ -125,16 +125,26 @@ where
         let tx_out = TxOut::new(address, coin);
         let tx_attributes = TxAttributes::new(self.chain_id);
 
-        if let Err(e) = self.client.create_and_broadcast_transaction(
-            &request.name,
-            &request.passphrase,
-            vec![tx_out],
-            tx_attributes,
-        ) {
-            Err(to_rpc_error(e))
-        } else {
-            Ok(())
-        }
+        let return_address = self
+            .client
+            .new_redeem_address(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+
+        let transaction = self
+            .client
+            .create_transaction(
+                &request.name,
+                &request.passphrase,
+                vec![tx_out],
+                tx_attributes,
+                None,
+                return_address,
+            )
+            .map_err(to_rpc_error)?;
+
+        self.client
+            .broadcast_transaction(&transaction)
+            .map_err(to_rpc_error)
     }
 
     fn sync(&self) -> jsonrpc_core::Result<()> {
@@ -189,6 +199,7 @@ mod tests {
     use client_common::balance::{BalanceChange, TransactionChange};
     use client_common::storage::MemoryStorage;
     use client_common::{Error, ErrorKind, Result};
+    use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
     use client_index::Index;
@@ -371,12 +382,21 @@ mod tests {
     }
 
     fn setup_wallet_rpc() -> WalletRpcImpl<
-        DefaultWalletClient<MemoryStorage, MockIndex, DefaultTransactionBuilder<ZeroFeeAlgorithm>>,
+        DefaultWalletClient<
+            MemoryStorage,
+            MockIndex,
+            DefaultTransactionBuilder<DefaultSigner<MemoryStorage>, ZeroFeeAlgorithm>,
+        >,
     > {
+        let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
         let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(MemoryStorage::default())
+            .with_wallet(storage)
             .with_transaction_read(MockIndex::default())
-            .with_transaction_write(DefaultTransactionBuilder::new(ZeroFeeAlgorithm::default()))
+            .with_transaction_write(DefaultTransactionBuilder::new(
+                signer,
+                ZeroFeeAlgorithm::default(),
+            ))
             .build()
             .unwrap();
         let chain_id = 171u8;

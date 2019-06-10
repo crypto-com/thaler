@@ -30,7 +30,7 @@ pub fn spend_utxos(txins: &[TxoPointer], db: Arc<dyn KeyValueDB>, dbtx: &mut DBT
             .or_insert_with(|| {
                 BitVec::from_bytes(&db.get(COL_TX_META, &txin.id[..]).unwrap().unwrap())
             })
-            .set(txin.index, true);
+            .set(txin.index as usize, true);
     }
     for (txid, bv) in &updated_txs {
         dbtx.put(COL_TX_META, &txid[..], &bv.to_bytes());

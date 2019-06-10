@@ -80,7 +80,7 @@ where
             let id = transaction.id();
 
             for input in transaction.inputs.iter() {
-                let output = self.output(&input.id, input.index)?;
+                let output = self.output(&input.id, input.index as usize)?;
 
                 let change = TransactionChange {
                     transaction_id: id,
