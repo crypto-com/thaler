@@ -256,7 +256,7 @@ mod tests {
     struct ZeroFeeAlgorithm;
 
     impl FeeAlgorithm for ZeroFeeAlgorithm {
-        fn calculate_fee(&self, _num_bytes: usize) -> std::result::Result<Fee, CoinError> {
+        fn calculate_fee(&self, _num_bytes: u64) -> std::result::Result<Fee, CoinError> {
             Ok(Fee::new(Coin::zero()))
         }
 

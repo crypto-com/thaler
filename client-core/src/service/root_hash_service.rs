@@ -14,9 +14,9 @@ const KEYSPACE: &str = "core_root_hash";
 #[derive(Debug, Encode, Decode)]
 struct MultiSigAddress {
     /// Number of required co-signers
-    pub m: usize,
+    pub m: u64,
     /// Total number of co-signers
-    pub n: usize,
+    pub n: u64,
     /// Merkle tree with different combinations of `n` public keys as leaf nodes
     pub merkle_tree: MerkleTree<RawPubkey>,
 }
@@ -40,11 +40,11 @@ where
     pub fn new_root_hash(
         &self,
         public_keys: Vec<PublicKey>,
-        m: usize,
-        n: usize,
+        m: u64,
+        n: u64,
         passphrase: &SecUtf8,
     ) -> Result<H256> {
-        if m > n || public_keys.is_empty() || public_keys.len() != n || m == 0 {
+        if m > n || public_keys.is_empty() || public_keys.len() as u64 != n || m == 0 {
             return Err(ErrorKind::InvalidInput.into());
         }
 
@@ -73,7 +73,7 @@ where
                 let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
                     .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError))?;
 
-                if public_keys.len() != address.m {
+                if public_keys.len() as u64 != address.m {
                     return Err(ErrorKind::InvalidInput.into());
                 }
 
@@ -94,7 +94,7 @@ where
     }
 
     /// Returns the number of required cosigners for given root_hash
-    pub fn required_signers(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<usize> {
+    pub fn required_signers(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<u64> {
         match self.storage.get_secure(KEYSPACE, root_hash, passphrase)? {
             None => Err(ErrorKind::AddressNotFound.into()),
             Some(address_bytes) => {
@@ -111,8 +111,8 @@ where
     }
 }
 
-fn combinations(public_keys: Vec<PublicKey>, n: usize) -> Result<Vec<RawPubkey>> {
-    if public_keys.is_empty() || n > public_keys.len() || n == 0 {
+fn combinations(public_keys: Vec<PublicKey>, n: u64) -> Result<Vec<RawPubkey>> {
+    if public_keys.is_empty() || n > public_keys.len() as u64 || n == 0 {
         return Err(ErrorKind::InvalidInput.into());
     }
 
@@ -121,7 +121,7 @@ fn combinations(public_keys: Vec<PublicKey>, n: usize) -> Result<Vec<RawPubkey>>
     } else {
         public_keys
             .into_iter()
-            .combinations(n)
+            .combinations(n as usize)
             .map(|mut combination| {
                 combination.sort();
                 Ok(RawPubkey::from(PublicKey::combine(&combination)?.0))

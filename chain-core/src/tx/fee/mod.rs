@@ -67,7 +67,7 @@ impl Milli {
 #[derive(Debug)]
 pub enum MilliError {
     /// An invalid length of parts (should be 2)
-    InvalidPartsLength(usize),
+    InvalidPartsLength(u64),
     /// Number parsing error
     InvalidInteger(ParseIntError),
 }
@@ -96,7 +96,7 @@ impl FromStr for Milli {
         let parts = s.split('.').collect::<Vec<&str>>();
         let len = parts.len();
         if len != 2 {
-            return Err(MilliError::InvalidPartsLength(len));
+            return Err(MilliError::InvalidPartsLength(len as u64));
         }
         let integral: u64 = parts[0].parse()?;
         let fractional: u64 = parts[1].parse()?;
@@ -151,7 +151,7 @@ impl LinearFee {
         }
     }
 
-    pub fn estimate(&self, sz: usize) -> Result<Fee, CoinError> {
+    pub fn estimate(&self, sz: u64) -> Result<Fee, CoinError> {
         let msz = Milli::integral(sz as u64);
         let fee = self.constant + self.coefficient * msz;
         let coin = Coin::new(fee.to_integral())?;
@@ -161,17 +161,17 @@ impl LinearFee {
 
 /// Calculation of fees for a specific chosen algorithm
 pub trait FeeAlgorithm: Send + Sync {
-    fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError>;
+    fn calculate_fee(&self, num_bytes: u64) -> Result<Fee, CoinError>;
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError>;
 }
 
 impl FeeAlgorithm for LinearFee {
-    fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError> {
+    fn calculate_fee(&self, num_bytes: u64) -> Result<Fee, CoinError> {
         self.estimate(num_bytes)
     }
 
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError> {
-        self.estimate(txaux.encode().len())
+        self.estimate(txaux.encode().len() as u64)
     }
 }
 

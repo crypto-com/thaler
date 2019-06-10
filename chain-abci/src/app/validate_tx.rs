@@ -69,7 +69,7 @@ impl ChainNodeApp {
                 let state = self.last_state.as_ref().expect("the app state is expected");
                 let min_fee = state
                     .fee_policy
-                    .calculate_fee(_req.tx().len())
+                    .calculate_fee(_req.tx().len() as u64)
                     .expect("invalid fee policy");
                 let fee_paid = verify(
                     &txaux,

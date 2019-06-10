@@ -77,8 +77,8 @@ pub trait WalletClient: Send + Sync {
         name: &str,
         passphrase: &SecUtf8,
         public_keys: Vec<PublicKey>,
-        m: usize,
-        n: usize,
+        m: u64,
+        n: u64,
     ) -> Result<ExtendedAddr>;
 
     /// Generates inclusion proof for set of public keys in multi-sig address
@@ -91,12 +91,8 @@ pub trait WalletClient: Send + Sync {
     ) -> Result<Proof<RawPubkey>>;
 
     /// Returns number of cosigners required to sign the transaction
-    fn required_cosigners(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-        root_hash: &H256,
-    ) -> Result<usize>;
+    fn required_cosigners(&self, name: &str, passphrase: &SecUtf8, root_hash: &H256)
+        -> Result<u64>;
 
     /// Retrieves current balance of wallet
     fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin>;

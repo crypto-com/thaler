@@ -6,10 +6,11 @@ use crate::tx::witness::tree::RawPubkey;
 
 /// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
+/// TODO: u16 and Vec size check in Decode implementation
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub enum TxAccess {
     AllData,
-    Output(usize),
+    Output(u64),
     // TODO: other components?
     // TODO: TX ID could be computed as a root of a merkle tree from different TX components?
 }

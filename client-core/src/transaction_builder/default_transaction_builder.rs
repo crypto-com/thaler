@@ -104,7 +104,7 @@ where
         let mut witnesses = Vec::with_capacity(transaction.inputs.len());
 
         for input in &transaction.inputs {
-            let input = wallet_client.output(&input.id, input.index)?;
+            let input = wallet_client.output(&input.id, input.index as usize)?;
 
             match wallet_client.find(name, passphrase, &input.address)? {
                 None => return Err(ErrorKind::AddressNotFound.into()),
@@ -326,7 +326,7 @@ mod tests {
             let input_amounts = transaction
                 .inputs
                 .iter()
-                .map(|input| self.output(&input.id, input.index))
+                .map(|input| self.output(&input.id, input.index as usize))
                 .collect::<Result<Vec<TxOut>>>()
                 .unwrap()
                 .into_iter()
@@ -459,8 +459,8 @@ mod tests {
             _: &str,
             _: &SecUtf8,
             _: Vec<PublicKey>,
-            _: usize,
-            _: usize,
+            _: u64,
+            _: u64,
         ) -> Result<ExtendedAddr> {
             unreachable!()
         }
@@ -475,7 +475,7 @@ mod tests {
             unreachable!()
         }
 
-        fn required_cosigners(&self, _: &str, _: &SecUtf8, _: &H256) -> Result<usize> {
+        fn required_cosigners(&self, _: &str, _: &SecUtf8, _: &H256) -> Result<u64> {
             unreachable!()
         }
 

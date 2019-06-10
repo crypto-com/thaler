@@ -80,7 +80,7 @@ where
             let id = transaction.id();
 
             for input in transaction.inputs.iter() {
-                let output = self.output(&input.id, input.index)?;
+                let output = self.output(&input.id, input.index as usize)?;
 
                 let change = TransactionChange {
                     transaction_id: id,
@@ -116,8 +116,10 @@ where
                     .change(&change.address, &change.balance_change)?;
 
                 // Update unspent transactions
-                self.unspent_transaction_service
-                    .add(&change.address, (TxoPointer::new(id, i), output.clone()))?;
+                self.unspent_transaction_service.add(
+                    &change.address,
+                    (TxoPointer::new(id, i as u64), output.clone()),
+                )?;
 
                 // Update transaction history
                 self.address_service.add(change)?;

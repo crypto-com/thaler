@@ -24,7 +24,7 @@ use sha3::Keccak256;
 use crate::common::{hash256, H256};
 
 /// Keccak-256 crypto hash length in bytes
-pub const KECCAK256_BYTES: usize = 32;
+pub const KECCAK256_BYTES: u64 = 32;
 
 /// Calculate Keccak-256 crypto hash
 pub fn keccak256(data: &[u8]) -> H256 {

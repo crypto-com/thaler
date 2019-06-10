@@ -139,8 +139,8 @@ where
         name: &str,
         passphrase: &SecUtf8,
         public_keys: Vec<PublicKey>,
-        m: usize,
-        n: usize,
+        m: u64,
+        n: u64,
     ) -> Result<ExtendedAddr> {
         // To verify if the passphrase is correct or not
         self.tree_addresses(name, passphrase)?;
@@ -179,7 +179,7 @@ where
         name: &str,
         passphrase: &SecUtf8,
         root_hash: &H256,
-    ) -> Result<usize> {
+    ) -> Result<u64> {
         // To verify if the passphrase is correct or not
         self.tree_addresses(name, passphrase)?;
 
@@ -674,7 +674,7 @@ mod tests {
     struct ZeroFeeAlgorithm;
 
     impl FeeAlgorithm for ZeroFeeAlgorithm {
-        fn calculate_fee(&self, _num_bytes: usize) -> std::result::Result<Fee, CoinError> {
+        fn calculate_fee(&self, _num_bytes: u64) -> std::result::Result<Fee, CoinError> {
             Ok(Fee::new(Coin::zero()))
         }
 
