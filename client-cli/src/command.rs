@@ -11,6 +11,7 @@ use client_common::balance::BalanceChange;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
 use client_common::Result;
+use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_index::index::DefaultIndex;
@@ -98,8 +99,11 @@ impl Command {
             } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = RpcClient::new(&tendermint_url());
-                let transaction_builder =
-                    DefaultTransactionBuilder::new(tendermint_client.genesis()?.fee_policy());
+                let signer = DefaultSigner::new(storage.clone());
+                let transaction_builder = DefaultTransactionBuilder::new(
+                    signer,
+                    tendermint_client.genesis()?.fee_policy(),
+                );
                 let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
                 let wallet_client = DefaultWalletClient::builder()
                     .with_wallet(storage)

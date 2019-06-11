@@ -51,7 +51,18 @@ impl TransactionCommand {
             TxAttributes::new(decode(chain_id).context(ErrorKind::DeserializationError)?[0]);
         let outputs = Self::ask_outputs()?;
 
-        wallet_client.create_and_broadcast_transaction(name, &passphrase, outputs, attributes)
+        let return_address = wallet_client.new_redeem_address(name, &passphrase)?;
+
+        let transaction = wallet_client.create_transaction(
+            name,
+            &passphrase,
+            outputs,
+            attributes,
+            None,
+            return_address,
+        )?;
+
+        wallet_client.broadcast_transaction(&transaction)
     }
 
     fn ask_outputs() -> Result<Vec<TxOut>> {
