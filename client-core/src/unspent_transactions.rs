@@ -27,7 +27,7 @@ use client_common::{ErrorKind, Result};
 /// // Apply operations
 /// unspent_transactions.apply_all(operations);
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct UnspentTransactions {
     inner: Vec<(TxoPointer, TxOut)>,
 }
@@ -113,6 +113,11 @@ impl UnspentTransactions {
         }
 
         Err(ErrorKind::InsufficientBalance.into())
+    }
+
+    /// Selects all unspent transactions
+    pub fn select_all(&self) -> SelectedUnspentTransactions {
+        SelectedUnspentTransactions { inner: &self.inner }
     }
 }
 

@@ -234,19 +234,6 @@ where
         self.index.output(id, index)
     }
 
-    // fn create_and_broadcast_transaction(
-    //     &self,
-    //     name: &str,
-    //     passphrase: &SecUtf8,
-    //     outputs: Vec<TxOut>,
-    //     attributes: TxAttributes,
-    // ) -> Result<()> {
-    //     let tx_aux = self
-    //         .transaction_builder
-    //         .build(name, passphrase, outputs, attributes, self)?;
-
-    //     self.index.broadcast_transaction(&tx_aux.encode())
-    // }
     fn create_transaction(
         &self,
         name: &str,
