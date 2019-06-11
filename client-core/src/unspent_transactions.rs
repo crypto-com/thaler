@@ -4,10 +4,8 @@ use std::ops::{Deref, DerefMut};
 use failure::ResultExt;
 
 use chain_core::init::coin::Coin;
-use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::Tx;
 use client_common::{ErrorKind, Result};
 
 /// An iterator over unspent transactions
