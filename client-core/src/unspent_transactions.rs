@@ -121,17 +121,6 @@ impl UnspentTransactions {
     }
 }
 
-impl<'a> SelectedUnspentTransactions<'a> {
-    /// Builds a transaction from current selected unspent transactions
-    pub fn to_transaction(&self, outputs: Vec<TxOut>, attributes: TxAttributes) -> Tx {
-        Tx {
-            inputs: self.iter().map(|(input, _)| input.clone()).collect(),
-            outputs,
-            attributes,
-        }
-    }
-}
-
 /// Builder for unspent transactions
 enum Builder {
     Normal(Vec<(TxoPointer, TxOut)>),
