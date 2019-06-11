@@ -20,10 +20,9 @@ use client_index::index::{Index, UnauthorizedIndex};
 
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedTransactionBuilder;
-use crate::unspent_transactions::Operation;
 use crate::{
-    MultiSigWalletClient, PrivateKey, PublicKey, TransactionBuilder, UnspentTransactions,
-    WalletClient,
+    InputSelectionStrategy, MultiSigWalletClient, PrivateKey, PublicKey, TransactionBuilder,
+    UnspentTransactions, WalletClient,
 };
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
@@ -240,11 +239,11 @@ where
         passphrase: &SecUtf8,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
-        operations: &[Operation],
+        input_selection_strategy: Option<InputSelectionStrategy>,
         return_address: ExtendedAddr,
     ) -> Result<TxAux> {
         let mut unspent_transactions = self.unspent_transactions(name, passphrase)?;
-        unspent_transactions.apply_all(operations);
+        unspent_transactions.apply_all(input_selection_strategy.unwrap_or_default().as_ref());
 
         self.transaction_builder.build(
             name,
@@ -496,7 +495,6 @@ mod tests {
 
     use crate::signer::DefaultSigner;
     use crate::transaction_builder::DefaultTransactionBuilder;
-    use crate::unspent_transactions::{Filter, Sorter};
 
     #[derive(Debug)]
     pub struct MockIndex {
@@ -879,10 +877,7 @@ mod tests {
                     valid_from: None,
                 }],
                 TxAttributes::new(171),
-                &[
-                    Operation::Filter(Filter::OnlyRedeemAddresses),
-                    Operation::Sort(Sorter::HighestValueFirst),
-                ],
+                None,
                 addr_1.clone(),
             )
             .unwrap();
@@ -940,10 +935,7 @@ mod tests {
                     valid_from: None,
                 }],
                 TxAttributes::new(171),
-                &[
-                    Operation::Filter(Filter::OnlyRedeemAddresses),
-                    Operation::Sort(Sorter::HighestValueFirst),
-                ],
+                None,
                 addr_1.clone(),
             )
             .unwrap();
@@ -962,10 +954,7 @@ mod tests {
                         valid_from: None,
                     }],
                     TxAttributes::new(171),
-                    &[
-                        Operation::Filter(Filter::OnlyRedeemAddresses),
-                        Operation::Sort(Sorter::HighestValueFirst),
-                    ],
+                    None,
                     addr_1.clone()
                 )
                 .unwrap_err()
@@ -1070,10 +1059,7 @@ mod tests {
                     &SecUtf8::from("passphrase"),
                     Vec::new(),
                     TxAttributes::new(171),
-                    &[
-                        Operation::Filter(Filter::OnlyRedeemAddresses),
-                        Operation::Sort(Sorter::HighestValueFirst),
-                    ],
+                    None,
                     ExtendedAddr::BasicRedeem(RedeemAddress::from(&PublicKey::from(
                         &PrivateKey::new().unwrap()
                     )))

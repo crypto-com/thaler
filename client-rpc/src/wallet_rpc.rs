@@ -10,7 +10,6 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use client_common::balance::TransactionChange;
-use client_core::unspent_transactions::{Filter, Operation, Sorter};
 use client_core::wallet::WalletClient;
 
 use crate::server::{rpc_error_from_string, to_rpc_error};
@@ -130,10 +129,6 @@ where
             .client
             .new_redeem_address(&request.name, &request.passphrase)
             .map_err(to_rpc_error)?;
-        let operations = &[
-            Operation::Filter(Filter::OnlyRedeemAddresses),
-            Operation::Sort(Sorter::HighestValueFirst),
-        ];
 
         let transaction = self
             .client
@@ -142,7 +137,7 @@ where
                 &request.passphrase,
                 vec![tx_out],
                 tx_attributes,
-                operations,
+                None,
                 return_address,
             )
             .map_err(to_rpc_error)?;

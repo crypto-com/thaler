@@ -18,8 +18,7 @@ use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
 use client_common::Result;
 
-use crate::unspent_transactions::Operation;
-use crate::{PrivateKey, PublicKey, UnspentTransactions};
+use crate::{InputSelectionStrategy, PrivateKey, PublicKey, UnspentTransactions};
 
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {
@@ -123,7 +122,7 @@ pub trait WalletClient: Send + Sync {
     /// - `passphrase`: Passphrase of wallet
     /// - `outputs`: Transaction outputs
     /// - `attributes`: Transaction attributes,
-    /// - `operations`: Operations to apply on unspent transactions before selecting
+    /// - `input_selection_strategy`: Strategy to use while selecting unspent transactions
     /// - `return_address`: Address to which change amount will get returned
     fn create_transaction(
         &self,
@@ -131,7 +130,7 @@ pub trait WalletClient: Send + Sync {
         passphrase: &SecUtf8,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
-        operations: &[Operation],
+        input_selection_strategy: Option<InputSelectionStrategy>,
         return_address: ExtendedAddr,
     ) -> Result<TxAux>;
 

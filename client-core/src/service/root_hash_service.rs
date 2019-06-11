@@ -53,6 +53,7 @@ where
             || m == 0
             || !public_keys.contains(&self_public_key)
         {
+            // TODO: Return different error kinds for different input errors
             return Err(ErrorKind::InvalidInput.into());
         }
 

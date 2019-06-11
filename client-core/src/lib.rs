@@ -9,6 +9,7 @@
 //! - Balance tracking
 //! - Transaction history
 //! - Transaction creation and signing (with automatic unspent transaction selection)
+pub mod input_selection;
 pub mod key;
 pub mod service;
 pub mod signer;
@@ -16,6 +17,8 @@ pub mod transaction_builder;
 pub mod unspent_transactions;
 pub mod wallet;
 
+#[doc(inline)]
+pub use input_selection::InputSelectionStrategy;
 #[doc(inline)]
 pub use key::{PrivateKey, PublicKey};
 #[doc(inline)]
