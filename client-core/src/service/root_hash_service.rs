@@ -233,6 +233,13 @@ mod tests {
         );
 
         assert_eq!(
+            public_keys[0].clone(),
+            root_hash_service
+                .public_key(&root_hash, &passphrase)
+                .unwrap()
+        );
+
+        assert_eq!(
             ErrorKind::AddressNotFound,
             root_hash_service
                 .required_signers(&[0u8; 32], &passphrase)

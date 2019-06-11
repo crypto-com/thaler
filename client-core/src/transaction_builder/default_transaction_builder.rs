@@ -262,4 +262,78 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn check_insufficient_balance_flow() {
+        let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
+
+        let storage = MemoryStorage::default();
+        let wallet_client = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+
+        wallet_client.new_wallet(name, passphrase).unwrap();
+
+        let public_keys = vec![
+            wallet_client.new_public_key(name, passphrase).unwrap(),
+            wallet_client.new_public_key(name, passphrase).unwrap(),
+            wallet_client.new_public_key(name, passphrase).unwrap(),
+        ];
+
+        let addresses = vec![
+            wallet_client.new_redeem_address(name, passphrase).unwrap(),
+            wallet_client
+                .new_tree_address(
+                    name,
+                    passphrase,
+                    public_keys.clone(),
+                    public_keys[0].clone(),
+                    1,
+                    3,
+                )
+                .unwrap(),
+        ];
+
+        let mut unspent_transactions = UnspentTransactions::new(vec![
+            (
+                TxoPointer::new([0; 32], 0),
+                TxOut::new(addresses[0].clone(), Coin::new(500).unwrap()),
+            ),
+            (
+                TxoPointer::new([1; 32], 0),
+                TxOut::new(addresses[1].clone(), Coin::new(1250).unwrap()),
+            ),
+        ]);
+        unspent_transactions.apply_all(&[Operation::Sort(Sorter::HighestValueFirst)]);
+
+        let return_address = wallet_client.new_redeem_address(name, passphrase).unwrap();
+
+        let signer = DefaultSigner::new(storage);
+        let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
+
+        let transaction_builder = DefaultTransactionBuilder::new(signer, fee_algorithm);
+
+        let outputs = vec![TxOut::new(
+            wallet_client.new_redeem_address(name, passphrase).unwrap(),
+            Coin::new(1700).unwrap(),
+        )];
+        let attributes = TxAttributes::new(171);
+
+        assert_eq!(
+            ErrorKind::InsufficientBalance,
+            transaction_builder
+                .build(
+                    name,
+                    passphrase,
+                    outputs,
+                    attributes,
+                    unspent_transactions.clone(),
+                    return_address,
+                )
+                .unwrap_err()
+                .kind()
+        );
+    }
 }
