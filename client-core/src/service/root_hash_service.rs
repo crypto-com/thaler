@@ -4,7 +4,7 @@ use secstr::SecUtf8;
 
 use chain_core::common::{MerkleTree, Proof, H256};
 use chain_core::tx::witness::tree::RawPubkey;
-use client_common::{ErrorKind, Result, SecureStorage, Storage};
+use client_common::{Error, ErrorKind, Result, SecureStorage, Storage};
 
 use crate::PublicKey;
 
@@ -81,54 +81,49 @@ where
         mut public_keys: Vec<PublicKey>,
         passphrase: &SecUtf8,
     ) -> Result<Proof<RawPubkey>> {
-        match self.storage.get_secure(KEYSPACE, root_hash, passphrase)? {
-            None => Err(ErrorKind::AddressNotFound.into()),
-            Some(address_bytes) => {
-                let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
-                    .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError))?;
+        let address_bytes = self
+            .storage
+            .get_secure(KEYSPACE, root_hash, passphrase)?
+            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+        let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
+            .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
 
-                if public_keys.len() != address.m {
-                    return Err(ErrorKind::InvalidInput.into());
-                }
-
-                public_keys.sort();
-
-                let raw_public_key = if public_keys.len() == 1 {
-                    RawPubkey::from(&public_keys[0])
-                } else {
-                    RawPubkey::from(PublicKey::combine(&public_keys)?.0)
-                };
-
-                match address.merkle_tree.generate_proof(raw_public_key) {
-                    None => Err(ErrorKind::InvalidInput.into()),
-                    Some(proof) => Ok(proof),
-                }
-            }
+        if public_keys.len() != address.m {
+            return Err(ErrorKind::InvalidInput.into());
         }
+
+        public_keys.sort();
+
+        address
+            .merkle_tree
+            .generate_proof(raw_public_key(&public_keys)?)
+            .ok_or_else(|| Error::from(ErrorKind::InvalidInput))
     }
 
     /// Returns the number of required cosigners for given root_hash
     pub fn required_signers(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<usize> {
-        match self.storage.get_secure(KEYSPACE, root_hash, passphrase)? {
-            None => Err(ErrorKind::AddressNotFound.into()),
-            Some(address_bytes) => {
-                let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
-                    .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError))?;
-                Ok(address.m)
-            }
-        }
+        let address_bytes = self
+            .storage
+            .get_secure(KEYSPACE, root_hash, passphrase)?
+            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+
+        let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
+            .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+
+        Ok(address.m)
     }
 
     /// Returns public key of current signer
     pub fn public_key(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<PublicKey> {
-        match self.storage.get_secure(KEYSPACE, root_hash, passphrase)? {
-            None => Err(ErrorKind::AddressNotFound.into()),
-            Some(address_bytes) => {
-                let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
-                    .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError))?;
-                Ok(address.self_public_key)
-            }
-        }
+        let address_bytes = self
+            .storage
+            .get_secure(KEYSPACE, root_hash, passphrase)?
+            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+
+        let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
+            .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError))?;
+
+        Ok(address.self_public_key)
     }
 
     /// Clears all storage
@@ -137,23 +132,27 @@ where
     }
 }
 
+fn raw_public_key(public_keys: &[PublicKey]) -> Result<RawPubkey> {
+    if public_keys.len() == 1 {
+        Ok(RawPubkey::from(&public_keys[0]))
+    } else {
+        Ok(RawPubkey::from(PublicKey::combine(&public_keys)?.0))
+    }
+}
+
 fn combinations(public_keys: Vec<PublicKey>, n: usize) -> Result<Vec<RawPubkey>> {
     if public_keys.is_empty() || n > public_keys.len() || n == 0 {
         return Err(ErrorKind::InvalidInput.into());
     }
 
-    let mut combinations = if n == 1 {
-        public_keys.into_iter().map(RawPubkey::from).collect()
-    } else {
-        public_keys
-            .into_iter()
-            .combinations(n)
-            .map(|mut combination| {
-                combination.sort();
-                Ok(RawPubkey::from(PublicKey::combine(&combination)?.0))
-            })
-            .collect::<Result<Vec<RawPubkey>>>()?
-    };
+    let mut combinations = public_keys
+        .into_iter()
+        .combinations(n)
+        .map(|mut combination| {
+            combination.sort();
+            raw_public_key(&combination)
+        })
+        .collect::<Result<Vec<RawPubkey>>>()?;
 
     combinations.sort();
     Ok(combinations)

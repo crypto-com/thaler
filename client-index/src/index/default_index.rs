@@ -10,7 +10,7 @@ use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use client_common::balance::{BalanceChange, TransactionChange};
 use client_common::tendermint::Client;
-use client_common::{ErrorKind, Result, Storage};
+use client_common::{Error, ErrorKind, Result, Storage};
 
 use crate::service::*;
 use crate::Index;
@@ -193,13 +193,17 @@ where
     }
 
     fn output(&self, id: &TxId, index: usize) -> Result<TxOut> {
-        match self.transaction(id)? {
-            None => Err(ErrorKind::TransactionNotFound.into()),
-            Some(transaction) => match transaction.outputs.into_iter().nth(index) {
-                None => Err(ErrorKind::TransactionNotFound.into()),
-                Some(output) => Ok(output),
-            },
-        }
+        let transaction = self
+            .transaction(id)?
+            .ok_or_else(|| Error::from(ErrorKind::TransactionNotFound))?;
+
+        let output = transaction
+            .outputs
+            .into_iter()
+            .nth(index)
+            .ok_or_else(|| Error::from(ErrorKind::TransactionNotFound))?;
+
+        Ok(output)
     }
 
     fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()> {

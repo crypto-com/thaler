@@ -21,24 +21,24 @@ where
 
     /// Returns currently stored last block height
     pub fn last_block_height(&self) -> Result<Option<u64>> {
-        let bytes = self.storage.get(KEYSPACE, LAST_BLOCK_HEIGHT)?;
+        let last_block_height = self
+            .storage
+            .get(KEYSPACE, LAST_BLOCK_HEIGHT)?
+            .and_then(|bytes| u64::decode(&mut bytes.as_slice()));
 
-        match bytes {
-            None => Ok(None),
-            Some(bytes) => Ok(u64::decode(&mut bytes.as_slice())),
-        }
+        Ok(last_block_height)
     }
 
     /// Updates last block height with given value and returns old value
     pub fn set_last_block_height(&self, last_block_height: u64) -> Result<Option<u64>> {
         let bytes = last_block_height.encode();
 
-        let old_bytes = self.storage.set(KEYSPACE, LAST_BLOCK_HEIGHT, bytes)?;
+        let old_last_block_height = self
+            .storage
+            .set(KEYSPACE, LAST_BLOCK_HEIGHT, bytes)?
+            .and_then(|bytes| u64::decode(&mut bytes.as_slice()));
 
-        match old_bytes {
-            None => Ok(None),
-            Some(bytes) => Ok(u64::decode(&mut bytes.as_slice())),
-        }
+        Ok(old_last_block_height)
     }
 
     /// Clears all storage

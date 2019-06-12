@@ -25,14 +25,12 @@ where
 
     /// Retrieves current balance for given address
     pub fn get(&self, address: &ExtendedAddr) -> Result<Coin> {
-        let bytes = self.storage.get(KEYSPACE, address.encode())?;
-
-        match bytes {
-            None => Ok(Coin::zero()),
-            Some(bytes) => {
+        self.storage
+            .get(KEYSPACE, address.encode())?
+            .map(|bytes| {
                 Ok(Coin::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?)
-            }
-        }
+            })
+            .unwrap_or_else(|| Ok(Coin::zero()))
     }
 
     /// Changes balance for an address with given balance change

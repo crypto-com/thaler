@@ -61,13 +61,8 @@ impl Encode for PrivateKey {
 
 impl Decode for PrivateKey {
     fn decode<I: Input>(input: &mut I) -> Option<Self> {
-        match <Vec<u8>>::decode(input) {
-            None => None,
-            Some(serialized) => match PrivateKey::deserialize_from(&serialized) {
-                Err(_) => None,
-                Ok(private_key) => Some(private_key),
-            },
-        }
+        let serialized = <Vec<u8>>::decode(input)?;
+        PrivateKey::deserialize_from(&serialized).ok()
     }
 }
 
