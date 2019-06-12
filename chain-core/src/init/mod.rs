@@ -13,3 +13,4 @@ pub mod config;
 /// 100 billion + 8 decimals
 pub const MAX_COIN: u64 = 100_000_000_000__0000_0000;
 pub const MAX_COIN_DECIMALS: u64 = 1_0000_0000;
+pub const MAX_COIN_UNITS: i64 = 100_000_000_000;
