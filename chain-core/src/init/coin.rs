@@ -231,5 +231,39 @@ mod test {
             Coin::new(v as u64).is_ok()
         }
 
+        // test a comparison works as expected or fails
+        fn coin_sum_comparison(a: u64, b: u64, c: u64) -> bool {
+            let c_a = Coin::new(a);
+            let c_b = Coin::new(b);
+            let c_c = Coin::new(c);
+            let c_bc = match c_b {
+                Ok(coin_b) => {
+                    // maybe error
+                    c_c.and_then(|coin_c| coin_c + coin_b)
+                },
+                _ => {
+                    // error
+                    c_b
+                }
+            };
+            let longer_a = u128::from(a);
+            let longer_bc = u128::from(b) + u128::from(c);
+            match (c_a, c_bc) {
+                (Ok(coin_a), Ok(coin_bc)) => {
+                    // they are equal
+                    ((longer_a == longer_bc) && (coin_a == coin_bc))
+                    // a is smaller
+                    || ((longer_a < longer_bc) && (coin_a < coin_bc))
+                    // b+c is smaller
+                    || ((longer_a > longer_bc) && (coin_a > coin_bc))
+
+                },
+                _ => {
+                    // either 'a' was too big or 'b+c' was too big
+                    true
+                }
+            }
+        }
+
     }
 }
