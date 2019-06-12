@@ -88,9 +88,9 @@ where
         let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
             .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
 
-                if public_keys.len() != address.m as usize {
-                    return Err(ErrorKind::InvalidInput.into());
-                }
+        if public_keys.len() != address.m as usize {
+            return Err(ErrorKind::InvalidInput.into());
+        }
 
         public_keys.sort();
 
@@ -111,7 +111,7 @@ where
             .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
 
         Ok(address.m as usize)
-    }  
+    }
 
     /// Returns public key of current signer
     pub fn public_key(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<PublicKey> {
