@@ -47,14 +47,13 @@ where
             self.storage
                 .get_secure(KEYSPACE, public_key.serialize(), passphrase)?;
 
-        match private_key_bytes {
-            None => Ok(None),
-            Some(mut private_key_bytes) => {
+        private_key_bytes
+            .map(|mut private_key_bytes| {
                 let private_key = PrivateKey::deserialize_from(&private_key_bytes)?;
                 private_key_bytes.zeroize();
-                Ok(Some(private_key))
-            }
-        }
+                Ok(private_key)
+            })
+            .transpose()
     }
 
     /// Clears all storage

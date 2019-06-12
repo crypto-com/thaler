@@ -23,12 +23,12 @@ where
 
     /// Retrieves transaction with given id
     pub fn get(&self, id: &TxId) -> Result<Option<Tx>> {
-        let bytes = self.storage.get(KEYSPACE, id)?;
+        let transaction = self
+            .storage
+            .get(KEYSPACE, id)?
+            .and_then(|bytes| Tx::decode(&mut bytes.as_slice()));
 
-        match bytes {
-            None => Ok(None),
-            Some(bytes) => Ok(Tx::decode(&mut bytes.as_slice())),
-        }
+        Ok(transaction)
     }
 
     /// Sets transaction with given id and value

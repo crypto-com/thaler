@@ -98,13 +98,8 @@ impl Encode for PublicKey {
 
 impl Decode for PublicKey {
     fn decode<I: Input>(input: &mut I) -> Option<Self> {
-        match <Vec<u8>>::decode(input) {
-            None => None,
-            Some(serialized) => match PublicKey::deserialize_from(&serialized) {
-                Err(_) => None,
-                Ok(public_key) => Some(public_key),
-            },
-        }
+        let serialized = <Vec<u8>>::decode(input)?;
+        PublicKey::deserialize_from(&serialized).ok()
     }
 }
 

@@ -295,10 +295,9 @@ struct Signer {
 impl Signer {
     /// Adds nonce commitment to current signer if not already added.
     pub fn add_nonce_commitment(&mut self, nonce_commitment: H256) -> Result<()> {
-        let nonce_commitment = match self.nonce_commitment {
-            None => Ok(nonce_commitment),
-            Some(_) => Err(Error::from(ErrorKind::InvalidInput)),
-        }?;
+        if self.nonce_commitment.is_some() {
+            return Err(Error::from(ErrorKind::InvalidInput));
+        }
 
         self.nonce_commitment = Some(nonce_commitment);
         Ok(())
@@ -306,10 +305,9 @@ impl Signer {
 
     /// Adds nonce to current signer if not already added.
     pub fn add_nonce(&mut self, nonce: PublicKey) -> Result<()> {
-        let nonce = match self.nonce {
-            None => Ok(nonce),
-            Some(_) => Err(Error::from(ErrorKind::InvalidInput)),
-        }?;
+        if self.nonce.is_some() {
+            return Err(Error::from(ErrorKind::InvalidInput));
+        }
 
         self.nonce = Some(nonce);
         Ok(())
@@ -317,10 +315,9 @@ impl Signer {
 
     /// Adds partial signature to current signer if not already added.
     pub fn add_partial_signature(&mut self, partial_signature: H256) -> Result<()> {
-        let partial_signature = match self.partial_signature {
-            None => Ok(partial_signature),
-            Some(_) => Err(Error::from(ErrorKind::InvalidInput)),
-        }?;
+        if self.partial_signature.is_some() {
+            return Err(Error::from(ErrorKind::InvalidInput));
+        }
 
         self.partial_signature = Some(partial_signature);
         Ok(())
@@ -482,13 +479,12 @@ where
 
     /// Retrieves a session from storage
     fn get_session(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<MultiSigSession> {
-        match self.storage.get_secure(KEYSPACE, session_id, passphrase)? {
-            None => Err(ErrorKind::SessionNotFound.into()),
-            Some(session_bytes) => match MultiSigSession::decode(&mut session_bytes.as_slice()) {
-                None => Err(ErrorKind::DeserializationError.into()),
-                Some(session) => Ok(session),
-            },
-        }
+        let session_bytes = self
+            .storage
+            .get_secure(KEYSPACE, session_id, passphrase)?
+            .ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
+        MultiSigSession::decode(&mut session_bytes.as_slice())
+            .ok_or_else(|| Error::from(ErrorKind::DeserializationError))
     }
 
     /// Persists a session in storage
@@ -499,8 +495,8 @@ where
         passphrase: &SecUtf8,
     ) -> Result<()> {
         self.storage
-            .set_secure(KEYSPACE, session_id, session.encode(), passphrase)?;
-        Ok(())
+            .set_secure(KEYSPACE, session_id, session.encode(), passphrase)
+            .map(|_| ())
     }
 }
 

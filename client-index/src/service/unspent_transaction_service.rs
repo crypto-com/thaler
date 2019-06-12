@@ -24,14 +24,12 @@ where
 
     /// Retrieves all the unspent transactions for an address
     pub fn get(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, TxOut)>> {
-        let bytes = self.storage.get(KEYSPACE, address.encode())?;
-
-        match bytes {
-            None => Ok(Default::default()),
-            Some(bytes) => {
+        self.storage
+            .get(KEYSPACE, address.encode())?
+            .map(|bytes| {
                 Ok(Vec::decode(&mut bytes.as_slice()).ok_or(ErrorKind::DeserializationError)?)
-            }
-        }
+            })
+            .unwrap_or_else(|| Ok(Default::default()))
     }
 
     /// Adds an unspent transactions to storage
