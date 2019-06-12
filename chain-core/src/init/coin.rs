@@ -4,6 +4,7 @@
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS};
+use crate::state::tendermint::TendermintVotePower;
 use parity_codec::{Decode, Encode, Input};
 
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
@@ -151,11 +152,12 @@ impl From<Coin> for u64 {
     }
 }
 
-impl TryFrom<Coin> for i64 {
-    type Error = std::num::TryFromIntError;
-
-    fn try_from(c: Coin) -> Result<Self, Self::Error> {
-        i64::try_from(c.0)
+impl From<Coin> for TendermintVotePower {
+    fn from(c: Coin) -> TendermintVotePower {
+        let vote_power = i64::try_from(c.0 / MAX_COIN_DECIMALS)
+            .expect("i64::MAX is larger than `MAX_COIN / MAX_COIN_DECIMALS`");
+        TendermintVotePower::new(vote_power)
+            .expect("TENDERMINT_MAX_VOTE_POWER is larger than `MAX_COIN / MAX_COIN_DECIMALS`")
     }
 }
 

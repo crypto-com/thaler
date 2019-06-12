@@ -11,15 +11,15 @@ use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
 use chain_core::state::account::Account;
+use chain_core::state::tendermint::{BlockHeight, TendermintVotePower};
 use chain_core::state::CouncilNode;
-use chain_core::state::{BlockHeight, RewardsPoolState};
+use chain_core::state::RewardsPoolState;
 use chain_core::tx::{fee::LinearFee, TxAux};
 use kvdb::DBTransaction;
 use log::{info, warn};
 use parity_codec::{Decode, Encode};
 use protobuf::{Message, RepeatedField};
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
 
 /// ABCI app state snapshot
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode)]
@@ -292,16 +292,11 @@ impl ChainNodeApp {
             );
             // NOTE: &_req.validators are ignored / replaced by init config
             let mut validators = Vec::with_capacity(nodes.len());
-            // TODO: check not empty here or in initconfig validation?
             for node in nodes.iter() {
                 let mut validator = ValidatorUpdate::default();
-                // TODO: validator power in coins rather than base units (i.e. divide by 1_0000_0000?)
-                validator.set_power(
-                    conf.distribution[&node.staking_account_address]
-                        .0
-                        .try_into()
-                        .expect("initial validator power exceeds i64"),
-                );
+                let power =
+                    TendermintVotePower::from(conf.distribution[&node.staking_account_address].0);
+                validator.set_power(power.into());
                 let mut pk = PubKey::new();
                 let (keytype, key) = node.consensus_pubkey.to_validator_update();
                 pk.set_field_type(keytype);

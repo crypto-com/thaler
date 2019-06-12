@@ -1,4 +1,7 @@
+/// data types related to account operations
 pub mod account;
+/// data types related to working with Tendermint
+pub mod tendermint;
 
 use crate::common::{hash256, H256};
 use crate::init::address::RedeemAddress;
@@ -6,10 +9,7 @@ use crate::init::coin::Coin;
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-
-/// Tendermint block height
-/// TODO: u64?
-pub type BlockHeight = i64;
+use tendermint::{BlockHeight, TendermintValidatorPubKey};
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct RewardsPoolState {
@@ -29,31 +29,6 @@ impl RewardsPoolState {
         RewardsPoolState {
             remaining,
             last_block_height,
-        }
-    }
-}
-
-/// The protobuf structure currently has "String" to denote the type / length
-/// and variable length byte array. In this internal representation,
-/// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
-pub enum TendermintValidatorPubKey {
-    Ed25519([u8; 32]),
-    // there's PubKeySecp256k1, but https://tendermint.com/docs/spec/abci/apps.html#validator-updates
-    // "The pub_key currently supports only one type:"
-    // "type = "ed25519" anddata = <raw 32-byte public key>`"
-    // there's also PubKeyMultisigThreshold, but that probably wouldn't be used for individual nodes / validators
-    // TODO: some other schemes when they are added in TM?
-}
-
-impl TendermintValidatorPubKey {
-    pub fn to_validator_update(&self) -> (String, Vec<u8>) {
-        match self {
-            TendermintValidatorPubKey::Ed25519(key) => {
-                let mut v = Vec::with_capacity(32);
-                v.extend_from_slice(&key[..]);
-                ("ed25519".to_string(), v)
-            }
         }
     }
 }

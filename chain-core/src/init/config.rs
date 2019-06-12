@@ -7,9 +7,9 @@ use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::init::MAX_COIN;
 use crate::state::account::Account;
+use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::CouncilNode;
 use crate::state::RewardsPoolState;
-use crate::state::TendermintValidatorPubKey;
 use crate::tx::fee::LinearFee;
 use std::collections::{BTreeMap, HashSet};
 
@@ -68,20 +68,25 @@ pub struct InitConfig {
 
 pub enum DistributionError {
     DistributionCoinError(CoinError),
-    DoesNotMatchMaxSupply,
+    DoesNotMatchMaxSupply(Coin),
     AddressNotInDistribution(RedeemAddress),
     DoesNotMatchRequiredAmount(RedeemAddress, Coin),
     InvalidValidatorKey,
+    DuplicateValidatorKey,
     InvalidValidatorAccount,
+    DuplicateValidatorAccount,
+    NoValidators,
+    InvalidVotingPower,
 }
 
 impl fmt::Display for DistributionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             DistributionError::DistributionCoinError(c) => c.fmt(f),
-            DistributionError::DoesNotMatchMaxSupply => write!(
+            DistributionError::DoesNotMatchMaxSupply(c) => write!(
                 f,
-                "The total sum of allocated amounts does not match the expected total supply ({})",
+                "The total sum of allocated amounts ({}) does not match the expected total supply ({})",
+                c,
                 MAX_COIN
             ),
             DistributionError::AddressNotInDistribution(a) => {
@@ -95,6 +100,18 @@ impl fmt::Display for DistributionError {
             },
             DistributionError::InvalidValidatorAccount => {
                 write!(f, "Invalid validator account")
+            },
+            DistributionError::DuplicateValidatorKey => {
+                write!(f, "Duplicate validator key")
+            },
+            DistributionError::DuplicateValidatorAccount => {
+                write!(f, "Duplicate validator account")
+            },
+            DistributionError::NoValidators => {
+                write!(f, "No validators / council nodes specified")
+            },
+            DistributionError::InvalidVotingPower => {
+                write!(f, "Invalid voting power")
             },
         }
     }
@@ -208,34 +225,57 @@ impl InitConfig {
         self.check_address(&self.launch_incentive_from)?;
         self.check_address(&self.launch_incentive_to)?;
         self.check_address(&self.long_term_incentive)?;
-        // TODO: check validators / council_nodes are non-empty
+        if self.council_nodes.is_empty() {
+            return Err(DistributionError::NoValidators);
+        }
         let mut validators = Vec::with_capacity(self.council_nodes.len());
         let mut validator_addresses = HashSet::new();
+        let mut validator_pubkeys = HashSet::new();
         for node in self.council_nodes.iter() {
-            if self.is_rewards_pool_address(&node.staking_account_address)
-                || validator_addresses.contains(&node.staking_account_address)
-            {
+            if self.is_rewards_pool_address(&node.staking_account_address) {
                 return Err(DistributionError::InvalidValidatorAccount);
             }
+            if validator_addresses.contains(&node.staking_account_address) {
+                return Err(DistributionError::DuplicateValidatorAccount);
+            }
+
             self.check_address_expected_amount(
                 &node.staking_account_address,
                 self.network_params.required_council_node_stake,
             )?;
-            validator_addresses.insert(node.staking_account_address);
             let validator_key = InitConfig::check_validator_key(
                 &node.consensus_pubkey_type,
                 &node.consensus_pubkey_b64,
             )?;
+            if validator_pubkeys.contains(&validator_key) {
+                return Err(DistributionError::DuplicateValidatorKey);
+            }
+            validator_addresses.insert(node.staking_account_address);
+            validator_pubkeys.insert(validator_key.clone());
+
+            validator_addresses.insert(node.staking_account_address);
             validators.push(CouncilNode::new(
                 node.staking_account_address,
                 validator_key,
             ));
         }
+        let total_validator_stake = Coin::new(
+            u64::from(self.network_params.required_council_node_stake)
+                * self.council_nodes.len() as u64,
+        );
+        // sanity check
+        match total_validator_stake {
+            Ok(tvs) => TendermintVotePower::from(tvs),
+            _ => {
+                return Err(DistributionError::InvalidVotingPower);
+            }
+        };
+
         let sumr = sum_coins(self.distribution.iter().map(|(_, (amount, _))| *amount));
         match sumr {
             Ok(sum) => {
                 if sum != Coin::max() {
-                    Err(DistributionError::DoesNotMatchMaxSupply)
+                    Err(DistributionError::DoesNotMatchMaxSupply(sum))
                 } else {
                     let (accounts, rewards_pool) =
                         self.get_genesis_state(genesis_time, validator_addresses);

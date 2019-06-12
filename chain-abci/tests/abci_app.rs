@@ -14,6 +14,7 @@ use chain_core::init::coin::Coin;
 use chain_core::init::config::AccountType;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
+use chain_core::init::config::{InitialValidator, ValidatorKeyType};
 use chain_core::state::account::to_account_key;
 use chain_core::state::account::Account;
 use chain_core::state::account::{
@@ -166,8 +167,17 @@ fn previously_stored_hash_should_match() {
 
 fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
     let db = create_db();
+    let total = (Coin::max() - Coin::unit()).unwrap();
+    let validator_addr = "0x0e7c045110b8dbf29765047380898919c5cc56f4"
+        .parse::<RedeemAddress>()
+        .unwrap();
+
     let distribution: BTreeMap<RedeemAddress, (Coin, AccountType)> = [
-        (address, (Coin::max(), AccountType::ExternallyOwnedAccount)),
+        (address, (total, AccountType::ExternallyOwnedAccount)),
+        (
+            validator_addr,
+            (Coin::unit(), AccountType::ExternallyOwnedAccount),
+        ),
         (
             RedeemAddress::default(),
             (Coin::zero(), AccountType::Contract),
@@ -187,7 +197,11 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
         RedeemAddress::default(),
         RedeemAddress::default(),
         params,
-        vec![],
+        vec![InitialValidator {
+            staking_account_address: validator_addr,
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=".to_string(),
+        }],
     );
     let t = ::protobuf::well_known_types::Timestamp::new();
     let result = c.validate_config_get_genesis(t.get_seconds());
