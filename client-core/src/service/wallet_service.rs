@@ -6,7 +6,7 @@ use secstr::SecUtf8;
 use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::tx::data::address::ExtendedAddr;
-use client_common::{ErrorKind, Result, SecureStorage, Storage};
+use client_common::{Error, ErrorKind, Result, SecureStorage, Storage};
 
 use crate::PublicKey;
 
@@ -34,13 +34,12 @@ where
     }
 
     fn get_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<Wallet> {
-        let wallet_bytes = self.storage.get_secure(KEYSPACE, name, passphrase)?;
-
-        match wallet_bytes {
-            None => Err(ErrorKind::WalletNotFound.into()),
-            Some(wallet_bytes) => Wallet::decode(&mut wallet_bytes.as_slice())
-                .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError)),
-        }
+        let wallet_bytes = self
+            .storage
+            .get_secure(KEYSPACE, name, passphrase)?
+            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
+        Wallet::decode(&mut wallet_bytes.as_slice())
+            .ok_or_else(|| Error::from(ErrorKind::DeserializationError))
     }
 
     fn set_wallet(&self, name: &str, passphrase: &SecUtf8, wallet: Wallet) -> Result<()> {
@@ -58,40 +57,22 @@ where
         address: &ExtendedAddr,
     ) -> Result<Option<Either<PublicKey, H256>>> {
         match address {
-            ExtendedAddr::BasicRedeem(ref address) => {
-                let public_keys = self.public_keys(name, passphrase)?;
-
-                for public_key in public_keys {
-                    let known_address = RedeemAddress::from(&public_key);
-
-                    if known_address == *address {
-                        return Ok(Some(Either::Left(public_key)));
-                    }
-                }
-
-                Ok(None)
-            }
-            ExtendedAddr::OrTree(ref root_hash) => {
-                let root_hashes = self.root_hashes(name, passphrase)?;
-
-                for known_hash in root_hashes {
-                    if known_hash == *root_hash {
-                        return Ok(Some(Either::Right(known_hash)));
-                    }
-                }
-
-                Ok(None)
-            }
+            ExtendedAddr::BasicRedeem(ref address) => self
+                .find_public_key(name, passphrase, address)
+                .map(|public_key_optional| public_key_optional.map(Either::Left)),
+            ExtendedAddr::OrTree(ref root_hash) => self
+                .find_root_hash(name, passphrase, root_hash)
+                .map(|known_hash_optional| known_hash_optional.map(Either::Right)),
         }
     }
 
     /// Creates a new wallet and returns wallet ID
     pub fn create(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
         if self.storage.contains_key(KEYSPACE, name)? {
-            Err(ErrorKind::AlreadyExists.into())
-        } else {
-            self.set_wallet(name, passphrase, Wallet::default())
+            return Err(ErrorKind::AlreadyExists.into());
         }
+
+        self.set_wallet(name, passphrase, Wallet::default())
     }
 
     /// Returns all public keys stored in a wallet
@@ -176,6 +157,44 @@ where
     /// Clears all storage
     pub fn clear(&self) -> Result<()> {
         self.storage.clear(KEYSPACE)
+    }
+
+    /// Finds public key corresponding to given redeem address
+    fn find_public_key(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        redeem_address: &RedeemAddress,
+    ) -> Result<Option<PublicKey>> {
+        let public_keys = self.public_keys(name, passphrase)?;
+
+        for public_key in public_keys {
+            let known_address = RedeemAddress::from(&public_key);
+
+            if known_address == *redeem_address {
+                return Ok(Some(public_key));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Checks if root hash exists in current wallet and returns root hash if exists
+    fn find_root_hash(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        root_hash: &H256,
+    ) -> Result<Option<H256>> {
+        let root_hashes = self.root_hashes(name, passphrase)?;
+
+        for known_hash in root_hashes {
+            if known_hash == *root_hash {
+                return Ok(Some(known_hash));
+            }
+        }
+
+        Ok(None)
     }
 }
 

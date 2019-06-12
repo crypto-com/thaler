@@ -77,20 +77,16 @@ where
         key: K,
         passphrase: &SecUtf8,
     ) -> Result<Option<Vec<u8>>> {
-        let value = self.get(keyspace, &key)?;
-
-        match value {
-            None => Ok(None),
-            Some(inner) => {
-                let nonce_index = inner.len() - NONCE_SIZE;
+        self.get(keyspace, &key)?
+            .map(|value| {
+                let nonce_index = value.len() - NONCE_SIZE;
                 let mut algo = get_algo(passphrase);
 
-                Ok(Some(
-                    algo.open(&inner[nonce_index..], key.as_ref(), &inner[..nonce_index])
-                        .context(ErrorKind::DecryptionError)?,
-                ))
-            }
-        }
+                Ok(algo
+                    .open(&value[nonce_index..], key.as_ref(), &value[..nonce_index])
+                    .context(ErrorKind::DecryptionError)?)
+            })
+            .transpose()
     }
 
     fn set_secure<S: AsRef<[u8]>, K: AsRef<[u8]>>(

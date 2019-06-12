@@ -284,10 +284,9 @@ where
         // To verify if the passphrase is correct or not
         self.tree_addresses(name, passphrase)?;
 
-        let private_key = match self.private_key(passphrase, public_key)? {
-            None => Err(Error::from(ErrorKind::PrivateKeyNotFound)),
-            Some(private_key) => Ok(private_key),
-        }?;
+        let private_key = self
+            .private_key(passphrase, public_key)?
+            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
         private_key.schnorr_sign(message)
     }
 
@@ -302,16 +301,17 @@ where
         // To verify if the passphrase is correct or not
         self.tree_addresses(name, passphrase)?;
 
-        match self.private_key(passphrase, &self_public_key)? {
-            None => Err(ErrorKind::PrivateKeyNotFound.into()),
-            Some(self_private_key) => self.multi_sig_session_service.new_session(
-                message,
-                signer_public_keys,
-                self_public_key,
-                self_private_key,
-                passphrase,
-            ),
-        }
+        let self_private_key = self
+            .private_key(passphrase, &self_public_key)?
+            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+
+        self.multi_sig_session_service.new_session(
+            message,
+            signer_public_keys,
+            self_public_key,
+            self_private_key,
+            passphrase,
+        )
     }
 
     fn nonce_commitment(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<H256> {

@@ -14,15 +14,12 @@ impl Storage for MemoryStorage {
             .0
             .write()
             .map_err(|_| Error::from(ErrorKind::StorageError))?;
-        let space = memory.get_mut(keyspace.as_ref());
 
-        match space {
-            None => Ok(()),
-            Some(space) => {
-                space.drain();
-                Ok(())
-            }
+        if let Some(ref mut space) = memory.get_mut(keyspace.as_ref()) {
+            space.drain();
         }
+
+        Ok(())
     }
 
     fn get<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<Option<Vec<u8>>> {
@@ -64,12 +61,12 @@ impl Storage for MemoryStorage {
             .read()
             .map_err(|_| Error::from(ErrorKind::StorageError))?;
 
-        let space = memory.get(keyspace.as_ref());
+        let keys = memory
+            .get(keyspace.as_ref())
+            .map(|space| space.keys().map(Clone::clone).collect::<Vec<Vec<u8>>>())
+            .unwrap_or_default();
 
-        match space {
-            None => Ok(Default::default()),
-            Some(space) => Ok(space.keys().map(Clone::clone).collect::<Vec<Vec<u8>>>()),
-        }
+        Ok(keys)
     }
 
     fn contains_key<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<bool> {
@@ -78,13 +75,11 @@ impl Storage for MemoryStorage {
             .read()
             .map_err(|_| Error::from(ErrorKind::StorageError))?;
 
-        if memory.contains_key(keyspace.as_ref()) {
-            let space = memory.get(keyspace.as_ref()).unwrap();
+        let contains_key = memory
+            .get(keyspace.as_ref())
+            .map_or(false, |space| space.contains_key(key.as_ref()));
 
-            Ok(space.contains_key(key.as_ref()))
-        } else {
-            Ok(false)
-        }
+        Ok(contains_key)
     }
 
     fn keyspaces(&self) -> Result<Vec<Vec<u8>>> {

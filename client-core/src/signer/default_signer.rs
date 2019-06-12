@@ -1,11 +1,13 @@
 use either::Either;
 use secstr::SecUtf8;
 
+use chain_core::common::H256;
+use chain_core::tx::data::output::TxOut;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use client_common::{ErrorKind, Result, Storage};
+use client_common::{Error, ErrorKind, Result, Storage};
 
 use crate::service::{KeyService, RootHashService, WalletService};
-use crate::{SelectedUnspentTransactions, Signer};
+use crate::{PublicKey, SelectedUnspentTransactions, Signer};
 
 /// Default implementation of `Signer`
 #[derive(Debug)]
@@ -29,6 +31,75 @@ where
     }
 }
 
+impl<S> DefaultSigner<S>
+where
+    S: Storage,
+{
+    /// Signs the message with the private key corresponding to address of given output
+    fn sign_with_output<T: AsRef<[u8]>>(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        message: T,
+        output: &TxOut,
+    ) -> Result<TxInWitness> {
+        match self
+            .wallet_service
+            .find(name, passphrase, &output.address)?
+            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?
+        {
+            Either::Left(public_key) => self.sign_with_public_key(passphrase, message, &public_key),
+            Either::Right(root_hash) => self.sign_with_root_hash(passphrase, message, &root_hash),
+        }
+    }
+
+    /// Signs the message with the private key corresponding to address of given public key
+    fn sign_with_public_key<T: AsRef<[u8]>>(
+        &self,
+        passphrase: &SecUtf8,
+        message: T,
+        public_key: &PublicKey,
+    ) -> Result<TxInWitness> {
+        let private_key = self
+            .key_service
+            .private_key(&public_key, passphrase)?
+            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+
+        private_key.sign(&message)
+    }
+
+    /// Schnorr signs message with private key corresponding to `self_public_key` in given 1-of-n root hash
+    fn sign_with_root_hash<T: AsRef<[u8]>>(
+        &self,
+        passphrase: &SecUtf8,
+        message: T,
+        root_hash: &H256,
+    ) -> Result<TxInWitness> {
+        if self
+            .root_hash_service
+            .required_signers(&root_hash, passphrase)?
+            != 1
+        {
+            return Err(ErrorKind::InvalidTransaction.into());
+        }
+
+        let public_key = self.root_hash_service.public_key(&root_hash, passphrase)?;
+        let private_key = self
+            .key_service
+            .private_key(&public_key, passphrase)?
+            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+
+        let proof =
+            self.root_hash_service
+                .generate_proof(&root_hash, vec![public_key], passphrase)?;
+
+        Ok(TxInWitness::TreeSig(
+            private_key.schnorr_sign(&message)?,
+            proof,
+        ))
+    }
+}
+
 impl<S> Signer for DefaultSigner<S>
 where
     S: Storage,
@@ -40,51 +111,11 @@ where
         message: T,
         selected_unspent_transactions: SelectedUnspentTransactions,
     ) -> Result<TxWitness> {
-        let mut witnesses = Vec::with_capacity(selected_unspent_transactions.len());
-
-        for (_, output) in selected_unspent_transactions.iter() {
-            match self
-                .wallet_service
-                .find(name, passphrase, &output.address)?
-            {
-                None => return Err(ErrorKind::AddressNotFound.into()),
-                Some(Either::Left(public_key)) => {
-                    match self.key_service.private_key(&public_key, passphrase)? {
-                        None => return Err(ErrorKind::PrivateKeyNotFound.into()),
-                        Some(private_key) => witnesses.push(private_key.sign(&message)?),
-                    }
-                }
-                Some(Either::Right(root_hash)) => {
-                    if self
-                        .root_hash_service
-                        .required_signers(&root_hash, passphrase)?
-                        != 1
-                    {
-                        return Err(ErrorKind::InvalidTransaction.into());
-                    }
-
-                    let public_key = self.root_hash_service.public_key(&root_hash, passphrase)?;
-
-                    match self.key_service.private_key(&public_key, passphrase)? {
-                        None => return Err(ErrorKind::PrivateKeyNotFound.into()),
-                        Some(private_key) => {
-                            let proof = self.root_hash_service.generate_proof(
-                                &root_hash,
-                                vec![public_key],
-                                passphrase,
-                            )?;
-
-                            witnesses.push(TxInWitness::TreeSig(
-                                private_key.schnorr_sign(&message)?,
-                                proof,
-                            ));
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(witnesses.into())
+        selected_unspent_transactions
+            .iter()
+            .map(|(_, output)| self.sign_with_output(name, passphrase, &message, output))
+            .collect::<Result<Vec<TxInWitness>>>()
+            .map(Into::into)
     }
 }
 
