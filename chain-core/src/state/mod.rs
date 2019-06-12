@@ -4,12 +4,12 @@ pub mod account;
 pub mod tendermint;
 
 use crate::common::{hash256, H256};
-use crate::init::address::RedeemAddress;
 use crate::init::coin::Coin;
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use tendermint::{BlockHeight, TendermintValidatorPubKey};
+use account::{AccountAddress, Nonce};
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct RewardsPoolState {
@@ -37,17 +37,17 @@ impl RewardsPoolState {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct CouncilNode {
     // account with the required staked amount
-    pub staking_account_address: RedeemAddress,
+    pub staking_account_address: AccountAddress,
     // Tendermint consensus validator-associated public key
     pub consensus_pubkey: TendermintValidatorPubKey,
     // update counter
-    pub nonce: usize,
+    pub nonce: Nonce,
     // TODO: public keys / addresses for other operations
 }
 
 impl CouncilNode {
     pub fn new(
-        staking_account_address: RedeemAddress,
+        staking_account_address: AccountAddress,
         consensus_pubkey: TendermintValidatorPubKey,
     ) -> Self {
         CouncilNode {

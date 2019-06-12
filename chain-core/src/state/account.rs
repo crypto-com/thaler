@@ -21,6 +21,9 @@ pub type Count = u64;
 /// account state update counter
 pub type Nonce = u64;
 
+/// account address type (TODO: enum?)
+pub type AccountAddress = RedeemAddress;
+
 /// represents the account state (involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 pub struct Account {
@@ -28,14 +31,14 @@ pub struct Account {
     pub bonded: Coin,
     pub unbonded: Coin,
     pub unbonded_from: Timespec,
-    pub address: RedeemAddress,
+    pub address: AccountAddress,
     // TODO: slashing + jailing
 }
 
 /// the tree used in account storage db has a hardcoded 32-byte keys,
 /// this computes a key as blake2s(account.address) where
 /// the account address itself is ETH-style address (20 bytes from keccak hash of public key)
-pub fn to_account_key(address: &RedeemAddress) -> [u8; HASH_SIZE_256] {
+pub fn to_account_key(address: &AccountAddress) -> [u8; HASH_SIZE_256] {
     hash256::<Blake2s>(address)
 }
 
@@ -52,7 +55,7 @@ impl Account {
         bonded: Coin,
         unbonded: Coin,
         unbonded_from: Timespec,
-        address: RedeemAddress,
+        address: AccountAddress,
     ) -> Self {
         Account {
             nonce,
@@ -67,7 +70,7 @@ impl Account {
     pub fn new_init(
         amount: Coin,
         genesis_time: Timespec,
-        address: RedeemAddress,
+        address: AccountAddress,
         bonded: bool,
     ) -> Self {
         if bonded {
@@ -159,7 +162,7 @@ impl Decode for AccountOpAttributes {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct DepositBondTx {
     pub inputs: Vec<TxoPointer>,
-    pub to_account: RedeemAddress,
+    pub to_account: AccountAddress,
     pub attributes: AccountOpAttributes,
 }
 
@@ -168,7 +171,7 @@ impl TransactionId for DepositBondTx {}
 impl DepositBondTx {
     pub fn new(
         inputs: Vec<TxoPointer>,
-        to_account: RedeemAddress,
+        to_account: AccountAddress,
         attributes: AccountOpAttributes,
     ) -> Self {
         DepositBondTx {
@@ -271,7 +274,7 @@ impl AccountOpWitness {
     pub fn verify_tx_recover_address(
         &self,
         txid: &TxId,
-    ) -> Result<RedeemAddress, secp256k1::Error> {
+    ) -> Result<AccountAddress, secp256k1::Error> {
         let secp = Secp256k1::verification_only();
         let message = Message::from_slice(txid)?;
         let pk = secp.recover(&message, &self.0)?;

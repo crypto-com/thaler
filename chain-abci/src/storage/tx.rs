@@ -3,11 +3,9 @@ use crate::storage::account::AccountWrapper;
 use crate::storage::{COL_BODIES, COL_TX_META};
 use bit_vec::BitVec;
 use chain_core::common::Timespec;
-use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{Coin, CoinError};
-use chain_core::state::account::Account;
 use chain_core::state::account::{
-    to_account_key, AccountOpWitness, DepositBondTx, UnbondTx, WithdrawUnbondedTx,
+    Account, AccountAddress, to_account_key, AccountOpWitness, DepositBondTx, UnbondTx, WithdrawUnbondedTx,
 };
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
@@ -291,7 +289,7 @@ fn verify_bonded_deposit(
 
 /// checks that the account can be retrieved from the trie storage
 fn get_account(
-    account_address: &RedeemAddress,
+    account_address: &AccountAddress,
     last_root: &StarlingFixedKey,
     accounts: &AccountStorage,
 ) -> Result<Account, Error> {
