@@ -36,7 +36,6 @@ pub enum AccountType {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum ValidatorKeyType {
     Ed25519,
-    Secp256k1,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -152,11 +151,6 @@ impl InitConfig {
                     let mut out = [0u8; 32];
                     out.copy_from_slice(&key);
                     Ok(TendermintValidatorPubKey::Ed25519(out))
-                }
-                (33, ValidatorKeyType::Secp256k1) => {
-                    let mut out = [0u8; 33];
-                    out.copy_from_slice(&key);
-                    Ok(TendermintValidatorPubKey::Secp256k1(out.into()))
                 }
                 _ => Err(DistributionError::InvalidValidatorKey),
             }

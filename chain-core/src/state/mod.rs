@@ -3,7 +3,6 @@ pub mod account;
 use crate::common::{hash256, H256};
 use crate::init::address::RedeemAddress;
 use crate::init::coin::Coin;
-use crate::tx::witness::tree::RawPubkey;
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
@@ -40,7 +39,9 @@ impl RewardsPoolState {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub enum TendermintValidatorPubKey {
     Ed25519([u8; 32]),
-    Secp256k1(RawPubkey),
+    // there's PubKeySecp256k1, but https://tendermint.com/docs/spec/abci/apps.html#validator-updates
+    // "The pub_key currently supports only one type:"
+    // "type = "ed25519" anddata = <raw 32-byte public key>`"
     // there's also PubKeyMultisigThreshold, but that probably wouldn't be used for individual nodes / validators
     // TODO: some other schemes when they are added in TM?
 }
@@ -51,12 +52,7 @@ impl TendermintValidatorPubKey {
             TendermintValidatorPubKey::Ed25519(key) => {
                 let mut v = Vec::with_capacity(32);
                 v.extend_from_slice(&key[..]);
-                ("tendermint/PubKeyEd25519".to_string(), v)
-            }
-            TendermintValidatorPubKey::Secp256k1(key) => {
-                let mut v = Vec::with_capacity(33);
-                v.extend_from_slice(key.as_bytes());
-                ("tendermint/PubKeySecp256k1".to_string(), v)
+                ("ed25519".to_string(), v)
             }
         }
     }
