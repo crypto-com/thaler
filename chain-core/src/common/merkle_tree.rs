@@ -226,8 +226,8 @@ impl<T> Proof<T> {
 #[derive(Debug, Encode, Decode)]
 pub struct MerkleTree<T> {
     tree: Tree<T>,
-    len: usize,
-    height: usize,
+    len: u64,
+    height: u64,
 }
 
 impl<T> MerkleTree<T> {
@@ -265,8 +265,8 @@ impl<T> MerkleTree<T> {
 
             Self {
                 tree: trees.remove(0),
-                len,
-                height,
+                len: len as u64,
+                height: height as u64,
             }
         }
     }
@@ -280,13 +280,13 @@ impl<T> MerkleTree<T> {
     /// Returns height of merkle tree
     #[inline]
     pub fn height(&self) -> usize {
-        self.height
+        self.height as usize
     }
 
     /// Returns the number of leaf nodes in merkle tree
     #[inline]
     pub fn len(&self) -> usize {
-        self.len
+        self.len as usize
     }
 
     /// Returns `true` if current merkle tree is empty, `false` otherwise

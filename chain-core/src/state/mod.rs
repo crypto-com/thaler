@@ -5,11 +5,11 @@ pub mod tendermint;
 
 use crate::common::{hash256, H256};
 use crate::init::coin::Coin;
+use account::{AccountAddress, Nonce};
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use tendermint::{BlockHeight, TendermintValidatorPubKey};
-use account::{AccountAddress, Nonce};
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct RewardsPoolState {

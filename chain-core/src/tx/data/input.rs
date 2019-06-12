@@ -13,7 +13,8 @@ use crate::tx::data::TxId;
 )]
 pub struct TxoPointer {
     pub id: TxId,
-    pub index: usize,
+    // TODO: u16 and Vec size check in Decode implementation
+    pub index: u64,
 }
 
 impl fmt::Display for TxoPointer {
@@ -25,6 +26,9 @@ impl fmt::Display for TxoPointer {
 impl TxoPointer {
     /// Constructs a new TX input (mainly for testing/tools).
     pub fn new(id: TxId, index: usize) -> Self {
-        TxoPointer { id, index }
+        TxoPointer {
+            id,
+            index: index as u64,
+        }
     }
 }

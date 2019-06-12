@@ -14,9 +14,9 @@ const KEYSPACE: &str = "core_root_hash";
 #[derive(Debug, Encode, Decode)]
 struct MultiSigAddress {
     /// Number of required co-signers
-    pub m: usize,
+    pub m: u64,
     /// Total number of co-signers
-    pub n: usize,
+    pub n: u64,
     /// Public key of current signer
     pub self_public_key: PublicKey,
     /// Merkle tree with different combinations of `n` public keys as leaf nodes
@@ -62,8 +62,8 @@ where
         let root_hash = merkle_tree.root_hash();
 
         let multi_sig_address = MultiSigAddress {
-            m,
-            n,
+            m: m as u64,
+            n: n as u64,
             self_public_key,
             merkle_tree,
         };
@@ -88,7 +88,7 @@ where
         let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
             .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
 
-        if public_keys.len() != address.m {
+        if public_keys.len() != address.m as usize {
             return Err(ErrorKind::InvalidInput.into());
         }
 
@@ -110,7 +110,7 @@ where
         let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
             .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
 
-        Ok(address.m)
+        Ok(address.m as usize)
     }
 
     /// Returns public key of current signer
