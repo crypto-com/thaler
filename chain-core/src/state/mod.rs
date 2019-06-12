@@ -66,7 +66,7 @@ pub struct CouncilNode {
     // Tendermint consensus validator-associated public key
     pub consensus_pubkey: TendermintValidatorPubKey,
     // update counter
-    pub nonce: usize,
+    pub nonce: u64,
     // TODO: public keys / addresses for other operations
 }
 
