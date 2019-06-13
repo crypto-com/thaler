@@ -656,6 +656,18 @@ fn no_delivered_tx_commit_should_keep_apphash() {
 }
 
 #[test]
+fn query_should_return_an_account() {
+    let addr = "0e7c045110b8dbf29765047380898919c5cb56f4";
+    let mut app = init_chain_for(addr.parse().unwrap());
+    let mut qreq = RequestQuery::new();
+    qreq.data = hex::decode(&addr).unwrap();
+    qreq.path = "account".into();
+    let qresp = app.query(&qreq);
+    let account = Account::decode(&mut qresp.value.as_slice());
+    assert!(account.is_some());
+}
+
+#[test]
 fn query_should_return_proof_for_committed_tx() {
     let (mut app, tx, witness, _) = deliver_valid_tx();
     let mut endreq = RequestEndBlock::default();
