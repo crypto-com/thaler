@@ -9,6 +9,7 @@ use crate::tx::witness::tree::RawPubkey;
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub enum TxAccess {
     AllData,
+    // TODO: u16 and Vec size check in Decode implementation
     Output(u64),
     // TODO: other components?
     // TODO: TX ID could be computed as a root of a merkle tree from different TX components?

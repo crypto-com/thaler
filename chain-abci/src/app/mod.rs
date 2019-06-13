@@ -14,9 +14,11 @@ use crate::storage::tx::StarlingFixedKey;
 use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
 use chain_core::state::account::Account;
+use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::TxAux;
 use kvdb::{DBTransaction, KeyValueDB};
+use protobuf::RepeatedField;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -43,14 +45,17 @@ pub fn update_account(
     account: Account,
     account_root_hash: &StarlingFixedKey,
     accounts: &mut AccountStorage,
-) -> StarlingFixedKey {
-    accounts
-        .insert(
-            Some(account_root_hash),
-            &mut [&account.key()],
-            &mut [&AccountWrapper(account)],
-        )
-        .expect("update account")
+) -> (StarlingFixedKey, Option<Account>) {
+    (
+        accounts
+            .insert(
+                Some(account_root_hash),
+                &mut [&account.key()],
+                &mut [&AccountWrapper(account.clone())],
+            )
+            .expect("update account"),
+        Some(account),
+    )
 }
 
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
@@ -126,13 +131,12 @@ impl abci::Application for ChainNodeApp {
         let mtxaux = ChainNodeApp::validate_tx_req(self, _req, &mut resp);
         if let (0, Some((txaux, fee_acc))) = (resp.code, mtxaux) {
             let mut inittx = self.storage.db.transaction();
-            // MUST_TODO: keep track of changed accounts and update validator power in end_block
-            let next_account_root = match &txaux {
+            let (next_account_root, maccount) = match &txaux {
                 TxAux::TransferTx(tx, _) => {
                     // here the original idea was "conservative" that it "spent" utxos here
                     // but it didn't create utxos for this TX (they are created in commit)
                     spend_utxos(&tx.inputs, self.storage.db.clone(), &mut inittx);
-                    self.uncommitted_account_root_hash
+                    (self.uncommitted_account_root_hash, None)
                 }
                 TxAux::DepositStakeTx(tx, _) => {
                     spend_utxos(&tx.inputs, self.storage.db.clone(), &mut inittx);
@@ -158,6 +162,26 @@ impl abci::Application for ChainNodeApp {
                     &self.uncommitted_account_root_hash,
                     &mut self.accounts,
                 ),
+            };
+            match maccount {
+                Some(ref account) if self.validator_voting_power.contains_key(&account.address) => {
+                    let min_power = TendermintVotePower::from(
+                        self.last_state
+                            .as_ref()
+                            .expect("delivertx should have app state")
+                            .required_council_node_stake,
+                    );
+                    let new_power = TendermintVotePower::from(account.bonded);
+                    let old_power = self.validator_voting_power[&account.address];
+                    if new_power > old_power && new_power >= min_power {
+                        self.power_changed_in_block
+                            .insert(account.address, new_power);
+                    } else if old_power >= min_power && new_power < old_power {
+                        self.power_changed_in_block
+                            .insert(account.address, TendermintVotePower::zero());
+                    }
+                }
+                _ => {}
             };
             // as self.accounts allows querying against different tree roots
             // the modifications done with "update_account" _should_ be safe, as the final tree root will
@@ -216,6 +240,22 @@ impl abci::Application for ChainNodeApp {
             resp.tags.push(kvpair);
         }
         // TODO: skipchain-based validator changes?
+        if !self.power_changed_in_block.is_empty() {
+            let mut validators = Vec::with_capacity(self.power_changed_in_block.len());
+            for (address, new_power) in self.power_changed_in_block.iter() {
+                let old_power = self.validator_voting_power[&address];
+                // sanity check, as multiple transactions/events may have cancelled out the vote power change
+                if old_power != *new_power {
+                    let mut validator = ValidatorUpdate::default();
+                    validator.set_power(i64::from(*new_power));
+                    validator.set_pub_key(self.validator_pubkeys[&address].clone());
+                    validators.push(validator);
+                }
+                self.validator_voting_power.insert(*address, *new_power);
+            }
+            resp.set_validator_updates(RepeatedField::from(validators));
+            self.power_changed_in_block.clear();
+        }
         self.last_state.as_mut().map(|mut x| x.last_block_height = _req.height)
             .expect("executing end block, but no app state stored (i.e. no initchain or recovery was executed)");
         resp

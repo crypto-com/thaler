@@ -1,5 +1,6 @@
 use crate::storage::account::AccountStorage;
 use crate::storage::account::AccountWrapper;
+use crate::storage::tx::get_account;
 use crate::storage::tx::StarlingFixedKey;
 use crate::storage::*;
 use abci::*;
@@ -10,16 +11,17 @@ use chain_core::compute_app_hash;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
-use chain_core::state::account::Account;
+use chain_core::state::account::{Account, AccountAddress};
+use chain_core::state::tendermint::{BlockHeight, TendermintVotePower};
 use chain_core::state::CouncilNode;
-use chain_core::state::{BlockHeight, RewardsPoolState};
+use chain_core::state::RewardsPoolState;
 use chain_core::tx::{fee::LinearFee, TxAux};
 use kvdb::DBTransaction;
 use log::{info, warn};
 use parity_codec::{Decode, Encode};
 use protobuf::{Message, RepeatedField};
 use serde::{Deserialize, Serialize};
-use std::convert::TryInto;
+use std::collections::BTreeMap;
 
 /// ABCI app state snapshot
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode)]
@@ -60,9 +62,56 @@ pub struct ChainNodeApp {
     pub chain_hex_id: u8,
     /// last application state snapshot (if any)
     pub last_state: Option<ChainNodeState>,
+    /// validator voting power
+    pub validator_voting_power: BTreeMap<AccountAddress, TendermintVotePower>,
+    /// validator public keys
+    pub validator_pubkeys: BTreeMap<AccountAddress, PubKey>,
+    /// validator addresses whose bonded amount changed in the current block
+    pub power_changed_in_block: BTreeMap<AccountAddress, TendermintVotePower>,
 }
 
 impl ChainNodeApp {
+    fn get_validator_key(node: &CouncilNode) -> PubKey {
+        let mut pk = PubKey::new();
+        let (keytype, key) = node.consensus_pubkey.to_validator_update();
+        pk.set_field_type(keytype);
+        pk.set_data(key);
+        pk
+    }
+
+    fn get_validator_mapping(
+        accounts: &AccountStorage,
+        last_app_state: &ChainNodeState,
+    ) -> (
+        BTreeMap<AccountAddress, TendermintVotePower>,
+        BTreeMap<AccountAddress, PubKey>,
+    ) {
+        let mut validator_voting_power = BTreeMap::new();
+        let mut validator_pubkeys = BTreeMap::new();
+        for node in last_app_state.council_nodes.iter() {
+            let pk = ChainNodeApp::get_validator_key(&node);
+            validator_pubkeys.insert(node.staking_account_address, pk);
+            let account = get_account(
+                &node.staking_account_address,
+                &last_app_state.last_account_root_hash,
+                accounts,
+            )
+            .expect("council node staking account should be in the account state");
+            if account.bonded < last_app_state.required_council_node_stake {
+                validator_voting_power.insert(
+                    node.staking_account_address,
+                    TendermintVotePower::from(Coin::zero()),
+                );
+            } else {
+                validator_voting_power.insert(
+                    node.staking_account_address,
+                    TendermintVotePower::from(account.bonded),
+                );
+            }
+        }
+        (validator_voting_power, validator_pubkeys)
+    }
+
     fn restore_from_storage(
         last_app_state: ChainNodeState,
         genesis_app_hash: [u8; HASH_SIZE_256],
@@ -97,6 +146,9 @@ impl ChainNodeApp {
         }
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
+
+        let (validator_voting_power, validator_pubkeys) =
+            ChainNodeApp::get_validator_mapping(&accounts, &last_app_state);
         ChainNodeApp {
             storage,
             accounts,
@@ -105,6 +157,9 @@ impl ChainNodeApp {
             chain_hex_id,
             genesis_app_hash,
             last_state: Some(last_app_state),
+            validator_voting_power,
+            validator_pubkeys,
+            power_changed_in_block: BTreeMap::new(),
         }
     }
 
@@ -162,6 +217,9 @@ impl ChainNodeApp {
                 chain_hex_id,
                 genesis_app_hash,
                 last_state: None,
+                validator_voting_power: BTreeMap::new(),
+                validator_pubkeys: BTreeMap::new(),
+                power_changed_in_block: BTreeMap::new(),
             }
         }
     }
@@ -292,20 +350,14 @@ impl ChainNodeApp {
             );
             // NOTE: &_req.validators are ignored / replaced by init config
             let mut validators = Vec::with_capacity(nodes.len());
-            // TODO: check not empty here or in initconfig validation?
             for node in nodes.iter() {
                 let mut validator = ValidatorUpdate::default();
-                // TODO: validator power in coins rather than base units (i.e. divide by 1_0000_0000?)
-                validator.set_power(
-                    conf.distribution[&node.staking_account_address]
-                        .0
-                        .try_into()
-                        .expect("initial validator power exceeds i64"),
-                );
-                let mut pk = PubKey::new();
-                let (keytype, key) = node.consensus_pubkey.to_validator_update();
-                pk.set_field_type(keytype);
-                pk.set_data(key);
+                let power =
+                    TendermintVotePower::from(conf.distribution[&node.staking_account_address].0);
+                validator.set_power(power.into());
+                let pk = ChainNodeApp::get_validator_key(&node);
+                self.validator_pubkeys
+                    .insert(node.staking_account_address, pk.clone());
                 validator.set_pub_key(pk);
                 validators.push(validator);
             }

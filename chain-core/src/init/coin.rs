@@ -3,11 +3,14 @@
 //! Copyright (c) 2018, Input Output HK (licensed under the MIT License)
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
-use crate::init::{MAX_COIN, MAX_COIN_DECIMALS};
+use crate::init::{MAX_COIN, MAX_COIN_DECIMALS, MAX_COIN_UNITS};
+use crate::state::tendermint::TendermintVotePower;
 use parity_codec::{Decode, Encode, Input};
 
+use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::Serialize;
+use static_assertions::const_assert;
 use std::convert::TryFrom;
 use std::{fmt, mem, ops, result, slice};
 
@@ -151,11 +154,15 @@ impl From<Coin> for u64 {
     }
 }
 
-impl TryFrom<Coin> for i64 {
-    type Error = std::num::TryFromIntError;
-
-    fn try_from(c: Coin) -> Result<Self, Self::Error> {
-        i64::try_from(c.0)
+impl From<Coin> for TendermintVotePower {
+    fn from(c: Coin) -> TendermintVotePower {
+        const_assert!(std::i64::MAX > MAX_COIN_UNITS);
+        const_assert!(TENDERMINT_MAX_VOTE_POWER > MAX_COIN_UNITS);
+        // NOTE: conversions below should never panic
+        let vote_power = i64::try_from(c.0 / MAX_COIN_DECIMALS)
+            .expect("i64::MAX is larger than `MAX_COIN / MAX_COIN_DECIMALS`");
+        TendermintVotePower::new(vote_power)
+            .expect("TENDERMINT_MAX_VOTE_POWER is larger than `MAX_COIN / MAX_COIN_DECIMALS`")
     }
 }
 

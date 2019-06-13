@@ -3,11 +3,10 @@ use crate::storage::account::AccountWrapper;
 use crate::storage::{COL_BODIES, COL_TX_META};
 use bit_vec::BitVec;
 use chain_core::common::Timespec;
-use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{Coin, CoinError};
-use chain_core::state::account::Account;
 use chain_core::state::account::{
-    to_account_key, AccountOpWitness, DepositBondTx, UnbondTx, WithdrawUnbondedTx,
+    to_account_key, Account, AccountAddress, AccountOpWitness, DepositBondTx, UnbondTx,
+    WithdrawUnbondedTx,
 };
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
@@ -155,7 +154,8 @@ fn check_inputs_lookup(
         let txo = db.get(COL_TX_META, &txin.id[..]);
         match txo {
             Ok(Some(v)) => {
-                let bv = BitVec::from_bytes(&v).get(txin.index as usize);
+                let input_index = txin.index as usize;
+                let bv = BitVec::from_bytes(&v).get(input_index);
                 if bv.is_none() {
                     return Err(Error::InvalidInput);
                 }
@@ -166,10 +166,10 @@ fn check_inputs_lookup(
                 // only TxWithOutputs should have an entry in COL_TX_META
                 let tx = TxWithOutputs::decode(&mut txdata.as_slice()).unwrap();
                 let outputs = tx.outputs();
-                if txin.index >= outputs.len() as u64 {
+                if input_index >= outputs.len() {
                     return Err(Error::InvalidInput);
                 }
-                let txout = &outputs[txin.index as usize];
+                let txout = &outputs[input_index];
                 if let Some(valid_from) = &txout.valid_from {
                     if *valid_from > extra_info.previous_block_time {
                         return Err(Error::OutputInTimelock);
@@ -290,8 +290,8 @@ fn verify_bonded_deposit(
 }
 
 /// checks that the account can be retrieved from the trie storage
-fn get_account(
-    account_address: &RedeemAddress,
+pub fn get_account(
+    account_address: &AccountAddress,
     last_root: &StarlingFixedKey,
     accounts: &AccountStorage,
 ) -> Result<Account, Error> {
