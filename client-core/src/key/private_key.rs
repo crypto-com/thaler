@@ -2,10 +2,9 @@ use failure::ResultExt;
 use parity_codec::{Decode, Encode, Input, Output};
 use rand::rngs::OsRng;
 use secp256k1::schnorrsig::{schnorr_sign, SchnorrSignature};
-use secp256k1::{Message, PublicKey as SecpPublicKey, SecretKey};
+use secp256k1::{Message, PublicKey as SecpPublicKey, RecoverableSignature, SecretKey};
 use zeroize::Zeroize;
 
-use chain_core::tx::witness::TxInWitness;
 use client_common::{ErrorKind, Result};
 
 use crate::{PublicKey, SECP};
@@ -37,11 +36,11 @@ impl PrivateKey {
     }
 
     /// Signs a message with current private key
-    pub fn sign<T: AsRef<[u8]>>(&self, bytes: T) -> Result<TxInWitness> {
+    pub fn sign<T: AsRef<[u8]>>(&self, bytes: T) -> Result<RecoverableSignature> {
         let message =
             Message::from_slice(bytes.as_ref()).context(ErrorKind::DeserializationError)?;
         let signature = SECP.with(|secp| secp.sign_recoverable(&message, &self.0));
-        Ok(TxInWitness::BasicRedeem(signature))
+        Ok(signature)
     }
 
     /// Signs a message with current private key (uses schnorr signature algorithm)

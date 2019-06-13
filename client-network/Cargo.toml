@@ -1,0 +1,13 @@
+[package]
+name = "client-network"
+version = "0.1.0"
+authors = ["Devashish Dixit <devashish@crypto.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chain-core = { path = "../chain-core" }
+client-common = { path = "../client-common" }
+client-core = { path = "../client-core" }
+secstr = "0.3.2"

@@ -49,6 +49,44 @@ where
         Ok(())
     }
 
+    /// Finds public key corresponding to given redeem address
+    pub fn find_public_key(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        redeem_address: &RedeemAddress,
+    ) -> Result<Option<PublicKey>> {
+        let public_keys = self.public_keys(name, passphrase)?;
+
+        for public_key in public_keys {
+            let known_address = RedeemAddress::from(&public_key);
+
+            if known_address == *redeem_address {
+                return Ok(Some(public_key));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Checks if root hash exists in current wallet and returns root hash if exists
+    pub fn find_root_hash(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        root_hash: &H256,
+    ) -> Result<Option<H256>> {
+        let root_hashes = self.root_hashes(name, passphrase)?;
+
+        for known_hash in root_hashes {
+            if known_hash == *root_hash {
+                return Ok(Some(known_hash));
+            }
+        }
+
+        Ok(None)
+    }
+
     /// Finds an address in wallet and returns corresponding public key or root hash
     pub fn find(
         &self,
@@ -157,44 +195,6 @@ where
     /// Clears all storage
     pub fn clear(&self) -> Result<()> {
         self.storage.clear(KEYSPACE)
-    }
-
-    /// Finds public key corresponding to given redeem address
-    fn find_public_key(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-        redeem_address: &RedeemAddress,
-    ) -> Result<Option<PublicKey>> {
-        let public_keys = self.public_keys(name, passphrase)?;
-
-        for public_key in public_keys {
-            let known_address = RedeemAddress::from(&public_key);
-
-            if known_address == *redeem_address {
-                return Ok(Some(public_key));
-            }
-        }
-
-        Ok(None)
-    }
-
-    /// Checks if root hash exists in current wallet and returns root hash if exists
-    fn find_root_hash(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-        root_hash: &H256,
-    ) -> Result<Option<H256>> {
-        let root_hashes = self.root_hashes(name, passphrase)?;
-
-        for known_hash in root_hashes {
-            if known_hash == *root_hash {
-                return Ok(Some(known_hash));
-            }
-        }
-
-        Ok(None)
     }
 }
 

@@ -8,6 +8,7 @@ use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 
 use chain_core::common::{Proof, H256};
+use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
@@ -42,6 +43,22 @@ pub trait WalletClient: Send + Sync {
 
     /// Retrieves all addresses corresponding to given wallet
     fn addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
+
+    /// Finds public key corresponding to given redeem address
+    fn find_public_key(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        redeem_address: &RedeemAddress,
+    ) -> Result<Option<PublicKey>>;
+
+    /// Checks if root hash exists in current wallet and returns root hash if exists
+    fn find_root_hash(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        root_hash: &H256,
+    ) -> Result<Option<H256>>;
 
     /// Finds an address in wallet and returns corresponding public key or root hash
     fn find(
