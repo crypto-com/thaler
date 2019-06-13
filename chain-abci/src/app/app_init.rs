@@ -21,7 +21,7 @@ use log::{info, warn};
 use parity_codec::{Decode, Encode};
 use protobuf::{Message, RepeatedField};
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 /// ABCI app state snapshot
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode)]
@@ -64,38 +64,52 @@ pub struct ChainNodeApp {
     pub last_state: Option<ChainNodeState>,
     /// validator voting power
     pub validator_voting_power: BTreeMap<AccountAddress, TendermintVotePower>,
-    /// disabled validator addresses
-    pub disabled_validators: BTreeSet<AccountAddress>,
+    /// validator public keys
+    pub validator_pubkeys: BTreeMap<AccountAddress, PubKey>,
     /// validator addresses whose bonded amount changed in the current block
-    pub power_changed_in_block: BTreeSet<AccountAddress>,
+    pub power_changed_in_block: BTreeMap<AccountAddress, TendermintVotePower>,
 }
 
 impl ChainNodeApp {
+    fn get_validator_key(node: &CouncilNode) -> PubKey {
+        let mut pk = PubKey::new();
+        let (keytype, key) = node.consensus_pubkey.to_validator_update();
+        pk.set_field_type(keytype);
+        pk.set_data(key);
+        pk
+    }
+
     fn get_validator_mapping(
         accounts: &AccountStorage,
         last_app_state: &ChainNodeState,
     ) -> (
         BTreeMap<AccountAddress, TendermintVotePower>,
-        BTreeSet<AccountAddress>,
+        BTreeMap<AccountAddress, PubKey>,
     ) {
         let mut validator_voting_power = BTreeMap::new();
-        let mut disabled_validators = BTreeSet::new();
+        let mut validator_pubkeys = BTreeMap::new();
         for node in last_app_state.council_nodes.iter() {
+            let pk = ChainNodeApp::get_validator_key(&node);
+            validator_pubkeys.insert(node.staking_account_address, pk);
             let account = get_account(
                 &node.staking_account_address,
                 &last_app_state.last_account_root_hash,
                 accounts,
             )
             .expect("council node staking account should be in the account state");
-            validator_voting_power.insert(
-                node.staking_account_address,
-                TendermintVotePower::from(account.bonded),
-            );
             if account.bonded < last_app_state.required_council_node_stake {
-                disabled_validators.insert(node.staking_account_address);
+                validator_voting_power.insert(
+                    node.staking_account_address,
+                    TendermintVotePower::from(Coin::zero()),
+                );
+            } else {
+                validator_voting_power.insert(
+                    node.staking_account_address,
+                    TendermintVotePower::from(account.bonded),
+                );
             }
         }
-        (validator_voting_power, disabled_validators)
+        (validator_voting_power, validator_pubkeys)
     }
 
     fn restore_from_storage(
@@ -133,7 +147,7 @@ impl ChainNodeApp {
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
 
-        let (validator_voting_power, disabled_validators) =
+        let (validator_voting_power, validator_pubkeys) =
             ChainNodeApp::get_validator_mapping(&accounts, &last_app_state);
         ChainNodeApp {
             storage,
@@ -144,8 +158,8 @@ impl ChainNodeApp {
             genesis_app_hash,
             last_state: Some(last_app_state),
             validator_voting_power,
-            disabled_validators,
-            power_changed_in_block: BTreeSet::new(),
+            validator_pubkeys,
+            power_changed_in_block: BTreeMap::new(),
         }
     }
 
@@ -204,8 +218,8 @@ impl ChainNodeApp {
                 genesis_app_hash,
                 last_state: None,
                 validator_voting_power: BTreeMap::new(),
-                disabled_validators: BTreeSet::new(),
-                power_changed_in_block: BTreeSet::new(),
+                validator_pubkeys: BTreeMap::new(),
+                power_changed_in_block: BTreeMap::new(),
             }
         }
     }
@@ -341,10 +355,9 @@ impl ChainNodeApp {
                 let power =
                     TendermintVotePower::from(conf.distribution[&node.staking_account_address].0);
                 validator.set_power(power.into());
-                let mut pk = PubKey::new();
-                let (keytype, key) = node.consensus_pubkey.to_validator_update();
-                pk.set_field_type(keytype);
-                pk.set_data(key);
+                let pk = ChainNodeApp::get_validator_key(&node);
+                self.validator_pubkeys
+                    .insert(node.staking_account_address, pk.clone());
                 validator.set_pub_key(pk);
                 validators.push(validator);
             }
