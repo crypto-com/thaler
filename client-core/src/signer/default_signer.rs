@@ -65,7 +65,7 @@ where
             .private_key(&public_key, passphrase)?
             .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
 
-        private_key.sign(&message)
+        private_key.sign(&message).map(TxInWitness::BasicRedeem)
     }
 
     /// Schnorr signs message with private key corresponding to `self_public_key` in given 1-of-n root hash
