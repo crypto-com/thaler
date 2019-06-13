@@ -50,7 +50,7 @@ where
 
                 let public_key = self
                     .wallet_client
-                    .find_public_key(name, passphrase, &redeem_address)?
+                    .find_public_key(name, passphrase, redeem_address)?
                     .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
 
                 let private_key = self

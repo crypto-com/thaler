@@ -5,7 +5,7 @@
 //! - Network Operations
 //!
 //! This crate provides and easy to use client for performing network operations on Crypto.com Chain. Payments, on the
-//! other hand, are handled by `WalletClient` in `chain-core` crate.
+//! other hand, are handled by `WalletClient` in `client-core` crate.
 pub mod network_ops;
 
 #[doc(inline)]
