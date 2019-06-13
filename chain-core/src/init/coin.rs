@@ -7,12 +7,12 @@ use crate::init::{MAX_COIN, MAX_COIN_DECIMALS, MAX_COIN_UNITS};
 use crate::state::tendermint::TendermintVotePower;
 use parity_codec::{Decode, Encode, Input};
 
+use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
 use serde::Serialize;
+use static_assertions::const_assert;
 use std::convert::TryFrom;
 use std::{fmt, mem, ops, result, slice};
-use static_assertions::const_assert;
-use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Encode)]
 pub struct Coin(u64);

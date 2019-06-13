@@ -1,6 +1,6 @@
 use parity_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-use std::{fmt, ops};
+use std::fmt;
 
 /// Tendermint block height
 /// TODO: u64?
@@ -76,54 +76,19 @@ type TendermintVotePowerResult = Result<TendermintVotePower, TendermintVotePower
 impl TendermintVotePower {
     /// create a voting power of the given value
     pub fn new(v: i64) -> TendermintVotePowerResult {
-        if 0 <= v && v <= TENDERMINT_MAX_VOTE_POWER {
-            Ok(TendermintVotePower(v))
-        } else {
-            Err(TendermintVotePowerError::OutOfBound(v))
+        // specs: "power must be non-negative"
+        // protobuf defs use signed integer for some reason
+        if v < 0 {
+            return Err(TendermintVotePowerError::Negative);
         }
+        if v > TENDERMINT_MAX_VOTE_POWER {
+            return Err(TendermintVotePowerError::OutOfBound(v));
+        }
+        Ok(TendermintVotePower(v))
     }
-}
 
-impl ops::Add for TendermintVotePower {
-    type Output = TendermintVotePowerResult;
-    fn add(self, other: TendermintVotePower) -> Self::Output {
-        TendermintVotePower::new(self.0 + other.0)
-    }
-}
-impl<'a> ops::Add<&'a TendermintVotePower> for TendermintVotePower {
-    type Output = TendermintVotePowerResult;
-    fn add(self, other: &'a TendermintVotePower) -> Self::Output {
-        TendermintVotePower::new(self.0 + other.0)
-    }
-}
-impl ops::Sub for TendermintVotePower {
-    type Output = TendermintVotePowerResult;
-    fn sub(self, other: TendermintVotePower) -> Self::Output {
-        if other.0 > self.0 {
-            Err(TendermintVotePowerError::Negative)
-        } else {
-            Ok(TendermintVotePower(self.0 - other.0))
-        }
-    }
-}
-impl<'a> ops::Sub<&'a TendermintVotePower> for TendermintVotePower {
-    type Output = TendermintVotePowerResult;
-    fn sub(self, other: &'a TendermintVotePower) -> Self::Output {
-        if other.0 > self.0 {
-            Err(TendermintVotePowerError::Negative)
-        } else {
-            Ok(TendermintVotePower(self.0 - other.0))
-        }
-    }
-}
-
-impl ops::Sub<TendermintVotePower> for TendermintVotePowerResult {
-    type Output = TendermintVotePowerResult;
-    fn sub(self, other: TendermintVotePower) -> Self::Output {
-        if other.0 > self?.0 {
-            Err(TendermintVotePowerError::Negative)
-        } else {
-            Ok(TendermintVotePower(self?.0 - other.0))
-        }
+    /// create a voting power of value `0` / disabled / jailed validator
+    pub fn zero() -> Self {
+        TendermintVotePower(0)
     }
 }

@@ -290,7 +290,7 @@ fn verify_bonded_deposit(
 }
 
 /// checks that the account can be retrieved from the trie storage
-fn get_account(
+pub fn get_account(
     account_address: &AccountAddress,
     last_root: &StarlingFixedKey,
     accounts: &AccountStorage,
