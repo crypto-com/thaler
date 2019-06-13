@@ -102,13 +102,21 @@ impl ::std::str::FromStr for Coin {
 impl ops::Add for Coin {
     type Output = CoinResult;
     fn add(self, other: Coin) -> Self::Output {
-        Coin::new(self.0 + other.0)
+        let sum = self.0.checked_add(other.0);
+        match sum {
+            None => Err(CoinError::OutOfBound(0)),
+            Some(v) => Coin::new(v),
+        }
     }
 }
 impl<'a> ops::Add<&'a Coin> for Coin {
     type Output = CoinResult;
     fn add(self, other: &'a Coin) -> Self::Output {
-        Coin::new(self.0 + other.0)
+        let sum = self.0.checked_add(other.0);
+        match sum {
+            None => Err(CoinError::OutOfBound(0)),
+            Some(v) => Coin::new(v),
+        }
     }
 }
 impl ops::Sub for Coin {
