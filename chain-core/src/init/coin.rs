@@ -125,20 +125,20 @@ impl<'a> ops::Add<&'a Coin> for Coin {
 impl ops::Sub for Coin {
     type Output = CoinResult;
     fn sub(self, other: Coin) -> Self::Output {
-        if other.0 > self.0 {
-            Err(CoinError::Negative)
-        } else {
-            Ok(Coin(self.0 - other.0))
+        let sub = self.0.checked_sub(other.0);
+        match sub {
+            None => Err(CoinError::Negative),
+            Some(v) => Coin::new(v),
         }
     }
 }
 impl<'a> ops::Sub<&'a Coin> for Coin {
     type Output = CoinResult;
     fn sub(self, other: &'a Coin) -> Self::Output {
-        if other.0 > self.0 {
-            Err(CoinError::Negative)
-        } else {
-            Ok(Coin(self.0 - other.0))
+        let sub = self.0.checked_sub(other.0);
+        match sub {
+            None => Err(CoinError::Negative),
+            Some(v) => Coin::new(v),
         }
     }
 }
