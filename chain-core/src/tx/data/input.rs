@@ -13,6 +13,7 @@ use crate::tx::data::TxId;
 )]
 pub struct TxoPointer {
     pub id: TxId,
+    // TODO: u16 and Vec size check in Decode implementation
     pub index: u64,
 }
 
