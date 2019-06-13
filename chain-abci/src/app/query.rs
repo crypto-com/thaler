@@ -1,7 +1,9 @@
 use super::ChainNodeApp;
+use crate::storage::tx::get_account;
 use crate::storage::*;
 use abci::*;
 use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
+use chain_core::state::account::AccountAddress;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
 use parity_codec::{Decode, Encode};
@@ -34,6 +36,16 @@ impl ChainNodeApp {
     /// e.g. "store" == 0x73746f7265.
     pub fn query_handler(&self, _req: &RequestQuery) -> ResponseQuery {
         let mut resp = ResponseQuery::new();
+
+        // "When Tendermint connects to a peer, it sends two queries to the ABCI application using the following paths, with no additional data:
+        // * /p2p/filter/addr/<IP:PORT>, where <IP:PORT> denote the IP address and the port of the connection
+        // * p2p/filter/id/<ID>, where <ID> is the peer node ID (ie. the pubkey.Address() for the peer's PubKey)
+        // If either of these queries return a non-zero ABCI code, Tendermint will refuse to connect to the peer."
+        if _req.path.starts_with("/p2p") || _req.path.starts_with("p2p") {
+            // TODO: peer filtering
+            return resp;
+        }
+
         // TODO: auth / verification (when TXs are encrypted)
         match _req.path.as_ref() {
             "store" => {
@@ -101,6 +113,26 @@ impl ChainNodeApp {
                     &_req.data[..],
                     "app state not found",
                 );
+            }
+            "account" => {
+                let account_address = AccountAddress::try_from(&_req.data);
+                if let (Some(state), Ok(address)) = (&self.last_state, account_address) {
+                    let account =
+                        get_account(&address, &state.last_account_root_hash, &self.accounts);
+                    match account {
+                        Ok(a) => {
+                            resp.value = a.encode();
+                            // TODO: inclusion proof
+                        }
+                        Err(e) => {
+                            resp.log += format!("account lookup failed: {}", e).as_ref();
+                            resp.code = 1;
+                        }
+                    }
+                } else {
+                    resp.log += "account lookup failed (either invalid address or node not correctly restored / initialized)";
+                    resp.code = 3;
+                }
             }
             _ => {
                 resp.log += "invalid path";
