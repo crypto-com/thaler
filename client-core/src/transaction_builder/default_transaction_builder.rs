@@ -104,7 +104,7 @@ where
 }
 
 fn build_transaction(
-    selected_unspent_transactions: &SelectedUnspentTransactions,
+    selected_unspent_transactions: &SelectedUnspentTransactions<'_>,
     mut outputs: Vec<TxOut>,
     attributes: TxAttributes,
     difference_amount: Coin,
