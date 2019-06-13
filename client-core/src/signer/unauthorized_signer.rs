@@ -15,7 +15,7 @@ impl Signer for UnauthorizedSigner {
         _: &str,
         _: &SecUtf8,
         _: T,
-        _: SelectedUnspentTransactions,
+        _: SelectedUnspentTransactions<'_>,
     ) -> Result<TxWitness> {
         Err(ErrorKind::PermissionDenied.into())
     }
