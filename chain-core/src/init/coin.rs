@@ -241,6 +241,39 @@ mod test {
     use quickcheck::quickcheck;
 
     quickcheck! {
+        // test whether oveflow error occur
+        fn coin_add() -> bool {
+            let a = Coin::max();
+            let b = Coin::max();
+            let sum = a+ b;
+            sum.is_err()
+        }
+
+        // test whether overflow error not occur
+          fn coin_add2() -> bool {
+            let a = Coin::max();
+            let b = Coin::new(0).unwrap();
+            let sum = (a+ b).unwrap();
+            sum == a
+        }
+
+        // test whether underflow error occur
+        fn coin_sub() -> bool {
+            let a = Coin::new(0).unwrap();
+            let b = Coin::max();
+            let sub = a- b;
+            sub.is_err()
+        }
+
+        // test whether underflow error not occur
+        fn coin_sub2() -> bool {
+            let a = Coin::max();
+            let b = Coin::new(0).unwrap();
+            let sub = (a-b).unwrap();
+            sub == a
+        }
+
+
         // test a given u32 is always a valid value for a `Coin`
         fn coin_from_u32_always_valid(v: u32) -> bool {
             Coin::new(v as u64).is_ok()
