@@ -93,7 +93,7 @@ impl UnspentTransactions {
     }
 
     /// Selects unspent transactions for given amount and returns difference amount
-    pub fn select(&self, amount: Coin) -> Result<(SelectedUnspentTransactions, Coin)> {
+    pub fn select(&self, amount: Coin) -> Result<(SelectedUnspentTransactions<'_>, Coin)> {
         let mut selected_amount = Coin::zero();
 
         for (i, (_, unspent_transaction)) in self.inner.iter().enumerate() {
@@ -114,7 +114,7 @@ impl UnspentTransactions {
     }
 
     /// Selects all unspent transactions
-    pub fn select_all(&self) -> SelectedUnspentTransactions {
+    pub fn select_all(&self) -> SelectedUnspentTransactions<'_> {
         SelectedUnspentTransactions { inner: &self.inner }
     }
 }

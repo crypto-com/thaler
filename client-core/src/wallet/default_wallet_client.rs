@@ -105,6 +105,26 @@ where
         self.wallet_service.addresses(name, passphrase)
     }
 
+    fn find_public_key(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        redeem_address: &RedeemAddress,
+    ) -> Result<Option<PublicKey>> {
+        self.wallet_service
+            .find_public_key(name, passphrase, redeem_address)
+    }
+
+    fn find_root_hash(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        root_hash: &H256,
+    ) -> Result<Option<H256>> {
+        self.wallet_service
+            .find_root_hash(name, passphrase, root_hash)
+    }
+
     fn find(
         &self,
         name: &str,

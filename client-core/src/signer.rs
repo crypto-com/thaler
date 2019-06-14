@@ -20,6 +20,6 @@ pub trait Signer: Send + Sync {
         name: &str,
         passphrase: &SecUtf8,
         message: T,
-        selected_unspent_transactions: SelectedUnspentTransactions,
+        selected_unspent_transactions: SelectedUnspentTransactions<'_>,
     ) -> Result<TxWitness>;
 }
