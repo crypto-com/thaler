@@ -240,7 +240,44 @@ mod test {
     use super::*;
     use quickcheck::quickcheck;
 
+    #[test]
+    // test whether oveflow error occur
+    fn coin_overflow_add_should_produce_error() {
+        let a = Coin::max();
+        let b = Coin::max();
+        let sum = a + b;
+        assert!(sum.is_err());
+    }
+
+    #[test]
+    // test whether overflow error not occur
+    fn coin_overflow_add_shoule_be_the_same() {
+        let a = Coin::max();
+        let b = Coin::new(0).unwrap();
+        let sum = (a + b).unwrap();
+        assert!(sum == a);
+    }
+
+    #[test]
+    // test whether underflow error occur
+    fn coin_sub_should_produce_error() {
+        let a = Coin::new(0).unwrap();
+        let b = Coin::max();
+        let sub = a - b;
+        assert!(sub.is_err());
+    }
+
+    #[test]
+    // test whether underflow error not occur
+    fn coin_underflow_sub_should_be_the_same() {
+        let a = Coin::max();
+        let b = Coin::new(0).unwrap();
+        let sub = (a - b).unwrap();
+        assert!(sub == a);
+    }
+
     quickcheck! {
+
         // test a given u32 is always a valid value for a `Coin`
         fn coin_from_u32_always_valid(v: u32) -> bool {
             Coin::new(v as u64).is_ok()
