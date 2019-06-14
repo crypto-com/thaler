@@ -11,7 +11,8 @@ use crate::tx::TransactionId;
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode, Input, Output};
 use secp256k1::{Message, Secp256k1};
-use secp256k1::{RecoverableSignature, RecoveryId};
+// TODO: switch to normal signatures + explicit public key
+use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

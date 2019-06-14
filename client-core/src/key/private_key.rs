@@ -2,7 +2,7 @@ use failure::ResultExt;
 use parity_codec::{Decode, Encode, Input, Output};
 use rand::rngs::OsRng;
 use secp256k1::schnorrsig::{schnorr_sign, SchnorrSignature};
-use secp256k1::{Message, PublicKey as SecpPublicKey, RecoverableSignature, SecretKey};
+use secp256k1::{recovery::RecoverableSignature, Message, PublicKey as SecpPublicKey, SecretKey};
 use zeroize::Zeroize;
 
 use client_common::{ErrorKind, Result};

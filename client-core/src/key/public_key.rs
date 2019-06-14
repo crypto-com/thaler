@@ -38,7 +38,7 @@ impl PublicKey {
                     secp,
                     &public_keys
                         .iter()
-                        .map(|key| key.0)
+                        .map(|key| key.0.clone())
                         .collect::<Vec<SecpPublicKey>>(),
                 )
             })
@@ -74,7 +74,7 @@ impl From<PublicKey> for SecpPublicKey {
 
 impl From<&PublicKey> for SecpPublicKey {
     fn from(public_key: &PublicKey) -> SecpPublicKey {
-        public_key.0
+        public_key.0.clone()
     }
 }
 
