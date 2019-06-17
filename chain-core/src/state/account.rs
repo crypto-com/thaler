@@ -11,53 +11,54 @@ use crate::tx::TransactionId;
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode, Input, Output};
 use secp256k1::{Message, Secp256k1};
-use secp256k1::{RecoverableSignature, RecoveryId};
+// TODO: switch to normal signatures + explicit public key
+use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// reference counter in the sparse patricia merkle tree/trie
 pub type Count = u64;
 
-/// account state update counter
+/// StakedState update counter
 pub type Nonce = u64;
 
-/// account address type (TODO: enum?)
-pub type AccountAddress = RedeemAddress;
+/// StakedState address type (TODO: enum?)
+pub type StakedStateAddress = RedeemAddress;
 
-/// represents the account state (involved in staking)
+/// represents the StakedState (account involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-pub struct Account {
+pub struct StakedState {
     pub nonce: Nonce,
     pub bonded: Coin,
     pub unbonded: Coin,
     pub unbonded_from: Timespec,
-    pub address: AccountAddress,
+    pub address: StakedStateAddress,
     // TODO: slashing + jailing
 }
 
-/// the tree used in account storage db has a hardcoded 32-byte keys,
-/// this computes a key as blake2s(account.address) where
-/// the account address itself is ETH-style address (20 bytes from keccak hash of public key)
-pub fn to_account_key(address: &AccountAddress) -> [u8; HASH_SIZE_256] {
+/// the tree used in StakedState storage db has a hardcoded 32-byte keys,
+/// this computes a key as blake2s(StakedState.address) where
+/// the StakedState address itself is ETH-style address (20 bytes from keccak hash of public key)
+pub fn to_stake_key(address: &StakedStateAddress) -> [u8; HASH_SIZE_256] {
     hash256::<Blake2s>(address)
 }
 
-impl Default for Account {
+impl Default for StakedState {
     fn default() -> Self {
-        Account::new(0, Coin::zero(), Coin::zero(), 0, RedeemAddress::default())
+        StakedState::new(0, Coin::zero(), Coin::zero(), 0, RedeemAddress::default())
     }
 }
 
-impl Account {
-    /// creates a new account with given parameters
+impl StakedState {
+    /// creates a new StakedState with given parameters
     pub fn new(
         nonce: Nonce,
         bonded: Coin,
         unbonded: Coin,
         unbonded_from: Timespec,
-        address: AccountAddress,
+        address: StakedStateAddress,
     ) -> Self {
-        Account {
+        StakedState {
             nonce,
             bonded,
             unbonded,
@@ -66,15 +67,15 @@ impl Account {
         }
     }
 
-    /// creates a account at "genesis" (amount is either all bonded or unbonded depending on `bonded` argument)
+    /// creates a StakedState at "genesis" (amount is either all bonded or unbonded depending on `bonded` argument)
     pub fn new_init(
         amount: Coin,
         genesis_time: Timespec,
-        address: AccountAddress,
+        address: StakedStateAddress,
         bonded: bool,
     ) -> Self {
         if bonded {
-            Account {
+            StakedState {
                 nonce: 0,
                 bonded: amount,
                 unbonded: Coin::zero(),
@@ -82,7 +83,7 @@ impl Account {
                 address,
             }
         } else {
-            Account {
+            StakedState {
                 nonce: 0,
                 bonded: Coin::zero(),
                 unbonded: amount,
@@ -114,28 +115,28 @@ impl Account {
         self.unbonded = Coin::zero();
     }
 
-    /// the tree used in account storage db has a hardcoded 32-byte keys,
-    /// this computes a key as blake2s(account.address) where
-    /// the account address itself is ETH-style address (20 bytes from keccak hash of public key)
+    /// the tree used in StakedState storage db has a hardcoded 32-byte keys,
+    /// this computes a key as blake2s(StakedState.address) where
+    /// the StakedState address itself is ETH-style address (20 bytes from keccak hash of public key)
     pub fn key(&self) -> [u8; HASH_SIZE_256] {
-        to_account_key(&self.address)
+        to_stake_key(&self.address)
     }
 }
 
-/// attributes in account-related transactions
+/// attributes in StakedState-related transactions
 #[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
-pub struct AccountOpAttributes {
+pub struct StakedStateOpAttributes {
     pub chain_hex_id: u8,
     // TODO: Other attributes?
 }
 
-impl AccountOpAttributes {
+impl StakedStateOpAttributes {
     pub fn new(chain_hex_id: u8) -> Self {
-        AccountOpAttributes { chain_hex_id }
+        StakedStateOpAttributes { chain_hex_id }
     }
 }
 
-impl Encode for AccountOpAttributes {
+impl Encode for StakedStateOpAttributes {
     fn encode_to<W: Output>(&self, dest: &mut W) {
         dest.push_byte(0);
         dest.push_byte(1);
@@ -143,27 +144,27 @@ impl Encode for AccountOpAttributes {
     }
 }
 
-impl Decode for AccountOpAttributes {
+impl Decode for StakedStateOpAttributes {
     fn decode<I: Input>(input: &mut I) -> Option<Self> {
         let tag = input.read_byte()?;
         let constructor_len = input.read_byte()?;
         match (tag, constructor_len) {
             (0, 1) => {
                 let chain_hex_id: u8 = input.read_byte()?;
-                Some(AccountOpAttributes { chain_hex_id })
+                Some(StakedStateOpAttributes { chain_hex_id })
             }
             _ => None,
         }
     }
 }
 
-/// takes UTXOs inputs, deposits them in the specified account's bonded amount - fee
-/// (updates account's bonded + nonce)
+/// takes UTXOs inputs, deposits them in the specified StakedState's bonded amount - fee
+/// (updates StakedState's bonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct DepositBondTx {
     pub inputs: Vec<TxoPointer>,
-    pub to_account: AccountAddress,
-    pub attributes: AccountOpAttributes,
+    pub to_staked_account: StakedStateAddress,
+    pub attributes: StakedStateOpAttributes,
 }
 
 impl TransactionId for DepositBondTx {}
@@ -171,12 +172,12 @@ impl TransactionId for DepositBondTx {}
 impl DepositBondTx {
     pub fn new(
         inputs: Vec<TxoPointer>,
-        to_account: AccountAddress,
-        attributes: AccountOpAttributes,
+        to_staked_account: StakedStateAddress,
+        attributes: StakedStateOpAttributes,
     ) -> Self {
         DepositBondTx {
             inputs,
-            to_account,
+            to_staked_account,
             attributes,
         }
     }
@@ -187,24 +188,24 @@ impl fmt::Display for DepositBondTx {
         for input in self.inputs.iter() {
             writeln!(f, "-> {}", input)?;
         }
-        writeln!(f, "   {} (bonded) ->", self.to_account)?;
+        writeln!(f, "   {} (bonded) ->", self.to_staked_account)?;
         write!(f, "")
     }
 }
 
-/// updates the account (TODO: implicit from the witness?) by moving some of the bonded amount - fee into unbonded,
+/// updates the StakedState (TODO: implicit from the witness?) by moving some of the bonded amount - fee into unbonded,
 /// and setting the unbonded_from to last_block_time+min_unbonding_time (network parameter)
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct UnbondTx {
     pub value: Coin,
     pub nonce: Nonce,
-    pub attributes: AccountOpAttributes,
+    pub attributes: StakedStateOpAttributes,
 }
 
 impl TransactionId for UnbondTx {}
 
 impl UnbondTx {
-    pub fn new(value: Coin, nonce: Nonce, attributes: AccountOpAttributes) -> Self {
+    pub fn new(value: Coin, nonce: Nonce, attributes: StakedStateOpAttributes) -> Self {
         UnbondTx {
             value,
             nonce,
@@ -220,8 +221,8 @@ impl fmt::Display for UnbondTx {
     }
 }
 
-/// takes the account (TODO: implicit from the witness?) and creates UTXOs
-/// (update's account's unbonded + nonce)
+/// takes the StakedState (TODO: implicit from the witness?) and creates UTXOs
+/// (update's StakedState's unbonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct WithdrawUnbondedTx {
     pub nonce: Nonce,
@@ -258,14 +259,14 @@ impl fmt::Display for WithdrawUnbondedTx {
     }
 }
 
-/// A witness for account operations
+/// A witness for StakedState operations
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
-pub struct AccountOpWitness(EcdsaSignature);
+pub struct StakedStateOpWitness(EcdsaSignature);
 
-impl AccountOpWitness {
+impl StakedStateOpWitness {
     pub fn new(sig: EcdsaSignature) -> Self {
-        AccountOpWitness(sig)
+        StakedStateOpWitness(sig)
     }
 
     /// verify the signature against the given transation `Tx`
@@ -274,7 +275,7 @@ impl AccountOpWitness {
     pub fn verify_tx_recover_address(
         &self,
         txid: &TxId,
-    ) -> Result<AccountAddress, secp256k1::Error> {
+    ) -> Result<StakedStateAddress, secp256k1::Error> {
         let secp = Secp256k1::verification_only();
         let message = Message::from_slice(txid)?;
         let pk = secp.recover(&message, &self.0)?;
@@ -283,7 +284,7 @@ impl AccountOpWitness {
     }
 }
 
-impl Encode for AccountOpWitness {
+impl Encode for StakedStateOpWitness {
     fn encode_to<W: Output>(&self, dest: &mut W) {
         let (recovery_id, serialized_sig) = self.0.serialize_compact();
         // recovery_id is one of 0 | 1 | 2 | 3
@@ -293,12 +294,12 @@ impl Encode for AccountOpWitness {
     }
 }
 
-impl Decode for AccountOpWitness {
+impl Decode for StakedStateOpWitness {
     fn decode<I: Input>(input: &mut I) -> Option<Self> {
         let rid: u8 = input.read_byte()?;
         let raw_sig = RawSignature::decode(input)?;
         let recovery_id = RecoveryId::from_i32(i32::from(rid)).ok()?;
         let sig = RecoverableSignature::from_compact(&raw_sig, recovery_id).ok()?;
-        Some(AccountOpWitness(sig))
+        Some(StakedStateOpWitness(sig))
     }
 }

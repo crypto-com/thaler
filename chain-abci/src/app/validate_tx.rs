@@ -1,7 +1,7 @@
 use super::ChainNodeApp;
 use crate::storage::tx::{verify, ChainInfo};
 use abci::*;
-use chain_core::state::account::Account;
+use chain_core::state::account::StakedState;
 use chain_core::tx::fee::{Fee, FeeAlgorithm};
 use chain_core::tx::TxAux;
 use parity_codec::Decode;
@@ -51,12 +51,12 @@ impl ResponseWithCodeAndLog for ResponseDeliverTx {
 
 impl ChainNodeApp {
     /// Gets CheckTx or DeliverTx requests, tries to parse its data into TxAux and validate that TxAux.
-    /// Returns Some(parsed txaux) if OK, or None if some problems (and sets log + error code in the passed in response).
+    /// Returns Some(parsed txaux, (paid fee, updated staking account)) if OK, or None if some problems (and sets log + error code in the passed in response).
     pub fn validate_tx_req(
         &self,
         _req: &dyn RequestWithTx,
         resp: &mut dyn ResponseWithCodeAndLog,
-    ) -> Option<(TxAux, (Fee, Option<Account>))> {
+    ) -> Option<(TxAux, (Fee, Option<StakedState>))> {
         let data = Vec::from(_req.tx());
         let dtx = TxAux::decode(&mut data.as_slice());
         match dtx {

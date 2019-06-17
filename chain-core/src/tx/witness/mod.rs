@@ -4,9 +4,10 @@ pub mod tree;
 use std::fmt;
 
 use parity_codec::{Decode, Encode, Input, Output};
+// TODO: switch to normal signatures + explicit public key
 use secp256k1::{
-    self, key::PublicKey, schnorrsig::schnorr_verify, schnorrsig::SchnorrSignature, Message,
-    RecoverableSignature, RecoveryId, Secp256k1,
+    self, key::PublicKey, recovery::RecoverableSignature, recovery::RecoveryId,
+    schnorrsig::schnorr_verify, schnorrsig::SchnorrSignature, Message, Secp256k1,
 };
 
 use crate::common::Proof;
@@ -217,7 +218,8 @@ pub mod tests {
         let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
         let session_id1 = MuSigSessionID::from_slice(&[0x01; 32]).expect("32 bytes");
         let session_id2 = MuSigSessionID::from_slice(&[0x02; 32]).expect("32 bytes");
-        let (pk, pk_hash) = pubkey_combine(secp, &vec![pk1, pk2]).expect("combined pk");
+        let (pk, pk_hash) =
+            pubkey_combine(secp, &vec![pk1.clone(), pk2.clone()]).expect("combined pk");
         let mut session1 = MuSigSession::new(
             secp,
             session_id1,
@@ -247,9 +249,13 @@ pub mod tests {
             session2.get_public_nonce().unwrap(),
         ];
         for i in 0..nonces.len() {
-            let nonce = nonces[i];
-            session1.set_nonce(i, nonce).expect("nonce in session1");
-            session2.set_nonce(i, nonce).expect("nonce in session2");
+            let nonce = &nonces[i];
+            session1
+                .set_nonce(i, nonce.clone())
+                .expect("nonce in session1");
+            session2
+                .set_nonce(i, nonce.clone())
+                .expect("nonce in session2");
         }
         session1.combine_nonces().expect("combined nonces session1");
         session2.combine_nonces().expect("combined nonces session2");
@@ -294,9 +300,15 @@ pub mod tests {
         let pk2 = PublicKey::from_secret_key(&secp, &secret_key2);
         let pk3 = PublicKey::from_secret_key(&secp, &secret_key3);
 
-        let pkc1 = pubkey_combine(&secp, &vec![pk1, pk2]).unwrap().0;
-        let pkc2 = pubkey_combine(&secp, &vec![pk1, pk3]).unwrap().0;
-        let pkc3 = pubkey_combine(&secp, &vec![pk2, pk3]).unwrap().0;
+        let pkc1 = pubkey_combine(&secp, &vec![pk1.clone(), pk2.clone()])
+            .unwrap()
+            .0;
+        let pkc2 = pubkey_combine(&secp, &vec![pk1.clone(), pk3.clone()])
+            .unwrap()
+            .0;
+        let pkc3 = pubkey_combine(&secp, &vec![pk2.clone(), pk3.clone()])
+            .unwrap()
+            .0;
 
         let public_keys: Vec<RawPubkey> = vec![pkc1, pkc2, pkc3]
             .iter()

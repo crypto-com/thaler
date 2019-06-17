@@ -1,5 +1,5 @@
 use chain_core::common::hash256;
-use chain_core::common::merkle::Hash256;
+use chain_core::common::H256;
 use chain_core::tx::data::TxId;
 
 use blake2::Blake2s;
@@ -14,12 +14,8 @@ use std::marker::PhantomData;
 /// is a bit of a pain because of the generic Serialization/Deserialization.
 /// TODO: consider moving to merkle.rs when binary serialization is finalized and possibly custom (de-)serializers are written
 pub enum GenericMerkleNode<D: Digest> {
-    Branch(
-        Hash256,
-        Box<GenericMerkleNode<D>>,
-        Box<GenericMerkleNode<D>>,
-    ),
-    Leaf(Hash256, PhantomData<D>),
+    Branch(H256, Box<GenericMerkleNode<D>>, Box<GenericMerkleNode<D>>),
+    Leaf(H256, PhantomData<D>),
 }
 
 impl<D: Digest> GenericMerkleNode<D> {
@@ -39,7 +35,7 @@ impl<D: Digest> GenericMerkleNode<D> {
         }
     }
 
-    fn get_root_hash(&self) -> &Hash256 {
+    fn get_root_hash(&self) -> &H256 {
         match self {
             GenericMerkleNode::Branch(hash, _, _) => hash,
             GenericMerkleNode::Leaf(hash, _) => hash,

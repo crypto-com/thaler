@@ -11,7 +11,7 @@ use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::init::config::{AccountType, InitNetworkParameters, InitialValidator};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
-use chain_core::state::account::Account;
+use chain_core::state::account::StakedState;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chrono::offset::Utc;
 use chrono::DateTime;
@@ -101,7 +101,7 @@ impl GenesisCommand {
             let mut account_tree =
                 AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db");
 
-            let keys: Vec<StarlingFixedKey> = accounts.iter().map(Account::key).collect();
+            let keys: Vec<StarlingFixedKey> = accounts.iter().map(StakedState::key).collect();
             // TODO: get rid of the extra allocations
             let wrapped: Vec<AccountWrapper> =
                 accounts.iter().map(|x| AccountWrapper(x.clone())).collect();

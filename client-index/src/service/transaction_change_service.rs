@@ -9,11 +9,11 @@ const KEYSPACE: &str = "index_address";
 ///
 /// Stores `address -> [tx_changes]` mapping
 #[derive(Default, Clone)]
-pub struct AddressService<S: Storage> {
+pub struct TransactionChangeService<S: Storage> {
     storage: S,
 }
 
-impl<S> AddressService<S>
+impl<S> TransactionChangeService<S>
 where
     S: Storage,
 {
@@ -66,7 +66,7 @@ mod tests {
 
     #[test]
     fn check_flow() {
-        let address_service = AddressService::new(MemoryStorage::default());
+        let transaction_change_service = TransactionChangeService::new(MemoryStorage::default());
         let address = ExtendedAddr::BasicRedeem(Default::default());
         let transaction_change = TransactionChange {
             transaction_id: txid_hash(&[0, 1, 2]),
@@ -78,12 +78,14 @@ mod tests {
             time: DateTime::from(SystemTime::now()),
         };
 
-        assert_eq!(0, address_service.get(&address).unwrap().len());
-        assert!(address_service.add(transaction_change.clone()).is_ok());
-        assert_eq!(1, address_service.get(&address).unwrap().len());
-        assert!(address_service.add(transaction_change).is_ok());
-        assert_eq!(2, address_service.get(&address).unwrap().len());
-        assert!(address_service.clear().is_ok());
-        assert_eq!(0, address_service.get(&address).unwrap().len());
+        assert_eq!(0, transaction_change_service.get(&address).unwrap().len());
+        assert!(transaction_change_service
+            .add(transaction_change.clone())
+            .is_ok());
+        assert_eq!(1, transaction_change_service.get(&address).unwrap().len());
+        assert!(transaction_change_service.add(transaction_change).is_ok());
+        assert_eq!(2, transaction_change_service.get(&address).unwrap().len());
+        assert!(transaction_change_service.clear().is_ok());
+        assert_eq!(0, transaction_change_service.get(&address).unwrap().len());
     }
 }

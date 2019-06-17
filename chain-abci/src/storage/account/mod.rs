@@ -2,7 +2,7 @@
 mod tree;
 
 use crate::storage::Storage;
-use chain_core::state::account::Account;
+use chain_core::state::account::StakedState;
 use parity_codec::{Decode as ScaleDecode, Encode as ScaleEncode};
 use starling::constants::KEY_LEN;
 use starling::traits::{Database, Decode, Encode, Exception};
@@ -14,7 +14,7 @@ use std::sync::Arc;
 pub type AccountStorage = tree::HashTree<AccountWrapper, Storage>;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct AccountWrapper(pub Account);
+pub struct AccountWrapper(pub StakedState);
 
 impl Encode for AccountWrapper {
     #[inline]
@@ -27,7 +27,7 @@ impl Decode for AccountWrapper {
     #[inline]
     fn decode(buffer: &[u8]) -> Result<Self, Exception> {
         let data = Vec::from(buffer);
-        let account = Account::decode(&mut data.as_slice())
+        let account = StakedState::decode(&mut data.as_slice())
             .ok_or_else(|| Exception::new("failed to decode"))?;
         Ok(AccountWrapper(account))
     }
@@ -86,7 +86,7 @@ mod test {
     use super::*;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::state::account::Account;
+    use chain_core::state::account::StakedState;
     use kvdb_memorydb::create;
     use std::sync::Arc;
 
@@ -97,7 +97,7 @@ mod test {
     #[test]
     fn test_account_insert_can_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = Account::default();
+        let account = StakedState::default();
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
@@ -110,14 +110,14 @@ mod test {
     #[test]
     fn test_account_update_can_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = Account::default();
+        let account = StakedState::default();
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree
             .insert(None, &mut [&key], &mut vec![&wrapped])
             .expect("insert");
         let updated_account =
-            Account::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
+            StakedState::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
         let wrapped_updated = AccountWrapper(updated_account);
         assert_ne!(wrapped, wrapped_updated);
         let new_root = tree
@@ -133,14 +133,14 @@ mod test {
     #[test]
     fn test_account_remove_cannot_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = Account::default();
+        let account = StakedState::default();
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree
             .insert(None, &mut [&key], &mut vec![&wrapped])
             .expect("insert");
         let updated_account =
-            Account::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
+            StakedState::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
         let wrapped_updated = AccountWrapper(updated_account);
         let new_root = tree
             .insert(Some(&old_root), &mut [&key], &mut vec![&wrapped_updated])
