@@ -13,6 +13,9 @@ chrono = { version = "0.4", features = ["serde"] }
 jsonrpc = { version = "0.11", optional = true }
 base64 = "0.10"
 
+[dev-dependencies]
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "a1e70e1f0bb65d3a97f100f79d99c85395d897f8", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
+
 [features]
 default = ["sled", "rpc"]
 sled = ["client-common/sled"]

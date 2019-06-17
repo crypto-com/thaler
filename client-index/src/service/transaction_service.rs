@@ -1,12 +1,13 @@
-use chain_core::tx::data::{Tx, TxId};
-use client_common::{Result, Storage};
 use parity_codec::{Decode, Encode};
+
+use chain_core::tx::data::TxId;
+use client_common::{Result, Storage, Transaction};
 
 const KEYSPACE: &str = "index_transaction";
 
 /// Exposes functionalities for managing transactions
 ///
-/// Stores `tx_id -> tx` mapping
+/// Stores `transaction_id -> transaction` mapping
 #[derive(Default, Clone)]
 pub struct TransactionService<S: Storage> {
     storage: S,
@@ -22,17 +23,17 @@ where
     }
 
     /// Retrieves transaction with given id
-    pub fn get(&self, id: &TxId) -> Result<Option<Tx>> {
+    pub fn get(&self, id: &TxId) -> Result<Option<Transaction>> {
         let transaction = self
             .storage
             .get(KEYSPACE, id)?
-            .and_then(|bytes| Tx::decode(&mut bytes.as_slice()));
+            .and_then(|bytes| Transaction::decode(&mut bytes.as_slice()));
 
         Ok(transaction)
     }
 
     /// Sets transaction with given id and value
-    pub fn set(&self, id: &TxId, transaction: &Tx) -> Result<()> {
+    pub fn set(&self, id: &TxId, transaction: &Transaction) -> Result<()> {
         self.storage.set(KEYSPACE, id, transaction.encode())?;
 
         Ok(())
@@ -48,13 +49,14 @@ where
 mod tests {
     use super::*;
 
+    use chain_core::tx::data::Tx;
     use client_common::storage::MemoryStorage;
 
     #[test]
     fn check_flow() {
         let transaction_service = TransactionService::new(MemoryStorage::default());
         let id = [0u8; 32];
-        let transaction = Tx::default();
+        let transaction = Transaction::TransferTransaction(Tx::default());
 
         assert_eq!(None, transaction_service.get(&id).unwrap());
         assert!(transaction_service.set(&id, &transaction).is_ok());
