@@ -11,7 +11,7 @@ use chain_core::compute_app_hash;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
-use chain_core::state::account::{Account, AccountAddress};
+use chain_core::state::account::{StakedState, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintVotePower};
 use chain_core::state::CouncilNode;
 use chain_core::state::RewardsPoolState;
@@ -63,11 +63,11 @@ pub struct ChainNodeApp {
     /// last application state snapshot (if any)
     pub last_state: Option<ChainNodeState>,
     /// validator voting power
-    pub validator_voting_power: BTreeMap<AccountAddress, TendermintVotePower>,
+    pub validator_voting_power: BTreeMap<StakedStateAddress, TendermintVotePower>,
     /// validator public keys
-    pub validator_pubkeys: BTreeMap<AccountAddress, PubKey>,
+    pub validator_pubkeys: BTreeMap<StakedStateAddress, PubKey>,
     /// validator addresses whose bonded amount changed in the current block
-    pub power_changed_in_block: BTreeMap<AccountAddress, TendermintVotePower>,
+    pub power_changed_in_block: BTreeMap<StakedStateAddress, TendermintVotePower>,
 }
 
 impl ChainNodeApp {
@@ -83,8 +83,8 @@ impl ChainNodeApp {
         accounts: &AccountStorage,
         last_app_state: &ChainNodeState,
     ) -> (
-        BTreeMap<AccountAddress, TendermintVotePower>,
-        BTreeMap<AccountAddress, PubKey>,
+        BTreeMap<StakedStateAddress, TendermintVotePower>,
+        BTreeMap<StakedStateAddress, PubKey>,
     ) {
         let mut validator_voting_power = BTreeMap::new();
         let mut validator_pubkeys = BTreeMap::new();
@@ -323,7 +323,7 @@ impl ChainNodeApp {
 
             let tx_tree = MerkleTree::empty();
 
-            let keys: Vec<StarlingFixedKey> = accounts.iter().map(Account::key).collect();
+            let keys: Vec<StarlingFixedKey> = accounts.iter().map(StakedState::key).collect();
             // TODO: get rid of the extra allocations
             let wrapped: Vec<AccountWrapper> =
                 accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
