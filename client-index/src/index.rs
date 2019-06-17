@@ -9,9 +9,9 @@ use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::{Tx, TxId};
+use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
-use client_common::Result;
+use client_common::{Result, Transaction};
 
 /// Interface for interacting with transaction index
 pub trait Index: Send + Sync {
@@ -31,7 +31,7 @@ pub trait Index: Send + Sync {
     fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, TxOut)>>;
 
     /// Returns transaction with given id
-    fn transaction(&self, id: &TxId) -> Result<Option<Tx>>;
+    fn transaction(&self, id: &TxId) -> Result<Option<Transaction>>;
 
     /// Returns output of transaction with given id and index
     fn output(&self, id: &TxId, index: usize) -> Result<TxOut>;

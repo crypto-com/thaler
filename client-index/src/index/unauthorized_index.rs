@@ -2,9 +2,9 @@ use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::{Tx, TxId};
+use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
-use client_common::{ErrorKind, Result};
+use client_common::{ErrorKind, Result, Transaction};
 
 use crate::Index;
 
@@ -33,7 +33,7 @@ impl Index for UnauthorizedIndex {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn transaction(&self, _id: &TxId) -> Result<Option<Tx>> {
+    fn transaction(&self, _id: &TxId) -> Result<Option<Transaction>> {
         Err(ErrorKind::PermissionDenied.into())
     }
 
