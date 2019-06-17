@@ -13,7 +13,7 @@ use crate::storage::account::AccountWrapper;
 use crate::storage::tx::StarlingFixedKey;
 use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
-use chain_core::state::account::Account;
+use chain_core::state::account::StakedState;
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::TxAux;
@@ -42,10 +42,10 @@ pub fn spend_utxos(txins: &[TxoPointer], db: Arc<dyn KeyValueDB>, dbtx: &mut DBT
 /// Given the Account state storage and the current / uncommitted account storage root,
 /// it inserts the updated account state into the account storage and returns the new root hash of the account state trie.
 pub fn update_account(
-    account: Account,
+    account: StakedState,
     account_root_hash: &StarlingFixedKey,
     accounts: &mut AccountStorage,
-) -> (StarlingFixedKey, Option<Account>) {
+) -> (StarlingFixedKey, Option<StakedState>) {
     (
         accounts
             .insert(

@@ -11,7 +11,7 @@ use parity_codec::{Decode, Encode};
 
 use self::data::Tx;
 use self::witness::TxWitness;
-use crate::state::account::{AccountOpWitness, DepositBondTx, UnbondTx, WithdrawUnbondedTx};
+use crate::state::account::{DepositBondTx, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx};
 use crate::tx::data::{txid_hash, TxId};
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
@@ -22,9 +22,9 @@ pub enum TxAux {
     /// Tx "spends" utxos to be deposited as bonded stake in an account (witnesses as in transfer)
     DepositStakeTx(DepositBondTx, TxWitness),
     /// Tx that modifies account state -- moves some bonded stake into unbonded (witness for account)
-    UnbondStakeTx(UnbondTx, AccountOpWitness),
+    UnbondStakeTx(UnbondTx, StakedStateOpWitness),
     /// Tx that "creates" utxos out of account state; withdraws unbonded stake (witness for account)
-    WithdrawUnbondedStakeTx(WithdrawUnbondedTx, AccountOpWitness),
+    WithdrawUnbondedStakeTx(WithdrawUnbondedTx, StakedStateOpWitness),
 }
 
 pub trait TransactionId: Encode {

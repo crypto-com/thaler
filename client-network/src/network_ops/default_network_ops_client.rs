@@ -1,6 +1,6 @@
 use secstr::SecUtf8;
 
-use chain_core::state::account::{AccountOpWitness, WithdrawUnbondedTx};
+use chain_core::state::account::{StakedStateOpWitness, WithdrawUnbondedTx};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
@@ -60,7 +60,7 @@ where
 
                 let signature = private_key
                     .sign(transaction.id())
-                    .map(AccountOpWitness::new)?;
+                    .map(StakedStateOpWitness::new)?;
 
                 Ok(TxAux::WithdrawUnbondedStakeTx(transaction, signature))
             }

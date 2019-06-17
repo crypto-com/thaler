@@ -171,7 +171,8 @@ fn prepare_app_valid_txs(upper: u8) -> (ChainNodeApp, Vec<TxAux>) {
             ),
         );
 
-        let witness = AccountOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_keys[i]));
+        let witness =
+            StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_keys[i]));
         let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness);
         txs.push(txaux)
     }

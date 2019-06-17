@@ -6,7 +6,7 @@ use crate::common::Timespec;
 use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::init::MAX_COIN;
-use crate::state::account::Account;
+use crate::state::account::StakedState;
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::CouncilNode;
 use crate::state::RewardsPoolState;
@@ -188,14 +188,14 @@ impl InitConfig {
         &self,
         genesis_time: Timespec,
         validator_addresses: HashSet<RedeemAddress>,
-    ) -> (Vec<Account>, RewardsPoolState) {
+    ) -> (Vec<StakedState>, RewardsPoolState) {
         let mut rewards_pool_amount: u64 = 0;
         let mut accounts = Vec::with_capacity(self.distribution.len());
         for (address, (amount, address_type)) in self.distribution.iter() {
             if self.is_rewards_pool_address(address) || *address_type == AccountType::Contract {
                 rewards_pool_amount += u64::from(*amount);
             } else {
-                accounts.push(Account::new_init(
+                accounts.push(StakedState::new_init(
                     *amount,
                     genesis_time,
                     *address,
@@ -221,7 +221,7 @@ impl InitConfig {
     pub fn validate_config_get_genesis(
         &self,
         genesis_time: Timespec,
-    ) -> Result<(Vec<Account>, RewardsPoolState, Vec<CouncilNode>), DistributionError> {
+    ) -> Result<(Vec<StakedState>, RewardsPoolState, Vec<CouncilNode>), DistributionError> {
         self.check_address(&self.launch_incentive_from)?;
         self.check_address(&self.launch_incentive_to)?;
         self.check_address(&self.long_term_incentive)?;

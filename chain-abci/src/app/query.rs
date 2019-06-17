@@ -3,7 +3,7 @@ use crate::storage::tx::get_account;
 use crate::storage::*;
 use abci::*;
 use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
-use chain_core::state::account::AccountAddress;
+use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
 use parity_codec::{Decode, Encode};
@@ -115,7 +115,7 @@ impl ChainNodeApp {
                 );
             }
             "account" => {
-                let account_address = AccountAddress::try_from(&_req.data);
+                let account_address = StakedStateAddress::try_from(&_req.data);
                 if let (Some(state), Ok(address)) = (&self.last_state, account_address) {
                     let account =
                         get_account(&address, &state.last_account_root_hash, &self.accounts);

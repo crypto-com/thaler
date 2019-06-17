@@ -5,7 +5,7 @@ use bit_vec::BitVec;
 use chain_core::common::Timespec;
 use chain_core::init::coin::{Coin, CoinError};
 use chain_core::state::account::{
-    to_account_key, Account, AccountAddress, AccountOpWitness, DepositBondTx, UnbondTx,
+    to_stake_key, DepositBondTx, StakedState, StakedStateAddress, StakedStateOpWitness, UnbondTx,
     WithdrawUnbondedTx,
 };
 use chain_core::tx::data::input::TxoPointer;
@@ -259,7 +259,7 @@ fn verify_bonded_deposit(
     extra_info: ChainInfo,
     db: Arc<dyn KeyValueDB>,
     accounts: &AccountStorage,
-) -> Result<(Fee, Option<Account>), Error> {
+) -> Result<(Fee, Option<StakedState>), Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_inputs_basic(&maintx.inputs, witness)?;
     let incoins = check_inputs_lookup(&maintx.id(), &maintx.inputs, witness, &extra_info, db)?;
@@ -269,7 +269,7 @@ fn verify_bonded_deposit(
     let deposit_amount = (incoins - extra_info.min_fee_computed.to_coin()).expect("init");
     // TODO: check account not jailed etc.?
     let maccount = get_account(
-        &maintx.to_account,
+        &maintx.to_staked_account,
         &extra_info.last_account_root_hash,
         accounts,
     );
@@ -278,10 +278,10 @@ fn verify_bonded_deposit(
             a.deposit(deposit_amount);
             Ok(a)
         }
-        Err(Error::AccountNotFound) => Ok(Account::new_init(
+        Err(Error::AccountNotFound) => Ok(StakedState::new_init(
             deposit_amount,
             extra_info.previous_block_time,
-            maintx.to_account,
+            maintx.to_staked_account,
             true,
         )),
         e => e,
@@ -291,11 +291,11 @@ fn verify_bonded_deposit(
 
 /// checks that the account can be retrieved from the trie storage
 pub fn get_account(
-    account_address: &AccountAddress,
+    account_address: &StakedStateAddress,
     last_root: &StarlingFixedKey,
     accounts: &AccountStorage,
-) -> Result<Account, Error> {
-    let account_key = to_account_key(account_address);
+) -> Result<StakedState, Error> {
+    let account_key = to_stake_key(account_address);
     let items = accounts.get(last_root, &mut [&account_key]);
     if let Err(e) = items {
         return Err(Error::AccountLookupError(e));
@@ -309,10 +309,10 @@ pub fn get_account(
 
 fn verify_unbonding(
     maintx: &UnbondTx,
-    witness: &AccountOpWitness,
+    witness: &StakedStateOpWitness,
     extra_info: ChainInfo,
     accounts: &AccountStorage,
-) -> Result<(Fee, Option<Account>), Error> {
+) -> Result<(Fee, Option<StakedState>), Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     let account_address = witness.verify_tx_recover_address(&maintx.id());
     if let Err(e) = account_address {
@@ -343,10 +343,10 @@ fn verify_unbonding(
 
 fn verify_unbonded_withdraw(
     maintx: &WithdrawUnbondedTx,
-    witness: &AccountOpWitness,
+    witness: &StakedStateOpWitness,
     extra_info: ChainInfo,
     accounts: &AccountStorage,
-) -> Result<(Fee, Option<Account>), Error> {
+) -> Result<(Fee, Option<StakedState>), Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_outputs_basic(&maintx.outputs)?;
     let account_address = witness.verify_tx_recover_address(&maintx.id());
@@ -394,7 +394,7 @@ pub fn verify(
     extra_info: ChainInfo,
     db: Arc<dyn KeyValueDB>,
     accounts: &AccountStorage,
-) -> Result<(Fee, Option<Account>), Error> {
+) -> Result<(Fee, Option<StakedState>), Error> {
     let paid_fee = match txaux {
         TxAux::TransferTx(maintx, witness) => {
             (verify_transfer(maintx, witness, extra_info, db)?, None)
@@ -417,7 +417,7 @@ pub mod tests {
     use super::*;
     use crate::storage::{Storage, COL_TX_META, NUM_COLUMNS};
     use chain_core::init::address::RedeemAddress;
-    use chain_core::state::account::AccountOpAttributes;
+    use chain_core::state::account::StakedStateOpAttributes;
     use chain_core::tx::data::{
         address::ExtendedAddr, attribute::TxAttributes, input::TxoPointer, output::TxOut,
     };
@@ -444,10 +444,10 @@ pub mod tests {
         secp: Secp256k1<C>,
         txid: &TxId,
         secret_key: &SecretKey,
-    ) -> AccountOpWitness {
+    ) -> StakedStateOpWitness {
         let message = Message::from_slice(&txid[..]).expect("32 bytes");
         let sig = secp.sign_recoverable(&message, &secret_key);
-        return AccountOpWitness::new(sig);
+        return StakedStateOpWitness::new(sig);
     }
 
     fn create_db() -> Arc<dyn KeyValueDB> {
@@ -533,7 +533,7 @@ pub mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
         let addr = RedeemAddress::from(&public_key);
-        let account = Account::new(1, Coin::one(), Coin::zero(), 0, addr);
+        let account = StakedState::new(1, Coin::one(), Coin::zero(), 0, addr);
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
@@ -542,7 +542,7 @@ pub mod tests {
         let tx = UnbondTx::new(
             Coin::new(9).unwrap(),
             1,
-            AccountOpAttributes::new(DEFAULT_CHAIN_ID),
+            StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
         );
         let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
         let txaux = TxAux::UnbondStakeTx(tx.clone(), witness.clone());
@@ -633,7 +633,7 @@ pub mod tests {
     ) -> (
         TxAux,
         WithdrawUnbondedTx,
-        AccountOpWitness,
+        StakedStateOpWitness,
         SecretKey,
         AccountStorage,
         StarlingFixedKey,
@@ -644,7 +644,7 @@ pub mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
         let addr = RedeemAddress::from(&public_key);
-        let account = Account::new(1, Coin::zero(), Coin::one(), unbonded_from, addr);
+        let account = StakedState::new(1, Coin::zero(), Coin::one(), unbonded_from, addr);
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
@@ -805,7 +805,7 @@ pub mod tests {
         let tx = DepositBondTx::new(
             vec![txp],
             RedeemAddress::from(&pk2),
-            AccountOpAttributes::new(DEFAULT_CHAIN_ID),
+            StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
         );
 
         let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx.id(), &secret_key)];
