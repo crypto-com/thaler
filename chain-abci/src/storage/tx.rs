@@ -15,6 +15,7 @@ use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TransactionId;
 use chain_core::tx::{data::Tx, TxAux};
+use chain_tx_validation::witness::verify_tx_address;
 use kvdb::KeyValueDB;
 use parity_codec::{Decode, Encode};
 use secp256k1;
@@ -176,7 +177,7 @@ fn check_inputs_lookup(
                     }
                 }
 
-                let wv = in_witness.verify_tx_address(main_txid, &txout.address);
+                let wv = verify_tx_address(&in_witness, main_txid, &txout.address);
                 if let Err(e) = wv {
                     return Err(Error::EcdsaCrypto(e));
                 }

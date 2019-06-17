@@ -510,6 +510,7 @@ mod tests {
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::witness::TxInWitness;
     use chain_core::tx::TransactionId;
+    use chain_tx_validation::witness::verify_tx_address;
     use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
 
@@ -1276,9 +1277,7 @@ mod tests {
 
         let witness = TxInWitness::TreeSig(signature, proof);
 
-        assert!(witness
-            .verify_tx_address(&transaction.id(), &multi_sig_address)
-            .is_ok())
+        assert!(verify_tx_address(&witness, &transaction.id(), &multi_sig_address).is_ok())
     }
 
     #[test]
@@ -1329,8 +1328,6 @@ mod tests {
 
         let witness = TxInWitness::TreeSig(signature, proof);
 
-        assert!(witness
-            .verify_tx_address(&transaction.id(), &tree_address)
-            .is_ok())
+        assert!(verify_tx_address(&witness, &transaction.id(), &tree_address).is_ok())
     }
 }
