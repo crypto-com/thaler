@@ -198,7 +198,7 @@ mod tests {
     use chain_core::tx::TxAux;
     use client_common::balance::{BalanceChange, TransactionChange};
     use client_common::storage::MemoryStorage;
-    use client_common::{Error, ErrorKind, Result};
+    use client_common::{Error, ErrorKind, Result, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
@@ -237,15 +237,15 @@ mod tests {
             Ok(Vec::new())
         }
 
-        fn transaction(&self, _: &TxId) -> Result<Option<Tx>> {
-            Ok(Some(Tx {
+        fn transaction(&self, _: &TxId) -> Result<Option<Transaction>> {
+            Ok(Some(Transaction::TransferTransaction(Tx {
                 inputs: vec![TxoPointer {
                     id: [0u8; 32],
                     index: 1,
                 }],
                 outputs: Default::default(),
                 attributes: TxAttributes::new(171),
-            }))
+            })))
         }
 
         fn output(&self, _id: &TxId, _index: usize) -> Result<TxOut> {

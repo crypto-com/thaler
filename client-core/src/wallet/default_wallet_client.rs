@@ -512,6 +512,7 @@ mod tests {
     use chain_core::tx::TransactionId;
     use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
+    use client_common::Transaction;
 
     use crate::signer::DefaultSigner;
     use crate::transaction_builder::DefaultTransactionBuilder;
@@ -665,7 +666,7 @@ mod tests {
             }
         }
 
-        fn transaction(&self, _: &TxId) -> Result<Option<Tx>> {
+        fn transaction(&self, _: &TxId) -> Result<Option<Transaction>> {
             unreachable!();
         }
 
