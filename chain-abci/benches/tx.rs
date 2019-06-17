@@ -1,11 +1,20 @@
 use abci::{Application, RequestCheckTx, RequestInitChain};
 use chain_abci::app::ChainNodeApp;
+use chain_abci::storage::account::AccountStorage;
+use chain_abci::storage::account::AccountWrapper;
+use chain_abci::storage::tx::StarlingFixedKey;
 use chain_abci::storage::{Storage, NUM_COLUMNS};
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
+use chain_core::init::config::AccountType;
+use chain_core::init::config::InitNetworkParameters;
+use chain_core::init::config::{InitialValidator, ValidatorKeyType};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
+use chain_core::state::account::*;
 use chain_core::tx::fee::{LinearFee, Milli};
+use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::witness::TxInWitness;
+use chain_core::tx::TransactionId;
 use chain_core::tx::{
     data::{
         access::{TxAccess, TxAccessPolicy},
@@ -33,52 +42,103 @@ fn create_db() -> Arc<dyn KeyValueDB> {
     Arc::new(create(NUM_COLUMNS.unwrap()))
 }
 
-const TEST_CHAIN_ID: &str = "test-00";
-
-pub fn get_tx_witness<C: Signing>(
-    secp: &Secp256k1<C>,
-    tx: &Tx,
-    secret_key: &SecretKey,
-) -> TxInWitness {
-    let message = Message::from_slice(&tx.id()).expect("32 bytes");
-    let sig = secp.sign_recoverable(&message, &secret_key);
-    return TxInWitness::BasicRedeem(sig);
+fn create_account_db() -> AccountStorage {
+    AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db")
 }
 
-fn init_chain_for(addresses: &Vec<RedeemAddress>) -> (ChainNodeApp, Vec<TxId>) {
-    let db = create_db();
+const TEST_CHAIN_ID: &str = "test-00";
+
+pub fn get_ecdsa_witness<C: Signing>(
+    secp: &Secp256k1<C>,
+    txid: &TxId,
+    secret_key: &SecretKey,
+) -> EcdsaSignature {
+    let message = Message::from_slice(&txid[..]).expect("32 bytes");
+    let sig = secp.sign_recoverable(&message, &secret_key);
+    return sig;
+}
+
+fn init_chain_for(addresses: &Vec<RedeemAddress>) -> ChainNodeApp {
     let total = Coin::from((addresses.len() * 1_0000_0000usize) as u32);
     let remaining = (Coin::max() - total).unwrap();
-    let mut distribution: BTreeMap<RedeemAddress, Coin> = addresses
+    let validator_addr = "0x0e7c045110b8dbf29765047380898919c5cc56f4"
+        .parse::<RedeemAddress>()
+        .unwrap();
+    let mut distribution: BTreeMap<RedeemAddress, (Coin, AccountType)> = addresses
         .iter()
-        .map(|address| (*address, Coin::from(1_0000_0000 as u32)))
+        .map(|address| {
+            (
+                *address,
+                (
+                    Coin::from(1_0000_0000 as u32),
+                    AccountType::ExternallyOwnedAccount,
+                ),
+            )
+        })
         .collect();
-    distribution.insert(RedeemAddress::default(), remaining);
-    distribution.insert([1u8; 20].into(), Coin::zero());
-    distribution.insert([2u8; 20].into(), Coin::zero());
-    let fee_policy = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
+    distribution.insert(
+        RedeemAddress::default(),
+        (Coin::zero(), AccountType::ExternallyOwnedAccount),
+    );
+    distribution.insert(
+        validator_addr,
+        (remaining, AccountType::ExternallyOwnedAccount),
+    );
 
+    let params = InitNetworkParameters {
+        initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
+        required_council_node_stake: remaining,
+        unbonding_period: 1,
+    };
     let c = InitConfig::new(
         distribution,
         RedeemAddress::default(),
-        [1u8; 20].into(),
-        [2u8; 20].into(),
-        fee_policy,
+        RedeemAddress::default(),
+        RedeemAddress::default(),
+        params,
+        vec![InitialValidator {
+            staking_account_address: validator_addr,
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=".to_string(),
+        }],
     );
-    let utxos = c.generate_utxos(&TxAttributes::new(0));
-    let rp = c.get_genesis_rewards_pool();
-    let txids: Vec<TxId> = utxos.iter().map(|x| x.id()).collect();
-    let tree = MerkleTree::new(txids);
-    let genesis_app_hash = compute_app_hash(&tree, &rp);
-    let example_hash = hex::encode_upper(genesis_app_hash);
-    let mut app =
-        ChainNodeApp::new_with_storage(&example_hash, TEST_CHAIN_ID, Storage::new_db(db.clone()));
-    let mut req = RequestInitChain::default();
-    req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
-    req.set_chain_id(String::from(TEST_CHAIN_ID));
-    req.set_time(::protobuf::well_known_types::Timestamp::new());
-    app.init_chain(&req);
-    return (app, txids);
+    let t = ::protobuf::well_known_types::Timestamp::new();
+    let result = c.validate_config_get_genesis(t.get_seconds());
+    if let Ok((accounts, rp, _nodes)) = result {
+        let tx_tree = MerkleTree::empty();
+        let mut account_tree =
+            AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db");
+
+        let keys: Vec<StarlingFixedKey> = accounts.iter().map(|x| x.key()).collect();
+        // TODO: get rid of the extra allocations
+        let wrapped: Vec<AccountWrapper> =
+            accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
+        let new_account_root = account_tree
+            .insert(
+                None,
+                &mut keys.iter().collect::<Vec<_>>(),
+                &mut wrapped.iter().collect::<Vec<_>>(),
+            )
+            .expect("initial insert");
+
+        let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
+
+        let example_hash = hex::encode_upper(genesis_app_hash);
+        let mut app = ChainNodeApp::new_with_storage(
+            &example_hash,
+            TEST_CHAIN_ID,
+            Storage::new_db(create_db()),
+            create_account_db(),
+        );
+        let mut req = RequestInitChain::default();
+        req.set_time(t);
+        req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
+        req.set_chain_id(String::from(TEST_CHAIN_ID));
+        app.init_chain(&req);
+        return app;
+    } else {
+        panic!("distribution validation error: {}", result.err().unwrap());
+    }
 }
 
 fn prepare_app_valid_txs(upper: u8) -> (ChainNodeApp, Vec<TxAux>) {
@@ -95,19 +155,24 @@ fn prepare_app_valid_txs(upper: u8) -> (ChainNodeApp, Vec<TxAux>) {
         .iter()
         .map(|public_key| RedeemAddress::from(public_key))
         .collect();
-    let (app, txids) = init_chain_for(&addrs);
+    let app = init_chain_for(&addrs);
     let mut txs = Vec::new();
     for i in 0..addrs.len() {
-        let txp = TxoPointer::new(txids[i], 0);
-        let mut tx = Tx::new();
-        tx.attributes
-            .allowed_view
-            .push(TxAccessPolicy::new(public_keys[i], TxAccess::AllData));
-        let eaddr = ExtendedAddr::BasicRedeem(addrs[i]);
-        tx.add_input(txp);
-        tx.add_output(TxOut::new(eaddr, Coin::unit()));
-        let witness: Vec<TxInWitness> = vec![get_tx_witness(&secp, &tx, &secret_keys[i])];
-        let txaux = TxAux::new(tx, witness.into());
+        let tx = WithdrawUnbondedTx::new(
+            0,
+            vec![TxOut::new_with_timelock(
+                ExtendedAddr::BasicRedeem(addrs[i]),
+                Coin::unit(),
+                0,
+            )],
+            TxAttributes::new_with_access(
+                0,
+                vec![TxAccessPolicy::new(public_keys[i], TxAccess::AllData)],
+            ),
+        );
+
+        let witness = AccountOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_keys[i]));
+        let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness);
         txs.push(txaux)
     }
 
