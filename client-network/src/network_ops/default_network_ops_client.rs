@@ -1,5 +1,3 @@
-use secstr::SecUtf8;
-
 use crate::NetworkOpsClient;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{DepositBondTx, UnbondTx};
@@ -9,21 +7,14 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
+use chain_core::tx::data::TxId;
 use chain_core::tx::witness::EcdsaSignature;
+use chain_core::tx::witness::TxInWitness;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::{Error, ErrorKind, Result};
 use client_core::WalletClient;
-use chain_core::init::address::RedeemAddress;
-use std::str::FromStr;
-use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
-
-use chain_core::tx::{
-    data::{
-        access::{TxAccess, TxAccessPolicy},
-        txid_hash, Tx, TxId,
-    },
-    witness::{TxInWitness, TxWitness},
-};
+use secp256k1::{key::SecretKey, Message, Secp256k1, Signing};
+use secstr::SecUtf8;
 
 pub fn get_ecdsa_witness<C: Signing>(
     secp: &Secp256k1<C>,
@@ -185,10 +176,11 @@ mod tests {
     use client_common::storage::MemoryStorage;
     use client_core::wallet::DefaultWalletClient;
     use client_core::{PrivateKey, PublicKey};
+    use std::str::FromStr;
 
     #[test]
     fn check_create_deposit_bonded_stake_transaction() {
-         let name = "name";
+        let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
@@ -211,14 +203,12 @@ mod tests {
                     passphrase,
                     &ExtendedAddr::OrTree([0; 32]),
                     inputs,
-                    to_staked_account,
+                    to_staked_account.into(),
                     attributes,
                 )
                 .unwrap_err()
                 .kind()
         );
-
-        
     }
 
     #[test]
@@ -233,8 +223,8 @@ mod tests {
             .unwrap();
         let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client);
 
-        let  value = Coin::new(0).unwrap();
-        let attributes=  StakedStateOpAttributes::new(0);
+        let value = Coin::new(0).unwrap();
+        let attributes = StakedStateOpAttributes::new(0);
         assert_eq!(
             ErrorKind::InvalidInput,
             network_ops_client
