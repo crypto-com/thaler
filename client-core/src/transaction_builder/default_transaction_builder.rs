@@ -130,6 +130,7 @@ mod tests {
 
     use chain_core::tx::data::input::TxoPointer;
     use chain_core::tx::fee::{LinearFee, Milli};
+    use chain_tx_validation::witness::verify_tx_address;
     use client_common::storage::MemoryStorage;
 
     use crate::signer::DefaultSigner;
@@ -251,9 +252,7 @@ mod tests {
                         unspent_transactions[0].1.address.clone()
                     };
 
-                    assert!(witness[i]
-                        .verify_tx_address(&transaction.id(), &address)
-                        .is_ok(),)
+                    assert!(verify_tx_address(&witness[i], &transaction.id(), &address).is_ok(),)
                 }
             }
             _ => {

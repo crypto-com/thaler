@@ -37,6 +37,13 @@ pub trait Storage: Send + Sync {
         value: Vec<u8>,
     ) -> Result<Option<Vec<u8>>>;
 
+    /// Fetches a value, applies a function and returns the previous value.
+    fn fetch_and_update<S, K, F>(&self, keyspace: S, key: K, f: F) -> Result<Option<Vec<u8>>>
+    where
+        S: AsRef<[u8]>,
+        K: AsRef<[u8]>,
+        F: Fn(Option<&[u8]>) -> Result<Option<Vec<u8>>>;
+
     /// Returns a vector of stored keys in a keyspace.
     fn keys<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<Vec<Vec<u8>>>;
 
@@ -65,6 +72,19 @@ pub trait SecureStorage {
         value: Vec<u8>,
         passphrase: &SecUtf8,
     ) -> Result<Option<Vec<u8>>>;
+
+    /// Fetches a value, applies a function (after decryption) and returns the previous value.
+    fn fetch_and_update_secure<S, K, F>(
+        &self,
+        keyspace: S,
+        key: K,
+        passphrase: &SecUtf8,
+        f: F,
+    ) -> Result<Option<Vec<u8>>>
+    where
+        S: AsRef<[u8]>,
+        K: AsRef<[u8]>,
+        F: Fn(Option<&[u8]>) -> Result<Option<Vec<u8>>>;
 }
 
 impl<T> SecureStorage for T
@@ -110,6 +130,49 @@ where
         self.set(keyspace, key, cipher)?;
 
         Ok(old_value)
+    }
+
+    fn fetch_and_update_secure<S, K, F>(
+        &self,
+        keyspace: S,
+        key: K,
+        passphrase: &SecUtf8,
+        f: F,
+    ) -> Result<Option<Vec<u8>>>
+    where
+        S: AsRef<[u8]>,
+        K: AsRef<[u8]>,
+        F: Fn(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
+    {
+        self.fetch_and_update(keyspace, &key, |current| {
+            let mut algo = get_algo(passphrase);
+            let opened = current
+                .map(|current| {
+                    let nonce_index = current.len() - NONCE_SIZE;
+
+                    algo.open(
+                        &current[nonce_index..],
+                        key.as_ref(),
+                        &current[..nonce_index],
+                    )
+                })
+                .transpose()
+                .context(ErrorKind::DecryptionError)?;
+
+            let next = f(opened.as_ref().map(AsRef::as_ref))?;
+
+            next.map(|next| {
+                let mut nonce = [0u8; NONCE_SIZE];
+                let mut rand = OsRng::new().context(ErrorKind::RngError)?;
+                rand.fill(&mut nonce);
+
+                let mut sealed = algo.seal(&nonce, key.as_ref(), &next);
+                sealed.extend(&nonce[..]);
+
+                Ok(sealed)
+            })
+            .transpose()
+        })
     }
 }
 

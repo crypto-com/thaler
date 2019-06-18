@@ -179,6 +179,9 @@ mod tests {
     use super::*;
 
     use chain_core::init::address::RedeemAddress;
+    use chain_core::tx::data::address::ExtendedAddr;
+
+    use chain_tx_validation::witness::verify_tx_recover_address;
     use client_common::storage::MemoryStorage;
     use client_core::wallet::DefaultWalletClient;
     use client_core::{PrivateKey, PublicKey};
@@ -276,16 +279,10 @@ mod tests {
         match transaction {
             TxAux::WithdrawUnbondedStakeTx(transaction, witness) => {
                 let id = transaction.id();
-                let account_address = witness
-                    .verify_tx_recover_address(&id)
-                    .expect("Unable to verify transaction");
+                let account_address =
+                    verify_tx_recover_address(&witness, &id).expect("Unable to verify transaction");
 
-                match from_address {
-                    ExtendedAddr::BasicRedeem(redeem_address) => {
-                        assert_eq!(account_address, redeem_address)
-                    }
-                    ExtendedAddr::OrTree(_) => unreachable!("Address cannot be of tree type"),
-                }
+                assert_eq!(ExtendedAddr::from(account_address), from_address)
             }
             _ => unreachable!(
                 "`create_withdraw_unbonded_stake_transaction()` created invalid transaction type"

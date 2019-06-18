@@ -36,36 +36,48 @@ where
     pub fn add(
         &self,
         address: &ExtendedAddr,
-        unspent_transaction: (TxoPointer, TxOut),
+        unspent_transaction: (&TxoPointer, &TxOut),
     ) -> Result<()> {
-        // TODO: Implement compare and swap?
-        let mut unspent_transactions = self.get(address)?;
-        unspent_transactions.push(unspent_transaction);
-
         self.storage
-            .set(KEYSPACE, address.encode(), unspent_transactions.encode())
+            .fetch_and_update(KEYSPACE, address.encode(), |value| {
+                let mut unspent_transactions = value
+                    .map(|mut bytes| -> Result<Vec<(TxoPointer, TxOut)>> {
+                        Ok(Vec::decode(&mut bytes).ok_or(ErrorKind::DeserializationError)?)
+                    })
+                    .unwrap_or_else(|| Ok(Default::default()))?;
+                unspent_transactions
+                    .push((unspent_transaction.0.clone(), unspent_transaction.1.clone()));
+
+                Ok(Some(unspent_transactions.encode()))
+            })
             .map(|_| ())
     }
 
     /// Removes an unspent transaction for given address
     pub fn remove(&self, address: &ExtendedAddr, pointer: &TxoPointer) -> Result<()> {
-        // TODO: Implement compare and swap?
-        let mut unspent_transactions = self.get(address)?;
-        let mut index = None;
-
-        for (i, (tx_pointer, _)) in unspent_transactions.iter().enumerate() {
-            if tx_pointer == pointer {
-                index = Some(i);
-                break;
-            }
-        }
-
-        if index.is_some() {
-            unspent_transactions.remove(index.unwrap());
-        }
-
         self.storage
-            .set(KEYSPACE, address.encode(), unspent_transactions.encode())
+            .fetch_and_update(KEYSPACE, address.encode(), |value| {
+                let mut unspent_transactions = value
+                    .map(|mut bytes| -> Result<Vec<(TxoPointer, TxOut)>> {
+                        Ok(Vec::decode(&mut bytes).ok_or(ErrorKind::DeserializationError)?)
+                    })
+                    .unwrap_or_else(|| Ok(Default::default()))?;
+
+                let mut index = None;
+
+                for (i, (tx_pointer, _)) in unspent_transactions.iter().enumerate() {
+                    if tx_pointer == pointer {
+                        index = Some(i);
+                        break;
+                    }
+                }
+
+                if index.is_some() {
+                    unspent_transactions.remove(index.unwrap());
+                }
+
+                Ok(Some(unspent_transactions.encode()))
+            })
             .map(|_| ())
     }
 }

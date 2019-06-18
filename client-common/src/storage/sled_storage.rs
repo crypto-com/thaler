@@ -68,6 +68,29 @@ impl Storage for SledStorage {
         Ok(value)
     }
 
+    fn fetch_and_update<S, K, F>(&self, keyspace: S, key: K, f: F) -> Result<Option<Vec<u8>>>
+    where
+        S: AsRef<[u8]>,
+        K: AsRef<[u8]>,
+        F: Fn(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
+    {
+        let mut current = self.get(&keyspace, &key)?;
+
+        loop {
+            let tmp = current.as_ref().map(AsRef::as_ref);
+            let next = f(tmp)?;
+            let tree = self
+                .0
+                .open_tree(keyspace.as_ref().to_vec())
+                .context(ErrorKind::StorageError)?;
+
+            match tree.cas(&key, tmp, next).context(ErrorKind::StorageError)? {
+                Ok(()) => return Ok(current),
+                Err(new_current) => current = new_current.map(|inner| inner.to_vec()),
+            }
+        }
+    }
+
     fn keys<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<Vec<Vec<u8>>> {
         let tree = self
             .0
@@ -119,9 +142,20 @@ mod tests {
         assert_eq!(
             None,
             storage
-                .set("keyspace", "key", "value".as_bytes().to_vec())
+                .set("keyspace", "key", "value1".as_bytes().to_vec())
                 .expect("Unable to set value"),
             "Invalid value in set"
+        );
+
+        assert_eq!(
+            "value1",
+            std::str::from_utf8(
+                &storage
+                    .fetch_and_update("keyspace", "key", |_| Ok(Some("value".as_bytes().to_vec())))
+                    .unwrap()
+                    .unwrap()
+            )
+            .expect("Unable to deserialize bytes")
         );
 
         assert_eq!(

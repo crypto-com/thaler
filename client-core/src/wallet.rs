@@ -211,7 +211,7 @@ pub trait MultiSigWalletClient: WalletClient {
         &self,
         session_id: &H256,
         passphrase: &SecUtf8,
-        nonce: PublicKey,
+        nonce: &PublicKey,
         public_key: &PublicKey,
     ) -> Result<()>;
 
