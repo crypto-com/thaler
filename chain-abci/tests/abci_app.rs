@@ -16,8 +16,8 @@ use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
 use chain_core::init::config::{InitialValidator, ValidatorKeyType};
 use chain_core::state::account::{
-    to_stake_key, DepositBondTx, StakedState, StakedStateOpAttributes, StakedStateOpWitness,
-    UnbondTx, WithdrawUnbondedTx,
+    to_stake_key, DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes,
+    StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
 };
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::fee::{LinearFee, Milli};
@@ -260,7 +260,7 @@ fn init_chain_should_create_db_items() {
     .unwrap();
 
     assert_eq!(genesis_app_hash, state.last_apphash);
-    let key = to_stake_key(&address);
+    let key = to_stake_key(&address.into());
     assert_eq!(
         1,
         app.accounts
@@ -732,7 +732,7 @@ fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp) -> StakedSta
         "uncommitted root hash: {:?}",
         app.uncommitted_account_root_hash
     );
-    let account_key = to_stake_key(account_address);
+    let account_key = to_stake_key(&StakedStateAddress::from(*account_address));
     let state = app.last_state.clone().expect("app state");
     println!("committed root hash: {:?}", &state.last_account_root_hash);
     let items = app
@@ -809,7 +809,7 @@ fn all_valid_tx_types_should_commit() {
         assert!(!spent_utxos1.any());
     }
     let utxo2 = TxoPointer::new(*txid, 1);
-    let tx2 = DepositBondTx::new(vec![utxo2], addr, StakedStateOpAttributes::new(0));
+    let tx2 = DepositBondTx::new(vec![utxo2], addr.into(), StakedStateOpAttributes::new(0));
     let witness2 = vec![TxInWitness::BasicRedeem(get_ecdsa_witness(
         &secp,
         &tx2.id(),
