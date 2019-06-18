@@ -592,7 +592,7 @@ mod tests {
             .add_nonce(&session_id_1, &nonce_2, &public_key_2, &passphrase)
             .expect("Unable to add nonce to session 1");
         multi_sig_service
-            .add_nonce(&session_id_1, &nonce_1.clone(), &public_key_2, &passphrase)
+            .add_nonce(&session_id_1, &nonce_1, &public_key_2, &passphrase)
             .expect_err("Can modify an already existing nonce");
         multi_sig_service
             .add_nonce(&session_id_2, &nonce_1, &public_key_1, &passphrase)
