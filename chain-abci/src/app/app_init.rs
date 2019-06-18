@@ -8,7 +8,9 @@ use chain_core::common::MerkleTree;
 use chain_core::common::Timespec;
 use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
+use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
+use chain_core::init::config::AccountType;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
 use chain_core::state::account::{StakedState, StakedStateAddress};
@@ -300,6 +302,15 @@ impl ChainNodeApp {
         last_state
     }
 
+    fn get_voting_power(
+        distribution: &BTreeMap<RedeemAddress, (Coin, AccountType)>,
+        node_address: &StakedStateAddress,
+    ) -> TendermintVotePower {
+        match node_address {
+            StakedStateAddress::BasicRedeem(a) => TendermintVotePower::from(distribution[a].0),
+        }
+    }
+
     /// Handles InitChain requests:
     /// should validate initial genesis distribution, initialize everything in the key-value DB and check it matches the expected values
     /// provided as arguments.
@@ -352,8 +363,10 @@ impl ChainNodeApp {
             let mut validators = Vec::with_capacity(nodes.len());
             for node in nodes.iter() {
                 let mut validator = ValidatorUpdate::default();
-                let power =
-                    TendermintVotePower::from(conf.distribution[&node.staking_account_address].0);
+                let power = ChainNodeApp::get_voting_power(
+                    &conf.distribution,
+                    &node.staking_account_address,
+                );
                 validator.set_power(power.into());
                 let pk = ChainNodeApp::get_validator_key(&node);
                 self.validator_pubkeys

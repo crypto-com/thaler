@@ -7,6 +7,7 @@ use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
 use parity_codec::{Decode, Encode};
+use std::convert::TryFrom;
 
 impl ChainNodeApp {
     /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).
@@ -115,7 +116,7 @@ impl ChainNodeApp {
                 );
             }
             "account" => {
-                let account_address = StakedStateAddress::try_from(&_req.data);
+                let account_address = StakedStateAddress::try_from(_req.data.as_slice());
                 if let (Some(state), Ok(address)) = (&self.last_state, account_address) {
                     let account =
                         get_account(&address, &state.last_account_root_hash, &self.accounts);
