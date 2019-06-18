@@ -34,13 +34,18 @@ where
     }
 
     /// Changes balance for an address with given balance change
-    pub fn change(&self, address: &ExtendedAddr, change: &BalanceChange) -> Result<Coin> {
-        let current = self.get(address)?;
-        let new = (current + change)?;
-
-        self.storage.set(KEYSPACE, address.encode(), new.encode())?;
-
-        Ok(new)
+    pub fn change(&self, address: &ExtendedAddr, change: &BalanceChange) -> Result<()> {
+        self.storage
+            .fetch_and_update(KEYSPACE, address.encode(), |value| {
+                let current = value
+                    .map(|mut bytes| -> Result<Coin> {
+                        Ok(Coin::decode(&mut bytes).ok_or(ErrorKind::DeserializationError)?)
+                    })
+                    .unwrap_or_else(|| Ok(Coin::zero()))?;
+                let new = (current + change)?;
+                Ok(Some(new.encode()))
+            })
+            .map(|_| ())
     }
 
     /// Clears all storage
@@ -63,22 +68,23 @@ mod tests {
         let address = ExtendedAddr::BasicRedeem(Default::default());
 
         assert_eq!(Coin::zero(), balance_service.get(&address).unwrap());
+
+        assert!(balance_service
+            .change(&address, &BalanceChange::Incoming(Coin::new(30).unwrap()))
+            .is_ok());
         assert_eq!(
             Coin::new(30).unwrap(),
-            balance_service
-                .change(&address, &BalanceChange::Incoming(Coin::new(30).unwrap()))
-                .unwrap()
+            balance_service.get(&address).unwrap()
         );
-        assert_eq!(
-            Coin::new(10).unwrap(),
-            balance_service
-                .change(&address, &BalanceChange::Outgoing(Coin::new(20).unwrap()))
-                .unwrap()
-        );
+
+        assert!(balance_service
+            .change(&address, &BalanceChange::Outgoing(Coin::new(20).unwrap()))
+            .is_ok());
         assert_eq!(
             Coin::new(10).unwrap(),
             balance_service.get(&address).unwrap()
         );
+
         assert!(balance_service.clear().is_ok());
         assert_eq!(Coin::zero(), balance_service.get(&address).unwrap());
     }

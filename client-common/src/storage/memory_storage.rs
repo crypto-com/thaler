@@ -55,6 +55,33 @@ impl Storage for MemoryStorage {
         Ok(space.insert(key.as_ref().to_vec(), value))
     }
 
+    fn fetch_and_update<S, K, F>(&self, keyspace: S, key: K, f: F) -> Result<Option<Vec<u8>>>
+    where
+        S: AsRef<[u8]>,
+        K: AsRef<[u8]>,
+        F: Fn(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
+    {
+        let mut memory = self
+            .0
+            .write()
+            .map_err(|_| Error::from(ErrorKind::StorageError))?;
+
+        if !memory.contains_key(keyspace.as_ref()) {
+            memory.insert(keyspace.as_ref().to_vec(), Default::default());
+        }
+
+        let space = memory.get_mut(keyspace.as_ref()).unwrap();
+
+        let current = space.get(key.as_ref()).map(AsRef::as_ref);
+
+        let next = f(current)?;
+
+        match next {
+            None => Ok(space.remove(key.as_ref())),
+            Some(next) => Ok(space.insert(key.as_ref().to_vec(), next)),
+        }
+    }
+
     fn keys<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<Vec<Vec<u8>>> {
         let memory = self
             .0

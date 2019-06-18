@@ -417,10 +417,17 @@ where
         public_key: &PublicKey,
         passphrase: &SecUtf8,
     ) -> Result<()> {
-        // TODO: Implement compare and swap?
-        let mut session = self.get_session(session_id, passphrase)?;
-        session.add_nonce_commitment(public_key, nonce_commitment)?;
-        self.set_session(session_id, session, passphrase)
+        self.storage
+            .fetch_and_update_secure(KEYSPACE, session_id, passphrase, |value| {
+                let mut session_bytes =
+                    value.ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
+                let mut session = MultiSigSession::decode(&mut session_bytes)
+                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                session.add_nonce_commitment(public_key, nonce_commitment)?;
+
+                Ok(Some(session.encode()))
+            })
+            .map(|_| ())
     }
 
     /// Returns nonce of self. This function will fail if nonce commitments from all co-signers are not received.
@@ -437,14 +444,21 @@ where
     pub fn add_nonce(
         &self,
         session_id: &H256,
-        nonce: PublicKey,
+        nonce: &PublicKey,
         public_key: &PublicKey,
         passphrase: &SecUtf8,
     ) -> Result<()> {
-        // TODO: Implement compare and swap?
-        let mut session = self.get_session(session_id, passphrase)?;
-        session.add_nonce(public_key, nonce)?;
-        self.set_session(session_id, session, passphrase)
+        self.storage
+            .fetch_and_update_secure(KEYSPACE, session_id, passphrase, |value| {
+                let mut session_bytes =
+                    value.ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
+                let mut session = MultiSigSession::decode(&mut session_bytes)
+                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                session.add_nonce(public_key, nonce.clone())?;
+
+                Ok(Some(session.encode()))
+            })
+            .map(|_| ())
     }
 
     /// Returns partial signature of self. This function will fail if nonces from all co-signers are not received.
@@ -465,10 +479,17 @@ where
         public_key: &PublicKey,
         passphrase: &SecUtf8,
     ) -> Result<()> {
-        // TODO: Implement compare and swap?
-        let mut session = self.get_session(session_id, passphrase)?;
-        session.add_partial_signature(public_key, partial_signature)?;
-        self.set_session(session_id, session, passphrase)
+        self.storage
+            .fetch_and_update_secure(KEYSPACE, session_id, passphrase, |value| {
+                let mut session_bytes =
+                    value.ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
+                let mut session = MultiSigSession::decode(&mut session_bytes)
+                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                session.add_partial_signature(public_key, partial_signature)?;
+
+                Ok(Some(session.encode()))
+            })
+            .map(|_| ())
     }
 
     /// Returns final signature. This function will fail if partial signatures from all co-signers are not received.
@@ -568,13 +589,13 @@ mod tests {
         let nonce_2 = multi_sig_service.nonce(&session_id_2, &passphrase).unwrap();
 
         multi_sig_service
-            .add_nonce(&session_id_1, nonce_2, &public_key_2, &passphrase)
+            .add_nonce(&session_id_1, &nonce_2, &public_key_2, &passphrase)
             .expect("Unable to add nonce to session 1");
         multi_sig_service
-            .add_nonce(&session_id_1, nonce_1.clone(), &public_key_2, &passphrase)
+            .add_nonce(&session_id_1, &nonce_1.clone(), &public_key_2, &passphrase)
             .expect_err("Can modify an already existing nonce");
         multi_sig_service
-            .add_nonce(&session_id_2, nonce_1, &public_key_1, &passphrase)
+            .add_nonce(&session_id_2, &nonce_1, &public_key_1, &passphrase)
             .expect("Unable to add nonce to session 2");
 
         let partial_signature_1 = multi_sig_service
