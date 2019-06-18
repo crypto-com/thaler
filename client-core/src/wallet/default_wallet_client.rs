@@ -145,7 +145,7 @@ where
     fn new_public_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
         let (public_key, _) = self.key_service.generate_keypair(passphrase)?;
         self.wallet_service
-            .add_public_key(name, passphrase, public_key.clone())?;
+            .add_public_key(name, passphrase, &public_key)?;
 
         Ok(public_key)
     }
@@ -362,11 +362,11 @@ where
         &self,
         session_id: &H256,
         passphrase: &SecUtf8,
-        nonce: PublicKey,
+        nonce: &PublicKey,
         public_key: &PublicKey,
     ) -> Result<()> {
         self.multi_sig_session_service
-            .add_nonce(session_id, nonce, public_key, passphrase)
+            .add_nonce(session_id, &nonce, public_key, passphrase)
     }
 
     fn partial_signature(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<H256> {
@@ -1240,10 +1240,10 @@ mod tests {
         let nonce_2 = wallet.nonce(&session_id_2, passphrase).unwrap();
 
         assert!(wallet
-            .add_nonce(&session_id_1, passphrase, nonce_2, &public_key_2)
+            .add_nonce(&session_id_1, passphrase, &nonce_2, &public_key_2)
             .is_ok());
         assert!(wallet
-            .add_nonce(&session_id_2, passphrase, nonce_1, &public_key_1)
+            .add_nonce(&session_id_2, passphrase, &nonce_1, &public_key_1)
             .is_ok());
 
         let partial_signature_1 = wallet.partial_signature(&session_id_1, passphrase).unwrap();

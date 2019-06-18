@@ -33,16 +33,19 @@ where
     }
 
     /// Adds a new transaction change for given address
-    pub fn add(&self, change: TransactionChange) -> Result<()> {
-        let address = change.address.clone();
-
-        let mut changes = self.get(&address)?;
-        changes.push(change);
-
+    pub fn add(&self, change: &TransactionChange) -> Result<()> {
         self.storage
-            .set(KEYSPACE, &address.encode(), changes.encode())?;
+            .fetch_and_update(KEYSPACE, change.address.encode(), |value| {
+                let mut changes = value
+                    .map(|mut bytes| -> Result<Vec<TransactionChange>> {
+                        Ok(Vec::decode(&mut bytes).ok_or(ErrorKind::DeserializationError)?)
+                    })
+                    .unwrap_or_else(|| Ok(Default::default()))?;
+                changes.push(change.clone());
 
-        Ok(())
+                Ok(Some(changes.encode()))
+            })
+            .map(|_| ())
     }
 
     /// Clears all storage
@@ -79,11 +82,9 @@ mod tests {
         };
 
         assert_eq!(0, transaction_change_service.get(&address).unwrap().len());
-        assert!(transaction_change_service
-            .add(transaction_change.clone())
-            .is_ok());
+        assert!(transaction_change_service.add(&transaction_change).is_ok());
         assert_eq!(1, transaction_change_service.get(&address).unwrap().len());
-        assert!(transaction_change_service.add(transaction_change).is_ok());
+        assert!(transaction_change_service.add(&transaction_change).is_ok());
         assert_eq!(2, transaction_change_service.get(&address).unwrap().len());
         assert!(transaction_change_service.clear().is_ok());
         assert_eq!(0, transaction_change_service.get(&address).unwrap().len());
