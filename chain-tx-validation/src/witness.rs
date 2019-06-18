@@ -1,4 +1,5 @@
 use chain_core::init::address::RedeemAddress;
+use chain_core::state::account::{StakedStateAddress, StakedStateOpWitness};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::TxId;
 use chain_core::tx::witness::TxInWitness;
@@ -40,6 +41,24 @@ pub fn verify_tx_address(
             }
         }
         (_, _) => Err(secp256k1::Error::InvalidSignature),
+    }
+}
+
+/// verify the signature against the given transation `Tx`
+/// and recovers the address from it
+///
+pub fn verify_tx_recover_address(
+    witness: &StakedStateOpWitness,
+    txid: &TxId,
+) -> Result<StakedStateAddress, secp256k1::Error> {
+    match witness {
+        StakedStateOpWitness::BasicRedeem(sig) => {
+            let secp = Secp256k1::verification_only();
+            let message = Message::from_slice(txid)?;
+            let pk = secp.recover(&message, &sig)?;
+            secp.verify(&message, &sig.to_standard(), &pk)?;
+            Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from(&pk)))
+        }
     }
 }
 

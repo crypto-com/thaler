@@ -7,6 +7,7 @@ use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
 use parity_codec::{Decode, Encode};
+use std::convert::TryFrom;
 
 impl ChainNodeApp {
     /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).

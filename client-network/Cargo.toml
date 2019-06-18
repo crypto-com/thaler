@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 chain-core = { path = "../chain-core" }
+chain-tx-validation = { path = "../chain-tx-validation" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 secstr = "0.3.2"

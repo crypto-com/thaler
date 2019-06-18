@@ -6,7 +6,7 @@ use crate::common::Timespec;
 use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::init::MAX_COIN;
-use crate::state::account::StakedState;
+use crate::state::account::{StakedState, StakedStateAddress};
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::CouncilNode;
 use crate::state::RewardsPoolState;
@@ -198,7 +198,7 @@ impl InitConfig {
                 accounts.push(StakedState::new_init(
                     *amount,
                     genesis_time,
-                    *address,
+                    StakedStateAddress::BasicRedeem(*address),
                     validator_addresses.contains(address),
                 ));
             }
@@ -255,7 +255,7 @@ impl InitConfig {
 
             validator_addresses.insert(node.staking_account_address);
             validators.push(CouncilNode::new(
-                node.staking_account_address,
+                StakedStateAddress::BasicRedeem(node.staking_account_address),
                 validator_key,
             ));
         }

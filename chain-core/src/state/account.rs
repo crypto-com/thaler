@@ -5,15 +5,15 @@ use crate::init::coin::{sum_coins, CoinError};
 use crate::tx::data::attribute::TxAttributes;
 use crate::tx::data::input::TxoPointer;
 use crate::tx::data::output::TxOut;
-use crate::tx::data::TxId;
 use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
 use crate::tx::TransactionId;
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode, Input, Output};
-use secp256k1::{Message, Secp256k1};
 // TODO: switch to normal signatures + explicit public key
+use crate::init::address::ErrorAddress;
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use serde::{Deserialize, Serialize};
+use std::convert::{From, TryFrom};
 use std::fmt;
 
 /// reference counter in the sparse patricia merkle tree/trie
@@ -22,8 +22,36 @@ pub type Count = u64;
 /// StakedState update counter
 pub type Nonce = u64;
 
-/// StakedState address type (TODO: enum?)
-pub type StakedStateAddress = RedeemAddress;
+/// StakedState address type
+#[derive(
+    Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize,
+)]
+pub enum StakedStateAddress {
+    BasicRedeem(RedeemAddress),
+}
+
+impl TryFrom<&Vec<u8>> for StakedStateAddress {
+    type Error = ErrorAddress;
+
+    fn try_from(c: &Vec<u8>) -> Result<Self, Self::Error> {
+        let addr = RedeemAddress::try_from(c)?;
+        Ok(StakedStateAddress::BasicRedeem(addr))
+    }
+}
+
+impl From<RedeemAddress> for StakedStateAddress {
+    fn from(addr: RedeemAddress) -> Self {
+        StakedStateAddress::BasicRedeem(addr)
+    }
+}
+
+impl fmt::Display for StakedStateAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StakedStateAddress::BasicRedeem(a) => writeln!(f, "{}", a),
+        }
+    }
+}
 
 /// represents the StakedState (account involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
@@ -40,12 +68,21 @@ pub struct StakedState {
 /// this computes a key as blake2s(StakedState.address) where
 /// the StakedState address itself is ETH-style address (20 bytes from keccak hash of public key)
 pub fn to_stake_key(address: &StakedStateAddress) -> [u8; HASH_SIZE_256] {
-    hash256::<Blake2s>(address)
+    // TODO: prefix with zero
+    match address {
+        StakedStateAddress::BasicRedeem(a) => hash256::<Blake2s>(a),
+    }
 }
 
 impl Default for StakedState {
     fn default() -> Self {
-        StakedState::new(0, Coin::zero(), Coin::zero(), 0, RedeemAddress::default())
+        StakedState::new(
+            0,
+            Coin::zero(),
+            Coin::zero(),
+            0,
+            StakedStateAddress::BasicRedeem(RedeemAddress::default()),
+        )
     }
 }
 
@@ -261,45 +298,43 @@ impl fmt::Display for WithdrawUnbondedTx {
 
 /// A witness for StakedState operations
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct StakedStateOpWitness(EcdsaSignature);
+pub enum StakedStateOpWitness {
+    BasicRedeem(EcdsaSignature),
+}
 
 impl StakedStateOpWitness {
     pub fn new(sig: EcdsaSignature) -> Self {
-        StakedStateOpWitness(sig)
-    }
-
-    /// verify the signature against the given transation `Tx`
-    /// and recovers the address from it
-    ///
-    pub fn verify_tx_recover_address(
-        &self,
-        txid: &TxId,
-    ) -> Result<StakedStateAddress, secp256k1::Error> {
-        let secp = Secp256k1::verification_only();
-        let message = Message::from_slice(txid)?;
-        let pk = secp.recover(&message, &self.0)?;
-        secp.verify(&message, &self.0.to_standard(), &pk)?;
-        Ok(RedeemAddress::from(&pk))
+        StakedStateOpWitness::BasicRedeem(sig)
     }
 }
 
 impl Encode for StakedStateOpWitness {
     fn encode_to<W: Output>(&self, dest: &mut W) {
-        let (recovery_id, serialized_sig) = self.0.serialize_compact();
-        // recovery_id is one of 0 | 1 | 2 | 3
-        let rid = recovery_id.to_i32() as u8;
-        dest.push_byte(rid);
-        serialized_sig.encode_to(dest);
+        match *self {
+            StakedStateOpWitness::BasicRedeem(ref sig) => {
+                dest.push_byte(0);
+                let (recovery_id, serialized_sig) = sig.serialize_compact();
+                // recovery_id is one of 0 | 1 | 2 | 3
+                let rid = recovery_id.to_i32() as u8;
+                dest.push_byte(rid);
+                serialized_sig.encode_to(dest);
+            }
+        }
     }
 }
 
 impl Decode for StakedStateOpWitness {
     fn decode<I: Input>(input: &mut I) -> Option<Self> {
-        let rid: u8 = input.read_byte()?;
-        let raw_sig = RawSignature::decode(input)?;
-        let recovery_id = RecoveryId::from_i32(i32::from(rid)).ok()?;
-        let sig = RecoverableSignature::from_compact(&raw_sig, recovery_id).ok()?;
-        Some(StakedStateOpWitness(sig))
+        let tag = input.read_byte()?;
+        match tag {
+            0 => {
+                let rid: u8 = input.read_byte()?;
+                let raw_sig = RawSignature::decode(input)?;
+                let recovery_id = RecoveryId::from_i32(i32::from(rid)).ok()?;
+                let sig = RecoverableSignature::from_compact(&raw_sig, recovery_id).ok()?;
+                Some(StakedStateOpWitness::BasicRedeem(sig))
+            }
+            _ => None,
+        }
     }
 }

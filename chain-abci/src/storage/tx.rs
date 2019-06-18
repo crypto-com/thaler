@@ -15,7 +15,7 @@ use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TransactionId;
 use chain_core::tx::{data::Tx, TxAux};
-use chain_tx_validation::witness::verify_tx_address;
+use chain_tx_validation::witness::{verify_tx_address, verify_tx_recover_address};
 use kvdb::KeyValueDB;
 use parity_codec::{Decode, Encode};
 use secp256k1;
@@ -315,7 +315,7 @@ fn verify_unbonding(
     accounts: &AccountStorage,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
-    let account_address = witness.verify_tx_recover_address(&maintx.id());
+    let account_address = verify_tx_recover_address(&witness, &maintx.id());
     if let Err(e) = account_address {
         return Err(Error::EcdsaCrypto(e));
     }
@@ -350,7 +350,7 @@ fn verify_unbonded_withdraw(
 ) -> Result<(Fee, Option<StakedState>), Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_outputs_basic(&maintx.outputs)?;
-    let account_address = witness.verify_tx_recover_address(&maintx.id());
+    let account_address = verify_tx_recover_address(&witness, &maintx.id());
     if let Err(e) = account_address {
         return Err(Error::EcdsaCrypto(e));
     }
@@ -534,7 +534,7 @@ pub mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
         let addr = RedeemAddress::from(&public_key);
-        let account = StakedState::new(1, Coin::one(), Coin::zero(), 0, addr);
+        let account = StakedState::new(1, Coin::one(), Coin::zero(), 0, addr.into());
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
@@ -645,7 +645,7 @@ pub mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
         let addr = RedeemAddress::from(&public_key);
-        let account = StakedState::new(1, Coin::zero(), Coin::one(), unbonded_from, addr);
+        let account = StakedState::new(1, Coin::zero(), Coin::one(), unbonded_from, addr.into());
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
@@ -805,7 +805,7 @@ pub mod tests {
         let pk2 = PublicKey::from_secret_key(&secp, &sk2);
         let tx = DepositBondTx::new(
             vec![txp],
-            RedeemAddress::from(&pk2),
+            RedeemAddress::from(&pk2).into(),
             StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
         );
 

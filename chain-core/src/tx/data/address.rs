@@ -4,6 +4,7 @@ use std::fmt;
 
 use crate::common::H256;
 use crate::init::address::RedeemAddress;
+use crate::state::account::StakedStateAddress;
 
 /// TODO: opaque types?
 type TreeRoot = H256;
@@ -40,6 +41,15 @@ impl fmt::Display for ExtendedAddr {
         match self {
             ExtendedAddr::BasicRedeem(addr) => write!(f, "{}", addr),
             ExtendedAddr::OrTree(hash) => write!(f, "TODO (base58) 0x{}", hex::encode(hash)),
+        }
+    }
+}
+
+// TODO: remove BasicRedeem from ExtendedAddr?
+impl From<StakedStateAddress> for ExtendedAddr {
+    fn from(addr: StakedStateAddress) -> Self {
+        match addr {
+            StakedStateAddress::BasicRedeem(address) => ExtendedAddr::BasicRedeem(address),
         }
     }
 }

@@ -394,6 +394,7 @@ name = "client-network"
 version = "0.1.0"
 dependencies = [
  "chain-core 0.1.0",
+ "chain-tx-validation 0.1.0",
  "client-common 0.1.0",
  "client-core 0.1.0",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
