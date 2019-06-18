@@ -128,6 +128,7 @@ mod tests {
     use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::Tx;
     use chain_core::tx::TransactionId;
+    use chain_tx_validation::witness::verify_tx_address;
     use client_common::storage::MemoryStorage;
 
     use crate::wallet::DefaultWalletClient;
@@ -176,15 +177,9 @@ mod tests {
             .sign(name, passphrase, message, selected_unspent_transactions)
             .expect("Unable to sign transaction");
 
-        assert!(witness[0]
-            .verify_tx_address(&message, &redeem_addresses[0])
-            .is_ok());
-        assert!(witness[1]
-            .verify_tx_address(&message, &redeem_addresses[1])
-            .is_ok());
-        assert!(witness[2]
-            .verify_tx_address(&message, &redeem_addresses[2])
-            .is_ok());
+        assert!(verify_tx_address(&witness[0], &message, &redeem_addresses[0]).is_ok());
+        assert!(verify_tx_address(&witness[1], &message, &redeem_addresses[1]).is_ok());
+        assert!(verify_tx_address(&witness[2], &message, &redeem_addresses[2]).is_ok());
     }
 
     #[test]
@@ -231,9 +226,7 @@ mod tests {
             .sign(name, passphrase, message, selected_unspent_transactions)
             .expect("Unable to sign transaction");
 
-        assert!(witness[0]
-            .verify_tx_address(&message, &tree_address)
-            .is_ok());
+        assert!(verify_tx_address(&witness[0], &message, &tree_address).is_ok());
     }
 
     #[test]

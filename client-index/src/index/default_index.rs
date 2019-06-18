@@ -176,7 +176,7 @@ where
             .remove(&change.address, input)?;
 
         // Update transaction history
-        self.transaction_change_service.add(change)
+        self.transaction_change_service.add(&change)
     }
 
     fn handle_transaction_output(
@@ -202,11 +202,11 @@ where
         // Update unspent transactions
         self.unspent_transaction_service.add(
             &change.address,
-            (TxoPointer::new(transaction_id, index), output.clone()),
+            (&TxoPointer::new(transaction_id, index), output),
         )?;
 
         // Update transaction history
-        self.transaction_change_service.add(change)
+        self.transaction_change_service.add(&change)
     }
 }
 

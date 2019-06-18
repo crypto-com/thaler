@@ -22,6 +22,7 @@ either = "1.5"
 
 [dev-dependencies]
 chrono = "0.4"
+chain-tx-validation = { path = "../chain-tx-validation" }
 
 [features]
 default = ["sled", "rpc"]

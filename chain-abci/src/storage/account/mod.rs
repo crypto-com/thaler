@@ -116,8 +116,13 @@ mod test {
         let old_root = tree
             .insert(None, &mut [&key], &mut vec![&wrapped])
             .expect("insert");
-        let updated_account =
-            StakedState::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
+        let updated_account = StakedState::new(
+            1,
+            Coin::unit(),
+            Coin::unit(),
+            1,
+            RedeemAddress::default().into(),
+        );
         let wrapped_updated = AccountWrapper(updated_account);
         assert_ne!(wrapped, wrapped_updated);
         let new_root = tree
@@ -139,8 +144,13 @@ mod test {
         let old_root = tree
             .insert(None, &mut [&key], &mut vec![&wrapped])
             .expect("insert");
-        let updated_account =
-            StakedState::new(1, Coin::unit(), Coin::unit(), 1, RedeemAddress::default());
+        let updated_account = StakedState::new(
+            1,
+            Coin::unit(),
+            Coin::unit(),
+            1,
+            RedeemAddress::default().into(),
+        );
         let wrapped_updated = AccountWrapper(updated_account);
         let new_root = tree
             .insert(Some(&old_root), &mut [&key], &mut vec![&wrapped_updated])

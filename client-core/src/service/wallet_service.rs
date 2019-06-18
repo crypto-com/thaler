@@ -167,20 +167,34 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        public_key: PublicKey,
+        public_key: &PublicKey,
     ) -> Result<()> {
-        // TODO: Implement compare and swap?
-        let mut wallet = self.get_wallet(name, passphrase)?;
-        wallet.public_keys.push(public_key);
-        self.set_wallet(name, passphrase, wallet)
+        self.storage
+            .fetch_and_update_secure(KEYSPACE, name, passphrase, |value| {
+                let mut wallet_bytes =
+                    value.ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
+                let mut wallet = Wallet::decode(&mut wallet_bytes)
+                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                wallet.public_keys.push(public_key.clone());
+
+                Ok(Some(wallet.encode()))
+            })
+            .map(|_| ())
     }
 
     /// Adds a multi-sig address to given wallet
     pub fn add_root_hash(&self, name: &str, passphrase: &SecUtf8, root_hash: H256) -> Result<()> {
-        // TODO: Implement compare and swap?
-        let mut wallet = self.get_wallet(name, passphrase)?;
-        wallet.root_hashes.push(root_hash);
-        self.set_wallet(name, passphrase, wallet)
+        self.storage
+            .fetch_and_update_secure(KEYSPACE, name, passphrase, |value| {
+                let mut wallet_bytes =
+                    value.ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
+                let mut wallet = Wallet::decode(&mut wallet_bytes)
+                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                wallet.root_hashes.push(root_hash);
+
+                Ok(Some(wallet.encode()))
+            })
+            .map(|_| ())
     }
 
     /// Retrieves names of all the stored wallets
@@ -244,7 +258,7 @@ mod tests {
         let public_key = PublicKey::from(&private_key);
 
         wallet_service
-            .add_public_key("name", &passphrase, public_key)
+            .add_public_key("name", &passphrase, &public_key)
             .unwrap();
 
         assert_eq!(

@@ -1,0 +1,14 @@
+[package]
+name = "chain-tx-validation"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Library with functions that verify, given current chain state's data, if a transaction is valid."
+readme = "../README.md"
+edition = "2018"
+
+[dependencies]
+chain-core = { path = "../chain-core" }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "a1e70e1f0bb65d3a97f100f79d99c85395d897f8", features = ["recovery", "endomorphism"] }
+
+[dev-dependencies]
+parity-codec = { version = "4.0.0" }
