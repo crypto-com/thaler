@@ -30,10 +30,10 @@ pub enum StakedStateAddress {
     BasicRedeem(RedeemAddress),
 }
 
-impl TryFrom<&Vec<u8>> for StakedStateAddress {
+impl TryFrom<&[u8]> for StakedStateAddress {
     type Error = ErrorAddress;
 
-    fn try_from(c: &Vec<u8>) -> Result<Self, Self::Error> {
+    fn try_from(c: &[u8]) -> Result<Self, Self::Error> {
         let addr = RedeemAddress::try_from(c)?;
         Ok(StakedStateAddress::BasicRedeem(addr))
     }
