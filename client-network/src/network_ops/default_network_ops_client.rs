@@ -1,14 +1,39 @@
 use secstr::SecUtf8;
 
+use crate::NetworkOpsClient;
+use chain_core::init::coin::Coin;
+use chain_core::state::account::{DepositBondTx, UnbondTx};
+use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
 use chain_core::state::account::{StakedStateOpWitness, WithdrawUnbondedTx};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
+use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::{Error, ErrorKind, Result};
 use client_core::WalletClient;
+use chain_core::init::address::RedeemAddress;
+use std::str::FromStr;
+use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 
-use crate::NetworkOpsClient;
+use chain_core::tx::{
+    data::{
+        access::{TxAccess, TxAccessPolicy},
+        txid_hash, Tx, TxId,
+    },
+    witness::{TxInWitness, TxWitness},
+};
+
+pub fn get_ecdsa_witness<C: Signing>(
+    secp: &Secp256k1<C>,
+    txid: &TxId,
+    secret_key: &SecretKey,
+) -> EcdsaSignature {
+    let message = Message::from_slice(&txid[..]).expect("32 bytes");
+    let sig = secp.sign_recoverable(&message, &secret_key);
+    return sig;
+}
 
 /// Default implementation of `NetworkOpsClient`
 pub struct DefaultNetworkOpsClient<'a, W>
@@ -32,6 +57,86 @@ impl<'a, W> NetworkOpsClient for DefaultNetworkOpsClient<'a, W>
 where
     W: WalletClient,
 {
+    fn create_deposit_bonded_stake_transaction(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        from_address: &ExtendedAddr,
+        inputs: Vec<TxoPointer>,
+        to_staked_account: StakedStateAddress,
+        attributes: StakedStateOpAttributes,
+    ) -> Result<TxAux> {
+        match from_address {
+            ExtendedAddr::BasicRedeem(ref redeem_address) => {
+                let secp = Secp256k1::new();
+                let transaction: DepositBondTx = DepositBondTx {
+                    inputs,
+                    to_staked_account,
+                    attributes,
+                };
+
+                let public_key = self
+                    .wallet_client
+                    .find_public_key(name, passphrase, redeem_address)?
+                    .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+
+                let private_key = self
+                    .wallet_client
+                    .private_key(passphrase, &public_key)?
+                    .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+                let secret_key: SecretKey = SecretKey::from(&private_key);
+                let witness2 = vec![TxInWitness::BasicRedeem(get_ecdsa_witness(
+                    &secp,
+                    &transaction.id(),
+                    &secret_key,
+                ))]
+                .into();
+
+                Ok(TxAux::DepositStakeTx(transaction, witness2))
+            }
+            ExtendedAddr::OrTree(_) => Err(ErrorKind::InvalidInput.into()),
+        }
+    }
+    fn create_unbond_stake_transaction(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        from_address: &ExtendedAddr,
+        value: Coin,
+        attributes: StakedStateOpAttributes,
+    ) -> Result<TxAux> {
+        match from_address {
+            ExtendedAddr::BasicRedeem(ref redeem_address) => {
+                let secp = Secp256k1::new();
+                let transaction: UnbondTx = UnbondTx {
+                    value,
+                    nonce: 0,
+                    attributes,
+                };
+
+                let public_key = self
+                    .wallet_client
+                    .find_public_key(name, passphrase, redeem_address)?
+                    .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+
+                let private_key = self
+                    .wallet_client
+                    .private_key(passphrase, &public_key)?
+                    .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+                let secret_key: SecretKey = SecretKey::from(&private_key);
+
+                let witness3 = StakedStateOpWitness::new(get_ecdsa_witness(
+                    &secp,
+                    &transaction.id(),
+                    &secret_key,
+                ));
+
+                Ok(TxAux::UnbondStakeTx(transaction, witness3))
+            }
+            ExtendedAddr::OrTree(_) => Err(ErrorKind::InvalidInput.into()),
+        }
+    }
+
     fn create_withdraw_unbonded_stake_transaction(
         &self,
         name: &str,
@@ -77,6 +182,70 @@ mod tests {
     use client_common::storage::MemoryStorage;
     use client_core::wallet::DefaultWalletClient;
     use client_core::{PrivateKey, PublicKey};
+
+    #[test]
+    fn check_create_deposit_bonded_stake_transaction() {
+         let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
+
+        let storage = MemoryStorage::default();
+        let wallet_client = DefaultWalletClient::builder()
+            .with_wallet(storage)
+            .build()
+            .unwrap();
+        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client);
+
+        let inputs: Vec<TxoPointer> = vec![];
+        let to_staked_account =
+            RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap();
+
+        let attributes = StakedStateOpAttributes::new(0);
+        assert_eq!(
+            ErrorKind::InvalidInput,
+            network_ops_client
+                .create_deposit_bonded_stake_transaction(
+                    name,
+                    passphrase,
+                    &ExtendedAddr::OrTree([0; 32]),
+                    inputs,
+                    to_staked_account,
+                    attributes,
+                )
+                .unwrap_err()
+                .kind()
+        );
+
+        
+    }
+
+    #[test]
+    fn check_create_unbond_stake_transaction() {
+        let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
+
+        let storage = MemoryStorage::default();
+        let wallet_client = DefaultWalletClient::builder()
+            .with_wallet(storage)
+            .build()
+            .unwrap();
+        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client);
+
+        let  value = Coin::new(0).unwrap();
+        let attributes=  StakedStateOpAttributes::new(0);
+        assert_eq!(
+            ErrorKind::InvalidInput,
+            network_ops_client
+                .create_unbond_stake_transaction(
+                    name,
+                    passphrase,
+                    &ExtendedAddr::OrTree([0; 32]),
+                    value,
+                    attributes,
+                )
+                .unwrap_err()
+                .kind()
+        );
+    }
 
     #[test]
     fn check_withdraw_unbonded_stake_transaction() {
