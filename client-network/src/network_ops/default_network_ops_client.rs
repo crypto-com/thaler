@@ -11,30 +11,38 @@ use chain_core::tx::witness::TxInWitness;
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::{Error, ErrorKind, Result};
+use client_core::signer::Signer;
 use client_core::WalletClient;
 use secstr::SecUtf8;
 
 /// Default implementation of `NetworkOpsClient`
-pub struct DefaultNetworkOpsClient<'a, W>
+pub struct DefaultNetworkOpsClient<'a, W, S>
 where
     W: WalletClient,
+    S: Signer,
 {
     wallet_client: &'a W,
+    signer: &'a S,
 }
 
-impl<'a, W> DefaultNetworkOpsClient<'a, W>
+impl<'a, W, S> DefaultNetworkOpsClient<'a, W, S>
 where
     W: WalletClient,
+    S: Signer,
 {
     /// Creates a new instance of `DefaultNetworkOpsClient`
-    pub fn new(wallet_client: &'a W) -> Self {
-        Self { wallet_client }
+    pub fn new(wallet_client: &'a W, signer: &'a S) -> Self {
+        Self {
+            wallet_client,
+            signer,
+        }
     }
 }
 
-impl<'a, W> NetworkOpsClient for DefaultNetworkOpsClient<'a, W>
+impl<'a, W, S> NetworkOpsClient for DefaultNetworkOpsClient<'a, W, S>
 where
     W: WalletClient,
+    S: Signer,
 {
     fn create_deposit_bonded_stake_transaction(
         &self,
@@ -133,6 +141,7 @@ mod tests {
 
     use chain_tx_validation::witness::verify_tx_recover_address;
     use client_common::storage::MemoryStorage;
+    use client_core::signer::DefaultSigner;
     use client_core::wallet::DefaultWalletClient;
     use client_core::{PrivateKey, PublicKey};
     use std::str::FromStr;
@@ -143,11 +152,14 @@ mod tests {
         let passphrase = &SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
         let wallet_client = DefaultWalletClient::builder()
             .with_wallet(storage)
             .build()
             .unwrap();
-        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client);
+
+        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client, &signer);
 
         let inputs: Vec<TxoPointer> = vec![];
         let to_staked_account =
@@ -176,11 +188,14 @@ mod tests {
         let passphrase = &SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
         let wallet_client = DefaultWalletClient::builder()
             .with_wallet(storage)
             .build()
             .unwrap();
-        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client);
+
+        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client, &signer);
 
         let value = Coin::new(0).unwrap();
         let attributes = StakedStateOpAttributes::new(0);
@@ -205,11 +220,14 @@ mod tests {
         let passphrase = &SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
         let wallet_client = DefaultWalletClient::builder()
             .with_wallet(storage)
             .build()
             .unwrap();
-        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client);
+
+        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client, &signer);
 
         wallet_client.new_wallet(name, passphrase).unwrap();
 
@@ -245,11 +263,14 @@ mod tests {
         let passphrase = &SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
         let wallet_client = DefaultWalletClient::builder()
             .with_wallet(storage)
             .build()
             .unwrap();
-        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client);
+
+        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client, &signer);
 
         wallet_client.new_wallet(name, passphrase).unwrap();
 
@@ -276,11 +297,14 @@ mod tests {
         let passphrase = &SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
         let wallet_client = DefaultWalletClient::builder()
             .with_wallet(storage)
             .build()
             .unwrap();
-        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client);
+
+        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client, &signer);
 
         assert_eq!(
             ErrorKind::WalletNotFound,
@@ -305,11 +329,14 @@ mod tests {
         let passphrase = &SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
         let wallet_client = DefaultWalletClient::builder()
             .with_wallet(storage)
             .build()
             .unwrap();
-        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client);
+
+        let network_ops_client = DefaultNetworkOpsClient::new(&wallet_client, &signer);
 
         assert_eq!(
             ErrorKind::InvalidInput,
