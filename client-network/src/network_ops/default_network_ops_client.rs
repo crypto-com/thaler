@@ -7,14 +7,11 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::TxId;
-use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::witness::TxInWitness;
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::{Error, ErrorKind, Result};
 use client_core::WalletClient;
-use secp256k1::{key::SecretKey, Message, Secp256k1, Signing};
 use secstr::SecUtf8;
 
 /// Default implementation of `NetworkOpsClient`
@@ -50,7 +47,6 @@ where
     ) -> Result<TxAux> {
         match from_address {
             ExtendedAddr::BasicRedeem(ref redeem_address) => {
-                let secp = Secp256k1::new();
                 let transaction: DepositBondTx =
                     DepositBondTx::new(inputs, to_staked_account, attributes);
                 let public_key = self
@@ -62,11 +58,9 @@ where
                     .wallet_client
                     .private_key(passphrase, &public_key)?
                     .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
-                // RecoverableSignature
                 let signature = private_key.sign(transaction.id()).unwrap();
                 let witness = TxInWitness::BasicRedeem(signature);
                 let txwitness = TxWitness::from(vec![witness]);
-                // TXWitness
                 Ok(TxAux::DepositStakeTx(transaction, txwitness))
             }
             ExtendedAddr::OrTree(_) => Err(ErrorKind::InvalidInput.into()),
@@ -82,7 +76,6 @@ where
     ) -> Result<TxAux> {
         match from_address {
             ExtendedAddr::BasicRedeem(ref redeem_address) => {
-                let secp = Secp256k1::new();
                 let transaction: UnbondTx = UnbondTx {
                     value,
                     nonce: 0,
