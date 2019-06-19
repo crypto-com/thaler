@@ -76,12 +76,7 @@ where
     ) -> Result<TxAux> {
         match from_address {
             ExtendedAddr::BasicRedeem(ref redeem_address) => {
-                let transaction: UnbondTx = UnbondTx {
-                    value,
-                    nonce: 0,
-                    attributes,
-                };
-
+                let transaction = UnbondTx::new(value, 0, attributes);
                 let public_key = self
                     .wallet_client
                     .find_public_key(name, passphrase, redeem_address)?
