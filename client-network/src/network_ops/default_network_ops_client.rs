@@ -23,7 +23,7 @@ pub fn get_ecdsa_witness<C: Signing>(
 ) -> EcdsaSignature {
     let message = Message::from_slice(&txid[..]).expect("32 bytes");
     let sig = secp.sign_recoverable(&message, &secret_key);
-    return sig;
+    sig
 }
 
 /// Default implementation of `NetworkOpsClient`
