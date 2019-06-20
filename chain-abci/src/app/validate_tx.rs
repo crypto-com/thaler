@@ -1,9 +1,10 @@
 use super::ChainNodeApp;
-use crate::storage::tx::{verify, ChainInfo};
+use crate::storage::tx::verify;
 use abci::*;
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::{Fee, FeeAlgorithm};
 use chain_core::tx::TxAux;
+use chain_tx_validation::ChainInfo;
 use parity_codec::Decode;
 
 /// Wrapper to astract over CheckTx and DeliverTx requests
@@ -77,9 +78,9 @@ impl ChainNodeApp {
                         min_fee_computed: min_fee,
                         chain_hex_id: self.chain_hex_id,
                         previous_block_time: state.block_time,
-                        last_account_root_hash: self.uncommitted_account_root_hash,
                         unbonding_period: state.unbonding_period,
                     },
+                    &self.uncommitted_account_root_hash,
                     self.storage.db.clone(),
                     &self.accounts,
                 );

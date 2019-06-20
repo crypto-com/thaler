@@ -1,6 +1,5 @@
 use super::ChainNodeApp;
 use crate::app::spend_utxos;
-use crate::storage::tx::TxWithOutputs;
 use crate::storage::*;
 use abci::*;
 use bit_vec::BitVec;
@@ -10,6 +9,7 @@ use chain_core::tx::data::Tx;
 use chain_core::tx::data::TxId;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
+use chain_tx_validation::TxWithOutputs;
 use integer_encoding::VarInt;
 use kvdb::{DBTransaction, KeyValueDB};
 use parity_codec::Encode;
