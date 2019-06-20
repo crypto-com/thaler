@@ -43,5 +43,5 @@ pub trait NetworkOpsClient {
         attributes: TxAttributes,
     ) -> Result<TxAux>;
 
-    // TODO: Add `create_transfer_tx_transaction()` and `get_account_details()` functions
+    // TODO: Add `get_account_details()` functions
 }
