@@ -82,7 +82,7 @@ fn check_spent_input_lookup(
 pub fn verify(
     txaux: &TxAux,
     extra_info: ChainInfo,
-    last_account_root_hash: StarlingFixedKey,
+    last_account_root_hash: &StarlingFixedKey,
     db: Arc<dyn KeyValueDB>,
     accounts: &AccountStorage,
 ) -> Result<(Fee, Option<StakedState>), Error> {
@@ -95,8 +95,7 @@ pub fn verify(
             )
         }
         TxAux::DepositStakeTx(maintx, witness) => {
-            let maccount =
-                get_account(&maintx.to_staked_account, &last_account_root_hash, accounts);
+            let maccount = get_account(&maintx.to_staked_account, last_account_root_hash, accounts);
             let account = match maccount {
                 Ok(a) => Some(a),
                 Err(Error::AccountNotFound) => None,
@@ -113,8 +112,7 @@ pub fn verify(
             if let Err(e) = account_address {
                 return Err(Error::EcdsaCrypto(e));
             }
-            let account =
-                get_account(&account_address.unwrap(), &last_account_root_hash, accounts)?;
+            let account = get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
             verify_unbonding(maintx, extra_info, account)?
         }
         TxAux::WithdrawUnbondedStakeTx(maintx, witness) => {
@@ -122,8 +120,7 @@ pub fn verify(
             if let Err(e) = account_address {
                 return Err(Error::EcdsaCrypto(e));
             }
-            let account =
-                get_account(&account_address.unwrap(), &last_account_root_hash, accounts)?;
+            let account = get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
             verify_unbonded_withdraw(maintx, extra_info, account)?
         }
     };
@@ -134,11 +131,17 @@ pub fn verify(
 pub mod tests {
     use super::*;
     use crate::storage::{Storage, COL_TX_META, NUM_COLUMNS};
+    use chain_core::common::Timespec;
     use chain_core::init::address::RedeemAddress;
+    use chain_core::init::coin::{Coin, CoinError};
     use chain_core::state::account::StakedStateOpAttributes;
+    use chain_core::state::account::{
+        DepositBondTx, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
+    };
     use chain_core::tx::data::{
         address::ExtendedAddr, attribute::TxAttributes, input::TxoPointer, output::TxOut,
     };
+    use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::FeeAlgorithm;
     use chain_core::tx::fee::{LinearFee, Milli};
     use chain_core::tx::witness::{TxInWitness, TxWitness};
@@ -276,10 +279,15 @@ pub mod tests {
                 .expect("invalid fee policy"),
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
-            last_account_root_hash,
             unbonding_period: 1,
         };
-        let result = verify(&txaux, extra_info, create_db(), &accounts);
+        let result = verify(
+            &txaux,
+            extra_info,
+            &last_account_root_hash,
+            create_db(),
+            &accounts,
+        );
         assert!(result.is_ok());
     }
 
@@ -294,21 +302,24 @@ pub mod tests {
                 .expect("invalid fee policy"),
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
-            last_account_root_hash,
             unbonding_period: 1,
         };
         // WrongChainHexId
         {
             let mut extra_info = extra_info.clone();
             extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::WrongChainHexId);
         }
         // AccountNotFound
         {
-            let mut extra_info = extra_info.clone();
-            extra_info.last_account_root_hash = [0; 32];
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(&txaux, extra_info, &[0; 32], db.clone(), &accounts);
             expect_error(&result, Error::AccountNotFound);
         }
         // AccountIncorrectNonce
@@ -319,7 +330,13 @@ pub mod tests {
                 tx.clone(),
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::AccountIncorrectNonce);
         }
         // ZeroCoin
@@ -330,7 +347,13 @@ pub mod tests {
                 tx.clone(),
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::ZeroCoin);
         }
         // InputOutputDoNotMatch
@@ -341,7 +364,13 @@ pub mod tests {
                 tx.clone(),
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::InputOutputDoNotMatch);
         }
     }
@@ -396,17 +425,22 @@ pub mod tests {
                 .expect("invalid fee policy"),
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
-            last_account_root_hash,
             unbonding_period: 1,
         };
-        let result = verify(&txaux, extra_info, create_db(), &accounts);
+        let result = verify(
+            &txaux,
+            extra_info,
+            &last_account_root_hash,
+            create_db(),
+            &accounts,
+        );
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_account_withdraw_verify_fail() {
         let db = create_db();
-        let (txaux, tx, witness, secret_key, accounts, last_account_root_hash) =
+        let (txaux, tx, _, secret_key, accounts, last_account_root_hash) =
             prepare_app_valid_withdraw_tx(0);
         let extra_info = ChainInfo {
             min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
@@ -414,30 +448,49 @@ pub mod tests {
                 .expect("invalid fee policy"),
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
-            last_account_root_hash,
             unbonding_period: 1,
         };
         // WrongChainHexId
         {
             let mut extra_info = extra_info.clone();
             extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::WrongChainHexId);
         }
         // NoOutputs
         {
             let mut tx = tx.clone();
             tx.outputs.clear();
-            let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness.clone());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+            let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::NoOutputs);
         }
         // ZeroCoin
         {
             let mut tx = tx.clone();
             tx.outputs[0].value = Coin::zero();
-            let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness.clone());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+            let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::ZeroCoin);
         }
         // InvalidSum
@@ -450,7 +503,13 @@ pub mod tests {
                 tx.clone(),
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(
                 &result,
                 Error::InvalidSum(CoinError::OutOfBound(Coin::max().into())),
@@ -464,14 +523,18 @@ pub mod tests {
                 tx.clone(),
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::InputOutputDoNotMatch);
         }
         // AccountNotFound
         {
-            let mut extra_info = extra_info.clone();
-            extra_info.last_account_root_hash = [0; 32];
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(&txaux, extra_info, &[0; 32], db.clone(), &accounts);
             expect_error(&result, Error::AccountNotFound);
         }
         // AccountIncorrectNonce
@@ -482,7 +545,13 @@ pub mod tests {
                 tx.clone(),
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::AccountIncorrectNonce);
         }
         // AccountWithdrawOutputNotLocked
@@ -493,16 +562,26 @@ pub mod tests {
                 tx.clone(),
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::AccountWithdrawOutputNotLocked);
         }
         // AccountNotUnbonded
         {
             let (txaux, _, _, _, accounts, last_account_root_hash) =
                 prepare_app_valid_withdraw_tx(20);
-            let mut extra_info = extra_info.clone();
-            extra_info.last_account_root_hash = last_account_root_hash;
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::AccountNotUnbonded);
         }
     }
@@ -548,13 +627,13 @@ pub mod tests {
                 .expect("invalid fee policy"),
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
-            last_account_root_hash: [0u8; 32],
             unbonding_period: 1,
         };
-        let result = verify(&txaux, extra_info, db, &accounts);
+        let last_account_root_hash = [0u8; 32];
+        let result = verify(&txaux, extra_info, &last_account_root_hash, db, &accounts);
         assert!(result.is_ok());
         let (db, txaux, _, _, accounts) = prepare_app_valid_deposit_tx(false);
-        let result = verify(&txaux, extra_info, db, &accounts);
+        let result = verify(&txaux, extra_info, &last_account_root_hash, db, &accounts);
         assert!(result.is_ok());
     }
 
@@ -578,14 +657,20 @@ pub mod tests {
                 .expect("invalid fee policy"),
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
-            last_account_root_hash: [0u8; 32],
             unbonding_period: 1,
         };
+        let last_account_root_hash = [0u8; 32];
         // WrongChainHexId
         {
             let mut extra_info = extra_info.clone();
             extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::WrongChainHexId);
         }
         // NoInputs
@@ -593,7 +678,13 @@ pub mod tests {
             let mut tx = tx.clone();
             tx.inputs.clear();
             let txaux = TxAux::DepositStakeTx(tx, witness.clone());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::NoInputs);
         }
         // DuplicateInputs
@@ -602,7 +693,13 @@ pub mod tests {
             let inp = tx.inputs[0].clone();
             tx.inputs.push(inp);
             let txaux = TxAux::DepositStakeTx(tx, witness.clone());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::DuplicateInputs);
         }
         // UnexpectedWitnesses
@@ -611,13 +708,25 @@ pub mod tests {
             let wp = witness[0].clone();
             witness.push(wp);
             let txaux = TxAux::DepositStakeTx(tx.clone(), witness);
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::UnexpectedWitnesses);
         }
         // MissingWitnesses
         {
             let txaux = TxAux::DepositStakeTx(tx.clone(), vec![].into());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::MissingWitnesses);
         }
         // InputSpent
@@ -630,7 +739,13 @@ pub mod tests {
             );
             db.write(inittx).unwrap();
 
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::InputSpent);
 
             let mut reset = db.transaction();
@@ -651,7 +766,13 @@ pub mod tests {
                 &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
             );
             let txaux = TxAux::DepositStakeTx(tx.clone(), witness);
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(
                 &result,
                 Error::EcdsaCrypto(secp256k1::Error::InvalidPublicKey),
@@ -659,14 +780,26 @@ pub mod tests {
         }
         // InvalidInput
         {
-            let result = verify(&txaux, extra_info, create_db(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                create_db(),
+                &accounts,
+            );
             expect_error(&result, Error::InvalidInput);
         }
         // InputOutputDoNotMatch
         {
             let mut extra_info = extra_info.clone();
             extra_info.min_fee_computed = Fee::new(Coin::one());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::InputOutputDoNotMatch);
         }
     }
@@ -680,14 +813,20 @@ pub mod tests {
                 .expect("invalid fee policy"),
             chain_hex_id: DEFAULT_CHAIN_ID,
             previous_block_time: 0,
-            last_account_root_hash: [0u8; 32],
             unbonding_period: 1,
         };
+        let last_account_root_hash = [0u8; 32];
         // WrongChainHexId
         {
             let mut extra_info = extra_info.clone();
             extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::WrongChainHexId);
         }
         // NoInputs
@@ -695,7 +834,13 @@ pub mod tests {
             let mut tx = tx.clone();
             tx.inputs.clear();
             let txaux = TxAux::TransferTx(tx, witness.clone());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::NoInputs);
         }
         // NoOutputs
@@ -703,7 +848,13 @@ pub mod tests {
             let mut tx = tx.clone();
             tx.outputs.clear();
             let txaux = TxAux::TransferTx(tx, witness.clone());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::NoOutputs);
         }
         // DuplicateInputs
@@ -712,7 +863,13 @@ pub mod tests {
             let inp = tx.inputs[0].clone();
             tx.inputs.push(inp);
             let txaux = TxAux::TransferTx(tx, witness.clone());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::DuplicateInputs);
         }
         // ZeroCoin
@@ -720,7 +877,13 @@ pub mod tests {
             let mut tx = tx.clone();
             tx.outputs[0].value = Coin::zero();
             let txaux = TxAux::TransferTx(tx, witness.clone());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::ZeroCoin);
         }
         // UnexpectedWitnesses
@@ -729,13 +892,25 @@ pub mod tests {
             let wp = witness[0].clone();
             witness.push(wp);
             let txaux = TxAux::TransferTx(tx.clone(), witness);
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::UnexpectedWitnesses);
         }
         // MissingWitnesses
         {
             let txaux = TxAux::TransferTx(tx.clone(), vec![].into());
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::MissingWitnesses);
         }
         // InvalidSum
@@ -747,7 +922,13 @@ pub mod tests {
             let mut witness = witness.clone();
             witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key);
             let txaux = TxAux::TransferTx(tx, witness);
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(
                 &result,
                 Error::InvalidSum(CoinError::OutOfBound(Coin::max().into())),
@@ -763,7 +944,13 @@ pub mod tests {
             );
             db.write(inittx).unwrap();
 
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::InputSpent);
 
             let mut reset = db.transaction();
@@ -784,7 +971,13 @@ pub mod tests {
                 &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
             );
             let txaux = TxAux::TransferTx(tx.clone(), witness);
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(
                 &result,
                 Error::EcdsaCrypto(secp256k1::Error::InvalidPublicKey),
@@ -792,7 +985,13 @@ pub mod tests {
         }
         // InvalidInput
         {
-            let result = verify(&txaux, extra_info, create_db(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                create_db(),
+                &accounts,
+            );
             expect_error(&result, Error::InvalidInput);
         }
         // InputOutputDoNotMatch
@@ -803,13 +1002,25 @@ pub mod tests {
             tx.outputs[0].value = (tx.outputs[0].value + Coin::one()).unwrap();
             witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key);
             let txaux = TxAux::TransferTx(tx, witness);
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::InputOutputDoNotMatch);
         }
         // OutputInTimelock
         {
             let (db, txaux, _, _, _, accounts) = prepare_app_valid_transfer_tx(true);
-            let result = verify(&txaux, extra_info, db.clone(), &accounts);
+            let result = verify(
+                &txaux,
+                extra_info,
+                &last_account_root_hash,
+                db.clone(),
+                &accounts,
+            );
             expect_error(&result, Error::OutputInTimelock);
         }
     }

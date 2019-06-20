@@ -5,7 +5,6 @@ use chain_abci::app::*;
 use chain_abci::storage::account::AccountStorage;
 use chain_abci::storage::account::AccountWrapper;
 use chain_abci::storage::tx::StarlingFixedKey;
-use chain_abci::storage::tx::TxWithOutputs;
 use chain_abci::storage::*;
 use chain_core::common::{MerkleTree, Proof, H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
@@ -35,6 +34,7 @@ use chain_core::tx::{
     witness::{TxInWitness, TxWitness},
     TxAux,
 };
+use chain_tx_validation::TxWithOutputs;
 use ethbloom::{Bloom, Input};
 use hex::decode;
 use kvdb::KeyValueDB;

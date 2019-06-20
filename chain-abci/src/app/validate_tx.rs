@@ -80,7 +80,7 @@ impl ChainNodeApp {
                         previous_block_time: state.block_time,
                         unbonding_period: state.unbonding_period,
                     },
-                    self.uncommitted_account_root_hash,
+                    &self.uncommitted_account_root_hash,
                     self.storage.db.clone(),
                     &self.accounts,
                 );
