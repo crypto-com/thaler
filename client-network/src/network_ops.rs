@@ -20,7 +20,6 @@ pub trait NetworkOpsClient {
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        from_address: &ExtendedAddr,
         inputs: Vec<TxoPointer>,
         to_staked_account: StakedStateAddress,
         attributes: StakedStateOpAttributes,
