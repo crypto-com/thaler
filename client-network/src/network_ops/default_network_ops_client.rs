@@ -7,11 +7,10 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::witness::TxInWitness;
-use chain_core::tx::witness::TxWitness;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::{Error, ErrorKind, Result};
 use client_core::signer::Signer;
+use client_core::UnspentTransactions;
 use client_core::WalletClient;
 use secstr::SecUtf8;
 
@@ -48,31 +47,29 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        from_address: &ExtendedAddr,
         inputs: Vec<TxoPointer>,
         to_staked_account: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
-        match from_address {
-            ExtendedAddr::BasicRedeem(ref redeem_address) => {
-                let transaction: DepositBondTx =
-                    DepositBondTx::new(inputs, to_staked_account, attributes);
-                let public_key = self
-                    .wallet_client
-                    .find_public_key(name, passphrase, redeem_address)?
-                    .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+        let transaction: DepositBondTx =
+            DepositBondTx::new(inputs.clone(), to_staked_account, attributes);
 
-                let private_key = self
-                    .wallet_client
-                    .private_key(passphrase, &public_key)?
-                    .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
-                let signature = private_key.sign(transaction.id()).unwrap();
-                let witness = TxInWitness::BasicRedeem(signature);
-                let txwitness = TxWitness::from(vec![witness]);
-                Ok(TxAux::DepositStakeTx(transaction, txwitness))
-            }
-            ExtendedAddr::OrTree(_) => Err(ErrorKind::InvalidInput.into()),
-        }
+        let transactions = inputs
+            .into_iter()
+            .map(|txo_pointer: TxoPointer| {
+                let id = txo_pointer.id;
+                let index = txo_pointer.index;
+                Ok((txo_pointer, self.wallet_client.output(&id, index as usize)?))
+            })
+            .collect::<Result<Vec<(TxoPointer, TxOut)>>>()?;
+        let unspent_transactions = UnspentTransactions::new(transactions);
+        let witness = self.signer.sign(
+            name,
+            passphrase,
+            transaction.id(),
+            unspent_transactions.select_all(),
+        )?;
+        Ok(TxAux::DepositStakeTx(transaction, witness))
     }
     fn create_unbond_stake_transaction(
         &self,
