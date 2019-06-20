@@ -163,20 +163,15 @@ mod tests {
             RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap();
 
         let attributes = StakedStateOpAttributes::new(0);
-        assert_eq!(
-            ErrorKind::InvalidInput,
-            network_ops_client
-                .create_deposit_bonded_stake_transaction(
-                    name,
-                    passphrase,
-                    &ExtendedAddr::OrTree([0; 32]),
-                    inputs,
-                    to_staked_account.into(),
-                    attributes,
-                )
-                .unwrap_err()
-                .kind()
-        );
+        assert!(network_ops_client
+            .create_deposit_bonded_stake_transaction(
+                name,
+                passphrase,
+                inputs,
+                to_staked_account.into(),
+                attributes,
+            )
+            .is_ok());
     }
 
     #[test]
