@@ -263,7 +263,7 @@ dependencies = [
  "serde_derive 1.0.93 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "starling 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "starling 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1962,7 +1962,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "starling"
-version = "3.0.0"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -2742,7 +2742,7 @@ dependencies = [
 "checksum sled 0.24.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0a780266d241e270e52cab0010e11aecfc6d52e33aa98e52eb9792023abd23aa"
 "checksum smallvec 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)" = "ab606a9c5e214920bb66c458cd7be8ef094f813f20fe77a54cc7dbfff220d4b7"
 "checksum stable_deref_trait 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
-"checksum starling 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "be9c2e6b47cf3a084051585cd5e4258c0c039c13e62ccafefc5d23c1a8b98832"
+"checksum starling 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0120b90d7ec0380bcd15de94540bc96ac58726371d8d6e8af2178d3de554c677"
 "checksum static_assertions 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "b4f8de36da215253eb5f24020bfaa0646613b48bf7ebe36cdfa37c3b3b33b241"
 "checksum stream-cipher 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8861bc80f649f5b4c9bd38b696ae9af74499d479dbfb327f0607de6b326a36bc"
 "checksum string 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d0bbfb8937e38e34c3444ff00afb28b0811d9554f15c5ad64d12b0308d1d1995"
