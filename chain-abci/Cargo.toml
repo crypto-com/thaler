@@ -27,7 +27,7 @@ integer-encoding = "1.0.7"
 clap = { features = ["yaml"], version = "2.33.0" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "a1e70e1f0bb65d3a97f100f79d99c85395d897f8", features = ["recovery", "endomorphism"] }
 blake2 = "0.8"
-ethbloom = "0.5.0"
+ethbloom = "0.6.4"
 parity-codec = { features = ["derive"], version = "4.1.0" }
 
 [dev-dependencies]
