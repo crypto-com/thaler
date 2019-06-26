@@ -9,10 +9,12 @@ use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
 use crate::tx::TransactionId;
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode, Input, Output};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+use std::prelude::v1::Vec;
 // TODO: switch to normal signatures + explicit public key
 use crate::init::address::ErrorAddress;
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
-use serde::{Deserialize, Serialize};
 use std::convert::{From, TryFrom};
 use std::fmt;
 
@@ -23,9 +25,8 @@ pub type Count = u64;
 pub type Nonce = u64;
 
 /// StakedState address type
-#[derive(
-    Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize,
-)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum StakedStateAddress {
     BasicRedeem(RedeemAddress),
 }
@@ -161,7 +162,8 @@ impl StakedState {
 }
 
 /// attributes in StakedState-related transactions
-#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct StakedStateOpAttributes {
     pub chain_hex_id: u8,
     // TODO: Other attributes?
@@ -197,7 +199,8 @@ impl Decode for StakedStateOpAttributes {
 
 /// takes UTXOs inputs, deposits them in the specified StakedState's bonded amount - fee
 /// (updates StakedState's bonded + nonce)
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DepositBondTx {
     pub inputs: Vec<TxoPointer>,
     pub to_staked_account: StakedStateAddress,
@@ -232,7 +235,8 @@ impl fmt::Display for DepositBondTx {
 
 /// updates the StakedState (TODO: implicit from the witness?) by moving some of the bonded amount - fee into unbonded,
 /// and setting the unbonded_from to last_block_time+min_unbonding_time (network parameter)
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct UnbondTx {
     pub value: Coin,
     pub nonce: Nonce,
@@ -260,7 +264,8 @@ impl fmt::Display for UnbondTx {
 
 /// takes the StakedState (TODO: implicit from the witness?) and creates UTXOs
 /// (update's StakedState's unbonded + nonce)
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct WithdrawUnbondedTx {
     pub nonce: Nonce,
     pub outputs: Vec<TxOut>,
@@ -297,7 +302,8 @@ impl fmt::Display for WithdrawUnbondedTx {
 }
 
 /// A witness for StakedState operations
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum StakedStateOpWitness {
     BasicRedeem(EcdsaSignature),
 }

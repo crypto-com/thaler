@@ -12,21 +12,28 @@
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
 use parity_codec::{Decode, Encode};
+use std::prelude::v1::{String, ToString};
 use std::str::FromStr;
-use std::{error, fmt, ops};
+use std::{fmt, ops};
 
 use hex;
-use secp256k1::{self, key::PublicKey};
+#[cfg(feature = "sha3")]
+use secp256k1::key::PublicKey;
+#[cfg(feature = "serde")]
 use serde::de::Error;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "sha3")]
 use sha3::Keccak256;
 
+#[cfg(feature = "sha3")]
 use crate::common::{hash256, H256};
 
 /// Keccak-256 crypto hash length in bytes
 pub const KECCAK256_BYTES: usize = 32;
 
 /// Calculate Keccak-256 crypto hash
+#[cfg(feature = "sha3")]
 pub fn keccak256(data: &[u8]) -> H256 {
     hash256::<Keccak256>(data)
 }
@@ -90,12 +97,13 @@ impl fmt::Display for ErrorAddress {
     }
 }
 
-impl error::Error for ErrorAddress {
+#[cfg(not(any(feature = "mesalock_sgx", target_env = "sgx")))]
+impl std::error::Error for ErrorAddress {
     fn description(&self) -> &str {
         "Core error"
     }
 
-    fn cause(&self) -> Option<&dyn error::Error> {
+    fn cause(&self) -> Option<&dyn std::error::Error> {
         match *self {
             ErrorAddress::UnexpectedHexEncoding(ref err) => Some(err),
             ErrorAddress::EcdsaCrypto(ref err) => Some(err),
@@ -137,6 +145,7 @@ impl ops::Deref for RedeemAddress {
     }
 }
 
+#[cfg(feature = "sha3")]
 impl From<&PublicKey> for RedeemAddress {
     fn from(pk: &PublicKey) -> Self {
         let hash = keccak256(&pk.serialize_uncompressed()[1..]);
@@ -174,6 +183,7 @@ impl fmt::Display for RedeemAddress {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for RedeemAddress {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -183,6 +193,7 @@ impl Serialize for RedeemAddress {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for RedeemAddress {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

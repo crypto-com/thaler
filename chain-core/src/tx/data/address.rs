@@ -1,4 +1,5 @@
 use parity_codec::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -12,7 +13,8 @@ type TreeRoot = H256;
 /// Currently, only Ethereum-style redeem address + MAST of Or operations (records the root).
 /// TODO: HD-addresses?
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ExtendedAddr {
     BasicRedeem(RedeemAddress),
     OrTree(TreeRoot),
