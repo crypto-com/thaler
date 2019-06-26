@@ -1,10 +1,13 @@
 use parity_codec::{Decode, Encode, Input, Output};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::prelude::v1::Vec;
 
 use crate::tx::data::access::TxAccessPolicy;
 
 /// Tx extra metadata, e.g. network ID
-#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxAttributes {
     pub chain_hex_id: u8,
     pub allowed_view: Vec<TxAccessPolicy>,

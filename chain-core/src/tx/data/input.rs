@@ -1,6 +1,7 @@
 use std::fmt;
 
 use parity_codec::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::tx::data::TxId;
@@ -8,9 +9,8 @@ use crate::tx::data::TxId;
 /// Structure used for addressing a specific output of a transaction
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
 /// transaction.
-#[derive(
-    Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Serialize, Deserialize, Encode, Decode,
-)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxoPointer {
     pub id: TxId,
     // TODO: u16 and Vec size check in Decode implementation

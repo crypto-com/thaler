@@ -8,10 +8,12 @@ use crate::init::coin::Coin;
 use account::{Nonce, StakedStateAddress};
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use tendermint::{BlockHeight, TendermintValidatorPubKey};
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RewardsPoolState {
     /// remaining amount in the pool
     pub remaining: Coin,
@@ -34,7 +36,8 @@ impl RewardsPoolState {
 }
 
 /// holds state about a node responsible for transaction validation / block signing and service node whitelist management
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CouncilNode {
     // account with the required staked amount
     pub staking_account_address: StakedStateAddress,

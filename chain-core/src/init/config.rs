@@ -1,6 +1,7 @@
-use std::fmt;
-
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::prelude::v1::{String, Vec};
 
 use crate::common::Timespec;
 use crate::init::address::RedeemAddress;
@@ -13,7 +14,8 @@ use crate::state::RewardsPoolState;
 use crate::tx::fee::LinearFee;
 use std::collections::{BTreeMap, HashSet};
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct InitNetworkParameters {
     // Initial fee setting
     // -- TODO: perhaps change to be against T: FeeAlgorithm
@@ -25,7 +27,8 @@ pub struct InitNetworkParameters {
     pub unbonding_period: u32,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum AccountType {
     // vanilla -- redeemable
     ExternallyOwnedAccount,
@@ -33,12 +36,14 @@ pub enum AccountType {
     Contract,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ValidatorKeyType {
     Ed25519,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct InitialValidator {
     // account with the required staked amount
     pub staking_account_address: RedeemAddress,
@@ -50,7 +55,8 @@ pub struct InitialValidator {
 
 /// Initial configuration ("app_state" in genesis.json of Tendermint config)
 /// TODO: reward/treasury config, extra validator config...
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct InitConfig {
     // Redeem mapping of ERC20 snapshot: Eth address => (CRO tokens, AccountType)
     pub distribution: BTreeMap<RedeemAddress, (Coin, AccountType)>,

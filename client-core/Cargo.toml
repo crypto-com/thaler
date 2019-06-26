@@ -9,7 +9,7 @@ edition = "2018"
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-index = { path = "../client-index" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "a1e70e1f0bb65d3a97f100f79d99c85395d897f8", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "aa4f8e08253e7278c20122b9268c970d6f03d44c", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
 rand = "0.6"
 failure = "0.1"
 hex = "0.3"

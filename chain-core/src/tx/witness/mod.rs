@@ -2,6 +2,7 @@
 pub mod tree;
 
 use std::fmt;
+use std::prelude::v1::Vec;
 
 use parity_codec::{Decode, Encode, Input, Output};
 // TODO: switch to normal signatures + explicit public key

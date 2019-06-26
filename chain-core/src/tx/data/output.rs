@@ -1,6 +1,7 @@
 use std::fmt;
 
 use parity_codec::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::common::Timespec;
@@ -9,7 +10,8 @@ use crate::tx::data::address::ExtendedAddr;
 
 /// Tx Output composed of an address and a coin value
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxOut {
     pub address: ExtendedAddr,
     pub value: Coin,

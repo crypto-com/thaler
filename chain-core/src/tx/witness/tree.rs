@@ -9,12 +9,14 @@ use crate::common::{H264, H512};
 #[derive(Clone)]
 pub struct RawPubkey(H264);
 
+#[cfg(feature = "serde")]
 impl ::serde::Serialize for RawPubkey {
     fn serialize<S: ::serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         s.serialize_bytes(&self.0)
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> ::serde::Deserialize<'de> for RawPubkey {
     fn deserialize<D: ::serde::Deserializer<'de>>(d: D) -> Result<RawPubkey, D::Error> {
         use ::serde::de::Error;

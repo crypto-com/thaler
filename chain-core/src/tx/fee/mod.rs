@@ -6,9 +6,11 @@
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::TxAux;
 use parity_codec::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
 use std::ops::{Add, Mul};
+use std::prelude::v1::Vec;
 use std::str::FromStr;
 use std::{error, fmt};
 
@@ -30,8 +32,9 @@ impl Fee {
 /// TODO: overflow checks in Cargo?
 /// [profile.release]
 /// overflow-checks = true
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
-#[serde(transparent)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Encode, Decode)]
+#[cfg_attr(feature = "serde", serde(transparent))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Milli(u64);
 impl Milli {
     /// takes the integer part and 4-digit fractional part
@@ -135,7 +138,8 @@ impl Mul for Milli {
 }
 
 /// Linear fee using the basic affine formula `COEFFICIENT * scale_bytes(txaux).len() + CONSTANT`
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Serialize, Deserialize, Encode, Decode)]
+#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LinearFee {
     /// this is the minimal fee
     pub constant: Milli,

@@ -1,12 +1,14 @@
 use parity_codec::{Decode, Encode, Input, Output};
 use secp256k1::key::PublicKey;
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::tx::witness::tree::RawPubkey;
 
 /// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TxAccess {
     AllData,
     // TODO: u16 and Vec size check in Decode implementation
@@ -22,7 +24,8 @@ impl Default for TxAccess {
 }
 
 /// Specifies who can access what -- TODO: revisit when enforced by HW encryption / enclaves
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxAccessPolicy {
     pub view_key: PublicKey,
     pub access: TxAccess,

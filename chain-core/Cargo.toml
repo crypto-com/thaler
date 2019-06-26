@@ -6,12 +6,15 @@ description = "Library with core types and serialization for the use in external
 readme = "../README.md"
 edition = "2018"
 
+[features]
+default = ["sha3", "serde"]
+
 [dependencies]
 digest = "0.8"
-sha3 = "0.8"
+sha3 = { version = "0.8", optional = true }
 hex = "0.3"
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "a1e70e1f0bb65d3a97f100f79d99c85395d897f8", features = ["serde", "recovery", "endomorphism"] }
-serde = { version = "1.0", features = ["derive"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "aa4f8e08253e7278c20122b9268c970d6f03d44c", features = ["recovery", "endomorphism", "serde"] }
+serde = { version = "1.0", features = ["derive"], optional = true }
 blake2 = "0.8"
 serde_json = "1.0"
 parity-codec = { features = ["derive"], version = "4.1.0" }
