@@ -28,7 +28,7 @@ clap = { features = ["yaml"], version = "2.33.0" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "aa4f8e08253e7278c20122b9268c970d6f03d44c", features = ["recovery", "endomorphism"] }
 blake2 = "0.8"
 ethbloom = "0.5.0"
-parity-codec = { features = ["derive"], version = "4.1.0" }
+parity-codec = { features = ["derive"], version = "4.1.1" }
 
 [dev-dependencies]
 quickcheck = "0.8"
