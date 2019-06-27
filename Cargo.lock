@@ -258,7 +258,7 @@ dependencies = [
  "parity-codec 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=aa4f8e08253e7278c20122b9268c970d6f03d44c)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=9dce794d1d8ce03ffa48823acf198fae15e896d3)",
  "serde 1.0.93 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.93 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -276,7 +276,7 @@ dependencies = [
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=aa4f8e08253e7278c20122b9268c970d6f03d44c)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=9dce794d1d8ce03ffa48823acf198fae15e896d3)",
  "serde 1.0.93 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -289,7 +289,7 @@ version = "0.1.0"
 dependencies = [
  "chain-core 0.1.0",
  "parity-codec 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=aa4f8e08253e7278c20122b9268c970d6f03d44c)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=9dce794d1d8ce03ffa48823acf198fae15e896d3)",
 ]
 
 [[package]]
@@ -371,7 +371,7 @@ dependencies = [
  "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=aa4f8e08253e7278c20122b9268c970d6f03d44c)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=9dce794d1d8ce03ffa48823acf198fae15e896d3)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "zeroize 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -387,7 +387,7 @@ dependencies = [
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=aa4f8e08253e7278c20122b9268c970d6f03d44c)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=9dce794d1d8ce03ffa48823acf198fae15e896d3)",
 ]
 
 [[package]]
@@ -1847,11 +1847,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "secp256k1zkp"
 version = "0.13.0"
-source = "git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=aa4f8e08253e7278c20122b9268c970d6f03d44c#aa4f8e08253e7278c20122b9268c970d6f03d44c"
+source = "git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=9dce794d1d8ce03ffa48823acf198fae15e896d3#9dce794d1d8ce03ffa48823acf198fae15e896d3"
 dependencies = [
  "cc 1.0.35 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.93 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sgx_tstd 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
  "zeroize 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1911,6 +1912,72 @@ dependencies = [
  "itoa 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "ryu 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.93 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sgx_alloc"
+version = "1.0.8"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8#bc2d7e245679423312be2deb51701587b4070681"
+dependencies = [
+ "sgx_trts 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+]
+
+[[package]]
+name = "sgx_build_helper"
+version = "0.1.0"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8#bc2d7e245679423312be2deb51701587b4070681"
+
+[[package]]
+name = "sgx_libc"
+version = "1.0.8"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8#bc2d7e245679423312be2deb51701587b4070681"
+dependencies = [
+ "sgx_types 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+]
+
+[[package]]
+name = "sgx_tprotected_fs"
+version = "1.0.8"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8#bc2d7e245679423312be2deb51701587b4070681"
+dependencies = [
+ "sgx_trts 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+ "sgx_types 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+]
+
+[[package]]
+name = "sgx_trts"
+version = "1.0.8"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8#bc2d7e245679423312be2deb51701587b4070681"
+dependencies = [
+ "sgx_libc 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+ "sgx_types 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+]
+
+[[package]]
+name = "sgx_tstd"
+version = "1.0.8"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8#bc2d7e245679423312be2deb51701587b4070681"
+dependencies = [
+ "sgx_alloc 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+ "sgx_build_helper 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+ "sgx_libc 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+ "sgx_tprotected_fs 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+ "sgx_trts 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+ "sgx_types 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+ "sgx_unwind 0.0.1 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
+]
+
+[[package]]
+name = "sgx_types"
+version = "1.0.8"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8#bc2d7e245679423312be2deb51701587b4070681"
+
+[[package]]
+name = "sgx_unwind"
+version = "0.0.1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8#bc2d7e245679423312be2deb51701587b4070681"
+dependencies = [
+ "sgx_trts 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)",
 ]
 
 [[package]]
@@ -2729,7 +2796,7 @@ dependencies = [
 "checksum scoped_threadpool 0.1.9 (registry+https://github.com/rust-lang/crates.io-index)" = "1d51f5df5af43ab3f1360b429fa5e0152ac5ce8c0bd6485cae490332e96846a8"
 "checksum scopeguard 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "94258f53601af11e6a49f722422f6e3425c52b06245a5cf9bc09908b174f5e27"
 "checksum scopeguard 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b42e15e59b18a828bbf5c58ea01debb36b9b096346de35d941dcb89009f24a0d"
-"checksum secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=aa4f8e08253e7278c20122b9268c970d6f03d44c)" = "<none>"
+"checksum secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=9dce794d1d8ce03ffa48823acf198fae15e896d3)" = "<none>"
 "checksum secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "fb003d53cef244a97516226b01155057c7fa6eb52914933c32f6c98a84182188"
 "checksum semver 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "1d7eb9ef2c18661902cc47e535f9bc51b78acd254da71d375c2f6720d9a40403"
 "checksum semver-parser 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
@@ -2737,6 +2804,14 @@ dependencies = [
 "checksum serde_bytes 0.11.1 (registry+https://github.com/rust-lang/crates.io-index)" = "aaff47db6ef8771cca5d88febef2f22f47f645420e51226374049f68c6b08569"
 "checksum serde_derive 1.0.93 (registry+https://github.com/rust-lang/crates.io-index)" = "c4cce6663696bd38272e90bf34a0267e1226156c33f52d3f3915a2dd5d802085"
 "checksum serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)" = "5a23aa71d4a4d43fdbfaac00eff68ba8a06a51759a89ac3304323e800c4dd40d"
+"checksum sgx_alloc 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)" = "<none>"
+"checksum sgx_build_helper 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)" = "<none>"
+"checksum sgx_libc 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)" = "<none>"
+"checksum sgx_tprotected_fs 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)" = "<none>"
+"checksum sgx_trts 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)" = "<none>"
+"checksum sgx_tstd 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)" = "<none>"
+"checksum sgx_types 1.0.8 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)" = "<none>"
+"checksum sgx_unwind 0.0.1 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.8)" = "<none>"
 "checksum sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "dd26bc0e7a2e3a7c959bc494caf58b72ee0c71d67704e9520f736ca7e4853ecf"
 "checksum skeptic 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "24ebf8a06f5f8bae61ae5bbc7af7aac4ef6907ae975130faba1199e5fe82256a"
 "checksum slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
