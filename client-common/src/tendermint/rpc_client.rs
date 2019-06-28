@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 
 use crate::tendermint::types::*;
 use crate::tendermint::Client;
-use crate::{ErrorKind, Result};
+use crate::{Error, ErrorKind, Result};
+use chain_core::state::account::StakedState;
+use parity_codec::{Decode, Encode};
 
 /// Tendermint RPC Client
 #[derive(Clone)]
@@ -64,5 +66,40 @@ impl Client for RpcClient {
         let params = [json!(transaction)];
         self.call::<serde_json::Value>("broadcast_tx_sync", &params)
             .map(|_| ())
+    }
+
+    fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
+        // path, data, height, prove
+        let params = [
+            json!("account"),
+            json!(hex::encode(staked_state_address)),
+            json!(null),
+            json!(null),
+        ];
+        self.call::<serde_json::Value>("abci_query", &params)
+            .and_then(|x| match x.get("response") {
+                Some(y) => Ok(y.clone()),
+                None => Err(Error::from(ErrorKind::RpcError)),
+            })
+            .and_then(|x| match x.get("value") {
+                Some(y) => Ok(y.clone()),
+                None => Err(Error::from(ErrorKind::RpcError)),
+            })
+            .and_then(|x| match x.as_str() {
+                Some(y) => Ok(y.to_string().clone()),
+                None => Err(Error::from(ErrorKind::RpcError)),
+            })
+            .and_then(|value| match base64::decode(value.as_bytes()) {
+                Ok(a) => Ok(a),
+                Err(b) => Err(Error::from(ErrorKind::RpcError)),
+            })
+            .and_then(|data| match StakedState::decode(&mut data.as_slice()) {
+                Some(a) => Ok(a),
+                None => Err(Error::from(ErrorKind::RpcError)),
+            })
+            .and_then(|account| {
+                println!("StakedState {:?}", account);
+                Ok(account)
+            })
     }
 }
