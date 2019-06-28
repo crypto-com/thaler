@@ -52,6 +52,9 @@ impl ::std::error::Error for CoinError {}
 type CoinResult = Result<Coin, CoinError>;
 
 impl Coin {
+    pub fn value(&self) -> u64 {
+        return self.0;
+    }
     /// create a coin of value `0`.
     pub fn zero() -> Self {
         Coin(0)

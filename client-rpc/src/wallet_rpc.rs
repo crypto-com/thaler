@@ -20,7 +20,7 @@ pub trait WalletRpc {
     fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
 
     #[rpc(name = "wallet_balance")]
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin>;
+    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<String>;
 
     #[rpc(name = "wallet_create")]
     fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String>;
@@ -79,11 +79,11 @@ where
         }
     }
 
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin> {
+    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<String> {
         self.sync()?;
 
         match self.client.balance(&request.name, &request.passphrase) {
-            Ok(balance) => Ok(balance),
+            Ok(balance) => Ok(balance.value().to_string()),
             Err(e) => Err(to_rpc_error(e)),
         }
     }
@@ -358,7 +358,7 @@ mod tests {
             .create(create_wallet_request("Default", "123456"))
             .unwrap();
         assert_eq!(
-            Coin::new(30).unwrap(),
+            Coin::new(30).unwrap().value().to_string(),
             wallet_rpc
                 .balance(create_wallet_request("Default", "123456"))
                 .unwrap()
