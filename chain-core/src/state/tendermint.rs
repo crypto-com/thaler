@@ -1,6 +1,8 @@
 use parity_codec::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use std::prelude::v1::{String, ToString, Vec};
 
 /// Tendermint block height
 /// TODO: u64?
@@ -9,7 +11,8 @@ pub type BlockHeight = i64;
 /// The protobuf structure currently has "String" to denote the type / length
 /// and variable length byte array. In this internal representation,
 /// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TendermintValidatorPubKey {
     Ed25519([u8; 32]),
     // there's PubKeySecp256k1, but https://tendermint.com/docs/spec/abci/apps.html#validator-updates

@@ -1,3 +1,5 @@
+use std::prelude::v1::Vec;
+
 /// For specifying access control to TX data
 pub mod access;
 /// Different address types (Redeem and Tree/MAST)
@@ -13,6 +15,7 @@ use std::fmt;
 
 use blake2::Blake2s;
 use parity_codec::{Decode, Encode};
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::common::{hash256, H256};
@@ -35,7 +38,8 @@ pub type TxId = H256;
 /// A Transaction containing tx inputs and tx outputs.
 /// TODO: max input/output size?
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Tx {
     pub inputs: Vec<TxoPointer>,
     pub outputs: Vec<TxOut>,

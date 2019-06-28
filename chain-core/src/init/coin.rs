@@ -8,13 +8,16 @@ use crate::state::tendermint::TendermintVotePower;
 use parity_codec::{Decode, Encode, Input};
 
 use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
+#[cfg(feature = "serde")]
 use serde::de::{Deserialize, Deserializer, Error, Visitor};
+#[cfg(feature = "serde")]
 use serde::Serialize;
 use static_assertions::const_assert;
 use std::convert::TryFrom;
 use std::{fmt, mem, ops, result, slice};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Encode)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Coin(u64);
 
 /// error type relating to `Coin` operations
@@ -180,6 +183,7 @@ impl From<u32> for Coin {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Coin {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

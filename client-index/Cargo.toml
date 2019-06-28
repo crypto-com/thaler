@@ -8,13 +8,13 @@ edition = "2018"
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 failure = "0.1"
-parity-codec = { features = ["derive"], version = "4.0.0" }
+parity-codec = { features = ["derive"], version = "4.1.1" }
 chrono = { version = "0.4", features = ["serde"] }
 jsonrpc = { version = "0.11", optional = true }
 base64 = "0.10"
 
 [dev-dependencies]
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "a1e70e1f0bb65d3a97f100f79d99c85395d897f8", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "9dce794d1d8ce03ffa48823acf198fae15e896d3", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
 
 [features]
 default = ["sled", "rpc"]

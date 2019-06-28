@@ -1,3 +1,4 @@
+use std::prelude::v1::{Box, Vec};
 use std::vec::IntoIter;
 
 use blake2::Blake2s;
