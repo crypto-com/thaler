@@ -9,7 +9,7 @@ use crate::tendermint::types::*;
 use crate::tendermint::Client;
 use crate::{Error, ErrorKind, Result};
 use chain_core::state::account::StakedState;
-use parity_codec::{Decode, Encode};
+use parity_codec::Decode;
 
 /// Tendermint RPC Client
 #[derive(Clone)]
@@ -96,10 +96,6 @@ impl Client for RpcClient {
             .and_then(|data| match StakedState::decode(&mut data.as_slice()) {
                 Some(a) => Ok(a),
                 None => Err(Error::from(ErrorKind::RpcError)),
-            })
-            .and_then(|account| {
-                println!("StakedState {:?}", account);
-                Ok(account)
             })
     }
 }
