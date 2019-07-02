@@ -16,7 +16,7 @@ pub struct PrivateKey(SecretKey);
 impl PrivateKey {
     /// Generates a new private key
     pub fn new() -> Result<PrivateKey> {
-        let mut rng = OsRng::new().context(ErrorKind::KeyGenerationError)?;
+        let mut rng = OsRng;
         let secret_key = SecretKey::new(&mut rng);
 
         Ok(PrivateKey(secret_key))

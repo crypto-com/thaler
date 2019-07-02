@@ -121,8 +121,7 @@ where
         let mut algo = get_algo(passphrase);
 
         let mut nonce = [0u8; NONCE_SIZE];
-        let mut rand = OsRng::new().context(ErrorKind::RngError)?;
-        rand.fill(&mut nonce);
+        OsRng.fill(&mut nonce);
 
         let mut cipher = algo.seal(&nonce, key.as_ref(), &value);
         cipher.extend(&nonce[..]);
@@ -163,8 +162,7 @@ where
 
             next.map(|next| {
                 let mut nonce = [0u8; NONCE_SIZE];
-                let mut rand = OsRng::new().context(ErrorKind::RngError)?;
-                rand.fill(&mut nonce);
+                OsRng.fill(&mut nonce);
 
                 let mut sealed = algo.seal(&nonce, key.as_ref(), &next);
                 sealed.extend(&nonce[..]);
