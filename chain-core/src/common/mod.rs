@@ -1,3 +1,5 @@
+use std::fmt;
+
 use digest::Digest;
 
 /// Generic merkle tree
@@ -23,3 +25,19 @@ pub type Timespec = i64;
 pub type H256 = [u8; HASH_SIZE_256];
 pub type H264 = [u8; HASH_SIZE_256 + 1];
 pub type H512 = [u8; HASH_SIZE_256 * 2];
+
+/// Types of tendermint events created during `deliver_tx` / `end_block`
+#[derive(Debug, Clone, Copy)]
+pub enum TendermintEventType {
+    ValidTransactions,
+    BlockFilter,
+}
+
+impl fmt::Display for TendermintEventType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TendermintEventType::ValidTransactions => write!(f, "valid_txs"),
+            TendermintEventType::BlockFilter => write!(f, "block_filter"),
+        }
+    }
+}

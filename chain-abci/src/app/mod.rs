@@ -13,6 +13,7 @@ use crate::storage::account::AccountWrapper;
 use crate::storage::tx::StarlingFixedKey;
 use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
+use chain_core::common::TendermintEventType;
 use chain_core::state::account::StakedState;
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::data::input::TxoPointer;
@@ -197,7 +198,7 @@ impl abci::Application for ChainNodeApp {
             // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
             kvpair.value = Vec::from(&txaux.tx_id()[..]);
             let mut event = Event::new();
-            event.field_type = "delivered_txs".to_string();
+            event.field_type = TendermintEventType::ValidTransactions.to_string();
             event.attributes.push(kvpair);
             resp.events.push(event);
             self.delivered_txs.push(txaux);
@@ -241,7 +242,7 @@ impl abci::Application for ChainNodeApp {
             // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
             kvpair.value = Vec::from(&bloom.data()[..]);
             let mut event = Event::new();
-            event.field_type = "end_block".to_string();
+            event.field_type = TendermintEventType::BlockFilter.to_string();
             event.attributes.push(kvpair);
             resp.events.push(event);
         }
