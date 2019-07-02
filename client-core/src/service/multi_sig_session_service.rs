@@ -379,7 +379,7 @@ where
             })
             .collect::<Vec<Signer>>();
 
-        let mut rng = OsRng::new().context(ErrorKind::KeyGenerationError)?;
+        let mut rng = OsRng;
         let session_id = H256::try_from(&MuSigSessionID::new(&mut rng)[..])
             .context(ErrorKind::DeserializationError)?;
 
