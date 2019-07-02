@@ -557,7 +557,9 @@ fn valid_commit_should_persist() {
     assert_eq!(1, cresp.events.len());
     assert_eq!(1, cresp.events[0].attributes.len());
     assert_eq!(1, app.delivered_txs.len());
-    let bloom = Bloom::from(&cresp.events[0].attributes[0].value[..]);
+    let mut bloom_array = [0u8; 256];
+    bloom_array.copy_from_slice(&cresp.events[0].attributes[0].value);
+    let bloom = Bloom::from(&bloom_array);
     assert!(bloom.contains_input(Input::Raw(
         &tx.attributes.allowed_view[0].view_key.serialize()
     )));
