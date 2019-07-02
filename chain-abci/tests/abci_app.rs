@@ -430,7 +430,7 @@ fn deliver_tx_should_reject_empty_tx() {
     let cresp = app.deliver_tx(&creq);
     assert_ne!(0, cresp.code);
     assert_eq!(0, app.delivered_txs.len());
-    assert_eq!(0, cresp.tags.len());
+    assert_eq!(0, cresp.events.len());
 }
 
 #[test]
@@ -448,7 +448,7 @@ fn deliver_tx_should_reject_invalid_tx() {
     let cresp = app.deliver_tx(&creq);
     assert_ne!(0, cresp.code);
     assert_eq!(0, app.delivered_txs.len());
-    assert_eq!(0, cresp.tags.len());
+    assert_eq!(0, cresp.events.len());
 }
 
 fn deliver_valid_tx() -> (
@@ -477,8 +477,9 @@ fn deliver_tx_should_add_valid_tx() {
     let (app, tx, _, cresp) = deliver_valid_tx();
     assert_eq!(0, cresp.code);
     assert_eq!(1, app.delivered_txs.len());
-    assert_eq!(1, cresp.tags.len());
-    assert_eq!(&tx.id()[..], &cresp.tags[0].value[..]);
+    assert_eq!(1, cresp.events.len());
+    assert_eq!(1, cresp.events[0].attributes.len());
+    assert_eq!(&tx.id()[..], &cresp.events[0].attributes[0].value[..]);
 }
 
 #[test]
@@ -528,7 +529,7 @@ fn endblock_should_change_block_height() {
         10,
         i64::from(app.last_state.as_ref().unwrap().last_block_height)
     );
-    assert_eq!(0, cresp.tags.len());
+    assert_eq!(0, cresp.events.len());
 }
 
 #[test]
@@ -553,9 +554,10 @@ fn valid_commit_should_persist() {
     let mut endreq = RequestEndBlock::default();
     endreq.set_height(10);
     let cresp = app.end_block(&endreq);
-    assert_eq!(1, cresp.tags.len());
+    assert_eq!(1, cresp.events.len());
+    assert_eq!(1, cresp.events[0].attributes.len());
     assert_eq!(1, app.delivered_txs.len());
-    let bloom = Bloom::from(&cresp.tags[0].value[..]);
+    let bloom = Bloom::from(&cresp.events[0].attributes[0].value[..]);
     assert!(bloom.contains_input(Input::Raw(
         &tx.attributes.allowed_view[0].view_key.serialize()
     )));
