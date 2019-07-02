@@ -1,6 +1,5 @@
 use crate::NetworkOpsClient;
 use chain_core::init::coin::Coin;
-use chain_core::state::account::Nonce;
 use chain_core::state::account::StakedState;
 use chain_core::state::account::{DepositBondTx, UnbondTx};
 use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
@@ -68,12 +67,6 @@ where
             StakedStateAddress::BasicRedeem(a) => self.get_account(&a.0),
         }
     }
-
-    /// Get nonce
-    pub fn get_staked_state_nonce(&self, to_staked_account: StakedStateAddress) -> Result<Nonce> {
-        let state = self.get_staked_state_account(to_staked_account);
-        state.map(|x| x.nonce)
-    }
 }
 
 impl<'a, W, S, C> NetworkOpsClient for DefaultNetworkOpsClient<'a, W, S, C>
@@ -120,7 +113,8 @@ where
     ) -> Result<TxAux> {
         match from_address {
             ExtendedAddr::BasicRedeem(ref redeem_address) => self
-                .get_staked_state_nonce(StakedStateAddress::BasicRedeem(*redeem_address))
+                .get_staked_state_account(StakedStateAddress::BasicRedeem(*redeem_address))
+                .map(|x| x.nonce)
                 .and_then(|nonce| {
                     let transaction = UnbondTx::new(value, nonce, attributes);
                     let public_key = self
@@ -151,7 +145,8 @@ where
     ) -> Result<TxAux> {
         match from_address {
             ExtendedAddr::BasicRedeem(ref redeem_address) => self
-                .get_staked_state_nonce(StakedStateAddress::BasicRedeem(*redeem_address))
+                .get_staked_state_account(StakedStateAddress::BasicRedeem(*redeem_address))
+                .map(|x| x.nonce)
                 .and_then(|nonce| {
                     let transaction = WithdrawUnbondedTx::new(nonce, outputs, attributes);
                     let public_key = self
@@ -362,7 +357,9 @@ mod tests {
         fn query(&self, _path: &str, _data: &str) -> Result<QueryResult> {
             Ok(QueryResult {
                 response: Response {
-                    value: "AAAAAAAAAAAAAAAAAAAAAAAAeiLByLEia/aSXAAAAAAADbIhxPV9XTi5aBOcBukTKq+E6N8=".to_string(),
+                    value:
+                        "AAAAAAAAAAAAAAAAAAAAAAAAeiLByLEia/aSXAAAAAAADbIhxPV9XTi5aBOcBukTKq+E6N8="
+                            .to_string(),
                 },
             })
         }
