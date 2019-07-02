@@ -7,13 +7,13 @@ readme = "../README.md"
 edition = "2018"
 
 [features]
-default = ["sha3", "serde"]
+default = ["serde"]
 
 [dependencies]
 digest = "0.8"
-sha3 = { version = "0.8", optional = true }
+tiny-keccak = { version = "1.5.0", default-features = false, features = ["keccak"] }
 hex = "0.3"
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "9dce794d1d8ce03ffa48823acf198fae15e896d3", features = ["recovery", "endomorphism", "serde"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "ab780345c85ac2c28a4e0c08e8e18c4ecdbb1fa9", features = ["recovery", "endomorphism", "serde"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 blake2 = "0.8"
 serde_json = "1.0"

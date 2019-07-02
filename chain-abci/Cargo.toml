@@ -7,11 +7,11 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-abci = "0.5.4"
+abci = "0.6"
 chain-core = { path = "../chain-core" }
 chain-tx-validation = { path = "../chain-tx-validation" }
 log = "0.4.0"
-env_logger = "0.6.1"
+env_logger = "0.6.2"
 bit-vec = "0.6.1"
 kvdb = "0.1"
 kvdb-rocksdb = "0.1.4"
@@ -25,7 +25,7 @@ hex = "0.3"
 protobuf = "2.6.0"
 integer-encoding = "1.0.7"
 clap = { features = ["yaml"], version = "2.33.0" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "9dce794d1d8ce03ffa48823acf198fae15e896d3", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "ab780345c85ac2c28a4e0c08e8e18c4ecdbb1fa9", features = ["recovery", "endomorphism"] }
 blake2 = "0.8"
 ethbloom = "0.5.0"
 parity-codec = { features = ["derive"], version = "4.1.1" }

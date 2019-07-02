@@ -17,25 +17,23 @@ use std::str::FromStr;
 use std::{fmt, ops};
 
 use hex;
-#[cfg(feature = "sha3")]
 use secp256k1::key::PublicKey;
 #[cfg(feature = "serde")]
 use serde::de::Error;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-#[cfg(feature = "sha3")]
-use sha3::Keccak256;
+use tiny_keccak::Keccak;
 
-#[cfg(feature = "sha3")]
-use crate::common::{hash256, H256};
+use crate::common::{H256, HASH_SIZE_256};
 
 /// Keccak-256 crypto hash length in bytes
 pub const KECCAK256_BYTES: usize = 32;
 
 /// Calculate Keccak-256 crypto hash
-#[cfg(feature = "sha3")]
 pub fn keccak256(data: &[u8]) -> H256 {
-    hash256::<Keccak256>(data)
+    let mut output = [0u8; HASH_SIZE_256];
+    Keccak::keccak256(data, &mut output);
+    output
 }
 
 /// Convert a slice into array
@@ -145,7 +143,6 @@ impl ops::Deref for RedeemAddress {
     }
 }
 
-#[cfg(feature = "sha3")]
 impl From<&PublicKey> for RedeemAddress {
     fn from(pk: &PublicKey) -> Self {
         let hash = keccak256(&pk.serialize_uncompressed()[1..]);
