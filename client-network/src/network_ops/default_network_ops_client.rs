@@ -65,10 +65,9 @@ where
 
     fn get_staked_state_nonce(&self, to_staked_account: StakedStateAddress) -> Result<Nonce> {
         let state = self.get_staked_state_account(to_staked_account);
-        match state {
-            Ok(a) => Ok(a.nonce),
-            Err(b) => Err(b),
-        }
+        state.map(|x| {
+            x.nonce
+        })
     }
 
     fn create_deposit_bonded_stake_transaction(
