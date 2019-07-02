@@ -15,7 +15,6 @@ use client_common::{Error, ErrorKind, Result};
 use client_core::signer::Signer;
 use client_core::UnspentTransactions;
 use client_core::WalletClient;
-//use parity_codec::{Decode, Encode};
 use secstr::SecUtf8;
 /// Default implementation of `NetworkOpsClient`
 pub struct DefaultNetworkOpsClient<'a, W, S, C>
@@ -58,7 +57,6 @@ where
         match to_staked_account {
             StakedStateAddress::BasicRedeem(a) => {
                 self.client.get_account(&a.0).and_then(|account| {
-                    println!("StakedState {:?}", account);
                     Ok(account)
                 })
             }
