@@ -55,19 +55,14 @@ where
         to_staked_account: StakedStateAddress,
     ) -> Result<StakedState> {
         match to_staked_account {
-            StakedStateAddress::BasicRedeem(a) => {
-                self.client.get_account(&a.0).and_then(|account| {
-                    Ok(account)
-                })
-            }
+            StakedStateAddress::BasicRedeem(a) => self.client.get_account(&a.0),
         }
     }
 
     fn get_staked_state_nonce(&self, to_staked_account: StakedStateAddress) -> Result<Nonce> {
         let state = self.get_staked_state_account(to_staked_account);
-        state.map(|x| {
-            x.nonce
-        })
+
+        state.map(|x| x.nonce)
     }
 
     fn create_deposit_bonded_stake_transaction(
@@ -172,12 +167,12 @@ mod tests {
     use client_core::wallet::DefaultWalletClient;
     use client_core::{PrivateKey, PublicKey};
     use std::str::FromStr;
-     #[derive(Clone)]
+    #[derive(Clone)]
     pub struct MockClient {
         pub addresses: [ExtendedAddr; 2],
     }
 
- impl Default for MockClient {
+    impl Default for MockClient {
         fn default() -> Self {
             Self {
                 addresses: [
@@ -194,12 +189,11 @@ mod tests {
         }
     }
 
-
     #[test]
     fn check_create_deposit_bonded_stake_transaction() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-       
+
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -207,7 +201,7 @@ mod tests {
             .with_wallet(storage)
             .build()
             .unwrap();
-       
+
         let tendermint_client = MockClient::default();
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
@@ -232,7 +226,7 @@ mod tests {
     fn check_create_unbond_stake_transaction() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-       
+
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -241,8 +235,7 @@ mod tests {
             .build()
             .unwrap();
 
-    
- let tendermint_client = MockClient::default();
+        let tendermint_client = MockClient::default();
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
 
@@ -269,7 +262,7 @@ mod tests {
     fn check_withdraw_unbonded_stake_transaction() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-       
+
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -277,8 +270,8 @@ mod tests {
             .with_wallet(storage)
             .build()
             .unwrap();
-     
- let tendermint_client = MockClient::default();
+
+        let tendermint_client = MockClient::default();
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
 
@@ -315,7 +308,7 @@ mod tests {
     fn check_withdraw_unbonded_stake_transaction_address_not_found() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-      
+
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -324,8 +317,7 @@ mod tests {
             .build()
             .unwrap();
 
-        
- let tendermint_client = MockClient::default();
+        let tendermint_client = MockClient::default();
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
         let nonce = 0;
@@ -353,7 +345,7 @@ mod tests {
     fn check_withdraw_unbonded_stake_transaction_wallet_not_found() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-      
+
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -361,7 +353,7 @@ mod tests {
             .with_wallet(storage)
             .build()
             .unwrap();
-         let tendermint_client = MockClient::default();
+        let tendermint_client = MockClient::default();
 
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
@@ -388,7 +380,7 @@ mod tests {
     fn check_withdraw_unbonded_stake_transaction_invalid_address_type() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-       
+
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
