@@ -58,15 +58,9 @@ where
                 None => Err(Error::from(ErrorKind::RpcError)),
             })
     }
-}
 
-impl<'a, W, S, C> NetworkOpsClient for DefaultNetworkOpsClient<'a, W, S, C>
-where
-    W: WalletClient,
-    S: Signer,
-    C: Client,
-{
-    fn get_staked_state_account(
+    /// Get staked state info
+    pub fn get_staked_state_account(
         &self,
         to_staked_account: StakedStateAddress,
     ) -> Result<StakedState> {
@@ -75,12 +69,19 @@ where
         }
     }
 
-    fn get_staked_state_nonce(&self, to_staked_account: StakedStateAddress) -> Result<Nonce> {
+    /// Get nonce
+    pub fn get_staked_state_nonce(&self, to_staked_account: StakedStateAddress) -> Result<Nonce> {
         let state = self.get_staked_state_account(to_staked_account);
-
         state.map(|x| x.nonce)
     }
+}
 
+impl<'a, W, S, C> NetworkOpsClient for DefaultNetworkOpsClient<'a, W, S, C>
+where
+    W: WalletClient,
+    S: Signer,
+    C: Client,
+{
     fn create_deposit_bonded_stake_transaction(
         &self,
         name: &str,
@@ -116,25 +117,26 @@ where
         from_address: &ExtendedAddr,
         value: Coin,
         attributes: StakedStateOpAttributes,
-        nonce: Nonce,
     ) -> Result<TxAux> {
         match from_address {
-            ExtendedAddr::BasicRedeem(ref redeem_address) => {
-                let transaction = UnbondTx::new(value, nonce, attributes);
-                let public_key = self
-                    .wallet_client
-                    .find_public_key(name, passphrase, redeem_address)?
-                    .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+            ExtendedAddr::BasicRedeem(ref redeem_address) => self
+                .get_staked_state_nonce(StakedStateAddress::BasicRedeem(*redeem_address))
+                .and_then(|nonce| {
+                    let transaction = UnbondTx::new(value, nonce, attributes);
+                    let public_key = self
+                        .wallet_client
+                        .find_public_key(name, passphrase, redeem_address)?
+                        .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
 
-                let private_key = self
-                    .wallet_client
-                    .private_key(passphrase, &public_key)?
-                    .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
-                let signature = private_key
-                    .sign(transaction.id())
-                    .map(StakedStateOpWitness::new)?;
-                Ok(TxAux::UnbondStakeTx(transaction, signature))
-            }
+                    let private_key = self
+                        .wallet_client
+                        .private_key(passphrase, &public_key)?
+                        .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+                    let signature = private_key
+                        .sign(transaction.id())
+                        .map(StakedStateOpWitness::new)?;
+                    Ok(TxAux::UnbondStakeTx(transaction, signature))
+                }),
             ExtendedAddr::OrTree(_) => Err(ErrorKind::InvalidInput.into()),
         }
     }
@@ -146,24 +148,25 @@ where
         from_address: &ExtendedAddr,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
-        nonce: Nonce,
     ) -> Result<TxAux> {
         match from_address {
-            ExtendedAddr::BasicRedeem(ref redeem_address) => {
-                let transaction = WithdrawUnbondedTx::new(nonce, outputs, attributes);
-                let public_key = self
-                    .wallet_client
-                    .find_public_key(name, passphrase, redeem_address)?
-                    .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
-                let private_key = self
-                    .wallet_client
-                    .private_key(passphrase, &public_key)?
-                    .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
-                let signature = private_key
-                    .sign(transaction.id())
-                    .map(StakedStateOpWitness::new)?;
-                Ok(TxAux::WithdrawUnbondedStakeTx(transaction, signature))
-            }
+            ExtendedAddr::BasicRedeem(ref redeem_address) => self
+                .get_staked_state_nonce(StakedStateAddress::BasicRedeem(*redeem_address))
+                .and_then(|nonce| {
+                    let transaction = WithdrawUnbondedTx::new(nonce, outputs, attributes);
+                    let public_key = self
+                        .wallet_client
+                        .find_public_key(name, passphrase, redeem_address)?
+                        .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+                    let private_key = self
+                        .wallet_client
+                        .private_key(passphrase, &public_key)?
+                        .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+                    let signature = private_key
+                        .sign(transaction.id())
+                        .map(StakedStateOpWitness::new)?;
+                    Ok(TxAux::WithdrawUnbondedStakeTx(transaction, signature))
+                }),
             ExtendedAddr::OrTree(_) => Err(ErrorKind::InvalidInput.into()),
         }
     }
@@ -359,7 +362,7 @@ mod tests {
         fn query(&self, _path: &str, _data: &str) -> Result<QueryResult> {
             Ok(QueryResult {
                 response: Response {
-                    value: "".to_string(),
+                    value: "AAAAAAAAAAAAAAAAAAAAAAAAeiLByLEia/aSXAAAAAAADbIhxPV9XTi5aBOcBukTKq+E6N8=".to_string(),
                 },
             })
         }
@@ -417,7 +420,7 @@ mod tests {
 
         let value = Coin::new(0).unwrap();
         let attributes = StakedStateOpAttributes::new(0);
-        let nonce = 0;
+
         assert_eq!(
             ErrorKind::InvalidInput,
             network_ops_client
@@ -427,7 +430,6 @@ mod tests {
                     &ExtendedAddr::OrTree([0; 32]),
                     value,
                     attributes,
-                    nonce,
                 )
                 .unwrap_err()
                 .kind()
@@ -454,7 +456,7 @@ mod tests {
         wallet_client.new_wallet(name, passphrase).unwrap();
 
         let from_address = wallet_client.new_redeem_address(name, passphrase).unwrap();
-        let nonce = 0;
+
         let transaction = network_ops_client
             .create_withdraw_unbonded_stake_transaction(
                 name,
@@ -462,7 +464,6 @@ mod tests {
                 &from_address,
                 Vec::new(),
                 TxAttributes::new(171),
-                nonce,
             )
             .unwrap();
 
@@ -496,7 +497,7 @@ mod tests {
         let tendermint_client = MockClient::default();
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
-        let nonce = 0;
+
         wallet_client.new_wallet(name, passphrase).unwrap();
 
         assert_eq!(
@@ -510,7 +511,6 @@ mod tests {
                     ))),
                     Vec::new(),
                     TxAttributes::new(171),
-                    nonce,
                 )
                 .unwrap_err()
                 .kind()
@@ -533,7 +533,7 @@ mod tests {
 
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
-        let nonce = 0;
+
         assert_eq!(
             ErrorKind::WalletNotFound,
             network_ops_client
@@ -545,7 +545,6 @@ mod tests {
                     ))),
                     Vec::new(),
                     TxAttributes::new(171),
-                    nonce,
                 )
                 .unwrap_err()
                 .kind()
@@ -568,7 +567,7 @@ mod tests {
 
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
-        let nonce = 0;
+
         assert_eq!(
             ErrorKind::InvalidInput,
             network_ops_client
@@ -578,7 +577,6 @@ mod tests {
                     &ExtendedAddr::OrTree([0; 32]),
                     Vec::new(),
                     TxAttributes::new(171),
-                    nonce,
                 )
                 .unwrap_err()
                 .kind()
