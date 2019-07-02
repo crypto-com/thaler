@@ -196,7 +196,10 @@ impl abci::Application for ChainNodeApp {
             kvpair.key = Vec::from(&b"txid"[..]);
             // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
             kvpair.value = Vec::from(&txaux.tx_id()[..]);
-            resp.tags.push(kvpair);
+            let mut event = Event::new();
+            event.field_type = "delivered_txs".to_string();
+            event.attributes.push(kvpair);
+            resp.events.push(event);
             self.delivered_txs.push(txaux);
             let rewards_pool = &mut self
                 .last_state
@@ -237,7 +240,10 @@ impl abci::Application for ChainNodeApp {
             kvpair.key = Vec::from(&b"ethbloom"[..]);
             // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
             kvpair.value = Vec::from(&bloom.data()[..]);
-            resp.tags.push(kvpair);
+            let mut event = Event::new();
+            event.field_type = "end_block".to_string();
+            event.attributes.push(kvpair);
+            resp.events.push(event);
         }
         // TODO: skipchain-based validator changes?
         if !self.power_changed_in_block.is_empty() {
