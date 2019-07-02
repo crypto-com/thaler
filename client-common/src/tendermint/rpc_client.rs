@@ -1,17 +1,13 @@
 #![cfg(feature = "rpc")]
 
+use crate::tendermint::types::QueryResult;
+use crate::tendermint::types::*;
+use crate::tendermint::Client;
+use crate::{ErrorKind, Result};
 use failure::ResultExt;
 use jsonrpc::client::Client as JsonRpcClient;
 use serde::Deserialize;
 use serde_json::{json, Value};
-
-use crate::tendermint::types::QueryResult;
-use crate::tendermint::types::*;
-use crate::tendermint::Client;
-use crate::{Error, ErrorKind, Result};
-use chain_core::state::account::StakedState;
-use parity_codec::Decode;
-
 /// Tendermint RPC Client
 #[derive(Clone)]
 pub struct RpcClient {
@@ -70,17 +66,5 @@ impl Client for RpcClient {
         // path, data, height, prove
         let params = [json!(path), json!(data), json!(null), json!(null)];
         self.call("abci_query", &params)
-    }
-    fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
-        self.query("account", hex::encode(staked_state_address).as_str())
-            .map(|x| x.response.value)
-            .and_then(|value| match base64::decode(value.as_bytes()) {
-                Ok(a) => Ok(a),
-                Err(_b) => Err(Error::from(ErrorKind::RpcError)),
-            })
-            .and_then(|data| match StakedState::decode(&mut data.as_slice()) {
-                Some(a) => Ok(a),
-                None => Err(Error::from(ErrorKind::RpcError)),
-            })
     }
 }

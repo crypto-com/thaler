@@ -314,7 +314,6 @@ mod tests {
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::state::account::StakedState;
     use chain_core::state::account::StakedStateOpWitness;
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::attribute::TxAttributes;
@@ -471,18 +470,8 @@ mod tests {
             Ok(())
         }
 
-        fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
-            Ok(StakedState::new(
-                1,
-                Coin::unit(),
-                Coin::unit(),
-                1,
-                RedeemAddress::default().into(),
-            ))
-        }
-
         /// Get abci query
-        fn query(&self, path: &str, data: &str) -> Result<QueryResult> {
+        fn query(&self, _path: &str, _data: &str) -> Result<QueryResult> {
             Ok(QueryResult {
                 response: Response {
                     value: "".to_string(),

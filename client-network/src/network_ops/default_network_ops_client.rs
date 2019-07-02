@@ -15,6 +15,7 @@ use client_common::{Error, ErrorKind, Result};
 use client_core::signer::Signer;
 use client_core::UnspentTransactions;
 use client_core::WalletClient;
+use parity_codec::Decode;
 use secstr::SecUtf8;
 /// Default implementation of `NetworkOpsClient`
 pub struct DefaultNetworkOpsClient<'a, W, S, C>
@@ -42,6 +43,21 @@ where
             client,
         }
     }
+
+    /// Get account info
+    pub fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
+        self.client
+            .query("account", hex::encode(staked_state_address).as_str())
+            .map(|x| x.response.value)
+            .and_then(|value| match base64::decode(value.as_bytes()) {
+                Ok(a) => Ok(a),
+                Err(_b) => Err(Error::from(ErrorKind::RpcError)),
+            })
+            .and_then(|data| match StakedState::decode(&mut data.as_slice()) {
+                Some(a) => Ok(a),
+                None => Err(Error::from(ErrorKind::RpcError)),
+            })
+    }
 }
 
 impl<'a, W, S, C> NetworkOpsClient for DefaultNetworkOpsClient<'a, W, S, C>
@@ -55,7 +71,7 @@ where
         to_staked_account: StakedStateAddress,
     ) -> Result<StakedState> {
         match to_staked_account {
-            StakedStateAddress::BasicRedeem(a) => self.client.get_account(&a.0),
+            StakedStateAddress::BasicRedeem(a) => self.get_account(&a.0),
         }
     }
 
@@ -176,7 +192,6 @@ mod tests {
 
     use chain_core::init::address::RedeemAddress;
 
-    use chain_core::state::account::StakedState;
     use chain_core::state::account::StakedStateOpWitness;
 
     use chain_core::tx::data::attribute::TxAttributes;
@@ -338,16 +353,6 @@ mod tests {
 
         fn broadcast_transaction(&self, _: &[u8]) -> Result<()> {
             Ok(())
-        }
-
-        fn get_account(&self, _staked_state_address: &[u8]) -> Result<StakedState> {
-            Ok(StakedState::new(
-                1,
-                Coin::unit(),
-                Coin::unit(),
-                1,
-                RedeemAddress::default().into(),
-            ))
         }
 
         /// Get abci query
