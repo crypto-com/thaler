@@ -12,3 +12,9 @@ chain-tx-validation = { path = "../chain-tx-validation" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 secstr = "0.3.2"
+base64 = "0.10"
+chrono = { version = "0.4", features = ["serde"] }
+parity-codec = { features = ["derive"], version = "4.1.1" }
+
+[dev-dependencies]
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "9dce794d1d8ce03ffa48823acf198fae15e896d3", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }

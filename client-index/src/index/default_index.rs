@@ -480,6 +480,15 @@ mod tests {
                 RedeemAddress::default().into(),
             ))
         }
+
+        /// Get abci query
+        fn query(&self, path: &str, data: &str) -> Result<QueryResult> {
+            Ok(QueryResult {
+                response: Response {
+                    value: "".to_string(),
+                },
+            })
+        }
     }
 
     #[test]

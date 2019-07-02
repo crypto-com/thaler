@@ -157,19 +157,93 @@ where
 mod tests {
     use super::*;
 
-    use chain_core::init::address::RedeemAddress;
+    use chrono::DateTime;
+
+    use chain_core::init::coin::Coin;
+    use chain_core::state::account::WithdrawUnbondedTx;
     use chain_core::tx::data::address::ExtendedAddr;
+    use chain_core::tx::data::input::TxoPointer;
+    use chain_core::tx::data::output::TxOut;
+    use chain_core::tx::data::Tx;
+    use chain_core::tx::TransactionId;
+    use chain_core::tx::TxAux;
+    use client_common::tendermint::Client;
+    use client_common::{ErrorKind, Result};
+
+    use std::str::FromStr;
+
+    use secp256k1::recovery::{RecoverableSignature, RecoveryId};
+
+    use chain_core::init::address::RedeemAddress;
+
+    use chain_core::state::account::StakedState;
+    use chain_core::state::account::StakedStateOpWitness;
+
+    use chain_core::tx::data::attribute::TxAttributes;
+    use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::*;
 
     use chain_tx_validation::witness::verify_tx_recover_address;
-    use client_common::storage::MemoryStorage;
-    use client_common::tendermint::RpcClient;
+
+    //use client_common::tendermint::RpcClient;
     use client_core::signer::DefaultSigner;
     use client_core::wallet::DefaultWalletClient;
     use client_core::{PrivateKey, PublicKey};
-    use std::str::FromStr;
+    use parity_codec::Encode;
+
     #[derive(Clone)]
     pub struct MockClient {
         pub addresses: [ExtendedAddr; 2],
+    }
+
+    impl MockClient {
+        fn transaction(&self, height: u64) -> Option<TxAux> {
+            if height == 1 {
+                Some(TxAux::WithdrawUnbondedStakeTx(
+                    WithdrawUnbondedTx {
+                        nonce: 0,
+                        outputs: vec![TxOut {
+                            address: self.addresses[0].clone(),
+                            value: Coin::new(100).unwrap(),
+                            valid_from: None,
+                        }],
+                        attributes: TxAttributes::new(171),
+                    },
+                    StakedStateOpWitness::new(
+                        RecoverableSignature::from_compact(
+                            &[
+                                0x66, 0x73, 0xff, 0xad, 0x21, 0x47, 0x74, 0x1f, 0x04, 0x77, 0x2b,
+                                0x6f, 0x92, 0x1f, 0x0b, 0xa6, 0xaf, 0x0c, 0x1e, 0x77, 0xfc, 0x43,
+                                0x9e, 0x65, 0xc3, 0x6d, 0xed, 0xf4, 0x09, 0x2e, 0x88, 0x98, 0x4c,
+                                0x1a, 0x97, 0x16, 0x52, 0xe0, 0xad, 0xa8, 0x80, 0x12, 0x0e, 0xf8,
+                                0x02, 0x5e, 0x70, 0x9f, 0xff, 0x20, 0x80, 0xc4, 0xa3, 0x9a, 0xae,
+                                0x06, 0x8d, 0x12, 0xee, 0xd0, 0x09, 0xb6, 0x8c, 0x89,
+                            ],
+                            RecoveryId::from_i32(1).unwrap(),
+                        )
+                        .unwrap(),
+                    ),
+                ))
+            } else if height == 2 {
+                Some(TxAux::TransferTx(
+                    Tx {
+                        inputs: vec![TxoPointer {
+                            id: self.transaction(1).unwrap().tx_id(),
+                            index: 0,
+                        }],
+                        outputs: vec![TxOut {
+                            address: self.addresses[1].clone(),
+                            value: Coin::new(100).unwrap(),
+                            valid_from: None,
+                        }],
+                        attributes: TxAttributes::new(171),
+                    },
+                    vec![].into(),
+                ))
+            } else {
+                None
+            }
+        }
     }
 
     impl Default for MockClient {
@@ -186,6 +260,103 @@ mod tests {
                     ),
                 ],
             }
+        }
+    }
+
+    impl Client for MockClient {
+        fn genesis(&self) -> Result<Genesis> {
+            unreachable!()
+        }
+
+        fn status(&self) -> Result<Status> {
+            Ok(Status {
+                sync_info: SyncInfo {
+                    latest_block_height: "2".to_owned(),
+                },
+            })
+        }
+
+        fn block(&self, height: u64) -> Result<Block> {
+            if height == 1 {
+                Ok(Block {
+                    block: BlockInner {
+                        header: Header {
+                            height: "1".to_owned(),
+                            time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                        },
+                        data: Data {
+                            txs: Some(vec![base64::encode(&self.transaction(1).unwrap().encode())]),
+                        },
+                    },
+                })
+            } else if height == 2 {
+                Ok(Block {
+                    block: BlockInner {
+                        header: Header {
+                            height: "2".to_owned(),
+                            time: DateTime::from_str("2019-04-10T09:38:41.735577Z").unwrap(),
+                        },
+                        data: Data {
+                            txs: Some(vec![base64::encode(&self.transaction(2).unwrap().encode())]),
+                        },
+                    },
+                })
+            } else {
+                Err(ErrorKind::InvalidInput.into())
+            }
+        }
+
+        fn block_results(&self, height: u64) -> Result<BlockResults> {
+            if height == 1 {
+                Ok(BlockResults {
+                    height: "1".to_owned(),
+                    results: Results {
+                        deliver_tx: Some(vec![DeliverTx {
+                            tags: vec![Tag {
+                                key: "dHhpZA==".to_owned(),
+                                value: base64::encode(&self.transaction(1).unwrap().tx_id()[..]),
+                            }],
+                        }]),
+                    },
+                })
+            } else if height == 2 {
+                Ok(BlockResults {
+                    height: "2".to_owned(),
+                    results: Results {
+                        deliver_tx: Some(vec![DeliverTx {
+                            tags: vec![Tag {
+                                key: "dHhpZA==".to_owned(),
+                                value: base64::encode(&self.transaction(2).unwrap().tx_id()[..]),
+                            }],
+                        }]),
+                    },
+                })
+            } else {
+                Err(ErrorKind::InvalidInput.into())
+            }
+        }
+
+        fn broadcast_transaction(&self, _: &[u8]) -> Result<()> {
+            Ok(())
+        }
+
+        fn get_account(&self, _staked_state_address: &[u8]) -> Result<StakedState> {
+            Ok(StakedState::new(
+                1,
+                Coin::unit(),
+                Coin::unit(),
+                1,
+                RedeemAddress::default().into(),
+            ))
+        }
+
+        /// Get abci query
+        fn query(&self, _path: &str, _data: &str) -> Result<QueryResult> {
+            Ok(QueryResult {
+                response: Response {
+                    value: "".to_string(),
+                },
+            })
         }
     }
 
