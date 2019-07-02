@@ -172,13 +172,34 @@ mod tests {
     use client_core::wallet::DefaultWalletClient;
     use client_core::{PrivateKey, PublicKey};
     use std::str::FromStr;
+     #[derive(Clone)]
+    pub struct MockClient {
+        pub addresses: [ExtendedAddr; 2],
+    }
+
+ impl Default for MockClient {
+        fn default() -> Self {
+            Self {
+                addresses: [
+                    ExtendedAddr::BasicRedeem(
+                        RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971")
+                            .unwrap(),
+                    ),
+                    ExtendedAddr::BasicRedeem(
+                        RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5")
+                            .unwrap(),
+                    ),
+                ],
+            }
+        }
+    }
+
 
     #[test]
     fn check_create_deposit_bonded_stake_transaction() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-        let tendermint_url = "http://localhost:26657/";
-
+       
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -186,7 +207,8 @@ mod tests {
             .with_wallet(storage)
             .build()
             .unwrap();
-        let tendermint_client = RpcClient::new(&tendermint_url);
+       
+        let tendermint_client = MockClient::default();
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
 
@@ -210,8 +232,7 @@ mod tests {
     fn check_create_unbond_stake_transaction() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-        let tendermint_url = "http://localhost:26657/";
-
+       
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -220,8 +241,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let tendermint_client = RpcClient::new(&tendermint_url);
-
+    
+ let tendermint_client = MockClient::default();
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
 
@@ -248,7 +269,7 @@ mod tests {
     fn check_withdraw_unbonded_stake_transaction() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-        let tendermint_url = "http://localhost:26657/";
+       
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -256,8 +277,8 @@ mod tests {
             .with_wallet(storage)
             .build()
             .unwrap();
-        let tendermint_client = RpcClient::new(&tendermint_url);
-
+     
+ let tendermint_client = MockClient::default();
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
 
@@ -294,8 +315,7 @@ mod tests {
     fn check_withdraw_unbonded_stake_transaction_address_not_found() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-        let tendermint_url = "http://localhost:26657/";
-
+      
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -304,8 +324,8 @@ mod tests {
             .build()
             .unwrap();
 
-        let tendermint_client = RpcClient::new(&tendermint_url);
-
+        
+ let tendermint_client = MockClient::default();
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
         let nonce = 0;
@@ -333,7 +353,7 @@ mod tests {
     fn check_withdraw_unbonded_stake_transaction_wallet_not_found() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-        let tendermint_url = "http://localhost:26657/";
+      
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -341,7 +361,7 @@ mod tests {
             .with_wallet(storage)
             .build()
             .unwrap();
-        let tendermint_client = RpcClient::new(&tendermint_url);
+         let tendermint_client = MockClient::default();
 
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
@@ -368,8 +388,7 @@ mod tests {
     fn check_withdraw_unbonded_stake_transaction_invalid_address_type() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
-        let tendermint_url = "http://localhost:26657/";
-
+       
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
 
@@ -377,7 +396,7 @@ mod tests {
             .with_wallet(storage)
             .build()
             .unwrap();
-        let tendermint_client = RpcClient::new(&tendermint_url);
+        let tendermint_client = MockClient::default();
 
         let network_ops_client =
             DefaultNetworkOpsClient::new(&wallet_client, &signer, &tendermint_client);
