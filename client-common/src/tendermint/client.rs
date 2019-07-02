@@ -1,3 +1,4 @@
+use crate::tendermint::types::QueryResult;
 use crate::tendermint::types::*;
 use crate::Result;
 use chain_core::state::account::StakedState;
@@ -21,4 +22,7 @@ pub trait Client: Send + Sync {
 
     /// Get staked-state from the staked stake address
     fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState>;
+
+    /// Get abci query
+    fn query(&self, path: &str, data: &str) -> Result<QueryResult>;
 }

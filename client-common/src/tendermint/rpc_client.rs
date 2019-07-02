@@ -5,6 +5,7 @@ use jsonrpc::client::Client as JsonRpcClient;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::tendermint::types::QueryResult;
 use crate::tendermint::types::*;
 use crate::tendermint::Client;
 use crate::{Error, ErrorKind, Result};
@@ -34,11 +35,8 @@ impl RpcClient {
         // https://github.com/apoelstra/rust-jsonrpc/issues/26
         let client = JsonRpcClient::new(self.url.to_owned(), None, None);
         let request = client.build_request(name, params);
-
         let response = client.send_request(&request).context(ErrorKind::RpcError)?;
-
         let result = response.result::<T>().context(ErrorKind::RpcError)?;
-
         Ok(result)
     }
 }
@@ -68,30 +66,17 @@ impl Client for RpcClient {
             .map(|_| ())
     }
 
-    fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
+    fn query(&self, path: &str, data: &str) -> Result<QueryResult> {
         // path, data, height, prove
-        let params = [
-            json!("account"),
-            json!(hex::encode(staked_state_address)),
-            json!(null),
-            json!(null),
-        ];
-        self.call::<serde_json::Value>("abci_query", &params)
-            .and_then(|x| match x.get("response") {
-                Some(y) => Ok(y.clone()),
-                None => Err(Error::from(ErrorKind::RpcError)),
-            })
-            .and_then(|x| match x.get("value") {
-                Some(y) => Ok(y.clone()),
-                None => Err(Error::from(ErrorKind::RpcError)),
-            })
-            .and_then(|x| match x.as_str() {
-                Some(y) => Ok(y.to_string().clone()),
-                None => Err(Error::from(ErrorKind::RpcError)),
-            })
+        let params = [json!(path), json!(data), json!(null), json!(null)];
+        self.call("abci_query", &params)
+    }
+    fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
+        self.query("account", hex::encode(staked_state_address).as_str())
+            .map(|x| x.response.value)
             .and_then(|value| match base64::decode(value.as_bytes()) {
                 Ok(a) => Ok(a),
-                Err(b) => Err(Error::from(ErrorKind::RpcError)),
+                Err(_b) => Err(Error::from(ErrorKind::RpcError)),
             })
             .and_then(|data| match StakedState::decode(&mut data.as_slice()) {
                 Some(a) => Ok(a),
