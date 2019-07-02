@@ -114,8 +114,8 @@ where
         match from_address {
             ExtendedAddr::BasicRedeem(ref redeem_address) => self
                 .get_staked_state_account(StakedStateAddress::BasicRedeem(*redeem_address))
-                .map(|x| x.nonce)
-                .and_then(|nonce| {
+                .and_then(|account| {
+                    let nonce = account.nonce;
                     let transaction = UnbondTx::new(value, nonce, attributes);
                     let public_key = self
                         .wallet_client
@@ -146,8 +146,8 @@ where
         match from_address {
             ExtendedAddr::BasicRedeem(ref redeem_address) => self
                 .get_staked_state_account(StakedStateAddress::BasicRedeem(*redeem_address))
-                .map(|x| x.nonce)
-                .and_then(|nonce| {
+                .and_then(|account| {
+                    let nonce = account.nonce;
                     let transaction = WithdrawUnbondedTx::new(nonce, outputs, attributes);
                     let public_key = self
                         .wallet_client
