@@ -330,4 +330,100 @@ mod test {
         }
 
     }
+
+    mod serializer_deserializer_test {
+        use super::*;
+        use serde_json;
+
+        #[test]
+        fn test_serialize_to_string_should_work() {
+            let coin = Coin::new(99999).expect("Unable to create new coin");
+
+            let json = serde_json::to_string(&coin).expect("Unable to serialize Coin");
+            assert_eq!(json, "\"99999\"");
+        }
+
+        #[test]
+        fn test_serialize_large_coin_to_string_should_work() {
+            let coin = Coin::new(10000000000000000000).expect("Unable to create new coin");
+
+            let json = serde_json::to_string(&coin).expect("Unable to serialize Coin");
+            assert_eq!(json, "\"10000000000000000000\"");
+        }
+
+        #[test]
+        fn test_deserialize_from_number_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("99999");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_empty_string_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"\"");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_out_of_range_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"10000000000000000001\"");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_negative_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"-1\"");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_hexadecimal_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"0xAB\"");
+            assert!(deserialize_result.is_err());
+
+            let deserialize_result = serde_json::from_str::<Coin>("\"AB\"");
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_non_number_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"Crypto.com\"");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_plus_prefix_should_work() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"+99999\"");
+
+            assert_eq!(
+                deserialize_result.expect("Unable to deserialize to Coin"),
+                Coin::new(99999).expect("Unable to create new coin")
+            );
+        }
+
+        #[test]
+        fn test_deserialize_from_string_should_work() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"99999\"");
+
+            assert_eq!(
+                deserialize_result.expect("Unable to deserialize to Coin"),
+                Coin::new(99999).expect("Unable to create new coin")
+            );
+        }
+
+        #[test]
+        fn test_deserialize_from_large_amount_should_work() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"10000000000000000000\"");
+
+            assert_eq!(
+                deserialize_result.expect("Unable to deserialize to Coin"),
+                Coin::new(10000000000000000000).expect("Unable to create new coin")
+            );
+        }
+    }
+
 }
