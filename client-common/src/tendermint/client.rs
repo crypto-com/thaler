@@ -1,3 +1,4 @@
+use crate::tendermint::types::QueryResult;
 use crate::tendermint::types::*;
 use crate::Result;
 
@@ -17,4 +18,7 @@ pub trait Client: Send + Sync {
 
     /// Makes `broadcast_tx_sync` call to tendermint
     fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()>;
+
+    /// Get abci query
+    fn query(&self, path: &str, data: &str) -> Result<QueryResult>;
 }

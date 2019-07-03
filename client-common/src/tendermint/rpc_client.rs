@@ -1,14 +1,13 @@
 #![cfg(feature = "rpc")]
 
+use crate::tendermint::types::QueryResult;
+use crate::tendermint::types::*;
+use crate::tendermint::Client;
+use crate::{ErrorKind, Result};
 use failure::ResultExt;
 use jsonrpc::client::Client as JsonRpcClient;
 use serde::Deserialize;
 use serde_json::{json, Value};
-
-use crate::tendermint::types::*;
-use crate::tendermint::Client;
-use crate::{ErrorKind, Result};
-
 /// Tendermint RPC Client
 #[derive(Clone)]
 pub struct RpcClient {
@@ -32,11 +31,8 @@ impl RpcClient {
         // https://github.com/apoelstra/rust-jsonrpc/issues/26
         let client = JsonRpcClient::new(self.url.to_owned(), None, None);
         let request = client.build_request(name, params);
-
         let response = client.send_request(&request).context(ErrorKind::RpcError)?;
-
         let result = response.result::<T>().context(ErrorKind::RpcError)?;
-
         Ok(result)
     }
 }
@@ -64,5 +60,11 @@ impl Client for RpcClient {
         let params = [json!(transaction)];
         self.call::<serde_json::Value>("broadcast_tx_sync", &params)
             .map(|_| ())
+    }
+
+    fn query(&self, path: &str, data: &str) -> Result<QueryResult> {
+        // path, data, height, prove
+        let params = [json!(path), json!(data), json!(null), json!(null)];
+        self.call("abci_query", &params)
     }
 }

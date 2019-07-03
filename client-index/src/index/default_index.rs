@@ -469,6 +469,15 @@ mod tests {
         fn broadcast_transaction(&self, _: &[u8]) -> Result<()> {
             Ok(())
         }
+
+        /// Get abci query
+        fn query(&self, _path: &str, _data: &str) -> Result<QueryResult> {
+            Ok(QueryResult {
+                response: Response {
+                    value: "".to_string(),
+                },
+            })
+        }
     }
 
     #[test]
