@@ -5,23 +5,22 @@
 
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS, MAX_COIN_UNITS};
 use crate::state::tendermint::TendermintVotePower;
+use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
 use parity_codec::{Decode, Encode, Input};
 
-use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
-#[cfg(feature = "serde")]
-use serde::de::{Deserialize, Deserializer, Error, Visitor};
-#[cfg(feature = "serde")]
-use serde::Serialize;
+use serde::{Deserialize, Serialize, Serializer};
+
+use serde::de::{Deserializer, Error, Visitor};
+
 use static_assertions::const_assert;
 use std::convert::TryFrom;
 use std::{fmt, mem, ops, result, slice};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Coin(u64);
 
 /// error type relating to `Coin` operations
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, serde::Serialize, Deserialize)]
 pub enum CoinError {
     /// means that the given value was out of bound
     ///
@@ -31,6 +30,46 @@ pub enum CoinError {
     ParseIntError,
 
     Negative,
+}
+
+impl Serialize for Coin {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let coin_string = self.0.to_string();
+        serializer.serialize_str(&coin_string[..])
+    }
+}
+
+impl<'de> Deserialize<'de> for Coin {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct StrVisitor;
+
+        impl<'de> Visitor<'de> for StrVisitor {
+            type Value = Coin;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("the coin amount in a range (0..total supply]")
+            }
+
+            #[inline]
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                let amount = value
+                    .parse::<u64>()
+                    .map_err(|e| E::custom(format!("{}", e)))?;
+                Coin::new(amount).map_err(|e| E::custom(format!("{}", e)))
+            }
+        }
+
+        deserializer.deserialize_str(StrVisitor)
+    }
 }
 
 impl fmt::Display for CoinError {
@@ -180,37 +219,6 @@ impl From<Coin> for TendermintVotePower {
 impl From<u32> for Coin {
     fn from(c: u32) -> Coin {
         Coin(u64::from(c))
-    }
-}
-
-#[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for Coin {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct CoinVisitor;
-
-        impl<'de> Visitor<'de> for CoinVisitor {
-            type Value = Coin;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("the coin amount in a range (0..total supply]")
-            }
-
-            #[inline]
-            fn visit_newtype_struct<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                let amount = <u64 as Deserialize>::deserialize(deserializer);
-                match amount {
-                    Ok(v) if v <= MAX_COIN => Ok(Coin(v)),
-                    Ok(v) => Err(D::Error::custom(format!("{}", CoinError::OutOfBound(v)))),
-                    Err(e) => Err(e),
-                }
-            }
-        }
-        deserializer.deserialize_newtype_struct("Coin", CoinVisitor)
     }
 }
 
