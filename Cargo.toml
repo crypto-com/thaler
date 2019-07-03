@@ -11,4 +11,5 @@ members = [
     "client-network",
     "client-rpc",
     "dev-utils",
+    "enclave-protocol",
 ]
