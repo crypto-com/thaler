@@ -33,6 +33,7 @@ pub enum CoinError {
     Negative,
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for Coin {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -43,6 +44,7 @@ impl Serialize for Coin {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Coin {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
