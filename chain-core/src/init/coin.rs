@@ -8,8 +8,9 @@ use crate::state::tendermint::TendermintVotePower;
 use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
 use parity_codec::{Decode, Encode, Input};
 
+#[cfg(feature="serde")]
 use serde::{Deserialize, Serialize, Serializer};
-
+#[cfg(feature="serde")]
 use serde::de::{Deserializer, Error, Visitor};
 
 use static_assertions::const_assert;
@@ -20,7 +21,8 @@ use std::{fmt, mem, ops, result, slice};
 pub struct Coin(u64);
 
 /// error type relating to `Coin` operations
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, serde::Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[cfg_attr(feature="serde", derive(serde::Serialize, Deserialize))]
 pub enum CoinError {
     /// means that the given value was out of bound
     ///
