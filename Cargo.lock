@@ -403,10 +403,15 @@ dependencies = [
 name = "client-network"
 version = "0.1.0"
 dependencies = [
+ "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.1.0",
  "chain-tx-validation 0.1.0",
+ "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common 0.1.0",
  "client-core 0.1.0",
+ "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-codec 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=ab780345c85ac2c28a4e0c08e8e18c4ecdbb1fa9)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -645,6 +650,15 @@ version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "heapsize 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "enclave-protocol"
+version = "0.1.0"
+dependencies = [
+ "chain-core 0.1.0",
+ "chain-tx-validation 0.1.0",
+ "parity-codec 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

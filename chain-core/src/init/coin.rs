@@ -5,19 +5,19 @@
 
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS, MAX_COIN_UNITS};
 use crate::state::tendermint::TendermintVotePower;
+use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
 use parity_codec::{Decode, Encode, Input};
 
-use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
 #[cfg(feature = "serde")]
-use serde::de::{Deserialize, Deserializer, Error, Visitor};
+use serde::de::{Deserializer, Error, Visitor};
 #[cfg(feature = "serde")]
-use serde::Serialize;
+use serde::{Deserialize, Serialize, Serializer};
+
 use static_assertions::const_assert;
 use std::convert::TryFrom;
 use std::{fmt, mem, ops, result, slice};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode)]
-#[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct Coin(u64);
 
 /// error type relating to `Coin` operations
@@ -31,6 +31,48 @@ pub enum CoinError {
     ParseIntError,
 
     Negative,
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for Coin {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let coin_string = self.0.to_string();
+        serializer.serialize_str(&coin_string[..])
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Coin {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct StrVisitor;
+
+        impl<'de> Visitor<'de> for StrVisitor {
+            type Value = Coin;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("the coin amount in a range (0..total supply]")
+            }
+
+            #[inline]
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: Error,
+            {
+                let amount = value
+                    .parse::<u64>()
+                    .map_err(|e| E::custom(format!("{}", e)))?;
+                Coin::new(amount).map_err(|e| E::custom(format!("{}", e)))
+            }
+        }
+
+        deserializer.deserialize_str(StrVisitor)
+    }
 }
 
 impl fmt::Display for CoinError {
@@ -183,37 +225,6 @@ impl From<u32> for Coin {
     }
 }
 
-#[cfg(feature = "serde")]
-impl<'de> Deserialize<'de> for Coin {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct CoinVisitor;
-
-        impl<'de> Visitor<'de> for CoinVisitor {
-            type Value = Coin;
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("the coin amount in a range (0..total supply]")
-            }
-
-            #[inline]
-            fn visit_newtype_struct<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                let amount = <u64 as Deserialize>::deserialize(deserializer);
-                match amount {
-                    Ok(v) if v <= MAX_COIN => Ok(Coin(v)),
-                    Ok(v) => Err(D::Error::custom(format!("{}", CoinError::OutOfBound(v)))),
-                    Err(e) => Err(e),
-                }
-            }
-        }
-        deserializer.deserialize_newtype_struct("Coin", CoinVisitor)
-    }
-}
-
 impl Decode for Coin {
     fn decode<I: Input>(input: &mut I) -> Option<Self> {
         let size = mem::size_of::<u64>();
@@ -322,4 +333,100 @@ mod test {
         }
 
     }
+
+    mod serializer_deserializer_test {
+        use super::*;
+        use serde_json;
+
+        #[test]
+        fn test_serialize_to_string_should_work() {
+            let coin = Coin::new(99999).expect("Unable to create new coin");
+
+            let json = serde_json::to_string(&coin).expect("Unable to serialize Coin");
+            assert_eq!(json, "\"99999\"");
+        }
+
+        #[test]
+        fn test_serialize_large_coin_to_string_should_work() {
+            let coin = Coin::new(10000000000000000000).expect("Unable to create new coin");
+
+            let json = serde_json::to_string(&coin).expect("Unable to serialize Coin");
+            assert_eq!(json, "\"10000000000000000000\"");
+        }
+
+        #[test]
+        fn test_deserialize_from_number_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("99999");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_empty_string_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"\"");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_out_of_range_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"10000000000000000001\"");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_negative_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"-1\"");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_hexadecimal_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"0xAB\"");
+            assert!(deserialize_result.is_err());
+
+            let deserialize_result = serde_json::from_str::<Coin>("\"AB\"");
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_non_number_should_give_error() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"Crypto.com\"");
+
+            assert!(deserialize_result.is_err());
+        }
+
+        #[test]
+        fn test_deserialize_from_plus_prefix_should_work() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"+99999\"");
+
+            assert_eq!(
+                deserialize_result.expect("Unable to deserialize to Coin"),
+                Coin::new(99999).expect("Unable to create new coin")
+            );
+        }
+
+        #[test]
+        fn test_deserialize_from_string_should_work() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"99999\"");
+
+            assert_eq!(
+                deserialize_result.expect("Unable to deserialize to Coin"),
+                Coin::new(99999).expect("Unable to create new coin")
+            );
+        }
+
+        #[test]
+        fn test_deserialize_from_large_amount_should_work() {
+            let deserialize_result = serde_json::from_str::<Coin>("\"10000000000000000000\"");
+
+            assert_eq!(
+                deserialize_result.expect("Unable to deserialize to Coin"),
+                Coin::new(10000000000000000000).expect("Unable to create new coin")
+            );
+        }
+    }
+
 }
