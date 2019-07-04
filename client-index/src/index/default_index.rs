@@ -312,7 +312,6 @@ mod tests {
     use parity_codec::Encode;
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
-    use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::state::account::StakedStateOpWitness;
     use chain_core::tx::data::address::ExtendedAddr;
@@ -329,16 +328,7 @@ mod tests {
     impl Default for MockClient {
         fn default() -> Self {
             Self {
-                addresses: [
-                    ExtendedAddr::BasicRedeem(
-                        RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971")
-                            .unwrap(),
-                    ),
-                    ExtendedAddr::BasicRedeem(
-                        RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5")
-                            .unwrap(),
-                    ),
-                ],
+                addresses: [ExtendedAddr::OrTree([0; 32]), ExtendedAddr::OrTree([1; 32])],
             }
         }
     }

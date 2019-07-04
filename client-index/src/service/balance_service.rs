@@ -65,7 +65,7 @@ mod tests {
     #[test]
     fn check_flow() {
         let balance_service = BalanceService::new(MemoryStorage::default());
-        let address = ExtendedAddr::BasicRedeem(Default::default());
+        let address = ExtendedAddr::OrTree(Default::default());
 
         assert_eq!(Coin::zero(), balance_service.get(&address).unwrap());
 

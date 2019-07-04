@@ -90,44 +90,32 @@ pub mod tests {
     fn encode_decode() {
         // not a valid transaction, only to test enconding-decoding
         let mut tx = Tx::new();
-        tx.add_input(TxoPointer::new([0x00; 32].into(), 0));
         tx.add_input(TxoPointer::new([0x01; 32].into(), 1));
-        tx.add_output(TxOut::new(
-            ExtendedAddr::BasicRedeem([0xaa; 20].into()),
-            Coin::unit(),
-        ));
         tx.add_output(TxOut::new(
             ExtendedAddr::OrTree([0xbb; 32].into()),
             Coin::unit(),
         ));
         let secp = Secp256k1::new();
         let sk1 = SecretKey::from_slice(&[0xcc; 32][..]).expect("secret key");
-        let sk2 = SecretKey::from_slice(&[0xdd; 32][..]).expect("secret key");
         let pk1 = PublicKey::from_secret_key(&secp, &sk1);
-        let pk2 = PublicKey::from_secret_key(&secp, &sk2);
         let raw_pk1 = RawPubkey::from(pk1.serialize());
-        let raw_pk2 = RawPubkey::from(pk2.serialize());
 
-        let raw_public_keys = vec![raw_pk1, raw_pk2];
+        let raw_public_keys = vec![raw_pk1];
 
         tx.attributes
             .allowed_view
             .push(TxAccessPolicy::new(pk1.clone(), TxAccess::AllData));
-        tx.attributes
-            .allowed_view
-            .push(TxAccessPolicy::new(pk2.clone(), TxAccess::Output(0)));
 
         let msg = Message::from_slice(&tx.id()).expect("msg");
 
         let merkle = MerkleTree::new(raw_public_keys.clone());
 
-        let w1 = TxInWitness::BasicRedeem(secp.sign_recoverable(&msg, &sk1));
-        let w2 = TxInWitness::TreeSig(
+        let w1 = TxInWitness::TreeSig(
             schnorr_sign(&secp, &msg, &sk1).0,
             merkle.generate_proof(raw_public_keys[0].clone()).unwrap(),
         );
         assert_eq!(tx.id(), tx.id());
-        let txa = TxAux::TransferTx(tx, vec![w1, w2].into());
+        let txa = TxAux::TransferTx(tx, vec![w1].into());
         let mut encoded: Vec<u8> = txa.encode();
         let mut data: &[u8] = encoded.as_mut();
         let decoded = TxAux::decode(&mut data).expect("decode tx aux");

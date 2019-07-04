@@ -2,9 +2,7 @@ use jsonrpc_derive::rpc;
 use jsonrpc_http_server::jsonrpc_core;
 use secstr::SecUtf8;
 use serde::Deserialize;
-use std::str::FromStr;
 
-use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
@@ -65,15 +63,14 @@ where
     T: WalletClient + Send + Sync + 'static,
 {
     fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>> {
-        match self.client.addresses(&request.name, &request.passphrase) {
+        // TODO: Currently, it only returns staking addresses
+        match self
+            .client
+            .staking_addresses(&request.name, &request.passphrase)
+        {
             Ok(addresses) => addresses
                 .iter()
-                .map(|address| match address {
-                    ExtendedAddr::BasicRedeem(address) => Ok(format!("{}", address)),
-                    _ => Err(rpc_error_from_string(
-                        "Unsupported address format".to_owned(),
-                    )),
-                })
+                .map(|address| Ok(address.to_string()))
                 .collect(),
             Err(e) => Err(to_rpc_error(e)),
         }
@@ -95,7 +92,7 @@ where
 
         if let Err(e) = self
             .client
-            .new_redeem_address(&request.name, &request.passphrase)
+            .new_single_transfer_address(&request.name, &request.passphrase)
         {
             Err(to_rpc_error(e))
         } else {
@@ -118,16 +115,16 @@ where
     ) -> jsonrpc_core::Result<()> {
         self.sync()?;
 
-        let redeem_address = RedeemAddress::from_str(&to_address[..])
+        let address = to_address
+            .parse::<ExtendedAddr>()
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
-        let address = ExtendedAddr::BasicRedeem(redeem_address);
         let coin = Coin::new(amount).map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let tx_out = TxOut::new(address, coin);
         let tx_attributes = TxAttributes::new(self.chain_id);
 
         let return_address = self
             .client
-            .new_redeem_address(&request.name, &request.passphrase)
+            .new_single_transfer_address(&request.name, &request.passphrase)
             .map_err(to_rpc_error)?;
 
         let transaction = self

@@ -1,4 +1,3 @@
-use either::Either;
 use failure::ResultExt;
 use parity_codec::Encode;
 use secp256k1::schnorrsig::SchnorrSignature;
@@ -7,6 +6,7 @@ use secstr::SecUtf8;
 use chain_core::common::{Proof, H256};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{sum_coins, Coin};
+use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
@@ -93,16 +93,16 @@ where
         self.wallet_service.root_hashes(name, passphrase)
     }
 
-    fn redeem_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
-        self.wallet_service.redeem_addresses(name, passphrase)
+    fn staking_addresses(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+    ) -> Result<Vec<StakedStateAddress>> {
+        self.wallet_service.staking_addresses(name, passphrase)
     }
 
-    fn tree_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
-        self.wallet_service.tree_addresses(name, passphrase)
-    }
-
-    fn addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
-        self.wallet_service.addresses(name, passphrase)
+    fn transfer_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
+        self.wallet_service.transfer_addresses(name, passphrase)
     }
 
     fn find_public_key(
@@ -119,19 +119,10 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        root_hash: &H256,
+        address: &ExtendedAddr,
     ) -> Result<Option<H256>> {
         self.wallet_service
-            .find_root_hash(name, passphrase, root_hash)
-    }
-
-    fn find(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-        address: &ExtendedAddr,
-    ) -> Result<Option<Either<PublicKey, H256>>> {
-        self.wallet_service.find(name, passphrase, address)
+            .find_root_hash(name, passphrase, address)
     }
 
     fn private_key(
@@ -150,12 +141,23 @@ where
         Ok(public_key)
     }
 
-    fn new_redeem_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr> {
+    fn new_staking_address(&self, name: &str, passphrase: &SecUtf8) -> Result<StakedStateAddress> {
         let public_key = self.new_public_key(name, passphrase)?;
-        Ok(ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key)))
+        Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from(
+            &public_key,
+        )))
     }
 
-    fn new_tree_address(
+    fn new_single_transfer_address(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+    ) -> Result<ExtendedAddr> {
+        let public_key = self.new_public_key(name, passphrase)?;
+        self.new_transfer_address(name, passphrase, vec![public_key.clone()], public_key, 1, 1)
+    }
+
+    fn new_transfer_address(
         &self,
         name: &str,
         passphrase: &SecUtf8,
@@ -165,7 +167,7 @@ where
         n: usize,
     ) -> Result<ExtendedAddr> {
         // To verify if the passphrase is correct or not
-        self.tree_addresses(name, passphrase)?;
+        self.transfer_addresses(name, passphrase)?;
 
         let root_hash =
             self.root_hash_service
@@ -185,10 +187,9 @@ where
         public_keys: Vec<PublicKey>,
     ) -> Result<Proof<RawPubkey>> {
         // To verify if the passphrase is correct or not
-        self.tree_addresses(name, passphrase)?;
+        self.transfer_addresses(name, passphrase)?;
 
         match address {
-            ExtendedAddr::BasicRedeem(_) => Err(ErrorKind::InvalidInput.into()),
             ExtendedAddr::OrTree(ref address) => {
                 self.root_hash_service
                     .generate_proof(address, public_keys, passphrase)
@@ -203,14 +204,14 @@ where
         root_hash: &H256,
     ) -> Result<usize> {
         // To verify if the passphrase is correct or not
-        self.tree_addresses(name, passphrase)?;
+        self.transfer_addresses(name, passphrase)?;
 
         self.root_hash_service
             .required_signers(root_hash, passphrase)
     }
 
     fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin> {
-        let addresses = self.addresses(name, passphrase)?;
+        let addresses = self.transfer_addresses(name, passphrase)?;
 
         let balances = addresses
             .iter()
@@ -221,7 +222,7 @@ where
     }
 
     fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>> {
-        let addresses = self.addresses(name, passphrase)?;
+        let addresses = self.transfer_addresses(name, passphrase)?;
 
         let history = addresses
             .iter()
@@ -239,7 +240,7 @@ where
         name: &str,
         passphrase: &SecUtf8,
     ) -> Result<UnspentTransactions> {
-        let addresses = self.addresses(name, passphrase)?;
+        let addresses = self.transfer_addresses(name, passphrase)?;
 
         let mut unspent_transactions = Vec::new();
         for address in addresses {
@@ -302,7 +303,7 @@ where
         public_key: &PublicKey,
     ) -> Result<SchnorrSignature> {
         // To verify if the passphrase is correct or not
-        self.tree_addresses(name, passphrase)?;
+        self.transfer_addresses(name, passphrase)?;
 
         let private_key = self
             .private_key(passphrase, public_key)?
@@ -319,7 +320,7 @@ where
         self_public_key: PublicKey,
     ) -> Result<H256> {
         // To verify if the passphrase is correct or not
-        self.tree_addresses(name, passphrase)?;
+        self.transfer_addresses(name, passphrase)?;
 
         let self_private_key = self
             .private_key(passphrase, &self_public_key)?
@@ -498,7 +499,6 @@ where
 mod tests {
     use super::*;
 
-    use std::str::FromStr;
     use std::sync::RwLock;
     use std::time::SystemTime;
 
@@ -540,15 +540,9 @@ mod tests {
     impl Default for MockIndex {
         fn default() -> Self {
             Self {
-                addr_1: ExtendedAddr::BasicRedeem(
-                    RedeemAddress::from_str("1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
-                ),
-                addr_2: ExtendedAddr::BasicRedeem(
-                    RedeemAddress::from_str("790661a2fd9da3fee53caab80859ecae125a20a5").unwrap(),
-                ),
-                addr_3: ExtendedAddr::BasicRedeem(
-                    RedeemAddress::from_str("780661a2fd9da3fee53caab80859ecae105a20b6").unwrap(),
-                ),
+                addr_1: ExtendedAddr::OrTree([0; 32]),
+                addr_2: ExtendedAddr::OrTree([1; 32]),
+                addr_3: ExtendedAddr::OrTree([2; 32]),
                 changed: RwLock::new(false),
             }
         }
@@ -723,7 +717,7 @@ mod tests {
             .unwrap();
 
         assert!(wallet
-            .addresses("name", &SecUtf8::from("passphrase"))
+            .transfer_addresses("name", &SecUtf8::from("passphrase"))
             .is_err());
 
         wallet
@@ -733,7 +727,7 @@ mod tests {
         assert_eq!(
             0,
             wallet
-                .addresses("name", &SecUtf8::from("passphrase"))
+                .transfer_addresses("name", &SecUtf8::from("passphrase"))
                 .unwrap()
                 .len()
         );
@@ -741,33 +735,33 @@ mod tests {
         assert_eq!(1, wallet.wallets().unwrap().len());
 
         let address = wallet
-            .new_redeem_address("name", &SecUtf8::from("passphrase"))
+            .new_single_transfer_address("name", &SecUtf8::from("passphrase"))
             .expect("Unable to generate new address");
 
         let addresses = wallet
-            .addresses("name", &SecUtf8::from("passphrase"))
+            .transfer_addresses("name", &SecUtf8::from("passphrase"))
             .unwrap();
 
         assert_eq!(1, addresses.len());
         assert_eq!(address, addresses[0], "Addresses don't match");
 
         assert!(wallet
-            .find("name", &SecUtf8::from("passphrase"), &address)
+            .find_root_hash("name", &SecUtf8::from("passphrase"), &address)
             .unwrap()
             .is_some());
 
-        assert!(wallet
-            .private_key(
-                &SecUtf8::from("passphrase"),
-                &wallet
-                    .find("name", &SecUtf8::from("passphrase"), &address)
-                    .unwrap()
-                    .unwrap()
-                    .left()
-                    .unwrap()
-            )
-            .unwrap()
-            .is_some());
+        // assert!(wallet
+        //     .private_key(
+        //         &SecUtf8::from("passphrase"),
+        //         &wallet
+        //             .find("name", &SecUtf8::from("passphrase"), &address)
+        //             .unwrap()
+        //             .unwrap()
+        //             .left()
+        //             .unwrap()
+        //     )
+        //     .unwrap()
+        //     .is_some());
 
         assert_eq!(
             ErrorKind::WalletNotFound,
@@ -800,19 +794,19 @@ mod tests {
             .new_wallet("wallet_1", &SecUtf8::from("passphrase"))
             .unwrap();
         let addr_1 = wallet
-            .new_redeem_address("wallet_1", &SecUtf8::from("passphrase"))
+            .new_single_transfer_address("wallet_1", &SecUtf8::from("passphrase"))
             .unwrap();
         wallet
             .new_wallet("wallet_2", &SecUtf8::from("passphrase"))
             .unwrap();
         let addr_2 = wallet
-            .new_redeem_address("wallet_2", &SecUtf8::from("passphrase"))
+            .new_single_transfer_address("wallet_2", &SecUtf8::from("passphrase"))
             .unwrap();
         wallet
             .new_wallet("wallet_3", &SecUtf8::from("passphrase"))
             .unwrap();
         let addr_3 = wallet
-            .new_redeem_address("wallet_3", &SecUtf8::from("passphrase"))
+            .new_single_transfer_address("wallet_3", &SecUtf8::from("passphrase"))
             .unwrap();
 
         assert_eq!(
@@ -1012,14 +1006,6 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .addresses("name", &SecUtf8::from("passphrase"))
-                .unwrap_err()
-                .kind()
-        );
-
-        assert_eq!(
-            ErrorKind::PermissionDenied,
-            wallet
                 .private_key(
                     &SecUtf8::from("passphrase"),
                     &PublicKey::from(&PrivateKey::new().unwrap())
@@ -1039,7 +1025,7 @@ mod tests {
         assert_eq!(
             ErrorKind::PermissionDenied,
             wallet
-                .new_redeem_address("name", &SecUtf8::from("passphrase"))
+                .new_staking_address("name", &SecUtf8::from("passphrase"))
                 .unwrap_err()
                 .kind()
         );
@@ -1082,9 +1068,7 @@ mod tests {
                     Vec::new(),
                     TxAttributes::new(171),
                     None,
-                    ExtendedAddr::BasicRedeem(RedeemAddress::from(&PublicKey::from(
-                        &PrivateKey::new().unwrap()
-                    )))
+                    ExtendedAddr::OrTree(Default::default())
                 )
                 .unwrap_err()
                 .kind()
@@ -1126,7 +1110,7 @@ mod tests {
         assert_eq!(
             ErrorKind::WalletNotFound,
             wallet
-                .tree_addresses(name, &passphrase)
+                .transfer_addresses(name, &passphrase)
                 .expect_err("Found non-existent addresses")
                 .kind()
         );
@@ -1135,7 +1119,10 @@ mod tests {
             .new_wallet(name, &passphrase)
             .expect("Unable to create a new wallet");
 
-        assert_eq!(0, wallet.tree_addresses(name, &passphrase).unwrap().len());
+        assert_eq!(
+            0,
+            wallet.transfer_addresses(name, &passphrase).unwrap().len()
+        );
 
         let public_keys = vec![
             PublicKey::from(&PrivateKey::new().unwrap()),
@@ -1144,7 +1131,7 @@ mod tests {
         ];
 
         let tree_address = wallet
-            .new_tree_address(
+            .new_transfer_address(
                 name,
                 &passphrase,
                 public_keys.clone(),
@@ -1154,13 +1141,14 @@ mod tests {
             )
             .unwrap();
 
-        assert_eq!(1, wallet.tree_addresses(name, &passphrase).unwrap().len());
+        assert_eq!(
+            1,
+            wallet.transfer_addresses(name, &passphrase).unwrap().len()
+        );
 
         let root_hash = wallet
-            .find(name, &passphrase, &tree_address)
+            .find_root_hash(name, &passphrase, &tree_address)
             .unwrap()
-            .unwrap()
-            .right()
             .unwrap();
 
         assert_eq!(
@@ -1195,7 +1183,7 @@ mod tests {
         ];
 
         let multi_sig_address = wallet
-            .new_tree_address(
+            .new_transfer_address(
                 name,
                 passphrase,
                 public_keys.clone(),
@@ -1305,7 +1293,7 @@ mod tests {
         ];
 
         let tree_address = wallet
-            .new_tree_address(
+            .new_transfer_address(
                 name,
                 passphrase,
                 public_keys.clone(),
