@@ -63,6 +63,8 @@ pub enum Error {
     EcdsaCrypto(secp256k1::Error),
     /// DB read error
     IoError(io::Error),
+    /// enclave error or invalid TX,
+    EnclaveRejected,
     /// staked state not found
     AccountNotFound,
     /// staked state not unbounded
@@ -94,6 +96,7 @@ impl fmt::Display for Error {
             OutputInTimelock => write!(f, "output transaction is in timelock"),
             EcdsaCrypto(ref err) => write!(f, "ECDSA crypto error: {}", err),
             IoError(ref err) => write!(f, "IO error: {}", err),
+            EnclaveRejected => write!(f, "enclave error or invalid TX"),
             AccountNotFound => write!(f, "account not found"),
             AccountNotUnbonded => write!(f, "account not unbonded for withdrawal"),
             AccountWithdrawOutputNotLocked => write!(

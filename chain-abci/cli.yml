@@ -34,4 +34,11 @@ args:
         value_name: CHAIN_ID
         help: The expected chain id from init chain (the name convention is "...some-name...-<TWO_HEX_DIGITS>")
         takes_value: true
-        required: true        
+        required: true
+    - enclave_server:
+	        short: e
+	        long: enclave_server
+	        value_name: CONNECTION_STR
+	        help: ZeroMQ server wrapper around the transaction validation enclave.
+	        takes_value: true
+	        required: true 

@@ -1,3 +1,4 @@
+use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::account::AccountStorage;
 use crate::storage::account::AccountWrapper;
 use crate::storage::{COL_BODIES, COL_TX_META};
@@ -8,9 +9,10 @@ use chain_core::tx::fee::Fee;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use chain_tx_validation::{
-    verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw, verify_unbonding,
+    verify_bonded_deposit, verify_unbonded_withdraw, verify_unbonding,
     witness::verify_tx_recover_address, ChainInfo, Error, TxWithOutputs,
 };
+use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::KeyValueDB;
 use parity_codec::Decode;
 use starling::constants::KEY_LEN;
@@ -79,7 +81,8 @@ fn check_spent_input_lookup(
 
 /// Checks TX against the current DB and returns an `Error` if something fails.
 /// If OK, returns the paid fee.
-pub fn verify(
+pub fn verify<T: EnclaveProxy>(
+    tx_validator: &T,
     txaux: &TxAux,
     extra_info: ChainInfo,
     last_account_root_hash: &StarlingFixedKey,
@@ -87,14 +90,26 @@ pub fn verify(
     accounts: &AccountStorage,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     let paid_fee = match txaux {
-        TxAux::TransferTx(maintx, witness) => {
+        TxAux::TransferTx(maintx, _) => {
+            // TODO: the input lookup would probably later be done on the enclave side (as it'll store the sealed TX data)
+            // so one will only check and send TX IDs
             let input_transactions = check_spent_input_lookup(&maintx.inputs, db)?;
-            (
-                verify_transfer(maintx, witness, extra_info, input_transactions)?,
-                None,
-            )
+            let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
+                tx: txaux.clone(),
+                inputs: input_transactions,
+                min_fee_computed: extra_info.min_fee_computed,
+                previous_block_time: extra_info.previous_block_time,
+                unbonding_period: extra_info.unbonding_period,
+            });
+            match response {
+                EnclaveResponse::VerifyTx(Ok(fee)) => (fee, None),
+                _ => {
+                    return Err(Error::EnclaveRejected);
+                }
+            }
         }
         TxAux::DepositStakeTx(maintx, witness) => {
+            // FIXME: move to the enclave side
             let maccount = get_account(&maintx.to_staked_account, last_account_root_hash, accounts);
             let account = match maccount {
                 Ok(a) => Some(a),
@@ -116,6 +131,7 @@ pub fn verify(
             verify_unbonding(maintx, extra_info, account)?
         }
         TxAux::WithdrawUnbondedStakeTx(maintx, witness) => {
+            // FIXME: move to the enclave side
             let account_address = verify_tx_recover_address(&witness, &maintx.id());
             if let Err(e) = account_address {
                 return Err(Error::EcdsaCrypto(e));
