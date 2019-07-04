@@ -11,6 +11,7 @@
 //!   These 20 bytes are the address.
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
+use bech32::{u5, Bech32, FromBase32, ToBase32};
 use parity_codec::{Decode, Encode};
 use std::prelude::v1::{String, ToString};
 use std::str::FromStr;
@@ -132,6 +133,34 @@ impl RedeemAddress {
         }
 
         Ok(RedeemAddress(to_arr(data)))
+    }
+
+    pub fn to_simple(&self) -> Result<String, ErrorAddress> {
+        let a = self.0;
+
+        // converts base256 data to base32 and adds padding if needed
+        let checked_data: Vec<u5> = a.to_vec().to_base32();
+        // CRMS: mainnet staked-state
+        // CRMT: mainnet transfer
+        // CRTS: testnet staked-state
+        // CRTT: testnet transfer
+        let b = Bech32::new("crms".into(), checked_data).expect("hrp is not empty");
+        let  encoded2 = b.to_string().as_bytes().to_vec();
+        //encoded2[0]='x' as u8;
+        let  encoded = String::from_utf8(encoded2).unwrap();
+        Ok(encoded)
+    }
+
+    pub fn from_simple(encoded: &String) -> Result<Self, ErrorAddress> {
+        encoded
+            .parse::<Bech32>()
+            .map_err(|x| ErrorAddress::InvalidLength(0))
+            .and_then(|a| {
+                match Vec::from_base32(&a.data()) {
+                    Ok(a) =>  RedeemAddress::try_from(&a.as_slice()),
+                    Err(b) => Err(ErrorAddress::InvalidLength(0)),
+                }     
+            })
     }
 }
 
