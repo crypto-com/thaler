@@ -12,10 +12,21 @@ rust: &rust
               - cmake
               - gcc
               - binutils-dev
-              - libzmq3-dev
+              - libc6-dev
   cache: cargo
   env:
+    global:
     - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
+    - PATH=$HOME/.local/bin:$PATH
+    - LD_LIBRARY_PATH=$HOME/lib
+    - PKG_CONFIG_PATH=$HOME/lib/pkgconfig    
+  before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
+    - wget https://github.com/jedisct1/libsodium/releases/download/1.0.16/libsodium-1.0.16.tar.gz
+    - tar xvfz libsodium-1.0.16.tar.gz
+    - cd libsodium-1.0.16 && ./configure --prefix=$HOME && make && make install && cd ..
+    - wget https://github.com/zeromq/libzmq/releases/download/v4.2.5/zeromq-4.2.5.tar.gz
+    - tar xvfz zeromq-4.2.5.tar.gz
+    - cd zeromq-4.2.5 && ./configure --prefix=$HOME --with-libsodium && make && make install && cd ..
 
   script:
   - cargo clean
@@ -56,7 +67,7 @@ jobs:
       rust: beta
     - <<: *rust
       rust: nightly
-    # MUST_TODO: enable when tests are ported to use the new dev-utils + client support
+    # FIXME: enable when tests are ported to use the new dev-utils + client support
     # - name: Integration Tests
     #   language: node_js
     #   node_js:
