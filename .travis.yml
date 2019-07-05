@@ -15,11 +15,11 @@ rust: &rust
               - libc6-dev
   cache: cargo
   env:
-    global:
     - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
-    - PATH=$HOME/.local/bin:$PATH
-    - LD_LIBRARY_PATH=$HOME/lib
-    - PKG_CONFIG_PATH=$HOME/lib/pkgconfig    
+    global:
+      - PATH=$HOME/.local/bin:$PATH
+      - LD_LIBRARY_PATH=$HOME/lib
+      - PKG_CONFIG_PATH=$HOME/lib/pkgconfig    
   before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
     - wget https://github.com/jedisct1/libsodium/releases/download/1.0.16/libsodium-1.0.16.tar.gz
     - tar xvfz libsodium-1.0.16.tar.gz
