@@ -50,6 +50,29 @@ pub struct ChainNodeState {
     pub council_nodes: Vec<CouncilNode>,
 }
 
+impl ChainNodeState {
+    pub fn genesis(
+        genesis_apphash: H256,
+        genesis_time: Timespec,
+        last_account_root_hash: StarlingFixedKey,
+        rewards_pool: RewardsPoolState,
+        network_params: InitNetworkParameters,
+        council_nodes: Vec<CouncilNode>,
+    ) -> Self {
+        ChainNodeState {
+            last_block_height: 0,
+            last_apphash: genesis_apphash,
+            block_time: genesis_time,
+            last_account_root_hash,
+            rewards_pool,
+            fee_policy: network_params.initial_fee_policy,
+            unbonding_period: network_params.unbonding_period,
+            required_council_node_stake: network_params.required_council_node_stake,
+            council_nodes,
+        }
+    }
+}
+
 /// The global ABCI state
 pub struct ChainNodeApp<T: EnclaveProxy> {
     /// the underlying key-value storage (+ possibly some info in the future)
@@ -163,17 +186,14 @@ fn store_valid_genesis_state(
     council_nodes: Vec<CouncilNode>,
     inittx: &mut DBTransaction,
 ) -> ChainNodeState {
-    let last_state = ChainNodeState {
-        last_block_height: 0,
-        last_apphash: genesis_app_hash,
-        block_time: genesis_time,
+    let last_state = ChainNodeState::genesis(
+        genesis_app_hash,
+        genesis_time,
         last_account_root_hash,
         rewards_pool,
-        fee_policy: network_params.initial_fee_policy,
-        unbonding_period: network_params.unbonding_period,
-        required_council_node_stake: network_params.required_council_node_stake,
+        network_params,
         council_nodes,
-    };
+    );
     let encoded = last_state.encode();
     inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &encoded);
     inittx.put(COL_EXTRA, b"init_chain_state", &encoded);
