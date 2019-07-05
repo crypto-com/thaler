@@ -11,7 +11,8 @@ rust: &rust
               - libdw-dev
               - cmake
               - gcc
-              - binutils-dev    
+              - binutils-dev
+              - libzmq3-dev
   cache: cargo
   env:
     - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
