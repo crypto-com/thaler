@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+/// TODO: WIP usage -- disallow dead_code when new TX types are added to work with accounts and use this
 /// Internal definitions
 mod tree;
 
@@ -9,8 +11,6 @@ use starling::traits::{Database, Decode, Encode, Exception};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// TODO: WIP usage -- disallow dead_code when new TX types are added to work with accounts and use this
-#[allow(dead_code)]
 pub type AccountStorage = tree::HashTree<AccountWrapper, Storage>;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

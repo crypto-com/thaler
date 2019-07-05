@@ -3,6 +3,9 @@ use parity_codec::{Decode, Encode};
 use std::sync::{Arc, Mutex};
 use zmq::Socket;
 
+/// TODO: feature-guard when workspaces can be built with --features flag: https://github.com/rust-lang/cargo/issues/5015
+pub mod mock;
+
 /// Abstracts over communication with an external process that does enclave calls
 pub trait EnclaveProxy: Sync + Send + Sized {
     fn process_request(&self, request: EnclaveRequest) -> EnclaveResponse;
