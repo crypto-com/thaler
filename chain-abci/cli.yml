@@ -36,9 +36,9 @@ args:
         takes_value: true
         required: true
     - enclave_server:
-	        short: e
-	        long: enclave_server
-	        value_name: CONNECTION_STR
-	        help: ZeroMQ server wrapper around the transaction validation enclave.
-	        takes_value: true
-	        required: true 
+        short: e
+        long: enclave_server
+        value_name: CONNECTION_STR
+        help: ZeroMQ server wrapper around the transaction validation enclave.
+        takes_value: true
+        required: true 
