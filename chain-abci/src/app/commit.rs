@@ -1,5 +1,6 @@
 use super::ChainNodeApp;
 use crate::app::spend_utxos;
+use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::*;
 use abci::*;
 use bit_vec::BitVec;
@@ -26,7 +27,7 @@ pub fn update_utxos_commit(tx: &Tx, db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransa
     );
 }
 
-impl ChainNodeApp {
+impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Commits delivered TX: flushes updates to the underlying storage
     pub fn commit_handler(&mut self, _req: &RequestCommit) -> ResponseCommit {
         let orig_state = self.last_state.clone();

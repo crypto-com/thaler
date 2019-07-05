@@ -1,3 +1,4 @@
+use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::account::AccountStorage;
 use crate::storage::account::AccountWrapper;
 use crate::storage::tx::get_account;
@@ -18,6 +19,7 @@ use chain_core::state::tendermint::{BlockHeight, TendermintVotePower};
 use chain_core::state::CouncilNode;
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::{fee::LinearFee, TxAux};
+use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::DBTransaction;
 use log::{info, warn};
 use parity_codec::{Decode, Encode};
@@ -48,8 +50,31 @@ pub struct ChainNodeState {
     pub council_nodes: Vec<CouncilNode>,
 }
 
+impl ChainNodeState {
+    pub fn genesis(
+        genesis_apphash: H256,
+        genesis_time: Timespec,
+        last_account_root_hash: StarlingFixedKey,
+        rewards_pool: RewardsPoolState,
+        network_params: InitNetworkParameters,
+        council_nodes: Vec<CouncilNode>,
+    ) -> Self {
+        ChainNodeState {
+            last_block_height: 0,
+            last_apphash: genesis_apphash,
+            block_time: genesis_time,
+            last_account_root_hash,
+            rewards_pool,
+            fee_policy: network_params.initial_fee_policy,
+            unbonding_period: network_params.unbonding_period,
+            required_council_node_stake: network_params.required_council_node_stake,
+            council_nodes,
+        }
+    }
+}
+
 /// The global ABCI state
-pub struct ChainNodeApp {
+pub struct ChainNodeApp<T: EnclaveProxy> {
     /// the underlying key-value storage (+ possibly some info in the future)
     pub storage: Storage,
     /// account trie storage
@@ -70,51 +95,114 @@ pub struct ChainNodeApp {
     pub validator_pubkeys: BTreeMap<StakedStateAddress, PubKey>,
     /// validator addresses whose bonded amount changed in the current block
     pub power_changed_in_block: BTreeMap<StakedStateAddress, TendermintVotePower>,
+    /// proxy for processing transaction validation requests
+    pub tx_validator: T,
 }
 
-impl ChainNodeApp {
-    fn get_validator_key(node: &CouncilNode) -> PubKey {
-        let mut pk = PubKey::new();
-        let (keytype, key) = node.consensus_pubkey.to_validator_update();
-        pk.set_field_type(keytype);
-        pk.set_data(key);
-        pk
-    }
+fn get_validator_key(node: &CouncilNode) -> PubKey {
+    let mut pk = PubKey::new();
+    let (keytype, key) = node.consensus_pubkey.to_validator_update();
+    pk.set_field_type(keytype);
+    pk.set_data(key);
+    pk
+}
 
-    fn get_validator_mapping(
-        accounts: &AccountStorage,
-        last_app_state: &ChainNodeState,
-    ) -> (
-        BTreeMap<StakedStateAddress, TendermintVotePower>,
-        BTreeMap<StakedStateAddress, PubKey>,
-    ) {
-        let mut validator_voting_power = BTreeMap::new();
-        let mut validator_pubkeys = BTreeMap::new();
-        for node in last_app_state.council_nodes.iter() {
-            let pk = ChainNodeApp::get_validator_key(&node);
-            validator_pubkeys.insert(node.staking_account_address, pk);
-            let account = get_account(
-                &node.staking_account_address,
-                &last_app_state.last_account_root_hash,
-                accounts,
-            )
-            .expect("council node staking account should be in the account state");
-            if account.bonded < last_app_state.required_council_node_stake {
-                validator_voting_power.insert(
-                    node.staking_account_address,
-                    TendermintVotePower::from(Coin::zero()),
-                );
-            } else {
-                validator_voting_power.insert(
-                    node.staking_account_address,
-                    TendermintVotePower::from(account.bonded),
-                );
-            }
+fn get_validator_mapping(
+    accounts: &AccountStorage,
+    last_app_state: &ChainNodeState,
+) -> (
+    BTreeMap<StakedStateAddress, TendermintVotePower>,
+    BTreeMap<StakedStateAddress, PubKey>,
+) {
+    let mut validator_voting_power = BTreeMap::new();
+    let mut validator_pubkeys = BTreeMap::new();
+    for node in last_app_state.council_nodes.iter() {
+        let pk = get_validator_key(&node);
+        validator_pubkeys.insert(node.staking_account_address, pk);
+        let account = get_account(
+            &node.staking_account_address,
+            &last_app_state.last_account_root_hash,
+            accounts,
+        )
+        .expect("council node staking account should be in the account state");
+        if account.bonded < last_app_state.required_council_node_stake {
+            validator_voting_power.insert(
+                node.staking_account_address,
+                TendermintVotePower::from(Coin::zero()),
+            );
+        } else {
+            validator_voting_power.insert(
+                node.staking_account_address,
+                TendermintVotePower::from(account.bonded),
+            );
         }
-        (validator_voting_power, validator_pubkeys)
     }
+    (validator_voting_power, validator_pubkeys)
+}
 
+fn check_and_store_consensus_params(
+    init_consensus_params: Option<&ConsensusParams>,
+    _validators: &[CouncilNode],
+    _network_params: &InitNetworkParameters,
+    inittx: &mut DBTransaction,
+) {
+    match init_consensus_params {
+        Some(cp) => {
+            // TODO: check validators only used allowed key types
+            // TODO: check unbonding period == cp.evidence.max_age
+            // NOTE: cp.evidence.max_age is currently in the number of blocks
+            // but it should be migrated to "time", in which case this check will make sense
+            // (as unbonding time is in seconds, not blocks)
+            warn!("consensus parameters not checked (TODO)");
+            inittx.put(
+                COL_EXTRA,
+                b"init_chain_consensus_params",
+                &(cp as &dyn Message)
+                    .write_to_bytes()
+                    .expect("consensus params"),
+            );
+        }
+        None => {
+            info!("consensus params not in the initchain request");
+        }
+    }
+}
+
+fn get_voting_power(
+    distribution: &BTreeMap<RedeemAddress, (Coin, AccountType)>,
+    node_address: &StakedStateAddress,
+) -> TendermintVotePower {
+    match node_address {
+        StakedStateAddress::BasicRedeem(a) => TendermintVotePower::from(distribution[a].0),
+    }
+}
+
+fn store_valid_genesis_state(
+    genesis_time: Timespec,
+    genesis_app_hash: H256,
+    rewards_pool: RewardsPoolState,
+    network_params: InitNetworkParameters,
+    last_account_root_hash: StarlingFixedKey,
+    council_nodes: Vec<CouncilNode>,
+    inittx: &mut DBTransaction,
+) -> ChainNodeState {
+    let last_state = ChainNodeState::genesis(
+        genesis_app_hash,
+        genesis_time,
+        last_account_root_hash,
+        rewards_pool,
+        network_params,
+        council_nodes,
+    );
+    let encoded = last_state.encode();
+    inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &encoded);
+    inittx.put(COL_EXTRA, b"init_chain_state", &encoded);
+    last_state
+}
+
+impl<T: EnclaveProxy> ChainNodeApp<T> {
     fn restore_from_storage(
+        tx_validator: T,
         last_app_state: ChainNodeState,
         genesis_app_hash: [u8; HASH_SIZE_256],
         chain_id: &str,
@@ -150,7 +238,7 @@ impl ChainNodeApp {
             .expect("failed to decode two last hex digits in chain ID")[0];
 
         let (validator_voting_power, validator_pubkeys) =
-            ChainNodeApp::get_validator_mapping(&accounts, &last_app_state);
+            get_validator_mapping(&accounts, &last_app_state);
         ChainNodeApp {
             storage,
             accounts,
@@ -162,6 +250,7 @@ impl ChainNodeApp {
             validator_voting_power,
             validator_pubkeys,
             power_changed_in_block: BTreeMap::new(),
+            tx_validator,
         }
     }
 
@@ -170,11 +259,13 @@ impl ChainNodeApp {
     ///
     /// # Arguments
     ///
+    /// * `tx_validator` - ZMQ proxy to enclave TX validator
     /// * `gah` - hex-encoded genesis app hash
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `storage` - underlying storage to be used (in-mem or persistent)
     /// * `accounts` - underlying storage for account tries to be used (in-mem or persistent)    
     pub fn new_with_storage(
+        tx_validator: T,
         gah: &str,
         chain_id: &str,
         storage: Storage,
@@ -183,7 +274,19 @@ impl ChainNodeApp {
         let decoded_gah = hex::decode(gah).expect("failed to decode genesis app hash");
         let mut genesis_app_hash = [0u8; HASH_SIZE_256];
         genesis_app_hash.copy_from_slice(&decoded_gah[..]);
-
+        let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
+            .expect("failed to decode two last hex digits in chain ID")[0];
+        // TODO: genesis app hash check when embedded in enclave binary
+        let enclave_sanity_check =
+            tx_validator.process_request(EnclaveRequest::CheckChain { chain_hex_id });
+        match enclave_sanity_check {
+            EnclaveResponse::CheckChain(Ok(_)) => {
+                info!("enclave connection OK");
+            }
+            _ => {
+                panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process)");
+            }
+        }
         if let Some(last_app_state) = storage
             .db
             .get(COL_NODE_INFO, LAST_STATE_KEY)
@@ -194,6 +297,7 @@ impl ChainNodeApp {
             let last_state =
                 ChainNodeState::decode(&mut data.as_slice()).expect("deserialize app state");
             ChainNodeApp::restore_from_storage(
+                tx_validator,
                 last_state,
                 genesis_app_hash,
                 chain_id,
@@ -202,8 +306,6 @@ impl ChainNodeApp {
             )
         } else {
             info!("no last app state stored");
-            let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
-                .expect("failed to decode two last hex digits in chain ID")[0];
             let mut inittx = storage.db.transaction();
             inittx.put(COL_NODE_INFO, GENESIS_APP_HASH_KEY, &genesis_app_hash);
             inittx.put(COL_EXTRA, CHAIN_ID_KEY, chain_id.as_bytes());
@@ -222,6 +324,7 @@ impl ChainNodeApp {
                 validator_voting_power: BTreeMap::new(),
                 validator_pubkeys: BTreeMap::new(),
                 power_changed_in_block: BTreeMap::new(),
+                tx_validator,
             }
         }
     }
@@ -230,85 +333,25 @@ impl ChainNodeApp {
     ///
     /// # Arguments
     ///
+    /// * `tx_validator` - ZMQ proxy to enclave TX validator
     /// * `gah` - hex-encoded genesis app hash
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `node_storage_config` - configuration for node storage (currently only the path, but TODO: more options, e.g. SSD or HDD params)
     /// * `account_storage_config` - configuration for account storage
     pub fn new(
+        tx_validator: T,
         gah: &str,
         chain_id: &str,
         node_storage_config: &StorageConfig<'_>,
         account_storage_config: &StorageConfig<'_>,
-    ) -> ChainNodeApp {
+    ) -> ChainNodeApp<T> {
         ChainNodeApp::new_with_storage(
+            tx_validator,
             gah,
             chain_id,
             Storage::new(node_storage_config),
             AccountStorage::new(Storage::new(account_storage_config), 20).expect("account db"),
         )
-    }
-
-    fn check_and_store_consensus_params(
-        init_consensus_params: Option<&ConsensusParams>,
-        _validators: &[CouncilNode],
-        _network_params: &InitNetworkParameters,
-        inittx: &mut DBTransaction,
-    ) {
-        match init_consensus_params {
-            Some(cp) => {
-                // TODO: check validators only used allowed key types
-                // TODO: check unbonding period == cp.evidence.max_age
-                // NOTE: cp.evidence.max_age is currently in the number of blocks
-                // but it should be migrated to "time", in which case this check will make sense
-                // (as unbonding time is in seconds, not blocks)
-                warn!("consensus parameters not checked (TODO)");
-                inittx.put(
-                    COL_EXTRA,
-                    b"init_chain_consensus_params",
-                    &(cp as &dyn Message)
-                        .write_to_bytes()
-                        .expect("consensus params"),
-                );
-            }
-            None => {
-                info!("consensus params not in the initchain request");
-            }
-        }
-    }
-
-    fn store_valid_genesis_state(
-        genesis_time: Timespec,
-        genesis_app_hash: H256,
-        rewards_pool: RewardsPoolState,
-        network_params: InitNetworkParameters,
-        last_account_root_hash: StarlingFixedKey,
-        council_nodes: Vec<CouncilNode>,
-        inittx: &mut DBTransaction,
-    ) -> ChainNodeState {
-        let last_state = ChainNodeState {
-            last_block_height: 0,
-            last_apphash: genesis_app_hash,
-            block_time: genesis_time,
-            last_account_root_hash,
-            rewards_pool,
-            fee_policy: network_params.initial_fee_policy,
-            unbonding_period: network_params.unbonding_period,
-            required_council_node_stake: network_params.required_council_node_stake,
-            council_nodes,
-        };
-        let encoded = last_state.encode();
-        inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &encoded);
-        inittx.put(COL_EXTRA, b"init_chain_state", &encoded);
-        last_state
-    }
-
-    fn get_voting_power(
-        distribution: &BTreeMap<RedeemAddress, (Coin, AccountType)>,
-        node_address: &StakedStateAddress,
-    ) -> TendermintVotePower {
-        match node_address {
-            StakedStateAddress::BasicRedeem(a) => TendermintVotePower::from(distribution[a].0),
-        }
     }
 
     /// Handles InitChain requests:
@@ -353,7 +396,7 @@ impl ChainNodeApp {
             }
 
             let mut inittx = db.transaction();
-            ChainNodeApp::check_and_store_consensus_params(
+            check_and_store_consensus_params(
                 _req.consensus_params.as_ref(),
                 &nodes,
                 &conf.network_params,
@@ -363,12 +406,9 @@ impl ChainNodeApp {
             let mut validators = Vec::with_capacity(nodes.len());
             for node in nodes.iter() {
                 let mut validator = ValidatorUpdate::default();
-                let power = ChainNodeApp::get_voting_power(
-                    &conf.distribution,
-                    &node.staking_account_address,
-                );
+                let power = get_voting_power(&conf.distribution, &node.staking_account_address);
                 validator.set_power(power.into());
-                let pk = ChainNodeApp::get_validator_key(&node);
+                let pk = get_validator_key(&node);
                 self.validator_pubkeys
                     .insert(node.staking_account_address, pk.clone());
                 validator.set_pub_key(pk);
@@ -376,7 +416,7 @@ impl ChainNodeApp {
             }
             let mut resp = ResponseInitChain::new();
             resp.set_validators(RepeatedField::from(validators));
-            let last_state = ChainNodeApp::store_valid_genesis_state(
+            let last_state = store_valid_genesis_state(
                 genesis_time,
                 genesis_app_hash,
                 rp,

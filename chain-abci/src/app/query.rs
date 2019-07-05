@@ -1,4 +1,5 @@
 use super::ChainNodeApp;
+use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::tx::get_account;
 use crate::storage::*;
 use abci::*;
@@ -9,7 +10,16 @@ use integer_encoding::VarInt;
 use parity_codec::{Decode, Encode};
 use std::convert::TryFrom;
 
-impl ChainNodeApp {
+/// Generate generic ABCI ProofOp for the witness
+fn get_witness_proof_op(witness: &[u8]) -> ProofOp {
+    let mut op = ProofOp::new();
+    op.set_field_type("witness".into());
+    op.set_key(TXID_HASH_ID.to_vec());
+    op.set_data(txid_hash(witness).to_vec());
+    op
+}
+
+impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).
     fn lookup(&self, resp: &mut ResponseQuery, column: Option<u32>, key: &[u8], log_message: &str) {
         let v = self.storage.db.get(column, key);
@@ -22,15 +32,6 @@ impl ChainNodeApp {
                 resp.code = 1;
             }
         }
-    }
-
-    /// Generate generic ABCI ProofOp for the witness
-    fn get_witness_proof_op(witness: &[u8]) -> ProofOp {
-        let mut op = ProofOp::new();
-        op.set_field_type("witness".into());
-        op.set_key(TXID_HASH_ID.to_vec());
-        op.set_data(txid_hash(witness).to_vec());
-        op
     }
 
     /// Responds to query requests -- note that path is hex-encoded in the original request on the client side
@@ -83,10 +84,10 @@ impl ChainNodeApp {
 
                             // TODO: Change this in future to include individual ops?
                             let proof_ops = match tree.generate_proof(txid) {
-                                None => vec![ChainNodeApp::get_witness_proof_op(&witness[..])],
+                                None => vec![get_witness_proof_op(&witness[..])],
                                 Some(merkle_proof) => vec![
                                     into_proof_op(tree.root_hash(), merkle_proof),
-                                    ChainNodeApp::get_witness_proof_op(&witness[..]),
+                                    get_witness_proof_op(&witness[..]),
                                 ],
                             };
 

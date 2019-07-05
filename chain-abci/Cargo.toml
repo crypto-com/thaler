@@ -10,6 +10,7 @@ edition = "2018"
 abci = "0.6"
 chain-core = { path = "../chain-core" }
 chain-tx-validation = { path = "../chain-tx-validation" }
+enclave-protocol = { path = "../enclave-protocol" }
 log = "0.4.0"
 env_logger = "0.6.2"
 bit-vec = "0.6.1"
@@ -29,6 +30,7 @@ secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", r
 blake2 = "0.8"
 ethbloom = "0.6.4"
 parity-codec = { features = ["derive"], version = "4.1.1" }
+zmq = "0.9"
 
 [dev-dependencies]
 quickcheck = "0.8"
