@@ -45,6 +45,12 @@ Before building, add the following lines to `~/.cargo/config`
 rustflags = ["-Ctarget-feature=+aes,+ssse3"]
 ```
 
+Also, install ZeroMQ and pkg-config for building `chain-abci`. Below are the commands for Mac OS:
+```
+$ brew install zmq
+$ brew install pkg-config
+```
+
 Then build the executables
 ```
 $ cargo build
