@@ -181,19 +181,14 @@ mod tests {
     use super::*;
 
     use chrono::DateTime;
-    use std::str::FromStr;
     use std::time::SystemTime;
 
-    use chain_core::init::address::RedeemAddress;
-    use chain_core::init::coin::{Coin, CoinError};
-    use chain_core::tx::data::address::ExtendedAddr;
-    use chain_core::tx::data::attribute::TxAttributes;
+    use chain_core::init::coin::CoinError;
     use chain_core::tx::data::input::TxoPointer;
-    use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
-    use client_common::balance::{BalanceChange, TransactionChange};
+    use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
     use client_common::{Error, ErrorKind, Result, Transaction};
     use client_core::signer::DefaultSigner;
@@ -247,9 +242,7 @@ mod tests {
 
         fn output(&self, _id: &TxId, _index: usize) -> Result<TxOut> {
             Ok(TxOut {
-                address: ExtendedAddr::BasicRedeem(
-                    RedeemAddress::from_str("0x1fdf22497167a793ca794963ad6c95e6ffa0b971").unwrap(),
-                ),
+                address: ExtendedAddr::OrTree([0; 32]),
                 value: Coin::new(10000000000000000000).unwrap(),
                 valid_from: None,
             })

@@ -148,7 +148,7 @@ pub mod tests {
     use super::*;
     use crate::enclave_bridge::mock::MockClient;
     use crate::storage::{Storage, COL_TX_META, NUM_COLUMNS};
-    use chain_core::common::Timespec;
+    use chain_core::common::{MerkleTree, Timespec};
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::{Coin, CoinError};
     use chain_core::state::account::StakedStateOpAttributes;
@@ -161,10 +161,12 @@ pub mod tests {
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::FeeAlgorithm;
     use chain_core::tx::fee::{LinearFee, Milli};
+    use chain_core::tx::witness::tree::RawPubkey;
     use chain_core::tx::witness::{TxInWitness, TxWitness};
     use chain_tx_validation::{verify_transfer, TxWithOutputs};
     use kvdb_memorydb::create;
     use parity_codec::Encode;
+    use secp256k1::schnorrsig::schnorr_sign;
     use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
     use std::fmt::Debug;
     use std::mem;
@@ -173,10 +175,16 @@ pub mod tests {
         secp: Secp256k1<C>,
         txid: &TxId,
         secret_key: &SecretKey,
+        merkle_tree: &MerkleTree<RawPubkey>,
     ) -> TxInWitness {
-        let message = Message::from_slice(&txid[..]).expect("32 bytes");
-        let sig = secp.sign_recoverable(&message, &secret_key);
-        return TxInWitness::BasicRedeem(sig);
+        let message = Message::from_slice(txid).unwrap();
+        let public_key = PublicKey::from_secret_key(&secp, secret_key);
+        let proof = merkle_tree
+            .generate_proof(RawPubkey::from(public_key.serialize()))
+            .unwrap();
+        let signature = schnorr_sign(&secp, &message, secret_key).0;
+
+        TxInWitness::TreeSig(signature, proof)
     }
 
     pub fn get_account_op_witness<C: Signing>(
@@ -208,20 +216,31 @@ pub mod tests {
         old_tx
     }
 
-    fn get_address<C: Signing>(secp: &Secp256k1<C>, secret_key: &SecretKey) -> ExtendedAddr {
+    fn get_address<C: Signing>(
+        secp: &Secp256k1<C>,
+        secret_key: &SecretKey,
+    ) -> (ExtendedAddr, MerkleTree<RawPubkey>) {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-        ExtendedAddr::BasicRedeem(RedeemAddress::from(&public_key))
+        let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
+
+        (ExtendedAddr::OrTree(merkle_tree.root_hash()), merkle_tree)
     }
 
     fn prepate_init_tx(
         timelocked: bool,
-    ) -> (Arc<dyn KeyValueDB>, TxoPointer, ExtendedAddr, SecretKey) {
+    ) -> (
+        Arc<dyn KeyValueDB>,
+        TxoPointer,
+        ExtendedAddr,
+        MerkleTree<RawPubkey>,
+        SecretKey,
+    ) {
         let db = create_db();
 
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
 
-        let addr = get_address(&secp, &secret_key);
+        let (addr, merkle_tree) = get_address(&secp, &secret_key);
         let old_tx = get_old_tx(addr.clone(), timelocked);
 
         let old_tx_id = old_tx.id();
@@ -240,7 +259,7 @@ pub mod tests {
         );
         db.write(inittx).unwrap();
         let txp = TxoPointer::new(old_tx_id, 0);
-        (db, txp, addr, secret_key)
+        (db, txp, addr, merkle_tree, secret_key)
     }
 
     fn prepare_app_valid_transfer_tx(
@@ -250,28 +269,28 @@ pub mod tests {
         TxAux,
         Tx,
         TxWitness,
+        MerkleTree<RawPubkey>,
         SecretKey,
         AccountStorage,
     ) {
-        let (db, txp, addr, secret_key) = prepate_init_tx(timelocked);
+        let (db, txp, addr, merkle_tree, secret_key) = prepate_init_tx(timelocked);
         let secp = Secp256k1::new();
         let mut tx = Tx::new();
         tx.add_input(txp);
         tx.add_output(TxOut::new(addr, Coin::new(9).unwrap()));
         let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
-        let pk2 = PublicKey::from_secret_key(&secp, &sk2);
-        tx.add_output(TxOut::new(
-            ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
-            Coin::new(1).unwrap(),
-        ));
+        let addr2 = get_address(&secp, &sk2).0;
+        tx.add_output(TxOut::new(addr2, Coin::new(1).unwrap()));
 
-        let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx.id(), &secret_key)];
+        let witness: Vec<TxInWitness> =
+            vec![get_tx_witness(secp, &tx.id(), &secret_key, &merkle_tree)];
         let txaux = TxAux::new(tx.clone(), witness.clone().into());
         (
             db,
             txaux,
             tx.clone(),
             witness.into(),
+            merkle_tree,
             secret_key,
             AccountStorage::new(Storage::new_db(create_db()), 20).expect("account db"),
         )
@@ -443,15 +462,13 @@ pub mod tests {
             .expect("insert");
 
         let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
-        let pk2 = PublicKey::from_secret_key(&secp, &sk2);
+
+        let addr1 = get_address(&secp, &secret_key).0;
+        let addr2 = get_address(&secp, &sk2).0;
 
         let outputs = vec![
-            TxOut::new_with_timelock(ExtendedAddr::BasicRedeem(addr), Coin::new(9).unwrap(), 0),
-            TxOut::new_with_timelock(
-                ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
-                Coin::new(1).unwrap(),
-                0,
-            ),
+            TxOut::new_with_timelock(addr1, Coin::new(9).unwrap(), 0),
+            TxOut::new_with_timelock(addr2, Coin::new(1).unwrap(), 0),
         ];
 
         let tx = WithdrawUnbondedTx::new(1, outputs, TxAttributes::new(DEFAULT_CHAIN_ID));
@@ -656,7 +673,7 @@ pub mod tests {
         TxWitness,
         AccountStorage,
     ) {
-        let (db, txp, _, secret_key) = prepate_init_tx(timelocked);
+        let (db, txp, _, merkle_tree, secret_key) = prepate_init_tx(timelocked);
         let secp = Secp256k1::new();
         let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
         let pk2 = PublicKey::from_secret_key(&secp, &sk2);
@@ -666,7 +683,8 @@ pub mod tests {
             StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
         );
 
-        let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx.id(), &secret_key)];
+        let witness: Vec<TxInWitness> =
+            vec![get_tx_witness(secp, &tx.id(), &secret_key, &merkle_tree)];
         let txaux = TxAux::DepositStakeTx(tx.clone(), witness.clone().into());
         (
             db,
@@ -681,7 +699,7 @@ pub mod tests {
 
     #[test]
     fn existing_utxo_input_tx_should_verify() {
-        let (db, txaux, _, _, _, accounts) = prepare_app_valid_transfer_tx(false);
+        let (db, txaux, _, _, _, _, accounts) = prepare_app_valid_transfer_tx(false);
         let extra_info = ChainInfo {
             min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
                 .calculate_for_txaux(&txaux)
@@ -847,6 +865,13 @@ pub mod tests {
                 secp.clone(),
                 &tx.id(),
                 &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
+                &MerkleTree::new(vec![RawPubkey::from(
+                    PublicKey::from_secret_key(
+                        &secp,
+                        &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
+                    )
+                    .serialize(),
+                )]),
             );
             let txaux = TxAux::DepositStakeTx(tx.clone(), witness);
             let result = verify(
@@ -892,7 +917,8 @@ pub mod tests {
 
     #[test]
     fn test_transfer_verify_fail() {
-        let (db, txaux, tx, witness, secret_key, accounts) = prepare_app_valid_transfer_tx(false);
+        let (db, txaux, tx, witness, merkle_tree, secret_key, accounts) =
+            prepare_app_valid_transfer_tx(false);
         let extra_info = ChainInfo {
             min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
                 .calculate_for_txaux(&txaux)
@@ -1026,7 +1052,7 @@ pub mod tests {
             let outp = tx.outputs[0].clone();
             tx.outputs.push(outp);
             let mut witness = witness.clone();
-            witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key);
+            witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key, &merkle_tree);
             let result = verify_transfer(&tx, &witness, extra_info, vec![]);
             expect_error(
                 &result,
@@ -1079,8 +1105,15 @@ pub mod tests {
                 secp.clone(),
                 &tx.id(),
                 &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
+                &MerkleTree::new(vec![RawPubkey::from(
+                    PublicKey::from_secret_key(
+                        &secp,
+                        &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
+                    )
+                    .serialize(),
+                )]),
             );
-            let addr = get_address(&secp, &secret_key);
+            let addr = get_address(&secp, &secret_key).0;
             let input_tx = get_old_tx(addr, false);
 
             let result = verify_transfer(
@@ -1122,7 +1155,7 @@ pub mod tests {
             let mut witness = witness.clone();
 
             tx.outputs[0].value = (tx.outputs[0].value + Coin::one()).unwrap();
-            witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key);
+            witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key, &merkle_tree);
             let result = verify_transfer(&tx, &witness, extra_info, vec![]);
             expect_error(&result, Error::InputOutputDoNotMatch);
             let txaux = TxAux::TransferTx(tx, witness);
@@ -1138,8 +1171,8 @@ pub mod tests {
         }
         // OutputInTimelock
         {
-            let (db, txaux, tx, witness, _, accounts) = prepare_app_valid_transfer_tx(true);
-            let addr = get_address(&Secp256k1::new(), &secret_key);
+            let (db, txaux, tx, witness, _, _, accounts) = prepare_app_valid_transfer_tx(true);
+            let addr = get_address(&Secp256k1::new(), &secret_key).0;
             let input_tx = get_old_tx(addr, true);
             let result = verify_transfer(
                 &tx,
@@ -1159,5 +1192,4 @@ pub mod tests {
             assert!(result.is_err());
         }
     }
-
 }
