@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn check_flow() {
         let transaction_change_service = TransactionChangeService::new(MemoryStorage::default());
-        let address = ExtendedAddr::BasicRedeem(Default::default());
+        let address = ExtendedAddr::OrTree(Default::default());
         let transaction_change = TransactionChange {
             transaction_id: txid_hash(&[0, 1, 2]),
             address: address.clone(),
