@@ -27,6 +27,10 @@ use tiny_keccak::Keccak;
 
 use crate::common::{H256, HASH_SIZE_256};
 
+// CRMS: mainnet staked-state
+// CRMT: mainnet transfer
+// CRTS: testnet staked-state
+// CRTT: testnet transfer
 pub trait CroAddress<T> {
     fn to_cro(&self) -> Result<String, ()>;
     fn from_cro(encoded: &str) -> Result<T, ()>;
@@ -143,29 +147,21 @@ impl RedeemAddress {
 
 impl CroAddress<RedeemAddress> for RedeemAddress {
     fn to_cro(&self) -> Result<String, ()> {
-        let a = self.0;
-
-        // converts base256 data to base32 and adds padding if needed
-        let checked_data: Vec<u5> = a.to_vec().to_base32();
-        // CRMS: mainnet staked-state
-        // CRMT: mainnet transfer
-        // CRTS: testnet staked-state
-        // CRTT: testnet transfer
-        let b = Bech32::new("crms".into(), checked_data).expect("hrp is not empty");
-        let encoded2 = b.to_string().as_bytes().to_vec();
-        //encoded2[0]='x' as u8;
-        let encoded = String::from_utf8(encoded2).unwrap();
-        Ok(encoded)
+        let checked_data: Vec<u5> = self.0.to_vec().to_base32();
+        Bech32::new("crms".into(), checked_data)
+            .map_err(|_e| ())
+            .and_then(|b| {
+                let bytes = b.to_string().as_bytes().to_vec();
+                String::from_utf8(bytes).map_err(|_e| ())
+            })
     }
 
     fn from_cro(encoded: &str) -> Result<Self, ()> {
         encoded
             .parse::<Bech32>()
-            .map_err(|_x| ())
-            .and_then(|a| match Vec::from_base32(&a.data()) {
-                Ok(a) => Ok(RedeemAddress::try_from(&a.as_slice()).unwrap()),
-                Err(_b) => Err(()),
-            })
+            .map_err(|_e| ())
+            .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| ()))
+            .and_then(|a| RedeemAddress::try_from(&a.as_slice()).map_err(|_e| ()))
     }
 }
 impl ops::Deref for RedeemAddress {
