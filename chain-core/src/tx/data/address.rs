@@ -80,3 +80,24 @@ impl FromStr for ExtendedAddr {
         Ok(ExtendedAddr::OrTree(tree_root))
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn should_be_correct_textual_address() {
+        let a = ExtendedAddr::from_str(
+            "0x0e7c045110b8dbf29765047380898919c5cb56f400112233445566778899aabb",
+        )
+        .unwrap();
+        let b = a.to_cro().unwrap();
+        assert_eq!(
+            b,
+            "crmt1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42asr8c7xt"
+        );
+        let c = ExtendedAddr::from_cro(&b).unwrap();
+        assert_eq!(c, a);
+    }
+
+}
