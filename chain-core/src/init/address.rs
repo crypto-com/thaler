@@ -27,6 +27,11 @@ use tiny_keccak::Keccak;
 
 use crate::common::{H256, HASH_SIZE_256};
 
+pub trait SimpleAddress<T> {
+    fn to_simple(&self) -> Result<String, ()>;
+    fn from_simple(encoded: &str) -> Result<T, ()>;
+}
+
 /// Keccak-256 crypto hash length in bytes
 pub const KECCAK256_BYTES: usize = 32;
 
@@ -134,8 +139,10 @@ impl RedeemAddress {
 
         Ok(RedeemAddress(to_arr(data)))
     }
+}
 
-    pub fn to_simple(&self) -> Result<String, ErrorAddress> {
+impl SimpleAddress<RedeemAddress> for RedeemAddress {
+    fn to_simple(&self) -> Result<String, ()> {
         let a = self.0;
 
         // converts base256 data to base32 and adds padding if needed
@@ -145,25 +152,22 @@ impl RedeemAddress {
         // CRTS: testnet staked-state
         // CRTT: testnet transfer
         let b = Bech32::new("crms".into(), checked_data).expect("hrp is not empty");
-        let  encoded2 = b.to_string().as_bytes().to_vec();
+        let encoded2 = b.to_string().as_bytes().to_vec();
         //encoded2[0]='x' as u8;
-        let  encoded = String::from_utf8(encoded2).unwrap();
+        let encoded = String::from_utf8(encoded2).unwrap();
         Ok(encoded)
     }
 
-    pub fn from_simple(encoded: &String) -> Result<Self, ErrorAddress> {
+    fn from_simple(encoded: &str) -> Result<Self, ()> {
         encoded
             .parse::<Bech32>()
-            .map_err(|x| ErrorAddress::InvalidLength(0))
-            .and_then(|a| {
-                match Vec::from_base32(&a.data()) {
-                    Ok(a) =>  RedeemAddress::try_from(&a.as_slice()),
-                    Err(b) => Err(ErrorAddress::InvalidLength(0)),
-                }     
+            .map_err(|_x| ())
+            .and_then(|a| match Vec::from_base32(&a.data()) {
+                Ok(a) => Ok(RedeemAddress::try_from(&a.as_slice()).unwrap()),
+                Err(_b) => Err(()),
             })
     }
 }
-
 impl ops::Deref for RedeemAddress {
     type Target = [u8];
 

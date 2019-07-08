@@ -5,6 +5,9 @@ use std::fmt;
 use std::str::FromStr;
 
 use crate::common::{H256, HASH_SIZE_256};
+use crate::init::address::SimpleAddress;
+
+use bech32::{u5, Bech32, FromBase32, ToBase32};
 
 /// TODO: opaque types?
 type TreeRoot = H256;
@@ -16,6 +19,41 @@ type TreeRoot = H256;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ExtendedAddr {
     OrTree(TreeRoot),
+}
+
+impl SimpleAddress<ExtendedAddr> for ExtendedAddr {
+    fn to_simple(&self) -> Result<String, ()> {
+        match self {
+            ExtendedAddr::OrTree(hash) => {
+                let a = hash;
+                // converts base256 data to base32 and adds padding if needed
+                let checked_data: Vec<u5> = a.to_vec().to_base32();
+                // CRMS: mainnet staked-state
+                // CRMT: mainnet transfer
+                // CRTS: testnet staked-state
+                // CRTT: testnet transfer
+                let b = Bech32::new("crmt".into(), checked_data).expect("hrp is not empty");
+                let encoded2 = b.to_string().as_bytes().to_vec();
+                //encoded2[0]='x' as u8;
+                let encoded = String::from_utf8(encoded2).unwrap();
+                Ok(encoded)
+            }
+        }
+    }
+
+    fn from_simple(encoded: &str) -> Result<Self, ()> {
+        encoded
+            .parse::<Bech32>()
+            .map_err(|_x| ())
+            .and_then(|a| match Vec::from_base32(&a.data()) {
+                Ok(src) => {
+                    let mut a: TreeRoot = [0 as u8; 32];
+                    a.copy_from_slice(&src);
+                    Ok(ExtendedAddr::OrTree(a))
+                }
+                Err(_b) => Err(()),
+            })
+    }
 }
 
 impl fmt::Display for ExtendedAddr {
