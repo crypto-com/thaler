@@ -8,6 +8,7 @@ use ethbloom::{Bloom, Input};
 use log::info;
 
 pub use self::app_init::{ChainNodeApp, ChainNodeState};
+use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::account::AccountStorage;
 use crate::storage::account::AccountWrapper;
 use crate::storage::tx::StarlingFixedKey;
@@ -60,7 +61,7 @@ pub fn update_account(
 }
 
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
-impl abci::Application for ChainNodeApp {
+impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     /// Query Connection: Called on startup from Tendermint.  The application should normally
     /// return the last know state so Tendermint can determine if it needs to replay blocks
     /// to the application.

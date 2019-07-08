@@ -1,4 +1,5 @@
 use super::ChainNodeApp;
+use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::tx::verify;
 use abci::*;
 use chain_core::state::account::StakedState;
@@ -50,7 +51,7 @@ impl ResponseWithCodeAndLog for ResponseDeliverTx {
     }
 }
 
-impl ChainNodeApp {
+impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Gets CheckTx or DeliverTx requests, tries to parse its data into TxAux and validate that TxAux.
     /// Returns Some(parsed txaux, (paid fee, updated staking account)) if OK, or None if some problems (and sets log + error code in the passed in response).
     pub fn validate_tx_req(
@@ -73,6 +74,7 @@ impl ChainNodeApp {
                     .calculate_fee(_req.tx().len())
                     .expect("invalid fee policy");
                 let fee_paid = verify(
+                    &self.tx_validator,
                     &txaux,
                     ChainInfo {
                         min_fee_computed: min_fee,

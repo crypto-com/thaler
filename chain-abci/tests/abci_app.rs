@@ -2,6 +2,7 @@ use abci::Application;
 use abci::*;
 use bit_vec::BitVec;
 use chain_abci::app::*;
+use chain_abci::enclave_bridge::mock::MockClient;
 use chain_abci::storage::account::AccountStorage;
 use chain_abci::storage::account::AccountWrapper;
 use chain_abci::storage::tx::StarlingFixedKey;
@@ -44,6 +45,10 @@ use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
+fn get_enclave_bridge_mock() -> MockClient {
+    MockClient::new(0)
+}
+
 pub fn get_ecdsa_witness<C: Signing>(
     secp: &Secp256k1<C>,
     txid: &TxId,
@@ -69,6 +74,7 @@ fn proper_hash_and_chainid_should_be_stored() {
     let db = create_db();
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -92,6 +98,7 @@ fn too_long_hash_should_panic() {
     let db = create_db();
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -105,6 +112,7 @@ fn chain_id_without_hex_digits_should_panic() {
     let db = create_db();
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash,
         "test",
         Storage::new_db(db.clone()),
@@ -118,6 +126,7 @@ fn nonhex_hash_should_panic() {
     let db = create_db();
     let example_hash = "EOWNEOIWFNOPXZ./32";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -157,6 +166,7 @@ fn previously_stored_hash_should_match() {
     db.write(inittx).unwrap();
     let example_hash2 = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash2,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -164,7 +174,7 @@ fn previously_stored_hash_should_match() {
     );
 }
 
-fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
+fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     let db = create_db();
     let total = (Coin::max() - Coin::unit()).unwrap();
     let validator_addr = "0x0e7c045110b8dbf29765047380898919c5cc56f4"
@@ -225,6 +235,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
 
         let example_hash = hex::encode_upper(genesis_app_hash);
         let mut app = ChainNodeApp::new_with_storage(
+            get_enclave_bridge_mock(),
             &example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
@@ -306,6 +317,7 @@ fn init_chain_panics_with_different_app_hash() {
 
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
     let mut app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         &example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -324,6 +336,7 @@ fn init_chain_panics_with_empty_app_bytes() {
     let db = create_db();
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
     let mut app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         &example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -359,7 +372,7 @@ fn check_tx_should_reject_invalid_tx() {
     assert_ne!(0, cresp.code);
 }
 
-fn prepare_app_valid_tx() -> (ChainNodeApp, TxAux) {
+fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux) {
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
@@ -409,7 +422,7 @@ fn two_beginblocks_should_panic() {
     app.begin_block(&bbreq);
 }
 
-fn begin_block(app: &mut ChainNodeApp) {
+fn begin_block(app: &mut ChainNodeApp<MockClient>) {
     let mut bbreq = RequestBeginBlock::default();
     let mut header = Header::default();
     header.set_time(::protobuf::well_known_types::Timestamp::new());
@@ -452,7 +465,7 @@ fn deliver_tx_should_reject_invalid_tx() {
 }
 
 fn deliver_valid_tx() -> (
-    ChainNodeApp,
+    ChainNodeApp<MockClient>,
     WithdrawUnbondedTx,
     StakedStateOpWitness,
     ResponseDeliverTx,
@@ -717,7 +730,7 @@ fn query_should_return_proof_for_committed_tx() {
     assert_eq!(proof.ops[1].data, txid_hash(&qresp.value));
 }
 
-fn block_commit(app: &mut ChainNodeApp, tx: TxAux, block_height: i64) {
+fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64) {
     let mut creq = RequestCheckTx::default();
     creq.set_tx(tx.encode());
     println!("checktx: {:?}", app.check_tx(&creq));
@@ -731,7 +744,7 @@ fn block_commit(app: &mut ChainNodeApp, tx: TxAux, block_height: i64) {
     println!("commit: {:?}", app.commit(&RequestCommit::default()));
 }
 
-fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp) -> StakedState {
+fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp<MockClient>) -> StakedState {
     println!(
         "uncommitted root hash: {:?}",
         app.uncommitted_account_root_hash
@@ -750,7 +763,7 @@ fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp) -> StakedSta
     }
 }
 
-fn get_tx_meta(txid: &TxId, app: &ChainNodeApp) -> BitVec {
+fn get_tx_meta(txid: &TxId, app: &ChainNodeApp<MockClient>) -> BitVec {
     BitVec::from_bytes(&app.storage.db.get(COL_TX_META, &txid[..]).unwrap().unwrap())
 }
 
