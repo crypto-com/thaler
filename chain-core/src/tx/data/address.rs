@@ -5,7 +5,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use crate::common::{H256, HASH_SIZE_256};
-use crate::init::address::SimpleAddress;
+use crate::init::address::CroAddress;
 
 use bech32::{u5, Bech32, FromBase32, ToBase32};
 
@@ -21,8 +21,8 @@ pub enum ExtendedAddr {
     OrTree(TreeRoot),
 }
 
-impl SimpleAddress<ExtendedAddr> for ExtendedAddr {
-    fn to_simple(&self) -> Result<String, ()> {
+impl CroAddress<ExtendedAddr> for ExtendedAddr {
+    fn to_cro(&self) -> Result<String, ()> {
         match self {
             ExtendedAddr::OrTree(hash) => {
                 let a = hash;
@@ -41,7 +41,7 @@ impl SimpleAddress<ExtendedAddr> for ExtendedAddr {
         }
     }
 
-    fn from_simple(encoded: &str) -> Result<Self, ()> {
+    fn from_cro(encoded: &str) -> Result<Self, ()> {
         encoded
             .parse::<Bech32>()
             .map_err(|_x| ())

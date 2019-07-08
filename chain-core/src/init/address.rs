@@ -27,9 +27,9 @@ use tiny_keccak::Keccak;
 
 use crate::common::{H256, HASH_SIZE_256};
 
-pub trait SimpleAddress<T> {
-    fn to_simple(&self) -> Result<String, ()>;
-    fn from_simple(encoded: &str) -> Result<T, ()>;
+pub trait CroAddress<T> {
+    fn to_cro(&self) -> Result<String, ()>;
+    fn from_cro(encoded: &str) -> Result<T, ()>;
 }
 
 /// Keccak-256 crypto hash length in bytes
@@ -141,8 +141,8 @@ impl RedeemAddress {
     }
 }
 
-impl SimpleAddress<RedeemAddress> for RedeemAddress {
-    fn to_simple(&self) -> Result<String, ()> {
+impl CroAddress<RedeemAddress> for RedeemAddress {
+    fn to_cro(&self) -> Result<String, ()> {
         let a = self.0;
 
         // converts base256 data to base32 and adds padding if needed
@@ -158,7 +158,7 @@ impl SimpleAddress<RedeemAddress> for RedeemAddress {
         Ok(encoded)
     }
 
-    fn from_simple(encoded: &str) -> Result<Self, ()> {
+    fn from_cro(encoded: &str) -> Result<Self, ()> {
         encoded
             .parse::<Bech32>()
             .map_err(|_x| ())
