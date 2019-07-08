@@ -25,18 +25,13 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
     fn to_cro(&self) -> Result<String, ()> {
         match self {
             ExtendedAddr::OrTree(hash) => {
-                let a = hash;
-                // converts base256 data to base32 and adds padding if needed
-                let checked_data: Vec<u5> = a.to_vec().to_base32();
-                // CRMS: mainnet staked-state
-                // CRMT: mainnet transfer
-                // CRTS: testnet staked-state
-                // CRTT: testnet transfer
-                let b = Bech32::new("crmt".into(), checked_data).expect("hrp is not empty");
-                let encoded2 = b.to_string().as_bytes().to_vec();
-                //encoded2[0]='x' as u8;
-                let encoded = String::from_utf8(encoded2).unwrap();
-                Ok(encoded)
+                let checked_data: Vec<u5> = hash.to_vec().to_base32();
+                Bech32::new("crmt".into(), checked_data)
+                    .map_err(|_e| ())
+                    .and_then(|b| {
+                        let encoded2 = b.to_string().as_bytes().to_vec();
+                        String::from_utf8(encoded2).map_err(|_e| ())
+                    })
             }
         }
     }
@@ -45,13 +40,11 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
         encoded
             .parse::<Bech32>()
             .map_err(|_x| ())
-            .and_then(|a| match Vec::from_base32(&a.data()) {
-                Ok(src) => {
-                    let mut a: TreeRoot = [0 as u8; 32];
-                    a.copy_from_slice(&src);
-                    Ok(ExtendedAddr::OrTree(a))
-                }
-                Err(_b) => Err(()),
+            .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| ()))
+            .and_then(|src| {
+                let mut a: TreeRoot = [0 as u8; 32];
+                a.copy_from_slice(&src);
+                Ok(ExtendedAddr::OrTree(a))
             })
     }
 }
