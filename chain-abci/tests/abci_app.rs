@@ -2,6 +2,7 @@ use abci::Application;
 use abci::*;
 use bit_vec::BitVec;
 use chain_abci::app::*;
+use chain_abci::enclave_bridge::mock::MockClient;
 use chain_abci::storage::account::AccountStorage;
 use chain_abci::storage::account::AccountWrapper;
 use chain_abci::storage::tx::StarlingFixedKey;
@@ -20,6 +21,7 @@ use chain_core::state::account::{
 };
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::fee::{LinearFee, Milli};
+use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::TransactionId;
 use chain_core::tx::{
@@ -40,9 +42,14 @@ use hex::decode;
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
 use parity_codec::{Decode, Encode};
+use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
 use std::sync::Arc;
+
+fn get_enclave_bridge_mock() -> MockClient {
+    MockClient::new(0)
+}
 
 pub fn get_ecdsa_witness<C: Signing>(
     secp: &Secp256k1<C>,
@@ -69,6 +76,7 @@ fn proper_hash_and_chainid_should_be_stored() {
     let db = create_db();
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -92,6 +100,7 @@ fn too_long_hash_should_panic() {
     let db = create_db();
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -105,6 +114,7 @@ fn chain_id_without_hex_digits_should_panic() {
     let db = create_db();
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash,
         "test",
         Storage::new_db(db.clone()),
@@ -118,6 +128,7 @@ fn nonhex_hash_should_panic() {
     let db = create_db();
     let example_hash = "EOWNEOIWFNOPXZ./32";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -157,6 +168,7 @@ fn previously_stored_hash_should_match() {
     db.write(inittx).unwrap();
     let example_hash2 = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
     let _app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         example_hash2,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -164,7 +176,7 @@ fn previously_stored_hash_should_match() {
     );
 }
 
-fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
+fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     let db = create_db();
     let total = (Coin::max() - Coin::unit()).unwrap();
     let validator_addr = "0x0e7c045110b8dbf29765047380898919c5cc56f4"
@@ -225,6 +237,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp {
 
         let example_hash = hex::encode_upper(genesis_app_hash);
         let mut app = ChainNodeApp::new_with_storage(
+            get_enclave_bridge_mock(),
             &example_hash,
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
@@ -306,6 +319,7 @@ fn init_chain_panics_with_different_app_hash() {
 
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
     let mut app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         &example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -324,6 +338,7 @@ fn init_chain_panics_with_empty_app_bytes() {
     let db = create_db();
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
     let mut app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
         &example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
@@ -359,25 +374,18 @@ fn check_tx_should_reject_invalid_tx() {
     assert_ne!(0, cresp.code);
 }
 
-fn prepare_app_valid_tx() -> (ChainNodeApp, TxAux) {
+fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux) {
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     let addr = RedeemAddress::from(&public_key);
     let app = init_chain_for(addr);
 
-    let eaddr = ExtendedAddr::BasicRedeem(addr);
-    let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
-    let pk2 = PublicKey::from_secret_key(&secp, &sk2);
     let tx = WithdrawUnbondedTx::new(
         0,
         vec![
-            TxOut::new_with_timelock(eaddr, Coin::one(), 0),
-            TxOut::new_with_timelock(
-                ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
-                Coin::unit(),
-                0,
-            ),
+            TxOut::new_with_timelock(ExtendedAddr::OrTree([0; 32]), Coin::one(), 0),
+            TxOut::new_with_timelock(ExtendedAddr::OrTree([1; 32]), Coin::unit(), 0),
         ],
         TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
     );
@@ -409,7 +417,7 @@ fn two_beginblocks_should_panic() {
     app.begin_block(&bbreq);
 }
 
-fn begin_block(app: &mut ChainNodeApp) {
+fn begin_block(app: &mut ChainNodeApp<MockClient>) {
     let mut bbreq = RequestBeginBlock::default();
     let mut header = Header::default();
     header.set_time(::protobuf::well_known_types::Timestamp::new());
@@ -452,7 +460,7 @@ fn deliver_tx_should_reject_invalid_tx() {
 }
 
 fn deliver_valid_tx() -> (
-    ChainNodeApp,
+    ChainNodeApp<MockClient>,
     WithdrawUnbondedTx,
     StakedStateOpWitness,
     ResponseDeliverTx,
@@ -717,7 +725,7 @@ fn query_should_return_proof_for_committed_tx() {
     assert_eq!(proof.ops[1].data, txid_hash(&qresp.value));
 }
 
-fn block_commit(app: &mut ChainNodeApp, tx: TxAux, block_height: i64) {
+fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64) {
     let mut creq = RequestCheckTx::default();
     creq.set_tx(tx.encode());
     println!("checktx: {:?}", app.check_tx(&creq));
@@ -731,7 +739,7 @@ fn block_commit(app: &mut ChainNodeApp, tx: TxAux, block_height: i64) {
     println!("commit: {:?}", app.commit(&RequestCommit::default()));
 }
 
-fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp) -> StakedState {
+fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp<MockClient>) -> StakedState {
     println!(
         "uncommitted root hash: {:?}",
         app.uncommitted_account_root_hash
@@ -750,7 +758,7 @@ fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp) -> StakedSta
     }
 }
 
-fn get_tx_meta(txid: &TxId, app: &ChainNodeApp) -> BitVec {
+fn get_tx_meta(txid: &TxId, app: &ChainNodeApp<MockClient>) -> BitVec {
     BitVec::from_bytes(&app.storage.db.get(COL_TX_META, &txid[..]).unwrap().unwrap())
 }
 
@@ -762,14 +770,19 @@ fn all_valid_tx_types_should_commit() {
     let addr = RedeemAddress::from(&public_key);
     let mut app = init_chain_for(addr);
 
-    let eaddr = ExtendedAddr::BasicRedeem(addr);
+    let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
+
+    let eaddr = ExtendedAddr::OrTree(merkle_tree.root_hash());
     let tx0 = WithdrawUnbondedTx::new(
         0,
         vec![
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
         ],
-        TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
+        TxAttributes::new_with_access(
+            0,
+            vec![TxAccessPolicy::new(public_key.clone(), TxAccess::AllData)],
+        ),
     );
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
@@ -793,12 +806,13 @@ fn all_valid_tx_types_should_commit() {
     let mut tx1 = Tx::new();
     tx1.add_input(utxo1);
     tx1.add_output(TxOut::new(eaddr.clone(), halfcoin));
-    let txid1 = &tx1.id();
-    let witness1 = vec![TxInWitness::BasicRedeem(get_ecdsa_witness(
-        &secp,
-        &txid1,
-        &secret_key,
-    ))]
+    let txid1 = tx1.id();
+    let witness1 = vec![TxInWitness::TreeSig(
+        schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key).0,
+        merkle_tree
+            .generate_proof(RawPubkey::from(public_key.serialize()))
+            .unwrap(),
+    )]
     .into();
     let transfertx = TxAux::TransferTx(tx1, witness1);
     {
@@ -814,11 +828,12 @@ fn all_valid_tx_types_should_commit() {
     }
     let utxo2 = TxoPointer::new(*txid, 1);
     let tx2 = DepositBondTx::new(vec![utxo2], addr.into(), StakedStateOpAttributes::new(0));
-    let witness2 = vec![TxInWitness::BasicRedeem(get_ecdsa_witness(
-        &secp,
-        &tx2.id(),
-        &secret_key,
-    ))]
+    let witness2 = vec![TxInWitness::TreeSig(
+        schnorr_sign(&secp, &Message::from_slice(&tx2.id()).unwrap(), &secret_key).0,
+        merkle_tree
+            .generate_proof(RawPubkey::from(public_key.serialize()))
+            .unwrap(),
+    )]
     .into();
     let depositx = TxAux::DepositStakeTx(tx2, witness2);
     {

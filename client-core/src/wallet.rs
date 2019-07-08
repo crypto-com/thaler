@@ -3,13 +3,13 @@ mod default_wallet_client;
 
 pub use default_wallet_client::DefaultWalletClient;
 
-use either::Either;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 
 use chain_core::common::{Proof, H256};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
+use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
@@ -35,14 +35,15 @@ pub trait WalletClient: Send + Sync {
     /// Retrieves all root hashes corresponding to given wallet
     fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<H256>>;
 
-    /// Returns all redeem addresses in current wallet
-    fn redeem_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
+    /// Returns all staking addresses in current wallet
+    fn staking_addresses(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+    ) -> Result<Vec<StakedStateAddress>>;
 
-    /// Returns all the multi-sig tree addresses in current wallet
-    fn tree_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
-
-    /// Retrieves all addresses corresponding to given wallet
-    fn addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
+    /// Returns all the multi-sig transfer addresses in current wallet
+    fn transfer_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
 
     /// Finds public key corresponding to given redeem address
     fn find_public_key(
@@ -57,16 +58,8 @@ pub trait WalletClient: Send + Sync {
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        root_hash: &H256,
-    ) -> Result<Option<H256>>;
-
-    /// Finds an address in wallet and returns corresponding public key or root hash
-    fn find(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
         address: &ExtendedAddr,
-    ) -> Result<Option<Either<PublicKey, H256>>>;
+    ) -> Result<Option<H256>>;
 
     /// Retrieves private key corresponding to given public key
     fn private_key(
@@ -79,9 +72,13 @@ pub trait WalletClient: Send + Sync {
     fn new_public_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
 
     /// Generates a new redeem address for given wallet
-    fn new_redeem_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr>;
+    fn new_staking_address(&self, name: &str, passphrase: &SecUtf8) -> Result<StakedStateAddress>;
 
-    /// Generates a new tree address for creating m-of-n transactions
+    /// Generates a new 1-of-1 transfer address
+    fn new_single_transfer_address(&self, name: &str, passphrase: &SecUtf8)
+        -> Result<ExtendedAddr>;
+
+    /// Generates a new multi-sig transfer address for creating m-of-n transactions
     ///
     /// # Arguments
     ///
@@ -91,7 +88,7 @@ pub trait WalletClient: Send + Sync {
     /// `self_public_key`: Public key of current co-signer
     /// `m`: Number of required co-signers
     /// `n`: Total number of co-signers
-    fn new_tree_address(
+    fn new_transfer_address(
         &self,
         name: &str,
         passphrase: &SecUtf8,

@@ -157,11 +157,17 @@ mod tests {
         ];
 
         let addresses = vec![
-            wallet_client.new_redeem_address(name, passphrase).unwrap(),
-            wallet_client.new_redeem_address(name, passphrase).unwrap(),
-            wallet_client.new_redeem_address(name, passphrase).unwrap(),
             wallet_client
-                .new_tree_address(
+                .new_single_transfer_address(name, passphrase)
+                .unwrap(),
+            wallet_client
+                .new_single_transfer_address(name, passphrase)
+                .unwrap(),
+            wallet_client
+                .new_single_transfer_address(name, passphrase)
+                .unwrap(),
+            wallet_client
+                .new_transfer_address(
                     name,
                     passphrase,
                     public_keys.clone(),
@@ -192,7 +198,9 @@ mod tests {
         ]);
         unspent_transactions.apply_all(&[Operation::Sort(Sorter::HighestValueFirst)]);
 
-        let return_address = wallet_client.new_redeem_address(name, passphrase).unwrap();
+        let return_address = wallet_client
+            .new_single_transfer_address(name, passphrase)
+            .unwrap();
 
         let signer = DefaultSigner::new(storage);
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
@@ -200,7 +208,9 @@ mod tests {
         let transaction_builder = DefaultTransactionBuilder::new(signer, fee_algorithm);
 
         let outputs = vec![TxOut::new(
-            wallet_client.new_redeem_address(name, passphrase).unwrap(),
+            wallet_client
+                .new_single_transfer_address(name, passphrase)
+                .unwrap(),
             Coin::new(1000).unwrap(),
         )];
         let attributes = TxAttributes::new(171);
@@ -282,9 +292,11 @@ mod tests {
         ];
 
         let addresses = vec![
-            wallet_client.new_redeem_address(name, passphrase).unwrap(),
             wallet_client
-                .new_tree_address(
+                .new_single_transfer_address(name, passphrase)
+                .unwrap(),
+            wallet_client
+                .new_transfer_address(
                     name,
                     passphrase,
                     public_keys.clone(),
@@ -307,7 +319,9 @@ mod tests {
         ]);
         unspent_transactions.apply_all(&[Operation::Sort(Sorter::HighestValueFirst)]);
 
-        let return_address = wallet_client.new_redeem_address(name, passphrase).unwrap();
+        let return_address = wallet_client
+            .new_single_transfer_address(name, passphrase)
+            .unwrap();
 
         let signer = DefaultSigner::new(storage);
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
@@ -315,7 +329,9 @@ mod tests {
         let transaction_builder = DefaultTransactionBuilder::new(signer, fee_algorithm);
 
         let outputs = vec![TxOut::new(
-            wallet_client.new_redeem_address(name, passphrase).unwrap(),
+            wallet_client
+                .new_single_transfer_address(name, passphrase)
+                .unwrap(),
             Coin::new(1700).unwrap(),
         )];
         let attributes = TxAttributes::new(171);

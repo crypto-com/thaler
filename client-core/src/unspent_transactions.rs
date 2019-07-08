@@ -17,10 +17,8 @@ use client_common::{ErrorKind, Result};
 /// // Retrieve a list of unspent transactions from an external source (e.g. WalletClient)
 /// let mut unspent_transactions = UnspentTransactions::default();
 ///
-/// // A list of operations to apply: only transactions with redeem addresses and in
-/// // decreasing order of their value.
-/// let operations = &[Operation::Filter(Filter::OnlyRedeemAddresses),
-///     Operation::Sort(Sorter::HighestValueFirst)];
+/// // A list of operations to apply: transactions in decreasing order of their value.
+/// let operations = &[Operation::Sort(Sorter::HighestValueFirst)];
 ///
 /// // Apply operations
 /// unspent_transactions.apply_all(operations);
@@ -122,7 +120,6 @@ impl UnspentTransactions {
 /// Builder for unspent transactions
 enum Builder {
     Normal(Vec<(TxoPointer, TxOut)>),
-    Grouped(Box<Builder>, Box<Builder>),
 }
 
 impl Builder {
@@ -132,62 +129,19 @@ impl Builder {
         Builder::Normal(unspent_transactions)
     }
 
-    /// Creates a new instance of grouped unspent transaction builder
-    #[inline]
-    fn grouped(left: Vec<(TxoPointer, TxOut)>, right: Vec<(TxoPointer, TxOut)>) -> Self {
-        Builder::Grouped(
-            Box::new(Builder::normal(left)),
-            Box::new(Builder::normal(right)),
-        )
-    }
-
     /// Applies sorting operation
     fn sort_by(self, sorter: Sorter) -> Self {
         match self {
             Builder::Normal(unspent_transactions) => {
                 Builder::normal(sorter.sort(unspent_transactions))
             }
-            Builder::Grouped(left, right) => Builder::Grouped(
-                Box::new(left.sort_by(sorter)),
-                Box::new(right.sort_by(sorter)),
-            ),
-        }
-    }
-
-    /// Applies filtering operation
-    fn filter_by(self, filter: Filter) -> Self {
-        match self {
-            Builder::Normal(unspent_transactions) => {
-                Builder::Normal(filter.filter(unspent_transactions))
-            }
-            Builder::Grouped(left, right) => Builder::Grouped(
-                Box::new(left.filter_by(filter)),
-                Box::new(right.filter_by(filter)),
-            ),
-        }
-    }
-
-    /// Applies grouping operation
-    fn group_by(self, group_by: GroupBy) -> Self {
-        match self {
-            Builder::Normal(unspent_transactions) => {
-                let (left, right) = group_by.group_by(unspent_transactions);
-
-                Builder::grouped(left, right)
-            }
-            Builder::Grouped(left, right) => Builder::Grouped(
-                Box::new(left.group_by(group_by)),
-                Box::new(right.group_by(group_by)),
-            ),
         }
     }
 
     /// Applies an operation
     fn apply(self, operation: Operation) -> Self {
         match operation {
-            Operation::Filter(filter_by) => self.filter_by(filter_by),
             Operation::Sort(sort_by) => self.sort_by(sort_by),
-            Operation::Group(group_by) => self.group_by(group_by),
         }
     }
 
@@ -198,15 +152,6 @@ impl Builder {
                 unspent_transactions.shrink_to_fit();
                 UnspentTransactions::new(unspent_transactions)
             }
-            Builder::Grouped(left, right) => {
-                let left: Builder = *left;
-                let right: Builder = *right;
-
-                let mut unspent_transactions = left.build();
-                unspent_transactions.extend(right.build().unwrap());
-                unspent_transactions.shrink_to_fit();
-                unspent_transactions
-            }
         }
     }
 }
@@ -214,38 +159,8 @@ impl Builder {
 /// Operations on unspent transactions
 #[derive(Debug, Clone, Copy)]
 pub enum Operation {
-    /// Filter operations
-    Filter(Filter),
     /// Sort operations
     Sort(Sorter),
-    /// Grouping operations
-    Group(GroupBy),
-}
-
-/// Filters for unspent transactions
-#[derive(Debug, Clone, Copy)]
-pub enum Filter {
-    /// Filters out all the unspent transactions without redeem addresses
-    OnlyRedeemAddresses,
-    /// Filters out all the unspent transactions without tree addresses
-    OnlyTreeAddresses,
-}
-
-impl Filter {
-    /// Filters unspent transactions
-    fn filter(
-        self,
-        mut unspent_transactions: Vec<(TxoPointer, TxOut)>,
-    ) -> Vec<(TxoPointer, TxOut)> {
-        match self {
-            Filter::OnlyRedeemAddresses => unspent_transactions
-                .retain(|(_, unspent_transaction)| unspent_transaction.address.is_redeem()),
-            Filter::OnlyTreeAddresses => unspent_transactions
-                .retain(|(_, unspent_transaction)| unspent_transaction.address.is_tree()),
-        }
-
-        unspent_transactions
-    }
 }
 
 /// Sorters for unspent transactions
@@ -273,100 +188,31 @@ impl Sorter {
     }
 }
 
-/// Grouping clause for unspent transactions
-#[derive(Debug, Clone, Copy)]
-pub enum GroupBy {
-    /// Groups unspent transactions by address type
-    AddressType(AddressTypeOrder),
-}
-
-impl GroupBy {
-    /// Groups unspent transactions
-    #[allow(clippy::type_complexity)]
-    fn group_by(
-        self,
-        unspent_transactions: Vec<(TxoPointer, TxOut)>,
-    ) -> (Vec<(TxoPointer, TxOut)>, Vec<(TxoPointer, TxOut)>) {
-        let mut left = Vec::new();
-        let mut right = Vec::new();
-
-        match self {
-            GroupBy::AddressType(AddressTypeOrder::RedeemAddressFirst) => unspent_transactions
-                .into_iter()
-                .for_each(|(txo_pointer, tx_out)| {
-                    if tx_out.address.is_redeem() {
-                        left.push((txo_pointer, tx_out));
-                    } else {
-                        right.push((txo_pointer, tx_out))
-                    }
-                }),
-            GroupBy::AddressType(AddressTypeOrder::TreeAddressFirst) => unspent_transactions
-                .into_iter()
-                .for_each(|(txo_pointer, tx_out)| {
-                    if tx_out.address.is_redeem() {
-                        right.push((txo_pointer, tx_out));
-                    } else {
-                        left.push((txo_pointer, tx_out))
-                    }
-                }),
-        }
-
-        (left, right)
-    }
-}
-
-/// Ordering clause for address type groups in unspent transactions
-#[derive(Debug, Clone, Copy)]
-pub enum AddressTypeOrder {
-    /// Orders groups such that redeem address comes first
-    RedeemAddressFirst,
-    /// Orders groups such that tree address comes first
-    TreeAddressFirst,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use rand::random;
 
-    use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::tx::data::address::ExtendedAddr;
-
-    use crate::{PrivateKey, PublicKey};
 
     fn sample() -> UnspentTransactions {
         let mut unspent_transactions = Vec::new();
 
         unspent_transactions.push((
             TxoPointer::new(random(), 0),
-            TxOut::new(
-                ExtendedAddr::BasicRedeem(RedeemAddress::from(&PublicKey::from(
-                    &PrivateKey::new().unwrap(),
-                ))),
-                Coin::new(100).unwrap(),
-            ),
+            TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(100).unwrap()),
         ));
 
         unspent_transactions.push((
             TxoPointer::new(random(), 0),
-            TxOut::new(
-                ExtendedAddr::BasicRedeem(RedeemAddress::from(&PublicKey::from(
-                    &PrivateKey::new().unwrap(),
-                ))),
-                Coin::new(200).unwrap(),
-            ),
+            TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(200).unwrap()),
         ));
 
         unspent_transactions.push((
             TxoPointer::new(random(), 0),
-            TxOut::new(
-                ExtendedAddr::BasicRedeem(RedeemAddress::from(&PublicKey::from(
-                    &PrivateKey::new().unwrap(),
-                ))),
-                Coin::new(300).unwrap(),
-            ),
+            TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(300).unwrap()),
         ));
 
         unspent_transactions.push((
@@ -380,22 +226,6 @@ mod tests {
         ));
 
         UnspentTransactions::new(unspent_transactions)
-    }
-
-    #[test]
-    fn check_only_redeem_addresses() {
-        let operations = &[Operation::Filter(Filter::OnlyRedeemAddresses)];
-        let mut unspent_transactions = sample();
-        unspent_transactions.apply_all(operations);
-        assert_eq!(3, unspent_transactions.len());
-    }
-
-    #[test]
-    fn check_only_tree_addresses() {
-        let operations = &[Operation::Filter(Filter::OnlyTreeAddresses)];
-        let mut unspent_transactions = sample();
-        unspent_transactions.apply_all(operations);
-        assert_eq!(2, unspent_transactions.len());
     }
 
     #[test]
@@ -414,54 +244,17 @@ mod tests {
     }
 
     #[test]
-    fn check_grouped_redeem_first_sort() {
-        let operations = &[
-            Operation::Group(GroupBy::AddressType(AddressTypeOrder::RedeemAddressFirst)),
-            Operation::Sort(Sorter::LowestValueFirst),
-        ];
+    fn check_lowest_value_first() {
+        let operations = &[Operation::Sort(Sorter::LowestValueFirst)];
         let mut unspent_transactions = sample();
         unspent_transactions.apply_all(operations);
         assert_eq!(5, unspent_transactions.len());
 
-        assert_eq!(unspent_transactions[0].1.value, Coin::new(100).unwrap());
-        assert_eq!(unspent_transactions[1].1.value, Coin::new(200).unwrap());
-        assert_eq!(unspent_transactions[2].1.value, Coin::new(300).unwrap());
+        let mut coin = Coin::zero();
 
-        assert_eq!(unspent_transactions[3].1.value, Coin::new(150).unwrap());
-        assert_eq!(unspent_transactions[4].1.value, Coin::new(250).unwrap());
-    }
-
-    #[test]
-    fn check_grouped_tree_first_sort() {
-        let operations = &[
-            Operation::Group(GroupBy::AddressType(AddressTypeOrder::TreeAddressFirst)),
-            Operation::Sort(Sorter::LowestValueFirst),
-        ];
-        let mut unspent_transactions = sample();
-        unspent_transactions.apply_all(operations);
-        assert_eq!(5, unspent_transactions.len());
-
-        assert_eq!(unspent_transactions[0].1.value, Coin::new(150).unwrap());
-        assert_eq!(unspent_transactions[1].1.value, Coin::new(250).unwrap());
-
-        assert_eq!(unspent_transactions[2].1.value, Coin::new(100).unwrap());
-        assert_eq!(unspent_transactions[3].1.value, Coin::new(200).unwrap());
-        assert_eq!(unspent_transactions[4].1.value, Coin::new(300).unwrap());
-    }
-
-    #[test]
-    fn check_grouped_tree_first_sort_with_redeem_filter() {
-        let operations = &[
-            Operation::Group(GroupBy::AddressType(AddressTypeOrder::TreeAddressFirst)),
-            Operation::Sort(Sorter::LowestValueFirst),
-            Operation::Filter(Filter::OnlyRedeemAddresses),
-        ];
-        let mut unspent_transactions = sample();
-        unspent_transactions.apply_all(operations);
-        assert_eq!(3, unspent_transactions.len());
-
-        assert_eq!(unspent_transactions[0].1.value, Coin::new(100).unwrap());
-        assert_eq!(unspent_transactions[1].1.value, Coin::new(200).unwrap());
-        assert_eq!(unspent_transactions[2].1.value, Coin::new(300).unwrap());
+        for (_, tx_out) in unspent_transactions.iter() {
+            assert!(tx_out.value >= coin);
+            coin = tx_out.value;
+        }
     }
 }

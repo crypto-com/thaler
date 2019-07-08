@@ -1,12 +1,12 @@
 #![allow(missing_docs)]
-
 use base64::decode;
-use chain_core::tx::TxAux;
 use chrono::offset::Utc;
 use chrono::DateTime;
 use failure::ResultExt;
 use parity_codec::Decode;
 use serde::Deserialize;
+
+use chain_core::tx::TxAux;
 
 use crate::{ErrorKind, Result};
 
@@ -70,8 +70,15 @@ mod tests {
 
     use std::str::FromStr;
 
+    use base64::encode;
+    use parity_codec::Encode;
+
+    use chain_core::tx::data::Tx;
+
     #[test]
     fn check_transactions() {
+        let transaction = encode(&TxAux::TransferTx(Tx::new(), vec![].into()).encode());
+
         let block = Block {
             block: BlockInner {
                 header: Header {
@@ -79,9 +86,9 @@ mod tests {
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
                 data: Data {
-                    txs: Some(vec!["AAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAAAAAAAAAgAqqqqqqqqqqqqqqqqqqqqqqqqqqoBAAAAAAAAAAABu7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7u7sBAAAAAAAAAAAAAgAIAAICuVwknYT0F+PjlaEnQlQotUBnHMFYgeuCjBe3IqU/xZkAAAIC7YNwTJXYKQRvGsJ4BiERMhAsNOmsf/obcREGWOW50b0BAAAAAAAAAAAIAAIAoV8+HKEaYx7BTan0dqjf4wRgQsF20TOzcyIWS5DGOlhZgYCYHGGJeKQFoW/SFQ9ro0T6wCUQGKx5bwI1fQLuNgED+Qqa2DMw1XO5CdN5z9iYlTXavEIr2yo8Nju1LTXR3o9DR7y1V+3BaXTX0CPbtXutT7nd3K38covYnDoywrXyGziJDKviK2SN9APgEMXplV5PJ+flLB6Q7xSi13J2LULTOIkMq+IrZI30A+AQxemVXk8n5+UsHpDvFKLXcnYtQtMAAeobU4Pb5MTS8GpaOGA72O5kuur5WsUHeZRtzLXVwE3LAQEYpa15lwA+8sw4e7cvN/jvyJRS4jqp4XRiQ8yjAQFzbQACuVwknYT0F+PjlaEnQlQotUBnHMFYgeuCjBe3IqU/xZk=".to_owned()])
-                }
-            }
+                    txs: Some(vec![transaction]),
+                },
+            },
         };
         assert_eq!(1, block.transactions().unwrap().len());
     }
