@@ -750,19 +750,6 @@ mod tests {
             .unwrap()
             .is_some());
 
-        // assert!(wallet
-        //     .private_key(
-        //         &SecUtf8::from("passphrase"),
-        //         &wallet
-        //             .find("name", &SecUtf8::from("passphrase"), &address)
-        //             .unwrap()
-        //             .unwrap()
-        //             .left()
-        //             .unwrap()
-        //     )
-        //     .unwrap()
-        //     .is_some());
-
         assert_eq!(
             ErrorKind::WalletNotFound,
             wallet

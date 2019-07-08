@@ -1,4 +1,4 @@
-//! Key management=
+//! Key management
 mod private_key;
 mod public_key;
 
