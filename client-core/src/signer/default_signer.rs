@@ -1,4 +1,3 @@
-use either::Either;
 use secstr::SecUtf8;
 
 use chain_core::common::H256;
@@ -7,7 +6,7 @@ use chain_core::tx::witness::{TxInWitness, TxWitness};
 use client_common::{Error, ErrorKind, Result, Storage};
 
 use crate::service::{KeyService, RootHashService, WalletService};
-use crate::{PublicKey, SelectedUnspentTransactions, Signer};
+use crate::{SelectedUnspentTransactions, Signer};
 
 /// Default implementation of `Signer`
 #[derive(Debug)]
@@ -43,29 +42,12 @@ where
         message: T,
         output: &TxOut,
     ) -> Result<TxInWitness> {
-        match self
+        let root_hash = self
             .wallet_service
-            .find(name, passphrase, &output.address)?
-            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?
-        {
-            Either::Left(public_key) => self.sign_with_public_key(passphrase, message, &public_key),
-            Either::Right(root_hash) => self.sign_with_root_hash(passphrase, message, &root_hash),
-        }
-    }
+            .find_root_hash(name, passphrase, &output.address)?
+            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
 
-    /// Signs the message with the private key corresponding to address of given public key
-    fn sign_with_public_key<T: AsRef<[u8]>>(
-        &self,
-        passphrase: &SecUtf8,
-        message: T,
-        public_key: &PublicKey,
-    ) -> Result<TxInWitness> {
-        let private_key = self
-            .key_service
-            .private_key(&public_key, passphrase)?
-            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
-
-        private_key.sign(&message).map(TxInWitness::BasicRedeem)
+        self.sign_with_root_hash(passphrase, message, &root_hash)
     }
 
     /// Schnorr signs message with private key corresponding to `self_public_key` in given 1-of-n root hash
@@ -135,54 +117,6 @@ mod tests {
     use crate::{UnspentTransactions, WalletClient};
 
     #[test]
-    fn check_redeem_signing_flow() {
-        let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
-        let message = Tx::new().id();
-
-        let storage = MemoryStorage::default();
-
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage.clone())
-            .build()
-            .unwrap();
-
-        wallet_client.new_wallet(name, passphrase).unwrap();
-
-        let redeem_addresses = vec![
-            wallet_client.new_redeem_address(name, passphrase).unwrap(),
-            wallet_client.new_redeem_address(name, passphrase).unwrap(),
-            wallet_client.new_redeem_address(name, passphrase).unwrap(),
-        ];
-
-        let unspent_transactions = UnspentTransactions::new(vec![
-            (
-                TxoPointer::new([0; 32], 0),
-                TxOut::new(redeem_addresses[0].clone(), Coin::zero()),
-            ),
-            (
-                TxoPointer::new([1; 32], 0),
-                TxOut::new(redeem_addresses[1].clone(), Coin::zero()),
-            ),
-            (
-                TxoPointer::new([2; 32], 0),
-                TxOut::new(redeem_addresses[2].clone(), Coin::zero()),
-            ),
-        ]);
-        let selected_unspent_transactions = unspent_transactions.select_all();
-
-        let signer = DefaultSigner::new(storage);
-
-        let witness = signer
-            .sign(name, passphrase, message, selected_unspent_transactions)
-            .expect("Unable to sign transaction");
-
-        assert!(verify_tx_address(&witness[0], &message, &redeem_addresses[0]).is_ok());
-        assert!(verify_tx_address(&witness[1], &message, &redeem_addresses[1]).is_ok());
-        assert!(verify_tx_address(&witness[2], &message, &redeem_addresses[2]).is_ok());
-    }
-
-    #[test]
     fn check_1_of_n_signing_flow() {
         let name = "name";
         let passphrase = &SecUtf8::from("passphrase");
@@ -204,7 +138,7 @@ mod tests {
         ];
 
         let tree_address = wallet_client
-            .new_tree_address(
+            .new_transfer_address(
                 name,
                 passphrase,
                 public_keys.clone(),
@@ -251,7 +185,7 @@ mod tests {
         ];
 
         let tree_address = wallet_client
-            .new_tree_address(
+            .new_transfer_address(
                 name,
                 passphrase,
                 public_keys.clone(),

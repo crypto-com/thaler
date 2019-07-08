@@ -82,7 +82,7 @@ mod tests {
     fn get_transaction_change(balance_change: BalanceChange) -> TransactionChange {
         TransactionChange {
             transaction_id: txid_hash(&[0, 1, 2]),
-            address: ExtendedAddr::BasicRedeem(Default::default()),
+            address: ExtendedAddr::OrTree(Default::default()),
             balance_change,
             height: 0,
             time: DateTime::from(SystemTime::now()),

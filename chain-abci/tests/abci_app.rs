@@ -21,6 +21,7 @@ use chain_core::state::account::{
 };
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::fee::{LinearFee, Milli};
+use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::TransactionId;
 use chain_core::tx::{
@@ -41,6 +42,7 @@ use hex::decode;
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
 use parity_codec::{Decode, Encode};
+use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -379,18 +381,11 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux) {
     let addr = RedeemAddress::from(&public_key);
     let app = init_chain_for(addr);
 
-    let eaddr = ExtendedAddr::BasicRedeem(addr);
-    let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
-    let pk2 = PublicKey::from_secret_key(&secp, &sk2);
     let tx = WithdrawUnbondedTx::new(
         0,
         vec![
-            TxOut::new_with_timelock(eaddr, Coin::one(), 0),
-            TxOut::new_with_timelock(
-                ExtendedAddr::BasicRedeem(RedeemAddress::from(&pk2)),
-                Coin::unit(),
-                0,
-            ),
+            TxOut::new_with_timelock(ExtendedAddr::OrTree([0; 32]), Coin::one(), 0),
+            TxOut::new_with_timelock(ExtendedAddr::OrTree([1; 32]), Coin::unit(), 0),
         ],
         TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
     );
@@ -775,14 +770,19 @@ fn all_valid_tx_types_should_commit() {
     let addr = RedeemAddress::from(&public_key);
     let mut app = init_chain_for(addr);
 
-    let eaddr = ExtendedAddr::BasicRedeem(addr);
+    let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
+
+    let eaddr = ExtendedAddr::OrTree(merkle_tree.root_hash());
     let tx0 = WithdrawUnbondedTx::new(
         0,
         vec![
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
         ],
-        TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
+        TxAttributes::new_with_access(
+            0,
+            vec![TxAccessPolicy::new(public_key.clone(), TxAccess::AllData)],
+        ),
     );
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
@@ -806,12 +806,13 @@ fn all_valid_tx_types_should_commit() {
     let mut tx1 = Tx::new();
     tx1.add_input(utxo1);
     tx1.add_output(TxOut::new(eaddr.clone(), halfcoin));
-    let txid1 = &tx1.id();
-    let witness1 = vec![TxInWitness::BasicRedeem(get_ecdsa_witness(
-        &secp,
-        &txid1,
-        &secret_key,
-    ))]
+    let txid1 = tx1.id();
+    let witness1 = vec![TxInWitness::TreeSig(
+        schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key).0,
+        merkle_tree
+            .generate_proof(RawPubkey::from(public_key.serialize()))
+            .unwrap(),
+    )]
     .into();
     let transfertx = TxAux::TransferTx(tx1, witness1);
     {
@@ -827,11 +828,12 @@ fn all_valid_tx_types_should_commit() {
     }
     let utxo2 = TxoPointer::new(*txid, 1);
     let tx2 = DepositBondTx::new(vec![utxo2], addr.into(), StakedStateOpAttributes::new(0));
-    let witness2 = vec![TxInWitness::BasicRedeem(get_ecdsa_witness(
-        &secp,
-        &tx2.id(),
-        &secret_key,
-    ))]
+    let witness2 = vec![TxInWitness::TreeSig(
+        schnorr_sign(&secp, &Message::from_slice(&tx2.id()).unwrap(), &secret_key).0,
+        merkle_tree
+            .generate_proof(RawPubkey::from(public_key.serialize()))
+            .unwrap(),
+    )]
     .into();
     let depositx = TxAux::DepositStakeTx(tx2, witness2);
     {
