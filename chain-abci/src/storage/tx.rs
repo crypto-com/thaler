@@ -90,10 +90,10 @@ pub fn verify<T: EnclaveProxy>(
     accounts: &AccountStorage,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     let paid_fee = match txaux {
-        TxAux::TransferTx(maintx, _) => {
+        TxAux::TransferTx { inputs, .. } => {
             // TODO: the input lookup would probably later be done on the enclave side (as it'll store the sealed TX data)
             // so one will only check and send TX IDs
-            let input_transactions = check_spent_input_lookup(&maintx.inputs, db)?;
+            let input_transactions = check_spent_input_lookup(&inputs, db)?;
             let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
                 tx: txaux.clone(),
                 inputs: input_transactions,

@@ -77,7 +77,15 @@ mod tests {
 
     #[test]
     fn check_transactions() {
-        let transaction = encode(&TxAux::TransferTx(Tx::new(), vec![].into()).encode());
+        let transaction = encode(
+            &TxAux::TransferTx {
+                txid: [0u8; 32],
+                inputs: vec![],
+                nonce: [0u8; 12],
+                txpayload: vec![],
+            }
+            .encode(),
+        );
 
         let block = Block {
             block: BlockInner {
