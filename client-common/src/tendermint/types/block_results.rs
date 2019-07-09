@@ -82,9 +82,12 @@ mod tests {
             height: "2".to_owned(),
             results: Results {
                 deliver_tx: Some(vec![DeliverTx {
-                    tags: vec![Tag {
-                        key: "dHhpZA==".to_owned(),
-                        value: "kOzcmhZgAAaw5roBdqDNniwRjjKNe+foJEiDAOObTDQ=".to_owned(),
+                    events: vec![Event {
+                        event_type: TendermintEventType::ValidTransactions.to_string(),
+                        attributes: vec![Attribute {
+                            key: "dHhpZA==".to_owned(),
+                            value: "kOzcmhZgAAaw5roBdqDNniwRjjKNe+foJEiDAOObTDQ=".to_owned(),
+                        }],
                     }],
                 }]),
             },
@@ -98,9 +101,12 @@ mod tests {
             height: "2".to_owned(),
             results: Results {
                 deliver_tx: Some(vec![DeliverTx {
-                    tags: vec![Tag {
-                        key: "dHhpZA==".to_owned(),
-                        value: "kOzcmhZgAAaw5riwRjjKNe+foJEiDAOObTDQ=".to_owned(),
+                    events: vec![Event {
+                        event_type: TendermintEventType::ValidTransactions.to_string(),
+                        attributes: vec![Attribute {
+                            key: "dHhpZA==".to_owned(),
+                            value: "kOzcmhZgAAaw5riwRjjKNe+foJEiDAOObTDQ=".to_owned(),
+                        }],
                     }],
                 }]),
             },
