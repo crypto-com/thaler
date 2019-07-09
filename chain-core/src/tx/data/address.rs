@@ -5,7 +5,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use crate::common::{H256, HASH_SIZE_256};
-use crate::init::address::CroAddress;
+use crate::init::address::{CroAddress, CroAddressError};
 
 use bech32::{u5, Bech32, FromBase32, ToBase32};
 
@@ -22,7 +22,7 @@ pub enum ExtendedAddr {
 }
 
 impl CroAddress<ExtendedAddr> for ExtendedAddr {
-    fn to_cro(&self) -> Result<String, ()> {
+    fn to_cro(&self) -> Result<String, CroAddressError> {
         match self {
             ExtendedAddr::OrTree(hash) => {
                 let checked_data: Vec<u5> = hash.to_vec().to_base32();
@@ -33,14 +33,14 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
         }
     }
 
-    fn from_cro(encoded: &str) -> Result<Self, ()> {
+    fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
         encoded
             .parse::<Bech32>()
-            .map_err(|_x| ())
-            .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| ()))
+            .map_err(|e| CroAddressError::Bech32Error(e))
+            .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| CroAddressError::ConvertError))
             .and_then(|src| {
                 let mut a: TreeRoot = [0 as u8; 32];
-                a.copy_from_slice(&src);
+                a.copy_from_slice(&src.as_slice());
                 Ok(ExtendedAddr::OrTree(a))
             })
     }

@@ -27,13 +27,19 @@ use tiny_keccak::Keccak;
 
 use crate::common::{H256, HASH_SIZE_256};
 
+#[derive(Debug)]
+pub enum CroAddressError {
+    Bech32Error(bech32::Error),
+    ConvertError,
+}
+
 // CRMS: mainnet staked-state
 // CRMT: mainnet transfer
 // CRTS: testnet staked-state
 // CRTT: testnet transfer
 pub trait CroAddress<T> {
-    fn to_cro(&self) -> Result<String, ()>;
-    fn from_cro(encoded: &str) -> Result<T, ()>;
+    fn to_cro(&self) -> Result<String, CroAddressError>;
+    fn from_cro(encoded: &str) -> Result<T, CroAddressError>;
 }
 
 /// Keccak-256 crypto hash length in bytes
@@ -146,18 +152,20 @@ impl RedeemAddress {
 }
 
 impl CroAddress<RedeemAddress> for RedeemAddress {
-    fn to_cro(&self) -> Result<String, ()> {
+    fn to_cro(&self) -> Result<String, CroAddressError> {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
         let encoded = Bech32::new("crms".into(), checked_data).expect("bech32 crms encoding");
         Ok(encoded.to_string())
     }
 
-    fn from_cro(encoded: &str) -> Result<Self, ()> {
+    fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
         encoded
             .parse::<Bech32>()
-            .map_err(|_e| ())
-            .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| ()))
-            .and_then(|a| RedeemAddress::try_from(&a.as_slice()).map_err(|_e| ()))
+            .map_err(|e| CroAddressError::Bech32Error(e))
+            .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| CroAddressError::ConvertError))
+            .and_then(|a| {
+                RedeemAddress::try_from(&a.as_slice()).map_err(|_e| CroAddressError::ConvertError)
+            })
     }
 }
 impl ops::Deref for RedeemAddress {
