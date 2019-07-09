@@ -5,8 +5,10 @@ use base64::decode;
 use failure::ResultExt;
 use serde::Deserialize;
 
-use crate::{ErrorKind, Result};
+use chain_core::common::TendermintEventType;
 use chain_core::tx::data::TxId;
+
+use crate::{ErrorKind, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct BlockResults {
@@ -16,17 +18,23 @@ pub struct BlockResults {
 
 #[derive(Debug, Deserialize)]
 pub struct Results {
-    #[serde(rename = "DeliverTx")]
     pub deliver_tx: Option<Vec<DeliverTx>>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DeliverTx {
-    pub tags: Vec<Tag>,
+    pub events: Vec<Event>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct Tag {
+pub struct Event {
+    #[serde(rename = "type")]
+    pub event_type: String,
+    pub attributes: Vec<Attribute>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Attribute {
     pub key: String,
     pub value: String,
 }
@@ -40,17 +48,21 @@ impl BlockResults {
                 let mut transactions: HashSet<TxId> = HashSet::with_capacity(deliver_tx.len());
 
                 for transaction in deliver_tx.iter() {
-                    for tag in transaction.tags.iter() {
-                        let decoded =
-                            decode(&tag.value).context(ErrorKind::DeserializationError)?;
-                        if 32 != decoded.len() {
-                            return Err(ErrorKind::DeserializationError.into());
+                    for event in transaction.events.iter() {
+                        if event.event_type == TendermintEventType::ValidTransactions.to_string() {
+                            for attribute in event.attributes.iter() {
+                                let decoded = decode(&attribute.value)
+                                    .context(ErrorKind::DeserializationError)?;
+                                if 32 != decoded.len() {
+                                    return Err(ErrorKind::DeserializationError.into());
+                                }
+
+                                let mut id: [u8; 32] = [0; 32];
+                                id.copy_from_slice(&decoded);
+
+                                transactions.insert(id);
+                            }
                         }
-
-                        let mut id: [u8; 32] = [0; 32];
-                        id.copy_from_slice(&decoded);
-
-                        transactions.insert(id);
                     }
                 }
 
