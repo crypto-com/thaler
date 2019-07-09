@@ -44,6 +44,16 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
                 Ok(ExtendedAddr::OrTree(a))
             })
     }
+
+    fn from_hex(encoded: &str) -> Result<Self, CroAddressError> {
+        hex::decode(&encoded[2..])
+            .map_err(|_e| CroAddressError::ConvertError)
+            .and_then(|src| {
+                let mut a: TreeRoot = [0 as u8; 32];
+                a.copy_from_slice(&src.as_slice());
+                Ok(ExtendedAddr::OrTree(a))
+            })
+    }
 }
 
 impl fmt::Display for ExtendedAddr {
@@ -79,4 +89,15 @@ mod test {
         assert_eq!(c, a);
     }
 
+    #[test]
+    fn shoule_be_correct_hex_address() {
+        let a = ExtendedAddr::from_hex(
+            "0x0e7c045110b8dbf29765047380898919c5cb56f400112233445566778899aabb",
+        )
+        .unwrap();
+        let b = ExtendedAddr::from_str(
+            "crmt1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42asr8c7xt",
+        )
+        .unwrap();
+    }
 }

@@ -42,6 +42,7 @@ impl ::std::error::Error for CroAddressError {}
 pub trait CroAddress<T> {
     fn to_cro(&self) -> Result<String, CroAddressError>;
     fn from_cro(encoded: &str) -> Result<T, CroAddressError>;
+    fn from_hex(encoded: &str) -> Result<T, CroAddressError>;
 }
 
 /// Keccak-256 crypto hash length in bytes
@@ -178,6 +179,14 @@ impl CroAddress<RedeemAddress> for RedeemAddress {
             .parse::<Bech32>()
             .map_err(|e| CroAddressError::Bech32Error(e))
             .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| CroAddressError::ConvertError))
+            .and_then(|a| {
+                RedeemAddress::try_from(&a.as_slice()).map_err(|_e| CroAddressError::ConvertError)
+            })
+    }
+
+    fn from_hex(encoded: &str) -> Result<Self, CroAddressError> {
+        hex::decode(&encoded[2..])
+            .map_err(|_e| CroAddressError::ConvertError)
             .and_then(|a| {
                 RedeemAddress::try_from(&a.as_slice()).map_err(|_e| CroAddressError::ConvertError)
             })
@@ -345,5 +354,13 @@ mod tests {
         assert_eq!(b.to_string(), "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj");
         let c = RedeemAddress::from_cro(&b).unwrap();
         assert_eq!(c, a);
+    }
+
+    #[test]
+    fn shoule_be_correct_hex_address() {
+        let a = RedeemAddress::from_hex("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+
+        let b = RedeemAddress::from_str("crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj").unwrap();
+        assert_eq!(a, b);
     }
 }
