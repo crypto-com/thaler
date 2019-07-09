@@ -146,6 +146,7 @@ mod tests {
     use crate::signer::DefaultSigner;
     use crate::unspent_transactions::{Operation, Sorter};
     use crate::wallet::{DefaultWalletClient, WalletClient};
+    use parity_codec::Decode;
 
     #[test]
     fn check_transaction_building_flow() {
@@ -242,37 +243,41 @@ mod tests {
             .to_coin();
 
         match tx_aux {
-            TxAux::TransferTx(transaction, witness) => {
-                let output_value =
-                    sum_coins(transaction.outputs.iter().map(|output| output.value)).unwrap();
+            TxAux::TransferTx { txpayload, .. } => {
+                if let Some(PlainTxAux::TransferTx(transaction, witness)) =
+                    PlainTxAux::decode(&mut txpayload.as_slice())
+                {
+                    let output_value =
+                        sum_coins(transaction.outputs.iter().map(|output| output.value)).unwrap();
 
-                let input_value = sum_coins(transaction.inputs.iter().map(|input| {
-                    if input.id == [3; 32] {
-                        unspent_transactions[0].1.value
-                    } else if input.id == [1; 32] {
-                        unspent_transactions[1].1.value
-                    } else if input.id == [2; 32] {
-                        unspent_transactions[2].1.value
-                    } else {
-                        unspent_transactions[0].1.value
+                    let input_value = sum_coins(transaction.inputs.iter().map(|input| {
+                        if input.id == [3; 32] {
+                            unspent_transactions[0].1.value
+                        } else if input.id == [1; 32] {
+                            unspent_transactions[1].1.value
+                        } else if input.id == [2; 32] {
+                            unspent_transactions[2].1.value
+                        } else {
+                            unspent_transactions[0].1.value
+                        }
+                    }))
+                    .unwrap();
+
+                    assert!((output_value + fee).unwrap() <= input_value);
+
+                    for (i, input) in transaction.inputs.iter().enumerate() {
+                        let address = if input.id == [3; 32] {
+                            unspent_transactions[0].1.address.clone()
+                        } else if input.id == [1; 32] {
+                            unspent_transactions[1].1.address.clone()
+                        } else if input.id == [2; 32] {
+                            unspent_transactions[2].1.address.clone()
+                        } else {
+                            unspent_transactions[0].1.address.clone()
+                        };
+
+                        assert!(verify_tx_address(&witness[i], &transaction.id(), &address).is_ok(),)
                     }
-                }))
-                .unwrap();
-
-                assert!((output_value + fee).unwrap() <= input_value);
-
-                for (i, input) in transaction.inputs.iter().enumerate() {
-                    let address = if input.id == [3; 32] {
-                        unspent_transactions[0].1.address.clone()
-                    } else if input.id == [1; 32] {
-                        unspent_transactions[1].1.address.clone()
-                    } else if input.id == [2; 32] {
-                        unspent_transactions[2].1.address.clone()
-                    } else {
-                        unspent_transactions[0].1.address.clone()
-                    };
-
-                    assert!(verify_tx_address(&witness[i], &transaction.id(), &address).is_ok(),)
                 }
             }
             _ => {

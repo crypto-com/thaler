@@ -73,14 +73,13 @@ mod tests {
     use base64::encode;
     use parity_codec::Encode;
 
-    use chain_core::tx::data::Tx;
-
     #[test]
     fn check_transactions() {
         let transaction = encode(
             &TxAux::TransferTx {
                 txid: [0u8; 32],
                 inputs: vec![],
+                no_of_outputs: 0,
                 nonce: [0u8; 12],
                 txpayload: vec![],
             }

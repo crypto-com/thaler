@@ -23,13 +23,14 @@ use chain_core::state::RewardsPoolState;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::EcdsaSignature;
+use chain_core::tx::PlainTxAux;
 use chain_core::tx::TransactionId;
 use chain_core::tx::{
     data::{
         access::{TxAccess, TxAccessPolicy},
         address::ExtendedAddr,
         attribute::TxAttributes,
-        input::TxoPointer,
+        input::{TxoIndex, TxoPointer},
         output::TxOut,
         txid_hash, Tx, TxId,
     },
@@ -368,7 +369,7 @@ fn check_tx_should_reject_invalid_tx() {
             .unwrap(),
     );
     let mut creq = RequestCheckTx::default();
-    let tx = TxAux::new(Tx::new(), TxWitness::new());
+    let tx = PlainTxAux::new(Tx::new(), TxWitness::new());
     creq.set_tx(tx.encode());
     let cresp = app.check_tx(&creq);
     assert_ne!(0, cresp.code);
@@ -451,7 +452,7 @@ fn deliver_tx_should_reject_invalid_tx() {
     assert_eq!(0, app.delivered_txs.len());
     begin_block(&mut app);
     let mut creq = RequestDeliverTx::default();
-    let tx = TxAux::new(Tx::new(), TxWitness::new());
+    let tx = PlainTxAux::new(Tx::new(), TxWitness::new());
     creq.set_tx(tx.encode());
     let cresp = app.deliver_tx(&creq);
     assert_ne!(0, cresp.code);
@@ -814,7 +815,14 @@ fn all_valid_tx_types_should_commit() {
             .unwrap(),
     )]
     .into();
-    let transfertx = TxAux::TransferTx(tx1, witness1);
+    let plain_txaux = PlainTxAux::TransferTx(tx1.clone(), witness1);
+    let transfertx = TxAux::TransferTx {
+        txid: tx1.id(),
+        inputs: tx1.inputs.clone(),
+        no_of_outputs: tx1.outputs.len() as TxoIndex,
+        nonce: [0; 12],
+        txpayload: plain_txaux.encode(),
+    };
     {
         let spent_utxos = get_tx_meta(&txid, &app);
         assert!(!spent_utxos.any());
