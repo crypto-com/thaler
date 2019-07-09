@@ -72,7 +72,9 @@ impl TransactionCommand {
             ask("Enter output address: ");
             let address_encoded = text().context(ErrorKind::IoError)?;
 
-            let address = address_encoded.parse::<ExtendedAddr>()?;
+            let address = address_encoded
+                .parse::<ExtendedAddr>()
+                .context(ErrorKind::DeserializationError)?;
 
             ask("Enter amount: ");
             let amount = text()

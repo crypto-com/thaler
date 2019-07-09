@@ -33,6 +33,8 @@ pub enum CroAddressError {
     ConvertError,
 }
 
+impl ::std::error::Error for CroAddressError {}
+
 // CRMS: mainnet staked-state
 // CRMT: mainnet transfer
 // CRTS: testnet staked-state
