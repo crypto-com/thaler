@@ -9,6 +9,7 @@ chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-index = { path = "../client-index" }
 client-core = { path = "../client-core" }
+client-network = { path = "../client-network" }
 structopt = "0.2"
 failure = "0.1"
 quest = "0.3"
@@ -16,3 +17,4 @@ secstr = "0.3.2"
 hex = "0.3"
 prettytable-rs = "0.8"
 unicase = "2.4"
+base64 = "0.10"

@@ -12,6 +12,7 @@ use parity_codec::{Decode, Encode, Input, Output};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::prelude::v1::Vec;
+use std::str::FromStr;
 // TODO: switch to normal signatures + explicit public key
 use crate::init::address::ErrorAddress;
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
@@ -51,6 +52,14 @@ impl fmt::Display for StakedStateAddress {
         match self {
             StakedStateAddress::BasicRedeem(a) => writeln!(f, "{}", a),
         }
+    }
+}
+
+impl FromStr for StakedStateAddress {
+    type Err = ErrorAddress;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from_str(s)?))
     }
 }
 
