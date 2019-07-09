@@ -148,12 +148,8 @@ impl RedeemAddress {
 impl CroAddress<RedeemAddress> for RedeemAddress {
     fn to_cro(&self) -> Result<String, ()> {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
-        Bech32::new("crms".into(), checked_data)
-            .map_err(|_e| ())
-            .and_then(|b| {
-                let bytes = b.to_string().as_bytes().to_vec();
-                String::from_utf8(bytes).map_err(|_e| ())
-            })
+        let encoded = Bech32::new("crms".into(), checked_data).expect("bech32 crms encoding");
+        Ok(encoded.to_string())
     }
 
     fn from_cro(encoded: &str) -> Result<Self, ()> {

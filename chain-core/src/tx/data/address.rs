@@ -26,12 +26,9 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
         match self {
             ExtendedAddr::OrTree(hash) => {
                 let checked_data: Vec<u5> = hash.to_vec().to_base32();
-                Bech32::new("crmt".into(), checked_data)
-                    .map_err(|_e| ())
-                    .and_then(|b| {
-                        let encoded2 = b.to_string().as_bytes().to_vec();
-                        String::from_utf8(encoded2).map_err(|_e| ())
-                    })
+                let encoded =
+                    Bech32::new("crmt".into(), checked_data).expect("bech32 crmt encoding");
+                Ok(encoded.to_string())
             }
         }
     }
