@@ -14,7 +14,7 @@ client-core = { path = "../client-core" }
 secstr = "0.3.2"
 base64 = "0.10"
 chrono = { version = "0.4", features = ["serde"] }
-parity-codec = { features = ["derive"], version = "4.1.1" }
+parity-codec = { features = ["derive"], version = "4.1.2" }
 hex = "0.3.2"
 
 [dev-dependencies]
