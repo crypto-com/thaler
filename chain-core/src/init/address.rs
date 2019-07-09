@@ -82,6 +82,9 @@ pub enum ErrorAddress {
 
     /// ECDSA crypto error
     EcdsaCrypto(secp256k1::Error),
+
+    /// CRO error
+    InvalidCroAddress,
 }
 
 impl From<hex::FromHexError> for ErrorAddress {
@@ -107,6 +110,16 @@ impl fmt::Display for ErrorAddress {
                 write!(f, "Unexpected hexadecimal encoding: {}", err)
             }
             ErrorAddress::EcdsaCrypto(ref err) => write!(f, "ECDSA crypto error: {}", err),
+            ErrorAddress::InvalidCroAddress => write!(f, "Invalid CroAddress"),
+        }
+    }
+}
+
+impl fmt::Display for CroAddressError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            CroAddressError::Bech32Error(e) => write!(f, "CroAddressError Bech32Error: {}", e),
+            CroAddressError::ConvertError => write!(f, "CroAddressError ConvertError"),
         }
     }
 }
@@ -193,23 +206,13 @@ impl FromStr for RedeemAddress {
     type Err = ErrorAddress;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() != REDEEM_ADDRESS_BYTES * 2 && !s.starts_with("0x") {
-            return Err(ErrorAddress::InvalidHexLength(s.to_string()));
-        }
-
-        let value = if s.starts_with("0x") {
-            s.split_at(2).1
-        } else {
-            s
-        };
-
-        RedeemAddress::try_from(hex::decode(&value)?.as_slice())
+        RedeemAddress::from_cro(s).map_err(|_e| ErrorAddress::InvalidCroAddress)
     }
 }
 
 impl fmt::Display for RedeemAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
+        write!(f, "{}", self.to_cro().unwrap())
     }
 }
 

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
 
-use crate::common::{H256, HASH_SIZE_256};
+use crate::common::H256;
 use crate::init::address::{CroAddress, CroAddressError};
 
 use bech32::{u5, Bech32, FromBase32, ToBase32};
@@ -48,33 +48,15 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
 
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            // TODO: base58 for encoding addresses
-            ExtendedAddr::OrTree(hash) => write!(f, "0x{}", hex::encode(hash)),
-        }
+        write!(f, "{}", self.to_cro().unwrap())
     }
 }
 
 impl FromStr for ExtendedAddr {
-    type Err = hex::FromHexError;
+    type Err = CroAddressError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let address = if s.starts_with("0x") {
-            s.split_at(2).1
-        } else {
-            s
-        };
-
-        let decoded = hex::decode(&address)?;
-
-        if decoded.len() != HASH_SIZE_256 {
-            return Err(hex::FromHexError::InvalidStringLength);
-        }
-
-        let mut tree_root = [0; HASH_SIZE_256];
-        tree_root.copy_from_slice(&decoded);
-
-        Ok(ExtendedAddr::OrTree(tree_root))
+        ExtendedAddr::from_cro(s).map_err(|_e| CroAddressError::ConvertError)
     }
 }
 
