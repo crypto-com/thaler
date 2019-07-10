@@ -2,8 +2,11 @@
 
 use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
-use chain_core::tx::{fee::Fee, TxAux};
+use chain_core::tx::data::Tx;
+use chain_core::tx::data::TxId;
+use chain_core::tx::{fee::Fee, PlainTxAux, TxAux};
 use chain_tx_validation::TxWithOutputs;
+
 use parity_codec::{Decode, Encode, Input, Output};
 
 /// requests sent from chain-abci app to enclave wrapper server
@@ -150,3 +153,36 @@ impl Decode for EnclaveResponse {
 
 /// ZMQ flags to be used in the socket connection
 pub const FLAGS: i32 = 0;
+
+/// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
+#[derive(Encode, Decode)]
+pub struct EncryptionRequest {
+    pub tx: PlainTxAux,
+}
+
+/// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
+#[derive(Encode, Decode)]
+pub struct EncryptionResponse {
+    pub tx: TxAux,
+}
+
+/// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
+/// TODO: limit txs size + no of view keys in each TX?
+#[derive(Encode, Decode)]
+pub struct DecryptionRequestBody {
+    pub txs: Vec<TxId>,
+}
+
+/// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
+#[derive(Encode, Decode)]
+pub struct DecryptionRequest {
+    pub body: DecryptionRequestBody,
+    /// ecdsa on the body in compact form?
+    pub view_key_sig: [u8; 64],
+}
+
+/// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
+#[derive(Encode, Decode)]
+pub struct DecryptionResponse {
+    pub txs: Vec<Tx>,
+}
