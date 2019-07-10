@@ -36,7 +36,7 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
     fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
         encoded
             .parse::<Bech32>()
-            .map_err(|e| CroAddressError::Bech32Error(e))
+            .map_err(|e| CroAddressError::Bech32Error(e.to_string()))
             .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| CroAddressError::ConvertError))
             .and_then(|src| {
                 let mut a: TreeRoot = [0 as u8; 32];

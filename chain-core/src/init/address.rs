@@ -28,8 +28,9 @@ use tiny_keccak::Keccak;
 use crate::common::{H256, HASH_SIZE_256};
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CroAddressError {
-    Bech32Error(bech32::Error),
+    Bech32Error(String),
     ConvertError,
 }
 
@@ -120,7 +121,7 @@ impl fmt::Display for ErrorAddress {
 
 impl fmt::Display for CroAddressError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
+        match self {
             CroAddressError::Bech32Error(e) => write!(f, "CroAddressError Bech32Error: {}", e),
             CroAddressError::ConvertError => write!(f, "CroAddressError ConvertError"),
         }
@@ -177,7 +178,7 @@ impl CroAddress<RedeemAddress> for RedeemAddress {
     fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
         encoded
             .parse::<Bech32>()
-            .map_err(|e| CroAddressError::Bech32Error(e))
+            .map_err(|e| CroAddressError::Bech32Error(e.to_string()))
             .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| CroAddressError::ConvertError))
             .and_then(|a| {
                 RedeemAddress::try_from(&a.as_slice()).map_err(|_e| CroAddressError::ConvertError)
