@@ -45,8 +45,14 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
             })
     }
 
-    fn from_hex(encoded: &str) -> Result<Self, CroAddressError> {
-        hex::decode(&encoded[2..])
+    fn from_hex(s: &str) -> Result<Self, CroAddressError> {
+        let address = if s.starts_with("0x") {
+            s.split_at(2).1
+        } else {
+            s
+        };
+
+        hex::decode(&address)
             .map_err(|_e| CroAddressError::ConvertError)
             .and_then(|src| {
                 let mut a: TreeRoot = [0 as u8; 32];
@@ -66,7 +72,11 @@ impl FromStr for ExtendedAddr {
     type Err = CroAddressError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        ExtendedAddr::from_cro(s).map_err(|_e| CroAddressError::ConvertError)
+        if s.starts_with("0x") {
+            ExtendedAddr::from_hex(s).map_err(|_e| CroAddressError::ConvertError)
+        } else {
+            ExtendedAddr::from_cro(s).map_err(|_e| CroAddressError::ConvertError)
+        }
     }
 }
 
@@ -76,7 +86,7 @@ mod test {
 
     #[test]
     fn should_be_correct_textual_address() {
-        let a = ExtendedAddr::from_str(
+        let a = ExtendedAddr::from_hex(
             "0x0e7c045110b8dbf29765047380898919c5cb56f400112233445566778899aabb",
         )
         .unwrap();
@@ -99,5 +109,6 @@ mod test {
             "crmt1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42asr8c7xt",
         )
         .unwrap();
+        assert_eq!(a, b);
     }
 }

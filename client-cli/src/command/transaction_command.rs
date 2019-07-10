@@ -4,7 +4,6 @@ use quest::{ask, text, yesno};
 use structopt::StructOpt;
 
 use chain_core::common::Timespec;
-use chain_core::init::address::CroAddressError;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;

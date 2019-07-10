@@ -179,7 +179,7 @@ fn previously_stored_hash_should_match() {
 fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     let db = create_db();
     let total = (Coin::max() - Coin::unit()).unwrap();
-    let validator_addr = "0x0e7c045110b8dbf29765047380898919c5cc56f4"
+    let validator_addr = "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj"
         .parse::<RedeemAddress>()
         .unwrap();
 
@@ -256,7 +256,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
 
 #[test]
 fn init_chain_should_create_db_items() {
-    let address = "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+    let address = "crms1le7qg5gshrdl99m9q3ecpzvfr8zuk4heu7q420"
         .parse()
         .unwrap();
     let app = init_chain_for(address);
@@ -351,7 +351,7 @@ fn init_chain_panics_with_empty_app_bytes() {
 #[test]
 fn check_tx_should_reject_empty_tx() {
     let mut app = init_chain_for(
-        "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+        "crms1le7qg5gshrdl99m9q3ecpzvfr8zuk4heu7q420"
             .parse()
             .unwrap(),
     );
@@ -363,7 +363,7 @@ fn check_tx_should_reject_empty_tx() {
 #[test]
 fn check_tx_should_reject_invalid_tx() {
     let mut app = init_chain_for(
-        "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+        "crms1le7qg5gshrdl99m9q3ecpzvfr8zuk4heu7q420"
             .parse()
             .unwrap(),
     );
@@ -428,7 +428,7 @@ fn begin_block(app: &mut ChainNodeApp<MockClient>) {
 #[test]
 fn deliver_tx_should_reject_empty_tx() {
     let mut app = init_chain_for(
-        "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+        "crms1le7qg5gshrdl99m9q3ecpzvfr8zuk4heu7q420"
             .parse()
             .unwrap(),
     );
@@ -444,7 +444,7 @@ fn deliver_tx_should_reject_empty_tx() {
 #[test]
 fn deliver_tx_should_reject_invalid_tx() {
     let mut app = init_chain_for(
-        "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+        "crms1le7qg5gshrdl99m9q3ecpzvfr8zuk4heu7q420"
             .parse()
             .unwrap(),
     );
@@ -521,7 +521,7 @@ fn endblock_without_beginblocks_should_panic() {
 #[test]
 fn endblock_should_change_block_height() {
     let mut app = init_chain_for(
-        "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+        "crms1le7qg5gshrdl99m9q3ecpzvfr8zuk4heu7q420"
             .parse()
             .unwrap(),
     );
@@ -654,7 +654,7 @@ fn valid_commit_should_persist() {
 #[test]
 fn no_delivered_tx_commit_should_keep_apphash() {
     let mut app = init_chain_for(
-        "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+        "crms1le7qg5gshrdl99m9q3ecpzvfr8zuk4heu7q420"
             .parse()
             .unwrap(),
     );
@@ -668,8 +668,9 @@ fn no_delivered_tx_commit_should_keep_apphash() {
 
 #[test]
 fn query_should_return_an_account() {
-    let addr = "0e7c045110b8dbf29765047380898919c5cb56f4";
-    let mut app = init_chain_for(addr.parse().unwrap());
+    let bech32 = "crms1le7qg5gshrdl99m9q3ecpzvfr8zuk4heu7q420";
+    let addr = "fe7c045110b8dbf29765047380898919c5cb56f9";
+    let mut app = init_chain_for(bech32.parse().unwrap());
     let mut qreq = RequestQuery::new();
     qreq.data = hex::decode(&addr).unwrap();
     qreq.path = "account".into();

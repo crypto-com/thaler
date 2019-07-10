@@ -150,7 +150,7 @@ mod tests {
         let address = address.to_string();
 
         assert_eq!(
-            "0x0bed7abd61247635c1973eb38474a2516ed1d884", address,
+            "crms1p0kh40tpy3mrtsvh86ecga9z29hdrkyyg5yh7p", address,
             "Address generation implemented incorrectly"
         );
     }

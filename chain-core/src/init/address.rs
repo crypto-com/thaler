@@ -184,11 +184,24 @@ impl CroAddress<RedeemAddress> for RedeemAddress {
             })
     }
 
-    fn from_hex(encoded: &str) -> Result<Self, CroAddressError> {
-        hex::decode(&encoded[2..])
+    fn from_hex(s: &str) -> Result<Self, CroAddressError> {
+        if s.len() != REDEEM_ADDRESS_BYTES * 2 && !s.starts_with("0x") {
+            return Err(CroAddressError::ConvertError);
+        }
+
+        let value = if s.starts_with("0x") {
+            s.split_at(2).1
+        } else {
+            s
+        };
+        hex::decode(&value)
             .map_err(|_e| CroAddressError::ConvertError)
             .and_then(|a| {
-                RedeemAddress::try_from(&a.as_slice()).map_err(|_e| CroAddressError::ConvertError)
+                println!("try from {} length={}", hex::encode(&a), a.len());
+                let a = RedeemAddress::try_from(&a.as_slice())
+                    .map_err(|_e| CroAddressError::ConvertError);
+                println!("result={:?}", a);
+                a
             })
     }
 }
@@ -217,7 +230,11 @@ impl FromStr for RedeemAddress {
     type Err = ErrorAddress;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        RedeemAddress::from_cro(s).map_err(|_e| ErrorAddress::InvalidCroAddress)
+        if s.starts_with("0x") {
+            RedeemAddress::from_hex(s).map_err(|_e| ErrorAddress::InvalidCroAddress)
+        } else {
+            RedeemAddress::from_cro(s).map_err(|_e| ErrorAddress::InvalidCroAddress)
+        }
     }
 }
 
@@ -262,7 +279,7 @@ mod tests {
     fn should_display_zero_address() {
         assert_eq!(
             RedeemAddress::default().to_string(),
-            "0x0000000000000000000000000000000000000000"
+            "crms1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqlkskjm"
         );
     }
 
@@ -275,7 +292,7 @@ mod tests {
 
         assert_eq!(
             addr.to_string(),
-            "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+            "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj"
         );
     }
 
@@ -287,7 +304,7 @@ mod tests {
         ]);
 
         assert_eq!(
-            "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+            "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj"
                 .parse::<RedeemAddress>()
                 .unwrap(),
             addr
@@ -302,7 +319,7 @@ mod tests {
         ]);
 
         assert_eq!(
-            "0e7c045110b8dbf29765047380898919c5cb56f4"
+            "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj"
                 .parse::<RedeemAddress>()
                 .unwrap(),
             addr
@@ -349,7 +366,7 @@ mod tests {
 
     #[test]
     fn should_be_correct_textual_address() {
-        let a = RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+        let a = RedeemAddress::from_hex("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
         let b = a.to_cro().unwrap();
         assert_eq!(b.to_string(), "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj");
         let c = RedeemAddress::from_cro(&b).unwrap();
