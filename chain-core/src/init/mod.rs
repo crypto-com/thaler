@@ -8,6 +8,8 @@ pub mod coin;
 /// Configuration in JSON passed to InitChain
 pub mod config;
 
+pub mod network;
+
 /// maximum total supply with a fixed decimal point
 /// ref: https://etherscan.io/token/0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b
 /// 100 billion + 8 decimals
@@ -16,3 +18,9 @@ pub const MAX_COIN: u64 = 100_000_000_000__0000_0000;
 pub const MAX_COIN_DECIMALS: u64 = 1_0000_0000;
 /// 100 billion
 pub const MAX_COIN_UNITS: i64 = 100_000_000_000;
+
+#[cfg(feature = "testnet")]
+pub const CURRENT_NETWORK: network::Network = network::Network::Testnet;
+
+#[cfg(not(feature = "testnet"))]
+pub const CURRENT_NETWORK: network::Network = network::Network::Mainnet;
