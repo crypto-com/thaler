@@ -123,13 +123,13 @@ fn new_withdraw_transaction<N: NetworkOpsClient>(
     let attributes =
         TxAttributes::new(decode(chain_id).context(ErrorKind::DeserializationError)?[0]);
     let from_address = ask_staking_address()?;
-    let outputs = ask_outputs()?;
+    let to_address = ask_transfer_address()?;
 
-    network_ops_client.create_withdraw_unbonded_stake_transaction(
+    network_ops_client.create_withdraw_all_unbonded_stake_transaction(
         name,
         &passphrase,
         &from_address,
-        outputs,
+        to_address,
         attributes,
     )
 }
@@ -272,6 +272,16 @@ fn ask_staking_address() -> Result<StakedStateAddress> {
     let address = text()
         .context(ErrorKind::IoError)?
         .parse::<StakedStateAddress>()
+        .context(ErrorKind::DeserializationError)?;
+
+    Ok(address)
+}
+
+fn ask_transfer_address() -> Result<ExtendedAddr> {
+    ask("Enter transfer address: ");
+    let address = text()
+        .context(ErrorKind::IoError)?
+        .parse::<ExtendedAddr>()
         .context(ErrorKind::DeserializationError)?;
 
     Ok(address)

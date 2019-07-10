@@ -7,6 +7,7 @@ use secstr::SecUtf8;
 
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{StakedState, StakedStateAddress, StakedStateOpAttributes};
+use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
@@ -42,6 +43,16 @@ pub trait NetworkOpsClient {
         passphrase: &SecUtf8,
         from_address: &StakedStateAddress,
         outputs: Vec<TxOut>,
+        attributes: TxAttributes,
+    ) -> Result<TxAux>;
+
+    /// Creates a new transaction for withdrawing all unbonded stake from an account
+    fn create_withdraw_all_unbonded_stake_transaction(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        from_address: &StakedStateAddress,
+        to_address: ExtendedAddr,
         attributes: TxAttributes,
     ) -> Result<TxAux>;
 
