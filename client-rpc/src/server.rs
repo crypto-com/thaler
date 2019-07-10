@@ -1,7 +1,6 @@
 use failure::ResultExt;
 use hex;
-use jsonrpc_http_server::jsonrpc_core;
-use jsonrpc_http_server::jsonrpc_core::{IoHandler, Value};
+use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
 use std::net::SocketAddr;
 
@@ -53,7 +52,6 @@ impl Server {
         let mut io = IoHandler::new();
 
         io.extend_with(wallet_rpc.to_delegate());
-        io.add_method("say_hello", |_| Ok(Value::String("hello".into())));
 
         let server = ServerBuilder::new(io)
             // TODO: Either make CORS configurable or make it more strict
