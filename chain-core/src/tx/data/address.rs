@@ -21,13 +21,29 @@ pub enum ExtendedAddr {
     OrTree(TreeRoot),
 }
 
+impl ExtendedAddr {
+    fn get_string(&self, hash: TreeRoot) -> Bech32 {
+        let checked_data: Vec<u5> = hash.to_vec().to_base32();
+        match crate::init::CURRENT_NETWORK {
+            crate::init::network::Network::Testnet => {
+                let encoded =
+                    Bech32::new("crtt".into(), checked_data).expect("bech32 crmt encoding");
+                encoded
+            }
+            crate::init::network::Network::Mainnet => {
+                let encoded =
+                    Bech32::new("crmt".into(), checked_data).expect("bech32 crmt encoding");
+                encoded
+            }
+        }
+    }
+}
+
 impl CroAddress<ExtendedAddr> for ExtendedAddr {
     fn to_cro(&self) -> Result<String, CroAddressError> {
         match self {
             ExtendedAddr::OrTree(hash) => {
-                let checked_data: Vec<u5> = hash.to_vec().to_base32();
-                let encoded =
-                    Bech32::new("crmt".into(), checked_data).expect("bech32 crmt encoding");
+                let encoded = self.get_string(*hash);
                 Ok(encoded.to_string())
             }
         }

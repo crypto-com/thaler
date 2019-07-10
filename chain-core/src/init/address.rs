@@ -171,8 +171,18 @@ impl RedeemAddress {
 impl CroAddress<RedeemAddress> for RedeemAddress {
     fn to_cro(&self) -> Result<String, CroAddressError> {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
-        let encoded = Bech32::new("crms".into(), checked_data).expect("bech32 crms encoding");
-        Ok(encoded.to_string())
+        match super::CURRENT_NETWORK {
+            super::network::Network::Testnet => {
+                let encoded =
+                    Bech32::new("crts".into(), checked_data).expect("bech32 crms encoding");
+                Ok(encoded.to_string())
+            }
+            super::network::Network::Mainnet => {
+                let encoded =
+                    Bech32::new("crms".into(), checked_data).expect("bech32 crms encoding");
+                Ok(encoded.to_string())
+            }
+        }
     }
 
     fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
