@@ -37,8 +37,8 @@ use chain_core::tx::{
     witness::{TxInWitness, TxWitness},
     TxAux,
 };
+use chain_tx_filter::BlockFilter;
 use chain_tx_validation::TxWithOutputs;
-use ethbloom::{Bloom, Input};
 use hex::decode;
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
@@ -46,6 +46,7 @@ use parity_codec::{Decode, Encode};
 use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::sync::Arc;
 
 fn get_enclave_bridge_mock() -> MockClient {
@@ -566,13 +567,16 @@ fn valid_commit_should_persist() {
     assert_eq!(1, cresp.events.len());
     assert_eq!(1, cresp.events[0].attributes.len());
     assert_eq!(1, app.delivered_txs.len());
-    let mut bloom_array = [0u8; 256];
-    bloom_array.copy_from_slice(&cresp.events[0].attributes[0].value);
-    let bloom = Bloom::from(&bloom_array);
-    assert!(bloom.contains_input(Input::Raw(
-        &tx.attributes.allowed_view[0].view_key.serialize()
-    )));
-    assert!(!bloom.contains_input(Input::Raw(&[0u8; 33][..])));
+    let filter = BlockFilter::try_from(cresp.events[0].attributes[0].value.as_slice())
+        .expect("there should be a block filter");
+
+    assert!(filter.check_view_key(&tx.attributes.allowed_view[0].view_key));
+    let sample = PublicKey::from_slice(&[
+        3, 23, 183, 225, 206, 31, 159, 148, 195, 42, 67, 115, 146, 41, 248, 140, 11, 3, 51, 41,
+        111, 180, 110, 143, 114, 134, 88, 73, 198, 174, 52, 184, 78,
+    ])
+    .expect("sample pk");
+    assert!(!filter.check_view_key(&sample));
 
     assert!(app
         .storage
