@@ -312,6 +312,7 @@ mod tests {
     use parity_codec::Encode;
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
+    use chain_core::common::TendermintEventType;
     use chain_core::init::coin::Coin;
     use chain_core::state::account::StakedStateOpWitness;
     use chain_core::tx::data::address::ExtendedAddr;
@@ -432,9 +433,14 @@ mod tests {
                     height: "1".to_owned(),
                     results: Results {
                         deliver_tx: Some(vec![DeliverTx {
-                            tags: vec![Tag {
-                                key: "dHhpZA==".to_owned(),
-                                value: base64::encode(&self.transaction(1).unwrap().tx_id()[..]),
+                            events: vec![Event {
+                                event_type: TendermintEventType::ValidTransactions.to_string(),
+                                attributes: vec![Attribute {
+                                    key: "dHhpZA==".to_owned(),
+                                    value: base64::encode(
+                                        &self.transaction(1).unwrap().tx_id()[..],
+                                    ),
+                                }],
                             }],
                         }]),
                     },
@@ -444,9 +450,14 @@ mod tests {
                     height: "2".to_owned(),
                     results: Results {
                         deliver_tx: Some(vec![DeliverTx {
-                            tags: vec![Tag {
-                                key: "dHhpZA==".to_owned(),
-                                value: base64::encode(&self.transaction(2).unwrap().tx_id()[..]),
+                            events: vec![Event {
+                                event_type: TendermintEventType::ValidTransactions.to_string(),
+                                attributes: vec![Attribute {
+                                    key: "dHhpZA==".to_owned(),
+                                    value: base64::encode(
+                                        &self.transaction(2).unwrap().tx_id()[..],
+                                    ),
+                                }],
                             }],
                         }]),
                     },

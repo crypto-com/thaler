@@ -8,7 +8,7 @@ edition = "2018"
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 failure = "0.1"
-parity-codec = { features = ["derive"], version = "4.1.1" }
+parity-codec = { features = ["derive"], version = "4.1.2" }
 chrono = { version = "0.4", features = ["serde"] }
 jsonrpc = { version = "0.11", optional = true }
 base64 = "0.10"

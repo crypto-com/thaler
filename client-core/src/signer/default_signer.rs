@@ -9,7 +9,7 @@ use crate::service::{KeyService, RootHashService, WalletService};
 use crate::{SelectedUnspentTransactions, Signer};
 
 /// Default implementation of `Signer`
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DefaultSigner<S: Storage> {
     key_service: KeyService<S>,
     root_hash_service: RootHashService<S>,
