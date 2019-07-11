@@ -9,6 +9,7 @@ chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 client-index = { path = "../client-index" }
+client-network = { path= "../client-network"}
 failure = "0.1"
 jsonrpc-http-server = "12.1"
 jsonrpc-core = "12.1"

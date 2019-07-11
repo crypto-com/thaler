@@ -20,20 +20,20 @@ use client_core::{Signer, UnspentTransactions, WalletClient};
 use crate::NetworkOpsClient;
 
 /// Default implementation of `NetworkOpsClient`
-pub struct DefaultNetworkOpsClient<'a, W, S, C, F>
+pub struct DefaultNetworkOpsClient<W, S, C, F>
 where
     W: WalletClient,
     S: Signer,
     C: Client,
     F: FeeAlgorithm,
 {
-    wallet_client: &'a W,
-    signer: &'a S,
-    client: &'a C,
-    fee_algorithm: &'a F,
+    wallet_client: W,
+    signer: S,
+    client: C,
+    fee_algorithm: F,
 }
 
-impl<'a, W, S, C, F> DefaultNetworkOpsClient<'a, W, S, C, F>
+impl<W, S, C, F> DefaultNetworkOpsClient<W, S, C, F>
 where
     W: WalletClient,
     S: Signer,
@@ -41,7 +41,7 @@ where
     F: FeeAlgorithm,
 {
     /// Creates a new instance of `DefaultNetworkOpsClient`
-    pub fn new(wallet_client: &'a W, signer: &'a S, client: &'a C, fee_algorithm: &'a F) -> Self {
+    pub fn new(wallet_client: W, signer: S, client: C, fee_algorithm: F) -> Self {
         Self {
             wallet_client,
             signer,
@@ -76,7 +76,7 @@ where
     }
 }
 
-impl<'a, W, S, C, F> NetworkOpsClient for DefaultNetworkOpsClient<'a, W, S, C, F>
+impl<W, S, C, F> NetworkOpsClient for DefaultNetworkOpsClient<W, S, C, F>
 where
     W: WalletClient,
     S: Signer,
