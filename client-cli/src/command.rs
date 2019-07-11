@@ -7,6 +7,7 @@ use prettytable::{cell, format, row, Cell, Row, Table};
 use quest::success;
 use structopt::StructOpt;
 
+use chain_core::state::account::StakedStateAddress;
 use client_common::balance::BalanceChange;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
@@ -15,6 +16,7 @@ use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_index::index::DefaultIndex;
+use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 
 use self::address_command::AddressCommand;
 use self::transaction_command::TransactionCommand;
@@ -52,6 +54,13 @@ pub enum Command {
     Transaction {
         #[structopt(subcommand)]
         transaction_command: TransactionCommand,
+    },
+    #[structopt(name = "state", about = "Get staked state of an address")]
+    StakedState {
+        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        name: String,
+        #[structopt(name = "address", short, long, help = "Staking address")]
+        address: StakedStateAddress,
     },
     #[structopt(name = "resync", about = "Re-synchronize client with Crypto.com Chain")]
     Resync,
@@ -100,17 +109,45 @@ impl Command {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
-                let transaction_builder = DefaultTransactionBuilder::new(
-                    signer,
-                    tendermint_client.genesis()?.fee_policy(),
-                );
-                let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
+                let fee_algorithm = tendermint_client.genesis()?.fee_policy();
+                let transaction_builder =
+                    DefaultTransactionBuilder::new(signer.clone(), fee_algorithm);
+                let transaction_index =
+                    DefaultIndex::new(storage.clone(), tendermint_client.clone());
                 let wallet_client = DefaultWalletClient::builder()
                     .with_wallet(storage)
                     .with_transaction_read(transaction_index)
                     .with_transaction_write(transaction_builder)
                     .build()?;
-                transaction_command.execute(wallet_client)
+                let network_ops_client = DefaultNetworkOpsClient::new(
+                    &wallet_client,
+                    &signer,
+                    &tendermint_client,
+                    &fee_algorithm,
+                );
+                transaction_command.execute(&wallet_client, &network_ops_client)
+            }
+            Command::StakedState { name, address } => {
+                let storage = SledStorage::new(storage_path())?;
+                let tendermint_client = RpcClient::new(&tendermint_url());
+                let signer = DefaultSigner::new(storage.clone());
+                let fee_algorithm = tendermint_client.genesis()?.fee_policy();
+                let transaction_builder =
+                    DefaultTransactionBuilder::new(signer.clone(), fee_algorithm);
+                let transaction_index =
+                    DefaultIndex::new(storage.clone(), tendermint_client.clone());
+                let wallet_client = DefaultWalletClient::builder()
+                    .with_wallet(storage)
+                    .with_transaction_read(transaction_index)
+                    .with_transaction_write(transaction_builder)
+                    .build()?;
+                let network_ops_client = DefaultNetworkOpsClient::new(
+                    &wallet_client,
+                    &signer,
+                    &tendermint_client,
+                    &fee_algorithm,
+                );
+                Self::get_staked_stake(&network_ops_client, name, address)
             }
             Command::Resync => {
                 let storage = SledStorage::new(storage_path())?;
@@ -123,6 +160,36 @@ impl Command {
                 Self::resync(wallet_client)
             }
         }
+    }
+
+    fn get_staked_stake<N: NetworkOpsClient>(
+        network_ops_client: &N,
+        name: &str,
+        address: &StakedStateAddress,
+    ) -> Result<()> {
+        let passphrase = ask_passphrase()?;
+        let staked_state = network_ops_client.get_staked_state(name, &passphrase, address)?;
+
+        let mut table = Table::new();
+        table.set_format(*format::consts::FORMAT_NO_LINESEP);
+
+        table.set_titles(row!["Nonce", format!("{}", staked_state.nonce)]);
+        table.add_row(Row::new(vec![
+            Cell::from(&"Bonded".to_string()),
+            Cell::from(&format!("{}", staked_state.bonded)),
+        ]));
+        table.add_row(Row::new(vec![
+            Cell::from(&"Unbonded".to_string()),
+            Cell::from(&format!("{}", staked_state.unbonded)),
+        ]));
+        table.add_row(Row::new(vec![
+            Cell::from(&"Unbonded From".to_string()),
+            Cell::from(&format!("{}", staked_state.unbonded_from)),
+        ]));
+
+        table.printstd();
+
+        Ok(())
     }
 
     fn get_balance<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {

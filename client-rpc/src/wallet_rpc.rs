@@ -1,7 +1,7 @@
+use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
-use jsonrpc_http_server::jsonrpc_core;
 use secstr::SecUtf8;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -15,33 +15,28 @@ use crate::server::{rpc_error_from_string, to_rpc_error};
 #[rpc]
 pub trait WalletRpc {
     #[rpc(name = "wallet_addresses")]
-    fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>>;
+    fn addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_balance")]
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin>;
+    fn balance(&self, request: WalletRequest) -> Result<Coin>;
 
     #[rpc(name = "wallet_create")]
-    fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String>;
+    fn create(&self, request: WalletRequest) -> Result<String>;
 
     #[rpc(name = "wallet_list")]
-    fn list(&self) -> jsonrpc_core::Result<Vec<String>>;
+    fn list(&self) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_sendtoaddress")]
-    fn sendtoaddress(
-        &self,
-        request: WalletRequest,
-        to_address: String,
-        amount: u64,
-    ) -> jsonrpc_core::Result<()>;
+    fn sendtoaddress(&self, request: WalletRequest, to_address: String, amount: u64) -> Result<()>;
 
     #[rpc(name = "sync")]
-    fn sync(&self) -> jsonrpc_core::Result<()>;
+    fn sync(&self) -> Result<()>;
 
     #[rpc(name = "sync_all")]
-    fn sync_all(&self) -> jsonrpc_core::Result<()>;
+    fn sync_all(&self) -> Result<()>;
 
     #[rpc(name = "wallet_transactions")]
-    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>>;
+    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>>;
 }
 
 pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
@@ -62,7 +57,7 @@ impl<T> WalletRpc for WalletRpcImpl<T>
 where
     T: WalletClient + Send + Sync + 'static,
 {
-    fn addresses(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<String>> {
+    fn addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
         // TODO: Currently, it only returns staking addresses
         match self
             .client
@@ -76,7 +71,7 @@ where
         }
     }
 
-    fn balance(&self, request: WalletRequest) -> jsonrpc_core::Result<Coin> {
+    fn balance(&self, request: WalletRequest) -> Result<Coin> {
         self.sync()?;
 
         match self.client.balance(&request.name, &request.passphrase) {
@@ -85,7 +80,7 @@ where
         }
     }
 
-    fn create(&self, request: WalletRequest) -> jsonrpc_core::Result<String> {
+    fn create(&self, request: WalletRequest) -> Result<String> {
         if let Err(e) = self.client.new_wallet(&request.name, &request.passphrase) {
             return Err(to_rpc_error(e));
         }
@@ -100,19 +95,14 @@ where
         }
     }
 
-    fn list(&self) -> jsonrpc_core::Result<Vec<String>> {
+    fn list(&self) -> Result<Vec<String>> {
         match self.client.wallets() {
             Ok(wallets) => Ok(wallets),
             Err(e) => Err(to_rpc_error(e)),
         }
     }
 
-    fn sendtoaddress(
-        &self,
-        request: WalletRequest,
-        to_address: String,
-        amount: u64,
-    ) -> jsonrpc_core::Result<()> {
+    fn sendtoaddress(&self, request: WalletRequest, to_address: String, amount: u64) -> Result<()> {
         self.sync()?;
 
         let address = to_address
@@ -144,7 +134,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn sync(&self) -> jsonrpc_core::Result<()> {
+    fn sync(&self) -> Result<()> {
         if let Err(e) = self.client.sync() {
             Err(to_rpc_error(e))
         } else {
@@ -152,7 +142,7 @@ where
         }
     }
 
-    fn sync_all(&self) -> jsonrpc_core::Result<()> {
+    fn sync_all(&self) -> Result<()> {
         if let Err(e) = self.client.sync_all() {
             Err(to_rpc_error(e))
         } else {
@@ -160,7 +150,7 @@ where
         }
     }
 
-    fn transactions(&self, request: WalletRequest) -> jsonrpc_core::Result<Vec<TransactionChange>> {
+    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>> {
         self.sync()?;
 
         match self.client.history(&request.name, &request.passphrase) {
@@ -170,7 +160,7 @@ where
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WalletRequest {
     name: String,
     passphrase: SecUtf8,
@@ -190,7 +180,7 @@ mod tests {
     use chain_core::tx::TxAux;
     use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
-    use client_common::{Error, ErrorKind, Result, Transaction};
+    use client_common::{Error, ErrorKind, Result as CommonResult, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
@@ -200,15 +190,18 @@ mod tests {
     pub struct MockIndex;
 
     impl Index for MockIndex {
-        fn sync(&self) -> Result<()> {
+        fn sync(&self) -> CommonResult<()> {
             Ok(())
         }
 
-        fn sync_all(&self) -> Result<()> {
+        fn sync_all(&self) -> CommonResult<()> {
             Ok(())
         }
 
-        fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>> {
+        fn transaction_changes(
+            &self,
+            address: &ExtendedAddr,
+        ) -> CommonResult<Vec<TransactionChange>> {
             Ok(vec![TransactionChange {
                 transaction_id: [0u8; 32],
                 address: address.clone(),
@@ -218,18 +211,18 @@ mod tests {
             }])
         }
 
-        fn balance(&self, _: &ExtendedAddr) -> Result<Coin> {
+        fn balance(&self, _: &ExtendedAddr) -> CommonResult<Coin> {
             Ok(Coin::new(30).unwrap())
         }
 
         fn unspent_transactions(
             &self,
             _address: &ExtendedAddr,
-        ) -> Result<Vec<(TxoPointer, TxOut)>> {
+        ) -> CommonResult<Vec<(TxoPointer, TxOut)>> {
             Ok(Vec::new())
         }
 
-        fn transaction(&self, _: &TxId) -> Result<Option<Transaction>> {
+        fn transaction(&self, _: &TxId) -> CommonResult<Option<Transaction>> {
             Ok(Some(Transaction::TransferTransaction(Tx {
                 inputs: vec![TxoPointer {
                     id: [0u8; 32],
@@ -240,7 +233,7 @@ mod tests {
             })))
         }
 
-        fn output(&self, _id: &TxId, _index: usize) -> Result<TxOut> {
+        fn output(&self, _id: &TxId, _index: usize) -> CommonResult<TxOut> {
             Ok(TxOut {
                 address: ExtendedAddr::OrTree([0; 32]),
                 value: Coin::new(10000000000000000000).unwrap(),
@@ -248,7 +241,7 @@ mod tests {
             })
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
             Ok(())
         }
     }
