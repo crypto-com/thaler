@@ -148,9 +148,10 @@ mod tests {
         let address = RedeemAddress::from(&public_key);
 
         let address = address.to_string();
+        println!("{}", address);
 
         assert_eq!(
-            "crms1p0kh40tpy3mrtsvh86ecga9z29hdrkyyg5yh7p", address,
+            "0x0bed7abd61247635c1973eb38474a2516ed1d884", address,
             "Address generation implemented incorrectly"
         );
     }

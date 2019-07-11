@@ -76,6 +76,12 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
                 Ok(ExtendedAddr::OrTree(a))
             })
     }
+
+    fn to_hex(&self) -> Result<String, CroAddressError> {
+        match self {
+            ExtendedAddr::OrTree(hash) => Ok(format!("0x{}", hex::encode(hash))),
+        }
+    }
 }
 
 impl fmt::Display for ExtendedAddr {

@@ -43,6 +43,7 @@ impl ::std::error::Error for CroAddressError {}
 pub trait CroAddress<T> {
     fn to_cro(&self) -> Result<String, CroAddressError>;
     fn from_cro(encoded: &str) -> Result<T, CroAddressError>;
+    fn to_hex(&self) -> Result<String, CroAddressError>;
     fn from_hex(encoded: &str) -> Result<T, CroAddressError>;
 }
 
@@ -215,6 +216,10 @@ impl CroAddress<RedeemAddress> for RedeemAddress {
                 a
             })
     }
+
+    fn to_hex(&self) -> Result<String, CroAddressError> {
+        Ok(format!("0x{}", hex::encode(self.0)))
+    }
 }
 impl ops::Deref for RedeemAddress {
     type Target = [u8];
@@ -251,7 +256,7 @@ impl FromStr for RedeemAddress {
 
 impl fmt::Display for RedeemAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_cro().unwrap())
+        write!(f, "{}", self.to_hex().unwrap())
     }
 }
 
@@ -290,7 +295,7 @@ mod tests {
     fn should_display_zero_address() {
         assert_eq!(
             RedeemAddress::default().to_string(),
-            "crms1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqlkskjm"
+            "0x0000000000000000000000000000000000000000"
         );
     }
 
@@ -303,7 +308,7 @@ mod tests {
 
         assert_eq!(
             addr.to_string(),
-            "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj"
+            "0x0e7c045110b8dbf29765047380898919c5cb56f4"
         );
     }
 
