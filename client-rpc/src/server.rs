@@ -54,10 +54,28 @@ impl Server {
         Ok(())
     }
 
+    pub fn start_client(&self, io: &mut IoHandler) -> Result<()> {
+        {
+            let storage = SledStorage::new(&self.storage_dir)?;
+            let tendermint_client = RpcClient::new(&self.tendermint_url);
+            let signer = DefaultSigner::new(storage.clone());
+            let transaction_builder =
+                DefaultTransactionBuilder::new(signer, tendermint_client.genesis()?.fee_policy());
+            let index = DefaultIndex::new(storage.clone(), tendermint_client);
+            let wallet_client = DefaultWalletClient::builder()
+                .with_wallet(storage)
+                .with_transaction_read(index)
+                .with_transaction_write(transaction_builder)
+                .build()?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn start(&self) -> Result<()> {
         let mut io = IoHandler::new();
 
-        self.start_wallet(&mut io);
+        self.start_wallet(&mut io).unwrap();
+        self.start_client(&mut io).unwrap();
 
         let server = ServerBuilder::new(io)
             // TODO: Either make CORS configurable or make it more strict
