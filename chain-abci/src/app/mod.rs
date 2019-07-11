@@ -4,7 +4,7 @@ mod query;
 mod validate_tx;
 
 use abci::*;
-use ethbloom::{Bloom, Input};
+use chain_tx_filter::BlockFilter;
 use log::info;
 
 pub use self::app_init::{ChainNodeApp, ChainNodeState};
@@ -223,8 +223,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     fn end_block(&mut self, _req: &RequestEndBlock) -> ResponseEndBlock {
         info!("received endblock request");
         let mut resp = ResponseEndBlock::new();
-        let mut add_bloom = false;
-        let mut bloom = Bloom::default();
+        let mut filter = BlockFilter::default();
         for txaux in self.delivered_txs.iter() {
             match txaux {
                 TxAux::TransferTx { txpayload, .. } => {
@@ -232,26 +231,22 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
                     if let Some(PlainTxAux::TransferTx(tx, _)) = plain_tx {
                         for view in tx.attributes.allowed_view.iter() {
-                            add_bloom = true;
-                            bloom.accrue(Input::Raw(&view.view_key.serialize()[..]));
+                            filter.add_view_key(&view.view_key);
                         }
                     }
                 }
                 TxAux::WithdrawUnbondedStakeTx(tx, _) => {
                     for view in tx.attributes.allowed_view.iter() {
-                        add_bloom = true;
-                        bloom.accrue(Input::Raw(&view.view_key.serialize()[..]));
+                        filter.add_view_key(&view.view_key);
                     }
                 }
                 _ => {}
             };
         }
-        if add_bloom {
-            // TODO: explore alternatives, e.g. https://github.com/bitcoin/bips/blob/master/bip-0158.mediawiki
+        if let Some((key, value)) = filter.get_tendermint_kv() {
             let mut kvpair = KVPair::new();
-            kvpair.key = Vec::from(&b"ethbloom"[..]);
-            // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
-            kvpair.value = Vec::from(&bloom.data()[..]);
+            kvpair.key = key;
+            kvpair.value = value;
             let mut event = Event::new();
             event.field_type = TendermintEventType::BlockFilter.to_string();
             event.attributes.push(kvpair);
