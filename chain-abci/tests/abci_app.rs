@@ -179,7 +179,7 @@ fn previously_stored_hash_should_match() {
 fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     let db = create_db();
     let total = (Coin::max() - Coin::unit()).unwrap();
-    let validator_addr = "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj"
+    let validator_addr = "0x0e7c045110b8dbf29765047380898919c5cb56f4"
         .parse::<RedeemAddress>()
         .unwrap();
 

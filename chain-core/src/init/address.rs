@@ -320,7 +320,7 @@ mod tests {
         ]);
 
         assert_eq!(
-            "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj"
+            "0x0e7c045110b8dbf29765047380898919c5cb56f4"
                 .parse::<RedeemAddress>()
                 .unwrap(),
             addr
@@ -335,7 +335,7 @@ mod tests {
         ]);
 
         assert_eq!(
-            "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj"
+            "0x0e7c045110b8dbf29765047380898919c5cb56f4"
                 .parse::<RedeemAddress>()
                 .unwrap(),
             addr
@@ -393,7 +393,7 @@ mod tests {
     fn shoule_be_correct_hex_address() {
         let a = RedeemAddress::from_hex("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
 
-        let b = RedeemAddress::from_str("crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj").unwrap();
+        let b = RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
         assert_eq!(a, b);
     }
 }
