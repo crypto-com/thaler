@@ -1,14 +1,18 @@
+use failure::ResultExt;
+use hex::{decode, encode};
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 
+use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use client_common::balance::TransactionChange;
-use client_core::wallet::WalletClient;
+use client_common::{Error, ErrorKind, Result as CommonResult};
+use client_core::{MultiSigWalletClient, PublicKey, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error};
 
@@ -37,6 +41,54 @@ pub trait WalletRpc {
 
     #[rpc(name = "wallet_transactions")]
     fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>>;
+
+    #[rpc(name = "multi_sig_new_session")]
+    fn new_multi_sig_session(
+        &self,
+        request: WalletRequest,
+        message: String,
+        signer_public_keys: Vec<String>,
+        self_public_key: String,
+    ) -> Result<String>;
+
+    #[rpc(name = "multi_sig_nonce_commitment")]
+    fn nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+
+    #[rpc(name = "multi_sig_add_nonce_commitment")]
+    fn add_nonce_commitment(
+        &self,
+        session_id: String,
+        passphrase: SecUtf8,
+        nonce_commitment: String,
+        public_key: String,
+    ) -> Result<()>;
+
+    #[rpc(name = "multi_sig_nonce")]
+    fn nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+
+    #[rpc(name = "multi_sig_add_nonce")]
+    fn add_nonce(
+        &self,
+        session_id: String,
+        passphrase: SecUtf8,
+        nonce: String,
+        public_key: String,
+    ) -> Result<()>;
+
+    #[rpc(name = "multi_sig_partial_signature")]
+    fn partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+
+    #[rpc(name = "multi_sig_add_partial_signature")]
+    fn add_partial_signature(
+        &self,
+        session_id: String,
+        passphrase: SecUtf8,
+        partial_signature: String,
+        public_key: String,
+    ) -> Result<()>;
+
+    #[rpc(name = "multi_sig_signature")]
+    fn signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
 }
 
 pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
@@ -55,7 +107,7 @@ where
 
 impl<T> WalletRpc for WalletRpcImpl<T>
 where
-    T: WalletClient + Send + Sync + 'static,
+    T: WalletClient + MultiSigWalletClient + Send + Sync + 'static,
 {
     fn addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
         // TODO: Currently, it only returns staking addresses
@@ -158,6 +210,143 @@ where
             Err(e) => Err(to_rpc_error(e)),
         }
     }
+
+    fn new_multi_sig_session(
+        &self,
+        request: WalletRequest,
+        message: String,
+        signer_public_keys: Vec<String>,
+        self_public_key: String,
+    ) -> Result<String> {
+        let message = parse_hash_256(message).map_err(to_rpc_error)?;
+        let signer_public_keys = signer_public_keys
+            .into_iter()
+            .map(parse_public_key)
+            .collect::<CommonResult<Vec<PublicKey>>>()
+            .map_err(to_rpc_error)?;
+        let self_public_key = parse_public_key(self_public_key).map_err(to_rpc_error)?;
+
+        self.client
+            .new_multi_sig_session(
+                &request.name,
+                &request.passphrase,
+                message,
+                signer_public_keys,
+                self_public_key,
+            )
+            .map(serialize_hash_256)
+            .map_err(to_rpc_error)
+    }
+
+    fn nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
+
+        self.client
+            .nonce_commitment(&session_id, &passphrase)
+            .map(serialize_hash_256)
+            .map_err(to_rpc_error)
+    }
+
+    fn add_nonce_commitment(
+        &self,
+        session_id: String,
+        passphrase: SecUtf8,
+        nonce_commitment: String,
+        public_key: String,
+    ) -> Result<()> {
+        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
+        let nonce_commitment = parse_hash_256(nonce_commitment).map_err(to_rpc_error)?;
+        let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
+
+        self.client
+            .add_nonce_commitment(&session_id, &passphrase, nonce_commitment, &public_key)
+            .map_err(to_rpc_error)
+    }
+
+    fn nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
+
+        self.client
+            .nonce(&session_id, &passphrase)
+            .map(serialize_public_key)
+            .map_err(to_rpc_error)
+    }
+
+    fn add_nonce(
+        &self,
+        session_id: String,
+        passphrase: SecUtf8,
+        nonce: String,
+        public_key: String,
+    ) -> Result<()> {
+        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
+        let nonce = parse_public_key(nonce).map_err(to_rpc_error)?;
+        let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
+
+        self.client
+            .add_nonce(&session_id, &passphrase, &nonce, &public_key)
+            .map_err(to_rpc_error)
+    }
+
+    fn partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
+
+        self.client
+            .partial_signature(&session_id, &passphrase)
+            .map(serialize_hash_256)
+            .map_err(to_rpc_error)
+    }
+
+    fn add_partial_signature(
+        &self,
+        session_id: String,
+        passphrase: SecUtf8,
+        partial_signature: String,
+        public_key: String,
+    ) -> Result<()> {
+        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
+        let partial_signature = parse_hash_256(partial_signature).map_err(to_rpc_error)?;
+        let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
+
+        self.client
+            .add_partial_signature(&session_id, &passphrase, partial_signature, &public_key)
+            .map_err(to_rpc_error)
+    }
+
+    fn signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
+
+        self.client
+            .signature(&session_id, &passphrase)
+            .map(|sig| sig.to_string())
+            .map_err(to_rpc_error)
+    }
+}
+
+fn serialize_hash_256(hash: H256) -> String {
+    encode(&hash)
+}
+
+fn parse_hash_256(hash: String) -> CommonResult<H256> {
+    let array = decode(hash).context(ErrorKind::DeserializationError)?;
+
+    if array.len() != HASH_SIZE_256 {
+        return Err(Error::from(ErrorKind::DeserializationError));
+    }
+
+    let mut new_hash: H256 = [0; HASH_SIZE_256];
+    new_hash.copy_from_slice(&array);
+
+    Ok(new_hash)
+}
+
+fn serialize_public_key(public_key: PublicKey) -> String {
+    encode(&public_key.serialize())
+}
+
+fn parse_public_key(public_key: String) -> CommonResult<PublicKey> {
+    let array = decode(public_key).context(ErrorKind::DeserializationError)?;
+    PublicKey::deserialize_from(&array)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -180,7 +369,7 @@ mod tests {
     use chain_core::tx::TxAux;
     use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
-    use client_common::{Error, ErrorKind, Result as CommonResult, Transaction};
+    use client_common::Transaction;
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
