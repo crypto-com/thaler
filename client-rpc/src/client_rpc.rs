@@ -59,7 +59,7 @@ where
     fn create_deposit_bonded_stake_transaction(&self, request: ClientRequest) -> Result<String> {
         let utxo: Vec<TxoPointer> = vec![];
         let addr: StakedStateAddress =
-            StakedStateAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+            StakedStateAddress::from_str(request.address.as_str()).unwrap();
 
         let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
         let result = self.client.create_deposit_bonded_stake_transaction(
@@ -76,7 +76,7 @@ where
         let value = Coin::new(0).unwrap();
         let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
         let addr: StakedStateAddress =
-            StakedStateAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+            StakedStateAddress::from_str(request.address.as_str()).unwrap();
 
         let result = self.client.create_unbond_stake_transaction(
             request.name.as_str(),
@@ -86,7 +86,7 @@ where
             attr,
         );
 
-        Ok("create_unbond_stake_transaction OK".to_string())
+        Ok("Success create_unbond_stake_transaction".to_string())
     }
 
     fn create_withdraw_all_unbonded_stake_transaction(
@@ -94,7 +94,7 @@ where
         request: ClientRequest,
     ) -> Result<String> {
         let addr: StakedStateAddress =
-            StakedStateAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+            StakedStateAddress::from_str(request.address.as_str()).unwrap();
         let utxo: Vec<TxOut> = vec![];
         let attr = TxAttributes::new(self.chain_id);
 
@@ -105,7 +105,7 @@ where
             utxo,
             attr,
         );
-        Ok("create_withdraw_unbonded_stake_transaction OK".to_string())
+        Ok("Success create_withdraw_unbonded_stake_transaction".to_string())
     }
 }
 
@@ -113,5 +113,5 @@ where
 pub struct ClientRequest {
     name: String,
     passphrase: SecUtf8,
-    // chain_hex_id: String,
+    address: String,
 }
