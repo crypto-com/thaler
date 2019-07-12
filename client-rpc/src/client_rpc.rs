@@ -23,8 +23,8 @@ pub trait ClientRpc {
     #[rpc(name = "create_deposit_bonded_stake_transaction")]
     fn create_deposit_bonded_stake_transaction(&self, request: ClientRequest) -> Result<String>;
 
-    #[rpc(name = "create_withdraw_unbonded_stake_transaction")]
-    fn create_withdraw_unbonded_stake_transaction(&self, request: ClientRequest) -> Result<String>;
+    #[rpc(name = "create_unbond_stake_transaction")]
+    fn create_unbond_stake_transaction(&self, request: ClientRequest) -> Result<String>;
 
     #[rpc(name = "create_withdraw_all_unbonded_stake_transaction")]
     fn create_withdraw_all_unbonded_stake_transaction(
@@ -72,15 +72,40 @@ where
         Ok("Success create_deposit_bonded_stake_transaction".to_string())
     }
 
-    fn create_withdraw_unbonded_stake_transaction(&self, request: ClientRequest) -> Result<String> {
-        Ok("create_withdraw_unbonded_stake_transaction OK".to_string())
+    fn create_unbond_stake_transaction(&self, request: ClientRequest) -> Result<String> {
+        let value = Coin::new(0).unwrap();
+        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
+        let addr: StakedStateAddress =
+            StakedStateAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+
+        let result = self.client.create_unbond_stake_transaction(
+            request.name.as_str(),
+            &SecUtf8::from(request.passphrase),
+            &addr,
+            value,
+            attr,
+        );
+
+        Ok("create_unbond_stake_transaction OK".to_string())
     }
 
     fn create_withdraw_all_unbonded_stake_transaction(
         &self,
         request: ClientRequest,
     ) -> Result<String> {
-        Ok("create_withdraw_all_unbonded_stake_transaction OK".to_string())
+        let addr: StakedStateAddress =
+            StakedStateAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+        let utxo: Vec<TxOut> = vec![];
+        let attr = TxAttributes::new(self.chain_id);
+
+        let result = self.client.create_withdraw_unbonded_stake_transaction(
+            request.name.as_str(),
+            &SecUtf8::from(request.passphrase),
+            &addr,
+            utxo,
+            attr,
+        );
+        Ok("create_withdraw_unbonded_stake_transaction OK".to_string())
     }
 }
 
