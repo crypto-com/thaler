@@ -12,29 +12,25 @@ use client_core::wallet::WalletClient;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error};
-
+use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
+use chain_core::tx::data::input::TxoPointer;
+use std::str::FromStr;
 #[rpc]
 pub trait ClientRpc {
     #[rpc(name = "query_client")]
     fn query_client(&self, request: ClientRequest) -> Result<String>;
 
     #[rpc(name = "create_deposit_bonded_stake_transaction")]
-    fn create_deposit_bonded_stake_transaction(&self, request: ClientRequest) -> Result<String> {
-        Ok("create_deposit_bonded_stake_transaction OK".to_string())
-    }
+    fn create_deposit_bonded_stake_transaction(&self, request: ClientRequest) -> Result<String>;
 
     #[rpc(name = "create_withdraw_unbonded_stake_transaction")]
-    fn create_withdraw_unbonded_stake_transaction(&self, request: ClientRequest) -> Result<String> {
-        Ok("create_withdraw_unbonded_stake_transaction OK".to_string())
-    }
+    fn create_withdraw_unbonded_stake_transaction(&self, request: ClientRequest) -> Result<String>;
 
     #[rpc(name = "create_withdraw_all_unbonded_stake_transaction")]
     fn create_withdraw_all_unbonded_stake_transaction(
         &self,
         request: ClientRequest,
-    ) -> Result<String> {
-        Ok("create_withdraw_all_unbonded_stake_transaction OK".to_string())
-    }
+    ) -> Result<String>;
 }
 
 pub struct ClientRpcImpl<T: NetworkOpsClient + Send + Sync> {
@@ -56,7 +52,35 @@ where
     T: NetworkOpsClient + Send + Sync + 'static,
 {
     fn query_client(&self, request: ClientRequest) -> Result<String> {
-        Ok("apple".to_string())
+        let m = serde_json::to_string(&request).unwrap();
+        Ok(m.to_string())
+    }
+
+    fn create_deposit_bonded_stake_transaction(&self, request: ClientRequest) -> Result<String> {
+        let utxo: Vec<TxoPointer> = vec![];
+        let addr: StakedStateAddress =
+            StakedStateAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+
+        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
+        let result = self.client.create_deposit_bonded_stake_transaction(
+            request.name.as_str(),
+            &SecUtf8::from(request.passphrase),
+            utxo,
+            addr,
+            attr,
+        );
+        Ok("Success create_deposit_bonded_stake_transaction".to_string())
+    }
+
+    fn create_withdraw_unbonded_stake_transaction(&self, request: ClientRequest) -> Result<String> {
+        Ok("create_withdraw_unbonded_stake_transaction OK".to_string())
+    }
+
+    fn create_withdraw_all_unbonded_stake_transaction(
+        &self,
+        request: ClientRequest,
+    ) -> Result<String> {
+        Ok("create_withdraw_all_unbonded_stake_transaction OK".to_string())
     }
 }
 
@@ -64,4 +88,5 @@ where
 pub struct ClientRequest {
     name: String,
     passphrase: SecUtf8,
+    // chain_hex_id: String,
 }
