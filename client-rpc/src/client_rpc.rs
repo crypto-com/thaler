@@ -24,7 +24,7 @@ pub trait ClientRpc {
     fn create_deposit_bonded_stake_transaction(&self, request: ClientRequest) -> Result<String>;
 
     #[rpc(name = "create_unbond_stake_transaction")]
-    fn create_unbond_stake_transaction(&self, request: ClientRequest) -> Result<String>;
+    fn create_unbond_stake_transaction(&self, request: CreateUnbondStakeTransactionRequest) -> Result<String>;
 
     #[rpc(name = "create_withdraw_all_unbonded_stake_transaction")]
     fn create_withdraw_all_unbonded_stake_transaction(
@@ -72,8 +72,8 @@ where
         Ok("Success create_deposit_bonded_stake_transaction".to_string())
     }
 
-    fn create_unbond_stake_transaction(&self, request: ClientRequest) -> Result<String> {
-        let value = Coin::new(0).unwrap();
+    fn create_unbond_stake_transaction(&self, request: CreateUnbondStakeTransactionRequest) -> Result<String> {
+        let value = Coin::from_str(request.amount.as_str()).unwrap();
         let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
         let addr: StakedStateAddress =
             StakedStateAddress::from_str(request.address.as_str()).unwrap();
@@ -114,4 +114,14 @@ pub struct ClientRequest {
     name: String,
     passphrase: SecUtf8,
     address: String,
+}
+
+
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateUnbondStakeTransactionRequest {
+    name: String,
+    passphrase: SecUtf8,
+    address: String,
+    amount: String, // u64 as String
 }
