@@ -68,8 +68,8 @@ where
             utxo,
             addr,
             attr,
-        );
-        Ok("Success create_deposit_bonded_stake_transaction".to_string())
+        ).unwrap();
+        Ok(serde_json::to_string(&result).unwrap())
     }
 
     fn create_unbond_stake_transaction(&self, request: CreateUnbondStakeTransactionRequest) -> Result<String> {
@@ -84,9 +84,9 @@ where
             &addr,
             value,
             attr,
-        );
+        ).unwrap();
 
-        Ok("Success create_unbond_stake_transaction".to_string())
+        Ok(serde_json::to_string(&result).unwrap())
     }
 
     fn create_withdraw_all_unbonded_stake_transaction(
@@ -104,8 +104,8 @@ where
             &addr,
             utxo,
             attr,
-        );
-        Ok("Success create_withdraw_unbonded_stake_transaction".to_string())
+        ).unwrap();
+        Ok(serde_json::to_string(&result).unwrap())
     }
 }
 

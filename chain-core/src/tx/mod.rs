@@ -5,6 +5,7 @@ pub mod fee;
 /// Witness structures (e.g. signatures) for transactions
 pub mod witness;
 
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use parity_codec::{Decode, Encode};
@@ -15,6 +16,7 @@ use crate::state::account::{DepositBondTx, StakedStateOpWitness, UnbondTx, Withd
 use crate::tx::data::{txid_hash, TxId};
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 pub enum TxAux {
     /// normal value transfer Tx with the vector of witnesses
