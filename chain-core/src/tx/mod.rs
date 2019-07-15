@@ -14,14 +14,19 @@ use parity_codec::{Decode, Encode};
 use self::data::Tx;
 use self::witness::TxWitness;
 use crate::state::account::{DepositBondTx, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx};
+use crate::state::tendermint::BlockHeight;
 use crate::tx::data::{txid_hash, TxId};
 use data::input::{TxoIndex, TxoPointer};
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 /// FIXME: other TX to be moved here (when support added in enclave etc.)
 pub enum PlainTxAux {
-    /// normal value transfer Tx with the vector of witnesses
+    /// both private; normal value transfer Tx with the vector of witnesses
     TransferTx(Tx, TxWitness),
+    /// only the witness, as only "input" data are private
+    DepositStakeTx(TxWitness),
+    /// only the TX data / new outputs are private
+    WithdrawUnbondedStakeTx(WithdrawUnbondedTx),
 }
 
 impl PlainTxAux {
@@ -35,8 +40,18 @@ impl fmt::Display for PlainTxAux {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PlainTxAux::TransferTx(tx, witness) => display_tx_witness(f, tx, witness),
+            PlainTxAux::DepositStakeTx(witness) => writeln!(f, "witness: {:?}\n", witness),
+            PlainTxAux::WithdrawUnbondedStakeTx(tx) => writeln!(f, "Tx:\n{}", tx),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+// obfuscated TX payload
+pub struct TxObfuscated {
+    key_from: BlockHeight,
+    nonce: [u8; 12],
+    txpayload: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
@@ -47,15 +62,22 @@ pub enum TxAux {
         txid: TxId,
         inputs: Vec<TxoPointer>,
         no_of_outputs: TxoIndex,
-        nonce: [u8; 12],
-        txpayload: Vec<u8>,
+        payload: TxObfuscated,
     },
     /// Tx "spends" utxos to be deposited as bonded stake in an account (witnesses as in transfer)
-    DepositStakeTx(DepositBondTx, TxWitness),
+    DepositStakeTx {
+        tx: DepositBondTx,
+        payload: TxObfuscated,
+    },
     /// Tx that modifies account state -- moves some bonded stake into unbonded (witness for account)
     UnbondStakeTx(UnbondTx, StakedStateOpWitness),
     /// Tx that "creates" utxos out of account state; withdraws unbonded stake (witness for account)
-    WithdrawUnbondedStakeTx(WithdrawUnbondedTx, StakedStateOpWitness),
+    WithdrawUnbondedStakeTx {
+        txid: TxId,
+        no_of_outputs: TxoIndex,
+        witness: StakedStateOpWitness,
+        payload: TxObfuscated,
+    },
 }
 
 pub trait TransactionId: Encode {
@@ -70,9 +92,9 @@ impl TxAux {
     pub fn tx_id(&self) -> TxId {
         match self {
             TxAux::TransferTx { txid, .. } => *txid,
-            TxAux::DepositStakeTx(tx, _) => tx.id(),
+            TxAux::DepositStakeTx { tx, .. } => tx.id(),
             TxAux::UnbondStakeTx(tx, _) => tx.id(),
-            TxAux::WithdrawUnbondedStakeTx(tx, _) => tx.id(),
+            TxAux::WithdrawUnbondedStakeTx { txid, .. } => *txid,
         }
     }
 }
@@ -83,7 +105,7 @@ fn display_tx_witness<T: fmt::Display, W: fmt::Debug>(
     witness: W,
 ) -> fmt::Result {
     writeln!(f, "Tx:\n{}", tx)?;
-    writeln!(f, "witnesses: {:?}\n", witness)
+    writeln!(f, "witness: {:?}\n", witness)
 }
 
 impl fmt::Display for TxAux {
@@ -93,9 +115,16 @@ impl fmt::Display for TxAux {
                 writeln!(f, "Transfer Tx id:\n{}", hex::encode(&txid[..]))?;
                 writeln!(f, "tx inputs: {:?}\n", inputs)
             }
-            TxAux::DepositStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
+            TxAux::DepositStakeTx { tx, .. } => writeln!(f, "Tx:\n{}", tx),
             TxAux::UnbondStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
-            TxAux::WithdrawUnbondedStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
+            TxAux::WithdrawUnbondedStakeTx { txid, witness, .. } => {
+                writeln!(
+                    f,
+                    "Withdraw Unbonded Stake Tx id:\n{}",
+                    hex::encode(&txid[..])
+                )?;
+                writeln!(f, "witness: {:?}\n", witness)
+            }
         }
     }
 }
