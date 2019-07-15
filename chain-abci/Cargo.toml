@@ -9,9 +9,10 @@ edition = "2018"
 [dependencies]
 abci = "0.6"
 chain-core = { path = "../chain-core" }
+chain-tx-filter = { path = "../chain-tx-filter" }
 chain-tx-validation = { path = "../chain-tx-validation" }
 enclave-protocol = { path = "../enclave-protocol" }
-log = "0.4.0"
+log = "0.4.7"
 env_logger = "0.6.2"
 bit-vec = "0.6.1"
 kvdb = "0.1"
@@ -28,7 +29,6 @@ integer-encoding = "1.0.7"
 clap = { features = ["yaml"], version = "2.33.0" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "ab780345c85ac2c28a4e0c08e8e18c4ecdbb1fa9", features = ["recovery", "endomorphism"] }
 blake2 = "0.8"
-ethbloom = "0.6.4"
 parity-codec = { features = ["derive"], version = "4.1.2" }
 zmq = "0.9"
 

@@ -23,21 +23,22 @@ use chain_core::state::RewardsPoolState;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::EcdsaSignature;
+use chain_core::tx::PlainTxAux;
 use chain_core::tx::TransactionId;
 use chain_core::tx::{
     data::{
         access::{TxAccess, TxAccessPolicy},
         address::ExtendedAddr,
         attribute::TxAttributes,
-        input::TxoPointer,
+        input::{TxoIndex, TxoPointer},
         output::TxOut,
         txid_hash, Tx, TxId,
     },
     witness::{TxInWitness, TxWitness},
     TxAux,
 };
+use chain_tx_filter::BlockFilter;
 use chain_tx_validation::TxWithOutputs;
-use ethbloom::{Bloom, Input};
 use hex::decode;
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
@@ -45,6 +46,7 @@ use parity_codec::{Decode, Encode};
 use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::sync::Arc;
 
 fn get_enclave_bridge_mock() -> MockClient {
@@ -368,7 +370,7 @@ fn check_tx_should_reject_invalid_tx() {
             .unwrap(),
     );
     let mut creq = RequestCheckTx::default();
-    let tx = TxAux::new(Tx::new(), TxWitness::new());
+    let tx = PlainTxAux::new(Tx::new(), TxWitness::new());
     creq.set_tx(tx.encode());
     let cresp = app.check_tx(&creq);
     assert_ne!(0, cresp.code);
@@ -451,7 +453,7 @@ fn deliver_tx_should_reject_invalid_tx() {
     assert_eq!(0, app.delivered_txs.len());
     begin_block(&mut app);
     let mut creq = RequestDeliverTx::default();
-    let tx = TxAux::new(Tx::new(), TxWitness::new());
+    let tx = PlainTxAux::new(Tx::new(), TxWitness::new());
     creq.set_tx(tx.encode());
     let cresp = app.deliver_tx(&creq);
     assert_ne!(0, cresp.code);
@@ -565,13 +567,16 @@ fn valid_commit_should_persist() {
     assert_eq!(1, cresp.events.len());
     assert_eq!(1, cresp.events[0].attributes.len());
     assert_eq!(1, app.delivered_txs.len());
-    let mut bloom_array = [0u8; 256];
-    bloom_array.copy_from_slice(&cresp.events[0].attributes[0].value);
-    let bloom = Bloom::from(&bloom_array);
-    assert!(bloom.contains_input(Input::Raw(
-        &tx.attributes.allowed_view[0].view_key.serialize()
-    )));
-    assert!(!bloom.contains_input(Input::Raw(&[0u8; 33][..])));
+    let filter = BlockFilter::try_from(cresp.events[0].attributes[0].value.as_slice())
+        .expect("there should be a block filter");
+
+    assert!(filter.check_view_key(&tx.attributes.allowed_view[0].view_key));
+    let sample = PublicKey::from_slice(&[
+        3, 23, 183, 225, 206, 31, 159, 148, 195, 42, 67, 115, 146, 41, 248, 140, 11, 3, 51, 41,
+        111, 180, 110, 143, 114, 134, 88, 73, 198, 174, 52, 184, 78,
+    ])
+    .expect("sample pk");
+    assert!(!filter.check_view_key(&sample));
 
     assert!(app
         .storage
@@ -815,7 +820,14 @@ fn all_valid_tx_types_should_commit() {
             .unwrap(),
     )]
     .into();
-    let transfertx = TxAux::TransferTx(tx1, witness1);
+    let plain_txaux = PlainTxAux::TransferTx(tx1.clone(), witness1);
+    let transfertx = TxAux::TransferTx {
+        txid: tx1.id(),
+        inputs: tx1.inputs.clone(),
+        no_of_outputs: tx1.outputs.len() as TxoIndex,
+        nonce: [0; 12],
+        txpayload: plain_txaux.encode(),
+    };
     {
         let spent_utxos = get_tx_meta(&txid, &app);
         assert!(!spent_utxos.any());
