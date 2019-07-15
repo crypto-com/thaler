@@ -1,0 +1,11 @@
+[package]
+name = "chain-tx-filter"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Library that captures the fuctionality related to block-level public view key-based transaction filtering."
+readme = "../README.md"
+edition = "2018"
+
+[dependencies]
+ethbloom = "0.6.4"
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "ab780345c85ac2c28a4e0c08e8e18c4ecdbb1fa9", features = ["endomorphism"] }

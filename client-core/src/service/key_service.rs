@@ -1,9 +1,7 @@
 use secstr::SecUtf8;
 use zeroize::Zeroize;
 
-use client_common::{Result, SecureStorage, Storage};
-
-use crate::{PrivateKey, PublicKey};
+use client_common::{PrivateKey, PublicKey, Result, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_key";
 

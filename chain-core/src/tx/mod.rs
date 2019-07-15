@@ -14,13 +14,42 @@ use self::data::Tx;
 use self::witness::TxWitness;
 use crate::state::account::{DepositBondTx, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx};
 use crate::tx::data::{txid_hash, TxId};
+use data::input::{TxoIndex, TxoPointer};
+
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+/// FIXME: other TX to be moved here (when support added in enclave etc.)
+pub enum PlainTxAux {
+    /// normal value transfer Tx with the vector of witnesses
+    TransferTx(Tx, TxWitness),
+}
+
+impl PlainTxAux {
+    /// creates a new Tx with a vector of witnesses (mainly for testing/tools)
+    pub fn new(tx: Tx, witness: TxWitness) -> Self {
+        PlainTxAux::TransferTx(tx, witness)
+    }
+}
+
+impl fmt::Display for PlainTxAux {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PlainTxAux::TransferTx(tx, witness) => display_tx_witness(f, tx, witness),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 pub enum TxAux {
     /// normal value transfer Tx with the vector of witnesses
-    TransferTx(Tx, TxWitness),
+    TransferTx {
+        txid: TxId,
+        inputs: Vec<TxoPointer>,
+        no_of_outputs: TxoIndex,
+        nonce: [u8; 12],
+        txpayload: Vec<u8>,
+    },
     /// Tx "spends" utxos to be deposited as bonded stake in an account (witnesses as in transfer)
     DepositStakeTx(DepositBondTx, TxWitness),
     /// Tx that modifies account state -- moves some bonded stake into unbonded (witness for account)
@@ -37,15 +66,10 @@ pub trait TransactionId: Encode {
 }
 
 impl TxAux {
-    /// creates a new Tx with a vector of witnesses (mainly for testing/tools)
-    pub fn new(tx: Tx, witness: TxWitness) -> Self {
-        TxAux::TransferTx(tx, witness)
-    }
-
     /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
     pub fn tx_id(&self) -> TxId {
         match self {
-            TxAux::TransferTx(tx, _) => tx.id(),
+            TxAux::TransferTx { txid, .. } => *txid,
             TxAux::DepositStakeTx(tx, _) => tx.id(),
             TxAux::UnbondStakeTx(tx, _) => tx.id(),
             TxAux::WithdrawUnbondedStakeTx(tx, _) => tx.id(),
@@ -65,7 +89,10 @@ fn display_tx_witness<T: fmt::Display, W: fmt::Debug>(
 impl fmt::Display for TxAux {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TxAux::TransferTx(tx, witness) => display_tx_witness(f, tx, witness),
+            TxAux::TransferTx { txid, inputs, .. } => {
+                writeln!(f, "Transfer Tx id:\n{}", hex::encode(&txid[..]))?;
+                writeln!(f, "tx inputs: {:?}\n", inputs)
+            }
             TxAux::DepositStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
             TxAux::UnbondStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
             TxAux::WithdrawUnbondedStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
@@ -116,11 +143,10 @@ pub mod tests {
             schnorr_sign(&secp, &msg, &sk1).0,
             merkle.generate_proof(raw_public_keys[0].clone()).unwrap(),
         );
-        assert_eq!(tx.id(), tx.id());
-        let txa = TxAux::TransferTx(tx, vec![w1].into());
+        let txa = PlainTxAux::TransferTx(tx, vec![w1].into());
         let mut encoded: Vec<u8> = txa.encode();
         let mut data: &[u8] = encoded.as_mut();
-        let decoded = TxAux::decode(&mut data).expect("decode tx aux");
+        let decoded = PlainTxAux::decode(&mut data).expect("decode tx aux");
         assert_eq!(txa, decoded);
     }
 }

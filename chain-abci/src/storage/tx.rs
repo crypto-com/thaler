@@ -90,10 +90,10 @@ pub fn verify<T: EnclaveProxy>(
     accounts: &AccountStorage,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     let paid_fee = match txaux {
-        TxAux::TransferTx(maintx, _) => {
+        TxAux::TransferTx { inputs, .. } => {
             // TODO: the input lookup would probably later be done on the enclave side (as it'll store the sealed TX data)
             // so one will only check and send TX IDs
-            let input_transactions = check_spent_input_lookup(&maintx.inputs, db)?;
+            let input_transactions = check_spent_input_lookup(&inputs, db)?;
             let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
                 tx: txaux.clone(),
                 inputs: input_transactions,
@@ -156,13 +156,17 @@ pub mod tests {
         DepositBondTx, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
     };
     use chain_core::tx::data::{
-        address::ExtendedAddr, attribute::TxAttributes, input::TxoPointer, output::TxOut,
+        address::ExtendedAddr,
+        attribute::TxAttributes,
+        input::{TxoIndex, TxoPointer},
+        output::TxOut,
     };
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::FeeAlgorithm;
     use chain_core::tx::fee::{LinearFee, Milli};
     use chain_core::tx::witness::tree::RawPubkey;
     use chain_core::tx::witness::{TxInWitness, TxWitness};
+    use chain_core::tx::PlainTxAux;
     use chain_tx_validation::{verify_transfer, TxWithOutputs};
     use kvdb_memorydb::create;
     use parity_codec::Encode;
@@ -266,7 +270,8 @@ pub mod tests {
         timelocked: bool,
     ) -> (
         Arc<dyn KeyValueDB>,
-        TxAux,
+        // TxAux,
+        PlainTxAux,
         Tx,
         TxWitness,
         MerkleTree<RawPubkey>,
@@ -284,7 +289,7 @@ pub mod tests {
 
         let witness: Vec<TxInWitness> =
             vec![get_tx_witness(secp, &tx.id(), &secret_key, &merkle_tree)];
-        let txaux = TxAux::new(tx.clone(), witness.clone().into());
+        let txaux = PlainTxAux::new(tx.clone(), witness.clone().into());
         (
             db,
             txaux,
@@ -699,7 +704,14 @@ pub mod tests {
 
     #[test]
     fn existing_utxo_input_tx_should_verify() {
-        let (db, txaux, _, _, _, _, accounts) = prepare_app_valid_transfer_tx(false);
+        let (db, plain_txaux, tx, _, _, _, accounts) = prepare_app_valid_transfer_tx(false);
+        let txaux = TxAux::TransferTx {
+            txid: tx.id(),
+            inputs: tx.inputs,
+            no_of_outputs: tx.outputs.len() as TxoIndex,
+            nonce: [0; 12],
+            txpayload: plain_txaux.encode(),
+        };
         let extra_info = ChainInfo {
             min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
                 .calculate_for_txaux(&txaux)
@@ -915,10 +927,33 @@ pub mod tests {
         }
     }
 
+    fn replace_tx_payload(txaux: TxAux, plain_tx: PlainTxAux) -> TxAux {
+        if let (TxAux::TransferTx { nonce, .. }, PlainTxAux::TransferTx(tx, _)) =
+            (txaux, plain_tx.clone())
+        {
+            TxAux::TransferTx {
+                txid: tx.id(),
+                inputs: tx.inputs.clone(),
+                no_of_outputs: tx.outputs.len() as TxoIndex,
+                nonce,
+                txpayload: plain_tx.encode(),
+            }
+        } else {
+            unreachable!()
+        }
+    }
+
     #[test]
     fn test_transfer_verify_fail() {
-        let (db, txaux, tx, witness, merkle_tree, secret_key, accounts) =
+        let (db, plain_txaux, tx, witness, merkle_tree, secret_key, accounts) =
             prepare_app_valid_transfer_tx(false);
+        let txaux = TxAux::TransferTx {
+            txid: tx.id(),
+            inputs: tx.inputs.clone(),
+            no_of_outputs: tx.outputs.len() as TxoIndex,
+            nonce: [0; 12],
+            txpayload: plain_txaux.encode(),
+        };
         let extra_info = ChainInfo {
             min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
                 .calculate_for_txaux(&txaux)
@@ -949,7 +984,8 @@ pub mod tests {
         {
             let mut tx = tx.clone();
             tx.inputs.clear();
-            let txaux = TxAux::TransferTx(tx, witness.clone());
+            let txaux =
+                replace_tx_payload(txaux.clone(), PlainTxAux::TransferTx(tx, witness.clone()));
             let result = verify(
                 &mock_bridge,
                 &txaux,
@@ -966,7 +1002,8 @@ pub mod tests {
             tx.outputs.clear();
             let result = verify_transfer(&tx, &witness, extra_info, vec![]);
             expect_error(&result, Error::NoOutputs);
-            let txaux = TxAux::TransferTx(tx, witness.clone());
+            let txaux =
+                replace_tx_payload(txaux.clone(), PlainTxAux::TransferTx(tx, witness.clone()));
             let result = verify(
                 &mock_bridge,
                 &txaux,
@@ -984,7 +1021,8 @@ pub mod tests {
             tx.inputs.push(inp);
             let result = verify_transfer(&tx, &witness, extra_info, vec![]);
             expect_error(&result, Error::DuplicateInputs);
-            let txaux = TxAux::TransferTx(tx, witness.clone());
+            let txaux =
+                replace_tx_payload(txaux.clone(), PlainTxAux::TransferTx(tx, witness.clone()));
             let result = verify(
                 &mock_bridge,
                 &txaux,
@@ -1001,7 +1039,8 @@ pub mod tests {
             tx.outputs[0].value = Coin::zero();
             let result = verify_transfer(&tx, &witness, extra_info, vec![]);
             expect_error(&result, Error::ZeroCoin);
-            let txaux = TxAux::TransferTx(tx, witness.clone());
+            let txaux =
+                replace_tx_payload(txaux.clone(), PlainTxAux::TransferTx(tx, witness.clone()));
             let result = verify(
                 &mock_bridge,
                 &txaux,
@@ -1019,7 +1058,8 @@ pub mod tests {
             witness.push(wp);
             let result = verify_transfer(&tx, &witness, extra_info, vec![]);
             expect_error(&result, Error::UnexpectedWitnesses);
-            let txaux = TxAux::TransferTx(tx.clone(), witness);
+            let txaux =
+                replace_tx_payload(txaux.clone(), PlainTxAux::TransferTx(tx.clone(), witness));
             let result = verify(
                 &mock_bridge,
                 &txaux,
@@ -1032,7 +1072,10 @@ pub mod tests {
         }
         // MissingWitnesses
         {
-            let txaux = TxAux::TransferTx(tx.clone(), vec![].into());
+            let txaux = replace_tx_payload(
+                txaux.clone(),
+                PlainTxAux::TransferTx(tx.clone(), vec![].into()),
+            );
             let result = verify(
                 &mock_bridge,
                 &txaux,
@@ -1058,7 +1101,7 @@ pub mod tests {
                 &result,
                 Error::InvalidSum(CoinError::OutOfBound(Coin::max().into())),
             );
-            let txaux = TxAux::TransferTx(tx, witness);
+            let txaux = replace_tx_payload(txaux.clone(), PlainTxAux::TransferTx(tx, witness));
             let result = verify(
                 &mock_bridge,
                 &txaux,
@@ -1126,7 +1169,8 @@ pub mod tests {
                 &result,
                 Error::EcdsaCrypto(secp256k1::Error::InvalidPublicKey),
             );
-            let txaux = TxAux::TransferTx(tx.clone(), witness);
+            let txaux =
+                replace_tx_payload(txaux.clone(), PlainTxAux::TransferTx(tx.clone(), witness));
             let result = verify(
                 &mock_bridge,
                 &txaux,
@@ -1158,7 +1202,7 @@ pub mod tests {
             witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key, &merkle_tree);
             let result = verify_transfer(&tx, &witness, extra_info, vec![]);
             expect_error(&result, Error::InputOutputDoNotMatch);
-            let txaux = TxAux::TransferTx(tx, witness);
+            let txaux = replace_tx_payload(txaux.clone(), PlainTxAux::TransferTx(tx, witness));
             let result = verify(
                 &mock_bridge,
                 &txaux,
@@ -1171,7 +1215,15 @@ pub mod tests {
         }
         // OutputInTimelock
         {
-            let (db, txaux, tx, witness, _, _, accounts) = prepare_app_valid_transfer_tx(true);
+            let (db, plain_txaux, tx, witness, _, _, accounts) =
+                prepare_app_valid_transfer_tx(true);
+            let txaux = TxAux::TransferTx {
+                txid: tx.id(),
+                inputs: tx.inputs.clone(),
+                no_of_outputs: tx.outputs.len() as TxoIndex,
+                nonce: [0; 12],
+                txpayload: plain_txaux.encode(),
+            };
             let addr = get_address(&Secp256k1::new(), &secret_key).0;
             let input_tx = get_old_tx(addr, true);
             let result = verify_transfer(
