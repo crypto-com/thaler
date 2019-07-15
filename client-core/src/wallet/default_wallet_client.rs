@@ -15,14 +15,14 @@ use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
 use client_common::storage::UnauthorizedStorage;
-use client_common::{Error, ErrorKind, Result, Storage};
+use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Result, Storage};
 use client_index::index::{Index, UnauthorizedIndex};
 
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedTransactionBuilder;
 use crate::{
-    InputSelectionStrategy, MultiSigWalletClient, PrivateKey, PublicKey, TransactionBuilder,
-    UnspentTransactions, WalletClient,
+    InputSelectionStrategy, MultiSigWalletClient, TransactionBuilder, UnspentTransactions,
+    WalletClient,
 };
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
