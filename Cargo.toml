@@ -3,6 +3,7 @@
 members = [
     "chain-abci",
     "chain-core",
+    "chain-tx-filter",
     "chain-tx-validation",
     "client-cli",
     "client-common",

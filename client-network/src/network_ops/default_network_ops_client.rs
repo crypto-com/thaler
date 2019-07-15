@@ -242,9 +242,9 @@ mod tests {
     use chain_tx_validation::witness::verify_tx_recover_address;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
+    use client_common::{PrivateKey, PublicKey};
     use client_core::signer::DefaultSigner;
     use client_core::wallet::DefaultWalletClient;
-    use client_core::{PrivateKey, PublicKey};
 
     #[derive(Debug, Default)]
     struct UnitFeeAlgorithm;

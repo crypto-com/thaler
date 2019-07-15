@@ -175,7 +175,10 @@ impl FeeAlgorithm for LinearFee {
     }
 
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError> {
-        self.estimate(txaux.encode().len())
+        match txaux {
+            TxAux::TransferTx { txpayload, .. } => self.estimate(txpayload.len()),
+            _ => self.estimate(txaux.encode().len()),
+        }
     }
 }
 
