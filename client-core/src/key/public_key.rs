@@ -148,7 +148,6 @@ mod tests {
         let address = RedeemAddress::from(&public_key);
 
         let address = address.to_string();
-        println!("{}", address);
 
         assert_eq!(
             "0x0bed7abd61247635c1973eb38474a2516ed1d884", address,
