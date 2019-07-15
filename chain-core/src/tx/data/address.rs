@@ -26,14 +26,10 @@ impl ExtendedAddr {
         let checked_data: Vec<u5> = hash.to_vec().to_base32();
         match crate::init::CURRENT_NETWORK {
             crate::init::network::Network::Testnet => {
-                let encoded =
-                    Bech32::new("crtt".into(), checked_data).expect("bech32 crmt encoding");
-                encoded
+                Bech32::new("crtt".into(), checked_data).expect("bech32 crmt encoding")
             }
             crate::init::network::Network::Mainnet => {
-                let encoded =
-                    Bech32::new("crmt".into(), checked_data).expect("bech32 crmt encoding");
-                encoded
+                Bech32::new("crmt".into(), checked_data).expect("bech32 crmt encoding")
             }
         }
     }
