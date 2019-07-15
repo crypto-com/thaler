@@ -8,9 +8,8 @@ use secp256k1::PublicKey as SecpPublicKey;
 use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::tx::witness::tree::RawPubkey;
-use client_common::{ErrorKind, Result};
 
-use crate::SECP;
+use crate::{ErrorKind, Result, SECP};
 
 /// Public key used in Crypto.com Chain
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]

@@ -6,9 +6,7 @@ use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
-use client_common::{Error, ErrorKind, Result, SecureStorage, Storage};
-
-use crate::PublicKey;
+use client_common::{Error, ErrorKind, PublicKey, Result, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_wallet";
 
@@ -193,8 +191,7 @@ mod tests {
     use super::*;
 
     use client_common::storage::MemoryStorage;
-
-    use crate::PrivateKey;
+    use client_common::PrivateKey;
 
     #[test]
     fn check_flow() {
