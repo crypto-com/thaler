@@ -305,22 +305,24 @@ mod tests {
         let fee_algorithm = UnitFeeAlgorithm::default();
 
         let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage)
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+        let wallet_client2 = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
             .build()
             .unwrap();
 
         wallet_client.new_wallet(name, passphrase).unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client = DefaultNetworkOpsClient::new(
-            &wallet_client,
-            &signer,
-            &tendermint_client,
-            &fee_algorithm,
-        );
+        let network_ops_client =
+            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
 
         let inputs: Vec<TxoPointer> = vec![];
-        let to_staked_account = wallet_client.new_staking_address(name, passphrase).unwrap();;
+        let to_staked_account = wallet_client2
+            .new_staking_address(name, passphrase)
+            .unwrap();;
 
         let attributes = StakedStateOpAttributes::new(0);
         assert!(network_ops_client
@@ -345,22 +347,24 @@ mod tests {
         let fee_algorithm = UnitFeeAlgorithm::default();
 
         let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage)
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+        let wallet_client2 = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
             .build()
             .unwrap();
 
         wallet_client.new_wallet(name, passphrase).unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client = DefaultNetworkOpsClient::new(
-            &wallet_client,
-            &signer,
-            &tendermint_client,
-            &fee_algorithm,
-        );
+        let network_ops_client =
+            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
 
         let value = Coin::new(0).unwrap();
-        let address = wallet_client.new_staking_address(name, passphrase).unwrap();
+        let address = wallet_client2
+            .new_staking_address(name, passphrase)
+            .unwrap();
         let attributes = StakedStateOpAttributes::new(0);
 
         assert!(network_ops_client
@@ -379,21 +383,23 @@ mod tests {
         let fee_algorithm = UnitFeeAlgorithm::default();
 
         let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage)
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+        let wallet_client2 = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
             .build()
             .unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client = DefaultNetworkOpsClient::new(
-            &wallet_client,
-            &signer,
-            &tendermint_client,
-            &fee_algorithm,
-        );
+        let network_ops_client =
+            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
 
-        wallet_client.new_wallet(name, passphrase).unwrap();
+        wallet_client2.new_wallet(name, passphrase).unwrap();
 
-        let from_address = wallet_client.new_staking_address(name, passphrase).unwrap();
+        let from_address = wallet_client2
+            .new_staking_address(name, passphrase)
+            .unwrap();
 
         let transaction = network_ops_client
             .create_withdraw_unbonded_stake_transaction(
@@ -430,21 +436,23 @@ mod tests {
         let fee_algorithm = UnitFeeAlgorithm::default();
 
         let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage)
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+        let wallet_client2 = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
             .build()
             .unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client = DefaultNetworkOpsClient::new(
-            &wallet_client,
-            &signer,
-            &tendermint_client,
-            &fee_algorithm,
-        );
+        let network_ops_client =
+            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
 
-        wallet_client.new_wallet(name, passphrase).unwrap();
+        wallet_client2.new_wallet(name, passphrase).unwrap();
 
-        let from_address = wallet_client.new_staking_address(name, passphrase).unwrap();
+        let from_address = wallet_client2
+            .new_staking_address(name, passphrase)
+            .unwrap();
         let to_address = ExtendedAddr::OrTree([0; 32]);
 
         let transaction = network_ops_client
@@ -485,19 +493,19 @@ mod tests {
         let fee_algorithm = UnitFeeAlgorithm::default();
 
         let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage)
+            .with_wallet(storage.clone())
+            .build()
+            .unwrap();
+        let wallet_client2 = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
             .build()
             .unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client = DefaultNetworkOpsClient::new(
-            &wallet_client,
-            &signer,
-            &tendermint_client,
-            &fee_algorithm,
-        );
+        let network_ops_client =
+            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
 
-        wallet_client.new_wallet(name, passphrase).unwrap();
+        wallet_client2.new_wallet(name, passphrase).unwrap();
 
         assert_eq!(
             ErrorKind::AddressNotFound,
@@ -532,12 +540,8 @@ mod tests {
             .unwrap();
         let tendermint_client = MockClient::default();
 
-        let network_ops_client = DefaultNetworkOpsClient::new(
-            &wallet_client,
-            &signer,
-            &tendermint_client,
-            &fee_algorithm,
-        );
+        let network_ops_client =
+            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
 
         assert_eq!(
             ErrorKind::WalletNotFound,
