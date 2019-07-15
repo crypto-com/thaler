@@ -1,3 +1,5 @@
+use std::prelude::v1::Vec;
+
 /// Transaction internal structure
 pub mod data;
 /// Transaction fee calculation
