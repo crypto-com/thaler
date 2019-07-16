@@ -8,8 +8,7 @@ edition = "2018"
 
 [features]
 default = ["serde"]
-mainnet = []
-testnet= []
+
 
 [dependencies]
 digest = "0.8"

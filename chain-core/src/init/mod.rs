@@ -19,8 +19,4 @@ pub const MAX_COIN_DECIMALS: u64 = 1_0000_0000;
 /// 100 billion
 pub const MAX_COIN_UNITS: i64 = 100_000_000_000;
 
-#[cfg(feature = "testnet")]
-pub const CURRENT_NETWORK: network::Network = network::Network::Testnet;
-
-#[cfg(not(feature = "testnet"))]
 pub const CURRENT_NETWORK: network::Network = network::Network::Mainnet;
