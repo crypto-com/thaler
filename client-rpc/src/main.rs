@@ -1,3 +1,4 @@
+mod client_rpc;
 mod server;
 mod wallet_rpc;
 
