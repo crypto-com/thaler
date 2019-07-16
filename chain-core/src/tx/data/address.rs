@@ -90,11 +90,7 @@ impl FromStr for ExtendedAddr {
     type Err = CroAddressError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("0x") {
-            ExtendedAddr::from_hex(s).map_err(|_e| CroAddressError::ConvertError)
-        } else {
-            ExtendedAddr::from_cro(s).map_err(|_e| CroAddressError::ConvertError)
-        }
+        ExtendedAddr::from_cro(s).map_err(|_e| CroAddressError::ConvertError)
     }
 }
 

@@ -246,11 +246,7 @@ impl FromStr for RedeemAddress {
     type Err = ErrorAddress;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("0x") {
-            RedeemAddress::from_hex(s).map_err(|_e| ErrorAddress::InvalidCroAddress)
-        } else {
-            RedeemAddress::from_cro(s).map_err(|_e| ErrorAddress::InvalidCroAddress)
-        }
+        RedeemAddress::from_hex(s).map_err(|_e| ErrorAddress::InvalidCroAddress)
     }
 }
 
