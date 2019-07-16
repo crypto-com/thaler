@@ -34,6 +34,7 @@ pub enum CroAddressError {
     ConvertError,
 }
 
+#[cfg(not(any(feature = "mesalock_sgx", target_env = "sgx")))]
 impl ::std::error::Error for CroAddressError {}
 
 // CRMS: mainnet staked-state
