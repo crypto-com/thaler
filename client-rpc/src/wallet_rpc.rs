@@ -11,8 +11,8 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use client_common::balance::TransactionChange;
-use client_common::{Error, ErrorKind, Result as CommonResult};
-use client_core::{MultiSigWalletClient, PublicKey, WalletClient};
+use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
+use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error};
 

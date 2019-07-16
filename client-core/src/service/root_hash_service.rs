@@ -4,9 +4,7 @@ use secstr::SecUtf8;
 
 use chain_core::common::{MerkleTree, Proof, H256};
 use chain_core::tx::witness::tree::RawPubkey;
-use client_common::{Error, ErrorKind, Result, SecureStorage, Storage};
-
-use crate::PublicKey;
+use client_common::{Error, ErrorKind, PublicKey, Result, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_root_hash";
 
@@ -165,8 +163,7 @@ mod tests {
     use secp256k1::PublicKey as SecpPublicKey;
 
     use client_common::storage::MemoryStorage;
-
-    use crate::PrivateKey;
+    use client_common::PrivateKey;
 
     #[test]
     fn check_root_hash_flow() {

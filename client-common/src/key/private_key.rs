@@ -5,9 +5,7 @@ use secp256k1::schnorrsig::{schnorr_sign, SchnorrSignature};
 use secp256k1::{recovery::RecoverableSignature, Message, PublicKey as SecpPublicKey, SecretKey};
 use zeroize::Zeroize;
 
-use client_common::{ErrorKind, Result};
-
-use crate::{PublicKey, SECP};
+use crate::{ErrorKind, PublicKey, Result, SECP};
 
 /// Private key used in Crypto.com Chain
 #[derive(Debug, PartialEq, Clone)]

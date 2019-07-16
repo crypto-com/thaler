@@ -17,9 +17,9 @@ use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
-use client_common::Result;
+use client_common::{PrivateKey, PublicKey, Result};
 
-use crate::{InputSelectionStrategy, PrivateKey, PublicKey, UnspentTransactions};
+use crate::{InputSelectionStrategy, UnspentTransactions};
 
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {
