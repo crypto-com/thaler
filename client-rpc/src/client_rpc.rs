@@ -1,10 +1,10 @@
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
-use chain_core::tx::data::address::ExtendedAddr;
+
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use client_common::{Error, ErrorKind, PublicKey};
+
 use client_network::network_ops::NetworkOpsClient;
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
@@ -164,6 +164,8 @@ mod tests {
     use client_index::index::DefaultIndex;
     use client_network::network_ops::DefaultNetworkOpsClient;
     use serde_json::Value;
+    use chain_core::tx::data::address::ExtendedAddr;
+    use client_common::{Error, ErrorKind, PublicKey};
 
     type TestRpcClient =
         DefaultNetworkOpsClient<TestWalletClient, TestSigner, MockRpcClient, ZeroFeeAlgorithm>;
