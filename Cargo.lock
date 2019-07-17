@@ -11,8 +11,8 @@ dependencies = [
  "futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "integer-encoding 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "protobuf 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "protobuf-codegen-pure 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protobuf 2.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protobuf-codegen-pure 2.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -271,7 +271,7 @@ dependencies = [
  "kvdb-rocksdb 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-codec 4.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "protobuf 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protobuf 2.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=ab780345c85ac2c28a4e0c08e8e18c4ecdbb1fa9)",
  "serde 1.0.95 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1614,24 +1614,24 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.6.2"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "protobuf-codegen"
-version = "2.6.2"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "protobuf 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protobuf 2.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "protobuf-codegen-pure"
-version = "2.6.2"
+version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "protobuf 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "protobuf-codegen 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protobuf 2.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "protobuf-codegen 2.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2978,9 +2978,9 @@ dependencies = [
 "checksum prettytable-rs 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0fd04b170004fa2daccf418a7f8253aaf033c27760b5f225889024cf66d7ac2e"
 "checksum proc-macro-crate 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "e10d4b51f154c8a7fb96fd6dad097cb74b863943ec010ac94b9fd1be8861fe1e"
 "checksum proc-macro2 0.4.30 (registry+https://github.com/rust-lang/crates.io-index)" = "cf3d2011ab5c909338f7887f4fc896d35932e29146c12c8d01da6b22a80ba759"
-"checksum protobuf 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7e9076cae823584ab4d8fab3a111658d1232faf106611dc8378161b7d062b628"
-"checksum protobuf-codegen 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "1f96ce6931cb5fd16eb33cc2a29444831a85409c66dc82ee60ac6a660fa9fa6b"
-"checksum protobuf-codegen-pure 2.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a791d1259097fc0025f268583c1d5ea0e1b378b962084f191c2d9dc026f248cb"
+"checksum protobuf 2.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5f00e4a3cb64ecfeac2c0a73c74c68ae3439d7a6bead3870be56ad5dd2620a6f"
+"checksum protobuf-codegen 2.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d2c6e555166cdb646306f599da020e01548e9f4d6ec2fd39802c6db2347cbd3e"
+"checksum protobuf-codegen-pure 2.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "13a7c75610cc3f41f4d2c1e048d6e4f857361cf26e63b3faf0b3ba1331c94b21"
 "checksum pulldown-cmark 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "8361e81576d2e02643b04950e487ec172b687180da65c731c03cf336784e6c07"
 "checksum quest 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "556af5f5c953a2ee13f45753e581a38f9778e6551bc3ccc56d90b14628fe59d8"
 "checksum quick-error 1.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9274b940887ce9addde99c4eee6b5c44cc494b182b97e73dc8ffdcb3397fd3f0"
