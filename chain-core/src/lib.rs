@@ -20,8 +20,11 @@ pub mod state;
 pub mod tx;
 
 use blake2::Blake2s;
-use common::{hash256, MerkleTree, H256};
+use common::{hash256, MerkleTree, Timespec, H256};
+use init::coin::Coin;
+use parity_codec::{Decode, Encode, Input, Output};
 use state::RewardsPoolState;
+use tx::fee::Fee;
 
 /// computes the "global" application hash (used by Tendermint to check consistency + block replaying)
 /// currently: app_hash = blake2s(root of valid TX merkle tree || blake2s(scale bytes(rewards pool state)))
@@ -39,4 +42,41 @@ pub fn compute_app_hash(
     bs.extend(&account_state_root[..]);
     bs.extend(&rewards_pool_part);
     hash256::<Blake2s>(&bs)
+}
+
+/// External information needed for TX validation
+#[derive(Clone, Copy)]
+pub struct ChainInfo {
+    /// minimal fee computed for the transaction
+    pub min_fee_computed: Fee,
+    /// network hexamedical ID
+    pub chain_hex_id: u8,
+    /// time in the previous committed block
+    pub previous_block_time: Timespec,
+    /// how much time is required to wait until stake state's unbonded amount can be withdrawn
+    pub unbonding_period: u32,
+}
+
+impl Encode for ChainInfo {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        self.min_fee_computed.to_coin().encode_to(dest);
+        dest.push_byte(self.chain_hex_id);
+        self.previous_block_time.encode_to(dest);
+        self.unbonding_period.encode_to(dest);
+    }
+}
+
+impl Decode for ChainInfo {
+    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+        let fee = Coin::decode(input)?;
+        let chain_hex_id: u8 = input.read_byte()?;
+        let previous_block_time = Timespec::decode(input)?;
+        let unbonding_period = u32::decode(input)?;
+        Some(ChainInfo {
+            min_fee_computed: Fee::new(fee),
+            chain_hex_id,
+            previous_block_time,
+            unbonding_period,
+        })
+    }
 }

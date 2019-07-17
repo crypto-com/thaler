@@ -2,7 +2,7 @@ use chrono::offset::Utc;
 use chrono::DateTime;
 
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{DepositBondTx, WithdrawUnbondedTx};
+use chain_core::state::account::DepositBondTx;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
@@ -72,27 +72,19 @@ where
             TxAux::TransferTx {..} => {
                 unimplemented!("FIXME: indexing should be rethought, as it'll first check the filter and query (block data would be obfuscated)")
             }
-            TxAux::DepositStakeTx(deposit_bond_transaction, _) => {
-                self.handle_deposit_stake_transaction(&deposit_bond_transaction, height, time)?;
+            TxAux::DepositStakeTx{ tx, .. } => {
+                self.handle_deposit_stake_transaction(&tx, height, time)?;
                 self.transaction_service.set(
-                    &deposit_bond_transaction.id(),
-                    &Transaction::DepositStakeTransaction(deposit_bond_transaction),
+                    &tx.id(),
+                    &Transaction::DepositStakeTransaction(tx),
                 )
             }
             TxAux::UnbondStakeTx(unbond_transaction, _) => self.transaction_service.set(
                 &unbond_transaction.id(),
                 &Transaction::UnbondStakeTransaction(unbond_transaction),
             ),
-            TxAux::WithdrawUnbondedStakeTx(withdraw_unbonded_transaction, _) => {
-                self.handle_withdraw_unbonded_stake_transaction(
-                    &withdraw_unbonded_transaction,
-                    height,
-                    time,
-                )?;
-                self.transaction_service.set(
-                    &withdraw_unbonded_transaction.id(),
-                    &Transaction::WithdrawUnbondedStakeTransaction(withdraw_unbonded_transaction),
-                )
+            TxAux::WithdrawUnbondedStakeTx{ .. } => {
+                unimplemented!("FIXME: indexing should be rethought, as it'll first check the filter and query (block data would be obfuscated)")
             }
         }
     }
@@ -107,21 +99,6 @@ where
 
         for input in transaction.inputs.iter() {
             self.handle_transaction_input(transaction_id, input, height, time)?;
-        }
-
-        Ok(())
-    }
-
-    fn handle_withdraw_unbonded_stake_transaction(
-        &self,
-        transaction: &WithdrawUnbondedTx,
-        height: u64,
-        time: DateTime<Utc>,
-    ) -> Result<()> {
-        let transaction_id = transaction.id();
-
-        for (i, output) in transaction.outputs.iter().enumerate() {
-            self.handle_transaction_output(transaction_id, output, i, height, time)?;
         }
 
         Ok(())
@@ -156,6 +133,8 @@ where
         self.transaction_change_service.add(&change)
     }
 
+    /// this will still be probably used even in redesigned client indexing
+    #[allow(dead_code)]
     fn handle_transaction_output(
         &self,
         transaction_id: TxId,

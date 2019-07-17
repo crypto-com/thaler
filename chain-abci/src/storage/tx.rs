@@ -9,8 +9,7 @@ use chain_core::tx::fee::Fee;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use chain_tx_validation::{
-    verify_bonded_deposit, verify_unbonded_withdraw, verify_unbonding,
-    witness::verify_tx_recover_address, ChainInfo, Error, TxWithOutputs,
+    verify_unbonding, witness::verify_tx_recover_address, ChainInfo, Error, TxWithOutputs,
 };
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::KeyValueDB;
@@ -96,21 +95,19 @@ pub fn verify<T: EnclaveProxy>(
             let input_transactions = check_spent_input_lookup(&inputs, db)?;
             let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
                 tx: txaux.clone(),
+                account: None,
                 inputs: input_transactions,
-                min_fee_computed: extra_info.min_fee_computed,
-                previous_block_time: extra_info.previous_block_time,
-                unbonding_period: extra_info.unbonding_period,
+                info: extra_info,
             });
             match response {
-                EnclaveResponse::VerifyTx(Ok(fee)) => (fee, None),
+                EnclaveResponse::VerifyTx(Ok(r)) => r,
                 _ => {
                     return Err(Error::EnclaveRejected);
                 }
             }
         }
-        TxAux::DepositStakeTx(maintx, witness) => {
-            // FIXME: move to the enclave side
-            let maccount = get_account(&maintx.to_staked_account, last_account_root_hash, accounts);
+        TxAux::DepositStakeTx { tx, .. } => {
+            let maccount = get_account(&tx.to_staked_account, last_account_root_hash, accounts);
             let account = match maccount {
                 Ok(a) => Some(a),
                 Err(Error::AccountNotFound) => None,
@@ -118,9 +115,21 @@ pub fn verify<T: EnclaveProxy>(
                     return Err(e);
                 }
             };
-            let input_transactions = check_spent_input_lookup(&maintx.inputs, db)?;
-
-            verify_bonded_deposit(maintx, witness, extra_info, input_transactions, account)?
+            // TODO: the input lookup would probably later be done on the enclave side (as it'll store the sealed TX data)
+            // so one will only check and send TX IDs
+            let input_transactions = check_spent_input_lookup(&tx.inputs, db)?;
+            let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
+                tx: txaux.clone(),
+                account,
+                inputs: input_transactions,
+                info: extra_info,
+            });
+            match response {
+                EnclaveResponse::VerifyTx(Ok(r)) => r,
+                _ => {
+                    return Err(Error::EnclaveRejected);
+                }
+            }
         }
         TxAux::UnbondStakeTx(maintx, witness) => {
             let account_address = verify_tx_recover_address(&witness, &maintx.id());
@@ -130,14 +139,24 @@ pub fn verify<T: EnclaveProxy>(
             let account = get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
             verify_unbonding(maintx, extra_info, account)?
         }
-        TxAux::WithdrawUnbondedStakeTx(maintx, witness) => {
-            // FIXME: move to the enclave side
-            let account_address = verify_tx_recover_address(&witness, &maintx.id());
+        TxAux::WithdrawUnbondedStakeTx { txid, witness, .. } => {
+            let account_address = verify_tx_recover_address(&witness, &txid);
             if let Err(e) = account_address {
                 return Err(Error::EcdsaCrypto(e));
             }
             let account = get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
-            verify_unbonded_withdraw(maintx, extra_info, account)?
+            let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
+                tx: txaux.clone(),
+                account: Some(account),
+                inputs: vec![],
+                info: extra_info,
+            });
+            match response {
+                EnclaveResponse::VerifyTx(Ok(r)) => r,
+                _ => {
+                    return Err(Error::EnclaveRejected);
+                }
+            }
         }
     };
     Ok(paid_fee)

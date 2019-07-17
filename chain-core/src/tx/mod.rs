@@ -19,7 +19,7 @@ use crate::tx::data::{txid_hash, TxId};
 use data::input::{TxoIndex, TxoPointer};
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-/// FIXME: other TX to be moved here (when support added in enclave etc.)
+/// Plain transaction parts "visible" inside enclaves
 pub enum PlainTxAux {
     /// both private; normal value transfer Tx with the vector of witnesses
     TransferTx(Tx, TxWitness),
@@ -49,9 +49,9 @@ impl fmt::Display for PlainTxAux {
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 // obfuscated TX payload
 pub struct TxObfuscated {
-    key_from: BlockHeight,
-    nonce: [u8; 12],
-    txpayload: Vec<u8>,
+    pub key_from: BlockHeight,
+    pub nonce: [u8; 12],
+    pub txpayload: Vec<u8>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
