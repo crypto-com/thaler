@@ -1,5 +1,6 @@
 use std::sync::Once;
 static INIT_NETWORK: Once = Once::new();
+static INIT_NETWORK_ID: Once = Once::new();
 
 #[derive(Debug, Copy, Clone)]
 pub enum Network {
@@ -11,6 +12,14 @@ pub fn init_network(network: Network) {
     unsafe {
         INIT_NETWORK.call_once(|| {
             NETWORK = network;
+        });
+    }
+}
+
+pub fn init_network_id(id: u8) {
+    unsafe {
+        INIT_NETWORK_ID.call_once(|| {
+            NETWORK_ID = id;
         });
     }
 }
