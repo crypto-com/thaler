@@ -18,18 +18,19 @@ use crate::Options;
 pub(crate) struct Server {
     host: String,
     port: u16,
-    chain_id: u8,
+    network_id: u8,
     storage_dir: String,
     tendermint_url: String,
 }
 
 impl Server {
     pub(crate) fn new(options: Options) -> Result<Server> {
-        let chain_id = hex::decode(&options.chain_id).context(ErrorKind::SerializationError)?[0];
+        let network_id =
+            hex::decode(&options.network_id).context(ErrorKind::SerializationError)?[0];
         Ok(Server {
             host: options.host,
             port: options.port,
-            chain_id,
+            network_id,
             storage_dir: options.storage_dir,
             tendermint_url: options.tendermint_url,
         })
@@ -47,7 +48,7 @@ impl Server {
             .with_transaction_read(index)
             .with_transaction_write(transaction_builder)
             .build()?;
-        let wallet_rpc = WalletRpcImpl::new(wallet_client, self.chain_id);
+        let wallet_rpc = WalletRpcImpl::new(wallet_client, self.network_id);
 
         let mut io = IoHandler::new();
 

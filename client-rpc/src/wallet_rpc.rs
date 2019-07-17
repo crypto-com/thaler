@@ -93,15 +93,15 @@ pub trait WalletRpc {
 
 pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
     client: T,
-    chain_id: u8,
+    network_id: u8,
 }
 
 impl<T> WalletRpcImpl<T>
 where
     T: WalletClient + Send + Sync,
 {
-    pub fn new(client: T, chain_id: u8) -> Self {
-        WalletRpcImpl { client, chain_id }
+    pub fn new(client: T, network_id: u8) -> Self {
+        WalletRpcImpl { client, network_id }
     }
 }
 
@@ -162,7 +162,7 @@ where
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let coin = Coin::new(amount).map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let tx_out = TxOut::new(address, coin);
-        let tx_attributes = TxAttributes::new(self.chain_id);
+        let tx_attributes = TxAttributes::new(self.network_id);
 
         let return_address = self
             .client
@@ -571,9 +571,9 @@ mod tests {
             ))
             .build()
             .unwrap();
-        let chain_id = 171u8;
+        let network_id = 171u8;
 
-        WalletRpcImpl::new(wallet_client, chain_id)
+        WalletRpcImpl::new(wallet_client, network_id)
     }
 
     fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {

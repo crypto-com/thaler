@@ -30,12 +30,12 @@ pub(crate) struct Options {
     port: u16,
 
     #[structopt(
-        name = "chain-id",
+        name = "network-id",
         short,
         long,
-        help = "Chain ID (Last two hex digits of chain-id)"
+        help = "Network ID (Last two hex digits of network-id)"
     )]
-    chain_id: String,
+    network_id: String,
 
     #[structopt(
         name = "storage-dir",
