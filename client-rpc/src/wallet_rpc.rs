@@ -356,7 +356,7 @@ pub struct WalletRequest {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
     use chrono::DateTime;
@@ -436,7 +436,7 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct ZeroFeeAlgorithm;
+    pub struct ZeroFeeAlgorithm;
 
     impl FeeAlgorithm for ZeroFeeAlgorithm {
         fn calculate_fee(&self, _num_bytes: usize) -> std::result::Result<Fee, CoinError> {
