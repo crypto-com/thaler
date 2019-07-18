@@ -7,7 +7,7 @@ use std::str::FromStr;
 use crate::common::H256;
 use crate::init::address::{CroAddress, CroAddressError};
 
-use bech32::{u5, Bech32, FromBase32, ToBase32};
+use bech32::{self, u5, FromBase32, ToBase32};
 
 /// TODO: opaque types?
 type TreeRoot = H256;
@@ -22,14 +22,14 @@ pub enum ExtendedAddr {
 }
 
 impl ExtendedAddr {
-    fn get_string(&self, hash: TreeRoot) -> Bech32 {
+    fn get_string(&self, hash: TreeRoot) -> String {
         let checked_data: Vec<u5> = hash.to_vec().to_base32();
         match crate::init::CURRENT_NETWORK {
             crate::init::network::Network::Testnet => {
-                Bech32::new("crtt".into(), checked_data).expect("bech32 crmt encoding")
+                bech32::encode("crtt", checked_data).expect("bech32 crmt encoding")
             }
             crate::init::network::Network::Mainnet => {
-                Bech32::new("crmt".into(), checked_data).expect("bech32 crmt encoding")
+                bech32::encode("crmt", checked_data).expect("bech32 crmt encoding")
             }
         }
     }
@@ -46,10 +46,9 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
     }
 
     fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
-        encoded
-            .parse::<Bech32>()
+        bech32::decode(encoded)
             .map_err(|e| CroAddressError::Bech32Error(e.to_string()))
-            .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| CroAddressError::ConvertError))
+            .and_then(|a| Vec::from_base32(&a.1).map_err(|_e| CroAddressError::ConvertError))
             .and_then(|src| {
                 let mut a: TreeRoot = [0 as u8; 32];
                 a.copy_from_slice(&src.as_slice());

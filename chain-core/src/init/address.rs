@@ -11,7 +11,7 @@
 //!   These 20 bytes are the address.
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
-use bech32::{u5, Bech32, FromBase32, ToBase32};
+use bech32::{self, u5, FromBase32, ToBase32};
 use parity_codec::{Decode, Encode};
 use std::prelude::v1::{String, ToString};
 use std::str::FromStr;
@@ -175,23 +175,20 @@ impl CroAddress<RedeemAddress> for RedeemAddress {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
         match super::CURRENT_NETWORK {
             super::network::Network::Testnet => {
-                let encoded =
-                    Bech32::new("crts".into(), checked_data).expect("bech32 crms encoding");
+                let encoded = bech32::encode("crts", checked_data).expect("bech32 crms encoding");
                 Ok(encoded.to_string())
             }
             super::network::Network::Mainnet => {
-                let encoded =
-                    Bech32::new("crms".into(), checked_data).expect("bech32 crms encoding");
+                let encoded = bech32::encode("crms", checked_data).expect("bech32 crms encoding");
                 Ok(encoded.to_string())
             }
         }
     }
 
     fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
-        encoded
-            .parse::<Bech32>()
+        bech32::decode(encoded)
             .map_err(|e| CroAddressError::Bech32Error(e.to_string()))
-            .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| CroAddressError::ConvertError))
+            .and_then(|a| Vec::from_base32(&a.1).map_err(|_e| CroAddressError::ConvertError))
             .and_then(|a| {
                 RedeemAddress::try_from(&a.as_slice()).map_err(|_e| CroAddressError::ConvertError)
             })
