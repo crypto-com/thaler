@@ -2,7 +2,6 @@
 pub mod tree;
 
 use parity_codec::{Decode, Encode, Input, Output};
-use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::prelude::v1::Vec;
 // TODO: switch to normal signatures + explicit public key
@@ -15,7 +14,6 @@ pub type EcdsaSignature = RecoverableSignature;
 
 /// A transaction witness is a vector of input witnesses
 #[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxWitness(Vec<TxInWitness>);
 
 impl TxWitness {
@@ -52,7 +50,6 @@ impl ::std::ops::DerefMut for TxWitness {
 
 // normally should be some structure: e.g. indicate a type of signature
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TxInWitness {
     TreeSig(SchnorrSignature, Proof<RawPubkey>),
 }

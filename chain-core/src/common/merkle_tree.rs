@@ -5,7 +5,6 @@ use blake2::Blake2s;
 use parity_codec::{Decode, Encode};
 
 use super::{hash256, H256, H512, HASH_SIZE_256};
-use serde::{Deserialize, Serialize};
 
 /// Hash of leaf node with empty slice `hash(&[], NodeType::Leaf)`
 const EMPTY_HASH: H256 = [
@@ -114,7 +113,6 @@ impl<T> Tree<T> {
 
 /// Sibling's hash
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Sibling {
     Left(H256),
     Right(H256),
@@ -122,7 +120,6 @@ pub enum Sibling {
 
 /// Merkle path for inclusion proof
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Path {
     node_hash: H256,
     sibling: Option<Sibling>,
@@ -166,7 +163,6 @@ impl Path {
 // TODO: Consider implementing `Encode`/`Decode` traits using BitVec + Vec of hashes for efficiency
 /// Inclusion proof of a value
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof<T> {
     root_hash: H256,
     path: Path,

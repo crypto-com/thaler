@@ -62,17 +62,18 @@ where
             StakedStateAddress::from_str(request.address.as_str()).unwrap();
 
         let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
-        let result = self
-            .client
-            .create_deposit_bonded_stake_transaction(
-                request.name.as_str(),
-                &SecUtf8::from(request.passphrase),
-                utxo,
-                addr,
-                attr,
-            )
-            .unwrap();
-        Ok(serde_json::to_string(&result).unwrap())
+        let result = self.client.create_deposit_bonded_stake_transaction(
+            request.name.as_str(),
+            &SecUtf8::from(request.passphrase),
+            utxo,
+            addr,
+            attr,
+        );
+
+        match result {
+            Ok(_a) => Ok("success".to_string()),
+            Err(_b) => Ok("fail".to_string()),
+        }
     }
 
     fn create_unbond_stake_transaction(
@@ -92,8 +93,8 @@ where
             attr,
         );
         match result {
-            Ok(a) => Ok(serde_json::to_string(&a).unwrap()),
-            Err(b) => Ok("fail".to_string()),
+            Ok(_a) => Ok("success".to_string()),
+            Err(_b) => Ok("fail".to_string()),
         }
     }
 
@@ -115,7 +116,7 @@ where
         );
 
         match result {
-            Ok(a) => Ok(serde_json::to_string(&a).unwrap()),
+            Ok(_a) => Ok("success".to_string()),
             Err(_b) => Ok("fail".to_string()),
         }
     }
@@ -157,15 +158,15 @@ mod tests {
     use client_index::Index;
 
     use crate::wallet_rpc::{WalletRequest, WalletRpcImpl};
+    use chain_core::tx::data::address::ExtendedAddr;
     use client_common::balance::TransactionChange;
     use client_common::tendermint::types::*;
     use client_common::tendermint::{Client, RpcClient};
+    use client_common::{Error, ErrorKind, PublicKey};
     use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
     use client_index::index::DefaultIndex;
     use client_network::network_ops::DefaultNetworkOpsClient;
     use serde_json::Value;
-    use chain_core::tx::data::address::ExtendedAddr;
-    use client_common::{Error, ErrorKind, PublicKey};
 
     type TestRpcClient =
         DefaultNetworkOpsClient<TestWalletClient, TestSigner, MockRpcClient, ZeroFeeAlgorithm>;
