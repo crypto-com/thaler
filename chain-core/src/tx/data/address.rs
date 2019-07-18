@@ -2,12 +2,14 @@ use parity_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt;
+#[cfg(feature = "bech32")]
 use std::str::FromStr;
 
 use crate::common::H256;
+#[cfg(feature = "bech32")]
 use crate::init::address::{CroAddress, CroAddressError};
-
-use bech32::{u5, Bech32, FromBase32, ToBase32};
+#[cfg(feature = "bech32")]
+use bech32::{self, u5, FromBase32, ToBase32};
 
 /// TODO: opaque types?
 type TreeRoot = H256;
@@ -21,20 +23,22 @@ pub enum ExtendedAddr {
     OrTree(TreeRoot),
 }
 
+#[cfg(feature = "bech32")]
 impl ExtendedAddr {
-    fn get_string(&self, hash: TreeRoot) -> Bech32 {
+    fn get_string(&self, hash: TreeRoot) -> String {
         let checked_data: Vec<u5> = hash.to_vec().to_base32();
         match crate::init::CURRENT_NETWORK {
             crate::init::network::Network::Testnet => {
-                Bech32::new("crtt".into(), checked_data).expect("bech32 crmt encoding")
+                bech32::encode("crtt", checked_data).expect("bech32 crmt encoding")
             }
             crate::init::network::Network::Mainnet => {
-                Bech32::new("crmt".into(), checked_data).expect("bech32 crmt encoding")
+                bech32::encode("crmt", checked_data).expect("bech32 crmt encoding")
             }
         }
     }
 }
 
+#[cfg(feature = "bech32")]
 impl CroAddress<ExtendedAddr> for ExtendedAddr {
     fn to_cro(&self) -> Result<String, CroAddressError> {
         match self {
@@ -46,46 +50,34 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
     }
 
     fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
-        encoded
-            .parse::<Bech32>()
+        bech32::decode(encoded)
             .map_err(|e| CroAddressError::Bech32Error(e.to_string()))
-            .and_then(|a| Vec::from_base32(&a.data()).map_err(|_e| CroAddressError::ConvertError))
+            .and_then(|a| Vec::from_base32(&a.1).map_err(|_e| CroAddressError::ConvertError))
             .and_then(|src| {
                 let mut a: TreeRoot = [0 as u8; 32];
                 a.copy_from_slice(&src.as_slice());
                 Ok(ExtendedAddr::OrTree(a))
             })
-    }
-
-    fn from_hex(s: &str) -> Result<Self, CroAddressError> {
-        let address = if s.starts_with("0x") {
-            s.split_at(2).1
-        } else {
-            s
-        };
-
-        hex::decode(&address)
-            .map_err(|_e| CroAddressError::ConvertError)
-            .and_then(|src| {
-                let mut a: TreeRoot = [0 as u8; 32];
-                a.copy_from_slice(&src.as_slice());
-                Ok(ExtendedAddr::OrTree(a))
-            })
-    }
-
-    fn to_hex(&self) -> Result<String, CroAddressError> {
-        match self {
-            ExtendedAddr::OrTree(hash) => Ok(format!("0x{}", hex::encode(hash))),
-        }
     }
 }
 
+#[cfg(feature = "bech32")]
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_cro().unwrap())
     }
 }
 
+#[cfg(not(feature = "bech32"))]
+impl fmt::Display for ExtendedAddr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExtendedAddr::OrTree(hash) => write!(f, "0x{}", hex::encode(hash)),
+        }
+    }
+}
+
+#[cfg(feature = "bech32")]
 impl FromStr for ExtendedAddr {
     type Err = CroAddressError;
 
@@ -100,10 +92,12 @@ mod test {
 
     #[test]
     fn should_be_correct_textual_address() {
-        let a = ExtendedAddr::from_hex(
-            "0x0e7c045110b8dbf29765047380898919c5cb56f400112233445566778899aabb",
-        )
-        .unwrap();
+        let mut ar = [0; 32];
+        ar.copy_from_slice(
+            &hex::decode("0e7c045110b8dbf29765047380898919c5cb56f400112233445566778899aabb")
+                .unwrap(),
+        );
+        let a = ExtendedAddr::OrTree(ar);
         let b = a.to_cro().unwrap();
         assert_eq!(
             b,
@@ -115,10 +109,12 @@ mod test {
 
     #[test]
     fn shoule_be_correct_hex_address() {
-        let a = ExtendedAddr::from_hex(
-            "0x0e7c045110b8dbf29765047380898919c5cb56f400112233445566778899aabb",
-        )
-        .unwrap();
+        let mut ar = [0; 32];
+        ar.copy_from_slice(
+            &hex::decode("0e7c045110b8dbf29765047380898919c5cb56f400112233445566778899aabb")
+                .unwrap(),
+        );
+        let a = ExtendedAddr::OrTree(ar);
         let b = ExtendedAddr::from_str(
             "crmt1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42asr8c7xt",
         )
