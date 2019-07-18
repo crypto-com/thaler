@@ -157,14 +157,12 @@ mod tests {
     use client_core::wallet::DefaultWalletClient;
     use client_index::Index;
 
-
     use chain_core::tx::data::address::ExtendedAddr;
     use client_common::balance::TransactionChange;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
-    use client_common::{ Result as CommonResult};
+    use client_common::Result as CommonResult;
     use client_network::network_ops::DefaultNetworkOpsClient;
-    use serde_json::Value;
 
     type TestRpcClient =
         DefaultNetworkOpsClient<TestWalletClient, TestSigner, MockRpcClient, ZeroFeeAlgorithm>;
@@ -274,7 +272,6 @@ mod tests {
     type TestSigner = DefaultSigner<MemoryStorage>;
     type TestWalletClient = DefaultWalletClient<MemoryStorage, MockIndex, TestTxBuilder>;
 
-
     fn create_client_rpc() -> TestClient {
         let storage = MemoryStorage::default();
         let wallet_client = DefaultWalletClient::builder()
@@ -299,18 +296,13 @@ mod tests {
     #[test]
     fn test_create_deposit_bonded_stake_transaction() {
         let client_rpc = create_client_rpc();
-        let data = client_rpc
+        assert!(client_rpc
             .create_deposit_bonded_stake_transaction(create_client_request(
                 "Default",
                 "123456",
                 "0x0e7c045110b8dbf29765047380898919c5cb56f4",
             ))
-            .unwrap();
-        let v: Value = serde_json::from_str(data.as_str()).unwrap();
-        let tx = v.get("DepositStakeTx").unwrap();
-        let attr = tx[0].get("attributes").unwrap();
-        let hexid = attr.get("chain_hex_id").unwrap();
-        assert!(171 as u64 == hexid.as_u64().unwrap());
+            .is_ok());
     }
 
     #[test]
