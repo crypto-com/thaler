@@ -4,7 +4,7 @@ use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
 use std::net::SocketAddr;
 
-use crate::client_rpc::{WalletRpc, WalletRpcImpl};
+use crate::client_rpc::{ClientRpc, ClientRpcImpl};
 use crate::Options;
 use chain_core::tx::fee::LinearFee;
 use client_common::error::{Error, ErrorKind, Result};
@@ -70,7 +70,7 @@ impl Server {
         {
             let wallet_client = self.make_wallet_client(storage.clone());
             let ops_client = self.make_ops_client(storage.clone());
-            let client_rpc = WalletRpcImpl::new(wallet_client, ops_client, self.chain_id);
+            let client_rpc = ClientRpcImpl::new(wallet_client, ops_client, self.chain_id);
             io.extend_with(client_rpc.to_delegate());
         }
         Ok(())

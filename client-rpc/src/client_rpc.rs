@@ -25,7 +25,7 @@ use client_network::network_ops::NetworkOpsClient;
 use std::str::FromStr;
 
 #[rpc]
-pub trait WalletRpc {
+pub trait ClientRpc {
     #[rpc(name = "wallet_addresses")]
     fn addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
@@ -114,19 +114,19 @@ pub trait WalletRpc {
     ) -> Result<String>;
 }
 
-pub struct WalletRpcImpl<T: WalletClient + Send + Sync, S: NetworkOpsClient + Send + Sync> {
+pub struct ClientRpcImpl<T: WalletClient + Send + Sync, S: NetworkOpsClient + Send + Sync> {
     client: T,
     ops_client: S,
     chain_id: u8,
 }
 
-impl<T, S> WalletRpcImpl<T, S>
+impl<T, S> ClientRpcImpl<T, S>
 where
     T: WalletClient + Send + Sync,
     S: NetworkOpsClient + Send + Sync,
 {
     pub fn new(client: T, ops_client: S, chain_id: u8) -> Self {
-        WalletRpcImpl {
+        ClientRpcImpl {
             client,
             ops_client,
             chain_id,
@@ -134,7 +134,7 @@ where
     }
 }
 
-impl<T, S> WalletRpc for WalletRpcImpl<T, S>
+impl<T, S> ClientRpc for ClientRpcImpl<T, S>
 where
     T: WalletClient + MultiSigWalletClient + Send + Sync + 'static,
     S: NetworkOpsClient + Send + Sync + 'static,
@@ -770,12 +770,12 @@ pub mod tests {
         )
     }
 
-    fn setup_wallet_rpc() -> WalletRpcImpl<TestWalletClient, TestOpsClient> {
+    fn setup_wallet_rpc() -> ClientRpcImpl<TestWalletClient, TestOpsClient> {
         let wallet_client = make_test_wallet_client();
         let ops_client = make_test_ops_client();
         let chain_id = 171u8;
 
-        WalletRpcImpl::new(wallet_client, ops_client, chain_id)
+        ClientRpcImpl::new(wallet_client, ops_client, chain_id)
     }
 
     fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
