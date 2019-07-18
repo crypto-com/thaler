@@ -7,7 +7,7 @@ readme = "../README.md"
 edition = "2018"
 
 [features]
-default = ["serde"]
+default = ["serde", "bech32"]
 
 
 [dependencies]
@@ -21,7 +21,7 @@ serde_json = "1.0"
 parity-codec = { features = ["derive"], version = "4.1.2" }
 base64 = "0.10"
 static_assertions = "0.3.3"
-bech32 = "0.7.1"
+bech32 = { version = "0.7.1", optional = true }
 
 [dev-dependencies]
 quickcheck = "0.8"

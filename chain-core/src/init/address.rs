@@ -11,6 +11,7 @@
 //!   These 20 bytes are the address.
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
+#[cfg(feature = "bech32")]
 use bech32::{self, u5, FromBase32, ToBase32};
 use parity_codec::{Decode, Encode};
 use std::prelude::v1::{String, ToString};
@@ -30,22 +31,22 @@ use crate::common::{H256, HASH_SIZE_256};
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CroAddressError {
+    // TODO: use directly bech32::Error or wrap it
     Bech32Error(String),
     ConvertError,
 }
 
-#[cfg(not(any(feature = "mesalock_sgx", target_env = "sgx")))]
+#[cfg(feature = "bech32")]
 impl ::std::error::Error for CroAddressError {}
 
 // CRMS: mainnet staked-state
 // CRMT: mainnet transfer
 // CRTS: testnet staked-state
 // CRTT: testnet transfer
+#[cfg(feature = "bech32")]
 pub trait CroAddress<T> {
     fn to_cro(&self) -> Result<String, CroAddressError>;
     fn from_cro(encoded: &str) -> Result<T, CroAddressError>;
-    fn to_hex(&self) -> Result<String, CroAddressError>;
-    fn from_hex(encoded: &str) -> Result<T, CroAddressError>;
 }
 
 /// Keccak-256 crypto hash length in bytes
@@ -121,6 +122,7 @@ impl fmt::Display for ErrorAddress {
     }
 }
 
+#[cfg(feature = "bech32")]
 impl fmt::Display for CroAddressError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -170,6 +172,7 @@ impl RedeemAddress {
     }
 }
 
+#[cfg(feature = "bech32")]
 impl CroAddress<RedeemAddress> for RedeemAddress {
     fn to_cro(&self) -> Result<String, CroAddressError> {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
@@ -193,32 +196,8 @@ impl CroAddress<RedeemAddress> for RedeemAddress {
                 RedeemAddress::try_from(&a.as_slice()).map_err(|_e| CroAddressError::ConvertError)
             })
     }
-
-    fn from_hex(s: &str) -> Result<Self, CroAddressError> {
-        if s.len() != REDEEM_ADDRESS_BYTES * 2 && !s.starts_with("0x") {
-            return Err(CroAddressError::ConvertError);
-        }
-
-        let value = if s.starts_with("0x") {
-            s.split_at(2).1
-        } else {
-            s
-        };
-        hex::decode(&value)
-            .map_err(|_e| CroAddressError::ConvertError)
-            .and_then(|a| {
-                println!("try from {} length={}", hex::encode(&a), a.len());
-                let a = RedeemAddress::try_from(&a.as_slice())
-                    .map_err(|_e| CroAddressError::ConvertError);
-                println!("result={:?}", a);
-                a
-            })
-    }
-
-    fn to_hex(&self) -> Result<String, CroAddressError> {
-        Ok(format!("0x{}", hex::encode(self.0)))
-    }
 }
+
 impl ops::Deref for RedeemAddress {
     type Target = [u8];
 
@@ -244,13 +223,23 @@ impl FromStr for RedeemAddress {
     type Err = ErrorAddress;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        RedeemAddress::from_hex(s).map_err(|_e| ErrorAddress::InvalidCroAddress)
+        if s.len() != REDEEM_ADDRESS_BYTES * 2 && !s.starts_with("0x") {
+            return Err(ErrorAddress::InvalidHexLength(s.to_string()));
+        }
+
+        let value = if s.starts_with("0x") {
+            s.split_at(2).1
+        } else {
+            s
+        };
+
+        RedeemAddress::try_from(hex::decode(&value)?.as_slice())
     }
 }
 
 impl fmt::Display for RedeemAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_hex().unwrap())
+        write!(f, "0x{}", hex::encode(self.0))
     }
 }
 
@@ -376,18 +365,11 @@ mod tests {
 
     #[test]
     fn should_be_correct_textual_address() {
-        let a = RedeemAddress::from_hex("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+        let a = RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
         let b = a.to_cro().unwrap();
         assert_eq!(b.to_string(), "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj");
         let c = RedeemAddress::from_cro(&b).unwrap();
         assert_eq!(c, a);
     }
 
-    #[test]
-    fn shoule_be_correct_hex_address() {
-        let a = RedeemAddress::from_hex("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
-
-        let b = RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
-        assert_eq!(a, b);
-    }
 }
