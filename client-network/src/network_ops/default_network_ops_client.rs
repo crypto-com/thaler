@@ -27,6 +27,7 @@ where
     C: Client,
     F: FeeAlgorithm,
 {
+    /// WalletClient
     wallet_client: W,
     signer: S,
     client: C,
@@ -40,6 +41,10 @@ where
     C: Client,
     F: FeeAlgorithm,
 {
+    /// use WalletClient
+    pub fn get_wallet(&self) -> &W {
+        &self.wallet_client
+    }
     /// Creates a new instance of `DefaultNetworkOpsClient`
     pub fn new(wallet_client: W, signer: S, client: C, fee_algorithm: F) -> Self {
         Self {
