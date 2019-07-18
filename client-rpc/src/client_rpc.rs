@@ -157,14 +157,12 @@ mod tests {
     use client_core::wallet::DefaultWalletClient;
     use client_index::Index;
 
-    use crate::wallet_rpc::{WalletRequest, WalletRpcImpl};
+
     use chain_core::tx::data::address::ExtendedAddr;
     use client_common::balance::TransactionChange;
     use client_common::tendermint::types::*;
-    use client_common::tendermint::{Client, RpcClient};
-    use client_common::{Error, ErrorKind, PublicKey};
-    use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
-    use client_index::index::DefaultIndex;
+    use client_common::tendermint::Client;
+    use client_common::{ Result as CommonResult};
     use client_network::network_ops::DefaultNetworkOpsClient;
     use serde_json::Value;
 
@@ -275,22 +273,7 @@ mod tests {
     type TestTxBuilder = DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm>;
     type TestSigner = DefaultSigner<MemoryStorage>;
     type TestWalletClient = DefaultWalletClient<MemoryStorage, MockIndex, TestTxBuilder>;
-    type TestWallet = WalletRpcImpl<TestWalletClient>;
-    fn setup_wallet_rpc() -> TestWallet {
-        let storage = MemoryStorage::default();
-        let signer = DefaultSigner::new(storage.clone());
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage)
-            .with_transaction_read(MockIndex::default())
-            .with_transaction_write(DefaultTransactionBuilder::new(
-                signer,
-                ZeroFeeAlgorithm::default(),
-            ))
-            .build()
-            .unwrap();
-        let chain_id = 171u8;
-        WalletRpcImpl::new(wallet_client, chain_id)
-    }
+
 
     fn create_client_rpc() -> TestClient {
         let storage = MemoryStorage::default();
