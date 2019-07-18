@@ -430,10 +430,9 @@ mod tests {
             .unwrap();
 
         match transaction {
-            TxAux::WithdrawUnbondedStakeTx(transaction, witness) => {
-                let id = transaction.id();
-                let account_address =
-                    verify_tx_recover_address(&witness, &id).expect("Unable to verify transaction");
+            TxAux::WithdrawUnbondedStakeTx { txid, witness, .. } => {
+                let account_address = verify_tx_recover_address(&witness, &txid)
+                    .expect("Unable to verify transaction");
 
                 assert_eq!(account_address, from_address)
             }
@@ -482,15 +481,23 @@ mod tests {
             .unwrap();
 
         match transaction {
-            TxAux::WithdrawUnbondedStakeTx(transaction, witness) => {
-                let id = transaction.id();
-                let account_address =
-                    verify_tx_recover_address(&witness, &id).expect("Unable to verify transaction");
-
-                let amount = transaction.outputs[0].value;
+            TxAux::WithdrawUnbondedStakeTx {
+                txid,
+                witness,
+                payload: TxObfuscated { txpayload, .. },
+                ..
+            } => {
+                let account_address = verify_tx_recover_address(&witness, &txid)
+                    .expect("Unable to verify transaction");
 
                 assert_eq!(account_address, from_address);
-                assert_eq!(amount, Coin::new(2500000000000000000 - 1).unwrap());
+
+                // FIXME: mock decrypt
+                let tx = PlainTxAux::decode(&mut txpayload.as_slice());
+                if let Some(PlainTxAux::WithdrawUnbondedStakeTx(transaction)) = tx {
+                    let amount = transaction.outputs[0].value;
+                    assert_eq!(amount, Coin::new(2500000000000000000 - 1).unwrap());
+                }
             }
             _ => unreachable!(
                 "`create_withdraw_unbonded_stake_transaction()` created invalid transaction type"

@@ -25,6 +25,7 @@ use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TransactionId;
+use chain_core::tx::TxObfuscated;
 use chain_core::tx::{
     data::{
         access::{TxAccess, TxAccessPolicy},
@@ -376,7 +377,7 @@ fn check_tx_should_reject_invalid_tx() {
     assert_ne!(0, cresp.code);
 }
 
-fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux) {
+fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedTx) {
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
@@ -393,13 +394,23 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux) {
     );
 
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
-    let txaux = TxAux::WithdrawUnbondedStakeTx(tx, witness);
-    (app, txaux)
+    // TODO: mock enc
+    let txaux = TxAux::WithdrawUnbondedStakeTx {
+        txid: tx.id(),
+        no_of_outputs: tx.outputs.len() as TxoIndex,
+        witness: witness.clone(),
+        payload: TxObfuscated {
+            key_from: 0,
+            nonce: [0; 12],
+            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
+        },
+    };
+    (app, txaux, tx)
 }
 
 #[test]
 fn check_tx_should_accept_valid_tx() {
-    let (mut app, txaux) = prepare_app_valid_tx();
+    let (mut app, txaux, _) = prepare_app_valid_tx();
     let mut creq = RequestCheckTx::default();
     creq.set_tx(txaux.encode());
     let cresp = app.check_tx(&creq);
@@ -467,7 +478,7 @@ fn deliver_valid_tx() -> (
     StakedStateOpWitness,
     ResponseDeliverTx,
 ) {
-    let (mut app, txaux) = prepare_app_valid_tx();
+    let (mut app, txaux, tx) = prepare_app_valid_tx();
     let rewards_pool_remaining_old = app.last_state.as_ref().unwrap().rewards_pool.remaining;
     assert_eq!(0, app.delivered_txs.len());
     begin_block(&mut app);
@@ -477,7 +488,7 @@ fn deliver_valid_tx() -> (
     let rewards_pool_remaining_new = app.last_state.as_ref().unwrap().rewards_pool.remaining;
     assert!(rewards_pool_remaining_new > rewards_pool_remaining_old);
     match txaux {
-        TxAux::WithdrawUnbondedStakeTx(tx, witness) => (app, tx, witness, cresp),
+        TxAux::WithdrawUnbondedStakeTx { witness, .. } => (app, tx, witness, cresp),
         _ => unreachable!("prepare_app_valid_tx should prepare stake withdrawal tx"),
     }
 }
@@ -791,7 +802,16 @@ fn all_valid_tx_types_should_commit() {
     );
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
-    let withdrawtx = TxAux::WithdrawUnbondedStakeTx(tx0, witness0);
+    let withdrawtx = TxAux::WithdrawUnbondedStakeTx {
+        txid: tx0.id(),
+        no_of_outputs: tx0.outputs.len() as TxoIndex,
+        witness: witness0,
+        payload: TxObfuscated {
+            key_from: 0,
+            nonce: [0u8; 12],
+            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),
+        },
+    };
     {
         let account = get_account(&addr, &app);
         // TODO: more precise amount assertions
@@ -824,8 +844,11 @@ fn all_valid_tx_types_should_commit() {
         txid: tx1.id(),
         inputs: tx1.inputs.clone(),
         no_of_outputs: tx1.outputs.len() as TxoIndex,
-        nonce: [0; 12],
-        txpayload: plain_txaux.encode(),
+        payload: TxObfuscated {
+            key_from: 0,
+            nonce: [0u8; 12],
+            txpayload: plain_txaux.encode(),
+        },
     };
     {
         let spent_utxos = get_tx_meta(&txid, &app);
@@ -847,7 +870,14 @@ fn all_valid_tx_types_should_commit() {
             .unwrap(),
     )]
     .into();
-    let depositx = TxAux::DepositStakeTx(tx2, witness2);
+    let depositx = TxAux::DepositStakeTx {
+        tx: tx2,
+        payload: TxObfuscated {
+            key_from: 0,
+            nonce: [0u8; 12],
+            txpayload: PlainTxAux::DepositStakeTx(witness2).encode(),
+        },
+    };
     {
         let spent_utxos0 = get_tx_meta(&txid, &app);
         assert!(spent_utxos0[0] && !spent_utxos0[1]);

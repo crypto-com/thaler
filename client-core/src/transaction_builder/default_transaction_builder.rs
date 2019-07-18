@@ -247,7 +247,10 @@ mod tests {
             .to_coin();
 
         match tx_aux {
-            TxAux::TransferTx { txpayload, .. } => {
+            TxAux::TransferTx {
+                payload: TxObfuscated { txpayload, .. },
+                ..
+            } => {
                 if let Some(PlainTxAux::TransferTx(transaction, witness)) =
                     PlainTxAux::decode(&mut txpayload.as_slice())
                 {

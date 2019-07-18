@@ -271,10 +271,12 @@ mod tests {
     use chain_core::common::TendermintEventType;
     use chain_core::init::coin::Coin;
     use chain_core::state::account::StakedStateOpWitness;
+    use chain_core::state::account::WithdrawUnbondedTx;
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::attribute::TxAttributes;
     use chain_core::tx::data::Tx;
     use chain_core::tx::PlainTxAux;
+    use chain_core::tx::TxObfuscated;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
 
@@ -295,17 +297,21 @@ mod tests {
     impl MockClient {
         fn transaction(&self, height: u64) -> Option<TxAux> {
             if height == 1 {
-                Some(TxAux::WithdrawUnbondedStakeTx(
-                    WithdrawUnbondedTx {
-                        nonce: 0,
-                        outputs: vec![TxOut {
-                            address: self.addresses[0].clone(),
-                            value: Coin::new(100).unwrap(),
-                            valid_from: None,
-                        }],
-                        attributes: TxAttributes::new(171),
-                    },
-                    StakedStateOpWitness::new(
+                let withdrawtx = WithdrawUnbondedTx {
+                    nonce: 0,
+                    outputs: vec![TxOut {
+                        address: self.addresses[0].clone(),
+                        value: Coin::new(100).unwrap(),
+                        valid_from: None,
+                    }],
+                    attributes: TxAttributes::new(171),
+                };
+
+                // FIXME: mock enc
+                Some(TxAux::WithdrawUnbondedStakeTx {
+                    txid: withdrawtx.id(),
+                    no_of_outputs: 1,
+                    witness: StakedStateOpWitness::new(
                         RecoverableSignature::from_compact(
                             &[
                                 0x66, 0x73, 0xff, 0xad, 0x21, 0x47, 0x74, 0x1f, 0x04, 0x77, 0x2b,
@@ -319,7 +325,12 @@ mod tests {
                         )
                         .unwrap(),
                     ),
-                ))
+                    payload: TxObfuscated {
+                        key_from: 0,
+                        nonce: [0u8; 12],
+                        txpayload: PlainTxAux::WithdrawUnbondedStakeTx(withdrawtx).encode(),
+                    },
+                })
             } else if height == 2 {
                 let inputs = vec![TxoPointer {
                     id: self.transaction(1).unwrap().tx_id(),
@@ -338,8 +349,11 @@ mod tests {
                     txid: tx.id(),
                     inputs,
                     no_of_outputs: 1,
-                    nonce: [0u8; 12],
-                    txpayload: PlainTxAux::TransferTx(tx.clone(), vec![].into()).encode(),
+                    payload: TxObfuscated {
+                        key_from: 0,
+                        nonce: [0u8; 12],
+                        txpayload: PlainTxAux::TransferTx(tx.clone(), vec![].into()).encode(),
+                    },
                 })
             } else {
                 None
