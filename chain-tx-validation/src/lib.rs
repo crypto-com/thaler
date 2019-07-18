@@ -16,7 +16,6 @@ extern crate sgx_tstd as std;
 
 use std::prelude::v1::Vec;
 
-use chain_core::common::Timespec;
 use chain_core::init::coin::{Coin, CoinError};
 use chain_core::state::account::{DepositBondTx, StakedState, UnbondTx, WithdrawUnbondedTx};
 use chain_core::tx::data::input::TxoPointer;
@@ -26,6 +25,7 @@ use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TransactionId;
+pub use chain_core::ChainInfo;
 use parity_codec::{Decode, Encode};
 use secp256k1;
 use std::collections::BTreeSet;
@@ -106,19 +106,6 @@ impl fmt::Display for Error {
             AccountIncorrectNonce => write!(f, "incorrect transaction count for account operation"),
         }
     }
-}
-
-/// External information needed for TX validation
-#[derive(Clone, Copy)]
-pub struct ChainInfo {
-    /// minimal fee computed for the transaction
-    pub min_fee_computed: Fee,
-    /// network hexamedical ID
-    pub chain_hex_id: u8,
-    /// time in the previous committed block
-    pub previous_block_time: Timespec,
-    /// how much time is required to wait until stake state's unbonded amount can be withdrawn
-    pub unbonding_period: u32,
 }
 
 fn check_attributes(tx_chain_hex_id: u8, extra_info: &ChainInfo) -> Result<(), Error> {

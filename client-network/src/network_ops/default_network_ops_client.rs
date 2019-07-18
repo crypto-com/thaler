@@ -2,6 +2,7 @@ use failure::ResultExt;
 use parity_codec::Decode;
 use secstr::SecUtf8;
 
+use crate::NetworkOpsClient;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
     DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
@@ -9,15 +10,15 @@ use chain_core::state::account::{
 };
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::input::TxoPointer;
+use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
+use chain_core::tx::{PlainTxAux, TxObfuscated};
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, Result};
 use client_core::{Signer, UnspentTransactions, WalletClient};
-
-use crate::NetworkOpsClient;
+use parity_codec::Encode;
 
 /// Default implementation of `NetworkOpsClient`
 pub struct DefaultNetworkOpsClient<'a, W, S, C, F>
@@ -108,7 +109,17 @@ where
             transaction.id(),
             unspent_transactions.select_all(),
         )?;
-        Ok(TxAux::DepositStakeTx(transaction, witness))
+        // FIXME: dummy enc for length (multiple of 16 bytes)
+        let plain_tx_aux = PlainTxAux::DepositStakeTx(witness);
+        let tx_aux = TxAux::DepositStakeTx {
+            tx: transaction,
+            payload: TxObfuscated {
+                key_from: 0,
+                nonce: [0u8; 12],
+                txpayload: plain_tx_aux.encode(),
+            },
+        };
+        Ok(tx_aux)
     }
 
     fn create_unbond_stake_transaction(
@@ -172,7 +183,20 @@ where
             .sign(transaction.id())
             .map(StakedStateOpWitness::new)?;
 
-        Ok(TxAux::WithdrawUnbondedStakeTx(transaction, signature))
+        // FIXME: dummy enc for length (multiple of 16 bytes)
+        let plain_tx_aux = PlainTxAux::WithdrawUnbondedStakeTx(transaction.clone());
+        let tx_aux = TxAux::WithdrawUnbondedStakeTx {
+            txid: transaction.id(),
+            no_of_outputs: transaction.outputs.len() as TxoIndex,
+            witness: signature,
+            payload: TxObfuscated {
+                key_from: 0,
+                nonce: [0u8; 12],
+                txpayload: plain_tx_aux.encode(),
+            },
+        };
+
+        Ok(tx_aux)
     }
 
     fn create_withdraw_all_unbonded_stake_transaction(
@@ -406,10 +430,9 @@ mod tests {
             .unwrap();
 
         match transaction {
-            TxAux::WithdrawUnbondedStakeTx(transaction, witness) => {
-                let id = transaction.id();
-                let account_address =
-                    verify_tx_recover_address(&witness, &id).expect("Unable to verify transaction");
+            TxAux::WithdrawUnbondedStakeTx { txid, witness, .. } => {
+                let account_address = verify_tx_recover_address(&witness, &txid)
+                    .expect("Unable to verify transaction");
 
                 assert_eq!(account_address, from_address)
             }
@@ -458,15 +481,23 @@ mod tests {
             .unwrap();
 
         match transaction {
-            TxAux::WithdrawUnbondedStakeTx(transaction, witness) => {
-                let id = transaction.id();
-                let account_address =
-                    verify_tx_recover_address(&witness, &id).expect("Unable to verify transaction");
-
-                let amount = transaction.outputs[0].value;
+            TxAux::WithdrawUnbondedStakeTx {
+                txid,
+                witness,
+                payload: TxObfuscated { txpayload, .. },
+                ..
+            } => {
+                let account_address = verify_tx_recover_address(&witness, &txid)
+                    .expect("Unable to verify transaction");
 
                 assert_eq!(account_address, from_address);
-                assert_eq!(amount, Coin::new(2500000000000000000 - 1).unwrap());
+
+                // FIXME: mock decrypt
+                let tx = PlainTxAux::decode(&mut txpayload.as_slice());
+                if let Some(PlainTxAux::WithdrawUnbondedStakeTx(transaction)) = tx {
+                    let amount = transaction.outputs[0].value;
+                    assert_eq!(amount, Coin::new(2500000000000000000 - 1).unwrap());
+                }
             }
             _ => unreachable!(
                 "`create_withdraw_unbonded_stake_transaction()` created invalid transaction type"
