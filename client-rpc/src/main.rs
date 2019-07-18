@@ -1,6 +1,5 @@
-mod client_rpc;
 mod server;
-mod wallet_rpc;
+mod client_rpc;
 
 use structopt::StructOpt;
 

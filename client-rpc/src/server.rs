@@ -4,6 +4,9 @@ use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
 use std::net::SocketAddr;
 
+use crate::client_rpc::{WalletRpc, WalletRpcImpl};
+use crate::Options;
+use chain_core::tx::fee::LinearFee;
 use client_common::error::{Error, ErrorKind, Result};
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
@@ -13,9 +16,11 @@ use client_core::wallet::DefaultWalletClient;
 use client_index::index::DefaultIndex;
 use client_network::network_ops::DefaultNetworkOpsClient;
 
-use crate::client_rpc::{ClientRpc, ClientRpcImpl};
-use crate::wallet_rpc::{WalletRpc, WalletRpcImpl};
-use crate::Options;
+type AppSigner = DefaultSigner<SledStorage>;
+type AppIndex = DefaultIndex<SledStorage, RpcClient>;
+type AppTxBuilder = DefaultTransactionBuilder<AppSigner, LinearFee>;
+type AppWalletClient = DefaultWalletClient<SledStorage, AppIndex, AppTxBuilder>;
+type AppOpsClient = DefaultNetworkOpsClient<AppWalletClient, AppSigner, RpcClient, LinearFee>;
 
 pub(crate) struct Server {
     host: String,
@@ -37,46 +42,35 @@ impl Server {
         })
     }
 
-    pub fn start_wallet(&self, io: &mut IoHandler, storage: SledStorage) -> Result<()> {
-        {
-            let tendermint_client = RpcClient::new(&self.tendermint_url);
-            let signer = DefaultSigner::new(storage.clone());
-            let transaction_builder =
-                DefaultTransactionBuilder::new(signer, tendermint_client.genesis()?.fee_policy());
-            let index = DefaultIndex::new(storage.clone(), tendermint_client);
-            let wallet_client = DefaultWalletClient::builder()
-                .with_wallet(storage)
-                .with_transaction_read(index)
-                .with_transaction_write(transaction_builder)
-                .build()?;
-            let wallet_rpc = WalletRpcImpl::new(wallet_client, self.chain_id);
-            io.extend_with(wallet_rpc.to_delegate());
-        }
-        Ok(())
+    fn make_wallet_client(&self, storage: SledStorage) -> AppWalletClient {
+        let tendermint_client = RpcClient::new(&self.tendermint_url);
+        let signer = DefaultSigner::new(storage.clone());
+        let transaction_builder = DefaultTransactionBuilder::new(
+            signer,
+            tendermint_client.genesis().unwrap().fee_policy(),
+        );
+        let index = DefaultIndex::new(storage.clone(), tendermint_client);
+        DefaultWalletClient::builder()
+            .with_wallet(storage)
+            .with_transaction_read(index)
+            .with_transaction_write(transaction_builder)
+            .build()
+            .unwrap()
+    }
+
+    pub fn make_ops_client(&self, storage: SledStorage) -> AppOpsClient {
+        let tendermint_client = RpcClient::new(&self.tendermint_url);
+        let signer = DefaultSigner::new(storage.clone());
+        let fee_algorithm = tendermint_client.genesis().unwrap().fee_policy();
+        let wallet_client = self.make_wallet_client(storage);
+        DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm)
     }
 
     pub fn start_client(&self, io: &mut IoHandler, storage: SledStorage) -> Result<()> {
         {
-            let tendermint_client = RpcClient::new(&self.tendermint_url);
-            let tendermint_client2 = RpcClient::new(&self.tendermint_url);
-            let signer = DefaultSigner::new(storage.clone());
-            let signer2 = DefaultSigner::new(storage.clone());
-            let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-            let transaction_builder =
-                DefaultTransactionBuilder::new(signer, tendermint_client.genesis()?.fee_policy());
-            let index = DefaultIndex::new(storage.clone(), tendermint_client);
-            let wallet_client = DefaultWalletClient::builder()
-                .with_wallet(storage)
-                .with_transaction_read(index)
-                .with_transaction_write(transaction_builder)
-                .build()?;
-            let network_ops_client = DefaultNetworkOpsClient::new(
-                wallet_client,
-                signer2,
-                tendermint_client2,
-                fee_algorithm,
-            );
-            let client_rpc = ClientRpcImpl::new(network_ops_client, self.chain_id);
+            let wallet_client = self.make_wallet_client(storage.clone());
+            let ops_client = self.make_ops_client(storage.clone());
+            let client_rpc = WalletRpcImpl::new(wallet_client, ops_client, self.chain_id);
             io.extend_with(client_rpc.to_delegate());
         }
         Ok(())
@@ -86,7 +80,6 @@ impl Server {
         let mut io = IoHandler::new();
         let storage = SledStorage::new(&self.storage_dir)?;
 
-        self.start_wallet(&mut io, storage.clone()).unwrap();
         self.start_client(&mut io, storage.clone()).unwrap();
 
         let server = ServerBuilder::new(io)
