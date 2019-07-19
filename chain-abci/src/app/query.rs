@@ -128,7 +128,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     for found in looked_up {
                         if let Ok(Some(uv)) = found {
                             let tx = TxWithOutputs::decode(&mut uv.to_vec().as_slice());
-                            if let Some(TxWithOutputs::Transfer(ttx)) = tx {
+                            if let Some(ttx) = tx {
                                 resp_txs.push(ttx);
                             }
                         }

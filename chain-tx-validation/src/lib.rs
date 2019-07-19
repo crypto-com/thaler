@@ -25,8 +25,8 @@ use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TransactionId;
+pub use chain_core::tx::TxWithOutputs;
 pub use chain_core::ChainInfo;
-use parity_codec::{Decode, Encode};
 use secp256k1;
 use std::collections::BTreeSet;
 use std::{fmt, io};
@@ -139,33 +139,6 @@ fn check_inputs_basic(inputs: &[TxoPointer], witness: &TxWitness) -> Result<(), 
     }
 
     Ok(())
-}
-
-/// wrapper around transactions with outputs
-#[derive(Encode, Decode)]
-pub enum TxWithOutputs {
-    /// normal transfer
-    Transfer(Tx),
-    /// withdrawing unbonded amount from a staked state
-    StakeWithdraw(WithdrawUnbondedTx),
-}
-
-impl TxWithOutputs {
-    /// returns the particular transaction type's outputs
-    pub fn outputs(&self) -> &[TxOut] {
-        match self {
-            TxWithOutputs::Transfer(tx) => &tx.outputs,
-            TxWithOutputs::StakeWithdraw(tx) => &tx.outputs,
-        }
-    }
-
-    /// returns the particular transaction type's id (currently blake2s_hash(SCALE-encoded tx))
-    pub fn id(&self) -> TxId {
-        match self {
-            TxWithOutputs::Transfer(tx) => tx.id(),
-            TxWithOutputs::StakeWithdraw(tx) => tx.id(),
-        }
-    }
 }
 
 fn check_inputs(
