@@ -274,13 +274,12 @@ pub fn verify_transfer(
 
 /// checks depositing to a staked state -- TODO: this will be moved to an enclave
 /// WARNING: it assumes double-spending BitVec of inputs is checked in chain-abci
-pub fn verify_bonded_deposit(
+pub fn verify_bonded_deposit_core(
     maintx: &DepositBondTx,
     witness: &TxWitness,
     extra_info: ChainInfo,
     transaction_inputs: Vec<TxWithOutputs>,
-    maccount: Option<StakedState>,
-) -> Result<(Fee, Option<StakedState>), Error> {
+) -> Result<Coin, Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_inputs_basic(&maintx.inputs, witness)?;
     let incoins = check_inputs(
@@ -293,6 +292,21 @@ pub fn verify_bonded_deposit(
     if incoins <= extra_info.min_fee_computed.to_coin() {
         return Err(Error::InputOutputDoNotMatch);
     }
+    Ok(incoins)
+}
+
+/// checks depositing to a staked state
+/// WARNING: it assumes double-spending BitVec of inputs is checked in chain-abci
+/// TODO: move this to chain-abci? (the account creation / update)
+pub fn verify_bonded_deposit(
+    maintx: &DepositBondTx,
+    witness: &TxWitness,
+    extra_info: ChainInfo,
+    transaction_inputs: Vec<TxWithOutputs>,
+    maccount: Option<StakedState>,
+) -> Result<(Fee, Option<StakedState>), Error> {
+    let incoins = verify_bonded_deposit_core(maintx, witness, extra_info, transaction_inputs)?;
+    // TODO: checking account not jailed etc.?
     let deposit_amount = (incoins - extra_info.min_fee_computed.to_coin()).expect("init");
     let account = match maccount {
         Some(mut a) => {
@@ -338,11 +352,11 @@ pub fn verify_unbonding(
 
 /// checks wihdrawing from a staked state -- TODO: this will be moved to an enclave
 /// NOTE: witness is assumed to be checked in chain-abci
-pub fn verify_unbonded_withdraw(
+pub fn verify_unbonded_withdraw_core(
     maintx: &WithdrawUnbondedTx,
     extra_info: ChainInfo,
-    mut account: StakedState,
-) -> Result<(Fee, Option<StakedState>), Error> {
+    account: &StakedState,
+) -> Result<Fee, Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_outputs_basic(&maintx.outputs)?;
     // checks that account transaction count matches to the one in transaction
@@ -369,7 +383,18 @@ pub fn verify_unbonded_withdraw(
     if let Err(coin_err) = outcoins {
         return Err(Error::InvalidSum(coin_err));
     }
-    let fee = check_input_output_sums(account.unbonded, outcoins.unwrap(), &extra_info)?;
+    check_input_output_sums(account.unbonded, outcoins.unwrap(), &extra_info)
+}
+
+/// checks wihdrawing from a staked state
+/// NOTE: witness is assumed to be checked in chain-abci
+/// TODO: move this to chain-abci? (the account update)
+pub fn verify_unbonded_withdraw(
+    maintx: &WithdrawUnbondedTx,
+    extra_info: ChainInfo,
+    mut account: StakedState,
+) -> Result<(Fee, Option<StakedState>), Error> {
+    let fee = verify_unbonded_withdraw_core(maintx, extra_info, &account)?;
     account.withdraw();
     Ok((fee, Some(account)))
 }
