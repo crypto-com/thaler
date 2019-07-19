@@ -18,7 +18,7 @@ use std::convert::TryFrom;
 use std::{fmt, mem, ops, result, slice};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode)]
-pub struct Coin(u64);
+pub struct Coin(pub u64);
 
 /// error type relating to `Coin` operations
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]

@@ -205,10 +205,13 @@ where
     fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>> {
         self.sync()?;
 
-        match self.client.history(&request.name, &request.passphrase) {
-            Ok(transaction_change) => Ok(transaction_change),
-            Err(e) => Err(to_rpc_error(e)),
-        }
+        self.client
+            .history(&request.name, &request.passphrase)
+            .map_err(|e| to_rpc_error(e))
+            .map(|transaction_change| {
+                // change response
+                transaction_change
+            })
     }
 
     fn new_multi_sig_session(
