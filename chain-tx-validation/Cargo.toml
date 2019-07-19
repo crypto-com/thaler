@@ -9,4 +9,3 @@ edition = "2018"
 [dependencies]
 chain-core = { path = "../chain-core" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "ab780345c85ac2c28a4e0c08e8e18c4ecdbb1fa9", features = ["recovery", "endomorphism"] }
-parity-codec = { features = ["derive"], version = "4.1.2" }
