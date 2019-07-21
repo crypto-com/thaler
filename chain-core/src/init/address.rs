@@ -39,9 +39,7 @@ pub enum CroAddressError {
 #[cfg(feature = "bech32")]
 impl ::std::error::Error for CroAddressError {}
 
-// CRMS: mainnet staked-state
 // CRMT: mainnet transfer
-// CRTS: testnet staked-state
 // CRTT: testnet transfer
 #[cfg(feature = "bech32")]
 pub trait CroAddress<T> {
