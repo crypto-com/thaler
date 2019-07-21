@@ -8,7 +8,7 @@ pub enum Network {
     Testnet,
 }
 
-pub fn init_chain_id(chain_id_src: &'static str) {
+pub fn init_chain_id(chain_id_src: &str) {
     let chain_id = chain_id_src.to_string();
     assert!(chain_id.len() > 6);
     let length = chain_id.len();

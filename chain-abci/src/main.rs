@@ -11,6 +11,7 @@ use zmq::{Context, REQ};
 use crate::app::ChainNodeApp;
 use crate::enclave_bridge::ZmqEnclaveClient;
 use crate::storage::*;
+use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 
 fn main() {
     // TODO
@@ -31,6 +32,13 @@ fn main() {
     let host = matches.value_of("host").unwrap_or("127.0.0.1");
     let genesis_app_hash = matches.value_of("genesis_app_hash").unwrap();
     let chain_id = matches.value_of("chain_id").unwrap();
+
+    init_chain_id(chain_id);
+    println!(
+        "network={:?} network_id={:X}",
+        get_network(),
+        get_network_id()
+    );
 
     let addr = SocketAddr::new(host.parse().unwrap(), port.parse().unwrap());
     info!("starting up");
