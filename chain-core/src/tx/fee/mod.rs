@@ -4,7 +4,7 @@
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
 use crate::init::coin::{Coin, CoinError};
-use crate::tx::TxAux;
+use crate::tx::{TxAux, TxObfuscated};
 use parity_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -176,7 +176,19 @@ impl FeeAlgorithm for LinearFee {
 
     fn calculate_for_txaux(&self, txaux: &TxAux) -> Result<Fee, CoinError> {
         match txaux {
-            TxAux::TransferTx { txpayload, .. } => self.estimate(txpayload.len()),
+            TxAux::TransferTx {
+                payload: TxObfuscated { txpayload, .. },
+                ..
+            } => self.estimate(txpayload.len()),
+            TxAux::DepositStakeTx {
+                tx,
+                payload: TxObfuscated { txpayload, .. },
+            } => self.estimate(tx.encode().len() + txpayload.len()),
+            TxAux::WithdrawUnbondedStakeTx {
+                witness,
+                payload: TxObfuscated { txpayload, .. },
+                ..
+            } => self.estimate(witness.encode().len() + txpayload.len()),
             _ => self.estimate(txaux.encode().len()),
         }
     }

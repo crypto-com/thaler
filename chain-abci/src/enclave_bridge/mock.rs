@@ -3,7 +3,8 @@
 use super::*;
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TxAux;
-use chain_tx_validation::{verify_transfer, ChainInfo};
+use chain_core::tx::TxObfuscated;
+use chain_tx_validation::{verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw};
 
 pub struct MockClient {
     chain_hex_id: u8,
@@ -26,33 +27,60 @@ impl EnclaveProxy for MockClient {
                 }
             }
             EnclaveRequest::VerifyTx {
-                tx: TxAux::TransferTx { txpayload, .. },
+                tx,
+                account,
                 inputs,
-                min_fee_computed,
-                previous_block_time,
-                unbonding_period,
+                info,
             } => {
+                let txpayload = match &tx {
+                    TxAux::TransferTx {
+                        payload: TxObfuscated { txpayload, .. },
+                        ..
+                    } => txpayload,
+                    TxAux::DepositStakeTx {
+                        payload: TxObfuscated { txpayload, .. },
+                        ..
+                    } => txpayload,
+                    TxAux::WithdrawUnbondedStakeTx {
+                        payload: TxObfuscated { txpayload, .. },
+                        ..
+                    } => txpayload,
+                    _ => {
+                        return EnclaveResponse::UnsupportedTxType;
+                    }
+                };
                 // FIXME
                 let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
-                match plain_tx {
-                    Some(PlainTxAux::TransferTx(maintx, witness)) => {
-                        let info = ChainInfo {
-                            min_fee_computed,
-                            chain_hex_id: self.chain_hex_id,
-                            previous_block_time,
-                            unbonding_period,
-                        };
+                // verify_bonded_deposit(maintx, witness, extra_info, input_transactions, account)?
+                // verify_unbonded_withdraw(maintx, extra_info, account)?
+                match (tx, plain_tx) {
+                    (_, Some(PlainTxAux::TransferTx(maintx, witness))) => {
                         let result = verify_transfer(&maintx, &witness, info, inputs);
                         if let Ok(fee) = result {
-                            EnclaveResponse::VerifyTx(Ok(fee))
+                            EnclaveResponse::VerifyTx(Ok((fee, account)))
                         } else {
                             EnclaveResponse::VerifyTx(Err(()))
                         }
                     }
+                    (
+                        TxAux::DepositStakeTx { tx, .. },
+                        Some(PlainTxAux::DepositStakeTx(witness)),
+                    ) => {
+                        let result = verify_bonded_deposit(&tx, &witness, info, inputs, account);
+                        EnclaveResponse::VerifyTx(result.map_err(|_| ()))
+                    }
+                    (_, Some(PlainTxAux::WithdrawUnbondedStakeTx(tx))) => {
+                        let result = verify_unbonded_withdraw(
+                            &tx,
+                            info,
+                            account.expect("account exists in withdraw"),
+                        );
+                        EnclaveResponse::VerifyTx(result.map_err(|_| ()))
+                    }
+
                     _ => EnclaveResponse::UnsupportedTxType,
                 }
             }
-            _ => EnclaveResponse::UnsupportedTxType,
         }
     }
 }

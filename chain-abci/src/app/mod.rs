@@ -18,6 +18,7 @@ use chain_core::common::TendermintEventType;
 use chain_core::state::account::StakedState;
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::data::input::TxoPointer;
+use chain_core::tx::TxObfuscated;
 use chain_core::tx::{PlainTxAux, TxAux};
 use kvdb::{DBTransaction, KeyValueDB};
 use parity_codec::Decode;
@@ -141,7 +142,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     spend_utxos(&inputs, self.storage.db.clone(), &mut inittx);
                     (self.uncommitted_account_root_hash, None)
                 }
-                TxAux::DepositStakeTx(tx, _) => {
+                TxAux::DepositStakeTx { tx, .. } => {
                     spend_utxos(&tx.inputs, self.storage.db.clone(), &mut inittx);
                     update_account(
                         fee_acc
@@ -158,7 +159,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     &self.uncommitted_account_root_hash,
                     &mut self.accounts,
                 ),
-                TxAux::WithdrawUnbondedStakeTx(_, _) => update_account(
+                TxAux::WithdrawUnbondedStakeTx { .. } => update_account(
                     fee_acc
                         .1
                         .expect("account returned in withdraw unbonded stake verification"),
@@ -226,7 +227,10 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         let mut filter = BlockFilter::default();
         for txaux in self.delivered_txs.iter() {
             match txaux {
-                TxAux::TransferTx { txpayload, .. } => {
+                TxAux::TransferTx {
+                    payload: TxObfuscated { txpayload, .. },
+                    ..
+                } => {
                     // FIXME: temporary hack / this shouldn't be here
                     let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
                     if let Some(PlainTxAux::TransferTx(tx, _)) = plain_tx {
@@ -235,9 +239,16 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                         }
                     }
                 }
-                TxAux::WithdrawUnbondedStakeTx(tx, _) => {
-                    for view in tx.attributes.allowed_view.iter() {
-                        filter.add_view_key(&view.view_key);
+                TxAux::WithdrawUnbondedStakeTx {
+                    payload: TxObfuscated { txpayload, .. },
+                    ..
+                } => {
+                    // FIXME: temporary hack / this shouldn't be here
+                    let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
+                    if let Some(PlainTxAux::WithdrawUnbondedStakeTx(tx)) = plain_tx {
+                        for view in tx.attributes.allowed_view.iter() {
+                            filter.add_view_key(&view.view_key);
+                        }
                     }
                 }
                 _ => {}
