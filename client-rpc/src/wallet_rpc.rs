@@ -6,15 +6,26 @@ use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 
 use chain_core::common::{H256, HASH_SIZE_256};
+
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
-use client_common::balance::TransactionChange;
+use client_common::balance::BalanceChange;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error};
+
+#[derive(Serialize, Deserialize)]
+pub struct RowTx {
+    kind: String,
+    transaction_id: String,
+    address: String,
+    height: String,
+    time: String,
+    amount: String,
+}
 
 #[rpc]
 pub trait WalletRpc {
@@ -40,7 +51,7 @@ pub trait WalletRpc {
     fn sync_all(&self) -> Result<()>;
 
     #[rpc(name = "wallet_transactions")]
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>>;
+    fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>>;
 
     #[rpc(name = "multi_sig_new_session")]
     fn new_multi_sig_session(
@@ -202,15 +213,31 @@ where
         }
     }
 
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>> {
+    fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
         self.sync()?;
 
         self.client
             .history(&request.name, &request.passphrase)
             .map_err(|e| to_rpc_error(e))
-            .map(|transaction_change| {
-                // change response
-                transaction_change
+            .map(|transaction_changes| {
+                let rowtxs: Vec<RowTx> = transaction_changes
+                    .into_iter()
+                    .map(|c| {
+                        let bc = match c.balance_change {
+                            BalanceChange::Incoming(change) => ("incoming", change.0),
+                            BalanceChange::Outgoing(change) => ("outgoing", change.0),
+                        };
+                        RowTx {
+                            kind: bc.0.to_string(),
+                            transaction_id: hex::encode(c.transaction_id),
+                            address: c.address.to_string(),
+                            height: c.height.to_string(),
+                            time: c.time.to_string(),
+                            amount: bc.1.to_string(),
+                        }
+                    })
+                    .collect();
+                rowtxs
             })
     }
 
@@ -362,21 +389,21 @@ pub struct WalletRequest {
 mod tests {
     use super::*;
 
-    use chrono::DateTime;
-    use std::time::SystemTime;
-
     use chain_core::init::coin::CoinError;
     use chain_core::tx::data::input::TxoPointer;
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
+    use chrono::DateTime;
     use client_common::balance::BalanceChange;
+    use client_common::balance::TransactionChange;
     use client_common::storage::MemoryStorage;
     use client_common::Transaction;
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
     use client_index::Index;
+    use std::time::SystemTime;
 
     #[derive(Default)]
     pub struct MockIndex;
