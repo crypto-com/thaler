@@ -28,7 +28,7 @@ pub fn init_chain_id(chain_id_src: &str) {
 pub fn init_network(network: Network) {
     unsafe {
         INIT_NETWORK.call_once(|| {
-            NETWORK = network;
+            chosen_network::NETWORK = network;
         });
     }
 }
@@ -36,22 +36,22 @@ pub fn init_network(network: Network) {
 pub fn init_network_id(id: u8) {
     unsafe {
         INIT_NETWORK_ID.call_once(|| {
-            NETWORK_ID = id;
+            chosen_network::NETWORK_ID = id;
         });
     }
 }
 
 pub fn get_network_id() -> u8 {
-    unsafe { NETWORK_ID }
+    unsafe { chosen_network::NETWORK_ID }
 }
 
 pub fn get_network() -> Network {
-    unsafe { NETWORK }
+    unsafe { chosen_network::NETWORK }
 }
 
 pub fn get_bech32_human_part() -> &'static str {
     unsafe {
-        match NETWORK {
+        match chosen_network::NETWORK {
             Network::Mainnet => "crmt",
             Network::Testnet => "crtt",
         }
@@ -60,15 +60,18 @@ pub fn get_bech32_human_part() -> &'static str {
 
 pub fn get_full_network_name() -> &'static str {
     unsafe {
-        match NETWORK {
+        match chosen_network::NETWORK {
             Network::Mainnet => "mainnet",
             Network::Testnet => "testnet",
         }
     }
 }
 
-static mut NETWORK: Network = Network::Mainnet;
-static mut NETWORK_ID: u8 = 0 as u8;
+mod chosen_network {
+    use super::*;
+    pub static mut NETWORK: Network = Network::Mainnet;
+    pub static mut NETWORK_ID: u8 = 0 as u8;
+}
 
 #[cfg(test)]
 mod test {
