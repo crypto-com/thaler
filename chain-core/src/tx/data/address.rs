@@ -31,7 +31,8 @@ impl ExtendedAddr {
     fn get_string(&self, hash: TreeRoot) -> String {
         let checked_data: Vec<u5> = hash.to_vec().to_base32();
 
-        bech32::encode(get_bech32_human_part(), checked_data).expect("bech32 crmt encoding")
+        bech32::encode(get_bech32_human_part(), checked_data)
+            .expect("bech32 should be successful in ExtendedAddr get_string")
     }
 }
 
