@@ -167,6 +167,9 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     &mut self.accounts,
                 ),
             };
+            if let Some(ref account) = maccount {
+                self.filter.add_staked_state_address(&account.address);
+            }
             match maccount {
                 Some(ref account) if self.validator_voting_power.contains_key(&account.address) => {
                     let min_power = TendermintVotePower::from(
@@ -224,7 +227,6 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     fn end_block(&mut self, _req: &RequestEndBlock) -> ResponseEndBlock {
         info!("received endblock request");
         let mut resp = ResponseEndBlock::new();
-        let mut filter = BlockFilter::default();
         for txaux in self.delivered_txs.iter() {
             match txaux {
                 TxAux::TransferTx {
@@ -235,7 +237,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
                     if let Some(PlainTxAux::TransferTx(tx, _)) = plain_tx {
                         for view in tx.attributes.allowed_view.iter() {
-                            filter.add_view_key(&view.view_key);
+                            self.filter.add_view_key(&view.view_key);
                         }
                     }
                 }
@@ -247,14 +249,14 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
                     if let Some(PlainTxAux::WithdrawUnbondedStakeTx(tx)) = plain_tx {
                         for view in tx.attributes.allowed_view.iter() {
-                            filter.add_view_key(&view.view_key);
+                            self.filter.add_view_key(&view.view_key);
                         }
                     }
                 }
                 _ => {}
             };
         }
-        if let Some((key, value)) = filter.get_tendermint_kv() {
+        if let Some((key, value)) = self.filter.get_tendermint_kv() {
             let mut kvpair = KVPair::new();
             kvpair.key = key;
             kvpair.value = value;
@@ -263,6 +265,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             event.attributes.push(kvpair);
             resp.events.push(event);
         }
+        self.filter = BlockFilter::default();
         // TODO: skipchain-based validator changes?
         if !self.power_changed_in_block.is_empty() {
             let mut validators = Vec::with_capacity(self.power_changed_in_block.len());

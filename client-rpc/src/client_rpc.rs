@@ -26,9 +26,16 @@ pub struct RowTx {
     time: String,
     amount: String,
 }
+use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
+
+use chain_core::tx::data::input::TxoPointer;
+
+use client_network::network_ops::NetworkOpsClient;
+
+use std::str::FromStr;
 
 #[rpc]
-pub trait WalletRpc {
+pub trait ClientRpc {
     #[rpc(name = "wallet_addresses")]
     fn addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
@@ -100,25 +107,47 @@ pub trait WalletRpc {
 
     #[rpc(name = "multi_sig_signature")]
     fn signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+
+    #[rpc(name = "create_deposit_bonded_stake_transaction")]
+    fn create_deposit_bonded_stake_transaction(&self, request: ClientRequest) -> Result<String>;
+
+    #[rpc(name = "create_unbond_stake_transaction")]
+    fn create_unbond_stake_transaction(
+        &self,
+        request: CreateUnbondStakeTransactionRequest,
+    ) -> Result<String>;
+
+    #[rpc(name = "create_withdraw_all_unbonded_stake_transaction")]
+    fn create_withdraw_all_unbonded_stake_transaction(
+        &self,
+        request: ClientRequest,
+    ) -> Result<String>;
 }
 
-pub struct WalletRpcImpl<T: WalletClient + Send + Sync> {
+pub struct ClientRpcImpl<T: WalletClient + Send + Sync, S: NetworkOpsClient + Send + Sync> {
     client: T,
+    ops_client: S,
     chain_id: u8,
 }
 
-impl<T> WalletRpcImpl<T>
+impl<T, S> ClientRpcImpl<T, S>
 where
     T: WalletClient + Send + Sync,
+    S: NetworkOpsClient + Send + Sync,
 {
-    pub fn new(client: T, chain_id: u8) -> Self {
-        WalletRpcImpl { client, chain_id }
+    pub fn new(client: T, ops_client: S, chain_id: u8) -> Self {
+        ClientRpcImpl {
+            client,
+            ops_client,
+            chain_id,
+        }
     }
 }
 
-impl<T> WalletRpc for WalletRpcImpl<T>
+impl<T, S> ClientRpc for ClientRpcImpl<T, S>
 where
     T: WalletClient + MultiSigWalletClient + Send + Sync + 'static,
+    S: NetworkOpsClient + Send + Sync + 'static,
 {
     fn addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
         // TODO: Currently, it only returns staking addresses
@@ -351,6 +380,71 @@ where
             .map(|sig| sig.to_string())
             .map_err(to_rpc_error)
     }
+
+    fn create_deposit_bonded_stake_transaction(&self, request: ClientRequest) -> Result<String> {
+        let utxo: Vec<TxoPointer> = vec![];
+        let addr: StakedStateAddress =
+            StakedStateAddress::from_str(request.address.as_str()).unwrap();
+
+        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
+        let result = self.ops_client.create_deposit_bonded_stake_transaction(
+            request.name.as_str(),
+            &request.passphrase,
+            utxo,
+            addr,
+            attr,
+        );
+
+        match result {
+            Ok(_a) => Ok("success".to_string()),
+            Err(_b) => Ok("fail".to_string()),
+        }
+    }
+
+    fn create_unbond_stake_transaction(
+        &self,
+        request: CreateUnbondStakeTransactionRequest,
+    ) -> Result<String> {
+        let value = Coin::from_str(request.amount.as_str()).unwrap();
+        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
+        let addr: StakedStateAddress =
+            StakedStateAddress::from_str(request.address.as_str()).unwrap();
+
+        let result = self.ops_client.create_unbond_stake_transaction(
+            request.name.as_str(),
+            &request.passphrase,
+            &addr,
+            value,
+            attr,
+        );
+        match result {
+            Ok(_a) => Ok("success".to_string()),
+            Err(_b) => Ok("fail".to_string()),
+        }
+    }
+
+    fn create_withdraw_all_unbonded_stake_transaction(
+        &self,
+        request: ClientRequest,
+    ) -> Result<String> {
+        let addr: StakedStateAddress =
+            StakedStateAddress::from_str(request.address.as_str()).unwrap();
+        let utxo: Vec<TxOut> = vec![];
+        let attr = TxAttributes::new(self.chain_id);
+
+        let result = self.ops_client.create_withdraw_unbonded_stake_transaction(
+            request.name.as_str(),
+            &request.passphrase,
+            &addr,
+            utxo,
+            attr,
+        );
+
+        match result {
+            Ok(_a) => Ok("success".to_string()),
+            Err(_b) => Ok("fail".to_string()),
+        }
+    }
 }
 
 fn serialize_hash_256(hash: H256) -> String {
@@ -384,9 +478,23 @@ pub struct WalletRequest {
     name: String,
     passphrase: SecUtf8,
 }
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClientRequest {
+    name: String,
+    passphrase: SecUtf8,
+    address: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateUnbondStakeTransactionRequest {
+    name: String,
+    passphrase: SecUtf8,
+    address: String,
+    amount: String, // u64 as String
+}
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use super::*;
 
     use chain_core::init::coin::CoinError;
@@ -404,6 +512,11 @@ mod tests {
     use client_core::wallet::DefaultWalletClient;
     use client_index::Index;
     use std::time::SystemTime;
+
+    use client_common::tendermint::types::*;
+    use client_common::tendermint::Client;
+    use client_common::Result as CommonResult;
+    use client_network::network_ops::DefaultNetworkOpsClient;
 
     #[derive(Default)]
     pub struct MockIndex;
@@ -466,7 +579,7 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct ZeroFeeAlgorithm;
+    pub struct ZeroFeeAlgorithm;
 
     impl FeeAlgorithm for ZeroFeeAlgorithm {
         fn calculate_fee(&self, _num_bytes: usize) -> std::result::Result<Fee, CoinError> {
@@ -475,6 +588,40 @@ mod tests {
 
         fn calculate_for_txaux(&self, _txaux: &TxAux) -> std::result::Result<Fee, CoinError> {
             Ok(Fee::new(Coin::zero()))
+        }
+    }
+
+    type TestTxBuilder = DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm>;
+    type TestSigner = DefaultSigner<MemoryStorage>;
+    type TestWalletClient = DefaultWalletClient<MemoryStorage, MockIndex, TestTxBuilder>;
+    type TestOpsClient =
+        DefaultNetworkOpsClient<TestWalletClient, TestSigner, MockRpcClient, ZeroFeeAlgorithm>;
+
+    #[derive(Default)]
+    pub struct MockRpcClient;
+    impl Client for MockRpcClient {
+        fn genesis(&self) -> CommonResult<Genesis> {
+            unreachable!()
+        }
+
+        fn status(&self) -> CommonResult<Status> {
+            unreachable!()
+        }
+
+        fn block(&self, _height: u64) -> CommonResult<Block> {
+            unreachable!()
+        }
+
+        fn block_results(&self, _height: u64) -> CommonResult<BlockResults> {
+            unreachable!()
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
+            unreachable!()
+        }
+
+        fn query(&self, _path: &str, _data: &str) -> CommonResult<QueryResult> {
+            unreachable!()
         }
     }
 
@@ -583,16 +730,47 @@ mod tests {
         )
     }
 
-    fn setup_wallet_rpc() -> WalletRpcImpl<
-        DefaultWalletClient<
-            MemoryStorage,
-            MockIndex,
-            DefaultTransactionBuilder<DefaultSigner<MemoryStorage>, ZeroFeeAlgorithm>,
-        >,
-    > {
+    #[test]
+    fn test_create_deposit_bonded_stake_transaction() {
+        let client_rpc = setup_wallet_rpc();
+        assert!(client_rpc
+            .create_deposit_bonded_stake_transaction(create_client_request(
+                "Default",
+                "123456",
+                "0x0e7c045110b8dbf29765047380898919c5cb56f4",
+            ))
+            .is_ok());
+    }
+
+    #[test]
+    fn test_create_unbond_stake_transaction() {
+        let client_rpc = setup_wallet_rpc();
+        assert!(client_rpc
+            .create_unbond_stake_transaction(create_unbonded_stake_client_request(
+                "Default",
+                "123456",
+                "0x0e7c045110b8dbf29765047380898919c5cb56f4",
+                "1",
+            ))
+            .is_ok());
+    }
+
+    #[test]
+    fn test_create_withdraw_all_unbonded_stake_transaction() {
+        let client_rpc = setup_wallet_rpc();
+        assert!(client_rpc
+            .create_withdraw_all_unbonded_stake_transaction(create_client_request(
+                "Default",
+                "123456",
+                "0x0e7c045110b8dbf29765047380898919c5cb56f4",
+            ))
+            .is_ok());
+    }
+
+    fn make_test_wallet_client() -> TestWalletClient {
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage.clone());
-        let wallet_client = DefaultWalletClient::builder()
+        DefaultWalletClient::builder()
             .with_wallet(storage)
             .with_transaction_read(MockIndex::default())
             .with_transaction_write(DefaultTransactionBuilder::new(
@@ -600,16 +778,61 @@ mod tests {
                 ZeroFeeAlgorithm::default(),
             ))
             .build()
+            .unwrap()
+    }
+    fn make_test_ops_client() -> TestOpsClient {
+        let storage = MemoryStorage::default();
+        let wallet_client = DefaultWalletClient::builder()
+            .with_wallet(storage.clone())
+            .with_transaction_read(MockIndex::default())
+            .with_transaction_write(DefaultTransactionBuilder::new(
+                DefaultSigner::new(storage.clone()),
+                ZeroFeeAlgorithm::default(),
+            ))
+            .build()
             .unwrap();
+        DefaultNetworkOpsClient::new(
+            wallet_client,
+            DefaultSigner::new(storage.clone()),
+            MockRpcClient {},
+            ZeroFeeAlgorithm::default(),
+        )
+    }
+
+    fn setup_wallet_rpc() -> ClientRpcImpl<TestWalletClient, TestOpsClient> {
+        let wallet_client = make_test_wallet_client();
+        let ops_client = make_test_ops_client();
         let chain_id = 171u8;
 
-        WalletRpcImpl::new(wallet_client, chain_id)
+        ClientRpcImpl::new(wallet_client, ops_client, chain_id)
     }
 
     fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
         WalletRequest {
             name: name.to_owned(),
             passphrase: SecUtf8::from(passphrase),
+        }
+    }
+
+    fn create_client_request(name: &str, passphrase: &str, address: &str) -> ClientRequest {
+        ClientRequest {
+            name: name.to_owned(),
+            passphrase: SecUtf8::from(passphrase),
+            address: address.to_owned(),
+        }
+    }
+
+    fn create_unbonded_stake_client_request(
+        name: &str,
+        passphrase: &str,
+        address: &str,
+        amount: &str,
+    ) -> CreateUnbondStakeTransactionRequest {
+        CreateUnbondStakeTransactionRequest {
+            name: name.to_owned(),
+            passphrase: SecUtf8::from(passphrase),
+            address: address.to_owned(),
+            amount: amount.to_owned(),
         }
     }
 }

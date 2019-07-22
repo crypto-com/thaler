@@ -114,18 +114,19 @@ impl Command {
                     DefaultTransactionBuilder::new(signer.clone(), fee_algorithm);
                 let transaction_index =
                     DefaultIndex::new(storage.clone(), tendermint_client.clone());
+
                 let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage)
+                    .with_wallet(storage.clone())
                     .with_transaction_read(transaction_index)
                     .with_transaction_write(transaction_builder)
                     .build()?;
                 let network_ops_client = DefaultNetworkOpsClient::new(
-                    &wallet_client,
-                    &signer,
-                    &tendermint_client,
-                    &fee_algorithm,
+                    wallet_client,
+                    signer,
+                    tendermint_client,
+                    fee_algorithm,
                 );
-                transaction_command.execute(&wallet_client, &network_ops_client)
+                transaction_command.execute(network_ops_client.get_wallet(), &network_ops_client)
             }
             Command::StakedState { name, address } => {
                 let storage = SledStorage::new(storage_path())?;
@@ -141,11 +142,12 @@ impl Command {
                     .with_transaction_read(transaction_index)
                     .with_transaction_write(transaction_builder)
                     .build()?;
+
                 let network_ops_client = DefaultNetworkOpsClient::new(
-                    &wallet_client,
-                    &signer,
-                    &tendermint_client,
-                    &fee_algorithm,
+                    wallet_client,
+                    signer,
+                    tendermint_client,
+                    fee_algorithm,
                 );
                 Self::get_staked_stake(&network_ops_client, name, address)
             }

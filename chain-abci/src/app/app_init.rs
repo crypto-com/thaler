@@ -19,6 +19,7 @@ use chain_core::state::tendermint::{BlockHeight, TendermintVotePower};
 use chain_core::state::CouncilNode;
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::{fee::LinearFee, TxAux};
+use chain_tx_filter::BlockFilter;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::DBTransaction;
 use log::{info, warn};
@@ -81,6 +82,8 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub accounts: AccountStorage,
     /// valid transactions after DeliverTx before EndBlock/Commit
     pub delivered_txs: Vec<TxAux>,
+    /// current block filter
+    pub filter: BlockFilter,
     /// root hash of the sparse merkle patricia trie of staking account states after DeliverTx before EndBlock/Commit
     pub uncommitted_account_root_hash: StarlingFixedKey,
     /// a reference to genesis (used when there is no committed state)
@@ -243,6 +246,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             storage,
             accounts,
             delivered_txs: Vec::new(),
+            filter: BlockFilter::default(),
             uncommitted_account_root_hash: last_app_state.last_account_root_hash,
             chain_hex_id,
             genesis_app_hash,
@@ -317,6 +321,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 storage,
                 accounts,
                 delivered_txs: Vec::new(),
+                filter: BlockFilter::default(),
                 uncommitted_account_root_hash: [0u8; 32],
                 chain_hex_id,
                 genesis_app_hash,
