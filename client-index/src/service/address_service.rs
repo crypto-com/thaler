@@ -16,6 +16,11 @@ const KEYSPACE: &str = "index_address";
 #[derive(Debug, Encode, Decode)]
 pub struct AddressDetails {
     /// Unpent transactions corresponding to an address
+    ///
+    /// # Note
+    ///
+    /// Ideally, we should use `HashSet` or `BTreeSet` instead of `Vec` here. But, `parity_codec::Encode` is not
+    /// implemented for them. Implementation for `BTreeSet` will be available in next release of `parity_codec`.
     pub unspent_transactions: Vec<(TxoPointer, TxOut)>,
     /// Transaction history corresponding to an address
     pub transaction_history: Vec<TransactionChange>,
@@ -24,7 +29,9 @@ pub struct AddressDetails {
 
     /// Stores a set of transaction_ids that have been updated for current address.
     ///
-    /// NOTE: Ideally, we should use `HashSet` or `BTreeSet` instead of `Vec` here. But, `parity_codec::Encode` is not
+    /// # Note
+    ///
+    /// Ideally, we should use `HashSet` or `BTreeSet` instead of `Vec` here. But, `parity_codec::Encode` is not
     /// implemented for them. Implementation for `BTreeSet` will be available in next release of `parity_codec`.
     transaction_ids: Vec<TxId>,
 }
