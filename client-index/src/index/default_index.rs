@@ -441,7 +441,7 @@ mod tests {
         }
 
         /// Get abci query
-        fn query(&self, _path: &str, _data: &str) -> Result<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
             Ok(QueryResult {
                 response: Response {
                     value: "".to_string(),
