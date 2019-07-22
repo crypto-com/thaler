@@ -34,7 +34,7 @@ fn main() {
     let chain_id = matches.value_of("chain_id").unwrap();
 
     init_chain_id(chain_id);
-    println!(
+    info!(
         "network={:?} network_id={:X}",
         get_network(),
         get_network_id()
