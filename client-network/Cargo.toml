@@ -15,7 +15,7 @@ secstr = "0.3.2"
 base64 = "0.10"
 failure = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
-parity-codec = { features = ["derive"], version = "4.1.2" }
+parity-codec = { features = ["derive"], version = "4.1.3" }
 hex = "0.3.2"
 
 [dev-dependencies]
