@@ -11,6 +11,7 @@ use crate::init::address::{CroAddress, CroAddressError};
 #[cfg(feature = "bech32")]
 use bech32::{self, u5, FromBase32, ToBase32};
 
+#[cfg(feature = "bech32")]
 use crate::init::network::get_bech32_human_part;
 
 /// TODO: opaque types?
