@@ -8,6 +8,7 @@ use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::input::TxoIndex;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use chain_core::tx::TransactionId;
+use chain_core::tx::TxObfuscated;
 use chain_core::tx::{PlainTxAux, TxAux};
 use chain_tx_validation::TxWithOutputs;
 use enclave_protocol::{
@@ -61,23 +62,57 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             // FIXME: temporary mock
             "mockencrypt" => {
                 let request = EncryptionRequest::decode(&mut _req.data.as_slice());
-                if let Some(EncryptionRequest {
-                    tx: PlainTxAux::TransferTx(tx, witness),
-                }) = request
-                {
-                    let mock = EncryptionResponse {
-                        tx: TxAux::TransferTx {
-                            txid: tx.id(),
-                            inputs: tx.inputs.clone(),
-                            no_of_outputs: tx.outputs.len() as TxoIndex,
-                            nonce: [0u8; 12],
-                            txpayload: PlainTxAux::TransferTx(tx, witness).encode(),
-                        },
-                    };
-                    resp.value = mock.encode();
-                } else {
-                    resp.log += "invalid request";
-                    resp.code = 1;
+                match request {
+                    Some(EncryptionRequest::TransferTx(tx, witness)) => {
+                        let plain = PlainTxAux::TransferTx(tx.clone(), witness);
+                        let mock = EncryptionResponse {
+                            tx: TxAux::TransferTx {
+                                txid: tx.id(),
+                                inputs: tx.inputs.clone(),
+                                no_of_outputs: tx.outputs.len() as TxoIndex,
+                                payload: TxObfuscated {
+                                    key_from: 0,
+                                    nonce: [0u8; 12],
+                                    txpayload: plain.encode(),
+                                },
+                            },
+                        };
+                        resp.value = mock.encode();
+                    }
+                    Some(EncryptionRequest::DepositStake(maintx, witness)) => {
+                        let plain = PlainTxAux::DepositStakeTx(witness);
+                        let mock = EncryptionResponse {
+                            tx: TxAux::DepositStakeTx {
+                                tx: maintx,
+                                payload: TxObfuscated {
+                                    key_from: 0,
+                                    nonce: [0u8; 12],
+                                    txpayload: plain.encode(),
+                                },
+                            },
+                        };
+                        resp.value = mock.encode();
+                    }
+                    Some(EncryptionRequest::WithdrawStake(tx, _, witness)) => {
+                        let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
+                        let mock = EncryptionResponse {
+                            tx: TxAux::WithdrawUnbondedStakeTx {
+                                txid: tx.id(),
+                                no_of_outputs: tx.outputs.len() as TxoIndex,
+                                witness,
+                                payload: TxObfuscated {
+                                    key_from: 0,
+                                    nonce: [0u8; 12],
+                                    txpayload: plain.encode(),
+                                },
+                            },
+                        };
+                        resp.value = mock.encode();
+                    }
+                    _ => {
+                        resp.log += "invalid request";
+                        resp.code = 1;
+                    }
                 }
             }
             // FIXME: temporary mock
@@ -93,7 +128,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     for found in looked_up {
                         if let Ok(Some(uv)) = found {
                             let tx = TxWithOutputs::decode(&mut uv.to_vec().as_slice());
-                            if let Some(TxWithOutputs::Transfer(ttx)) = tx {
+                            if let Some(ttx) = tx {
                                 resp_txs.push(ttx);
                             }
                         }

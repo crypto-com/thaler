@@ -71,6 +71,7 @@ mod tests {
     use std::str::FromStr;
 
     use base64::encode;
+    use chain_core::tx::TxObfuscated;
     use parity_codec::Encode;
 
     #[test]
@@ -80,8 +81,11 @@ mod tests {
                 txid: [0u8; 32],
                 inputs: vec![],
                 no_of_outputs: 0,
-                nonce: [0u8; 12],
-                txpayload: vec![],
+                payload: TxObfuscated {
+                    key_from: 0,
+                    nonce: [0u8; 12],
+                    txpayload: vec![],
+                },
             }
             .encode(),
         );

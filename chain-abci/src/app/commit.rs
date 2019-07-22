@@ -8,6 +8,8 @@ use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::TxId;
+use chain_core::tx::TxObfuscated;
+
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TxAux;
 use chain_tx_validation::TxWithOutputs;
@@ -53,7 +55,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     TxAux::TransferTx {
                         inputs,
                         no_of_outputs,
-                        txpayload,
+                        payload: TxObfuscated { txpayload, .. },
                         ..
                     } => {
                         // FIXME: temporary hack / this shouldn't be here
@@ -74,9 +76,9 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                             &mut inittx,
                         );
                     }
-                    TxAux::DepositStakeTx(tx, witness) => {
+                    TxAux::DepositStakeTx { tx, .. } => {
                         inittx.put(COL_BODIES, &txid[..], &tx.encode());
-                        inittx.put(COL_WITNESS, &txid[..], &witness.encode());
+                        // witness is obfuscated -- TODO: could be stored on the enclave side or thrown away?
                         // this is not necessary (as they are spent in deliver_tx) and more of a sanity check (as update_utxos_commit does it)
                         spend_utxos(&tx.inputs, self.storage.db.clone(), &mut inittx);
                         // account should be already updated in deliver_tx
@@ -86,18 +88,28 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                         inittx.put(COL_WITNESS, &txid[..], &witness.encode());
                         // account should be already updated in deliver_tx
                     }
-                    TxAux::WithdrawUnbondedStakeTx(tx, witness) => {
-                        inittx.put(
-                            COL_BODIES,
-                            &txid[..],
-                            &TxWithOutputs::StakeWithdraw(tx.clone()).encode(),
-                        );
+                    TxAux::WithdrawUnbondedStakeTx {
+                        witness,
+                        no_of_outputs,
+                        payload: TxObfuscated { txpayload, .. },
+                        ..
+                    } => {
+                        // FIXME: temporary hack / this shouldn't be here
+                        let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
+                        if let Some(PlainTxAux::WithdrawUnbondedStakeTx(tx)) = plain_tx {
+                            inittx.put(
+                                COL_BODIES,
+                                &txid[..],
+                                &TxWithOutputs::StakeWithdraw(tx.clone()).encode(),
+                            );
+                        }
+
                         inittx.put(COL_WITNESS, &txid[..], &witness.encode());
                         // account should be already updated in deliver_tx
                         inittx.put(
                             COL_TX_META,
                             &txid[..],
-                            &BitVec::from_elem(tx.outputs.len(), false).to_bytes(),
+                            &BitVec::from_elem(*no_of_outputs as usize, false).to_bytes(),
                         );
                     }
                 }

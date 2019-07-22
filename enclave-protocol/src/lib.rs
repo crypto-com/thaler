@@ -1,15 +1,22 @@
 //! This crate contains messages exchanged in REQ-REP socket between chain-abci app to enclave wrapper server
 
-use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
+use chain_core::state::account::DepositBondTx;
+use chain_core::state::account::StakedState;
+use chain_core::state::account::StakedStateOpWitness;
+use chain_core::state::account::WithdrawUnbondedTx;
 use chain_core::tx::data::Tx;
 use chain_core::tx::data::TxId;
-use chain_core::tx::{fee::Fee, PlainTxAux, TxAux};
+use chain_core::tx::witness::TxWitness;
+use chain_core::tx::{fee::Fee, TxAux};
+use chain_core::ChainInfo;
 use chain_tx_validation::TxWithOutputs;
 
 use parity_codec::{Decode, Encode, Input, Output};
 
 /// requests sent from chain-abci app to enclave wrapper server
+/// FIXME: the variant will be smaller once the TX storage is on the enclave side
+#[allow(clippy::large_enum_variant)]
 pub enum EnclaveRequest {
     /// a sanity check (sends the chain network ID -- last byte / two hex digits convention)
     /// during InitChain or startup (to test one connected to the correct process)
@@ -21,10 +28,9 @@ pub enum EnclaveRequest {
     /// FIXME: only certain Tx types should be sent -> create a datatype / enum for it (probably after encrypted Tx data types)
     VerifyTx {
         tx: TxAux,
+        account: Option<StakedState>,
         inputs: Vec<TxWithOutputs>,
-        min_fee_computed: Fee,
-        previous_block_time: Timespec,
-        unbonding_period: u32,
+        info: ChainInfo,
     },
 }
 
@@ -37,17 +43,15 @@ impl Encode for EnclaveRequest {
             }
             EnclaveRequest::VerifyTx {
                 tx,
+                account,
                 inputs,
-                min_fee_computed,
-                previous_block_time,
-                unbonding_period,
+                info,
             } => {
                 dest.push_byte(1);
                 tx.encode_to(dest);
+                account.encode_to(dest);
                 inputs.encode_to(dest);
-                min_fee_computed.to_coin().encode_to(dest);
-                previous_block_time.encode_to(dest);
-                unbonding_period.encode_to(dest);
+                info.encode_to(dest);
             }
         }
     }
@@ -63,16 +67,14 @@ impl Decode for EnclaveRequest {
             }
             1 => {
                 let tx = TxAux::decode(input)?;
+                let account: Option<StakedState> = Option::decode(input)?;
                 let inputs: Vec<TxWithOutputs> = Vec::decode(input)?;
-                let fee = Coin::decode(input)?;
-                let previous_block_time = Timespec::decode(input)?;
-                let unbonding_period = u32::decode(input)?;
+                let info = ChainInfo::decode(input)?;
                 Some(EnclaveRequest::VerifyTx {
                     tx,
+                    account,
                     inputs,
-                    min_fee_computed: Fee::new(fee),
-                    previous_block_time,
-                    unbonding_period,
+                    info,
                 })
             }
             _ => None,
@@ -85,8 +87,8 @@ impl Decode for EnclaveRequest {
 pub enum EnclaveResponse {
     /// returns OK if chain_hex_id matches the one embedded in enclave
     CheckChain(Result<(), ()>),
-    /// returns the paid fee if the TX is valid
-    VerifyTx(Result<Fee, ()>),
+    /// returns the affected (account) state (if any) and paid fee if the TX is valid
+    VerifyTx(Result<(Fee, Option<StakedState>), ()>),
     /// response if unsupported tx type is sent (e.g. unbondtx) -- TODO: probably unnecessary if there is a data type with a subset of TxAux
     UnsupportedTxType,
     /// response if the enclave failed to parse the request
@@ -104,14 +106,15 @@ impl Encode for EnclaveResponse {
                     dest.push_byte(1);
                 }
             }
-            EnclaveResponse::VerifyTx(result) => {
+            EnclaveResponse::VerifyTx(Err(_)) => {
                 dest.push_byte(1);
-                if result.is_ok() {
-                    dest.push_byte(0);
-                    result.unwrap().to_coin().encode_to(dest);
-                } else {
-                    dest.push_byte(1);
-                }
+                dest.push_byte(1);
+            }
+            EnclaveResponse::VerifyTx(Ok((fee, acc))) => {
+                dest.push_byte(1);
+                dest.push_byte(0);
+                fee.to_coin().encode_to(dest);
+                acc.encode_to(dest);
             }
             EnclaveResponse::UnsupportedTxType => {
                 dest.push_byte(2);
@@ -139,7 +142,8 @@ impl Decode for EnclaveResponse {
                 let result: u8 = input.read_byte()?;
                 if result == 0 {
                     let fee = Coin::decode(input)?;
-                    Some(EnclaveResponse::VerifyTx(Ok(Fee::new(fee))))
+                    let acc: Option<StakedState> = Option::decode(input)?;
+                    Some(EnclaveResponse::VerifyTx(Ok((Fee::new(fee), acc))))
                 } else {
                     Some(EnclaveResponse::VerifyTx(Err(())))
                 }
@@ -156,8 +160,10 @@ pub const FLAGS: i32 = 0;
 
 /// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
 #[derive(Encode, Decode)]
-pub struct EncryptionRequest {
-    pub tx: PlainTxAux,
+pub enum EncryptionRequest {
+    TransferTx(Tx, TxWitness),
+    DepositStake(DepositBondTx, TxWitness),
+    WithdrawStake(WithdrawUnbondedTx, StakedState, StakedStateOpWitness),
 }
 
 /// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
@@ -184,5 +190,5 @@ pub struct DecryptionRequest {
 /// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
 #[derive(Encode, Decode)]
 pub struct DecryptionResponse {
-    pub txs: Vec<Tx>,
+    pub txs: Vec<TxWithOutputs>,
 }

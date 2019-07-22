@@ -9,6 +9,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::PlainTxAux;
+use chain_core::tx::TxObfuscated;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::{ErrorKind, Result};
 use parity_codec::Encode;
@@ -95,8 +96,11 @@ where
                 txid: transaction.id(),
                 inputs: transaction.inputs.clone(),
                 no_of_outputs: transaction.outputs.len() as TxoIndex,
-                nonce: [0u8; 12],
-                txpayload: plain_tx_aux.encode(),
+                payload: TxObfuscated {
+                    key_from: 0,
+                    nonce: [0u8; 12],
+                    txpayload: plain_tx_aux.encode(),
+                },
             };
             let new_fees = self
                 .fee_algorithm
@@ -243,7 +247,10 @@ mod tests {
             .to_coin();
 
         match tx_aux {
-            TxAux::TransferTx { txpayload, .. } => {
+            TxAux::TransferTx {
+                payload: TxObfuscated { txpayload, .. },
+                ..
+            } => {
                 if let Some(PlainTxAux::TransferTx(transaction, witness)) =
                     PlainTxAux::decode(&mut txpayload.as_slice())
                 {
