@@ -23,11 +23,9 @@ where
     S: Storage,
     C: Client,
 {
-    balance_service: BalanceService<S>,
+    address_service: AddressService<S>,
     global_state_service: GlobalStateService<S>,
-    transaction_change_service: TransactionChangeService<S>,
     transaction_service: TransactionService<S>,
-    unspent_transaction_service: UnspentTransactionService<S>,
     client: C,
 }
 
@@ -39,11 +37,9 @@ where
     /// Creates a new instance of `DefaultIndex`
     pub fn new(storage: S, client: C) -> Self {
         Self {
-            balance_service: BalanceService::new(storage.clone()),
+            address_service: AddressService::new(storage.clone()),
             global_state_service: GlobalStateService::new(storage.clone()),
-            transaction_change_service: TransactionChangeService::new(storage.clone()),
-            transaction_service: TransactionService::new(storage.clone()),
-            unspent_transaction_service: UnspentTransactionService::new(storage),
+            transaction_service: TransactionService::new(storage),
             client,
         }
     }
@@ -56,9 +52,8 @@ where
 {
     /// Clears all the services
     fn clear(&self) -> Result<()> {
-        self.balance_service.clear()?;
+        self.address_service.clear()?;
         self.global_state_service.clear()?;
-        self.transaction_change_service.clear()?;
         self.transaction_service.clear()
     }
 
@@ -73,14 +68,12 @@ where
                 unimplemented!("FIXME: indexing should be rethought, as it'll first check the filter and query (block data would be obfuscated)")
             }
             TxAux::DepositStakeTx{ tx, .. } => {
-                self.handle_deposit_stake_transaction(&tx, height, time)?;
+                self.handle_deposit_stake_transaction(tx.clone(), height, time)?;
                 self.transaction_service.set(
-                    &tx.id(),
                     &Transaction::DepositStakeTransaction(tx),
                 )
             }
             TxAux::UnbondStakeTx(unbond_transaction, _) => self.transaction_service.set(
-                &unbond_transaction.id(),
                 &Transaction::UnbondStakeTransaction(unbond_transaction),
             ),
             TxAux::WithdrawUnbondedStakeTx{ .. } => {
@@ -91,27 +84,29 @@ where
 
     fn handle_deposit_stake_transaction(
         &self,
-        transaction: &DepositBondTx,
+        transaction: DepositBondTx,
         height: u64,
         time: DateTime<Utc>,
     ) -> Result<()> {
         let transaction_id = transaction.id();
+        let mut memento = AddressMemento::new(transaction_id);
 
-        for input in transaction.inputs.iter() {
-            self.handle_transaction_input(transaction_id, input, height, time)?;
+        for input in transaction.inputs.into_iter() {
+            self.handle_transaction_input(&mut memento, transaction_id, input, height, time)?;
         }
 
-        Ok(())
+        self.address_service.apply_memento(&memento)
     }
 
     fn handle_transaction_input(
         &self,
+        memento: &mut AddressMemento,
         transaction_id: TxId,
-        input: &TxoPointer,
+        input: TxoPointer,
         height: u64,
         time: DateTime<Utc>,
     ) -> Result<()> {
-        let output = self.output(&input.id, input.index as usize)?;
+        let output = self.transaction_service.get_output(&input)?;
 
         let change = TransactionChange {
             transaction_id,
@@ -121,28 +116,28 @@ where
             time,
         };
 
-        // Update balance
-        self.balance_service
-            .change(&change.address, &change.balance_change)?;
+        let address = change.address.clone();
+
+        // Update transaction history and balance
+        memento.add_transaction_change(&address, change);
 
         // Update unspent transactions
-        self.unspent_transaction_service
-            .remove(&change.address, input)?;
+        memento.remove_unspent_transaction(&address, input);
 
-        // Update transaction history
-        self.transaction_change_service.add(&change)
+        Ok(())
     }
 
     /// this will still be probably used even in redesigned client indexing
     #[allow(dead_code)]
     fn handle_transaction_output(
         &self,
+        memento: &mut AddressMemento,
         transaction_id: TxId,
-        output: &TxOut,
+        output: TxOut,
         index: usize,
         height: u64,
         time: DateTime<Utc>,
-    ) -> Result<()> {
+    ) {
         let change = TransactionChange {
             transaction_id,
             address: output.address.clone(),
@@ -151,18 +146,13 @@ where
             time,
         };
 
-        // Update balance
-        self.balance_service
-            .change(&change.address, &change.balance_change)?;
+        let address = change.address.clone();
+
+        // Update transaction history and balance
+        memento.add_transaction_change(&address, change);
 
         // Update unspent transactions
-        self.unspent_transaction_service.add(
-            &change.address,
-            (&TxoPointer::new(transaction_id, index), output),
-        )?;
-
-        // Update transaction history
-        self.transaction_change_service.add(&change)
+        memento.add_unspent_transaction(&address, TxoPointer::new(transaction_id, index), output);
     }
 }
 
@@ -206,17 +196,17 @@ where
 
     #[inline]
     fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>> {
-        self.transaction_change_service.get(address)
+        Ok(self.address_service.get(address)?.transaction_history)
     }
 
     #[inline]
     fn balance(&self, address: &ExtendedAddr) -> Result<Coin> {
-        self.balance_service.get(address)
+        Ok(self.address_service.get(address)?.balance)
     }
 
     #[inline]
     fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, TxOut)>> {
-        self.unspent_transaction_service.get(address)
+        Ok(self.address_service.get(address)?.unspent_transactions)
     }
 
     #[inline]
