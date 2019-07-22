@@ -224,8 +224,8 @@ where
                     .into_iter()
                     .map(|c| {
                         let bc = match c.balance_change {
-                            BalanceChange::Incoming(change) => ("incoming", change.0),
-                            BalanceChange::Outgoing(change) => ("outgoing", change.0),
+                            BalanceChange::Incoming(change) => ("incoming", u64::from(change)),
+                            BalanceChange::Outgoing(change) => ("outgoing", u64::from(change)),
                         };
                         RowTx {
                             kind: bc.0.to_string(),
