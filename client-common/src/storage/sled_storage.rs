@@ -1,5 +1,6 @@
 #![cfg(feature = "sled")]
 use std::path::Path;
+use std::sync::Arc;
 
 use failure::ResultExt;
 use sled::{ConfigBuilder, Db};
@@ -9,21 +10,21 @@ use crate::{ErrorKind, Result};
 
 /// Storage backed by Sled
 #[derive(Clone)]
-pub struct SledStorage(Db);
+pub struct SledStorage(Arc<Db>);
 
 impl SledStorage {
     /// Creates a new instance with specified path for data storage
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         if cfg!(test) {
-            Ok(Self(
+            Ok(Self(Arc::new(
                 Db::start(ConfigBuilder::new().path(path).temporary(true).build())
                     .context(ErrorKind::StorageInitializationError)?,
-            ))
+            )))
         } else {
-            Ok(Self(
+            Ok(Self(Arc::new(
                 Db::start(ConfigBuilder::new().path(path).build())
                     .context(ErrorKind::StorageInitializationError)?,
-            ))
+            )))
         }
     }
 }

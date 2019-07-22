@@ -564,15 +564,15 @@ mod tests {
                         transaction_id: [0u8; 32],
                         address: address.clone(),
                         balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                        height: 1,
-                        time: DateTime::from(SystemTime::now()),
+                        block_height: 1,
+                        block_time: DateTime::from(SystemTime::now()),
                     },
                     TransactionChange {
                         transaction_id: [1u8; 32],
                         address: address.clone(),
                         balance_change: BalanceChange::Outgoing(Coin::new(30).unwrap()),
-                        height: 2,
-                        time: DateTime::from(SystemTime::now()),
+                        block_height: 2,
+                        block_time: DateTime::from(SystemTime::now()),
                     },
                 ])
             } else if address == &self.addr_2 {
@@ -582,15 +582,15 @@ mod tests {
                             transaction_id: [1u8; 32],
                             address: address.clone(),
                             balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                            height: 1,
-                            time: DateTime::from(SystemTime::now()),
+                            block_height: 1,
+                            block_time: DateTime::from(SystemTime::now()),
                         },
                         TransactionChange {
                             transaction_id: [2u8; 32],
                             address: address.clone(),
                             balance_change: BalanceChange::Outgoing(Coin::new(30).unwrap()),
-                            height: 2,
-                            time: DateTime::from(SystemTime::now()),
+                            block_height: 2,
+                            block_time: DateTime::from(SystemTime::now()),
                         },
                     ])
                 } else {
@@ -598,8 +598,8 @@ mod tests {
                         transaction_id: [1u8; 32],
                         address: address.clone(),
                         balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                        height: 2,
-                        time: DateTime::from(SystemTime::now()),
+                        block_height: 2,
+                        block_time: DateTime::from(SystemTime::now()),
                     }])
                 }
             } else if *self.changed.read().unwrap() && address == &self.addr_3 {
@@ -607,8 +607,8 @@ mod tests {
                     transaction_id: [1u8; 32],
                     address: address.clone(),
                     balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                    height: 2,
-                    time: DateTime::from(SystemTime::now()),
+                    block_height: 2,
+                    block_time: DateTime::from(SystemTime::now()),
                 }])
             } else {
                 Ok(Default::default())
