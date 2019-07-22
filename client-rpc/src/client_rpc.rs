@@ -260,8 +260,8 @@ where
                             kind: bc.0.to_string(),
                             transaction_id: hex::encode(c.transaction_id),
                             address: c.address.to_string(),
-                            height: c.height.to_string(),
-                            time: c.time.to_string(),
+                            height: c.block_height.to_string(),
+                            time: c.block_time.to_string(),
                             amount: bc.1.to_string(),
                         }
                     })
