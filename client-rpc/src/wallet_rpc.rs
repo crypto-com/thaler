@@ -218,7 +218,7 @@ where
 
         self.client
             .history(&request.name, &request.passphrase)
-            .map_err(|e| to_rpc_error(e))
+            .map_err(to_rpc_error)
             .map(|transaction_changes| {
                 let rowtxs: Vec<RowTx> = transaction_changes
                     .into_iter()
