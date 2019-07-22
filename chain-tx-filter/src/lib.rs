@@ -1,4 +1,6 @@
+use chain_core::state::account::StakedStateAddress;
 use ethbloom::{Bloom, Input};
+use parity_codec::Encode;
 use secp256k1::key::PublicKey;
 use std::convert::TryFrom;
 
@@ -15,6 +17,12 @@ impl BlockFilter {
     pub fn add_view_key(&mut self, view_key: &PublicKey) {
         self.modified = true;
         self.bloom.accrue(Input::Raw(&view_key.serialize()[..]));
+    }
+
+    /// adds a staked state address to the filter
+    pub fn add_staked_state_address(&mut self, address: &StakedStateAddress) {
+        self.modified = true;
+        self.bloom.accrue(Input::Raw(&address.encode()));
     }
 
     /// gets a Key-Value payload for tendermint events (if any view keys were added)
@@ -34,6 +42,13 @@ impl BlockFilter {
     /// false = not present
     pub fn check_view_key(&self, view_key: &PublicKey) -> bool {
         self.bloom.contains_input(Input::Raw(&view_key.serialize()))
+    }
+
+    /// tests if a staked state address is in the filter
+    /// true = maybe present
+    /// false = not present
+    pub fn check_staked_state_address(&self, address: &StakedStateAddress) -> bool {
+        self.bloom.contains_input(Input::Raw(&address.encode()))
     }
 
     /// check if view keys were added since its creation
