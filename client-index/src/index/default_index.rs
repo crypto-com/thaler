@@ -103,8 +103,8 @@ where
         memento: &mut AddressMemento,
         transaction_id: TxId,
         input: TxoPointer,
-        height: u64,
-        time: DateTime<Utc>,
+        block_height: u64,
+        block_time: DateTime<Utc>,
     ) -> Result<()> {
         let output = self.transaction_service.get_output(&input)?;
 
@@ -112,8 +112,8 @@ where
             transaction_id,
             address: output.address,
             balance_change: BalanceChange::Outgoing(output.value),
-            height,
-            time,
+            block_height,
+            block_time,
         };
 
         let address = change.address.clone();
@@ -135,15 +135,15 @@ where
         transaction_id: TxId,
         output: TxOut,
         index: usize,
-        height: u64,
-        time: DateTime<Utc>,
+        block_height: u64,
+        block_time: DateTime<Utc>,
     ) {
         let change = TransactionChange {
             transaction_id,
             address: output.address.clone(),
             balance_change: BalanceChange::Incoming(output.value),
-            height,
-            time,
+            block_height,
+            block_time,
         };
 
         let address = change.address.clone();
@@ -170,7 +170,7 @@ where
         let current_block_height = self.client.status()?.last_block_height()?;
 
         for height in (last_block_height + 1)..=current_block_height {
-            let valid_transaction_ids = self.client.block_results(height)?.ids()?;
+            let valid_transaction_ids = self.client.block_results(height)?.transaction_ids()?;
             let block = self.client.block(height)?;
             let transactions = block.transactions()?;
 
@@ -410,6 +410,7 @@ mod tests {
                                 }],
                             }],
                         }]),
+                        end_block: None,
                     },
                 })
             } else if height == 2 {
@@ -427,6 +428,7 @@ mod tests {
                                 }],
                             }],
                         }]),
+                        end_block: None,
                     },
                 })
             } else {
@@ -439,7 +441,7 @@ mod tests {
         }
 
         /// Get abci query
-        fn query(&self, _path: &str, _data: &str) -> Result<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
             Ok(QueryResult {
                 response: Response {
                     value: "".to_string(),

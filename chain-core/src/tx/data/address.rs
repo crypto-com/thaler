@@ -11,6 +11,9 @@ use crate::init::address::{CroAddress, CroAddressError};
 #[cfg(feature = "bech32")]
 use bech32::{self, u5, FromBase32, ToBase32};
 
+#[cfg(feature = "bech32")]
+use crate::init::network::get_bech32_human_part;
+
 /// TODO: opaque types?
 type TreeRoot = H256;
 
@@ -27,14 +30,9 @@ pub enum ExtendedAddr {
 impl ExtendedAddr {
     fn get_string(&self, hash: TreeRoot) -> String {
         let checked_data: Vec<u5> = hash.to_vec().to_base32();
-        match crate::init::CURRENT_NETWORK {
-            crate::init::network::Network::Testnet => {
-                bech32::encode("crtt", checked_data).expect("bech32 crmt encoding")
-            }
-            crate::init::network::Network::Mainnet => {
-                bech32::encode("crmt", checked_data).expect("bech32 crmt encoding")
-            }
-        }
+
+        bech32::encode(get_bech32_human_part(), checked_data)
+            .expect("bech32 should be successful in ExtendedAddr get_string")
     }
 }
 

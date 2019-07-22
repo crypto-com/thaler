@@ -59,7 +59,7 @@ where
     /// Get account info
     fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
         self.client
-            .query("account", hex::encode(staked_state_address).as_str())
+            .query("account", staked_state_address)
             .map(|x| x.response.value)
             .and_then(|value| match base64::decode(value.as_bytes()) {
                 Ok(a) => Ok(a),
@@ -312,7 +312,7 @@ mod tests {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &str) -> Result<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
             Ok(QueryResult {
                 response: Response {
                     value:

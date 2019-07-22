@@ -6,16 +6,26 @@ use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 
 use chain_core::common::{H256, HASH_SIZE_256};
+
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
-use client_common::balance::TransactionChange;
+use client_common::balance::BalanceChange;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error};
 
+#[derive(Serialize, Deserialize)]
+pub struct RowTx {
+    kind: String,
+    transaction_id: String,
+    address: String,
+    height: String,
+    time: String,
+    amount: String,
+}
 use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
 
 use chain_core::tx::data::input::TxoPointer;
@@ -48,7 +58,7 @@ pub trait ClientRpc {
     fn sync_all(&self) -> Result<()>;
 
     #[rpc(name = "wallet_transactions")]
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>>;
+    fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>>;
 
     #[rpc(name = "multi_sig_new_session")]
     fn new_multi_sig_session(
@@ -117,7 +127,7 @@ pub trait ClientRpc {
 pub struct ClientRpcImpl<T: WalletClient + Send + Sync, S: NetworkOpsClient + Send + Sync> {
     client: T,
     ops_client: S,
-    chain_id: u8,
+    network_id: u8,
 }
 
 impl<T, S> ClientRpcImpl<T, S>
@@ -125,11 +135,11 @@ where
     T: WalletClient + Send + Sync,
     S: NetworkOpsClient + Send + Sync,
 {
-    pub fn new(client: T, ops_client: S, chain_id: u8) -> Self {
+    pub fn new(client: T, ops_client: S, network_id: u8) -> Self {
         ClientRpcImpl {
             client,
             ops_client,
-            chain_id,
+            network_id,
         }
     }
 }
@@ -192,7 +202,7 @@ where
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let coin = Coin::new(amount).map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let tx_out = TxOut::new(address, coin);
-        let tx_attributes = TxAttributes::new(self.chain_id);
+        let tx_attributes = TxAttributes::new(self.network_id);
 
         let return_address = self
             .client
@@ -232,13 +242,32 @@ where
         }
     }
 
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>> {
+    fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
         self.sync()?;
 
-        match self.client.history(&request.name, &request.passphrase) {
-            Ok(transaction_change) => Ok(transaction_change),
-            Err(e) => Err(to_rpc_error(e)),
-        }
+        self.client
+            .history(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)
+            .map(|transaction_changes| {
+                let rowtxs: Vec<RowTx> = transaction_changes
+                    .into_iter()
+                    .map(|c| {
+                        let bc = match c.balance_change {
+                            BalanceChange::Incoming(change) => ("incoming", u64::from(change)),
+                            BalanceChange::Outgoing(change) => ("outgoing", u64::from(change)),
+                        };
+                        RowTx {
+                            kind: bc.0.to_string(),
+                            transaction_id: hex::encode(c.transaction_id),
+                            address: c.address.to_string(),
+                            height: c.height.to_string(),
+                            time: c.time.to_string(),
+                            amount: bc.1.to_string(),
+                        }
+                    })
+                    .collect();
+                rowtxs
+            })
     }
 
     fn new_multi_sig_session(
@@ -357,7 +386,7 @@ where
         let addr: StakedStateAddress =
             StakedStateAddress::from_str(request.address.as_str()).unwrap();
 
-        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
+        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.network_id);
         let result = self.ops_client.create_deposit_bonded_stake_transaction(
             request.name.as_str(),
             &request.passphrase,
@@ -377,7 +406,7 @@ where
         request: CreateUnbondStakeTransactionRequest,
     ) -> Result<String> {
         let value = Coin::from_str(request.amount.as_str()).unwrap();
-        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
+        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.network_id);
         let addr: StakedStateAddress =
             StakedStateAddress::from_str(request.address.as_str()).unwrap();
 
@@ -401,7 +430,7 @@ where
         let addr: StakedStateAddress =
             StakedStateAddress::from_str(request.address.as_str()).unwrap();
         let utxo: Vec<TxOut> = vec![];
-        let attr = TxAttributes::new(self.chain_id);
+        let attr = TxAttributes::new(self.network_id);
 
         let result = self.ops_client.create_withdraw_unbonded_stake_transaction(
             request.name.as_str(),
@@ -468,21 +497,21 @@ pub struct CreateUnbondStakeTransactionRequest {
 pub mod tests {
     use super::*;
 
-    use chrono::DateTime;
-    use std::time::SystemTime;
-
     use chain_core::init::coin::CoinError;
     use chain_core::tx::data::input::TxoPointer;
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
+    use chrono::DateTime;
     use client_common::balance::BalanceChange;
+    use client_common::balance::TransactionChange;
     use client_common::storage::MemoryStorage;
     use client_common::Transaction;
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
     use client_index::Index;
+    use std::time::SystemTime;
 
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
@@ -509,8 +538,8 @@ pub mod tests {
                 transaction_id: [0u8; 32],
                 address: address.clone(),
                 balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                height: 1,
-                time: DateTime::from(SystemTime::now()),
+                block_height: 1,
+                block_time: DateTime::from(SystemTime::now()),
             }])
         }
 
@@ -591,7 +620,7 @@ pub mod tests {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &str) -> CommonResult<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<QueryResult> {
             unreachable!()
         }
     }

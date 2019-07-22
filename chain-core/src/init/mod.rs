@@ -8,6 +8,7 @@ pub mod coin;
 /// Configuration in JSON passed to InitChain
 pub mod config;
 
+#[cfg(feature = "bech32")]
 pub mod network;
 
 /// maximum total supply with a fixed decimal point
