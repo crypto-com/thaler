@@ -117,7 +117,7 @@ pub trait ClientRpc {
 pub struct ClientRpcImpl<T: WalletClient + Send + Sync, S: NetworkOpsClient + Send + Sync> {
     client: T,
     ops_client: S,
-    chain_id: u8,
+    network_id: u8,
 }
 
 impl<T, S> ClientRpcImpl<T, S>
@@ -125,11 +125,11 @@ where
     T: WalletClient + Send + Sync,
     S: NetworkOpsClient + Send + Sync,
 {
-    pub fn new(client: T, ops_client: S, chain_id: u8) -> Self {
+    pub fn new(client: T, ops_client: S, network_id: u8) -> Self {
         ClientRpcImpl {
             client,
             ops_client,
-            chain_id,
+            network_id,
         }
     }
 }
@@ -192,7 +192,7 @@ where
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let coin = Coin::new(amount).map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let tx_out = TxOut::new(address, coin);
-        let tx_attributes = TxAttributes::new(self.chain_id);
+        let tx_attributes = TxAttributes::new(self.network_id);
 
         let return_address = self
             .client
@@ -357,7 +357,7 @@ where
         let addr: StakedStateAddress =
             StakedStateAddress::from_str(request.address.as_str()).unwrap();
 
-        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
+        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.network_id);
         let result = self.ops_client.create_deposit_bonded_stake_transaction(
             request.name.as_str(),
             &request.passphrase,
@@ -377,7 +377,7 @@ where
         request: CreateUnbondStakeTransactionRequest,
     ) -> Result<String> {
         let value = Coin::from_str(request.amount.as_str()).unwrap();
-        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
+        let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.network_id);
         let addr: StakedStateAddress =
             StakedStateAddress::from_str(request.address.as_str()).unwrap();
 
@@ -401,7 +401,7 @@ where
         let addr: StakedStateAddress =
             StakedStateAddress::from_str(request.address.as_str()).unwrap();
         let utxo: Vec<TxOut> = vec![];
-        let attr = TxAttributes::new(self.chain_id);
+        let attr = TxAttributes::new(self.network_id);
 
         let result = self.ops_client.create_withdraw_unbonded_stake_transaction(
             request.name.as_str(),
