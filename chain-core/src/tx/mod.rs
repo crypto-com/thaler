@@ -17,6 +17,34 @@ use crate::state::account::{DepositBondTx, StakedStateOpWitness, UnbondTx, Withd
 use crate::state::tendermint::BlockHeight;
 use crate::tx::data::{txid_hash, TxId};
 use data::input::{TxoIndex, TxoPointer};
+use data::output::TxOut;
+
+/// wrapper around transactions with outputs
+#[derive(Encode, Decode)]
+pub enum TxWithOutputs {
+    /// normal transfer
+    Transfer(Tx),
+    /// withdrawing unbonded amount from a staked state
+    StakeWithdraw(WithdrawUnbondedTx),
+}
+
+impl TxWithOutputs {
+    /// returns the particular transaction type's outputs
+    pub fn outputs(&self) -> &[TxOut] {
+        match self {
+            TxWithOutputs::Transfer(tx) => &tx.outputs,
+            TxWithOutputs::StakeWithdraw(tx) => &tx.outputs,
+        }
+    }
+
+    /// returns the particular transaction type's id (currently blake2s_hash(SCALE-encoded tx))
+    pub fn id(&self) -> TxId {
+        match self {
+            TxWithOutputs::Transfer(tx) => tx.id(),
+            TxWithOutputs::StakeWithdraw(tx) => tx.id(),
+        }
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 /// Plain transaction parts "visible" inside enclaves
