@@ -360,7 +360,7 @@ where
         let attr: StakedStateOpAttributes = StakedStateOpAttributes::new(self.chain_id);
         let result = self.ops_client.create_deposit_bonded_stake_transaction(
             request.name.as_str(),
-            &SecUtf8::from(request.passphrase),
+            &request.passphrase,
             utxo,
             addr,
             attr,
