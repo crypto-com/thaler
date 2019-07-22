@@ -620,7 +620,7 @@ pub mod tests {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &str) -> CommonResult<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<QueryResult> {
             unreachable!()
         }
     }
