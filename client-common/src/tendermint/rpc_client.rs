@@ -62,9 +62,13 @@ impl Client for RpcClient {
             .map(|_| ())
     }
 
-    fn query(&self, path: &str, data: &str) -> Result<QueryResult> {
-        // path, data, height, prove
-        let params = [json!(path), json!(data), json!(null), json!(null)];
+    fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult> {
+        let params = [
+            json!(path),
+            json!(hex::encode(data)),
+            json!(null),
+            json!(null),
+        ];
         self.call("abci_query", &params)
     }
 }

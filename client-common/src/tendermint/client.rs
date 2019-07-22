@@ -19,6 +19,6 @@ pub trait Client: Send + Sync {
     /// Makes `broadcast_tx_sync` call to tendermint
     fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()>;
 
-    /// Get abci query
-    fn query(&self, path: &str, data: &str) -> Result<QueryResult>;
+    /// Makes `abci_query` call to tendermint
+    fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult>;
 }
