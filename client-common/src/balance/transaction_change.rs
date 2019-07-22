@@ -23,9 +23,9 @@ pub struct TransactionChange {
     /// Change in balance
     pub balance_change: BalanceChange,
     /// Height of block which has this transaction
-    pub height: u64,
+    pub block_height: u64,
     /// Time of block which has this transaction
-    pub time: DateTime<Utc>,
+    pub block_time: DateTime<Utc>,
 }
 
 impl Encode for TransactionChange {
@@ -33,8 +33,8 @@ impl Encode for TransactionChange {
         self.transaction_id.encode_to(dest);
         self.address.encode_to(dest);
         self.balance_change.encode_to(dest);
-        self.height.encode_to(dest);
-        self.time.to_rfc3339().encode_to(dest);
+        self.block_height.encode_to(dest);
+        self.block_time.to_rfc3339().encode_to(dest);
     }
 }
 
@@ -43,14 +43,14 @@ impl Decode for TransactionChange {
         let transaction_id = TxId::decode(input)?;
         let address = ExtendedAddr::decode(input)?;
         let balance_change = BalanceChange::decode(input)?;
-        let height = u64::decode(input)?;
-        let time = DateTime::from_str(&String::decode(input)?).ok()?;
+        let block_height = u64::decode(input)?;
+        let block_time = DateTime::from_str(&String::decode(input)?).ok()?;
         Some(TransactionChange {
             transaction_id,
             address,
             balance_change,
-            height,
-            time,
+            block_height,
+            block_time,
         })
     }
 }
@@ -84,8 +84,8 @@ mod tests {
             transaction_id: txid_hash(&[0, 1, 2]),
             address: ExtendedAddr::OrTree(Default::default()),
             balance_change,
-            height: 0,
-            time: DateTime::from(SystemTime::now()),
+            block_height: 0,
+            block_time: DateTime::from(SystemTime::now()),
         }
     }
 
