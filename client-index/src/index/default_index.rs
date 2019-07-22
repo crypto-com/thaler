@@ -11,7 +11,7 @@ use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use client_common::balance::{BalanceChange, TransactionChange};
 use client_common::tendermint::Client;
-use client_common::{Error, ErrorKind, Result, Storage, Transaction};
+use client_common::{Result, Storage, Transaction};
 
 use crate::service::*;
 use crate::Index;
@@ -195,6 +195,11 @@ where
     }
 
     #[inline]
+    fn address_details(&self, address: &ExtendedAddr) -> Result<AddressDetails> {
+        self.address_service.get(address)
+    }
+
+    #[inline]
     fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>> {
         Ok(self.address_service.get(address)?.transaction_history)
     }
@@ -214,32 +219,9 @@ where
         self.transaction_service.get(id)
     }
 
-    fn output(&self, id: &TxId, index: usize) -> Result<TxOut> {
-        let transaction = self
-            .transaction(id)?
-            .ok_or_else(|| Error::from(ErrorKind::TransactionNotFound))?;
-
-        match transaction {
-            Transaction::TransferTransaction(transfer_transaction) => {
-                let output = transfer_transaction
-                    .outputs
-                    .into_iter()
-                    .nth(index)
-                    .ok_or_else(|| Error::from(ErrorKind::TransactionNotFound))?;
-
-                Ok(output)
-            }
-            Transaction::WithdrawUnbondedStakeTransaction(withdraw_transaction) => {
-                let output = withdraw_transaction
-                    .outputs
-                    .into_iter()
-                    .nth(index)
-                    .ok_or_else(|| Error::from(ErrorKind::TransactionNotFound))?;
-
-                Ok(output)
-            }
-            _ => Err(ErrorKind::InvalidTransaction.into()),
-        }
+    #[inline]
+    fn output(&self, input: &TxoPointer) -> Result<TxOut> {
+        self.transaction_service.get_output(input)
     }
 
     #[inline]
@@ -269,6 +251,7 @@ mod tests {
     use chain_core::tx::TxObfuscated;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
+    use client_common::ErrorKind;
 
     /// Mock tendermint client
     #[derive(Clone)]
@@ -503,7 +486,9 @@ mod tests {
             .iter()
         {
             assert!(index.transaction(&change.transaction_id).unwrap().is_some());
-            assert!(index.output(&change.transaction_id, 0).is_ok());
+            assert!(index
+                .output(&TxoPointer::new(change.transaction_id, 0))
+                .is_ok());
         }
     }
 }

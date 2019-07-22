@@ -6,7 +6,7 @@ use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
 use client_common::{ErrorKind, Result, Transaction};
 
-use crate::Index;
+use crate::{AddressDetails, Index};
 
 /// `Index` which returns `PermissionDenied` error for each function call.
 #[derive(Debug, Default, Clone, Copy)]
@@ -18,6 +18,10 @@ impl Index for UnauthorizedIndex {
     }
 
     fn sync_all(&self) -> Result<()> {
+        Err(ErrorKind::PermissionDenied.into())
+    }
+
+    fn address_details(&self, _address: &ExtendedAddr) -> Result<AddressDetails> {
         Err(ErrorKind::PermissionDenied.into())
     }
 
@@ -37,7 +41,7 @@ impl Index for UnauthorizedIndex {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn output(&self, _id: &TxId, _index: usize) -> Result<TxOut> {
+    fn output(&self, _input: &TxoPointer) -> Result<TxOut> {
         Err(ErrorKind::PermissionDenied.into())
     }
 

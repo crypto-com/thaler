@@ -496,26 +496,26 @@ pub struct CreateUnbondStakeTransactionRequest {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use std::time::SystemTime;
+
+    use chrono::DateTime;
 
     use chain_core::init::coin::CoinError;
     use chain_core::tx::data::input::TxoPointer;
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
-    use chrono::DateTime;
     use client_common::balance::BalanceChange;
     use client_common::balance::TransactionChange;
     use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::*;
+    use client_common::tendermint::Client;
+    use client_common::Result as CommonResult;
     use client_common::Transaction;
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
-    use client_index::Index;
-    use std::time::SystemTime;
-
-    use client_common::tendermint::types::*;
-    use client_common::tendermint::Client;
-    use client_common::Result as CommonResult;
+    use client_index::{AddressDetails, Index};
     use client_network::network_ops::DefaultNetworkOpsClient;
 
     #[derive(Default)]
@@ -528,6 +528,10 @@ pub mod tests {
 
         fn sync_all(&self) -> CommonResult<()> {
             Ok(())
+        }
+
+        fn address_details(&self, _address: &ExtendedAddr) -> CommonResult<AddressDetails> {
+            unreachable!()
         }
 
         fn transaction_changes(
@@ -565,7 +569,7 @@ pub mod tests {
             })))
         }
 
-        fn output(&self, _id: &TxId, _index: usize) -> CommonResult<TxOut> {
+        fn output(&self, _input: &TxoPointer) -> CommonResult<TxOut> {
             Ok(TxOut {
                 address: ExtendedAddr::OrTree([0; 32]),
                 value: Coin::new(10000000000000000000).unwrap(),

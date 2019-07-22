@@ -9,8 +9,8 @@ use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
@@ -250,8 +250,8 @@ where
         Ok(UnspentTransactions::new(unspent_transactions))
     }
 
-    fn output(&self, id: &TxId, index: usize) -> Result<TxOut> {
-        self.index.output(id, index)
+    fn output(&self, input: &TxoPointer) -> Result<TxOut> {
+        self.index.output(input)
     }
 
     fn create_transaction(
@@ -506,7 +506,7 @@ mod tests {
 
     use chain_core::init::coin::CoinError;
     use chain_core::tx::data::input::TxoPointer;
-    use chain_core::tx::data::Tx;
+    use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::witness::TxInWitness;
     use chain_core::tx::TransactionId;
@@ -514,6 +514,7 @@ mod tests {
     use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
     use client_common::Transaction;
+    use client_index::AddressDetails;
 
     use crate::signer::DefaultSigner;
     use crate::transaction_builder::DefaultTransactionBuilder;
@@ -555,6 +556,10 @@ mod tests {
 
         fn sync_all(&self) -> Result<()> {
             Ok(())
+        }
+
+        fn address_details(&self, address: &ExtendedAddr) -> Result<AddressDetails> {
+            unreachable!()
         }
 
         fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>> {
@@ -665,7 +670,10 @@ mod tests {
             unreachable!();
         }
 
-        fn output(&self, id: &TxId, index: usize) -> Result<TxOut> {
+        fn output(&self, input: &TxoPointer) -> Result<TxOut> {
+            let id = &input.id;
+            let index = input.index;
+
             if id == &[0u8; 32] && index == 0 {
                 Ok(TxOut {
                     address: self.addr_1.clone(),
@@ -1043,7 +1051,10 @@ mod tests {
 
         assert_eq!(
             ErrorKind::PermissionDenied,
-            wallet.output(&[1u8; 32], 0).unwrap_err().kind()
+            wallet
+                .output(&TxoPointer::new([1u8; 32], 0))
+                .unwrap_err()
+                .kind()
         );
 
         assert_eq!(
