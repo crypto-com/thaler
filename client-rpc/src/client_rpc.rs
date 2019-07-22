@@ -383,7 +383,7 @@ where
 
         let result = self.ops_client.create_unbond_stake_transaction(
             request.name.as_str(),
-            &SecUtf8::from(request.passphrase),
+            &request.passphrase,
             &addr,
             value,
             attr,
