@@ -190,5 +190,5 @@ pub struct DecryptionRequest {
 /// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
 #[derive(Encode, Decode)]
 pub struct DecryptionResponse {
-    pub txs: Vec<Tx>,
+    pub txs: Vec<TxWithOutputs>,
 }
