@@ -174,7 +174,7 @@ impl RedeemAddress {
 impl CroAddress<RedeemAddress> for RedeemAddress {
     fn to_cro(&self) -> Result<String, CroAddressError> {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
-        match super::CURRENT_NETWORK {
+        match super::network::get_network() {
             super::network::Network::Testnet => {
                 let encoded = bech32::encode("crts", checked_data).expect("bech32 crms encoding");
                 Ok(encoded.to_string())
