@@ -1,10 +1,9 @@
 /// Witness for Merklized Abstract Syntax Trees (MAST) + Schnorr
 pub mod tree;
 
+use parity_codec::{Decode, Encode, Input, Output};
 use std::fmt;
 use std::prelude::v1::Vec;
-
-use parity_codec::{Decode, Encode, Input, Output};
 // TODO: switch to normal signatures + explicit public key
 use secp256k1::{self, recovery::RecoverableSignature, schnorrsig::SchnorrSignature};
 

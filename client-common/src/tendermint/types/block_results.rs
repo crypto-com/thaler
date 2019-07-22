@@ -1,5 +1,5 @@
 #![allow(missing_docs)]
-use std::collections::HashSet;
+use std::convert::TryFrom;
 
 use base64::decode;
 use failure::ResultExt;
@@ -7,8 +7,9 @@ use serde::Deserialize;
 
 use chain_core::common::TendermintEventType;
 use chain_core::tx::data::TxId;
+use chain_tx_filter::BlockFilter;
 
-use crate::{ErrorKind, Result};
+use crate::{Error, ErrorKind, Result};
 
 #[derive(Debug, Deserialize)]
 pub struct BlockResults {
@@ -19,6 +20,12 @@ pub struct BlockResults {
 #[derive(Debug, Deserialize)]
 pub struct Results {
     pub deliver_tx: Option<Vec<DeliverTx>>,
+    pub end_block: Option<EndBlock>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EndBlock {
+    pub events: Vec<Event>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,12 +47,12 @@ pub struct Attribute {
 }
 
 impl BlockResults {
-    /// Returns valid transaction ids in block results
-    pub fn ids(&self) -> Result<HashSet<TxId>> {
+    /// Returns transaction ids in block results
+    pub fn transaction_ids(&self) -> Result<Vec<TxId>> {
         match &self.results.deliver_tx {
-            None => Ok(HashSet::new()),
+            None => Ok(Vec::default()),
             Some(deliver_tx) => {
-                let mut transactions: HashSet<TxId> = HashSet::with_capacity(deliver_tx.len());
+                let mut transactions: Vec<TxId> = Vec::with_capacity(deliver_tx.len());
 
                 for transaction in deliver_tx.iter() {
                     for event in transaction.events.iter() {
@@ -60,7 +67,7 @@ impl BlockResults {
                                 let mut id: [u8; 32] = [0; 32];
                                 id.copy_from_slice(&decoded);
 
-                                transactions.insert(id);
+                                transactions.push(id);
                             }
                         }
                     }
@@ -70,11 +77,34 @@ impl BlockResults {
             }
         }
     }
+
+    /// Returns block filter in block results
+    pub fn block_filter(&self) -> Result<BlockFilter> {
+        match &self.results.end_block {
+            None => Err(ErrorKind::InvalidInput.into()),
+            Some(ref end_block) => {
+                for event in end_block.events.iter() {
+                    if event.event_type == TendermintEventType::BlockFilter.to_string() {
+                        let attribute = &event.attributes[0];
+                        let decoded =
+                            decode(&attribute.value).context(ErrorKind::DeserializationError)?;
+
+                        return Ok(BlockFilter::try_from(decoded.as_slice())
+                            .map_err(|_| Error::from(ErrorKind::DeserializationError))?);
+                    }
+                }
+
+                Err(ErrorKind::InvalidInput.into())
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use base64::encode;
 
     #[test]
     fn check_ids() {
@@ -90,9 +120,30 @@ mod tests {
                         }],
                     }],
                 }]),
+                end_block: None,
             },
         };
-        assert_eq!(1, block_results.ids().unwrap().len());
+        assert_eq!(1, block_results.transaction_ids().unwrap().len());
+    }
+
+    #[test]
+    fn check_block_filter() {
+        let block_results = BlockResults {
+            height: "2".to_owned(),
+            results: Results {
+                deliver_tx: None,
+                end_block: Some(EndBlock {
+                    events: vec![Event {
+                        event_type: TendermintEventType::BlockFilter.to_string(),
+                        attributes: vec![Attribute {
+                            key: "ethbloom".to_owned(),
+                            value: encode(&[0; 256][..]),
+                        }],
+                    }],
+                }),
+            },
+        };
+        assert!(block_results.block_filter().is_ok());
     }
 
     #[test]
@@ -109,18 +160,22 @@ mod tests {
                         }],
                     }],
                 }]),
+                end_block: None,
             },
         };
 
-        assert!(block_results.ids().is_err());
+        assert!(block_results.transaction_ids().is_err());
     }
 
     #[test]
     fn check_null_deliver_tx() {
         let block_results = BlockResults {
             height: "2".to_owned(),
-            results: Results { deliver_tx: None },
+            results: Results {
+                deliver_tx: None,
+                end_block: None,
+            },
         };
-        assert_eq!(0, block_results.ids().unwrap().len());
+        assert_eq!(0, block_results.transaction_ids().unwrap().len());
     }
 }
