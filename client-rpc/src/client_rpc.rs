@@ -538,8 +538,8 @@ pub mod tests {
                 transaction_id: [0u8; 32],
                 address: address.clone(),
                 balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                height: 1,
-                time: DateTime::from(SystemTime::now()),
+                block_height: 1,
+                block_time: DateTime::from(SystemTime::now()),
             }])
         }
 

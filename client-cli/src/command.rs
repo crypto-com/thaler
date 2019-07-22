@@ -231,8 +231,8 @@ impl Command {
                     Cell::from(&change.address),
                     Cell::from(&amount).style_spec("r"),
                     Cell::new(in_out).style_spec(spec),
-                    Cell::from(&change.height).style_spec("r"),
-                    Cell::from(&change.time),
+                    Cell::from(&change.block_height).style_spec("r"),
+                    Cell::from(&change.block_time),
                 ]));
             }
 
