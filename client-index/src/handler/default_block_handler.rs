@@ -1,4 +1,6 @@
-use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage};
+use chrono::{DateTime, Utc};
+
+use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
 
 use crate::service::{GlobalStateService, TransactionService};
 use crate::{BlockHandler, TransactionCipher, TransactionHandler};
@@ -35,6 +37,25 @@ where
     }
 }
 
+impl<C, H, S> DefaultBlockHandler<C, H, S>
+where
+    C: TransactionCipher,
+    H: TransactionHandler,
+    S: Storage,
+{
+    fn on_transaction(
+        &self,
+        transaction: Transaction,
+        block_height: u64,
+        block_time: DateTime<Utc>,
+    ) -> Result<()> {
+        self.transaction_service.set(&transaction)?;
+
+        self.transaction_handler
+            .on_next(transaction, block_height, block_time)
+    }
+}
+
 impl<C, H, S> BlockHandler for DefaultBlockHandler<C, H, S>
 where
     C: TransactionCipher,
@@ -47,18 +68,21 @@ where
         view_key: &PublicKey,
         private_key: &PrivateKey,
     ) -> Result<()> {
-        if block_header
-            .view_key_filter
-            .check_view_key(&view_key.into())
-        {
+        for transaction in block_header.unencrypted_transactions {
+            self.on_transaction(
+                transaction,
+                block_header.block_height,
+                block_header.block_time,
+            )?;
+        }
+
+        if block_header.block_filter.check_view_key(&view_key.into()) {
             let transactions = self
                 .transaction_cipher
                 .decrypt(&block_header.transaction_ids, private_key)?;
 
             for transaction in transactions {
-                self.transaction_service.set(&transaction)?;
-
-                self.transaction_handler.on_next(
+                self.on_transaction(
                     transaction,
                     block_header.block_height,
                     block_header.block_time,
@@ -79,8 +103,9 @@ mod tests {
 
     use chrono::{DateTime, Utc};
 
+    use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::state::account::{StakedStateOpAttributes, UnbondTx};
+    use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes, UnbondTx};
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::attribute::TxAttributes;
     use chain_core::tx::data::output::TxOut;
@@ -144,17 +169,19 @@ mod tests {
         ))
     }
 
-    fn block_header(view_key: &PublicKey) -> BlockHeader {
+    fn block_header(view_key: &PublicKey, staking_address: &StakedStateAddress) -> BlockHeader {
         let transaction_ids: Vec<TxId> = vec![transfer_transaction().id()];
 
         let mut block_filter = BlockFilter::default();
         block_filter.add_view_key(&view_key.into());
+        block_filter.add_staked_state_address(staking_address);
 
         BlockHeader {
             block_height: 1,
             block_time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             transaction_ids,
-            view_key_filter: block_filter,
+            block_filter,
+            unencrypted_transactions: vec![unbond_transaction()],
         }
     }
 
@@ -164,8 +191,9 @@ mod tests {
 
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);
+        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
 
-        let block_header = block_header(&view_key);
+        let block_header = block_header(&view_key, &staking_address);
 
         let block_handler = DefaultBlockHandler::new(
             MockTransactionCipher,
