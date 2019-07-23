@@ -12,8 +12,8 @@ use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
@@ -125,8 +125,8 @@ pub trait WalletClient: Send + Sync {
     fn unspent_transactions(&self, name: &str, passphrase: &SecUtf8)
         -> Result<UnspentTransactions>;
 
-    /// Returns output of transaction with given id and index
-    fn output(&self, id: &TxId, index: usize) -> Result<TxOut>;
+    /// Returns output of transaction with given input details
+    fn output(&self, id: &TxoPointer) -> Result<TxOut>;
 
     /// Builds a transaction
     ///

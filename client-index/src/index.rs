@@ -13,6 +13,8 @@ use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
 use client_common::{Result, Transaction};
 
+use crate::AddressDetails;
+
 /// Interface for interacting with transaction index
 pub trait Index: Send + Sync {
     /// Synchronizes transaction index with Crypto.com Chain (from last known height)
@@ -20,6 +22,9 @@ pub trait Index: Send + Sync {
 
     /// Synchronizes transaction index with Crypto.com Chain (from genesis)
     fn sync_all(&self) -> Result<()>;
+
+    /// Returns details for given address
+    fn address_details(&self, address: &ExtendedAddr) -> Result<AddressDetails>;
 
     /// Returns all transaction changes for given address
     fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>>;
@@ -34,7 +39,7 @@ pub trait Index: Send + Sync {
     fn transaction(&self, id: &TxId) -> Result<Option<Transaction>>;
 
     /// Returns output of transaction with given id and index
-    fn output(&self, id: &TxId, index: usize) -> Result<TxOut>;
+    fn output(&self, input: &TxoPointer) -> Result<TxOut>;
 
     /// Broadcasts a transaction to Crypto.com Chain
     fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()>;

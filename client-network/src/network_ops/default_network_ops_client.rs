@@ -102,9 +102,8 @@ where
         let transactions = inputs
             .into_iter()
             .map(|txo_pointer| {
-                let id = txo_pointer.id;
-                let index = txo_pointer.index;
-                Ok((txo_pointer, self.wallet_client.output(&id, index as usize)?))
+                let output = self.wallet_client.output(&txo_pointer)?;
+                Ok((txo_pointer, output))
             })
             .collect::<Result<Vec<(TxoPointer, TxOut)>>>()?;
         let unspent_transactions = UnspentTransactions::new(transactions);
