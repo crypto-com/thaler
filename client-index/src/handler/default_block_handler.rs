@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 
+use chain_core::tx::TransactionId;
 use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
 
 use crate::service::{GlobalStateService, TransactionService};
@@ -69,11 +70,13 @@ where
         private_key: &PrivateKey,
     ) -> Result<()> {
         for transaction in block_header.unencrypted_transactions {
-            self.on_transaction(
-                transaction,
-                block_header.block_height,
-                block_header.block_time,
-            )?;
+            if block_header.transaction_ids.contains(&transaction.id()) {
+                self.on_transaction(
+                    transaction,
+                    block_header.block_height,
+                    block_header.block_time,
+                )?;
+            }
         }
 
         if block_header.block_filter.check_view_key(&view_key.into()) {
@@ -103,9 +106,8 @@ mod tests {
 
     use chrono::{DateTime, Utc};
 
-    use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes, UnbondTx};
+    use chain_core::state::account::{StakedStateOpAttributes, UnbondTx};
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::attribute::TxAttributes;
     use chain_core::tx::data::output::TxOut;
@@ -123,8 +125,9 @@ mod tests {
             transaction_ids: &[TxId],
             _private_key: &PrivateKey,
         ) -> Result<Vec<Transaction>> {
-            assert_eq!(1, transaction_ids.len());
+            assert_eq!(2, transaction_ids.len());
             assert_eq!(transfer_transaction().id(), transaction_ids[0]);
+            assert_eq!(unbond_transaction().id(), transaction_ids[1]);
             Ok(vec![transfer_transaction()])
         }
     }
@@ -169,12 +172,12 @@ mod tests {
         ))
     }
 
-    fn block_header(view_key: &PublicKey, staking_address: &StakedStateAddress) -> BlockHeader {
-        let transaction_ids: Vec<TxId> = vec![transfer_transaction().id()];
+    fn block_header(view_key: &PublicKey) -> BlockHeader {
+        let transaction_ids: Vec<TxId> =
+            vec![transfer_transaction().id(), unbond_transaction().id()];
 
         let mut block_filter = BlockFilter::default();
         block_filter.add_view_key(&view_key.into());
-        block_filter.add_staked_state_address(staking_address);
 
         BlockHeader {
             block_height: 1,
@@ -191,9 +194,8 @@ mod tests {
 
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);
-        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
 
-        let block_header = block_header(&view_key, &staking_address);
+        let block_header = block_header(&view_key);
 
         let block_handler = DefaultBlockHandler::new(
             MockTransactionCipher,
@@ -205,6 +207,7 @@ mod tests {
         let global_state_service = GlobalStateService::new(storage);
 
         let transaction = transfer_transaction();
+        let unbond_transaction = unbond_transaction();
 
         assert!(transaction_service
             .get(&transaction.id())
@@ -222,6 +225,13 @@ mod tests {
         assert_eq!(
             transaction,
             transaction_service.get(&transaction.id()).unwrap().unwrap()
+        );
+        assert_eq!(
+            unbond_transaction,
+            transaction_service
+                .get(&unbond_transaction.id())
+                .unwrap()
+                .unwrap()
         );
         assert_eq!(
             1,
