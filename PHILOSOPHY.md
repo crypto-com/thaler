@@ -43,3 +43,17 @@ On the technical side, the vision described in whitepapers etc. translates into 
 
 - While the initial distribution and operation gravitates towards Crypto.com, 
 the core technology should not prevent the continual shift in ownership, responsibilities etc.
+
+## Extras
+
+> "We should forget about small efficiencies, say about 97% of the time: *premature optimization is the root of all evil*. Yet we should not pass up our opportunities in that critical 3%."
+
+Process:
+
+1. Get it done
+
+2. Get it right
+
+(profile it)
+
+3. Get it fast
