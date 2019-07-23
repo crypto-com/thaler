@@ -280,12 +280,12 @@ where
         self.index.broadcast_transaction(&tx_aux.encode())
     }
 
-    fn sync(&self) -> Result<()> {
-        self.index.sync()
+    fn sync(&self, view_key: &PublicKey, private_key: &PrivateKey) -> Result<()> {
+        self.index.sync(view_key, private_key)
     }
 
-    fn sync_all(&self) -> Result<()> {
-        self.index.sync_all()
+    fn sync_all(&self, view_key: &PublicKey, private_key: &PrivateKey) -> Result<()> {
+        self.index.sync_all(view_key, private_key)
     }
 }
 
@@ -550,15 +550,15 @@ mod tests {
     }
 
     impl Index for MockIndex {
-        fn sync(&self) -> Result<()> {
+        fn sync(&self, _view_key: &PublicKey, _private_key: &PrivateKey) -> Result<()> {
             Ok(())
         }
 
-        fn sync_all(&self) -> Result<()> {
+        fn sync_all(&self, _view_key: &PublicKey, _private_key: &PrivateKey) -> Result<()> {
             Ok(())
         }
 
-        fn address_details(&self, address: &ExtendedAddr) -> Result<AddressDetails> {
+        fn address_details(&self, _address: &ExtendedAddr) -> Result<AddressDetails> {
             unreachable!()
         }
 
@@ -785,6 +785,9 @@ mod tests {
             .build()
             .unwrap();
 
+        let private_key = PrivateKey::new().unwrap();
+        let view_key = PublicKey::from(&private_key);
+
         wallet
             .new_wallet("wallet_1", &SecUtf8::from("passphrase"))
             .unwrap();
@@ -863,8 +866,8 @@ mod tests {
                 .len()
         );
 
-        assert!(wallet.sync().is_ok());
-        assert!(wallet.sync_all().is_ok());
+        assert!(wallet.sync(&view_key, &private_key).is_ok());
+        assert!(wallet.sync_all(&view_key, &private_key).is_ok());
 
         let signer = DefaultSigner::new(storage.clone());
 
@@ -1072,14 +1075,17 @@ mod tests {
                 .kind()
         );
 
+        let private_key = PrivateKey::new().unwrap();
+        let view_key = PublicKey::from(&private_key);
+
         assert_eq!(
             ErrorKind::PermissionDenied,
-            wallet.sync().unwrap_err().kind()
+            wallet.sync(&view_key, &private_key).unwrap_err().kind()
         );
 
         assert_eq!(
             ErrorKind::PermissionDenied,
-            wallet.sync_all().unwrap_err().kind()
+            wallet.sync_all(&view_key, &private_key).unwrap_err().kind()
         );
     }
 

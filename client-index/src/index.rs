@@ -11,17 +11,17 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
-use client_common::{Result, Transaction};
+use client_common::{PrivateKey, PublicKey, Result, Transaction};
 
 use crate::AddressDetails;
 
 /// Interface for interacting with transaction index
 pub trait Index: Send + Sync {
     /// Synchronizes transaction index with Crypto.com Chain (from last known height)
-    fn sync(&self) -> Result<()>;
+    fn sync(&self, view_key: &PublicKey, private_key: &PrivateKey) -> Result<()>;
 
     /// Synchronizes transaction index with Crypto.com Chain (from genesis)
-    fn sync_all(&self) -> Result<()>;
+    fn sync_all(&self, view_key: &PublicKey, private_key: &PrivateKey) -> Result<()>;
 
     /// Returns details for given address
     fn address_details(&self, address: &ExtendedAddr) -> Result<AddressDetails>;

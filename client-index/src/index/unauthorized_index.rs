@@ -4,7 +4,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
-use client_common::{ErrorKind, Result, Transaction};
+use client_common::{ErrorKind, PrivateKey, PublicKey, Result, Transaction};
 
 use crate::{AddressDetails, Index};
 
@@ -13,11 +13,11 @@ use crate::{AddressDetails, Index};
 pub struct UnauthorizedIndex;
 
 impl Index for UnauthorizedIndex {
-    fn sync(&self) -> Result<()> {
+    fn sync(&self, _view_key: &PublicKey, _private_key: &PrivateKey) -> Result<()> {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn sync_all(&self) -> Result<()> {
+    fn sync_all(&self, _view_key: &PublicKey, _private_key: &PrivateKey) -> Result<()> {
         Err(ErrorKind::PermissionDenied.into())
     }
 
