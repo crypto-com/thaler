@@ -4,6 +4,7 @@ pub mod cipher;
 pub mod handler;
 pub mod index;
 pub mod service;
+pub mod synchronizer;
 
 #[doc(inline)]
 pub use crate::cipher::TransactionCipher;

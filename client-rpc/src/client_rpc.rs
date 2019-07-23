@@ -505,7 +505,7 @@ pub mod tests {
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
     use client_common::Result as CommonResult;
-    use client_common::{PrivateKey, PublicKey, Transaction};
+    use client_common::Transaction;
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
@@ -516,40 +516,19 @@ pub mod tests {
     pub struct MockIndex;
 
     impl Index for MockIndex {
-        fn sync(&self, _view_key: &PublicKey, _private_key: &PrivateKey) -> CommonResult<()> {
-            Ok(())
-        }
+        fn address_details(&self, address: &ExtendedAddr) -> CommonResult<AddressDetails> {
+            let mut address_details = AddressDetails::default();
 
-        fn sync_all(&self, _view_key: &PublicKey, _private_key: &PrivateKey) -> CommonResult<()> {
-            Ok(())
-        }
-
-        fn address_details(&self, _address: &ExtendedAddr) -> CommonResult<AddressDetails> {
-            unreachable!()
-        }
-
-        fn transaction_changes(
-            &self,
-            address: &ExtendedAddr,
-        ) -> CommonResult<Vec<TransactionChange>> {
-            Ok(vec![TransactionChange {
+            address_details.transaction_history = vec![TransactionChange {
                 transaction_id: [0u8; 32],
                 address: address.clone(),
                 balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
                 block_height: 1,
                 block_time: DateTime::from(SystemTime::now()),
-            }])
-        }
+            }];
+            address_details.balance = Coin::new(30).unwrap();
 
-        fn balance(&self, _: &ExtendedAddr) -> CommonResult<Coin> {
-            Ok(Coin::new(30).unwrap())
-        }
-
-        fn unspent_transactions(
-            &self,
-            _address: &ExtendedAddr,
-        ) -> CommonResult<Vec<(TxoPointer, TxOut)>> {
-            Ok(Vec::new())
+            Ok(address_details)
         }
 
         fn transaction(&self, _: &TxId) -> CommonResult<Option<Transaction>> {
