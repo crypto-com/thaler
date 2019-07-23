@@ -227,19 +227,13 @@ where
     }
 
     fn sync(&self) -> Result<()> {
-        if let Err(e) = self.client.sync() {
-            Err(to_rpc_error(e))
-        } else {
-            Ok(())
-        }
+        // TODO: Implement synchronization logic for current view key
+        Ok(())
     }
 
     fn sync_all(&self) -> Result<()> {
-        if let Err(e) = self.client.sync_all() {
-            Err(to_rpc_error(e))
-        } else {
-            Ok(())
-        }
+        // TODO: Implement synchronization logic for current view key
+        Ok(())
     }
 
     fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
@@ -511,7 +505,7 @@ pub mod tests {
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
     use client_common::Result as CommonResult;
-    use client_common::Transaction;
+    use client_common::{PrivateKey, PublicKey, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
@@ -522,11 +516,11 @@ pub mod tests {
     pub struct MockIndex;
 
     impl Index for MockIndex {
-        fn sync(&self) -> CommonResult<()> {
+        fn sync(&self, _view_key: &PublicKey, _private_key: &PrivateKey) -> CommonResult<()> {
             Ok(())
         }
 
-        fn sync_all(&self) -> CommonResult<()> {
+        fn sync_all(&self, _view_key: &PublicKey, _private_key: &PrivateKey) -> CommonResult<()> {
             Ok(())
         }
 

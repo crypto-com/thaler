@@ -11,7 +11,7 @@ use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use client_common::balance::{BalanceChange, TransactionChange};
 use client_common::tendermint::Client;
-use client_common::{Result, Storage, Transaction};
+use client_common::{PrivateKey, PublicKey, Result, Storage, Transaction};
 
 use crate::service::*;
 use crate::Index;
@@ -161,11 +161,8 @@ where
     S: Storage,
     C: Client,
 {
-    fn sync(&self) -> Result<()> {
-        let last_block_height = self
-            .global_state_service
-            .last_block_height()?
-            .unwrap_or_default();
+    fn sync(&self, view_key: &PublicKey, _private_key: &PrivateKey) -> Result<()> {
+        let last_block_height = self.global_state_service.last_block_height(view_key)?;
 
         let current_block_height = self.client.status()?.last_block_height()?;
 
@@ -182,16 +179,17 @@ where
                 }
             }
 
-            self.global_state_service.set_last_block_height(height)?;
+            self.global_state_service
+                .set_last_block_height(view_key, height)?;
         }
 
         Ok(())
     }
 
     #[inline]
-    fn sync_all(&self) -> Result<()> {
+    fn sync_all(&self, view_key: &PublicKey, private_key: &PrivateKey) -> Result<()> {
         self.clear()?;
-        self.sync()
+        self.sync(view_key, private_key)
     }
 
     #[inline]
@@ -442,7 +440,10 @@ mod tests {
 
         let index = DefaultIndex::new(storage, client.clone());
 
-        assert!(index.sync_all().is_ok());
+        let private_key = PrivateKey::new().unwrap();
+        let view_key = PublicKey::from(&private_key);
+
+        assert!(index.sync_all(&view_key, &private_key).is_ok());
 
         assert_eq!(Coin::zero(), index.balance(&client.addresses[0]).unwrap());
         assert_eq!(

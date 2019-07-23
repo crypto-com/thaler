@@ -152,10 +152,10 @@ pub trait WalletClient: Send + Sync {
     fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()>;
 
     /// Synchronizes index with Crypto.com Chain (from last known height)
-    fn sync(&self) -> Result<()>;
+    fn sync(&self, view_key: &PublicKey, private_key: &PrivateKey) -> Result<()>;
 
     /// Synchronizes index with Crypto.com Chain (from genesis)
-    fn sync_all(&self) -> Result<()>;
+    fn sync_all(&self, view_key: &PublicKey, private_key: &PrivateKey) -> Result<()>;
 }
 
 /// Interface for a generic wallet for multi-signature transactions

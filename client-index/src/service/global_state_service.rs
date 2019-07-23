@@ -1,12 +1,17 @@
-use client_common::{Result, Storage};
 use parity_codec::{Decode, Encode};
 
+use client_common::{Error, ErrorKind, PublicKey, Result, Storage};
+
 const KEYSPACE: &str = "index_global_state";
-const LAST_BLOCK_HEIGHT: &str = "last_block_height";
 
 /// Exposes functionalities for managing client's global state
+///
+/// Stores `view_key -> last_block_height`
 #[derive(Default, Clone)]
-pub struct GlobalStateService<S: Storage> {
+pub struct GlobalStateService<S>
+where
+    S: Storage,
+{
     storage: S,
 }
 
@@ -15,33 +20,35 @@ where
     S: Storage,
 {
     /// Creates new instance of global state service
+    #[inline]
     pub fn new(storage: S) -> Self {
         Self { storage }
     }
 
     /// Returns currently stored last block height
-    pub fn last_block_height(&self) -> Result<Option<u64>> {
-        let last_block_height = self
-            .storage
-            .get(KEYSPACE, LAST_BLOCK_HEIGHT)?
-            .and_then(|bytes| u64::decode(&mut bytes.as_slice()));
+    pub fn last_block_height(&self, view_key: &PublicKey) -> Result<u64> {
+        let last_block_height_optional = self.storage.get(KEYSPACE, view_key.encode())?;
 
-        Ok(last_block_height)
+        match last_block_height_optional {
+            None => Ok(0),
+            Some(bytes) => u64::decode(&mut bytes.as_slice())
+                .ok_or_else(|| Error::from(ErrorKind::DeserializationError)),
+        }
     }
 
     /// Updates last block height with given value and returns old value
-    pub fn set_last_block_height(&self, last_block_height: u64) -> Result<Option<u64>> {
-        let bytes = last_block_height.encode();
-
-        let old_last_block_height = self
-            .storage
-            .set(KEYSPACE, LAST_BLOCK_HEIGHT, bytes)?
-            .and_then(|bytes| u64::decode(&mut bytes.as_slice()));
-
-        Ok(old_last_block_height)
+    pub fn set_last_block_height(
+        &self,
+        view_key: &PublicKey,
+        last_block_height: u64,
+    ) -> Result<()> {
+        self.storage
+            .set(KEYSPACE, view_key.encode(), last_block_height.encode())
+            .map(|_| ())
     }
 
     /// Clears all storage
+    #[inline]
     pub fn clear(&self) -> Result<()> {
         self.storage.clear(KEYSPACE)
     }
@@ -52,18 +59,31 @@ mod tests {
     use super::*;
 
     use client_common::storage::MemoryStorage;
+    use client_common::PrivateKey;
 
     #[test]
     fn check_flow() {
-        let global_state_service = GlobalStateService::new(MemoryStorage::default());
+        let storage = MemoryStorage::default();
+        let global_state_service = GlobalStateService::new(storage);
 
-        assert_eq!(None, global_state_service.last_block_height().unwrap());
-        assert_eq!(None, global_state_service.set_last_block_height(5).unwrap());
+        let private_key = PrivateKey::new().unwrap();
+        let public_key = PublicKey::from(&private_key);
+
+        assert_eq!(
+            0,
+            global_state_service.last_block_height(&public_key).unwrap()
+        );
+        assert!(global_state_service
+            .set_last_block_height(&public_key, 5)
+            .is_ok());
         assert_eq!(
             5,
-            global_state_service.last_block_height().unwrap().unwrap()
+            global_state_service.last_block_height(&public_key).unwrap()
         );
         assert!(global_state_service.clear().is_ok());
-        assert_eq!(None, global_state_service.last_block_height().unwrap());
+        assert_eq!(
+            0,
+            global_state_service.last_block_height(&public_key).unwrap()
+        );
     }
 }
