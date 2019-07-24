@@ -215,7 +215,7 @@ where
 
         let balances = addresses
             .iter()
-            .map(|address| self.index.balance(address))
+            .map(|address| Ok(self.index.address_details(address)?.balance))
             .collect::<Result<Vec<Coin>>>()?;
 
         Ok(sum_coins(balances.into_iter()).context(ErrorKind::BalanceAdditionError)?)
@@ -226,7 +226,7 @@ where
 
         let history = addresses
             .iter()
-            .map(|address| self.index.transaction_changes(address))
+            .map(|address| Ok(self.index.address_details(address)?.transaction_history))
             .collect::<Result<Vec<Vec<TransactionChange>>>>()?
             .into_iter()
             .flatten()
@@ -244,7 +244,7 @@ where
 
         let mut unspent_transactions = Vec::new();
         for address in addresses {
-            unspent_transactions.extend(self.index.unspent_transactions(&address)?);
+            unspent_transactions.extend(self.index.address_details(&address)?.unspent_transactions);
         }
 
         Ok(UnspentTransactions::new(unspent_transactions))
@@ -278,14 +278,6 @@ where
 
     fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()> {
         self.index.broadcast_transaction(&tx_aux.encode())
-    }
-
-    fn sync(&self) -> Result<()> {
-        self.index.sync()
-    }
-
-    fn sync_all(&self) -> Result<()> {
-        self.index.sync_all()
     }
 }
 
@@ -550,21 +542,11 @@ mod tests {
     }
 
     impl Index for MockIndex {
-        fn sync(&self) -> Result<()> {
-            Ok(())
-        }
-
-        fn sync_all(&self) -> Result<()> {
-            Ok(())
-        }
-
         fn address_details(&self, address: &ExtendedAddr) -> Result<AddressDetails> {
-            unreachable!()
-        }
+            let mut address_details = AddressDetails::default();
 
-        fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>> {
             if address == &self.addr_1 {
-                Ok(vec![
+                address_details.transaction_history = vec![
                     TransactionChange {
                         transaction_id: [0u8; 32],
                         address: address.clone(),
@@ -579,10 +561,10 @@ mod tests {
                         block_height: 2,
                         block_time: DateTime::from(SystemTime::now()),
                     },
-                ])
+                ];
             } else if address == &self.addr_2 {
                 if *self.changed.read().unwrap() {
-                    Ok(vec![
+                    address_details.transaction_history = vec![
                         TransactionChange {
                             transaction_id: [1u8; 32],
                             address: address.clone(),
@@ -597,73 +579,49 @@ mod tests {
                             block_height: 2,
                             block_time: DateTime::from(SystemTime::now()),
                         },
-                    ])
+                    ];
                 } else {
-                    Ok(vec![TransactionChange {
-                        transaction_id: [1u8; 32],
-                        address: address.clone(),
-                        balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                        block_height: 2,
-                        block_time: DateTime::from(SystemTime::now()),
-                    }])
-                }
-            } else if *self.changed.read().unwrap() && address == &self.addr_3 {
-                Ok(vec![TransactionChange {
-                    transaction_id: [1u8; 32],
-                    address: address.clone(),
-                    balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                    block_height: 2,
-                    block_time: DateTime::from(SystemTime::now()),
-                }])
-            } else {
-                Ok(Default::default())
-            }
-        }
-
-        fn balance(&self, address: &ExtendedAddr) -> Result<Coin> {
-            if address == &self.addr_1 {
-                Ok(Coin::zero())
-            } else if address == &self.addr_2 {
-                if *self.changed.read().unwrap() {
-                    Ok(Coin::zero())
-                } else {
-                    Ok(Coin::new(30).unwrap())
-                }
-            } else if *self.changed.read().unwrap() && address == &self.addr_3 {
-                Ok(Coin::new(30).unwrap())
-            } else {
-                Ok(Coin::zero())
-            }
-        }
-
-        fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, TxOut)>> {
-            if address == &self.addr_1 {
-                Ok(Default::default())
-            } else if address == &self.addr_2 {
-                if *self.changed.read().unwrap() {
-                    Ok(Default::default())
-                } else {
-                    Ok(vec![(
+                    address_details.unspent_transactions = vec![(
                         TxoPointer::new([1u8; 32], 0),
                         TxOut {
                             address: self.addr_2.clone(),
                             value: Coin::new(30).unwrap(),
                             valid_from: None,
                         },
-                    )])
+                    )];
+
+                    address_details.transaction_history = vec![TransactionChange {
+                        transaction_id: [1u8; 32],
+                        address: address.clone(),
+                        balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                        block_height: 2,
+                        block_time: DateTime::from(SystemTime::now()),
+                    }];
+
+                    address_details.balance = Coin::new(30).unwrap();
                 }
             } else if *self.changed.read().unwrap() && address == &self.addr_3 {
-                Ok(vec![(
+                address_details.unspent_transactions = vec![(
                     TxoPointer::new([2u8; 32], 0),
                     TxOut {
                         address: self.addr_3.clone(),
                         value: Coin::new(30).unwrap(),
                         valid_from: None,
                     },
-                )])
-            } else {
-                Ok(Default::default())
+                )];
+
+                address_details.transaction_history = vec![TransactionChange {
+                    transaction_id: [1u8; 32],
+                    address: address.clone(),
+                    balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                    block_height: 2,
+                    block_time: DateTime::from(SystemTime::now()),
+                }];
+
+                address_details.balance = Coin::new(30).unwrap();
             }
+
+            Ok(address_details)
         }
 
         fn transaction(&self, _: &TxId) -> Result<Option<Transaction>> {
@@ -862,9 +820,6 @@ mod tests {
                 .unwrap()
                 .len()
         );
-
-        assert!(wallet.sync().is_ok());
-        assert!(wallet.sync_all().is_ok());
 
         let signer = DefaultSigner::new(storage.clone());
 
@@ -1070,16 +1025,6 @@ mod tests {
                 )
                 .unwrap_err()
                 .kind()
-        );
-
-        assert_eq!(
-            ErrorKind::PermissionDenied,
-            wallet.sync().unwrap_err().kind()
-        );
-
-        assert_eq!(
-            ErrorKind::PermissionDenied,
-            wallet.sync_all().unwrap_err().kind()
         );
     }
 

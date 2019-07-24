@@ -412,6 +412,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.1.0",
+ "chain-tx-filter 0.1.0",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common 0.1.0",
  "enclave-protocol 0.1.0",

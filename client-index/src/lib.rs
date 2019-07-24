@@ -4,11 +4,12 @@ pub mod cipher;
 pub mod handler;
 pub mod index;
 pub mod service;
+pub mod synchronizer;
 
 #[doc(inline)]
 pub use crate::cipher::TransactionCipher;
 #[doc(inline)]
-pub use crate::handler::TransactionHandler;
+pub use crate::handler::{BlockHandler, TransactionHandler};
 #[doc(inline)]
 pub use crate::index::Index;
 #[doc(inline)]

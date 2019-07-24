@@ -227,19 +227,13 @@ where
     }
 
     fn sync(&self) -> Result<()> {
-        if let Err(e) = self.client.sync() {
-            Err(to_rpc_error(e))
-        } else {
-            Ok(())
-        }
+        // TODO: Implement synchronization logic for current view key
+        Ok(())
     }
 
     fn sync_all(&self) -> Result<()> {
-        if let Err(e) = self.client.sync_all() {
-            Err(to_rpc_error(e))
-        } else {
-            Ok(())
-        }
+        // TODO: Implement synchronization logic for current view key
+        Ok(())
     }
 
     fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
@@ -522,40 +516,19 @@ pub mod tests {
     pub struct MockIndex;
 
     impl Index for MockIndex {
-        fn sync(&self) -> CommonResult<()> {
-            Ok(())
-        }
+        fn address_details(&self, address: &ExtendedAddr) -> CommonResult<AddressDetails> {
+            let mut address_details = AddressDetails::default();
 
-        fn sync_all(&self) -> CommonResult<()> {
-            Ok(())
-        }
-
-        fn address_details(&self, _address: &ExtendedAddr) -> CommonResult<AddressDetails> {
-            unreachable!()
-        }
-
-        fn transaction_changes(
-            &self,
-            address: &ExtendedAddr,
-        ) -> CommonResult<Vec<TransactionChange>> {
-            Ok(vec![TransactionChange {
+            address_details.transaction_history = vec![TransactionChange {
                 transaction_id: [0u8; 32],
                 address: address.clone(),
                 balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
                 block_height: 1,
                 block_time: DateTime::from(SystemTime::now()),
-            }])
-        }
+            }];
+            address_details.balance = Coin::new(30).unwrap();
 
-        fn balance(&self, _: &ExtendedAddr) -> CommonResult<Coin> {
-            Ok(Coin::new(30).unwrap())
-        }
-
-        fn unspent_transactions(
-            &self,
-            _address: &ExtendedAddr,
-        ) -> CommonResult<Vec<(TxoPointer, TxOut)>> {
-            Ok(Vec::new())
+            Ok(address_details)
         }
 
         fn transaction(&self, _: &TxId) -> CommonResult<Option<Transaction>> {
