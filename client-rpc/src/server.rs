@@ -13,12 +13,14 @@ use client_common::tendermint::{Client, RpcClient};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
+use client_index::cipher::AbciTransactionCipher;
 use client_index::index::DefaultIndex;
 use client_network::network_ops::DefaultNetworkOpsClient;
 
 type AppSigner = DefaultSigner<SledStorage>;
 type AppIndex = DefaultIndex<SledStorage, RpcClient>;
-type AppTxBuilder = DefaultTransactionBuilder<AppSigner, LinearFee>;
+type AppTxBuilder =
+    DefaultTransactionBuilder<AppSigner, LinearFee, AbciTransactionCipher<RpcClient>>;
 type AppWalletClient = DefaultWalletClient<SledStorage, AppIndex, AppTxBuilder>;
 type AppOpsClient = DefaultNetworkOpsClient<AppWalletClient, AppSigner, RpcClient, LinearFee>;
 
@@ -46,9 +48,11 @@ impl Server {
     fn make_wallet_client(&self, storage: SledStorage) -> AppWalletClient {
         let tendermint_client = RpcClient::new(&self.tendermint_url);
         let signer = DefaultSigner::new(storage.clone());
+        let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
         let transaction_builder = DefaultTransactionBuilder::new(
             signer,
             tendermint_client.genesis().unwrap().fee_policy(),
+            transaction_cipher,
         );
         let index = DefaultIndex::new(storage.clone(), tendermint_client);
         DefaultWalletClient::builder()
