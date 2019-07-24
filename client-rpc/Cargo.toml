@@ -21,3 +21,6 @@ structopt = "0.2"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.3.2"
 secstr = { version = "0.3.2", features = ["serde"] }
+
+[dev-dependencies]
+parity-codec = "4.1.3"
