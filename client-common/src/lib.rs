@@ -18,7 +18,7 @@ pub use key::{PrivateKey, PublicKey};
 #[doc(inline)]
 pub use storage::{SecureStorage, Storage};
 #[doc(inline)]
-pub use transaction::Transaction;
+pub use transaction::{SignedTransaction, Transaction};
 
 use secp256k1::{All, Secp256k1};
 

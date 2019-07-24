@@ -112,10 +112,10 @@ mod tests {
     use chain_core::tx::data::attribute::TxAttributes;
     use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
-    use chain_core::tx::TransactionId;
+    use chain_core::tx::{TransactionId, TxAux};
     use chain_tx_filter::BlockFilter;
     use client_common::storage::MemoryStorage;
-    use client_common::Transaction;
+    use client_common::{SignedTransaction, Transaction};
 
     struct MockTransactionCipher;
 
@@ -129,6 +129,10 @@ mod tests {
             assert_eq!(transfer_transaction().id(), transaction_ids[0]);
             assert_eq!(unbond_transaction().id(), transaction_ids[1]);
             Ok(vec![transfer_transaction()])
+        }
+
+        fn encrypt(&self, _transaction: SignedTransaction) -> Result<TxAux> {
+            unreachable!()
         }
     }
 
