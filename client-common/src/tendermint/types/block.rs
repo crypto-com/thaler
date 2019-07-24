@@ -39,32 +39,29 @@ impl Block {
     pub fn unencrypted_transactions(&self) -> Result<Vec<Transaction>> {
         match &self.block.data.txs {
             None => Ok(Vec::new()),
-            Some(transactions) => {
-                let unencrypted_transactions = transactions
-                    .iter()
-                    .map(|raw_transaction| -> Result<Option<Transaction>> {
-                        let decoded =
-                            decode(&raw_transaction).context(ErrorKind::DeserializationError)?;
-                        let tx_aux = TxAux::decode(&mut decoded.as_slice())
-                            .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+            Some(transactions) => transactions
+                .iter()
+                .map(|raw_transaction| -> Result<TxAux> {
+                    let decoded =
+                        decode(&raw_transaction).context(ErrorKind::DeserializationError)?;
+                    let tx_aux = TxAux::decode(&mut decoded.as_slice())
+                        .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
 
-                        match tx_aux {
-                            TxAux::DepositStakeTx { tx, .. } => {
-                                Ok(Some(Transaction::DepositStakeTransaction(tx)))
-                            }
-                            TxAux::UnbondStakeTx(tx, _) => {
-                                Ok(Some(Transaction::UnbondStakeTransaction(tx)))
-                            }
-                            _ => Ok(None),
+                    Ok(tx_aux)
+                })
+                .filter_map(|tx_aux_result| match tx_aux_result {
+                    Err(e) => Some(Err(e)),
+                    Ok(tx_aux) => match tx_aux {
+                        TxAux::DepositStakeTx { tx, .. } => {
+                            Some(Ok(Transaction::DepositStakeTransaction(tx)))
                         }
-                    })
-                    .collect::<Result<Vec<Option<Transaction>>>>()?;
-
-                Ok(unencrypted_transactions
-                    .into_iter()
-                    .filter_map(|optional_transaction| optional_transaction)
-                    .collect())
-            }
+                        TxAux::UnbondStakeTx(tx, _) => {
+                            Some(Ok(Transaction::UnbondStakeTransaction(tx)))
+                        }
+                        _ => None,
+                    },
+                })
+                .collect::<Result<Vec<Transaction>>>(),
         }
     }
 
@@ -96,6 +93,7 @@ mod tests {
 
     use chain_core::init::coin::Coin;
     use chain_core::state::account::{StakedStateOpAttributes, StakedStateOpWitness, UnbondTx};
+    use chain_core::tx::TxObfuscated;
 
     fn unbond_transaction() -> TxAux {
         TxAux::UnbondStakeTx(
@@ -117,9 +115,23 @@ mod tests {
         )
     }
 
+    fn transfer_transaction() -> TxAux {
+        TxAux::TransferTx {
+            txid: [0; 32],
+            inputs: Vec::new(),
+            no_of_outputs: 0,
+            payload: TxObfuscated {
+                key_from: 0,
+                nonce: [0; 12],
+                txpayload: Vec::new(),
+            },
+        }
+    }
+
     #[test]
     fn check_unencrypted_transactions() {
         let transaction = unbond_transaction();
+        let transfer_transaction = transfer_transaction();
 
         let block = Block {
             block: BlockInner {
@@ -128,7 +140,10 @@ mod tests {
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
                 data: Data {
-                    txs: Some(vec![encode(&transaction.encode())]),
+                    txs: Some(vec![
+                        encode(&transaction.encode()),
+                        encode(&transfer_transaction.encode()),
+                    ]),
                 },
             },
         };
