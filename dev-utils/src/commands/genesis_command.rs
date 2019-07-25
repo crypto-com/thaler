@@ -16,13 +16,13 @@ use chain_core::tx::fee::{LinearFee, Milli};
 use chrono::offset::Utc;
 use chrono::DateTime;
 use kvdb_memorydb::create;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct GenesisDevConfig {
     distribution: BTreeMap<RedeemAddress, Coin>,
     unbonding_period: u32,
@@ -32,10 +32,10 @@ pub struct GenesisDevConfig {
     launch_incentive_from: RedeemAddress,
     launch_incentive_to: RedeemAddress,
     long_term_incentive: RedeemAddress,
-    genesis_time: DateTime<Utc>,
+    pub genesis_time: DateTime<Utc>,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct InitialFeePolicy {
     base_fee: String,
     per_byte_fee: String,
@@ -63,11 +63,11 @@ impl GenesisCommand {
         match self {
             GenesisCommand::Generate {
                 genesis_dev_config_path,
-            } => GenesisCommand::generate(&genesis_dev_config_path),
+            } => GenesisCommand::generate(&genesis_dev_config_path).map(|_e| ()),
         }
     }
 
-    fn generate(genesis_dev_config_path: &PathBuf) -> Result<(), Error> {
+    pub fn generate(genesis_dev_config_path: &PathBuf) -> Result<(String, String), Error> {
         let genesis_dev_config = fs::read_to_string(genesis_dev_config_path)
             .context(format_err!("Something went wrong reading the file"))?;
         let genesis_dev: GenesisDevConfig =
@@ -118,15 +118,15 @@ impl GenesisCommand {
             let config_str =
                 serde_json::to_string(&config).context(format_err!("Invalid config"))?;
             println!("\"app_state\": {}", config_str);
+            println!();
+
+            // app_hash, app_state
+            Ok((encode_upper(genesis_app_hash), config_str))
         } else {
-            return Err(format_err!(
+            Err(format_err!(
                 "distribution validation error: {} ",
                 result.unwrap_err()
-            ));
+            ))
         }
-
-        println!();
-
-        Ok(())
     }
 }
