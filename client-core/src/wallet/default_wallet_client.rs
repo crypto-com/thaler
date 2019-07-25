@@ -215,7 +215,7 @@ where
 
         let balances = addresses
             .iter()
-            .map(|address| self.index.balance(address))
+            .map(|address| Ok(self.index.address_details(address)?.balance))
             .collect::<Result<Vec<Coin>>>()?;
 
         Ok(sum_coins(balances.into_iter()).context(ErrorKind::BalanceAdditionError)?)
@@ -226,7 +226,7 @@ where
 
         let history = addresses
             .iter()
-            .map(|address| self.index.transaction_changes(address))
+            .map(|address| Ok(self.index.address_details(address)?.transaction_history))
             .collect::<Result<Vec<Vec<TransactionChange>>>>()?
             .into_iter()
             .flatten()
@@ -244,7 +244,7 @@ where
 
         let mut unspent_transactions = Vec::new();
         for address in addresses {
-            unspent_transactions.extend(self.index.unspent_transactions(&address)?);
+            unspent_transactions.extend(self.index.address_details(&address)?.unspent_transactions);
         }
 
         Ok(UnspentTransactions::new(unspent_transactions))
@@ -278,14 +278,6 @@ where
 
     fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()> {
         self.index.broadcast_transaction(&tx_aux.encode())
-    }
-
-    fn sync(&self) -> Result<()> {
-        self.index.sync()
-    }
-
-    fn sync_all(&self) -> Result<()> {
-        self.index.sync_all()
     }
 }
 
@@ -503,21 +495,53 @@ mod tests {
     use std::time::SystemTime;
 
     use chrono::DateTime;
+    use parity_codec::Encode;
 
     use chain_core::init::coin::CoinError;
-    use chain_core::tx::data::input::TxoPointer;
+    use chain_core::tx::data::input::{TxoIndex, TxoPointer};
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::witness::TxInWitness;
-    use chain_core::tx::TransactionId;
+    use chain_core::tx::{TransactionId, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_address;
     use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
-    use client_common::Transaction;
-    use client_index::AddressDetails;
+    use client_common::{PrivateKey, SignedTransaction, Transaction};
+    use client_index::{AddressDetails, TransactionCipher};
 
     use crate::signer::DefaultSigner;
     use crate::transaction_builder::DefaultTransactionBuilder;
+
+    #[derive(Debug)]
+    struct MockTransactionCipher;
+
+    impl TransactionCipher for MockTransactionCipher {
+        fn decrypt(
+            &self,
+            _transaction_ids: &[TxId],
+            _private_key: &PrivateKey,
+        ) -> Result<Vec<Transaction>> {
+            unreachable!()
+        }
+
+        fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
+            let txpayload = transaction.encode();
+
+            match transaction {
+                SignedTransaction::TransferTransaction(tx, _) => Ok(TxAux::TransferTx {
+                    txid: tx.id(),
+                    inputs: tx.inputs.clone(),
+                    no_of_outputs: tx.outputs.len() as TxoIndex,
+                    payload: TxObfuscated {
+                        key_from: 0,
+                        nonce: [0u8; 12],
+                        txpayload,
+                    },
+                }),
+                _ => unreachable!(),
+            }
+        }
+    }
 
     #[derive(Debug)]
     pub struct MockIndex {
@@ -550,21 +574,11 @@ mod tests {
     }
 
     impl Index for MockIndex {
-        fn sync(&self) -> Result<()> {
-            Ok(())
-        }
-
-        fn sync_all(&self) -> Result<()> {
-            Ok(())
-        }
-
         fn address_details(&self, address: &ExtendedAddr) -> Result<AddressDetails> {
-            unreachable!()
-        }
+            let mut address_details = AddressDetails::default();
 
-        fn transaction_changes(&self, address: &ExtendedAddr) -> Result<Vec<TransactionChange>> {
             if address == &self.addr_1 {
-                Ok(vec![
+                address_details.transaction_history = vec![
                     TransactionChange {
                         transaction_id: [0u8; 32],
                         address: address.clone(),
@@ -579,10 +593,10 @@ mod tests {
                         block_height: 2,
                         block_time: DateTime::from(SystemTime::now()),
                     },
-                ])
+                ];
             } else if address == &self.addr_2 {
                 if *self.changed.read().unwrap() {
-                    Ok(vec![
+                    address_details.transaction_history = vec![
                         TransactionChange {
                             transaction_id: [1u8; 32],
                             address: address.clone(),
@@ -597,73 +611,49 @@ mod tests {
                             block_height: 2,
                             block_time: DateTime::from(SystemTime::now()),
                         },
-                    ])
+                    ];
                 } else {
-                    Ok(vec![TransactionChange {
-                        transaction_id: [1u8; 32],
-                        address: address.clone(),
-                        balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                        block_height: 2,
-                        block_time: DateTime::from(SystemTime::now()),
-                    }])
-                }
-            } else if *self.changed.read().unwrap() && address == &self.addr_3 {
-                Ok(vec![TransactionChange {
-                    transaction_id: [1u8; 32],
-                    address: address.clone(),
-                    balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
-                    block_height: 2,
-                    block_time: DateTime::from(SystemTime::now()),
-                }])
-            } else {
-                Ok(Default::default())
-            }
-        }
-
-        fn balance(&self, address: &ExtendedAddr) -> Result<Coin> {
-            if address == &self.addr_1 {
-                Ok(Coin::zero())
-            } else if address == &self.addr_2 {
-                if *self.changed.read().unwrap() {
-                    Ok(Coin::zero())
-                } else {
-                    Ok(Coin::new(30).unwrap())
-                }
-            } else if *self.changed.read().unwrap() && address == &self.addr_3 {
-                Ok(Coin::new(30).unwrap())
-            } else {
-                Ok(Coin::zero())
-            }
-        }
-
-        fn unspent_transactions(&self, address: &ExtendedAddr) -> Result<Vec<(TxoPointer, TxOut)>> {
-            if address == &self.addr_1 {
-                Ok(Default::default())
-            } else if address == &self.addr_2 {
-                if *self.changed.read().unwrap() {
-                    Ok(Default::default())
-                } else {
-                    Ok(vec![(
+                    address_details.unspent_transactions = vec![(
                         TxoPointer::new([1u8; 32], 0),
                         TxOut {
                             address: self.addr_2.clone(),
                             value: Coin::new(30).unwrap(),
                             valid_from: None,
                         },
-                    )])
+                    )];
+
+                    address_details.transaction_history = vec![TransactionChange {
+                        transaction_id: [1u8; 32],
+                        address: address.clone(),
+                        balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                        block_height: 2,
+                        block_time: DateTime::from(SystemTime::now()),
+                    }];
+
+                    address_details.balance = Coin::new(30).unwrap();
                 }
             } else if *self.changed.read().unwrap() && address == &self.addr_3 {
-                Ok(vec![(
+                address_details.unspent_transactions = vec![(
                     TxoPointer::new([2u8; 32], 0),
                     TxOut {
                         address: self.addr_3.clone(),
                         value: Coin::new(30).unwrap(),
                         valid_from: None,
                     },
-                )])
-            } else {
-                Ok(Default::default())
+                )];
+
+                address_details.transaction_history = vec![TransactionChange {
+                    transaction_id: [1u8; 32],
+                    address: address.clone(),
+                    balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
+                    block_height: 2,
+                    block_time: DateTime::from(SystemTime::now()),
+                }];
+
+                address_details.balance = Coin::new(30).unwrap();
             }
+
+            Ok(address_details)
         }
 
         fn transaction(&self, _: &TxId) -> Result<Option<Transaction>> {
@@ -863,9 +853,6 @@ mod tests {
                 .len()
         );
 
-        assert!(wallet.sync().is_ok());
-        assert!(wallet.sync_all().is_ok());
-
         let signer = DefaultSigner::new(storage.clone());
 
         let wallet = DefaultWalletClient::builder()
@@ -874,6 +861,7 @@ mod tests {
             .with_transaction_write(DefaultTransactionBuilder::new(
                 signer,
                 ZeroFeeAlgorithm::default(),
+                MockTransactionCipher,
             ))
             .build()
             .unwrap();
@@ -1071,25 +1059,18 @@ mod tests {
                 .unwrap_err()
                 .kind()
         );
-
-        assert_eq!(
-            ErrorKind::PermissionDenied,
-            wallet.sync().unwrap_err().kind()
-        );
-
-        assert_eq!(
-            ErrorKind::PermissionDenied,
-            wallet.sync_all().unwrap_err().kind()
-        );
     }
 
     #[test]
     fn invalid_wallet_building() {
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage);
-        let builder = DefaultWalletClient::builder().with_transaction_write(
-            DefaultTransactionBuilder::new(signer, ZeroFeeAlgorithm::default()),
-        );
+        let builder =
+            DefaultWalletClient::builder().with_transaction_write(DefaultTransactionBuilder::new(
+                signer,
+                ZeroFeeAlgorithm::default(),
+                MockTransactionCipher,
+            ));
 
         assert_eq!(ErrorKind::InvalidInput, builder.build().unwrap_err().kind());
     }

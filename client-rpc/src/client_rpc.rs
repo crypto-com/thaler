@@ -227,19 +227,13 @@ where
     }
 
     fn sync(&self) -> Result<()> {
-        if let Err(e) = self.client.sync() {
-            Err(to_rpc_error(e))
-        } else {
-            Ok(())
-        }
+        // TODO: Implement synchronization logic for current view key
+        Ok(())
     }
 
     fn sync_all(&self) -> Result<()> {
-        if let Err(e) = self.client.sync_all() {
-            Err(to_rpc_error(e))
-        } else {
-            Ok(())
-        }
+        // TODO: Implement synchronization logic for current view key
+        Ok(())
     }
 
     fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
@@ -496,66 +490,46 @@ pub struct CreateUnbondStakeTransactionRequest {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+
     use std::time::SystemTime;
 
     use chrono::DateTime;
+    use parity_codec::Encode;
 
     use chain_core::init::coin::CoinError;
-    use chain_core::tx::data::input::TxoPointer;
+    use chain_core::tx::data::input::{TxoIndex, TxoPointer};
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
-    use chain_core::tx::TxAux;
+    use chain_core::tx::{TransactionId, TxAux, TxObfuscated};
     use client_common::balance::BalanceChange;
     use client_common::balance::TransactionChange;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
-    use client_common::Result as CommonResult;
-    use client_common::Transaction;
+    use client_common::{PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
-    use client_index::{AddressDetails, Index};
+    use client_index::{AddressDetails, Index, TransactionCipher};
     use client_network::network_ops::DefaultNetworkOpsClient;
 
     #[derive(Default)]
     pub struct MockIndex;
 
     impl Index for MockIndex {
-        fn sync(&self) -> CommonResult<()> {
-            Ok(())
-        }
+        fn address_details(&self, address: &ExtendedAddr) -> CommonResult<AddressDetails> {
+            let mut address_details = AddressDetails::default();
 
-        fn sync_all(&self) -> CommonResult<()> {
-            Ok(())
-        }
-
-        fn address_details(&self, _address: &ExtendedAddr) -> CommonResult<AddressDetails> {
-            unreachable!()
-        }
-
-        fn transaction_changes(
-            &self,
-            address: &ExtendedAddr,
-        ) -> CommonResult<Vec<TransactionChange>> {
-            Ok(vec![TransactionChange {
+            address_details.transaction_history = vec![TransactionChange {
                 transaction_id: [0u8; 32],
                 address: address.clone(),
                 balance_change: BalanceChange::Incoming(Coin::new(30).unwrap()),
                 block_height: 1,
                 block_time: DateTime::from(SystemTime::now()),
-            }])
-        }
+            }];
+            address_details.balance = Coin::new(30).unwrap();
 
-        fn balance(&self, _: &ExtendedAddr) -> CommonResult<Coin> {
-            Ok(Coin::new(30).unwrap())
-        }
-
-        fn unspent_transactions(
-            &self,
-            _address: &ExtendedAddr,
-        ) -> CommonResult<Vec<(TxoPointer, TxOut)>> {
-            Ok(Vec::new())
+            Ok(address_details)
         }
 
         fn transaction(&self, _: &TxId) -> CommonResult<Option<Transaction>> {
@@ -595,7 +569,39 @@ pub mod tests {
         }
     }
 
-    type TestTxBuilder = DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm>;
+    #[derive(Debug)]
+    struct MockTransactionCipher;
+
+    impl TransactionCipher for MockTransactionCipher {
+        fn decrypt(
+            &self,
+            _transaction_ids: &[TxId],
+            _private_key: &PrivateKey,
+        ) -> CommonResult<Vec<Transaction>> {
+            unreachable!()
+        }
+
+        fn encrypt(&self, transaction: SignedTransaction) -> CommonResult<TxAux> {
+            let txpayload = transaction.encode();
+
+            match transaction {
+                SignedTransaction::TransferTransaction(tx, _) => Ok(TxAux::TransferTx {
+                    txid: tx.id(),
+                    inputs: tx.inputs.clone(),
+                    no_of_outputs: tx.outputs.len() as TxoIndex,
+                    payload: TxObfuscated {
+                        key_from: 0,
+                        nonce: [0u8; 12],
+                        txpayload,
+                    },
+                }),
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    type TestTxBuilder =
+        DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm, MockTransactionCipher>;
     type TestSigner = DefaultSigner<MemoryStorage>;
     type TestWalletClient = DefaultWalletClient<MemoryStorage, MockIndex, TestTxBuilder>;
     type TestOpsClient =
@@ -780,6 +786,7 @@ pub mod tests {
             .with_transaction_write(DefaultTransactionBuilder::new(
                 signer,
                 ZeroFeeAlgorithm::default(),
+                MockTransactionCipher,
             ))
             .build()
             .unwrap()
@@ -792,6 +799,7 @@ pub mod tests {
             .with_transaction_write(DefaultTransactionBuilder::new(
                 DefaultSigner::new(storage.clone()),
                 ZeroFeeAlgorithm::default(),
+                MockTransactionCipher,
             ))
             .build()
             .unwrap();
