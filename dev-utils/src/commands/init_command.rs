@@ -1,12 +1,10 @@
 use super::genesis_command::{GenesisCommand, GenesisDevConfig};
 use chrono::offset::Utc;
 use chrono::DateTime;
-use chrono::{NaiveDateTime, TimeZone};
 use failure::Error;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value as JsonValue;
-use std::env;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
@@ -21,15 +19,6 @@ struct TendermintGenesis {
     pub app_hash: String,
     pub app_state: serde_json::Value,
     pub genesis_time: DateTime<Utc>,
-}
-impl TendermintGenesis {
-    pub fn new() -> Self {
-        TendermintGenesis {
-            app_hash: "".to_string(),
-            app_state: json!(null),
-            genesis_time: Utc.timestamp(0, 0),
-        }
-    }
 }
 
 impl InitCommand {
@@ -79,7 +68,7 @@ impl InitCommand {
         let result = GenesisCommand::generate(&path.to_path_buf()).unwrap();
         println!("genesis_time={}", genesis_dev.genesis_time);
         println!("-----------------------------------------------");
-        self.write_tendermint_genesis(
+        let _dummy = self.write_tendermint_genesis(
             json!(result.0),
             serde_json::from_str(&result.1).unwrap(),
             json!(genesis_dev.genesis_time),
@@ -95,18 +84,18 @@ impl InitCommand {
 
         let filename = format!(
             "{}/.tendermint/config/genesis.json",
-            env::home_dir().unwrap().to_str().unwrap()
+            dirs::home_dir().unwrap().to_str().unwrap()
         );
         // check whether file exists
-        fs::read_to_string(filename.clone()).map_err(|_e| {
+        let _dummy = fs::read_to_string(&filename).map_err(|_e| {
             // file not exist
-            Command::new("tendermint").args(&["init"]).output();
-            ();
+            Command::new("tendermint").args(&["init"]).output().unwrap();
             println!("tenermint initialized");
+            ()
         });
 
-        let mut json_string= String::from("");
-        fs::read_to_string(filename.clone())
+        let mut json_string = String::from("");
+        fs::read_to_string(&filename)
             .and_then(|contents| {
                 let mut json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let obj = json.as_object_mut().unwrap();
@@ -116,13 +105,11 @@ impl InitCommand {
                 obj["genesis_time"] = gt;
                 json_string = serde_json::to_string_pretty(&json).unwrap();
                 println!("{}", json_string);
-                
+
                 File::create(&filename)
             })
-            .map(|mut file| {
-                file.write_all(json_string.as_bytes())
-            })
-            .map(|_e|  {
+            .map(|mut file| file.write_all(json_string.as_bytes()))
+            .map(|_e| {
                 println!("writing tendermint genesis OK");
                 ()
             })
