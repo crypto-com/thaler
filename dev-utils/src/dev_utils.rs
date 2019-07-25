@@ -3,7 +3,6 @@ use structopt::StructOpt;
 
 use crate::commands::GenesisCommand;
 use crate::commands::InitCommand;
-
 /// Enum used to specify subcommands under dev-utils
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -22,18 +21,19 @@ pub enum DevUtils {
     },
 
     /// Used for initializing
-    #[structopt(name = "init", about = "Commands for initialize tendermint")]
-    Init {
-        #[structopt(subcommand)]
-        init_command: InitCommand,
-    },
+    #[structopt(name = "init", about = "Commands for initialize chain")]
+    Init,
 }
 
 impl DevUtils {
     pub fn execute(&self) -> Result<(), Error> {
         match self {
             DevUtils::Genesis { genesis_command } => genesis_command.execute(),
-            DevUtils::Init { init_command } => init_command.execute(),
+            DevUtils::Init => {
+                let init_command = InitCommand {};
+                init_command.execute().unwrap();
+                Ok(())
+            }
         }
     }
 }
