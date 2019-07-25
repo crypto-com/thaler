@@ -11,8 +11,8 @@ use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
+use std::process::Command;
 use structopt::StructOpt;
-
 #[derive(Debug, StructOpt)]
 pub struct InitCommand {}
 
@@ -90,25 +90,48 @@ impl InitCommand {
         app_hash: JsonValue,
         app_state: JsonValue,
         gt: JsonValue,
-    ) {
+    ) -> Result<(), ()> {
         println!("write genesis");
 
         let filename = format!(
             "{}/.tendermint/config/genesis.json",
             env::home_dir().unwrap().to_str().unwrap()
         );
-        fs::read_to_string(filename).map(|contents| {
-            let mut json: serde_json::Value = serde_json::from_str(&contents).unwrap();
-            let obj = json.as_object_mut().unwrap();
-            obj["app_hash"] = app_hash;
-            obj.insert("app_state".to_string(), json!(""));
-            obj["app_state"] = app_state;
-            obj["genesis_time"] = gt;
-            let json_string = serde_json::to_string_pretty(&json).unwrap();
-            println!("{}", json_string);
+        // check whether file exists
+        fs::read_to_string(filename.clone()).map_err(|_e| {
+            // file not exist
+            Command::new("tendermint").args(&["init"]).output();
+            ();
+            println!("tenermint initialized");
         });
+
+        let mut json_string= String::from("");
+        fs::read_to_string(filename.clone())
+            .and_then(|contents| {
+                let mut json: serde_json::Value = serde_json::from_str(&contents).unwrap();
+                let obj = json.as_object_mut().unwrap();
+                obj["app_hash"] = app_hash;
+                obj.insert("app_state".to_string(), json!(""));
+                obj["app_state"] = app_state;
+                obj["genesis_time"] = gt;
+                json_string = serde_json::to_string_pretty(&json).unwrap();
+                println!("{}", json_string);
+                
+                File::create(&filename)
+            })
+            .map(|mut file| {
+                file.write_all(json_string.as_bytes())
+            })
+            .map(|_e|  {
+                println!("writing tendermint genesis OK");
+                ()
+            })
+            .map_err(|e| {
+                println!("Error={}", e);
+                ()
+            })
     }
-    
+
     pub fn execute(&self) -> Result<(), Error> {
         println!("initialize");
 
