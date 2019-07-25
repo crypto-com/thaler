@@ -191,7 +191,7 @@ We now have the initial App Hash as well as the App State. In the above example,
 
 <a id="start-chain-transaction-enclaves" />
 
-### 5.4. Start Transaction Enclaves
+### 5.3. Start Transaction Enclaves
 
 Follow the instructions in [Crypto.com Chain Transaction Enclaves](https://github.com/crypto-com/chain-tx-enclave) to build and run the Chain Transaction Enclaves.
 
@@ -307,6 +307,8 @@ chain-abci \
 --enclave_server tcp://127.0.0.1:25933
 ```
 
+---
+
 <a id="start-lite-node" />
 
 ## 6. Start a Basic Lite Node
@@ -314,6 +316,8 @@ chain-abci \
 ```bash
 $ tendermint lite
 ```
+
+---
 
 <a id="send-first-transaction" />
 
@@ -342,10 +346,9 @@ Enter transfer address: crmt1k79pwssctn9dk3c5prd0gr54sr9a4azhc3xayl0gsvnn6hlnclh
 
 - Transfer CRO to another address
 
-```bash
-$ 
-crmt1ypt8uhg3hrhlekl3ayywt3jyw2x048zdzf28f0xtmjfax3hendfq6dygs4
+Work in Progresss
 
+---
 
 <a id="testing" />
 
@@ -366,6 +369,8 @@ This only works on x86_64 processors running Linux. On different platforms, you 
 ```bash
 $ docker run --security-opt seccomp=unconfined -v "$PWD:/volume" xd009642/tarpaulin
 ```
+
+---
 
 <a id="useful-links" />
 
