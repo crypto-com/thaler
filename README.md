@@ -60,7 +60,7 @@ and the [contributing guidelines](CONTRIBUTING.md) when submitting code.
 
 [Apache 2.0](./LICENSE)
 
-<a id="build" />
+<a id="building" />
 
 ## 4. Build
 
@@ -319,7 +319,33 @@ $ tendermint lite
 
 ## 7. Send Your First Transaction
 
-Work in Progress
+Genesis funds are bonded funds, to transfer freely around, you first have to withdraw to UTXO
+
+- Create Transfer Address
+
+```bash
+$ ./target/debug/client-cli address new --name Default --type Transfer
+crmt1k79pwssctn9dk3c5prd0gr54sr9a4azhc3xayl0gsvnn6hlnclhsypfj6y
+```
+
+- Withdrawal Bonded Funds
+
+**staking address**: Previously generated address in your wallet to receive genesis funds
+**transfer address**: Wallet Transfer address we just generated
+
+```bash
+$ ./target/debug/client-cli transaction new --chain-id AB --name Default --type Withdraw
+Enter passphrase: 
+Enter staking address: 0xbdb46d64ed9da69093490a578158b1a20d96370b
+Enter transfer address: crmt1k79pwssctn9dk3c5prd0gr54sr9a4azhc3xayl0gsvnn6hlnclhsypfj6y
+```
+
+- Transfer CRO to another address
+
+```bash
+$ 
+crmt1ypt8uhg3hrhlekl3ayywt3jyw2x048zdzf28f0xtmjfax3hendfq6dygs4
+
 
 <a id="testing" />
 
