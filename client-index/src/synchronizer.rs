@@ -1,6 +1,9 @@
 //! Utilities for synchronizing transaction index with Crypto.com Chain
+use chain_core::state::account::StakedStateAddress;
+use chain_tx_filter::BlockFilter;
+use client_common::tendermint::types::Block;
 use client_common::tendermint::Client;
-use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage};
+use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
 
 use crate::service::GlobalStateService;
 use crate::BlockHandler;
@@ -34,7 +37,12 @@ where
     }
 
     /// Synchronizes transaction index for given view key with Crypto.com Chain (from last known height)
-    pub fn sync(&self, view_key: &PublicKey, private_key: &PrivateKey) -> Result<()> {
+    pub fn sync(
+        &self,
+        staking_addresses: &[StakedStateAddress],
+        view_key: &PublicKey,
+        private_key: &PrivateKey,
+    ) -> Result<()> {
         let last_block_height = self.global_state_service.last_block_height(view_key)?;
         let current_block_height = self.client.status()?.last_block_height()?;
 
@@ -45,13 +53,17 @@ where
             let block_time = block.time();
 
             let transaction_ids = block_results.transaction_ids()?;
-            let view_key_filter = block_results.block_filter()?;
+            let block_filter = block_results.block_filter()?;
+
+            let unencrypted_transactions =
+                check_unencrypted_transactions(&block_filter, staking_addresses, &block)?;
 
             let block_header = BlockHeader {
                 block_height,
                 block_time,
                 transaction_ids,
-                view_key_filter,
+                block_filter,
+                unencrypted_transactions,
             };
 
             self.block_handler
@@ -63,11 +75,30 @@ where
 
     /// Synchronizes transaction index for given view key with Crypto.com Chain (from genesis)
     #[inline]
-    pub fn sync_all(&self, view_key: &PublicKey, private_key: &PrivateKey) -> Result<()> {
+    pub fn sync_all(
+        &self,
+        staking_addresses: &[StakedStateAddress],
+        view_key: &PublicKey,
+        private_key: &PrivateKey,
+    ) -> Result<()> {
         self.global_state_service
             .set_last_block_height(view_key, 0)?;
-        self.sync(view_key, private_key)
+        self.sync(staking_addresses, view_key, private_key)
     }
+}
+
+fn check_unencrypted_transactions(
+    block_filter: &BlockFilter,
+    staking_addresses: &[StakedStateAddress],
+    block: &Block,
+) -> Result<Vec<Transaction>> {
+    for staking_address in staking_addresses {
+        if block_filter.check_staked_state_address(staking_address) {
+            return block.unencrypted_transactions();
+        }
+    }
+
+    Ok(Default::default())
 }
 
 #[cfg(test)]
@@ -82,6 +113,7 @@ mod tests {
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
     use chain_core::common::TendermintEventType;
+    use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::state::account::{StakedStateOpAttributes, StakedStateOpWitness, UnbondTx};
     use chain_core::tx::TxAux;
@@ -122,7 +154,9 @@ mod tests {
         }
     }
 
-    struct MockClient;
+    struct MockClient {
+        staking_address: StakedStateAddress,
+    }
 
     impl Client for MockClient {
         fn genesis(&self) -> Result<Genesis> {
@@ -183,6 +217,9 @@ mod tests {
                     },
                 })
             } else if height == 2 {
+                let mut block_filter = BlockFilter::default();
+                block_filter.add_staked_state_address(&self.staking_address);
+
                 Ok(BlockResults {
                     height: "2".to_string(),
                     results: Results {
@@ -200,7 +237,7 @@ mod tests {
                                 event_type: TendermintEventType::BlockFilter.to_string(),
                                 attributes: vec![Attribute {
                                     key: "ethbloom".to_owned(),
-                                    value: encode(&[0; 256][..]),
+                                    value: encode(&block_filter.get_tendermint_kv().unwrap().1),
                                 }],
                             }],
                         }),
@@ -224,13 +261,18 @@ mod tests {
     fn check_manual_synchronization() {
         let storage = MemoryStorage::default();
 
-        let synchronizer = ManualSynchronizer::new(storage.clone(), MockClient, MockBlockHandler);
-
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);
+        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
+
+        let synchronizer = ManualSynchronizer::new(
+            storage.clone(),
+            MockClient { staking_address },
+            MockBlockHandler,
+        );
 
         synchronizer
-            .sync(&view_key, &private_key)
+            .sync(&[staking_address], &view_key, &private_key)
             .expect("Unable to synchronize");
     }
 }

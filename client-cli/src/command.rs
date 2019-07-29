@@ -15,6 +15,7 @@ use client_common::Result;
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
+use client_index::cipher::AbciTransactionCipher;
 use client_index::index::DefaultIndex;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 
@@ -110,8 +111,12 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_builder =
-                    DefaultTransactionBuilder::new(signer.clone(), fee_algorithm);
+                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let transaction_builder = DefaultTransactionBuilder::new(
+                    signer.clone(),
+                    fee_algorithm,
+                    transaction_cipher.clone(),
+                );
                 let transaction_index =
                     DefaultIndex::new(storage.clone(), tendermint_client.clone());
 
@@ -125,6 +130,7 @@ impl Command {
                     signer,
                     tendermint_client,
                     fee_algorithm,
+                    transaction_cipher,
                 );
                 transaction_command.execute(network_ops_client.get_wallet(), &network_ops_client)
             }
@@ -133,8 +139,12 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_builder =
-                    DefaultTransactionBuilder::new(signer.clone(), fee_algorithm);
+                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let transaction_builder = DefaultTransactionBuilder::new(
+                    signer.clone(),
+                    fee_algorithm,
+                    transaction_cipher.clone(),
+                );
                 let transaction_index =
                     DefaultIndex::new(storage.clone(), tendermint_client.clone());
                 let wallet_client = DefaultWalletClient::builder()
@@ -148,6 +158,7 @@ impl Command {
                     signer,
                     tendermint_client,
                     fee_algorithm,
+                    transaction_cipher,
                 );
                 Self::get_staked_stake(&network_ops_client, name, address)
             }

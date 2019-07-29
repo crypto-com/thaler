@@ -4,7 +4,8 @@ mod abci_transaction_cipher;
 pub use abci_transaction_cipher::AbciTransactionCipher;
 
 use chain_core::tx::data::TxId;
-use client_common::{PrivateKey, Result, Transaction};
+use chain_core::tx::TxAux;
+use client_common::{PrivateKey, Result, SignedTransaction, Transaction};
 
 /// Interface for encryption and decryption of transactions
 pub trait TransactionCipher: Send + Sync {
@@ -16,5 +17,6 @@ pub trait TransactionCipher: Send + Sync {
         private_key: &PrivateKey,
     ) -> Result<Vec<Transaction>>;
 
-    // TODO: Implement `encrypt()`
+    /// Encrypts a signed transaction
+    fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux>;
 }

@@ -29,6 +29,9 @@ pub trait WalletClient: Send + Sync {
     /// Creates a new wallet with given name and passphrase
     fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()>;
 
+    /// Retrieves view key corresponding to a given wallet
+    fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
+
     /// Retrieves all public keys corresponding to given wallet
     fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>>;
 
