@@ -1,5 +1,3 @@
-docker-compose.yml
-
 # Git
 /.git
 
@@ -11,9 +9,6 @@ docker-compose.yml
 # Storage
 /.storage
 /.cro-storage
-
-# Integration Tests
-/integration-tests/client-rpc
 
 # OS
 .DS_Store

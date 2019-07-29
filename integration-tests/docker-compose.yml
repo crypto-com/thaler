@@ -12,7 +12,6 @@ services:
       FEE_SCHEMA: WITHFEE
       PROXY_APP: tcp://chain-abci:26658
     ports:
-      - ${TENDERMINT_PORT_P2P:-26656}:26656
       - ${TENDERMINT_PORT_RPC:-26657}:26657
   tendermint-zerofee:
     image: integration-tests-tendermint
@@ -22,11 +21,9 @@ services:
       FEE_SCHEMA: ZEROFEE
       PROXY_APP: tcp://chain-abci-zerofee:26658
     ports:
-      - ${TENDERMINT_ZEROFEE_PORT_P2P:-16656}:26656
       - ${TENDERMINT_ZEROFEE_PORT_RPC:-16657}:26657
 
   chain-abci:
-    # Specify image such that it is only build once
     image: integration-tests-chain
     build:
       context: ../
@@ -35,8 +32,6 @@ services:
     environment:
       RUST_BACKTRACE: 1
       RUST_LOG: info
-    ports:
-      - ${CHAIN_ABCI_PORT:-26658}:26658
   chain-abci-zerofee:
     image: integration-tests-chain
     depends_on:
@@ -45,8 +40,6 @@ services:
     environment:
       RUST_BACKTRACE: 1
       RUST_LOG: info
-    ports:
-      - ${CHAIN_ABCI_ZEROFEE_PORT-16658}:26658
 
   chain-tx-enclave:
     image: integration-tests-tx-enclave
@@ -70,7 +63,7 @@ services:
     image: integration-tests-chain
     depends_on:
       - chain-abci
-    command: /usr/bin/wait-for-it.sh tendermint:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id ${CHAIN_HEX_ID} --storage-dir wallet-storage --tendermint-url http://tendermint:26657
+    command: /usr/bin/wait-for-it.sh tendermint:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --network-id ${CHAIN_HEX_ID} --storage-dir wallet-storage --tendermint-url http://tendermint:26657
     environment:
       RUST_BACKTRACE: 1
     ports:
@@ -79,7 +72,7 @@ services:
     image: integration-tests-chain
     depends_on:
       - chain-abci
-    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id ${CHAIN_HEX_ID} --storage-dir wallet-storage --tendermint-url http://tendermint-zerofee:26657
+    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --network-id ${CHAIN_HEX_ID} --storage-dir wallet-storage --tendermint-url http://tendermint-zerofee:26657
     environment:
       RUST_BACKTRACE: 1
     ports:

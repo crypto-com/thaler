@@ -69,7 +69,6 @@ function create_wallet_staking_address() {
 
     print_step "Retrieving last staking address for wallet \"${1}\""
     ADDRESS_LIST=$(printf "${2}\n" | CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli address list --name ${1} --type Staking)
-    echo "${ADDRESS_LIST}"
     RET_VALUE=$(echo $ADDRESS_LIST | tail -n2 | sed -En "s/^.*(0x[0-9a-zA-Z]+)/\1/p")
 }
 
@@ -83,7 +82,7 @@ function create_wallet_transfer_address() {
     print_step "Retrieving last transfer address for wallet \"${1}\""
     ADDRESS_LIST=$(printf "${2}\n" | CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli address list --name ${1} --type Transfer)
     echo "${ADDRESS_LIST}"
-    RET_VALUE=$(echo $ADDRESS_LIST | tail -n1 | sed -En "s/^.*(0x[0-9a-zA-Z]+)/\1/p")
+    RET_VALUE=$(echo $ADDRESS_LIST | tail -n1 | sed -En "s/^.*(crmt[0-9a-zA-Z]+)/\1/p")
 }
 
 # Save wallet addresses into JSON file
@@ -94,7 +93,8 @@ function save_wallet_addresses() {
     echo "${ADDRESS_STATE_TEMPLATE}" | \
         jq --arg ADDRESS "${1}" '.staking=($ADDRESS)' | \
         jq --arg ADDRESS "${2}" '.transfer[0]=($ADDRESS)' | \
-        jq --arg ADDRESS "${3}" '.transfer[1]=($ADDRESS)' > ${ADDRESS_STATE_PATH}
+        jq --arg ADDRESS "${3}" '.transfer[1]=($ADDRESS)' | \
+        tee ${ADDRESS_STATE_PATH} > /dev/null
 }
 
 ADDRESS_STATE_TEMPLATE=$(cat << EOF
@@ -173,6 +173,12 @@ function _change_tenermint_chain_id() {
     RET_VALUE=$(echo "${1}" | jq --arg CHAIN_ID "${CHAIN_ID}" '.chain_id=($CHAIN_ID)')
 }
 
+# @argument Tendermint directory
+function disable_empty_blocks() {
+    print_step "Disabling empty blocks for ${1}"
+    cat "${1}/config/config.toml" | sed "s/create_empty_blocks = true/create_empty_blocks = false/g" | tee "${1}/config/config.toml" > /dev/null
+}
+
 # Always execute at script located directory
 cd "$(dirname "${0}")"
 
@@ -180,7 +186,7 @@ check_command_exist "jq"
 check_command_exist "../target/debug/client-cli"
 check_command_exist "../target/debug/dev-utils"
 
-print_step "Tendermint init"
+print_step "Initialize Tendermint"
 print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
 docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
 
@@ -190,7 +196,6 @@ mkdir -p "${TENDERMINT_ZEROFEE_DIRECTORY}"; cp -r ./tendermint/. "${TENDERMINT_Z
 
 print_step "Generate wallet and addresses"
 create_wallet "Default" "${WALLET_PASSPHRASE}"
-
 create_wallet_staking_address "Default" "${WALLET_PASSPHRASE}"; STAKING_ADDRESS="${RET_VALUE}"
 create_wallet_transfer_address "Default" "${WALLET_PASSPHRASE}"; TRANSFER_ADDRESS_1="${RET_VALUE}"
 create_wallet_transfer_address "Default" "${WALLET_PASSPHRASE}"; TRANSFER_ADDRESS_2="${RET_VALUE}"
@@ -199,8 +204,9 @@ print_config "TRANSFER_ADDRESS_1" "${TRANSFER_ADDRESS_1}"
 print_config "TRANSFER_ADDRESS_2" "${TRANSFER_ADDRESS_2}"
 save_wallet_addresses "${STAKING_ADDRESS}" "${TRANSFER_ADDRESS_1}" "${TRANSFER_ADDRESS_2}"
 
-VALIDATOR_PUB_KEY=$(cat ~/.tendermint/config/genesis.json | jq -r .validators[0].pub_key.value)
-GENESIS_TIME=$(cat ~/.tendermint/config/genesis.json | jq -r .genesis_time)
+print_step "Generate Tendermint genesis"
+VALIDATOR_PUB_KEY=$(cat ./tendermint/config/genesis.json | jq -r .validators[0].pub_key.value)
+GENESIS_TIME=$(cat ./tendermint/config/genesis.json | jq -r .genesis_time)
 print_config "VALIDATOR_PUR_KEY" "${VALIDATOR_PUB_KEY}"
 print_config "GENESIS_TIME" "${GENESIS_TIME}"
 
@@ -214,13 +220,15 @@ function generate_dev_conf() {
 		sed "s/{BASE_FEE}/${1}/g" | \
 		sed "s/{PER_BYTE_FEE}/${2}/g" | \
         sed "s#{PUB_KEY}#${VALIDATOR_PUB_KEY}#g" | \
-		sed "s/{GENESIS_TIME}/${GENESIS_TIME}/g" > ${3}
+		sed "s/{GENESIS_TIME}/${GENESIS_TIME}/g" | tee ${3} > /dev/null
 }
 
-print_step "Generate Tendermint genesis"
 generate_dev_conf "1.1" "1.25" "${DEV_CONF_WITHFEE_PATH}"
 generate_dev_conf "0.0" "0.0" "${DEV_CONF_ZEROFEE_PATH}"
 
 generate_tendermint_genesis "${DEV_CONF_WITHFEE_PATH}" "${TENDERMINT_WITHFEE_DIRECTORY}" "${CHAIN_ID}"
 generate_tendermint_genesis "${DEV_CONF_ZEROFEE_PATH}" "${TENDERMINT_ZEROFEE_DIRECTORY}" "${CHAIN_ID}"
 
+print_step "Update Tendermint configuration"
+disable_empty_blocks "${TENDERMINT_WITHFEE_DIRECTORY}"
+disable_empty_blocks "${TENDERMINT_ZEROFEE_DIRECTORY}"
