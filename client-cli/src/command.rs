@@ -15,6 +15,7 @@ use client_common::Result;
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
+use client_index::cipher::AbciTransactionCipher;
 use client_index::index::DefaultIndex;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 
@@ -110,30 +111,40 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_builder =
-                    DefaultTransactionBuilder::new(signer.clone(), fee_algorithm);
+                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let transaction_builder = DefaultTransactionBuilder::new(
+                    signer.clone(),
+                    fee_algorithm,
+                    transaction_cipher.clone(),
+                );
                 let transaction_index =
                     DefaultIndex::new(storage.clone(), tendermint_client.clone());
+
                 let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage)
+                    .with_wallet(storage.clone())
                     .with_transaction_read(transaction_index)
                     .with_transaction_write(transaction_builder)
                     .build()?;
                 let network_ops_client = DefaultNetworkOpsClient::new(
-                    &wallet_client,
-                    &signer,
-                    &tendermint_client,
-                    &fee_algorithm,
+                    wallet_client,
+                    signer,
+                    tendermint_client,
+                    fee_algorithm,
+                    transaction_cipher,
                 );
-                transaction_command.execute(&wallet_client, &network_ops_client)
+                transaction_command.execute(network_ops_client.get_wallet(), &network_ops_client)
             }
             Command::StakedState { name, address } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_builder =
-                    DefaultTransactionBuilder::new(signer.clone(), fee_algorithm);
+                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let transaction_builder = DefaultTransactionBuilder::new(
+                    signer.clone(),
+                    fee_algorithm,
+                    transaction_cipher.clone(),
+                );
                 let transaction_index =
                     DefaultIndex::new(storage.clone(), tendermint_client.clone());
                 let wallet_client = DefaultWalletClient::builder()
@@ -141,11 +152,13 @@ impl Command {
                     .with_transaction_read(transaction_index)
                     .with_transaction_write(transaction_builder)
                     .build()?;
+
                 let network_ops_client = DefaultNetworkOpsClient::new(
-                    &wallet_client,
-                    &signer,
-                    &tendermint_client,
-                    &fee_algorithm,
+                    wallet_client,
+                    signer,
+                    tendermint_client,
+                    fee_algorithm,
+                    transaction_cipher,
                 );
                 Self::get_staked_stake(&network_ops_client, name, address)
             }
@@ -194,7 +207,6 @@ impl Command {
 
     fn get_balance<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
         let passphrase = ask_passphrase()?;
-        wallet_client.sync()?;
         let balance = wallet_client.balance(name, &passphrase)?;
 
         success(&format!("Wallet balance: {}", balance));
@@ -203,7 +215,6 @@ impl Command {
 
     fn get_history<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
         let passphrase = ask_passphrase()?;
-        wallet_client.sync()?;
         let history = wallet_client.history(name, &passphrase)?;
 
         if !history.is_empty() {
@@ -229,8 +240,8 @@ impl Command {
                     Cell::from(&change.address),
                     Cell::from(&amount).style_spec("r"),
                     Cell::new(in_out).style_spec(spec),
-                    Cell::from(&change.height).style_spec("r"),
-                    Cell::from(&change.time),
+                    Cell::from(&change.block_height).style_spec("r"),
+                    Cell::from(&change.block_time),
                 ]));
             }
 
@@ -242,7 +253,8 @@ impl Command {
         Ok(())
     }
 
-    fn resync<T: WalletClient>(wallet_client: T) -> Result<()> {
-        wallet_client.sync_all()
+    fn resync<T: WalletClient>(_wallet_client: T) -> Result<()> {
+        // TODO: Implement synchronization logic for current view key
+        Ok(())
     }
 }

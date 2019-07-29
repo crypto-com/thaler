@@ -8,7 +8,8 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
-use client_common::{ErrorKind, Result};
+use client_common::{ErrorKind, Result, SignedTransaction};
+use client_index::TransactionCipher;
 
 use crate::{SelectedUnspentTransactions, Signer, TransactionBuilder, UnspentTransactions};
 
@@ -21,38 +22,45 @@ use crate::{SelectedUnspentTransactions, Signer, TransactionBuilder, UnspentTran
 /// 3. Select unspent transactions with `fees + output_value`.
 /// 4. Build transaction with selected unspent transactions (also add an extra output for change amount).
 /// 5. Sign transaction with private keys corresponding to selected unspent transactions.
-/// 6. Calculate `new_fees`.
-/// 7. If `new_fees > fees`, then change `fees = new_fees` and goto step 3, otherwise return signed transaction.
+/// 6. Encrypt/obfuscate transaction.
+/// 7. Calculate `new_fees`.
+/// 8. If `new_fees > fees`, then change `fees = new_fees` and goto step 3, otherwise return signed transaction.
 ///
 /// TODO: Create a `DummySigner` which signs a transaction with dummy values for fees calculation.
 #[derive(Debug)]
-pub struct DefaultTransactionBuilder<S, F>
+pub struct DefaultTransactionBuilder<S, F, C>
 where
     S: Signer,
     F: FeeAlgorithm,
+    C: TransactionCipher,
 {
     signer: S,
     fee_algorithm: F,
+    transaction_cipher: C,
 }
 
-impl<S, F> DefaultTransactionBuilder<S, F>
+impl<S, F, C> DefaultTransactionBuilder<S, F, C>
 where
     S: Signer,
     F: FeeAlgorithm,
+    C: TransactionCipher,
 {
     /// Creates a new instance of transaction builder
-    pub fn new(signer: S, fee_algorithm: F) -> Self {
+    #[inline]
+    pub fn new(signer: S, fee_algorithm: F, transaction_cipher: C) -> Self {
         Self {
             signer,
             fee_algorithm,
+            transaction_cipher,
         }
     }
 }
 
-impl<S, F> TransactionBuilder for DefaultTransactionBuilder<S, F>
+impl<S, F, C> TransactionBuilder for DefaultTransactionBuilder<S, F, C>
 where
     S: Signer,
     F: FeeAlgorithm,
+    C: TransactionCipher,
 {
     fn build(
         &self,
@@ -86,7 +94,8 @@ where
                 selected_unspent_transactions,
             )?;
 
-            let tx_aux = TxAux::TransferTx(transaction, witness);
+            let signed_transaction = SignedTransaction::TransferTransaction(transaction, witness);
+            let tx_aux = self.transaction_cipher.encrypt(signed_transaction)?;
 
             let new_fees = self
                 .fee_algorithm
@@ -128,14 +137,50 @@ fn build_transaction(
 mod tests {
     use super::*;
 
-    use chain_core::tx::data::input::TxoPointer;
+    use parity_codec::{Decode, Encode};
+
+    use chain_core::tx::data::input::{TxoIndex, TxoPointer};
+    use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{LinearFee, Milli};
+    use chain_core::tx::{PlainTxAux, TxAux, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_address;
     use client_common::storage::MemoryStorage;
+    use client_common::{PrivateKey, Transaction};
 
     use crate::signer::DefaultSigner;
     use crate::unspent_transactions::{Operation, Sorter};
     use crate::wallet::{DefaultWalletClient, WalletClient};
+
+    #[derive(Debug)]
+    struct MockTransactionCipher;
+
+    impl TransactionCipher for MockTransactionCipher {
+        fn decrypt(
+            &self,
+            _transaction_ids: &[TxId],
+            _private_key: &PrivateKey,
+        ) -> Result<Vec<Transaction>> {
+            unreachable!()
+        }
+
+        fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
+            let txpayload = transaction.encode();
+
+            match transaction {
+                SignedTransaction::TransferTransaction(tx, _) => Ok(TxAux::TransferTx {
+                    txid: tx.id(),
+                    inputs: tx.inputs.clone(),
+                    no_of_outputs: tx.outputs.len() as TxoIndex,
+                    payload: TxObfuscated {
+                        key_from: 0,
+                        nonce: [0u8; 12],
+                        txpayload,
+                    },
+                }),
+                _ => unreachable!(),
+            }
+        }
+    }
 
     #[test]
     fn check_transaction_building_flow() {
@@ -205,7 +250,8 @@ mod tests {
         let signer = DefaultSigner::new(storage);
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
-        let transaction_builder = DefaultTransactionBuilder::new(signer, fee_algorithm);
+        let transaction_builder =
+            DefaultTransactionBuilder::new(signer, fee_algorithm, MockTransactionCipher);
 
         let outputs = vec![TxOut::new(
             wallet_client
@@ -232,41 +278,48 @@ mod tests {
             .to_coin();
 
         match tx_aux {
-            TxAux::TransferTx(transaction, witness) => {
-                let output_value =
-                    sum_coins(transaction.outputs.iter().map(|output| output.value)).unwrap();
+            TxAux::TransferTx {
+                payload: TxObfuscated { txpayload, .. },
+                ..
+            } => {
+                if let Some(PlainTxAux::TransferTx(transaction, witness)) =
+                    PlainTxAux::decode(&mut txpayload.as_slice())
+                {
+                    let output_value =
+                        sum_coins(transaction.outputs.iter().map(|output| output.value)).unwrap();
 
-                let input_value = sum_coins(transaction.inputs.iter().map(|input| {
-                    if input.id == [3; 32] {
-                        unspent_transactions[0].1.value
-                    } else if input.id == [1; 32] {
-                        unspent_transactions[1].1.value
-                    } else if input.id == [2; 32] {
-                        unspent_transactions[2].1.value
-                    } else {
-                        unspent_transactions[0].1.value
+                    let input_value = sum_coins(transaction.inputs.iter().map(|input| {
+                        if input.id == [3; 32] {
+                            unspent_transactions[0].1.value
+                        } else if input.id == [1; 32] {
+                            unspent_transactions[1].1.value
+                        } else if input.id == [2; 32] {
+                            unspent_transactions[2].1.value
+                        } else {
+                            unspent_transactions[0].1.value
+                        }
+                    }))
+                    .unwrap();
+
+                    assert!((output_value + fee).unwrap() <= input_value);
+
+                    for (i, input) in transaction.inputs.iter().enumerate() {
+                        let address = if input.id == [3; 32] {
+                            unspent_transactions[0].1.address.clone()
+                        } else if input.id == [1; 32] {
+                            unspent_transactions[1].1.address.clone()
+                        } else if input.id == [2; 32] {
+                            unspent_transactions[2].1.address.clone()
+                        } else {
+                            unspent_transactions[0].1.address.clone()
+                        };
+
+                        assert!(verify_tx_address(&witness[i], &transaction.id(), &address).is_ok(),)
                     }
-                }))
-                .unwrap();
-
-                assert!((output_value + fee).unwrap() <= input_value);
-
-                for (i, input) in transaction.inputs.iter().enumerate() {
-                    let address = if input.id == [3; 32] {
-                        unspent_transactions[0].1.address.clone()
-                    } else if input.id == [1; 32] {
-                        unspent_transactions[1].1.address.clone()
-                    } else if input.id == [2; 32] {
-                        unspent_transactions[2].1.address.clone()
-                    } else {
-                        unspent_transactions[0].1.address.clone()
-                    };
-
-                    assert!(verify_tx_address(&witness[i], &transaction.id(), &address).is_ok(),)
                 }
             }
             _ => {
-                // TODO: Transaction builder doesn't do account/staking related transactions
+                // NOTE: Transaction builder doesn't do account/staking related transactions
                 unreachable!()
             }
         }
@@ -326,7 +379,8 @@ mod tests {
         let signer = DefaultSigner::new(storage);
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
-        let transaction_builder = DefaultTransactionBuilder::new(signer, fee_algorithm);
+        let transaction_builder =
+            DefaultTransactionBuilder::new(signer, fee_algorithm, MockTransactionCipher);
 
         let outputs = vec![TxOut::new(
             wallet_client

@@ -11,6 +11,8 @@
 //!   These 20 bytes are the address.
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
+#[cfg(feature = "bech32")]
+use bech32::{self, u5, FromBase32, ToBase32};
 use parity_codec::{Decode, Encode};
 use std::prelude::v1::{String, ToString};
 use std::str::FromStr;
@@ -25,6 +27,25 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use tiny_keccak::Keccak;
 
 use crate::common::{H256, HASH_SIZE_256};
+
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum CroAddressError {
+    // TODO: use directly bech32::Error or wrap it
+    Bech32Error(String),
+    ConvertError,
+}
+
+#[cfg(feature = "bech32")]
+impl ::std::error::Error for CroAddressError {}
+
+// CRMT: mainnet transfer
+// CRTT: testnet transfer
+#[cfg(feature = "bech32")]
+pub trait CroAddress<T> {
+    fn to_cro(&self) -> Result<String, CroAddressError>;
+    fn from_cro(encoded: &str) -> Result<T, CroAddressError>;
+}
 
 /// Keccak-256 crypto hash length in bytes
 pub const KECCAK256_BYTES: usize = 32;
@@ -66,6 +87,9 @@ pub enum ErrorAddress {
 
     /// ECDSA crypto error
     EcdsaCrypto(secp256k1::Error),
+
+    /// CRO error
+    InvalidCroAddress,
 }
 
 impl From<hex::FromHexError> for ErrorAddress {
@@ -91,6 +115,17 @@ impl fmt::Display for ErrorAddress {
                 write!(f, "Unexpected hexadecimal encoding: {}", err)
             }
             ErrorAddress::EcdsaCrypto(ref err) => write!(f, "ECDSA crypto error: {}", err),
+            ErrorAddress::InvalidCroAddress => write!(f, "Invalid CroAddress"),
+        }
+    }
+}
+
+#[cfg(feature = "bech32")]
+impl fmt::Display for CroAddressError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CroAddressError::Bech32Error(e) => write!(f, "CroAddressError Bech32Error: {}", e),
+            CroAddressError::ConvertError => write!(f, "CroAddressError ConvertError"),
         }
     }
 }
@@ -132,6 +167,32 @@ impl RedeemAddress {
         }
 
         Ok(RedeemAddress(to_arr(data)))
+    }
+}
+
+#[cfg(feature = "bech32")]
+impl CroAddress<RedeemAddress> for RedeemAddress {
+    fn to_cro(&self) -> Result<String, CroAddressError> {
+        let checked_data: Vec<u5> = self.0.to_vec().to_base32();
+        match super::network::get_network() {
+            super::network::Network::Testnet => {
+                let encoded = bech32::encode("crts", checked_data).expect("bech32 crms encoding");
+                Ok(encoded.to_string())
+            }
+            super::network::Network::Mainnet => {
+                let encoded = bech32::encode("crms", checked_data).expect("bech32 crms encoding");
+                Ok(encoded.to_string())
+            }
+        }
+    }
+
+    fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
+        bech32::decode(encoded)
+            .map_err(|e| CroAddressError::Bech32Error(e.to_string()))
+            .and_then(|a| Vec::from_base32(&a.1).map_err(|_e| CroAddressError::ConvertError))
+            .and_then(|a| {
+                RedeemAddress::try_from(&a.as_slice()).map_err(|_e| CroAddressError::ConvertError)
+            })
     }
 }
 
@@ -255,7 +316,7 @@ mod tests {
         ]);
 
         assert_eq!(
-            "0e7c045110b8dbf29765047380898919c5cb56f4"
+            "0x0e7c045110b8dbf29765047380898919c5cb56f4"
                 .parse::<RedeemAddress>()
                 .unwrap(),
             addr
@@ -299,4 +360,14 @@ mod tests {
     fn should_catch_empty_address_string() {
         assert!("".parse::<RedeemAddress>().is_err());
     }
+
+    #[test]
+    fn should_be_correct_textual_address() {
+        let a = RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+        let b = a.to_cro().unwrap();
+        assert_eq!(b.to_string(), "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj");
+        let c = RedeemAddress::from_cro(&b).unwrap();
+        assert_eq!(c, a);
+    }
+
 }

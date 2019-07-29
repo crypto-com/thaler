@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use chain_core::tx::TxAux;
 
-use crate::{ErrorKind, Result};
+use crate::{Error, ErrorKind, Result, Transaction};
 
 #[derive(Debug, Deserialize)]
 pub struct Block {
@@ -33,18 +33,35 @@ pub struct Header {
 }
 
 impl Block {
-    /// Returns transactions in a block (this may also contain invalid transactions)
-    pub fn transactions(&self) -> Result<Vec<TxAux>> {
+    /// Returns un-encrypted transactions in a block (this may also contain invalid transactions)
+    ///
+    /// NOTE: Un-encrypted transactions only contain deposit stake and unbond stake transactions
+    pub fn unencrypted_transactions(&self) -> Result<Vec<Transaction>> {
         match &self.block.data.txs {
             None => Ok(Vec::new()),
-            Some(txs) => txs
+            Some(transactions) => transactions
                 .iter()
-                .map(|raw_tx| Ok(decode(&raw_tx).context(ErrorKind::DeserializationError)?))
-                .map(|bytes: Result<Vec<u8>>| {
-                    Ok(TxAux::decode(&mut bytes?.as_slice())
-                        .ok_or(ErrorKind::DeserializationError)?)
+                .map(|raw_transaction| -> Result<TxAux> {
+                    let decoded =
+                        decode(&raw_transaction).context(ErrorKind::DeserializationError)?;
+                    let tx_aux = TxAux::decode(&mut decoded.as_slice())
+                        .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+
+                    Ok(tx_aux)
                 })
-                .collect::<Result<Vec<TxAux>>>(),
+                .filter_map(|tx_aux_result| match tx_aux_result {
+                    Err(e) => Some(Err(e)),
+                    Ok(tx_aux) => match tx_aux {
+                        TxAux::DepositStakeTx { tx, .. } => {
+                            Some(Ok(Transaction::DepositStakeTransaction(tx)))
+                        }
+                        TxAux::UnbondStakeTx(tx, _) => {
+                            Some(Ok(Transaction::UnbondStakeTransaction(tx)))
+                        }
+                        _ => None,
+                    },
+                })
+                .collect::<Result<Vec<Transaction>>>(),
         }
     }
 
@@ -72,29 +89,50 @@ mod tests {
 
     use base64::encode;
     use parity_codec::Encode;
+    use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
-    use chain_core::tx::data::Tx;
+    use chain_core::init::coin::Coin;
+    use chain_core::state::account::{StakedStateOpAttributes, StakedStateOpWitness, UnbondTx};
+    use chain_core::tx::TxObfuscated;
 
-    #[test]
-    fn check_transactions() {
-        let transaction = encode(&TxAux::TransferTx(Tx::new(), vec![].into()).encode());
+    fn unbond_transaction() -> TxAux {
+        TxAux::UnbondStakeTx(
+            UnbondTx::new(Coin::new(100).unwrap(), 0, StakedStateOpAttributes::new(0)),
+            StakedStateOpWitness::BasicRedeem(
+                RecoverableSignature::from_compact(
+                    &[
+                        0x66, 0x73, 0xff, 0xad, 0x21, 0x47, 0x74, 0x1f, 0x04, 0x77, 0x2b, 0x6f,
+                        0x92, 0x1f, 0x0b, 0xa6, 0xaf, 0x0c, 0x1e, 0x77, 0xfc, 0x43, 0x9e, 0x65,
+                        0xc3, 0x6d, 0xed, 0xf4, 0x09, 0x2e, 0x88, 0x98, 0x4c, 0x1a, 0x97, 0x16,
+                        0x52, 0xe0, 0xad, 0xa8, 0x80, 0x12, 0x0e, 0xf8, 0x02, 0x5e, 0x70, 0x9f,
+                        0xff, 0x20, 0x80, 0xc4, 0xa3, 0x9a, 0xae, 0x06, 0x8d, 0x12, 0xee, 0xd0,
+                        0x09, 0xb6, 0x8c, 0x89,
+                    ],
+                    RecoveryId::from_i32(1).unwrap(),
+                )
+                .unwrap(),
+            ),
+        )
+    }
 
-        let block = Block {
-            block: BlockInner {
-                header: Header {
-                    height: "1".to_owned(),
-                    time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
-                },
-                data: Data {
-                    txs: Some(vec![transaction]),
-                },
+    fn transfer_transaction() -> TxAux {
+        TxAux::TransferTx {
+            txid: [0; 32],
+            inputs: Vec::new(),
+            no_of_outputs: 0,
+            payload: TxObfuscated {
+                key_from: 0,
+                nonce: [0; 12],
+                txpayload: Vec::new(),
             },
-        };
-        assert_eq!(1, block.transactions().unwrap().len());
+        }
     }
 
     #[test]
-    fn check_wrong_transaction() {
+    fn check_unencrypted_transactions() {
+        let transaction = unbond_transaction();
+        let transfer_transaction = transfer_transaction();
+
         let block = Block {
             block: BlockInner {
                 header: Header {
@@ -102,12 +140,24 @@ mod tests {
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
                 data: Data {
-                    txs: Some(vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaA4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()])
-                }
-            }
+                    txs: Some(vec![
+                        encode(&transaction.encode()),
+                        encode(&transfer_transaction.encode()),
+                    ]),
+                },
+            },
         };
 
-        assert!(block.transactions().is_err());
+        let unencrypted_transactions = block.unencrypted_transactions().unwrap();
+        assert_eq!(1, unencrypted_transactions.len());
+
+        match (transaction, &unencrypted_transactions[0]) {
+            (
+                TxAux::UnbondStakeTx(ref unbond_transaction, _),
+                Transaction::UnbondStakeTransaction(ref unencrypted_unbond_transaction),
+            ) => assert_eq!(unencrypted_unbond_transaction, unbond_transaction),
+            _ => unreachable!(),
+        }
     }
 
     #[test]
@@ -118,10 +168,8 @@ mod tests {
                     height: "1".to_owned(),
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
-                data: Data {
-                    txs: Some(vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()])
-                }
-            }
+                data: Data { txs: None },
+            },
         };
 
         assert_eq!(1, block.height().unwrap());
@@ -135,26 +183,10 @@ mod tests {
                     height: "a".to_owned(),
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
-                data: Data {
-                    txs: Some(vec!["+JWA+Erj4qBySKi4J+krjuZi++QuAnQITDv9YzjXV0RcDuk+S7pMeIDh4NaAlHkGYaL9naP+5TyquAhZ7K4SWiCliAAA6IkEI8eKw4GrwPhG+ESAAbhASZdu2rJI4Et7q93KedoEsTVFUOCPt8nyY0pGOqixhI4TvORYPVFmJiG+Lsr6L1wmwBLIwxJenWTyKZ8rKrwfkg==".to_owned()])
-                }
-            }
-        };
-
-        assert!(block.height().is_err());
-    }
-
-    #[test]
-    fn check_null_transactions() {
-        let block = Block {
-            block: BlockInner {
-                header: Header {
-                    height: "1".to_owned(),
-                    time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
-                },
                 data: Data { txs: None },
             },
         };
-        assert_eq!(0, block.transactions().unwrap().len());
+
+        assert!(block.height().is_err());
     }
 }

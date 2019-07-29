@@ -10,9 +10,9 @@ use secp256k1::{Message, PublicKey as SecpPublicKey, SecretKey};
 use secstr::SecUtf8;
 
 use chain_core::common::H256;
-use client_common::{Error, ErrorKind, Result, SecureStorage, Storage};
-
-use crate::{PrivateKey, PublicKey, SECP};
+use client_common::{
+    Error, ErrorKind, PrivateKey, PublicKey, Result, SecureStorage, Storage, SECP,
+};
 
 const KEYSPACE: &str = "core_multi_sig_address";
 

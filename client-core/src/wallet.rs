@@ -12,14 +12,14 @@ use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
-use client_common::Result;
+use client_common::{PrivateKey, PublicKey, Result};
 
-use crate::{InputSelectionStrategy, PrivateKey, PublicKey, UnspentTransactions};
+use crate::{InputSelectionStrategy, UnspentTransactions};
 
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {
@@ -28,6 +28,9 @@ pub trait WalletClient: Send + Sync {
 
     /// Creates a new wallet with given name and passphrase
     fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()>;
+
+    /// Retrieves view key corresponding to a given wallet
+    fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
 
     /// Retrieves all public keys corresponding to given wallet
     fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>>;
@@ -125,8 +128,8 @@ pub trait WalletClient: Send + Sync {
     fn unspent_transactions(&self, name: &str, passphrase: &SecUtf8)
         -> Result<UnspentTransactions>;
 
-    /// Returns output of transaction with given id and index
-    fn output(&self, id: &TxId, index: usize) -> Result<TxOut>;
+    /// Returns output of transaction with given input details
+    fn output(&self, id: &TxoPointer) -> Result<TxOut>;
 
     /// Builds a transaction
     ///
@@ -150,12 +153,6 @@ pub trait WalletClient: Send + Sync {
 
     /// Broadcasts a transaction to Crypto.com Chain
     fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()>;
-
-    /// Synchronizes index with Crypto.com Chain (from last known height)
-    fn sync(&self) -> Result<()>;
-
-    /// Synchronizes index with Crypto.com Chain (from genesis)
-    fn sync_all(&self) -> Result<()>;
 }
 
 /// Interface for a generic wallet for multi-signature transactions

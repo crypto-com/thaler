@@ -6,16 +6,26 @@ use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
-use client_common::{Error, ErrorKind, Result, SecureStorage, Storage};
-
-use crate::PublicKey;
+use client_common::{Error, ErrorKind, PublicKey, Result, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_wallet";
 
-#[derive(Debug, Default, Encode, Decode)]
+#[derive(Debug, Encode, Decode)]
 struct Wallet {
+    pub view_key: PublicKey,
     pub public_keys: Vec<PublicKey>,
     pub root_hashes: Vec<H256>,
+}
+
+impl Wallet {
+    /// Creates a new instance of `Wallet`
+    pub fn new(view_key: PublicKey) -> Self {
+        Self {
+            view_key,
+            public_keys: Vec::new(),
+            root_hashes: Vec::new(),
+        }
+    }
 }
 
 /// Maintains mapping `wallet-name -> wallet-details`
@@ -92,12 +102,18 @@ where
     }
 
     /// Creates a new wallet and returns wallet ID
-    pub fn create(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
+    pub fn create(&self, name: &str, passphrase: &SecUtf8, view_key: PublicKey) -> Result<()> {
         if self.storage.contains_key(KEYSPACE, name)? {
             return Err(ErrorKind::AlreadyExists.into());
         }
 
-        self.set_wallet(name, passphrase, Wallet::default())
+        self.set_wallet(name, passphrase, Wallet::new(view_key))
+    }
+
+    /// Returns view key of wallet
+    pub fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
+        let wallet = self.get_wallet(name, passphrase)?;
+        Ok(wallet.view_key)
     }
 
     /// Returns all public keys stored in a wallet
@@ -193,8 +209,7 @@ mod tests {
     use super::*;
 
     use client_common::storage::MemoryStorage;
-
-    use crate::PrivateKey;
+    use client_common::PrivateKey;
 
     #[test]
     fn check_flow() {
@@ -202,16 +217,21 @@ mod tests {
 
         let passphrase = SecUtf8::from("passphrase");
 
+        let private_key = PrivateKey::new().unwrap();
+        let view_key = PublicKey::from(&private_key);
+
         let error = wallet_service
             .public_keys("name", &passphrase)
             .expect_err("Retrieved public keys for non-existent wallet");
 
         assert_eq!(error.kind(), ErrorKind::WalletNotFound);
 
-        assert!(wallet_service.create("name", &passphrase).is_ok());
+        assert!(wallet_service
+            .create("name", &passphrase, view_key.clone())
+            .is_ok());
 
         let error = wallet_service
-            .create("name", &SecUtf8::from("new_passphrase"))
+            .create("name", &SecUtf8::from("new_passphrase"), view_key.clone())
             .expect_err("Created duplicate wallet");
 
         assert_eq!(error.kind(), ErrorKind::AlreadyExists);
@@ -225,7 +245,7 @@ mod tests {
         );
 
         let error = wallet_service
-            .create("name", &SecUtf8::from("passphrase_new"))
+            .create("name", &SecUtf8::from("passphrase_new"), view_key)
             .expect_err("Able to create wallet with same name as previously created");
 
         assert_eq!(error.kind(), ErrorKind::AlreadyExists, "Invalid error kind");
