@@ -111,8 +111,11 @@ impl InitCommand {
 
             // change
             let old_genesis_time = obj["genesis_time"].as_str().unwrap().to_string();
-            let new_genesis_time: String = input().msg(format!("genesis_time( {} )=", old_genesis_time)).default(old_genesis_time).get();
-            obj["genesis_time"]= json!(new_genesis_time);
+            let new_genesis_time: String = input()
+                .msg(format!("genesis_time( {} )=", old_genesis_time))
+                .default(old_genesis_time)
+                .get();
+            obj["genesis_time"] = json!(new_genesis_time);
             // save
             self.genesis_time = obj["genesis_time"].clone();
             let councils = obj["council_nodes"].as_array_mut().unwrap();
@@ -120,8 +123,6 @@ impl InitCommand {
 
             councils[0]["staking_account_address"] = json!(self.staking_account_address);
             councils[0]["consensus_pubkey_b64"] = json!(self.tendermint_pubkey.as_str());
-
-            let distribution = obj["distribution"].as_object_mut().unwrap();
 
             obj["launch_incentive_from"] = json!(input()
                 .msg(format!(
@@ -173,13 +174,16 @@ impl InitCommand {
         self.app_hash = json!(result.0);
         self.app_state = serde_json::from_str(&result.1).unwrap();
     }
-    pub fn read_tendermint_genesis(&mut self) {
-        let filename = format!(
+    pub fn get_tendermint_filename(&self) -> String {
+        format!(
             "{}/.tendermint/config/genesis.json",
             dirs::home_dir().unwrap().to_str().unwrap()
-        );
+        )
+        .to_string()
+    }
+    pub fn read_tendermint_genesis(&mut self) {
         // check whether file exists
-        let _dummy = fs::read_to_string(&filename).and_then(|contents| {
+        let _dummy = fs::read_to_string(&self.get_tendermint_filename()).and_then(|contents| {
             println!("tendermint init!={}", contents);
             let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
             let pub_key = &json["validators"][0]["pub_key"]["value"];
@@ -194,13 +198,8 @@ impl InitCommand {
         let app_state = self.app_state.clone();
         let gt = self.genesis_time.clone();
 
-        let filename = format!(
-            "{}/.tendermint/config/genesis.json",
-            dirs::home_dir().unwrap().to_str().unwrap()
-        );
-
         let mut json_string = String::from("");
-        let _dummy = fs::read_to_string(&filename)
+        let _dummy = fs::read_to_string(&self.get_tendermint_filename())
             .and_then(|contents| {
                 let mut json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let obj = json.as_object_mut().unwrap();
@@ -211,7 +210,7 @@ impl InitCommand {
                 json_string = serde_json::to_string_pretty(&json).unwrap();
                 println!("{}", json_string);
 
-                File::create(&filename)
+                File::create(&self.get_tendermint_filename())
             })
             .map(|mut file| file.write_all(json_string.as_bytes()))
             .map(|_e| {
@@ -222,12 +221,8 @@ impl InitCommand {
             });
     }
     pub fn prepare_tendermint(&self) {
-        let filename = format!(
-            "{}/.tendermint/config/genesis.json",
-            dirs::home_dir().unwrap().to_str().unwrap()
-        );
         // check whether file exists
-        let _dummy = fs::read_to_string(&filename).map_err(|_e| {
+        let _dummy = fs::read_to_string(&self.get_tendermint_filename()).map_err(|_e| {
             // file not exist
             Command::new("tendermint").args(&["init"]).output().unwrap();
             println!("tenermint initialized");
