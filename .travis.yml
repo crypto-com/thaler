@@ -66,24 +66,33 @@ jobs:
       rust: beta
     - <<: *rust
       rust: nightly
-    # FIXME: enable when tests are ported to use the new dev-utils + client support
-    # - name: Integration Tests
-    #   language: node_js
-    #   node_js:
-    #     - "10"
-    #   services:
-    #     - docker
-    #   before_script:
-    #     - |
-    #       sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
-    #       sudo chmod +x /usr/local/bin/wait-for-it.sh
-    #     - |
-    #       cd integration-tests
-    #       docker-compose up -d
-    #       docker-compose ps
-    #       docker-compose logs -t --tail="all"
-    #   script:
-    #     - |
-    #       cd client-rpc
-    #       yarn
-    #       /usr/local/bin/wait-for-it.sh 127.0.0.1:16659 --strict -- yarn test
+    - name: Integration Tests
+      language: node_js
+      node_js:
+        - "10"
+      services:
+        - docker
+      before_script:
+        - |
+          sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
+          sudo chmod +x /usr/local/bin/wait-for-it.sh
+        - |
+          cd integration-tests
+          git clone https://github.com/crypto-com/chain-tx-enclave ./docker/chain-tx-enclave
+          ./prepare.sh
+          . ./env.sh
+          docker-compose up -d
+          docker-compose ps
+          docker-compose logs -t --tail="all"
+      script:
+        # - |
+        #   cd client-rpc
+        #   yarn
+        #   /usr/local/bin/wait-for-it.sh 127.0.0.1:16659 --strict -- yarn test
+        - curl -sSf 127.0.0.1:26657 > /dev/null
+        - curl -sSf 127.0.0.1:26658 > /dev/null
+        - curl -sSf 127.0.0.1:26659 > /dev/null
+        - curl -sSf 127.0.0.1:16657 > /dev/null
+        - curl -sSf 127.0.0.1:16658 > /dev/null
+        - curl -sSf 127.0.0.1:26659 > /dev/null
+
