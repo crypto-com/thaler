@@ -5,8 +5,11 @@ services:
     image: integration-tests-tendermint
     build:
       context: ../
-      dockerfile: ./integration-tests/docker/tendermint-preinit/Dockerfile
+      dockerfile: ./integration-tests/docker/tendermint/Dockerfile
+      args:
+        VERSION: ${TENDERMINT_VERSION-0.30.2}
     environment:
+      FEE_SCHEMA: WITHFEE
       PROXY_APP: tcp://chain-abci:26658
     ports:
       - ${TENDERMINT_PORT_P2P-26656}:26656
@@ -16,48 +19,48 @@ services:
     depends_on:
       - tendermint
     environment:
-      FEE_SCHEMA: ZERO_FEE
+      FEE_SCHEMA: ZEROFEE
       PROXY_APP: tcp://chain-abci-zerofee:26658
     ports:
       - ${TENDERMINT_ZEROFEE_PORT_P2P-16656}:26656
       - ${TENDERMINT_ZEROFEE_PORT_RPC-16657}:26657
-  chain-abci:
-    # Specify image such that it is only build once
-    image: integration-tests-chain
-    build:
-      context: ../
-      dockerfile: ./integration-tests/docker/chain-preinit/Dockerfile
-    command: /usr/bin/chain-abci --host 0.0.0.0 --port 26658 --chain_id test-chain-y3m1e6-AB --genesis_app_hash 1D50299A4D888921C5510DE6CEE438C0263BCECD7813C03AF38761A316B606A5
-    environment:
-      RUST_BACKTRACE: 1
-    ports:
-      - ${CHAIN_ABCI_PORT-26658}:26658
-  chain-abci-zerofee:
-    image: integration-tests-chain
-    depends_on:
-      - chain-abci
-    command: /usr/bin/chain-abci --host 0.0.0.0 --port 26658 --chain_id test-chain-y3m1e6-AB --genesis_app_hash 1D50299A4D888921C5510DE6CEE438C0263BCECD7813C03AF38761A316B606A5
-    environment:
-      RUST_BACKTRACE: 1
-    ports:
-      - ${CHAIN_ABCI_ZEROFEE_PORT-16658}:26658
-  client-rpc:
-    image: integration-tests-chain
-    depends_on:
-      - chain-abci
-      - tendermint
-    command: /usr/bin/wait-for-it.sh tendermint:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id AB --storage-dir .client-rpc-storage --tendermint-url http://tendermint:26657
-    environment:
-      RUST_BACKTRACE: 1
-    ports:
-      - ${CLIENT_RPC_PORT-26659}:26659
-  client-rpc-zerofee:
-    image: integration-tests-chain
-    depends_on:
-      - chain-abci
-      - tendermint-zerofee
-    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id AB --storage-dir .client-rpc-storage --tendermint-url http://tendermint-zerofee:26657
-    environment:
-      RUST_BACKTRACE: 1
-    ports:
-      - ${CLIENT_RPC_ZEROFEE_PORT-16659}:26659
+  # chain-abci:
+  #   # Specify image such that it is only build once
+  #   image: integration-tests-chain
+  #   build:
+  #     context: ../
+  #     dockerfile: ./integration-tests/docker/chain-preinit/Dockerfile
+  #   command: /usr/bin/chain-abci --host 0.0.0.0 --port 26658 --chain_id test-chain-y3m1e6-AB --genesis_app_hash 1D50299A4D888921C5510DE6CEE438C0263BCECD7813C03AF38761A316B606A5
+  #   environment:
+  #     RUST_BACKTRACE: 1
+  #   ports:
+  #     - ${CHAIN_ABCI_PORT-26658}:26658
+  # chain-abci-zerofee:
+  #   image: integration-tests-chain
+  #   depends_on:
+  #     - chain-abci
+  #   command: /usr/bin/chain-abci --host 0.0.0.0 --port 26658 --chain_id test-chain-y3m1e6-AB --genesis_app_hash 1D50299A4D888921C5510DE6CEE438C0263BCECD7813C03AF38761A316B606A5
+  #   environment:
+  #     RUST_BACKTRACE: 1
+  #   ports:
+  #     - ${CHAIN_ABCI_ZEROFEE_PORT-16658}:26658
+  # client-rpc:
+  #   image: integration-tests-chain
+  #   depends_on:
+  #     - chain-abci
+  #     - tendermint
+  #   command: /usr/bin/wait-for-it.sh tendermint:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id AB --storage-dir .client-rpc-storage --tendermint-url http://tendermint:26657
+  #   environment:
+  #     RUST_BACKTRACE: 1
+  #   ports:
+  #     - ${CLIENT_RPC_PORT-26659}:26659
+  # client-rpc-zerofee:
+  #   image: integration-tests-chain
+  #   depends_on:
+  #     - chain-abci
+  #     - tendermint-zerofee
+  #   command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id AB --storage-dir .client-rpc-storage --tendermint-url http://tendermint-zerofee:26657
+  #   environment:
+  #     RUST_BACKTRACE: 1
+  #   ports:
+  #     - ${CLIENT_RPC_ZEROFEE_PORT-16659}:26659
