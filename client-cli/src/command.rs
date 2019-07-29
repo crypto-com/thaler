@@ -115,7 +115,7 @@ impl Command {
                 let transaction_builder = DefaultTransactionBuilder::new(
                     signer.clone(),
                     fee_algorithm,
-                    transaction_cipher,
+                    transaction_cipher.clone(),
                 );
                 let transaction_index =
                     DefaultIndex::new(storage.clone(), tendermint_client.clone());
@@ -130,6 +130,7 @@ impl Command {
                     signer,
                     tendermint_client,
                     fee_algorithm,
+                    transaction_cipher,
                 );
                 transaction_command.execute(network_ops_client.get_wallet(), &network_ops_client)
             }
@@ -142,7 +143,7 @@ impl Command {
                 let transaction_builder = DefaultTransactionBuilder::new(
                     signer.clone(),
                     fee_algorithm,
-                    transaction_cipher,
+                    transaction_cipher.clone(),
                 );
                 let transaction_index =
                     DefaultIndex::new(storage.clone(), tendermint_client.clone());
@@ -157,6 +158,7 @@ impl Command {
                     signer,
                     tendermint_client,
                     fee_algorithm,
+                    transaction_cipher,
                 );
                 Self::get_staked_stake(&network_ops_client, name, address)
             }
