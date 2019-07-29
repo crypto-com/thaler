@@ -296,7 +296,7 @@ mod tests {
                 SignedTransaction::DepositStakeTransaction(tx, witness) => {
                     let plain = PlainTxAux::DepositStakeTx(witness);
                     Ok(TxAux::DepositStakeTx {
-                        tx: tx,
+                        tx,
                         payload: TxObfuscated {
                             key_from: 0,
                             nonce: [0u8; 12],
