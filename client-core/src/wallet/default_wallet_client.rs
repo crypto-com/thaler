@@ -77,22 +77,32 @@ where
     I: Index,
     T: TransactionBuilder,
 {
+    #[inline]
     fn wallets(&self) -> Result<Vec<String>> {
         self.wallet_service.names()
     }
 
     fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
-        self.wallet_service.create(name, passphrase)
+        let view_key = self.key_service.generate_keypair(passphrase)?.0;
+        self.wallet_service.create(name, passphrase, view_key)
     }
 
+    #[inline]
+    fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
+        self.wallet_service.view_key(name, passphrase)
+    }
+
+    #[inline]
     fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>> {
         self.wallet_service.public_keys(name, passphrase)
     }
 
+    #[inline]
     fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<H256>> {
         self.wallet_service.root_hashes(name, passphrase)
     }
 
+    #[inline]
     fn staking_addresses(
         &self,
         name: &str,
@@ -101,10 +111,12 @@ where
         self.wallet_service.staking_addresses(name, passphrase)
     }
 
+    #[inline]
     fn transfer_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
         self.wallet_service.transfer_addresses(name, passphrase)
     }
 
+    #[inline]
     fn find_public_key(
         &self,
         name: &str,
@@ -115,6 +127,7 @@ where
             .find_public_key(name, passphrase, redeem_address)
     }
 
+    #[inline]
     fn find_root_hash(
         &self,
         name: &str,
@@ -125,6 +138,7 @@ where
             .find_root_hash(name, passphrase, address)
     }
 
+    #[inline]
     fn private_key(
         &self,
         passphrase: &SecUtf8,
@@ -250,6 +264,7 @@ where
         Ok(UnspentTransactions::new(unspent_transactions))
     }
 
+    #[inline]
     fn output(&self, input: &TxoPointer) -> Result<TxOut> {
         self.index.output(input)
     }
@@ -276,6 +291,7 @@ where
         )
     }
 
+    #[inline]
     fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()> {
         self.index.broadcast_transaction(&tx_aux.encode())
     }
