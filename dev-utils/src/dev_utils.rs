@@ -30,7 +30,7 @@ impl DevUtils {
         match self {
             DevUtils::Genesis { genesis_command } => genesis_command.execute(),
             DevUtils::Init => {
-                let init_command = InitCommand {};
+                let mut init_command = InitCommand::new();
                 init_command.execute().unwrap();
                 Ok(())
             }
