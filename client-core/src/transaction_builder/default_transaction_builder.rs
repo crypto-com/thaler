@@ -319,7 +319,7 @@ mod tests {
                 }
             }
             _ => {
-                // TODO: Transaction builder doesn't do account/staking related transactions
+                // NOTE: Transaction builder doesn't do account/staking related transactions
                 unreachable!()
             }
         }

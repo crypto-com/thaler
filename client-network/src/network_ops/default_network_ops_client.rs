@@ -2,7 +2,6 @@ use failure::ResultExt;
 use parity_codec::Decode;
 use secstr::SecUtf8;
 
-use crate::NetworkOpsClient;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
     DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
@@ -10,49 +9,60 @@ use chain_core::state::account::{
 };
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::input::{TxoIndex, TxoPointer};
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
-use chain_core::tx::{PlainTxAux, TxObfuscated};
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::tendermint::Client;
-use client_common::{Error, ErrorKind, Result};
+use client_common::{Error, ErrorKind, Result, SignedTransaction};
 use client_core::{Signer, UnspentTransactions, WalletClient};
-use parity_codec::Encode;
+use client_index::TransactionCipher;
+
+use crate::NetworkOpsClient;
 
 /// Default implementation of `NetworkOpsClient`
-pub struct DefaultNetworkOpsClient<W, S, C, F>
+pub struct DefaultNetworkOpsClient<W, S, C, F, E>
 where
     W: WalletClient,
     S: Signer,
     C: Client,
     F: FeeAlgorithm,
+    E: TransactionCipher,
 {
     /// WalletClient
     wallet_client: W,
     signer: S,
     client: C,
     fee_algorithm: F,
+    transaction_cipher: E,
 }
 
-impl<W, S, C, F> DefaultNetworkOpsClient<W, S, C, F>
+impl<W, S, C, F, E> DefaultNetworkOpsClient<W, S, C, F, E>
 where
     W: WalletClient,
     S: Signer,
     C: Client,
     F: FeeAlgorithm,
+    E: TransactionCipher,
 {
     /// use WalletClient
     pub fn get_wallet(&self) -> &W {
         &self.wallet_client
     }
     /// Creates a new instance of `DefaultNetworkOpsClient`
-    pub fn new(wallet_client: W, signer: S, client: C, fee_algorithm: F) -> Self {
+    pub fn new(
+        wallet_client: W,
+        signer: S,
+        client: C,
+        fee_algorithm: F,
+        transaction_cipher: E,
+    ) -> Self {
         Self {
             wallet_client,
             signer,
             client,
             fee_algorithm,
+            transaction_cipher,
         }
     }
 
@@ -82,12 +92,13 @@ where
     }
 }
 
-impl<W, S, C, F> NetworkOpsClient for DefaultNetworkOpsClient<W, S, C, F>
+impl<W, S, C, F, E> NetworkOpsClient for DefaultNetworkOpsClient<W, S, C, F, E>
 where
     W: WalletClient,
     S: Signer,
     C: Client,
     F: FeeAlgorithm,
+    E: TransactionCipher,
 {
     fn create_deposit_bonded_stake_transaction(
         &self,
@@ -113,16 +124,10 @@ where
             transaction.id(),
             unspent_transactions.select_all(),
         )?;
-        // FIXME: dummy enc for length (multiple of 16 bytes)
-        let plain_tx_aux = PlainTxAux::DepositStakeTx(witness);
-        let tx_aux = TxAux::DepositStakeTx {
-            tx: transaction,
-            payload: TxObfuscated {
-                key_from: 0,
-                nonce: [0u8; 12],
-                txpayload: plain_tx_aux.encode(),
-            },
-        };
+
+        let signed_transaction = SignedTransaction::DepositStakeTransaction(transaction, witness);
+        let tx_aux = self.transaction_cipher.encrypt(signed_transaction)?;
+
         Ok(tx_aux)
     }
 
@@ -187,18 +192,12 @@ where
             .sign(transaction.id())
             .map(StakedStateOpWitness::new)?;
 
-        // FIXME: dummy enc for length (multiple of 16 bytes)
-        let plain_tx_aux = PlainTxAux::WithdrawUnbondedStakeTx(transaction.clone());
-        let tx_aux = TxAux::WithdrawUnbondedStakeTx {
-            txid: transaction.id(),
-            no_of_outputs: transaction.outputs.len() as TxoIndex,
-            witness: signature,
-            payload: TxObfuscated {
-                key_from: 0,
-                nonce: [0u8; 12],
-                txpayload: plain_tx_aux.encode(),
-            },
-        };
+        let signed_transaction = SignedTransaction::WithdrawUnbondedStakeTransaction(
+            transaction,
+            staked_state,
+            signature,
+        );
+        let tx_aux = self.transaction_cipher.encrypt(signed_transaction)?;
 
         Ok(tx_aux)
     }
@@ -264,15 +263,64 @@ where
 mod tests {
     use super::*;
 
+    use parity_codec::Encode;
+
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::CoinError;
+    use chain_core::tx::data::input::TxoIndex;
+    use chain_core::tx::data::TxId;
     use chain_core::tx::fee::Fee;
+    use chain_core::tx::{PlainTxAux, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_recover_address;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
-    use client_common::{PrivateKey, PublicKey};
+    use client_common::{PrivateKey, PublicKey, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::wallet::DefaultWalletClient;
+
+    #[derive(Debug)]
+    struct MockTransactionCipher;
+
+    impl TransactionCipher for MockTransactionCipher {
+        fn decrypt(
+            &self,
+            _transaction_ids: &[TxId],
+            _private_key: &PrivateKey,
+        ) -> Result<Vec<Transaction>> {
+            unreachable!()
+        }
+
+        fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
+            match transaction {
+                SignedTransaction::TransferTransaction(_, _) => unreachable!(),
+                SignedTransaction::DepositStakeTransaction(tx, witness) => {
+                    let plain = PlainTxAux::DepositStakeTx(witness);
+                    Ok(TxAux::DepositStakeTx {
+                        tx: tx,
+                        payload: TxObfuscated {
+                            key_from: 0,
+                            nonce: [0u8; 12],
+                            txpayload: plain.encode(),
+                        },
+                    })
+                }
+                SignedTransaction::WithdrawUnbondedStakeTransaction(tx, _, witness) => {
+                    let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
+                    Ok(TxAux::WithdrawUnbondedStakeTx {
+                        txid: tx.id(),
+                        no_of_outputs: tx.outputs.len() as TxoIndex,
+                        witness,
+                        payload: TxObfuscated {
+                            key_from: 0,
+                            nonce: [0u8; 12],
+                            txpayload: plain.encode(),
+                        },
+                    })
+                }
+                SignedTransaction::UnbondStakeTransaction(_, _) => unreachable!(),
+            }
+        }
+    }
 
     #[derive(Debug, Default)]
     struct UnitFeeAlgorithm;
@@ -340,8 +388,13 @@ mod tests {
         wallet_client.new_wallet(name, passphrase).unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client =
-            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
 
         let inputs: Vec<TxoPointer> = vec![];
         let to_staked_account = network_ops_client
@@ -379,8 +432,13 @@ mod tests {
         wallet_client.new_wallet(name, passphrase).unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client =
-            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
 
         let value = Coin::new(0).unwrap();
         let address = network_ops_client
@@ -410,8 +468,13 @@ mod tests {
             .unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client =
-            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
 
         network_ops_client
             .get_wallet()
@@ -462,8 +525,13 @@ mod tests {
             .unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client =
-            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
 
         network_ops_client
             .get_wallet()
@@ -498,7 +566,7 @@ mod tests {
 
                 assert_eq!(account_address, from_address);
 
-                // FIXME: mock decrypt
+                // NOTE: Mock decryption based on encryption logic in `MockTransactionCipher`
                 let tx = PlainTxAux::decode(&mut txpayload.as_slice());
                 if let Some(PlainTxAux::WithdrawUnbondedStakeTx(transaction)) = tx {
                     let amount = transaction.outputs[0].value;
@@ -527,8 +595,13 @@ mod tests {
             .unwrap();
 
         let tendermint_client = MockClient::default();
-        let network_ops_client =
-            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
 
         network_ops_client
             .get_wallet()
@@ -568,8 +641,13 @@ mod tests {
             .unwrap();
         let tendermint_client = MockClient::default();
 
-        let network_ops_client =
-            DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm);
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
 
         assert_eq!(
             ErrorKind::WalletNotFound,

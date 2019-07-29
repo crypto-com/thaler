@@ -22,7 +22,13 @@ type AppIndex = DefaultIndex<SledStorage, RpcClient>;
 type AppTxBuilder =
     DefaultTransactionBuilder<AppSigner, LinearFee, AbciTransactionCipher<RpcClient>>;
 type AppWalletClient = DefaultWalletClient<SledStorage, AppIndex, AppTxBuilder>;
-type AppOpsClient = DefaultNetworkOpsClient<AppWalletClient, AppSigner, RpcClient, LinearFee>;
+type AppOpsClient = DefaultNetworkOpsClient<
+    AppWalletClient,
+    AppSigner,
+    RpcClient,
+    LinearFee,
+    AbciTransactionCipher<RpcClient>,
+>;
 
 pub(crate) struct Server {
     host: String,
@@ -65,10 +71,17 @@ impl Server {
 
     pub fn make_ops_client(&self, storage: SledStorage) -> AppOpsClient {
         let tendermint_client = RpcClient::new(&self.tendermint_url);
+        let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
         let signer = DefaultSigner::new(storage.clone());
         let fee_algorithm = tendermint_client.genesis().unwrap().fee_policy();
         let wallet_client = self.make_wallet_client(storage);
-        DefaultNetworkOpsClient::new(wallet_client, signer, tendermint_client, fee_algorithm)
+        DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            transaction_cipher,
+        )
     }
 
     pub fn start_client(&self, io: &mut IoHandler, storage: SledStorage) -> Result<()> {

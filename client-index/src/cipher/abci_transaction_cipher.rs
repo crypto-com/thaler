@@ -12,6 +12,7 @@ use enclave_protocol::{
 use crate::TransactionCipher;
 
 /// Implementation of transaction cipher which uses Tendermint ABCI to encrypt/decrypt transactions
+#[derive(Debug, Clone)]
 pub struct AbciTransactionCipher<C>
 where
     C: Client,
