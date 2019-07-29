@@ -25,11 +25,13 @@ pub struct Results {
 
 #[derive(Debug, Deserialize)]
 pub struct EndBlock {
+    #[serde(default)]
     pub events: Vec<Event>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct DeliverTx {
+    #[serde(default)]
     pub events: Vec<Event>,
 }
 
@@ -81,7 +83,7 @@ impl BlockResults {
     /// Returns block filter in block results
     pub fn block_filter(&self) -> Result<BlockFilter> {
         match &self.results.end_block {
-            None => Err(ErrorKind::InvalidInput.into()),
+            None => Ok(BlockFilter::default()),
             Some(ref end_block) => {
                 for event in end_block.events.iter() {
                     if event.event_type == TendermintEventType::BlockFilter.to_string() {
@@ -94,7 +96,7 @@ impl BlockResults {
                     }
                 }
 
-                Err(ErrorKind::InvalidInput.into())
+                Ok(BlockFilter::default())
             }
         }
     }

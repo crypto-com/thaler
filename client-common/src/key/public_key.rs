@@ -1,4 +1,5 @@
 use std::fmt;
+use std::str::FromStr;
 
 use failure::ResultExt;
 use parity_codec::{Decode, Encode, Input, Output};
@@ -9,7 +10,7 @@ use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::tx::witness::tree::RawPubkey;
 
-use crate::{ErrorKind, Result, SECP};
+use crate::{Error, ErrorKind, Result, SECP};
 
 /// Public key used in Crypto.com Chain
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -50,6 +51,16 @@ impl PublicKey {
 impl fmt::Display for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl FromStr for PublicKey {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<PublicKey> {
+        Ok(PublicKey(
+            SecpPublicKey::from_str(s).context(ErrorKind::DeserializationError)?,
+        ))
     }
 }
 

@@ -10,12 +10,13 @@ use unicase::eq_ascii;
 use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
+use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{Error, ErrorKind, Result};
+use client_common::{Error, ErrorKind, PublicKey, Result};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
 
@@ -62,6 +63,13 @@ pub enum TransactionCommand {
         name: String,
         #[structopt(name = "type", short, long, help = "Type of transaction to create")]
         transaction_type: TransactionType,
+        #[structopt(
+            name = "view-keys",
+            short,
+            long,
+            help = "List of view keys for new transaction"
+        )]
+        view_keys: Vec<PublicKey>,
     },
 }
 
@@ -76,12 +84,14 @@ impl TransactionCommand {
                 chain_id,
                 name,
                 transaction_type,
+                view_keys,
             } => new_transaction(
                 wallet_client,
                 network_ops_client,
                 name,
                 chain_id,
                 transaction_type,
+                view_keys,
             ),
         }
     }
@@ -93,12 +103,15 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
     name: &str,
     chain_id: &str,
     transaction_type: &TransactionType,
+    view_keys: &[PublicKey],
 ) -> Result<()> {
+    println!("view_keys: {:?}", view_keys);
+
     let passphrase = ask_passphrase()?;
 
     let transaction = match transaction_type {
         TransactionType::Transfer => {
-            new_transfer_transaction(wallet_client, name, &passphrase, chain_id)
+            new_transfer_transaction(wallet_client, name, &passphrase, chain_id, view_keys)
         }
         TransactionType::Deposit => {
             new_deposit_transaction(network_ops_client, name, &passphrase, chain_id)
@@ -106,22 +119,45 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
         TransactionType::Unbond => {
             new_unbond_transaction(network_ops_client, name, &passphrase, chain_id)
         }
-        TransactionType::Withdraw => {
-            new_withdraw_transaction(network_ops_client, name, &passphrase, chain_id)
-        }
+        TransactionType::Withdraw => new_withdraw_transaction(
+            wallet_client,
+            network_ops_client,
+            name,
+            &passphrase,
+            chain_id,
+            view_keys,
+        ),
     }?;
 
     wallet_client.broadcast_transaction(&transaction)
 }
 
-fn new_withdraw_transaction<N: NetworkOpsClient>(
+fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
+    wallet_client: &T,
     network_ops_client: &N,
     name: &str,
     passphrase: &SecUtf8,
     chain_id: &str,
+    view_keys: &[PublicKey],
 ) -> Result<TxAux> {
-    let attributes =
-        TxAttributes::new(decode(chain_id).context(ErrorKind::DeserializationError)?[0]);
+    let view_key = wallet_client.view_key(name, passphrase)?;
+
+    let mut access_policies = vec![TxAccessPolicy {
+        view_key: view_key.into(),
+        access: TxAccess::AllData,
+    }];
+
+    for key in view_keys.iter() {
+        access_policies.push(TxAccessPolicy {
+            view_key: key.into(),
+            access: TxAccess::AllData,
+        });
+    }
+
+    let attributes = TxAttributes::new_with_access(
+        decode(chain_id).context(ErrorKind::DeserializationError)?[0],
+        access_policies,
+    );
     let from_address = ask_staking_address()?;
     let to_address = ask_transfer_address()?;
 
@@ -174,9 +210,26 @@ fn new_transfer_transaction<T: WalletClient>(
     name: &str,
     passphrase: &SecUtf8,
     chain_id: &str,
+    view_keys: &[PublicKey],
 ) -> Result<TxAux> {
-    let attributes =
-        TxAttributes::new(decode(chain_id).context(ErrorKind::DeserializationError)?[0]);
+    let view_key = wallet_client.view_key(name, passphrase)?;
+
+    let mut access_policies = vec![TxAccessPolicy {
+        view_key: view_key.into(),
+        access: TxAccess::AllData,
+    }];
+
+    for key in view_keys.iter() {
+        access_policies.push(TxAccessPolicy {
+            view_key: key.into(),
+            access: TxAccess::AllData,
+        });
+    }
+
+    let attributes = TxAttributes::new_with_access(
+        decode(chain_id).context(ErrorKind::DeserializationError)?[0],
+        access_policies,
+    );
     let outputs = ask_outputs()?;
 
     let return_address = wallet_client.new_single_transfer_address(name, &passphrase)?;
