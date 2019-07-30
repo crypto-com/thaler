@@ -1,11 +1,9 @@
-use failure::ResultExt;
-use hex;
-use jsonrpc_core::{self, IoHandler};
-use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
 use std::net::SocketAddr;
 
-use crate::client_rpc::{ClientRpc, ClientRpcImpl};
-use crate::Options;
+use failure::ResultExt;
+use jsonrpc_core::{self, IoHandler};
+use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
+
 use chain_core::tx::fee::LinearFee;
 use client_common::error::{Error, ErrorKind, Result};
 use client_common::storage::SledStorage;
@@ -14,21 +12,25 @@ use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
 use client_index::cipher::AbciTransactionCipher;
+use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
+use client_index::synchronizer::ManualSynchronizer;
 use client_network::network_ops::DefaultNetworkOpsClient;
+
+use crate::client_rpc::{ClientRpc, ClientRpcImpl};
+use crate::Options;
 
 type AppSigner = DefaultSigner<SledStorage>;
 type AppIndex = DefaultIndex<SledStorage, RpcClient>;
-type AppTxBuilder =
-    DefaultTransactionBuilder<AppSigner, LinearFee, AbciTransactionCipher<RpcClient>>;
+type AppTransactionCipher = AbciTransactionCipher<RpcClient>;
+type AppTxBuilder = DefaultTransactionBuilder<AppSigner, LinearFee, AppTransactionCipher>;
 type AppWalletClient = DefaultWalletClient<SledStorage, AppIndex, AppTxBuilder>;
-type AppOpsClient = DefaultNetworkOpsClient<
-    AppWalletClient,
-    AppSigner,
-    RpcClient,
-    LinearFee,
-    AbciTransactionCipher<RpcClient>,
->;
+type AppOpsClient =
+    DefaultNetworkOpsClient<AppWalletClient, AppSigner, RpcClient, LinearFee, AppTransactionCipher>;
+type AppTransactionHandler = DefaultTransactionHandler<SledStorage>;
+type AppBlockHandler =
+    DefaultBlockHandler<AppTransactionCipher, AppTransactionHandler, SledStorage>;
+type AppSynchronizer = ManualSynchronizer<SledStorage, RpcClient, AppBlockHandler>;
 
 pub(crate) struct Server {
     host: String,
@@ -84,13 +86,23 @@ impl Server {
         )
     }
 
+    pub fn make_synchronizer(&self, storage: SledStorage) -> AppSynchronizer {
+        let tendermint_client = RpcClient::new(&self.tendermint_url);
+        let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+        let transaction_handler = DefaultTransactionHandler::new(storage.clone());
+        let block_handler =
+            DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
+
+        ManualSynchronizer::new(storage, tendermint_client, block_handler)
+    }
+
     pub fn start_client(&self, io: &mut IoHandler, storage: SledStorage) -> Result<()> {
-        {
-            let wallet_client = self.make_wallet_client(storage.clone());
-            let ops_client = self.make_ops_client(storage.clone());
-            let client_rpc = ClientRpcImpl::new(wallet_client, ops_client, self.network_id);
-            io.extend_with(client_rpc.to_delegate());
-        }
+        let wallet_client = self.make_wallet_client(storage.clone());
+        let ops_client = self.make_ops_client(storage.clone());
+        let synchronizer = self.make_synchronizer(storage.clone());
+        let client_rpc =
+            ClientRpcImpl::new(wallet_client, ops_client, synchronizer, self.network_id);
+        io.extend_with(client_rpc.to_delegate());
         Ok(())
     }
 

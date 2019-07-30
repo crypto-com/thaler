@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use failure::ResultExt;
 use hex::{decode, encode};
 use jsonrpc_core::Result;
@@ -6,14 +8,19 @@ use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 
 use chain_core::common::{H256, HASH_SIZE_256};
-
 use chain_core::init::coin::Coin;
+use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use client_common::balance::BalanceChange;
-use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
+use client_common::tendermint::Client;
+use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
+use client_index::synchronizer::ManualSynchronizer;
+use client_index::BlockHandler;
+use client_network::network_ops::NetworkOpsClient;
 
 use crate::server::{rpc_error_from_string, to_rpc_error};
 
@@ -26,16 +33,9 @@ pub struct RowTx {
     time: String,
     amount: String,
 }
-use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
-
-use chain_core::tx::data::input::TxoPointer;
-
-use client_network::network_ops::NetworkOpsClient;
-
-use std::str::FromStr;
 
 #[rpc]
-pub trait ClientRpc {
+pub trait ClientRpc: Send + Sync {
     #[rpc(name = "wallet_addresses")]
     fn addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
@@ -49,13 +49,18 @@ pub trait ClientRpc {
     fn list(&self) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_sendtoaddress")]
-    fn sendtoaddress(&self, request: WalletRequest, to_address: String, amount: u64) -> Result<()>;
+    fn send_to_address(
+        &self,
+        request: WalletRequest,
+        to_address: String,
+        amount: u64,
+    ) -> Result<()>;
 
     #[rpc(name = "sync")]
-    fn sync(&self) -> Result<()>;
+    fn sync(&self, request: WalletRequest) -> Result<()>;
 
     #[rpc(name = "sync_all")]
-    fn sync_all(&self) -> Result<()>;
+    fn sync_all(&self, request: WalletRequest) -> Result<()>;
 
     #[rpc(name = "wallet_transactions")]
     fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>>;
@@ -124,30 +129,50 @@ pub trait ClientRpc {
     ) -> Result<String>;
 }
 
-pub struct ClientRpcImpl<T: WalletClient + Send + Sync, S: NetworkOpsClient + Send + Sync> {
+pub struct ClientRpcImpl<T, N, S, C, H>
+where
+    T: WalletClient,
+    N: NetworkOpsClient,
+    S: Storage,
+    C: Client,
+    H: BlockHandler,
+{
     client: T,
-    ops_client: S,
+    ops_client: N,
+    synchronizer: ManualSynchronizer<S, C, H>,
     network_id: u8,
 }
 
-impl<T, S> ClientRpcImpl<T, S>
+impl<T, N, S, C, H> ClientRpcImpl<T, N, S, C, H>
 where
-    T: WalletClient + Send + Sync,
-    S: NetworkOpsClient + Send + Sync,
+    T: WalletClient,
+    N: NetworkOpsClient,
+    S: Storage,
+    C: Client,
+    H: BlockHandler,
 {
-    pub fn new(client: T, ops_client: S, network_id: u8) -> Self {
+    pub fn new(
+        client: T,
+        ops_client: N,
+        synchronizer: ManualSynchronizer<S, C, H>,
+        network_id: u8,
+    ) -> Self {
         ClientRpcImpl {
             client,
             ops_client,
+            synchronizer,
             network_id,
         }
     }
 }
 
-impl<T, S> ClientRpc for ClientRpcImpl<T, S>
+impl<T, N, S, C, H> ClientRpc for ClientRpcImpl<T, N, S, C, H>
 where
-    T: WalletClient + MultiSigWalletClient + Send + Sync + 'static,
-    S: NetworkOpsClient + Send + Sync + 'static,
+    T: WalletClient + MultiSigWalletClient + 'static,
+    N: NetworkOpsClient + 'static,
+    S: Storage + 'static,
+    C: Client + 'static,
+    H: BlockHandler + 'static,
 {
     fn addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
         // TODO: Currently, it only returns staking addresses
@@ -164,7 +189,7 @@ where
     }
 
     fn balance(&self, request: WalletRequest) -> Result<Coin> {
-        self.sync()?;
+        self.sync(request.clone())?;
 
         match self.client.balance(&request.name, &request.passphrase) {
             Ok(balance) => Ok(balance),
@@ -194,8 +219,13 @@ where
         }
     }
 
-    fn sendtoaddress(&self, request: WalletRequest, to_address: String, amount: u64) -> Result<()> {
-        self.sync()?;
+    fn send_to_address(
+        &self,
+        request: WalletRequest,
+        to_address: String,
+        amount: u64,
+    ) -> Result<()> {
+        self.sync(request.clone())?;
 
         let address = to_address
             .parse::<ExtendedAddr>()
@@ -226,18 +256,52 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn sync(&self) -> Result<()> {
-        // TODO: Implement synchronization logic for current view key
-        Ok(())
+    fn sync(&self, request: WalletRequest) -> Result<()> {
+        let view_key = self
+            .client
+            .view_key(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+        let private_key = self
+            .client
+            .private_key(&request.passphrase, &view_key)
+            .map_err(to_rpc_error)?
+            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
+            .map_err(to_rpc_error)?;
+
+        let staking_addresses = self
+            .client
+            .staking_addresses(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+
+        self.synchronizer
+            .sync(&staking_addresses, &view_key, &private_key)
+            .map_err(to_rpc_error)
     }
 
-    fn sync_all(&self) -> Result<()> {
-        // TODO: Implement synchronization logic for current view key
-        Ok(())
+    fn sync_all(&self, request: WalletRequest) -> Result<()> {
+        let view_key = self
+            .client
+            .view_key(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+        let private_key = self
+            .client
+            .private_key(&request.passphrase, &view_key)
+            .map_err(to_rpc_error)?
+            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
+            .map_err(to_rpc_error)?;
+
+        let staking_addresses = self
+            .client
+            .staking_addresses(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+
+        self.synchronizer
+            .sync_all(&staking_addresses, &view_key, &private_key)
+            .map_err(to_rpc_error)
     }
 
     fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
-        self.sync()?;
+        self.sync(request.clone())?;
 
         self.client
             .history(&request.name, &request.passphrase)
@@ -467,7 +531,7 @@ fn parse_public_key(public_key: String) -> CommonResult<PublicKey> {
     PublicKey::deserialize_from(&array)
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WalletRequest {
     name: String,
     passphrase: SecUtf8,
@@ -510,6 +574,7 @@ pub mod tests {
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
+    use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
     use client_index::{AddressDetails, Index, TransactionCipher};
     use client_network::network_ops::DefaultNetworkOpsClient;
 
@@ -636,31 +701,55 @@ pub mod tests {
         MockTransactionCipher,
     >;
 
+    type TestTransactionHandler = DefaultTransactionHandler<MemoryStorage>;
+    type TestBlockHandler =
+        DefaultBlockHandler<MockTransactionCipher, TestTransactionHandler, MemoryStorage>;
+    type TestSynchronizer = ManualSynchronizer<MemoryStorage, MockRpcClient, TestBlockHandler>;
+
     #[derive(Default)]
     pub struct MockRpcClient;
+
     impl Client for MockRpcClient {
         fn genesis(&self) -> CommonResult<Genesis> {
-            unreachable!()
+            unreachable!("genesis")
         }
 
         fn status(&self) -> CommonResult<Status> {
-            unreachable!()
+            Ok(Status {
+                sync_info: SyncInfo {
+                    latest_block_height: "1".to_string(),
+                },
+            })
         }
 
         fn block(&self, _height: u64) -> CommonResult<Block> {
-            unreachable!()
+            Ok(Block {
+                block: BlockInner {
+                    header: Header {
+                        height: "1".to_string(),
+                        time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                    },
+                    data: Data { txs: None },
+                },
+            })
         }
 
         fn block_results(&self, _height: u64) -> CommonResult<BlockResults> {
-            unreachable!()
+            Ok(BlockResults {
+                height: "1".to_string(),
+                results: Results {
+                    deliver_tx: None,
+                    end_block: None,
+                },
+            })
         }
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
-            unreachable!()
+            unreachable!("broadcast_transaction")
         }
 
         fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<QueryResult> {
-            unreachable!()
+            unreachable!("query")
         }
     }
 
@@ -806,8 +895,7 @@ pub mod tests {
             .is_ok());
     }
 
-    fn make_test_wallet_client() -> TestWalletClient {
-        let storage = MemoryStorage::default();
+    fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
         let signer = DefaultSigner::new(storage.clone());
         DefaultWalletClient::builder()
             .with_wallet(storage)
@@ -820,8 +908,7 @@ pub mod tests {
             .build()
             .unwrap()
     }
-    fn make_test_ops_client() -> TestOpsClient {
-        let storage = MemoryStorage::default();
+    fn make_test_ops_client(storage: MemoryStorage) -> TestOpsClient {
         let wallet_client = DefaultWalletClient::builder()
             .with_wallet(storage.clone())
             .with_transaction_read(MockIndex::default())
@@ -835,18 +922,36 @@ pub mod tests {
         DefaultNetworkOpsClient::new(
             wallet_client,
             DefaultSigner::new(storage.clone()),
-            MockRpcClient {},
+            MockRpcClient,
             ZeroFeeAlgorithm::default(),
             MockTransactionCipher,
         )
     }
 
-    fn setup_wallet_rpc() -> ClientRpcImpl<TestWalletClient, TestOpsClient> {
-        let wallet_client = make_test_wallet_client();
-        let ops_client = make_test_ops_client();
+    fn make_test_synchronizer(storage: MemoryStorage) -> TestSynchronizer {
+        let transaction_cipher = MockTransactionCipher;
+        let transaction_handler = DefaultTransactionHandler::new(storage.clone());
+        let block_handler =
+            DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
+
+        ManualSynchronizer::new(storage, MockRpcClient, block_handler)
+    }
+
+    fn setup_wallet_rpc() -> ClientRpcImpl<
+        TestWalletClient,
+        TestOpsClient,
+        MemoryStorage,
+        MockRpcClient,
+        TestBlockHandler,
+    > {
+        let storage = MemoryStorage::default();
+
+        let wallet_client = make_test_wallet_client(storage.clone());
+        let ops_client = make_test_ops_client(storage.clone());
+        let synchronizer = make_test_synchronizer(storage);
         let chain_id = 171u8;
 
-        ClientRpcImpl::new(wallet_client, ops_client, chain_id)
+        ClientRpcImpl::new(wallet_client, ops_client, synchronizer, chain_id)
     }
 
     fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
