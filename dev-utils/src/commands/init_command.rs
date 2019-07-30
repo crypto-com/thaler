@@ -72,7 +72,6 @@ impl InitCommand {
         self.distribution_addresses.push(a.to_string());
     }
     pub fn read_information(&mut self) {
-        println!("------------{}", self.tendermint_pubkey);
         self.genesis_dev =
             serde_json::from_str(&self.data).expect("failed to parse genesis dev config");
 
@@ -165,11 +164,10 @@ impl InitCommand {
             })
             .unwrap();
 
-        println!("-----------------------------------------------");
         // app_hash,  app_state
         let result = GenesisCommand::generate(&path.to_path_buf()).unwrap();
         println!("genesis_time( {} )=", self.genesis_time);
-        println!("-----------------------------------------------");
+
         self.app_hash = json!(result.0);
         self.app_state = serde_json::from_str(&result.1).unwrap();
     }
@@ -183,7 +181,7 @@ impl InitCommand {
     pub fn read_tendermint_genesis(&mut self) {
         // check whether file exists
         let _dummy = fs::read_to_string(&self.get_tendermint_filename()).and_then(|contents| {
-            println!("tendermint init!={}", contents);
+            println!("current tendermint genesis={}", contents);
             let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
             let pub_key = &json["validators"][0]["pub_key"]["value"];
             self.tendermint_pubkey = pub_key.as_str().unwrap().to_string();
@@ -191,7 +189,7 @@ impl InitCommand {
         });
     }
     pub fn write_tendermint_genesis(&self) {
-        println!("write genesis");
+        println!("write genesis to {}", self.get_tendermint_filename());
 
         let app_hash = self.app_hash.clone();
         let app_state = self.app_state.clone();
@@ -213,7 +211,10 @@ impl InitCommand {
             })
             .map(|mut file| file.write_all(json_string.as_bytes()))
             .map(|_e| {
-                println!("writing tendermint genesis OK");
+                println!(
+                    "writing tendermint genesis OK {}",
+                    self.get_tendermint_filename()
+                );
             })
             .map_err(|e| {
                 println!("Error={}", e);
