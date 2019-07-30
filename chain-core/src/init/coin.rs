@@ -104,6 +104,11 @@ impl Coin {
         Coin(1)
     }
 
+    // get string of u64
+    pub fn get_string(&self)-> String {
+        self.0.to_string() 
+    }
+
     /// create of non-base coin of value 1 (assuming 8 decimals)
     pub fn one() -> Self {
         Coin(MAX_COIN_DECIMALS)

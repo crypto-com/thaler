@@ -20,6 +20,7 @@ pub struct InitCommand {
     tendermint_pubkey: String,
     staking_account_address: String,
     distribution_addresses: Vec<String>,
+    remain_coin: Coin,
 }
 
 impl InitCommand {
@@ -31,6 +32,7 @@ impl InitCommand {
             tendermint_pubkey: "".to_string(),
             staking_account_address: "".to_string(),
             distribution_addresses: vec![],
+            remain_coin: Coin::max(),
         }
     }
 
@@ -44,42 +46,36 @@ impl InitCommand {
             .msg(format!("wallet {}({}) amount=", id, default2))
             .default(default2.to_string())
             .get();
-        distribution.insert(
-            RedeemAddress::from_str(&a).unwrap(),
-            Coin::from_str(&b).unwrap(),
-        );
+        let b2 = Coin::from_str(&b).unwrap();
+        distribution.insert(RedeemAddress::from_str(&a).unwrap(), b2);
+        self.remain_coin = (self.remain_coin - b2).unwrap();
         self.distribution_addresses.push(a.to_string());
     }
     pub fn read_information(&mut self) -> Result<(), Error> {
+        let default_address = RedeemAddress::default().to_string();
         self.staking_account_address = input()
-            .msg("Please staking_account_address(0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de)=")
-            .default("0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de".to_string())
+            .msg(format!(
+                "Please staking_account_address({})=",
+                default_address
+            ))
+            .default(default_address.clone())
             .get();
-        self.read_wallet(
-            "1",
-            "0x0db221c4f57d5d38b968139c06e9132aaf84e8df",
-            "2500000000000000000",
+        println!(
+            "maximum coin to distribute={}",
+            self.remain_coin.get_string()
         );
-        self.read_wallet(
-            "2",
-            "0x20a0bee429d6907e556205ef9d48ab6fe6a55531",
-            "2500000000000000000",
-        );
-        self.read_wallet(
-            "3",
-            "0x35f517cab9a37bc31091c2f155d965af84e0bc85",
-            "2500000000000000000",
-        );
-        self.read_wallet(
-            "4",
-            self.staking_account_address.clone().as_str(),
-            "1250000000000000000",
-        );
-        self.read_wallet(
-            "5",
-            "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07",
-            "1250000000000000000",
-        );
+
+        loop {
+            if self.remain_coin == Coin::zero() {
+                break;
+            }
+            let i = self.distribution_addresses.len() + 1;
+            self.read_wallet(
+                format!("{}", i).as_str(),
+                default_address.as_str(),
+                self.remain_coin.get_string().as_str(),
+            );
+        }
 
         {
             // change
