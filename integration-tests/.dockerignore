@@ -9,4 +9,5 @@ dev-conf-zerofee.json
 
 env.sh
 prepare.sh
+run-test.sh
 README.md
