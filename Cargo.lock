@@ -452,7 +452,7 @@ dependencies = [
  "client-network 0.1.0",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "jsonrpc-core 12.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "jsonrpc-core 13.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core-client 13.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-derive 13.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-http-server 12.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
