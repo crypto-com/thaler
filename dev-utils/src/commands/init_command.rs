@@ -1,8 +1,9 @@
 use super::genesis_command::GenesisCommand;
-
-use failure::{format_err, Error};
-
 use super::genesis_dev_config::GenesisDevConfig;
+use chain_core::init::config::{InitialValidator, ValidatorKeyType};
+use chain_core::init::{address::RedeemAddress, coin::Coin};
+use chrono::DateTime;
+use failure::{format_err, Error};
 use read_input::prelude::*;
 use serde_json::json;
 use serde_json::Value as JsonValue;
@@ -11,15 +12,13 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::path::Path;
 use std::process::Command;
-use structopt::StructOpt;
+use std::str::FromStr;
 
-#[derive(Debug, StructOpt)]
+#[derive(Debug)]
 pub struct InitCommand {
-    data: String,
-    genesis_time: JsonValue,
     app_hash: JsonValue,
     app_state: JsonValue,
-    genesis_dev: JsonValue,
+    genesis_dev: GenesisDevConfig,
     tendermint_pubkey: String,
     staking_account_address: String,
     distribution_addresses: Vec<String>,
@@ -28,21 +27,17 @@ pub struct InitCommand {
 impl InitCommand {
     pub fn new() -> Self {
         InitCommand {
-            genesis_time: json!(null),
             app_hash: json!(null),
             app_state: json!(null),
-            genesis_dev: json!(null),
+            genesis_dev: GenesisDevConfig::new(),
             tendermint_pubkey: "".to_string(),
             staking_account_address: "".to_string(),
             distribution_addresses: vec![],
-
-            data: serde_json::to_string(&GenesisDevConfig::new()).unwrap(),
         }
     }
 
     pub fn read_wallet(&mut self, id: &str, default1: &str, default2: &str) {
-        let obj = self.genesis_dev.as_object_mut().unwrap();
-        let distribution = obj["distribution"].as_object_mut().unwrap();
+        let distribution = &mut self.genesis_dev.distribution;
         let a = input()
             .msg(format!("wallet {}({}) address=", id, default1))
             .default(default1.to_string())
@@ -51,13 +46,13 @@ impl InitCommand {
             .msg(format!("wallet {}({}) amount=", id, default2))
             .default(default2.to_string())
             .get();
-        distribution.insert(a.to_string(), json!(b));
+        distribution.insert(
+            RedeemAddress::from_str(&a).unwrap(),
+            Coin::from_str(&b).unwrap(),
+        );
         self.distribution_addresses.push(a.to_string());
     }
     pub fn read_information(&mut self) -> Result<(), Error> {
-        self.genesis_dev =
-            serde_json::from_str(&self.data).expect("failed to parse genesis dev config");
-
         self.staking_account_address = input()
             .msg("Please staking_account_address(0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de)=")
             .default("0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de".to_string())
@@ -89,44 +84,58 @@ impl InitCommand {
         );
 
         {
-            let obj = self.genesis_dev.as_object_mut().unwrap();
-
             // change
-            let old_genesis_time = obj["genesis_time"].as_str().unwrap().to_string();
+            let old_genesis_time = self.genesis_dev.genesis_time.to_rfc3339();
             let new_genesis_time: String = input()
                 .msg(format!("genesis_time( {} )=", old_genesis_time))
                 .default(old_genesis_time)
                 .get();
-            obj["genesis_time"] = json!(new_genesis_time);
+            self.genesis_dev.genesis_time =
+                DateTime::from(DateTime::parse_from_rfc3339(&new_genesis_time).unwrap());
+
             // save
-            self.genesis_time = obj["genesis_time"].clone();
-            let councils = obj["council_nodes"].as_array_mut().unwrap();
-            councils.push(json!({"consensus_pubkey_type": "Ed25519",}));
+            let councils = &mut self.genesis_dev.council_nodes;
+            let staking_validator = InitialValidator {
+                staking_account_address: self
+                    .staking_account_address
+                    .parse::<RedeemAddress>()
+                    .unwrap(),
+                consensus_pubkey_type: ValidatorKeyType::Ed25519,
+                consensus_pubkey_b64: self.tendermint_pubkey.clone(),
+            };
 
-            councils[0]["staking_account_address"] = json!(self.staking_account_address);
-            councils[0]["consensus_pubkey_b64"] = json!(self.tendermint_pubkey.as_str());
+            councils.push(staking_validator);
 
-            obj["launch_incentive_from"] = json!(input()
-                .msg(format!(
-                    "launch_incentive_from({})=",
-                    self.distribution_addresses[0]
-                ))
-                .default(self.distribution_addresses[0].clone())
-                .get());
-            obj["launch_incentive_to"] = json!(input()
-                .msg(format!(
-                    "launch_incentive_to({})=",
-                    self.distribution_addresses[1]
-                ))
-                .default(self.distribution_addresses[1].clone())
-                .get());
-            obj["long_term_incentive"] = json!(input()
-                .msg(format!(
-                    "long_term_incentive({})=",
-                    self.distribution_addresses[2]
-                ))
-                .default(self.distribution_addresses[2].clone())
-                .get());
+            self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(
+                &input()
+                    .msg(format!(
+                        "launch_incentive_from({})=",
+                        self.distribution_addresses[0]
+                    ))
+                    .default(self.distribution_addresses[0].clone())
+                    .get(),
+            )
+            .unwrap();
+            self.genesis_dev.launch_incentive_to = RedeemAddress::from_str(
+                &input()
+                    .msg(format!(
+                        "launch_incentive_to({})=",
+                        self.distribution_addresses[1]
+                    ))
+                    .default(self.distribution_addresses[1].clone())
+                    .get(),
+            )
+            .unwrap();
+            self.genesis_dev.long_term_incentive = RedeemAddress::from_str(
+                &input()
+                    .msg(format!(
+                        "long_term_incentive({})=",
+                        self.distribution_addresses[2]
+                    ))
+                    .default(self.distribution_addresses[2].clone())
+                    .get(),
+            )
+            .unwrap();
         }
         println!(
             "read_information={}",
@@ -150,7 +159,10 @@ impl InitCommand {
 
         // app_hash,  app_state
         let result = GenesisCommand::generate(&path.to_path_buf()).unwrap();
-        println!("genesis_time( {} )=", self.genesis_time);
+        println!(
+            "genesis_time( {} )=",
+            self.genesis_dev.genesis_time.to_rfc3339()
+        );
 
         self.app_hash = json!(result.0);
         self.app_state = serde_json::from_str(&result.1).unwrap();
@@ -180,7 +192,7 @@ impl InitCommand {
 
         let app_hash = self.app_hash.clone();
         let app_state = self.app_state.clone();
-        let gt = self.genesis_time.clone();
+        let gt = self.genesis_dev.genesis_time.to_rfc3339();
 
         let mut json_string = String::from("");
         fs::read_to_string(&self.get_tendermint_filename())
@@ -190,7 +202,7 @@ impl InitCommand {
                 obj["app_hash"] = app_hash;
                 obj.insert("app_state".to_string(), json!(""));
                 obj["app_state"] = app_state;
-                obj["genesis_time"] = gt;
+                obj["genesis_time"] = json!(gt);
                 json_string = serde_json::to_string_pretty(&json).unwrap();
                 println!("{}", json_string);
 
