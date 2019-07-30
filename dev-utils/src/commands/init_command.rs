@@ -9,7 +9,6 @@ use serde_json::json;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
-use std::path::Path;
 use std::process::Command;
 use std::str::FromStr;
 
@@ -136,33 +135,12 @@ impl InitCommand {
             )
             .unwrap();
         }
-        println!(
-            "read_information={}",
-            serde_json::to_string_pretty(&self.genesis_dev).unwrap()
-        );
+
         Ok(())
     }
     pub fn generate_app_info(&mut self) -> Result<(), Error> {
-        let path = Path::new("./coin.json");
-
-        println!(
-            "{}",
-            serde_json::to_string_pretty(&self.genesis_dev).unwrap()
-        );
-        File::create(&path)
-            .map(|mut file| {
-                let note = serde_json::to_string(&self.genesis_dev).unwrap();
-                file.write_all(note.as_bytes()).unwrap();
-            })
-            .unwrap();
-
         // app_hash,  app_state
-        let result = GenesisCommand::generate(&path.to_path_buf()).unwrap();
-        println!(
-            "genesis_time( {} )=",
-            self.genesis_dev.genesis_time.to_rfc3339()
-        );
-
+        let result = GenesisCommand::do_generate(&self.genesis_dev).unwrap();
         self.app_hash = result.0;
         self.app_state = result.1;
         Ok(())

@@ -47,11 +47,7 @@ impl GenesisCommand {
         }
     }
 
-    pub fn generate(genesis_dev_config_path: &PathBuf) -> Result<(String, String), Error> {
-        let genesis_dev_config = fs::read_to_string(genesis_dev_config_path)
-            .context(format_err!("Something went wrong reading the file"))?;
-        let genesis_dev: GenesisDevConfig =
-            serde_json::from_str(&genesis_dev_config).expect("failed to parse genesis dev config");
+    pub fn do_generate(genesis_dev: &GenesisDevConfig) -> Result<(String, String), Error> {
         let mut dist: BTreeMap<RedeemAddress, (Coin, AccountType)> = BTreeMap::new();
 
         for (address, amount) in genesis_dev.distribution.iter() {
@@ -73,7 +69,7 @@ impl GenesisCommand {
             genesis_dev.launch_incentive_to,
             genesis_dev.long_term_incentive,
             params,
-            genesis_dev.council_nodes,
+            genesis_dev.council_nodes.clone(),
         );
         let result = config.validate_config_get_genesis(genesis_dev.genesis_time.timestamp());
         if let Ok((accounts, rp, _nodes)) = result {
@@ -108,5 +104,13 @@ impl GenesisCommand {
                 result.unwrap_err()
             ))
         }
+    }
+    pub fn generate(genesis_dev_config_path: &PathBuf) -> Result<(String, String), Error> {
+        let genesis_dev_config = fs::read_to_string(genesis_dev_config_path)
+            .context(format_err!("Something went wrong reading the file"))?;
+        let genesis_dev: GenesisDevConfig =
+            serde_json::from_str(&genesis_dev_config).expect("failed to parse genesis dev config");
+
+        GenesisCommand::do_generate(&genesis_dev)
     }
 }

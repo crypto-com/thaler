@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug)]
 pub struct GenesisDevConfig {
     pub distribution: BTreeMap<RedeemAddress, Coin>,
     pub unbonding_period: u32,
