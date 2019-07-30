@@ -188,9 +188,7 @@ check_command_exist "../target/debug/dev-utils"
 
 print_step "Initialize Tendermint"
 print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
-mkdir ./tendermint; chmod 777 ./tendermint
-echo "$(pwd)/tendermint:/tendermint:Z"
-docker run -v "$(pwd)/tendermint:/tendermint:Z" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
+docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
 
 print_step "Clone Tendermint configuration"
 mkdir -p "${TENDERMINT_WITHFEE_DIRECTORY}"; cp -r ./tendermint/. "${TENDERMINT_WITHFEE_DIRECTORY}"
