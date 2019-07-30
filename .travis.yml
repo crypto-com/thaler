@@ -87,12 +87,13 @@ jobs:
           ./prepare.sh
           . ./env.sh
           docker-compose up -d
+          sleep 5
           docker-compose ps
           docker-compose logs -t --tail="all"
-        - /usr/local/bin/wait-for-it.sh 127.0.0.1:26657 -t 15 --strict -- curl -sSf 127.0.0.1:26657 > /dev/null
-        - /usr/local/bin/wait-for-it.sh 127.0.0.1:26659 -t 15 --strict -- curl -sSf -X POST 127.0.0.1:26659  -H 'Content-Type:application/json' -d '{"method":"wallet_list","jsonrpc":"2.0","params":[],"id":"wallet_list"}' > /dev/null
-        - /usr/local/bin/wait-for-it.sh 127.0.0.1:16657 -t 15 --strict -- curl -sSf 127.0.0.1:16657 > /dev/null
-        - /usr/local/bin/wait-for-it.sh 127.0.0.1:16659 -t 15 --strict -- curl -sSf -X POST 127.0.0.1:16659  -H 'Content-Type:application/json' -d '{"method":"wallet_list","jsonrpc":"2.0","params":[],"id":"wallet_list"}' > /dev/null
+        - curl -sSf 127.0.0.1:26657 > /dev/null
+        - curl -sSf -X POST 127.0.0.1:26659  -H 'Content-Type:application/json' -d '{"method":"wallet_list","jsonrpc":"2.0","params":[],"id":"wallet_list"}' > /dev/null
+        - curl -sSf 127.0.0.1:16657 > /dev/null
+        - curl -sSf -X POST 127.0.0.1:16659  -H 'Content-Type:application/json' -d '{"method":"wallet_list","jsonrpc":"2.0","params":[],"id":"wallet_list"}' > /dev/null
 
     # - name: Integration Test
     #   language: rust
