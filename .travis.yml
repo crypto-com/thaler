@@ -101,7 +101,7 @@ jobs:
           sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
           sudo chmod +x /usr/local/bin/wait-for-it.sh
         - git clone https://github.com/crypto-com/chain-tx-enclave ./integration-tests/docker/chain-tx-enclave
-      scripts:
+      script:
         - cd integration-tests
         - ./prepare.sh
         - . ./env.sh
@@ -122,13 +122,13 @@ jobs:
     #     - |
     #       sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
     #       sudo chmod +x /usr/local/bin/wait-for-it.sh
+    #     - git clone https://github.com/crypto-com/chain-tx-enclave ./integration-tests/docker/chain-tx-enclave
     #   script:
     #     # - |
     #     #   cd client-rpc
     #     #   yarn
     #     #   /usr/local/bin/wait-for-it.sh 127.0.0.1:16659 --strict -- yarn test
     #     - cd integration-tests
-    #     - git clone https://github.com/crypto-com/chain-tx-enclave ./docker/chain-tx-enclave
     #     - ./prepare.sh
     #     - . ./env.sh
     #     - docker-compose up -d
