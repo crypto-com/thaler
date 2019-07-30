@@ -66,79 +66,74 @@ jobs:
       rust: beta
     - <<: *rust
       rust: nightly
-    - name: Integration Tests
-      language: node_js
-      node_js:
-        - "10"
-      services:
-        - docker
-      before_script:
+    - name: Integration Test
+      language: rust
+      sudo: required
+      dist: trusty
+      addons:
+          apt:
+              packages:
+                  - libssl-dev
+                  - libcurl4-openssl-dev
+                  - libelf-dev
+                  - libdw-dev
+                  - cmake
+                  - gcc
+                  - binutils-dev
+                  - libc6-dev
+      cache: cargo
+      env:
+        - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
+        - PATH=$HOME/.local/bin:$PATH
+        - LD_LIBRARY_PATH=$HOME/lib
+        - PKG_CONFIG_PATH=$HOME/lib/pkgconfig
+      before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
+        - |
+          wget https://github.com/jedisct1/libsodium/releases/download/1.0.16/libsodium-1.0.16.tar.gz
+          tar xvfz libsodium-1.0.16.tar.gz
+          cd libsodium-1.0.16 && ./configure --prefix=$HOME && make && make install && cd ..
+          wget https://github.com/zeromq/libzmq/releases/download/v4.2.5/zeromq-4.2.5.tar.gz
+          tar xvfz zeromq-4.2.5.tar.gz
+          cd zeromq-4.2.5 && ./configure --prefix=$HOME --with-libsodium && make && make install && cd ..
+          cargo clean
+          cargo build
         - |
           sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
           sudo chmod +x /usr/local/bin/wait-for-it.sh
-      script:
-        # - |
-        #   cd client-rpc
-        #   yarn
-        #   /usr/local/bin/wait-for-it.sh 127.0.0.1:16659 --strict -- yarn test
+        - git clone https://github.com/crypto-com/chain-tx-enclave ./integration-tests/docker/chain-tx-enclave
+      scripts:
+        - cd integration-tests
+        - ./prepare.sh
+        - . ./env.sh
+        - docker-compose up -d
         - |
-          cd integration-tests
-          git clone https://github.com/crypto-com/chain-tx-enclave ./docker/chain-tx-enclave
-          ./prepare.sh
-          . ./env.sh
-          docker-compose up -d
           sleep 5
           docker-compose ps
           docker-compose logs -t --tail="all"
-        - |
-          cd integration-tests
-          . ./env.sh
-          ./run-test.sh
+        - ./run-test.sh
 
-    # - name: Integration Test
-    #   language: rust
-    #   sudo: required
-    #   dist: trusty
-    #   addons:
-    #       apt:
-    #           packages:
-    #               - libssl-dev
-    #               - libcurl4-openssl-dev
-    #               - libelf-dev
-    #               - libdw-dev
-    #               - cmake
-    #               - gcc
-    #               - binutils-dev
-    #               - libc6-dev
-    #   cache: cargo
-    #   env:
-    #     - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
-    #     - PATH=$HOME/.local/bin:$PATH
-    #     - LD_LIBRARY_PATH=$HOME/lib
-    #     - PKG_CONFIG_PATH=$HOME/lib/pkgconfig
-    #   before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
-    #     - |
-    #       wget https://github.com/jedisct1/libsodium/releases/download/1.0.16/libsodium-1.0.16.tar.gz
-    #       tar xvfz libsodium-1.0.16.tar.gz
-    #       cd libsodium-1.0.16 && ./configure --prefix=$HOME && make && make install && cd ..
-    #       wget https://github.com/zeromq/libzmq/releases/download/v4.2.5/zeromq-4.2.5.tar.gz
-    #       tar xvfz zeromq-4.2.5.tar.gz
-    #       cd zeromq-4.2.5 && ./configure --prefix=$HOME --with-libsodium && make && make install && cd ..
-    #       cargo clean
-    #       cargo build
+    # - name: Integration Tests
+    #   language: node_js
+    #   node_js:
+    #     - "10"
+    #   services:
+    #     - docker
+    #   before_script:
     #     - |
     #       sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
     #       sudo chmod +x /usr/local/bin/wait-for-it.sh
+    #   script:
+    #     # - |
+    #     #   cd client-rpc
+    #     #   yarn
+    #     #   /usr/local/bin/wait-for-it.sh 127.0.0.1:16659 --strict -- yarn test
+    #     - cd integration-tests
+    #     - git clone https://github.com/crypto-com/chain-tx-enclave ./docker/chain-tx-enclave
+    #     - ./prepare.sh
+    #     - . ./env.sh
+    #     - docker-compose up -d
     #     - |
-    #       cd integration-tests
-    #       git clone https://github.com/crypto-com/chain-tx-enclave ./docker/chain-tx-enclave
-    #       ./prepare.sh
-    #       . ./env.sh
-    #       docker-compose up -d
+    #       sleep 5
     #       docker-compose ps
     #       docker-compose logs -t --tail="all"
-    #   script:
-    #     - curl -sSf 127.0.0.1:26657 > /dev/null
-    #     - curl -sSf -X POST 127.0.0.1:26659  -H 'Content-Type:application/json' -d '{"method":"wallet_list","jsonrpc":"2.0","params":[],"id":"wallet_list"}' > /dev/null
-    #     - curl -sSf 127.0.0.1:16657 > /dev/null
-    #     - curl -sSf -X POST 127.0.0.1:16659  -H 'Content-Type:application/json' -d '{"method":"wallet_list","jsonrpc":"2.0","params":[],"id":"wallet_list"}' > /dev/null
+    #     - ./run-test.sh

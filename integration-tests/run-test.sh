@@ -15,12 +15,6 @@ function print_step() {
     print_message "${1}"
 }
 
-# @argument Key
-# @argument Value
-function print_config() {
-    print_message "[Config] ${1}=${2}"
-}
-
 # @argument Description
 function print_error() {
     print_message "[ERROR] ${1}"
