@@ -1,6 +1,6 @@
 use super::genesis_command::GenesisCommand;
 
-use failure::Error;
+use failure::{format_err, Error};
 
 use super::genesis_dev_config::GenesisDevConfig;
 use read_input::prelude::*;
@@ -203,18 +203,32 @@ impl InitCommand {
                 println!("Error={}", e);
             });
     }
-    pub fn prepare_tendermint(&self) {
+    pub fn prepare_tendermint(&self) -> Result<(), ()> {
         // check whether file exists
-        let _dummy = fs::read_to_string(&self.get_tendermint_filename()).map_err(|_e| {
-            // file not exist
-            Command::new("tendermint").args(&["init"]).output().unwrap();
-            println!("tenermint initialized");
-        });
+        fs::read_to_string(&self.get_tendermint_filename())
+            .or_else(|_e| {
+                // file not exist
+                Command::new("tendermint")
+                    .args(&["init"])
+                    .output()
+                    .map(|_e| {
+                        println!("tenermint initialized");
+                        "".to_string()
+                    })
+                    .map_err(|_e| {
+                        println!("tenermint not found");
+                        ()
+                    })
+            })
+            .map(|_e| ())
     }
     pub fn execute(&mut self) -> Result<(), Error> {
         println!("initialize");
 
-        self.prepare_tendermint();
+        match self.prepare_tendermint() {
+            Err(_e) => return Err(format_err!("tendermint error")),
+            Ok(_e) => {}
+        };
         self.read_tendermint_genesis();
         self.read_information();
         self.generate_app_info();

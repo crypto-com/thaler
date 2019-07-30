@@ -32,8 +32,7 @@ impl DevUtils {
             DevUtils::Genesis { genesis_command } => genesis_command.execute(),
             DevUtils::Init => {
                 let mut init_command = InitCommand::new();
-                init_command.execute().unwrap();
-                Ok(())
+                init_command.execute()
             }
         }
     }
