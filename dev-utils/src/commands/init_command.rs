@@ -214,11 +214,6 @@ impl InitCommand {
     pub fn execute(&mut self) -> Result<(), Error> {
         println!("initialize");
 
-        /* let m=GenesisDevConfig::new();
-                let n=serde_json::to_string(&m).unwrap();
-                let n= s
-                println!("{}", n);
-        */
         self.prepare_tendermint();
         self.read_tendermint_genesis();
         self.read_information();
