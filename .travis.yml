@@ -90,10 +90,10 @@ jobs:
           sleep 5
           docker-compose ps
           docker-compose logs -t --tail="all"
-        - curl -sSf 127.0.0.1:26657 > /dev/null
-        - curl -sSf -X POST 127.0.0.1:26659  -H 'Content-Type:application/json' -d '{"method":"wallet_list","jsonrpc":"2.0","params":[],"id":"wallet_list"}' > /dev/null
-        - curl -sSf 127.0.0.1:16657 > /dev/null
-        - curl -sSf -X POST 127.0.0.1:16659  -H 'Content-Type:application/json' -d '{"method":"wallet_list","jsonrpc":"2.0","params":[],"id":"wallet_list"}' > /dev/null
+        - |
+          cd integration-tests
+          . ./env.sh
+          ./run-test.sh
 
     # - name: Integration Test
     #   language: rust
