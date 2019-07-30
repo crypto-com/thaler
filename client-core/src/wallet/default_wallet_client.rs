@@ -77,22 +77,32 @@ where
     I: Index,
     T: TransactionBuilder,
 {
+    #[inline]
     fn wallets(&self) -> Result<Vec<String>> {
         self.wallet_service.names()
     }
 
     fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
-        self.wallet_service.create(name, passphrase)
+        let view_key = self.key_service.generate_keypair(passphrase)?.0;
+        self.wallet_service.create(name, passphrase, view_key)
     }
 
+    #[inline]
+    fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
+        self.wallet_service.view_key(name, passphrase)
+    }
+
+    #[inline]
     fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>> {
         self.wallet_service.public_keys(name, passphrase)
     }
 
+    #[inline]
     fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<H256>> {
         self.wallet_service.root_hashes(name, passphrase)
     }
 
+    #[inline]
     fn staking_addresses(
         &self,
         name: &str,
@@ -101,10 +111,12 @@ where
         self.wallet_service.staking_addresses(name, passphrase)
     }
 
+    #[inline]
     fn transfer_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
         self.wallet_service.transfer_addresses(name, passphrase)
     }
 
+    #[inline]
     fn find_public_key(
         &self,
         name: &str,
@@ -115,6 +127,7 @@ where
             .find_public_key(name, passphrase, redeem_address)
     }
 
+    #[inline]
     fn find_root_hash(
         &self,
         name: &str,
@@ -125,6 +138,7 @@ where
             .find_root_hash(name, passphrase, address)
     }
 
+    #[inline]
     fn private_key(
         &self,
         passphrase: &SecUtf8,
@@ -250,6 +264,7 @@ where
         Ok(UnspentTransactions::new(unspent_transactions))
     }
 
+    #[inline]
     fn output(&self, input: &TxoPointer) -> Result<TxOut> {
         self.index.output(input)
     }
@@ -276,6 +291,7 @@ where
         )
     }
 
+    #[inline]
     fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()> {
         self.index.broadcast_transaction(&tx_aux.encode())
     }
@@ -495,21 +511,53 @@ mod tests {
     use std::time::SystemTime;
 
     use chrono::DateTime;
+    use parity_codec::Encode;
 
     use chain_core::init::coin::CoinError;
-    use chain_core::tx::data::input::TxoPointer;
+    use chain_core::tx::data::input::{TxoIndex, TxoPointer};
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::witness::TxInWitness;
-    use chain_core::tx::TransactionId;
+    use chain_core::tx::{TransactionId, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_address;
     use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
-    use client_common::Transaction;
-    use client_index::AddressDetails;
+    use client_common::{PrivateKey, SignedTransaction, Transaction};
+    use client_index::{AddressDetails, TransactionCipher};
 
     use crate::signer::DefaultSigner;
     use crate::transaction_builder::DefaultTransactionBuilder;
+
+    #[derive(Debug)]
+    struct MockTransactionCipher;
+
+    impl TransactionCipher for MockTransactionCipher {
+        fn decrypt(
+            &self,
+            _transaction_ids: &[TxId],
+            _private_key: &PrivateKey,
+        ) -> Result<Vec<Transaction>> {
+            unreachable!()
+        }
+
+        fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
+            let txpayload = transaction.encode();
+
+            match transaction {
+                SignedTransaction::TransferTransaction(tx, _) => Ok(TxAux::TransferTx {
+                    txid: tx.id(),
+                    inputs: tx.inputs.clone(),
+                    no_of_outputs: tx.outputs.len() as TxoIndex,
+                    payload: TxObfuscated {
+                        key_from: 0,
+                        nonce: [0u8; 12],
+                        txpayload,
+                    },
+                }),
+                _ => unreachable!(),
+            }
+        }
+    }
 
     #[derive(Debug)]
     pub struct MockIndex {
@@ -829,6 +877,7 @@ mod tests {
             .with_transaction_write(DefaultTransactionBuilder::new(
                 signer,
                 ZeroFeeAlgorithm::default(),
+                MockTransactionCipher,
             ))
             .build()
             .unwrap();
@@ -1032,9 +1081,12 @@ mod tests {
     fn invalid_wallet_building() {
         let storage = MemoryStorage::default();
         let signer = DefaultSigner::new(storage);
-        let builder = DefaultWalletClient::builder().with_transaction_write(
-            DefaultTransactionBuilder::new(signer, ZeroFeeAlgorithm::default()),
-        );
+        let builder =
+            DefaultWalletClient::builder().with_transaction_write(DefaultTransactionBuilder::new(
+                signer,
+                ZeroFeeAlgorithm::default(),
+                MockTransactionCipher,
+            ));
 
         assert_eq!(ErrorKind::InvalidInput, builder.build().unwrap_err().kind());
     }

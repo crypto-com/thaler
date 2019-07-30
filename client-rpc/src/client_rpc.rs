@@ -490,26 +490,27 @@ pub struct CreateUnbondStakeTransactionRequest {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+
     use std::time::SystemTime;
 
     use chrono::DateTime;
+    use parity_codec::Encode;
 
     use chain_core::init::coin::CoinError;
-    use chain_core::tx::data::input::TxoPointer;
+    use chain_core::tx::data::input::{TxoIndex, TxoPointer};
     use chain_core::tx::data::{Tx, TxId};
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
-    use chain_core::tx::TxAux;
+    use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxObfuscated};
     use client_common::balance::BalanceChange;
     use client_common::balance::TransactionChange;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
-    use client_common::Result as CommonResult;
-    use client_common::Transaction;
+    use client_common::{PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
-    use client_index::{AddressDetails, Index};
+    use client_index::{AddressDetails, Index, TransactionCipher};
     use client_network::network_ops::DefaultNetworkOpsClient;
 
     #[derive(Default)]
@@ -568,11 +569,72 @@ pub mod tests {
         }
     }
 
-    type TestTxBuilder = DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm>;
+    #[derive(Debug)]
+    struct MockTransactionCipher;
+
+    impl TransactionCipher for MockTransactionCipher {
+        fn decrypt(
+            &self,
+            _transaction_ids: &[TxId],
+            _private_key: &PrivateKey,
+        ) -> CommonResult<Vec<Transaction>> {
+            unreachable!()
+        }
+
+        fn encrypt(&self, transaction: SignedTransaction) -> CommonResult<TxAux> {
+            let txpayload = transaction.encode();
+
+            match transaction {
+                SignedTransaction::TransferTransaction(tx, _) => Ok(TxAux::TransferTx {
+                    txid: tx.id(),
+                    inputs: tx.inputs.clone(),
+                    no_of_outputs: tx.outputs.len() as TxoIndex,
+                    payload: TxObfuscated {
+                        key_from: 0,
+                        nonce: [0u8; 12],
+                        txpayload,
+                    },
+                }),
+                SignedTransaction::DepositStakeTransaction(tx, witness) => {
+                    let plain = PlainTxAux::DepositStakeTx(witness);
+                    Ok(TxAux::DepositStakeTx {
+                        tx,
+                        payload: TxObfuscated {
+                            key_from: 0,
+                            nonce: [0u8; 12],
+                            txpayload: plain.encode(),
+                        },
+                    })
+                }
+                SignedTransaction::WithdrawUnbondedStakeTransaction(tx, _, witness) => {
+                    let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
+                    Ok(TxAux::WithdrawUnbondedStakeTx {
+                        txid: tx.id(),
+                        no_of_outputs: tx.outputs.len() as TxoIndex,
+                        witness,
+                        payload: TxObfuscated {
+                            key_from: 0,
+                            nonce: [0u8; 12],
+                            txpayload: plain.encode(),
+                        },
+                    })
+                }
+                SignedTransaction::UnbondStakeTransaction(_, _) => unreachable!(),
+            }
+        }
+    }
+
+    type TestTxBuilder =
+        DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm, MockTransactionCipher>;
     type TestSigner = DefaultSigner<MemoryStorage>;
     type TestWalletClient = DefaultWalletClient<MemoryStorage, MockIndex, TestTxBuilder>;
-    type TestOpsClient =
-        DefaultNetworkOpsClient<TestWalletClient, TestSigner, MockRpcClient, ZeroFeeAlgorithm>;
+    type TestOpsClient = DefaultNetworkOpsClient<
+        TestWalletClient,
+        TestSigner,
+        MockRpcClient,
+        ZeroFeeAlgorithm,
+        MockTransactionCipher,
+    >;
 
     #[derive(Default)]
     pub struct MockRpcClient;
@@ -753,6 +815,7 @@ pub mod tests {
             .with_transaction_write(DefaultTransactionBuilder::new(
                 signer,
                 ZeroFeeAlgorithm::default(),
+                MockTransactionCipher,
             ))
             .build()
             .unwrap()
@@ -765,6 +828,7 @@ pub mod tests {
             .with_transaction_write(DefaultTransactionBuilder::new(
                 DefaultSigner::new(storage.clone()),
                 ZeroFeeAlgorithm::default(),
+                MockTransactionCipher,
             ))
             .build()
             .unwrap();
@@ -773,6 +837,7 @@ pub mod tests {
             DefaultSigner::new(storage.clone()),
             MockRpcClient {},
             ZeroFeeAlgorithm::default(),
+            MockTransactionCipher,
         )
     }
 

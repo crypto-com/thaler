@@ -1,4 +1,7 @@
-use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage};
+use chrono::{DateTime, Utc};
+
+use chain_core::tx::TransactionId;
+use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
 
 use crate::service::{GlobalStateService, TransactionService};
 use crate::{BlockHandler, TransactionCipher, TransactionHandler};
@@ -35,6 +38,25 @@ where
     }
 }
 
+impl<C, H, S> DefaultBlockHandler<C, H, S>
+where
+    C: TransactionCipher,
+    H: TransactionHandler,
+    S: Storage,
+{
+    fn on_transaction(
+        &self,
+        transaction: Transaction,
+        block_height: u64,
+        block_time: DateTime<Utc>,
+    ) -> Result<()> {
+        self.transaction_service.set(&transaction)?;
+
+        self.transaction_handler
+            .on_next(transaction, block_height, block_time)
+    }
+}
+
 impl<C, H, S> BlockHandler for DefaultBlockHandler<C, H, S>
 where
     C: TransactionCipher,
@@ -47,18 +69,23 @@ where
         view_key: &PublicKey,
         private_key: &PrivateKey,
     ) -> Result<()> {
-        if block_header
-            .view_key_filter
-            .check_view_key(&view_key.into())
-        {
+        for transaction in block_header.unencrypted_transactions {
+            if block_header.transaction_ids.contains(&transaction.id()) {
+                self.on_transaction(
+                    transaction,
+                    block_header.block_height,
+                    block_header.block_time,
+                )?;
+            }
+        }
+
+        if block_header.block_filter.check_view_key(&view_key.into()) {
             let transactions = self
                 .transaction_cipher
                 .decrypt(&block_header.transaction_ids, private_key)?;
 
             for transaction in transactions {
-                self.transaction_service.set(&transaction)?;
-
-                self.transaction_handler.on_next(
+                self.on_transaction(
                     transaction,
                     block_header.block_height,
                     block_header.block_time,
@@ -85,10 +112,10 @@ mod tests {
     use chain_core::tx::data::attribute::TxAttributes;
     use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::{Tx, TxId};
-    use chain_core::tx::TransactionId;
+    use chain_core::tx::{TransactionId, TxAux};
     use chain_tx_filter::BlockFilter;
     use client_common::storage::MemoryStorage;
-    use client_common::Transaction;
+    use client_common::{SignedTransaction, Transaction};
 
     struct MockTransactionCipher;
 
@@ -98,9 +125,14 @@ mod tests {
             transaction_ids: &[TxId],
             _private_key: &PrivateKey,
         ) -> Result<Vec<Transaction>> {
-            assert_eq!(1, transaction_ids.len());
+            assert_eq!(2, transaction_ids.len());
             assert_eq!(transfer_transaction().id(), transaction_ids[0]);
+            assert_eq!(unbond_transaction().id(), transaction_ids[1]);
             Ok(vec![transfer_transaction()])
+        }
+
+        fn encrypt(&self, _transaction: SignedTransaction) -> Result<TxAux> {
+            unreachable!()
         }
     }
 
@@ -145,7 +177,8 @@ mod tests {
     }
 
     fn block_header(view_key: &PublicKey) -> BlockHeader {
-        let transaction_ids: Vec<TxId> = vec![transfer_transaction().id()];
+        let transaction_ids: Vec<TxId> =
+            vec![transfer_transaction().id(), unbond_transaction().id()];
 
         let mut block_filter = BlockFilter::default();
         block_filter.add_view_key(&view_key.into());
@@ -154,7 +187,8 @@ mod tests {
             block_height: 1,
             block_time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             transaction_ids,
-            view_key_filter: block_filter,
+            block_filter,
+            unencrypted_transactions: vec![unbond_transaction()],
         }
     }
 
@@ -177,6 +211,7 @@ mod tests {
         let global_state_service = GlobalStateService::new(storage);
 
         let transaction = transfer_transaction();
+        let unbond_transaction = unbond_transaction();
 
         assert!(transaction_service
             .get(&transaction.id())
@@ -194,6 +229,13 @@ mod tests {
         assert_eq!(
             transaction,
             transaction_service.get(&transaction.id()).unwrap().unwrap()
+        );
+        assert_eq!(
+            unbond_transaction,
+            transaction_service
+                .get(&unbond_transaction.id())
+                .unwrap()
+                .unwrap()
         );
         assert_eq!(
             1,

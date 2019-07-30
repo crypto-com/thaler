@@ -11,11 +11,15 @@ use chain_core::state::account::StakedStateAddress;
 use client_common::balance::BalanceChange;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
-use client_common::Result;
+use client_common::{Error, ErrorKind, Result, Storage};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
+use client_index::cipher::AbciTransactionCipher;
+use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
+use client_index::synchronizer::ManualSynchronizer;
+use client_index::BlockHandler;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 
 use self::address_command::AddressCommand;
@@ -40,6 +44,11 @@ pub enum Command {
         #[structopt(subcommand)]
         address_command: AddressCommand,
     },
+    #[structopt(name = "view-key", about = "Shows the view key of a wallet")]
+    ViewKey {
+        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        name: String,
+    },
     #[structopt(name = "balance", about = "Get balance of a wallet")]
     Balance {
         #[structopt(name = "name", short, long, help = "Name of wallet")]
@@ -62,8 +71,18 @@ pub enum Command {
         #[structopt(name = "address", short, long, help = "Staking address")]
         address: StakedStateAddress,
     },
-    #[structopt(name = "resync", about = "Re-synchronize client with Crypto.com Chain")]
-    Resync,
+    #[structopt(name = "sync", about = "Synchronize client with Crypto.com Chain")]
+    Sync {
+        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        name: String,
+        #[structopt(
+            name = "force",
+            short,
+            long,
+            help = "Force synchronization from genesis"
+        )]
+        force: bool,
+    },
 }
 
 impl Command {
@@ -82,6 +101,14 @@ impl Command {
                     .with_wallet(storage)
                     .build()?;
                 address_command.execute(wallet_client)
+            }
+            Command::ViewKey { name } => {
+                let storage = SledStorage::new(storage_path())?;
+                let wallet_client = DefaultWalletClient::builder()
+                    .with_wallet(storage)
+                    .build()?;
+
+                Self::get_view_key(wallet_client, name)
             }
             Command::Balance { name } => {
                 let storage = SledStorage::new(storage_path())?;
@@ -110,8 +137,12 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_builder =
-                    DefaultTransactionBuilder::new(signer.clone(), fee_algorithm);
+                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let transaction_builder = DefaultTransactionBuilder::new(
+                    signer.clone(),
+                    fee_algorithm,
+                    transaction_cipher.clone(),
+                );
                 let transaction_index =
                     DefaultIndex::new(storage.clone(), tendermint_client.clone());
 
@@ -125,6 +156,7 @@ impl Command {
                     signer,
                     tendermint_client,
                     fee_algorithm,
+                    transaction_cipher,
                 );
                 transaction_command.execute(network_ops_client.get_wallet(), &network_ops_client)
             }
@@ -133,8 +165,12 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_builder =
-                    DefaultTransactionBuilder::new(signer.clone(), fee_algorithm);
+                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let transaction_builder = DefaultTransactionBuilder::new(
+                    signer.clone(),
+                    fee_algorithm,
+                    transaction_cipher.clone(),
+                );
                 let transaction_index =
                     DefaultIndex::new(storage.clone(), tendermint_client.clone());
                 let wallet_client = DefaultWalletClient::builder()
@@ -148,18 +184,29 @@ impl Command {
                     signer,
                     tendermint_client,
                     fee_algorithm,
+                    transaction_cipher,
                 );
                 Self::get_staked_stake(&network_ops_client, name, address)
             }
-            Command::Resync => {
+            Command::Sync { name, force } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = RpcClient::new(&tendermint_url());
-                let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
+
+                let transaction_handler = DefaultTransactionHandler::new(storage.clone());
+                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let block_handler = DefaultBlockHandler::new(
+                    transaction_cipher,
+                    transaction_handler,
+                    storage.clone(),
+                );
+
                 let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage)
-                    .with_transaction_read(transaction_index)
+                    .with_wallet(storage.clone())
                     .build()?;
-                Self::resync(wallet_client)
+                let synchronizer =
+                    ManualSynchronizer::new(storage, tendermint_client, block_handler);
+
+                Self::resync(wallet_client, synchronizer, name, *force)
             }
         }
     }
@@ -191,6 +238,14 @@ impl Command {
 
         table.printstd();
 
+        Ok(())
+    }
+
+    fn get_view_key<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
+        let passphrase = ask_passphrase()?;
+        let view_key = wallet_client.view_key(name, &passphrase)?;
+
+        success(&format!("View Key: {}", view_key));
         Ok(())
     }
 
@@ -242,8 +297,25 @@ impl Command {
         Ok(())
     }
 
-    fn resync<T: WalletClient>(_wallet_client: T) -> Result<()> {
-        // TODO: Implement synchronization logic for current view key
-        Ok(())
+    fn resync<T: WalletClient, S: Storage, C: Client, H: BlockHandler>(
+        wallet_client: T,
+        synchronizer: ManualSynchronizer<S, C, H>,
+        name: &str,
+        force: bool,
+    ) -> Result<()> {
+        let passphrase = ask_passphrase()?;
+
+        let view_key = wallet_client.view_key(name, &passphrase)?;
+        let private_key = wallet_client
+            .private_key(&passphrase, &view_key)?
+            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
+
+        let staking_addresses = wallet_client.staking_addresses(name, &passphrase)?;
+
+        if force {
+            synchronizer.sync_all(&staking_addresses, &view_key, &private_key)
+        } else {
+            synchronizer.sync(&staking_addresses, &view_key, &private_key)
+        }
     }
 }
