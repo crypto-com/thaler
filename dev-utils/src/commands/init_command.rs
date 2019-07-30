@@ -6,7 +6,6 @@ use chrono::DateTime;
 use failure::{format_err, Error};
 use read_input::prelude::*;
 use serde_json::json;
-use serde_json::Value as JsonValue;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
@@ -16,8 +15,8 @@ use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct InitCommand {
-    app_hash: JsonValue,
-    app_state: JsonValue,
+    app_hash: String,
+    app_state: String,
     genesis_dev: GenesisDevConfig,
     tendermint_pubkey: String,
     staking_account_address: String,
@@ -27,8 +26,8 @@ pub struct InitCommand {
 impl InitCommand {
     pub fn new() -> Self {
         InitCommand {
-            app_hash: json!(null),
-            app_state: json!(null),
+            app_hash: "".to_string(),
+            app_state: "".to_string(),
             genesis_dev: GenesisDevConfig::new(),
             tendermint_pubkey: "".to_string(),
             staking_account_address: "".to_string(),
@@ -164,8 +163,8 @@ impl InitCommand {
             self.genesis_dev.genesis_time.to_rfc3339()
         );
 
-        self.app_hash = json!(result.0);
-        self.app_state = serde_json::from_str(&result.1).unwrap();
+        self.app_hash = result.0;
+        self.app_state = result.1;
         Ok(())
     }
     pub fn get_tendermint_filename(&self) -> String {
@@ -199,9 +198,9 @@ impl InitCommand {
             .and_then(|contents| {
                 let mut json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let obj = json.as_object_mut().unwrap();
-                obj["app_hash"] = app_hash;
+                obj["app_hash"] = json!(app_hash);
                 obj.insert("app_state".to_string(), json!(""));
-                obj["app_state"] = app_state;
+                obj["app_state"] = json!(app_state);
                 obj["genesis_time"] = json!(gt);
                 json_string = serde_json::to_string_pretty(&json).unwrap();
                 println!("{}", json_string);
