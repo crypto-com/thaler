@@ -162,7 +162,6 @@ impl InitCommand {
             .map(|mut file| {
                 let note = serde_json::to_string(&self.genesis_dev).unwrap();
                 file.write_all(note.as_bytes()).unwrap();
-                ()
             })
             .unwrap();
 
