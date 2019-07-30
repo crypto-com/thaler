@@ -54,7 +54,7 @@ impl InitCommand {
         distribution.insert(a.to_string(), json!(b));
         self.distribution_addresses.push(a.to_string());
     }
-    pub fn read_information(&mut self) {
+    pub fn read_information(&mut self) -> Result<(), Error> {
         self.genesis_dev =
             serde_json::from_str(&self.data).expect("failed to parse genesis dev config");
 
@@ -132,8 +132,9 @@ impl InitCommand {
             "read_information={}",
             serde_json::to_string_pretty(&self.genesis_dev).unwrap()
         );
+        Ok(())
     }
-    pub fn generate_app_info(&mut self) {
+    pub fn generate_app_info(&mut self) -> Result<(), Error> {
         let path = Path::new("./coin.json");
 
         println!(
@@ -153,6 +154,7 @@ impl InitCommand {
 
         self.app_hash = json!(result.0);
         self.app_state = serde_json::from_str(&result.1).unwrap();
+        Ok(())
     }
     pub fn get_tendermint_filename(&self) -> String {
         format!(
@@ -161,17 +163,19 @@ impl InitCommand {
         )
         .to_string()
     }
-    pub fn read_tendermint_genesis(&mut self) {
+    pub fn read_tendermint_genesis(&mut self) -> Result<(), Error> {
         // check whether file exists
-        let _dummy = fs::read_to_string(&self.get_tendermint_filename()).and_then(|contents| {
-            println!("current tendermint genesis={}", contents);
-            let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
-            let pub_key = &json["validators"][0]["pub_key"]["value"];
-            self.tendermint_pubkey = pub_key.as_str().unwrap().to_string();
-            Ok(())
-        });
+        fs::read_to_string(&self.get_tendermint_filename())
+            .and_then(|contents| {
+                println!("current tendermint genesis={}", contents);
+                let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
+                let pub_key = &json["validators"][0]["pub_key"]["value"];
+                self.tendermint_pubkey = pub_key.as_str().unwrap().to_string();
+                Ok(())
+            })
+            .map_err(|_e| format_err!("read tendermint genesis error"))
     }
-    pub fn write_tendermint_genesis(&self) {
+    pub fn write_tendermint_genesis(&self) -> Result<(), Error> {
         println!("write genesis to {}", self.get_tendermint_filename());
 
         let app_hash = self.app_hash.clone();
@@ -179,7 +183,7 @@ impl InitCommand {
         let gt = self.genesis_time.clone();
 
         let mut json_string = String::from("");
-        let _dummy = fs::read_to_string(&self.get_tendermint_filename())
+        fs::read_to_string(&self.get_tendermint_filename())
             .and_then(|contents| {
                 let mut json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let obj = json.as_object_mut().unwrap();
@@ -199,11 +203,9 @@ impl InitCommand {
                     self.get_tendermint_filename()
                 );
             })
-            .map_err(|e| {
-                println!("Error={}", e);
-            });
+            .map_err(|_e| format_err!("write tendermint genesis error"))
     }
-    pub fn prepare_tendermint(&self) -> Result<(), ()> {
+    pub fn prepare_tendermint(&self) -> Result<(), Error> {
         // check whether file exists
         fs::read_to_string(&self.get_tendermint_filename())
             .or_else(|_e| {
@@ -215,25 +217,18 @@ impl InitCommand {
                         println!("tenermint initialized");
                         "".to_string()
                     })
-                    .map_err(|_e| {
-                        println!("tenermint not found");
-                        ()
-                    })
+                    .map_err(|_e| format_err!("tendermint not found"))
             })
             .map(|_e| ())
     }
     pub fn execute(&mut self) -> Result<(), Error> {
         println!("initialize");
 
-        match self.prepare_tendermint() {
-            Err(_e) => return Err(format_err!("tendermint error")),
-            Ok(_e) => {}
-        };
-        self.read_tendermint_genesis();
-        self.read_information();
-        self.generate_app_info();
-        self.write_tendermint_genesis();
-
-        Ok(())
+        self.prepare_tendermint()
+            .and_then(|_| self.read_tendermint_genesis())
+            .and_then(|_| self.read_information())
+            .and_then(|_| self.generate_app_info())
+            .and_then(|_| self.write_tendermint_genesis())
+            .map_err(|e| format_err!("init error={}", e))
     }
 }
