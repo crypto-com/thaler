@@ -2,6 +2,7 @@ use super::genesis_command::GenesisCommand;
 
 use failure::Error;
 
+use super::genesis_dev_config::GenesisDevConfig;
 use read_input::prelude::*;
 use serde_json::json;
 use serde_json::Value as JsonValue;
@@ -35,25 +36,7 @@ impl InitCommand {
             staking_account_address: "".to_string(),
             distribution_addresses: vec![],
 
-            data: r#"
-        {
-    "distribution": {},
-    "unbonding_period": 60,
-    "required_council_node_stake": "1250000000000000000",
-    "initial_fee_policy": {
-        "base_fee": "1.1",
-        "per_byte_fee": "1.25"
-    },
-    "council_nodes": [
-       
-    ],
-    "launch_incentive_from": "0x35f517cab9a37bc31091c2f155d965af84e0bc85",
-    "launch_incentive_to": "0x20a0bee429d6907e556205ef9d48ab6fe6a55531",
-    "long_term_incentive": "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07",
-    "genesis_time": "2019-03-21T02:26:51.366017Z"
-}
-        "#
-            .to_string(),
+            data: serde_json::to_string(&GenesisDevConfig::new()).unwrap(),
         }
     }
 
@@ -231,6 +214,11 @@ impl InitCommand {
     pub fn execute(&mut self) -> Result<(), Error> {
         println!("initialize");
 
+        /* let m=GenesisDevConfig::new();
+                let n=serde_json::to_string(&m).unwrap();
+                let n= s
+                println!("{}", n);
+        */
         self.prepare_tendermint();
         self.read_tendermint_genesis();
         self.read_information();

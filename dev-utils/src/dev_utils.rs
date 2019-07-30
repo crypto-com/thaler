@@ -3,6 +3,7 @@ use structopt::StructOpt;
 
 use crate::commands::GenesisCommand;
 use crate::commands::InitCommand;
+
 /// Enum used to specify subcommands under dev-utils
 #[derive(Debug, StructOpt)]
 #[structopt(

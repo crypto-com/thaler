@@ -9,37 +9,17 @@ use chain_abci::storage::tx::StarlingFixedKey;
 use chain_abci::storage::Storage;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
-use chain_core::init::config::{AccountType, InitNetworkParameters, InitialValidator};
+use chain_core::init::config::{AccountType, InitNetworkParameters};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::{LinearFee, Milli};
-use chrono::offset::Utc;
-use chrono::DateTime;
 use kvdb_memorydb::create;
-use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct GenesisDevConfig {
-    distribution: BTreeMap<RedeemAddress, Coin>,
-    unbonding_period: u32,
-    required_council_node_stake: Coin,
-    initial_fee_policy: InitialFeePolicy,
-    council_nodes: Vec<InitialValidator>,
-    launch_incentive_from: RedeemAddress,
-    launch_incentive_to: RedeemAddress,
-    long_term_incentive: RedeemAddress,
-    pub genesis_time: DateTime<Utc>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct InitialFeePolicy {
-    base_fee: String,
-    per_byte_fee: String,
-}
+use crate::commands::genesis_dev_config::GenesisDevConfig;
 
 #[derive(Debug, StructOpt)]
 pub enum GenesisCommand {
