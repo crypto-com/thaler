@@ -25,7 +25,7 @@ impl GenesisDevConfig {
         GenesisDevConfig {
             distribution: BTreeMap::new(),
             unbonding_period: 60,
-            required_council_node_stake: Coin::new(1250000000000000000).unwrap(),
+            required_council_node_stake: Coin::new(1_250_000_000_000_000_000).unwrap(),
             initial_fee_policy: InitialFeePolicy {
                 base_fee: "1.1".to_string(),
                 per_byte_fee: "1.25".to_string(),
