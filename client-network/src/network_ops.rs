@@ -15,7 +15,7 @@ use chain_core::tx::TxAux;
 use client_common::Result;
 
 /// Interface for performing network operations on Crypto.com Chain
-pub trait NetworkOpsClient {
+pub trait NetworkOpsClient: Send + Sync {
     /// creates a new transaction for bonding stake transaction with utxos
     fn create_deposit_bonded_stake_transaction(
         &self,
