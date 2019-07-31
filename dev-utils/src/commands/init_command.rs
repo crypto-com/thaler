@@ -71,6 +71,12 @@ impl InitCommand {
     }
     pub fn read_information(&mut self) -> Result<(), Error> {
         let default_address = RedeemAddress::default().to_string();
+        let default_addresses = [
+            "0xc55139f8d416511020293dd3b121ee8beb3bd469",
+            "0x9b4597438fc9e72617232a7aed37567405cb80dd",
+            "0xf75dc04a0a77c8178a6880c44c6d8a8ffb436093",
+        ];
+        let default_coins = ["2500000000000000000", "2500000000000000000"];
         println!(
             "maximum coin to distribute={}",
             self.remain_coin.get_string()
@@ -87,10 +93,19 @@ impl InitCommand {
                 break;
             }
             let i = self.distribution_addresses.len();
+            let j = i - 1;
+            let mut this_address = default_address.clone();
+            let mut this_coin = self.remain_coin.get_string();
+            if j < default_addresses.len() {
+                this_address = default_addresses[j].to_string().clone();
+            }
+            if j < default_coins.len() {
+                this_coin = default_coins[j].to_string().clone();
+            }
             self.read_wallet(
                 format!("{}", i).as_str(),
-                default_address.as_str(),
-                self.remain_coin.get_string().as_str(),
+                this_address.as_str(),
+                this_coin.as_str(),
             );
         }
 
