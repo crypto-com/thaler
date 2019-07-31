@@ -3,14 +3,24 @@ use super::genesis_dev_config::GenesisDevConfig;
 use chain_core::init::config::{InitialValidator, ValidatorKeyType};
 use chain_core::init::{address::RedeemAddress, coin::Coin};
 use chrono::DateTime;
+use failure::ResultExt;
 use failure::{format_err, Error};
+use quest::{ask, error, password};
 use read_input::prelude::*;
+use secstr::SecUtf8;
 use serde_json::json;
 use std::fs;
 use std::fs::File;
 use std::io::prelude::*;
+use client_common::storage::SledStorage;
 use std::process::Command;
 use std::str::FromStr;
+use std::{env, io};
+use client_core::wallet::{DefaultWalletClient, WalletClient};
+
+use std::io::{Read, Write};
+
+use client_common::{ErrorKind, Result as ClientResult};
 
 #[derive(Debug)]
 pub struct InitCommand {
@@ -209,11 +219,35 @@ impl InitCommand {
     pub fn execute(&mut self) -> Result<(), Error> {
         println!("initialize");
 
-        self.prepare_tendermint()
-            .and_then(|_| self.read_tendermint_genesis())
-            .and_then(|_| self.read_information())
-            .and_then(|_| self.generate_app_info())
-            .and_then(|_| self.write_tendermint_genesis())
-            .map_err(|e| format_err!("init error={}", e))
+      /*  let storage = SledStorage::new(InitCommand::storage_path())?;
+        let wallet_client = DefaultWalletClient::builder()
+            .with_wallet(storage)
+            .build()?;*/
+
+        //self.prepare_tendermint()
+          self.prepare_tendermint()
+        .and_then(|_| self.read_tendermint_genesis())
+        .and_then(|_| self.read_information())
+        .and_then(|_| self.generate_app_info())
+        .and_then(|_| self.write_tendermint_genesis())
+        .map_err(|e| format_err!("init error={}", e))
+    }
+
+    pub fn storage_path() -> String {
+        match std::env::var("CRYPTO_CLIENT_STORAGE") {
+            Ok(path) => path,
+            Err(_) => ".storage".to_owned(),
+        }
+    }
+
+    pub fn ask_passphrase() -> client_common::Result<SecUtf8> {
+        InitCommand::ask("Enter passphrase: ");
+        Ok(password().context(ErrorKind::IoError)?.into())
+    }
+
+    /// Print a question, in bold, without creating a new line.
+    pub fn ask(q: &str) {
+        print!("\u{1B}[1m{}\u{1B}[0m", q);
+        io::stdout().flush().unwrap();
     }
 }
