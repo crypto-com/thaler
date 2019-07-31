@@ -7,20 +7,19 @@ use client_common::storage::SledStorage;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use failure::ResultExt;
 use failure::{format_err, Error};
-use quest::{ask, error, password, success};
+use quest::{password, success};
 use read_input::prelude::*;
 use secstr::SecUtf8;
 use serde_json::json;
 use std::fs;
 use std::fs::File;
-use std::io::prelude::*;
+use std::io;
 use std::process::Command;
 use std::str::FromStr;
-use std::{env, io};
 
-use std::io::{Read, Write};
+use std::io::Write;
 
-use client_common::{ErrorKind, Result as ClientResult};
+use client_common::ErrorKind;
 
 #[derive(Debug)]
 pub struct InitCommand {
@@ -60,7 +59,7 @@ impl InitCommand {
     }
     pub fn do_read_wallet(&mut self, a: String, bstring: String) {
         let b1 = bstring.parse::<f64>().unwrap();
-        let b = (b1 * 1_0000_0000 as f64) as u64;
+        let b = (b1 * 1_0000_0000_f64) as u64;
         let b2 = Coin::new(b).unwrap();
 
         let distribution = &mut self.genesis_dev.distribution;
@@ -92,10 +91,10 @@ impl InitCommand {
         );
 
         loop {
-            if self.remain_coin == Coin::zero() {
+            let i = self.distribution_addresses.len();
+            if self.remain_coin == Coin::zero() && i >= 4 {
                 break;
             }
-            let i = self.distribution_addresses.len();
             let j = i - 1;
             let mut this_address = default_address.clone();
             let mut this_coin = self.remain_coin.to_string();
