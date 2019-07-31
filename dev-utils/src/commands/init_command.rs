@@ -58,11 +58,14 @@ impl InitCommand {
 
         self.do_read_wallet(a, b);
     }
-    pub fn do_read_wallet(&mut self, a: String, b: String) {
+    pub fn do_read_wallet(&mut self, a: String, bstring: String) {
+        let b1 = bstring.parse::<f64>().unwrap();
+        let b = (b1 * 1_0000_0000 as f64) as u64;
+        let b2 = Coin::new(b).unwrap();
+
         let distribution = &mut self.genesis_dev.distribution;
-        let b2 = Coin::from_str(&b).unwrap();
         println!(
-            "do_read_wallet={}",
+            "do_read_wallet in cro ={}",
             RedeemAddress::from_str(&a).unwrap().to_string()
         );
         distribution.insert(RedeemAddress::from_str(&a).unwrap(), b2);
@@ -76,16 +79,16 @@ impl InitCommand {
             "0x9b4597438fc9e72617232a7aed37567405cb80dd",
             "0xf75dc04a0a77c8178a6880c44c6d8a8ffb436093",
         ];
-        let default_coins = ["2500000000000000000", "2500000000000000000"];
+        let default_coins = ["25000000000", "25000000000"];
         println!(
             "maximum coin to distribute={}",
-            self.remain_coin.get_string()
+            self.remain_coin.to_string()
         );
 
         assert!(42 == self.staking_account_address.len());
         self.do_read_wallet(
             self.staking_account_address.clone(),
-            "1250000000000000000".to_string(),
+            "12500000000".to_string(),
         );
 
         loop {
@@ -95,7 +98,7 @@ impl InitCommand {
             let i = self.distribution_addresses.len();
             let j = i - 1;
             let mut this_address = default_address.clone();
-            let mut this_coin = self.remain_coin.get_string();
+            let mut this_coin = self.remain_coin.to_string();
             if j < default_addresses.len() {
                 this_address = default_addresses[j].to_string().clone();
             }
