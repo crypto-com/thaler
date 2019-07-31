@@ -7,8 +7,6 @@
 
 ## Prepare Integration Test
 
-Integration test environment comes with pre-initialized genesis and wallets. Since chain project is under active development, those pre-initialized configurations may have to be prepared again.
-
 ### Initialize Tendermint and genesis
 
 Note: This step is needed only in local environment. TravisCI will initialize the data and build automatically.
@@ -24,7 +22,7 @@ $ ./prepare.sh
 
 | Integration Test Suite | Description |
 | --- | --- |
-| run-test.sh | Test Tendermint, Chain ABCI and ClientRPC and connect together |
+| run-test.sh | Test Tendermint, Chain ABCI and ClientRPC are connect together |
 
 ## How to spin up and teardown Docker Compose Services
 
