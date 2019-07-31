@@ -190,7 +190,7 @@ print_step "Initialize Tendermint"
 print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
 mkdir ./tendermint; chmod 777 ./tendermint
 docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
-chmod -R 777 ./tendermint
+sudo chmod -R 777 ./tendermint
 
 print_step "Clone Tendermint configuration"
 mkdir -p "${TENDERMINT_WITHFEE_DIRECTORY}"; cp -r ./tendermint/. "${TENDERMINT_WITHFEE_DIRECTORY}"
