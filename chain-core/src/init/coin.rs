@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use static_assertions::const_assert;
 use std::convert::TryFrom;
-use std::{fmt, mem, ops, result, slice};
+use std::{fmt, ops, result};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode)]
 pub struct Coin(u64);
@@ -227,14 +227,7 @@ impl From<u32> for Coin {
 
 impl Decode for Coin {
     fn decode<I: Input>(input: &mut I) -> Result<Self, ScaleError> {
-        let size = mem::size_of::<u64>();
-        let mut val: u64 = unsafe { mem::zeroed() };
-        unsafe {
-            let raw: &mut [u8] = slice::from_raw_parts_mut(&mut val as *mut u64 as *mut u8, size);
-            input.read(raw)?;
-        }
-
-        let num = u64::from_le(val);
+        let num = u64::decode(input)?;
 
         if num > MAX_COIN {
             Err(ScaleError::from("Value greater than maximum allowed"))
