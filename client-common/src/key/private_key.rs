@@ -1,5 +1,5 @@
 use failure::ResultExt;
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use rand::rngs::OsRng;
 use secp256k1::schnorrsig::{schnorr_sign, SchnorrSignature};
 use secp256k1::{recovery::RecoverableSignature, Message, PublicKey as SecpPublicKey, SecretKey};
@@ -57,9 +57,10 @@ impl Encode for PrivateKey {
 }
 
 impl Decode for PrivateKey {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, Error> {
         let serialized = <Vec<u8>>::decode(input)?;
-        PrivateKey::deserialize_from(&serialized).ok()
+        PrivateKey::deserialize_from(&serialized)
+            .map_err(|_| Error::from("Unable to decode private key"))
     }
 }
 

@@ -6,7 +6,7 @@
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS, MAX_COIN_UNITS};
 use crate::state::tendermint::TendermintVotePower;
 use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
-use parity_codec::{Decode, Encode, Input};
+use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
 
 #[cfg(feature = "serde")]
 use serde::de::{Deserializer, Error, Visitor};
@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use static_assertions::const_assert;
 use std::convert::TryFrom;
-use std::{fmt, mem, ops, result, slice};
+use std::{fmt, ops, result};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode)]
 pub struct Coin(u64);
@@ -226,19 +226,13 @@ impl From<u32> for Coin {
 }
 
 impl Decode for Coin {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
-        let size = mem::size_of::<u64>();
-        let mut val: u64 = unsafe { mem::zeroed() };
-        unsafe {
-            let raw: &mut [u8] = slice::from_raw_parts_mut(&mut val as *mut u64 as *mut u8, size);
-            if input.read(raw) != size {
-                return None;
-            }
-        }
-        if val > MAX_COIN {
-            None
+    fn decode<I: Input>(input: &mut I) -> Result<Self, ScaleError> {
+        let num = u64::decode(input)?;
+
+        if num > MAX_COIN {
+            Err(ScaleError::from("Value greater than maximum allowed"))
         } else {
-            Some(Coin(val))
+            Ok(Coin(num))
         }
     }
 }

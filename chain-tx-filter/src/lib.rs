@@ -1,6 +1,6 @@
 use chain_core::state::account::StakedStateAddress;
 use ethbloom::{Bloom, Input};
-use parity_codec::Encode;
+use parity_scale_codec::Encode;
 use secp256k1::key::PublicKey;
 use std::convert::TryFrom;
 

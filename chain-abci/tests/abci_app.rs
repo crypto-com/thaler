@@ -43,7 +43,7 @@ use chain_tx_validation::TxWithOutputs;
 use hex::decode;
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
@@ -691,7 +691,7 @@ fn query_should_return_an_account() {
     qreq.path = "account".into();
     let qresp = app.query(&qreq);
     let account = StakedState::decode(&mut qresp.value.as_slice());
-    assert!(account.is_some());
+    assert!(account.is_ok());
 }
 
 #[test]

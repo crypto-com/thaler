@@ -7,7 +7,7 @@ use crate::common::{hash256, H256};
 use crate::init::coin::Coin;
 use account::{Nonce, StakedStateAddress};
 use blake2::Blake2s;
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use tendermint::{BlockHeight, TendermintValidatorPubKey};

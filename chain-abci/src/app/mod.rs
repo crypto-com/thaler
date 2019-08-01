@@ -21,7 +21,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{PlainTxAux, TxAux};
 use kvdb::{DBTransaction, KeyValueDB};
-use parity_codec::Decode;
+use parity_scale_codec::Decode;
 use protobuf::RepeatedField;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -235,7 +235,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 } => {
                     // FIXME: temporary hack / this shouldn't be here
                     let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
-                    if let Some(PlainTxAux::TransferTx(tx, _)) = plain_tx {
+                    if let Ok(PlainTxAux::TransferTx(tx, _)) = plain_tx {
                         for view in tx.attributes.allowed_view.iter() {
                             self.filter.add_view_key(&view.view_key);
                         }
@@ -247,7 +247,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 } => {
                     // FIXME: temporary hack / this shouldn't be here
                     let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
-                    if let Some(PlainTxAux::WithdrawUnbondedStakeTx(tx)) = plain_tx {
+                    if let Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx)) = plain_tx {
                         for view in tx.attributes.allowed_view.iter() {
                             self.filter.add_view_key(&view.view_key);
                         }

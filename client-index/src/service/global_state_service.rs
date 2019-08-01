@@ -1,6 +1,7 @@
-use parity_codec::{Decode, Encode};
+use failure::ResultExt;
+use parity_scale_codec::{Decode, Encode};
 
-use client_common::{Error, ErrorKind, PublicKey, Result, Storage};
+use client_common::{ErrorKind, PublicKey, Result, Storage};
 
 const KEYSPACE: &str = "index_global_state";
 
@@ -32,7 +33,8 @@ where
         match last_block_height_optional {
             None => Ok(0),
             Some(bytes) => u64::decode(&mut bytes.as_slice())
-                .ok_or_else(|| Error::from(ErrorKind::DeserializationError)),
+                .context(ErrorKind::DeserializationError)
+                .map_err(Into::into),
         }
     }
 
