@@ -3,6 +3,7 @@ use structopt::StructOpt;
 
 use crate::commands::GenesisCommand;
 use crate::commands::InitCommand;
+use crate::commands::RunCommand;
 
 /// Enum used to specify subcommands under dev-utils
 #[derive(Debug, StructOpt)]
@@ -22,8 +23,18 @@ pub enum DevUtils {
     },
 
     /// Used for initializing
-    #[structopt(name = "init", about = "Commands for initialize chain")]
+    #[structopt(
+        name = "init",
+        about = "Make a wallet, generate state, compute hash, and copies to tendermint's genesis.json"
+    )]
     Init,
+
+     /// Used for running
+    #[structopt(
+        name = "run",
+        about = "run all chain components"
+    )]
+    Run,
 }
 
 impl DevUtils {
@@ -33,6 +44,10 @@ impl DevUtils {
             DevUtils::Init => {
                 let mut init_command = InitCommand::new();
                 init_command.execute()
+            },
+            DevUtils::Run => {
+                let mut run_command = RunCommand::new();
+                run_command.execute()
             }
         }
     }
