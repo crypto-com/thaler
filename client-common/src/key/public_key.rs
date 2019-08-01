@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use failure::ResultExt;
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input, Output};
 use secp256k1::key::pubkey_combine;
 use secp256k1::PublicKey as SecpPublicKey;
 
@@ -107,16 +107,17 @@ impl Encode for PublicKey {
 }
 
 impl Decode for PublicKey {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, ScaleError> {
         let serialized = <Vec<u8>>::decode(input)?;
-        PublicKey::deserialize_from(&serialized).ok()
+        PublicKey::deserialize_from(&serialized)
+            .map_err(|_| ScaleError::from("Unable to decode public key"))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use hex::decode;
-    use parity_codec::{Decode, Encode};
+    use parity_scale_codec::{Decode, Encode};
     use secp256k1::key::pubkey_combine;
 
     use chain_core::init::address::RedeemAddress;

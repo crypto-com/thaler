@@ -1,11 +1,11 @@
 use std::cmp::Ordering;
 use std::fmt;
 
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 use crate::common::{H264, H512};
 
-/// there's no [T; 33] / [u8; 33] impl in parity-codec :/
+/// there's no [T; 33] / [u8; 33] impl in parity-scale-codec :/
 #[derive(Clone)]
 pub struct RawPubkey(H264);
 
@@ -19,7 +19,7 @@ impl ::serde::Serialize for RawPubkey {
 #[cfg(feature = "serde")]
 impl<'de> ::serde::Deserialize<'de> for RawPubkey {
     fn deserialize<D: ::serde::Deserializer<'de>>(d: D) -> Result<RawPubkey, D::Error> {
-        use ::serde::de::Error;
+        use serde::de::Error;
 
         let sl: &[u8] = ::serde::Deserialize::deserialize(d)?;
         if sl.len() == 33 {
@@ -107,12 +107,12 @@ impl Encode for RawPubkey {
 }
 
 impl Decode for RawPubkey {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let mut r = [0u8; 33];
         for item in (&mut r).iter_mut() {
             *item = input.read_byte()?;
         }
-        Some(RawPubkey(r))
+        Ok(RawPubkey(r))
     }
 }
 

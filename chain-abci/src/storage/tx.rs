@@ -13,7 +13,7 @@ use chain_tx_validation::{
 };
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::KeyValueDB;
-use parity_codec::Decode;
+use parity_scale_codec::Decode;
 use starling::constants::KEY_LEN;
 use std::sync::Arc;
 
@@ -192,7 +192,7 @@ pub mod tests {
         verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw, TxWithOutputs,
     };
     use kvdb_memorydb::create;
-    use parity_codec::Encode;
+    use parity_scale_codec::Encode;
     use secp256k1::schnorrsig::schnorr_sign;
     use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
     use std::fmt::Debug;

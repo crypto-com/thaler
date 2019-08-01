@@ -623,7 +623,7 @@ pub mod tests {
     use std::time::SystemTime;
 
     use chrono::DateTime;
-    use parity_codec::Encode;
+    use parity_scale_codec::Encode;
 
     use chain_core::init::coin::CoinError;
     use chain_core::tx::data::input::{TxoIndex, TxoPointer};
