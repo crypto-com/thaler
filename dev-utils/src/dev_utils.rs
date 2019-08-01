@@ -29,11 +29,8 @@ pub enum DevUtils {
     )]
     Init,
 
-     /// Used for running
-    #[structopt(
-        name = "run",
-        about = "run all chain components"
-    )]
+    /// Used for running
+    #[structopt(name = "run", about = "run all chain components")]
     Run,
 }
 
@@ -44,7 +41,7 @@ impl DevUtils {
             DevUtils::Init => {
                 let mut init_command = InitCommand::new();
                 init_command.execute()
-            },
+            }
             DevUtils::Run => {
                 let mut run_command = RunCommand::new();
                 run_command.execute()
