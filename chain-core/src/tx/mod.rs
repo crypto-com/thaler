@@ -20,7 +20,7 @@ use data::input::{TxoIndex, TxoPointer};
 use data::output::TxOut;
 
 /// wrapper around transactions with outputs
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Clone)]
 pub enum TxWithOutputs {
     /// normal transfer
     Transfer(Tx),

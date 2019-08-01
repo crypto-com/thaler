@@ -269,7 +269,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// * `storage` - underlying storage to be used (in-mem or persistent)
     /// * `accounts` - underlying storage for account tries to be used (in-mem or persistent)    
     pub fn new_with_storage(
-        tx_validator: T,
+        mut tx_validator: T,
         gah: &str,
         chain_id: &str,
         storage: Storage,
