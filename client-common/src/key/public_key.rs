@@ -117,7 +117,6 @@ impl Decode for PublicKey {
 #[cfg(test)]
 mod tests {
     use hex::decode;
-    use parity_scale_codec::{Decode, Encode};
     use secp256k1::key::pubkey_combine;
 
     use chain_core::init::address::RedeemAddress;

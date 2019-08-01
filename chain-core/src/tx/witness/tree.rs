@@ -5,7 +5,8 @@ use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 use crate::common::{H264, H512};
 
-/// there's no [T; 33] / [u8; 33] impl in parity-scale-codec :/
+// there was no [T; 33] / [u8; 33] impl in parity-codec :/
+// TODO: Do we remove `RawPubKey` and directly use [u8; 33] as `Encode` and `Decode` impls are now available?
 #[derive(Clone)]
 pub struct RawPubkey(H264);
 
