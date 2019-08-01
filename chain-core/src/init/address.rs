@@ -33,14 +33,16 @@ use crate::common::{H256, HASH_SIZE_256};
 pub enum CroAddressError {
     // TODO: use directly bech32::Error or wrap it
     Bech32Error(String),
+    InvalidNetwork,
     ConvertError,
 }
 
 #[cfg(feature = "bech32")]
 impl ::std::error::Error for CroAddressError {}
 
-// CRMT: mainnet transfer
-// CRTT: testnet transfer
+// CRO: mainnet transfer
+// TCRO: testnet transfer
+// DCRO: testnet transfer
 #[cfg(feature = "bech32")]
 pub trait CroAddress<T> {
     fn to_cro(&self) -> Result<String, CroAddressError>;
@@ -126,6 +128,7 @@ impl fmt::Display for CroAddressError {
         match self {
             CroAddressError::Bech32Error(e) => write!(f, "CroAddressError Bech32Error: {}", e),
             CroAddressError::ConvertError => write!(f, "CroAddressError ConvertError"),
+            CroAddressError::InvalidNetwork => write!(f, "Address belonging to different network"),
         }
     }
 }
@@ -174,25 +177,22 @@ impl RedeemAddress {
 impl CroAddress<RedeemAddress> for RedeemAddress {
     fn to_cro(&self) -> Result<String, CroAddressError> {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
-        match super::network::get_network() {
-            super::network::Network::Testnet => {
-                let encoded = bech32::encode("crts", checked_data).expect("bech32 crms encoding");
-                Ok(encoded.to_string())
-            }
-            super::network::Network::Mainnet => {
-                let encoded = bech32::encode("crms", checked_data).expect("bech32 crms encoding");
-                Ok(encoded.to_string())
-            }
-        }
+        let encoded = bech32::encode(super::network::get_bech32_human_part(), checked_data)
+            .expect("bech32 crms encoding");
+        Ok(encoded.to_string())
     }
 
     fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
-        bech32::decode(encoded)
-            .map_err(|e| CroAddressError::Bech32Error(e.to_string()))
-            .and_then(|a| Vec::from_base32(&a.1).map_err(|_e| CroAddressError::ConvertError))
-            .and_then(|a| {
-                RedeemAddress::try_from(&a.as_slice()).map_err(|_e| CroAddressError::ConvertError)
-            })
+        let (human_part, u5_bytes) =
+            bech32::decode(encoded).map_err(|e| CroAddressError::Bech32Error(e.to_string()))?;
+
+        if human_part != super::network::get_bech32_human_part() {
+            return Err(CroAddressError::InvalidNetwork);
+        }
+
+        let bytes = Vec::from_base32(&u5_bytes).map_err(|_| CroAddressError::ConvertError)?;
+
+        RedeemAddress::try_from(&bytes).map_err(|_| CroAddressError::ConvertError)
     }
 }
 
@@ -365,7 +365,7 @@ mod tests {
     fn should_be_correct_textual_address() {
         let a = RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
         let b = a.to_cro().unwrap();
-        assert_eq!(b.to_string(), "crms1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5jgt0gj");
+        assert_eq!(b.to_string(), "cro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5xxnlp9");
         let c = RedeemAddress::from_cro(&b).unwrap();
         assert_eq!(c, a);
     }

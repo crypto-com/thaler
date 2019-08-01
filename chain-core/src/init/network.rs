@@ -6,6 +6,7 @@ static INIT_NETWORK_ID: Once = Once::new();
 pub enum Network {
     Mainnet,
     Testnet,
+    Devnet,
 }
 
 pub fn init_chain_id(chain_id_src: &str) {
@@ -21,8 +22,10 @@ pub fn init_chain_id(chain_id_src: &str) {
     let kind = &chain_id[..4];
     if "main" == kind {
         init_network(Network::Mainnet);
-    } else {
+    } else if "test" == kind {
         init_network(Network::Testnet);
+    } else {
+        init_network(Network::Devnet);
     }
 }
 pub fn init_network(network: Network) {
@@ -52,8 +55,9 @@ pub fn get_network() -> Network {
 pub fn get_bech32_human_part() -> &'static str {
     unsafe {
         match chosen_network::NETWORK {
-            Network::Mainnet => "crmt",
-            Network::Testnet => "crtt",
+            Network::Mainnet => "cro",
+            Network::Testnet => "tcro",
+            Network::Devnet => "dcro",
         }
     }
 }
@@ -63,6 +67,7 @@ pub fn get_full_network_name() -> &'static str {
         match chosen_network::NETWORK {
             Network::Mainnet => "mainnet",
             Network::Testnet => "testnet",
+            Network::Devnet => "devnet",
         }
     }
 }
