@@ -6,6 +6,10 @@ description = "Basic CLI for development purposes (e.g. generation of genesis.js
 edition = "2018"
 
 [dependencies]
+client-common = { path = "../client-common" }
+client-index = { path = "../client-index" }
+client-core = { path = "../client-core" }
+client-network = { path = "../client-network" }
 chain-core = { path = "../chain-core/" }
 chain-abci = { path = "../chain-abci/" }
 structopt = "0.2"
@@ -15,3 +19,7 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 kvdb-memorydb = "0.1"
+dirs = "2.0.1"
+read_input = "0.8"
+quest = "0.3"
+secstr = "0.3.2"
