@@ -50,7 +50,7 @@ impl From<RedeemAddress> for StakedStateAddress {
 impl fmt::Display for StakedStateAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            StakedStateAddress::BasicRedeem(a) => writeln!(f, "{}", a),
+            StakedStateAddress::BasicRedeem(a) => write!(f, "{}", a),
         }
     }
 }
