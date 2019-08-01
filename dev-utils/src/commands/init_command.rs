@@ -123,7 +123,7 @@ impl InitCommand {
             DateTime::from(DateTime::parse_from_rfc3339(&new_genesis_time).unwrap());
         Ok(())
     }
-    pub fn read_information_councils(&mut self) -> Result<(), Error> {
+    fn read_information_councils(&mut self) -> Result<(), Error> {
         let councils = &mut self.genesis_dev.council_nodes;
         println!(
             "{} {}",
