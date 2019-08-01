@@ -116,12 +116,11 @@ impl Decode for PublicKey {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use hex::decode;
-    use secp256k1::key::pubkey_combine;
 
-    use chain_core::init::address::RedeemAddress;
-
-    use crate::{PrivateKey, PublicKey, SECP};
+    use crate::PrivateKey;
 
     #[test]
     fn check_serialization() {
