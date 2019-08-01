@@ -45,33 +45,33 @@ impl InitCommand {
         }
     }
 
-    pub fn read_wallet(&mut self, id: &str, default1: &str, default2: &str) {
-        let a = input()
-            .msg(format!("wallet {}({}) address=", id, default1))
-            .default(default1.to_string())
+    /// easily add distribution wallet for development
+    fn read_wallet(&mut self, id: &str, default_address: &str, default_amount: &str) {
+        let address = input()
+            .msg(format!("wallet {}({}) address=", id, default_address))
+            .default(default_address.to_string())
             .get();
-        let b = input()
-            .msg(format!("wallet {}({}) amount=", id, default2))
-            .default(default2.to_string())
+        let wallet = input()
+            .msg(format!("wallet {}({}) amount=", id, default_amount))
+            .default(default_amount.to_string())
             .get();
 
-        self.do_read_wallet(a, b);
+        self.do_read_wallet(address, wallet);
     }
-    pub fn do_read_wallet(&mut self, a: String, bstring: String) {
-        let b1 = bstring.parse::<f64>().unwrap();
-        let b = (b1 * 1_0000_0000_f64) as u64;
-        let b2 = Coin::new(b).unwrap();
+    fn do_read_wallet(&mut self, address: String, amount_cro: String) {
+        let amount_u64 = (amount_cro.parse::<f64>().unwrap() * 1_0000_0000_f64) as u64;
+        let amount_coin = Coin::new(amount_u64).unwrap();
 
         let distribution = &mut self.genesis_dev.distribution;
         println!(
             "do_read_wallet in cro ={}",
-            RedeemAddress::from_str(&a).unwrap().to_string()
+            RedeemAddress::from_str(&address).unwrap().to_string()
         );
-        distribution.insert(RedeemAddress::from_str(&a).unwrap(), b2);
-        self.remain_coin = (self.remain_coin - b2).unwrap();
-        self.distribution_addresses.push(a.to_string());
+        distribution.insert(RedeemAddress::from_str(&address).unwrap(), amount_coin);
+        self.remain_coin = (self.remain_coin - amount_coin).unwrap();
+        self.distribution_addresses.push(address.to_string());
     }
-    pub fn read_information(&mut self) -> Result<(), Error> {
+    fn read_infomration_wallets(&mut self) -> Result<(), Error> {
         let default_address = RedeemAddress::default().to_string();
         let default_addresses = [
             "0xc55139f8d416511020293dd3b121ee8beb3bd469",
@@ -110,84 +110,94 @@ impl InitCommand {
                 this_coin.as_str(),
             );
         }
-
-        {
-            // change
-            let old_genesis_time = self.genesis_dev.genesis_time.to_rfc3339();
-            let new_genesis_time: String = input()
-                .msg(format!("genesis_time( {} )=", old_genesis_time))
-                .default(old_genesis_time)
-                .get();
-            self.genesis_dev.genesis_time =
-                DateTime::from(DateTime::parse_from_rfc3339(&new_genesis_time).unwrap());
-
-            // save
-            let councils = &mut self.genesis_dev.council_nodes;
-            println!(
-                "{} {}",
-                self.staking_account_address, self.tendermint_pubkey
-            );
-            let staking_validator = InitialValidator {
-                staking_account_address: self
-                    .staking_account_address
-                    .parse::<RedeemAddress>()
-                    .unwrap(),
-                consensus_pubkey_type: ValidatorKeyType::Ed25519,
-                consensus_pubkey_b64: self.tendermint_pubkey.clone(),
-            };
-
-            councils.push(staking_validator);
-            assert!(self.distribution_addresses.len() >= 4);
-
-            self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(
-                &input()
-                    .msg(format!(
-                        "launch_incentive_from({})=",
-                        self.distribution_addresses[1]
-                    ))
-                    .default(self.distribution_addresses[1].clone())
-                    .get(),
-            )
-            .unwrap();
-            self.genesis_dev.launch_incentive_to = RedeemAddress::from_str(
-                &input()
-                    .msg(format!(
-                        "launch_incentive_to({})=",
-                        self.distribution_addresses[2]
-                    ))
-                    .default(self.distribution_addresses[2].clone())
-                    .get(),
-            )
-            .unwrap();
-            self.genesis_dev.long_term_incentive = RedeemAddress::from_str(
-                &input()
-                    .msg(format!(
-                        "long_term_incentive({})=",
-                        self.distribution_addresses[3]
-                    ))
-                    .default(self.distribution_addresses[3].clone())
-                    .get(),
-            )
-            .unwrap();
-        }
-
         Ok(())
     }
-    pub fn generate_app_info(&mut self) -> Result<(), Error> {
+    fn read_information_genesis_time(&mut self) -> Result<(), Error> {
+        // change
+        let old_genesis_time = self.genesis_dev.genesis_time.to_rfc3339();
+        let new_genesis_time: String = input()
+            .msg(format!("genesis_time( {} )=", old_genesis_time))
+            .default(old_genesis_time)
+            .get();
+        self.genesis_dev.genesis_time =
+            DateTime::from(DateTime::parse_from_rfc3339(&new_genesis_time).unwrap());
+        Ok(())
+    }
+    pub fn read_information_councils(&mut self) -> Result<(), Error> {
+        let councils = &mut self.genesis_dev.council_nodes;
+        println!(
+            "{} {}",
+            self.staking_account_address, self.tendermint_pubkey
+        );
+        let staking_validator = InitialValidator {
+            staking_account_address: self
+                .staking_account_address
+                .parse::<RedeemAddress>()
+                .unwrap(),
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: self.tendermint_pubkey.clone(),
+        };
+
+        councils.push(staking_validator);
+        Ok(())
+    }
+    fn read_information_incentives(&mut self) -> Result<(), Error> {
+        assert!(self.distribution_addresses.len() >= 4);
+
+        self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(
+            &input()
+                .msg(format!(
+                    "launch_incentive_from({})=",
+                    self.distribution_addresses[1]
+                ))
+                .default(self.distribution_addresses[1].clone())
+                .get(),
+        )
+        .unwrap();
+        self.genesis_dev.launch_incentive_to = RedeemAddress::from_str(
+            &input()
+                .msg(format!(
+                    "launch_incentive_to({})=",
+                    self.distribution_addresses[2]
+                ))
+                .default(self.distribution_addresses[2].clone())
+                .get(),
+        )
+        .unwrap();
+        self.genesis_dev.long_term_incentive = RedeemAddress::from_str(
+            &input()
+                .msg(format!(
+                    "long_term_incentive({})=",
+                    self.distribution_addresses[3]
+                ))
+                .default(self.distribution_addresses[3].clone())
+                .get(),
+        )
+        .unwrap();
+        Ok(())
+    }
+    // read information from user
+    fn read_information(&mut self) -> Result<(), Error> {
+        self.read_infomration_wallets()
+            .and_then(|_| self.read_information_genesis_time())
+            .and_then(|_| self.read_information_councils())
+            .and_then(|_| self.read_information_incentives())
+    }
+    fn generate_app_info(&mut self) -> Result<(), Error> {
         // app_hash,  app_state
         let result = GenesisCommand::do_generate(&self.genesis_dev).unwrap();
         self.app_hash = result.0;
         self.app_state = result.1;
         Ok(())
     }
-    pub fn get_tendermint_filename(&self) -> String {
+    fn get_tendermint_filename(&self) -> String {
         format!(
             "{}/.tendermint/config/genesis.json",
             dirs::home_dir().unwrap().to_str().unwrap()
         )
         .to_string()
     }
-    pub fn read_tendermint_genesis(&mut self) -> Result<(), Error> {
+    fn read_tendermint_genesis(&mut self) -> Result<(), Error> {
         // check whether file exists
         fs::read_to_string(&self.get_tendermint_filename())
             .and_then(|contents| {
@@ -199,7 +209,7 @@ impl InitCommand {
             })
             .map_err(|_e| format_err!("read tendermint genesis error"))
     }
-    pub fn write_tendermint_genesis(&self) -> Result<(), Error> {
+    fn write_tendermint_genesis(&self) -> Result<(), Error> {
         println!("write genesis to {}", self.get_tendermint_filename());
 
         let app_hash = self.app_hash.clone();
@@ -229,7 +239,7 @@ impl InitCommand {
             })
             .map_err(|_e| format_err!("write tendermint genesis error"))
     }
-    pub fn prepare_tendermint(&self) -> Result<(), Error> {
+    fn prepare_tendermint(&self) -> Result<(), Error> {
         // check whether file exists
         fs::read_to_string(&self.get_tendermint_filename())
             .or_else(|_e| {
@@ -245,7 +255,7 @@ impl InitCommand {
             })
             .map(|_e| ())
     }
-    pub fn read_staking_address(&mut self) -> Result<(), Error> {
+    fn read_staking_address(&mut self) -> Result<(), Error> {
         let storage = SledStorage::new(InitCommand::storage_path())?;
         let wallet_client = DefaultWalletClient::builder()
             .with_wallet(storage)
@@ -282,20 +292,20 @@ impl InitCommand {
             .map_err(|e| format_err!("init error={}", e))
     }
 
-    pub fn storage_path() -> String {
+    fn storage_path() -> String {
         match std::env::var("CRYPTO_CLIENT_STORAGE") {
             Ok(path) => path,
             Err(_) => ".storage".to_owned(),
         }
     }
 
-    pub fn ask_passphrase() -> client_common::Result<SecUtf8> {
+    fn ask_passphrase() -> client_common::Result<SecUtf8> {
         InitCommand::ask("Enter passphrase: ");
         Ok(password().context(ErrorKind::IoError)?.into())
     }
 
     /// Print a question, in bold, without creating a new line.
-    pub fn ask(q: &str) {
+    fn ask(q: &str) {
         print!("\u{1B}[1m{}\u{1B}[0m", q);
         io::stdout().flush().unwrap();
     }
