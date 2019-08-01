@@ -54,7 +54,7 @@ impl EnclaveProxy for MockClient {
                 // verify_bonded_deposit(maintx, witness, extra_info, input_transactions, account)?
                 // verify_unbonded_withdraw(maintx, extra_info, account)?
                 match (tx, plain_tx) {
-                    (_, Some(PlainTxAux::TransferTx(maintx, witness))) => {
+                    (_, Ok(PlainTxAux::TransferTx(maintx, witness))) => {
                         let result = verify_transfer(&maintx, &witness, info, inputs);
                         if let Ok(fee) = result {
                             EnclaveResponse::VerifyTx(Ok((fee, account)))
@@ -62,14 +62,11 @@ impl EnclaveProxy for MockClient {
                             EnclaveResponse::VerifyTx(Err(()))
                         }
                     }
-                    (
-                        TxAux::DepositStakeTx { tx, .. },
-                        Some(PlainTxAux::DepositStakeTx(witness)),
-                    ) => {
+                    (TxAux::DepositStakeTx { tx, .. }, Ok(PlainTxAux::DepositStakeTx(witness))) => {
                         let result = verify_bonded_deposit(&tx, &witness, info, inputs, account);
                         EnclaveResponse::VerifyTx(result.map_err(|_| ()))
                     }
-                    (_, Some(PlainTxAux::WithdrawUnbondedStakeTx(tx))) => {
+                    (_, Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx))) => {
                         let result = verify_unbonded_withdraw(
                             &tx,
                             info,
@@ -77,7 +74,6 @@ impl EnclaveProxy for MockClient {
                         );
                         EnclaveResponse::VerifyTx(result.map_err(|_| ()))
                     }
-
                     _ => EnclaveResponse::UnsupportedTxType,
                 }
             }

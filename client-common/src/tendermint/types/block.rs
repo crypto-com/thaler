@@ -3,12 +3,12 @@ use base64::decode;
 use chrono::offset::Utc;
 use chrono::DateTime;
 use failure::ResultExt;
-use parity_codec::Decode;
+use parity_scale_codec::Decode;
 use serde::Deserialize;
 
 use chain_core::tx::TxAux;
 
-use crate::{Error, ErrorKind, Result, Transaction};
+use crate::{ErrorKind, Result, Transaction};
 
 #[derive(Debug, Deserialize)]
 pub struct Block {
@@ -45,7 +45,7 @@ impl Block {
                     let decoded =
                         decode(&raw_transaction).context(ErrorKind::DeserializationError)?;
                     let tx_aux = TxAux::decode(&mut decoded.as_slice())
-                        .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                        .context(ErrorKind::DeserializationError)?;
 
                     Ok(tx_aux)
                 })
@@ -88,7 +88,7 @@ mod tests {
     use std::str::FromStr;
 
     use base64::encode;
-    use parity_codec::Encode;
+    use parity_scale_codec::Encode;
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
     use chain_core::init::coin::Coin;

@@ -1,4 +1,4 @@
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use secp256k1::key::PublicKey;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -42,17 +42,18 @@ impl Encode for TxAccessPolicy {
 }
 
 impl Decode for TxAccessPolicy {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let tag = input.read_byte()?;
         let constructor_len = input.read_byte()?;
         match (tag, constructor_len) {
             (0, 2) => {
                 let rawkey = RawPubkey::decode(input)?;
-                let view_key = PublicKey::from_slice(rawkey.as_bytes()).ok()?;
+                let view_key = PublicKey::from_slice(rawkey.as_bytes())
+                    .map_err(|_| Error::from("Unable to parse public key"))?;
                 let access = TxAccess::decode(input)?;
-                Some(TxAccessPolicy::new(view_key, access))
+                Ok(TxAccessPolicy::new(view_key, access))
             }
-            _ => None,
+            _ => Err(Error::from("Invalid tag and length")),
         }
     }
 }

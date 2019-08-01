@@ -16,7 +16,7 @@ use enclave_protocol::{
     EncryptionResponse,
 };
 use integer_encoding::VarInt;
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use std::convert::TryFrom;
 
 /// Generate generic ABCI ProofOp for the witness
@@ -63,7 +63,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             "mockencrypt" => {
                 let request = EncryptionRequest::decode(&mut _req.data.as_slice());
                 match request {
-                    Some(EncryptionRequest::TransferTx(tx, witness)) => {
+                    Ok(EncryptionRequest::TransferTx(tx, witness)) => {
                         let plain = PlainTxAux::TransferTx(tx.clone(), witness);
                         let mock = EncryptionResponse {
                             tx: TxAux::TransferTx {
@@ -79,7 +79,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                         };
                         resp.value = mock.encode();
                     }
-                    Some(EncryptionRequest::DepositStake(maintx, witness)) => {
+                    Ok(EncryptionRequest::DepositStake(maintx, witness)) => {
                         let plain = PlainTxAux::DepositStakeTx(witness);
                         let mock = EncryptionResponse {
                             tx: TxAux::DepositStakeTx {
@@ -93,7 +93,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                         };
                         resp.value = mock.encode();
                     }
-                    Some(EncryptionRequest::WithdrawStake(tx, _, witness)) => {
+                    Ok(EncryptionRequest::WithdrawStake(tx, _, witness)) => {
                         let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                         let mock = EncryptionResponse {
                             tx: TxAux::WithdrawUnbondedStakeTx {
@@ -118,7 +118,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             // FIXME: temporary mock
             "mockdecrypt" => {
                 let request = DecryptionRequest::decode(&mut _req.data.as_slice());
-                if let Some(DecryptionRequest {
+                if let Ok(DecryptionRequest {
                     body: DecryptionRequestBody { txs },
                     ..
                 }) = request
@@ -128,7 +128,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     for found in looked_up {
                         if let Ok(Some(uv)) = found {
                             let tx = TxWithOutputs::decode(&mut uv.to_vec().as_slice());
-                            if let Some(ttx) = tx {
+                            if let Ok(ttx) = tx {
                                 resp_txs.push(ttx);
                             }
                         }

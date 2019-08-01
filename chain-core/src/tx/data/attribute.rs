@@ -1,4 +1,4 @@
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::prelude::v1::Vec;
@@ -24,16 +24,16 @@ impl Encode for TxAttributes {
 }
 
 impl Decode for TxAttributes {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let tag = input.read_byte()?;
         let constructor_len = input.read_byte()?;
         match (tag, constructor_len) {
             (0, 2) => {
                 let chain_hex_id: u8 = input.read_byte()?;
                 let allowed_view: Vec<TxAccessPolicy> = Vec::decode(input)?;
-                Some(TxAttributes::new_with_access(chain_hex_id, allowed_view))
+                Ok(TxAttributes::new_with_access(chain_hex_id, allowed_view))
             }
-            _ => None,
+            _ => Err(Error::from("Invalid tag and length")),
         }
     }
 }

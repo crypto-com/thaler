@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 
-use parity_codec::{Decode, Encode};
+use failure::ResultExt;
+use parity_scale_codec::{Decode, Encode};
 
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
@@ -36,7 +37,10 @@ where
         let transaction = self
             .storage
             .get(KEYSPACE, id)?
-            .and_then(|bytes| Transaction::decode(&mut bytes.as_slice()));
+            .map(|bytes| {
+                Transaction::decode(&mut bytes.as_slice()).context(ErrorKind::DeserializationError)
+            })
+            .transpose()?;
 
         Ok(transaction)
     }

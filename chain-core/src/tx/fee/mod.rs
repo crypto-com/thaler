@@ -5,7 +5,7 @@
 
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::TxAux;
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
