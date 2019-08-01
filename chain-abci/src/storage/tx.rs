@@ -174,7 +174,7 @@ pub mod tests {
         verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw, TxWithOutputs,
     };
     use kvdb_memorydb::create;
-    use parity_codec::Encode;
+    use parity_scale_codec::Encode;
     use secp256k1::schnorrsig::schnorr_sign;
     use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
     use std::fmt::Debug;

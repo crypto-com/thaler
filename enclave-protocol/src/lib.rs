@@ -12,7 +12,7 @@ use chain_core::tx::{fee::Fee, TxAux};
 use chain_core::ChainInfo;
 use chain_tx_validation::TxWithOutputs;
 
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 /// requests sent from chain-abci app to enclave wrapper server
 /// FIXME: the variant will be smaller once the TX storage is on the enclave side
@@ -51,20 +51,20 @@ impl Encode for EnclaveRequest {
 }
 
 impl Decode for EnclaveRequest {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let tag = input.read_byte()?;
         match tag {
             0 => {
                 let chain_hex_id: u8 = input.read_byte()?;
-                Some(EnclaveRequest::CheckChain { chain_hex_id })
+                Ok(EnclaveRequest::CheckChain { chain_hex_id })
             }
             1 => {
                 let tx = TxAux::decode(input)?;
                 let account: Option<StakedState> = Option::decode(input)?;
                 let info = ChainInfo::decode(input)?;
-                Some(EnclaveRequest::VerifyTx { tx, account, info })
+                Ok(EnclaveRequest::VerifyTx { tx, account, info })
             }
-            _ => None,
+            _ => Err(Error::from("Invalid tag")),
         }
     }
 }
@@ -114,15 +114,15 @@ impl Encode for EnclaveResponse {
 }
 
 impl Decode for EnclaveResponse {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let tag = input.read_byte()?;
         match tag {
             0 => {
                 let result: u8 = input.read_byte()?;
                 if result == 0 {
-                    Some(EnclaveResponse::CheckChain(Ok(())))
+                    Ok(EnclaveResponse::CheckChain(Ok(())))
                 } else {
-                    Some(EnclaveResponse::CheckChain(Err(())))
+                    Ok(EnclaveResponse::CheckChain(Err(())))
                 }
             }
             1 => {
@@ -130,14 +130,14 @@ impl Decode for EnclaveResponse {
                 if result == 0 {
                     let fee = Coin::decode(input)?;
                     let acc: Option<StakedState> = Option::decode(input)?;
-                    Some(EnclaveResponse::VerifyTx(Ok((Fee::new(fee), acc))))
+                    Ok(EnclaveResponse::VerifyTx(Ok((Fee::new(fee), acc))))
                 } else {
-                    Some(EnclaveResponse::VerifyTx(Err(())))
+                    Ok(EnclaveResponse::VerifyTx(Err(())))
                 }
             }
-            2 => Some(EnclaveResponse::UnsupportedTxType),
-            3 => Some(EnclaveResponse::UnknownRequest),
-            _ => None,
+            2 => Ok(EnclaveResponse::UnsupportedTxType),
+            3 => Ok(EnclaveResponse::UnknownRequest),
+            _ => Err(Error::from("Invalid tag")),
         }
     }
 }

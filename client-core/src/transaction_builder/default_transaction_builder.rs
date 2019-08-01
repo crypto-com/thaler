@@ -137,7 +137,7 @@ fn build_transaction(
 mod tests {
     use super::*;
 
-    use parity_codec::{Decode, Encode};
+    use parity_scale_codec::{Decode, Encode};
 
     use chain_core::tx::data::input::{TxoIndex, TxoPointer};
     use chain_core::tx::data::TxId;
@@ -282,7 +282,7 @@ mod tests {
                 payload: TxObfuscated { txpayload, .. },
                 ..
             } => {
-                if let Some(PlainTxAux::TransferTx(transaction, witness)) =
+                if let Ok(PlainTxAux::TransferTx(transaction, witness)) =
                     PlainTxAux::decode(&mut txpayload.as_slice())
                 {
                     let output_value =

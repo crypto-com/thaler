@@ -9,4 +9,4 @@ edition = "2018"
 [dependencies]
 chain-core = { path = "../chain-core" }
 chain-tx-validation = { path = "../chain-tx-validation" }
-parity-codec = { version = "4.1.4", features = ["derive"] }
+parity-scale-codec = { version = "1.0", features = ["derive"] }
