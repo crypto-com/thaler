@@ -20,6 +20,5 @@ serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
 kvdb-memorydb = "0.1"
 dirs = "2.0.1"
-read_input = "0.8"
 quest = "0.3"
 secstr = "0.3.2"

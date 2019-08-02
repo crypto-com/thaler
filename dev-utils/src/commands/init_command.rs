@@ -8,7 +8,6 @@ use client_core::wallet::{DefaultWalletClient, WalletClient};
 use failure::ResultExt;
 use failure::{format_err, Error};
 use quest::{password, success};
-use read_input::prelude::*;
 use secstr::SecUtf8;
 use serde_json::json;
 use std::fs;
@@ -47,14 +46,15 @@ impl InitCommand {
 
     /// easily add distribution wallet for development
     fn read_wallet(&mut self, id: &str, default_address: &str, default_amount: &str) {
-        let address = input()
-            .msg(format!("wallet {}({}) address=", id, default_address))
-            .default(default_address.to_string())
-            .get();
-        let wallet = input()
-            .msg(format!("wallet {}({}) amount=", id, default_amount))
-            .default(default_amount.to_string())
-            .get();
+        let address = self.ask_string(
+            format!("wallet {}({}) address=", id, default_address).as_str(),
+            default_address,
+        );
+
+        let wallet = self.ask_string(
+            format!("wallet {}({}) amount=", id, default_amount).as_str(),
+            default_amount,
+        );
 
         self.do_read_wallet(address, wallet);
     }
@@ -111,10 +111,11 @@ impl InitCommand {
     fn read_information_genesis_time(&mut self) -> Result<(), Error> {
         // change
         let old_genesis_time = self.genesis_dev.genesis_time.to_rfc3339();
-        let new_genesis_time: String = input()
-            .msg(format!("genesis_time( {} )=", old_genesis_time))
-            .default(old_genesis_time)
-            .get();
+        let new_genesis_time: String = self.ask_string(
+            format!("genesis_time( {} )=", old_genesis_time).as_str(),
+            old_genesis_time.as_str(),
+        );
+
         self.genesis_dev.genesis_time =
             DateTime::from(DateTime::parse_from_rfc3339(&new_genesis_time).unwrap());
         Ok(())
@@ -140,35 +141,20 @@ impl InitCommand {
     fn read_information_incentives(&mut self) -> Result<(), Error> {
         assert!(self.distribution_addresses.len() >= 4);
 
-        self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(
-            &input()
-                .msg(format!(
-                    "launch_incentive_from({})=",
-                    self.distribution_addresses[1]
-                ))
-                .default(self.distribution_addresses[1].clone())
-                .get(),
-        )
+        self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(&self.ask_string(
+            format!("launch_incentive_from({})=", self.distribution_addresses[1]).as_str(),
+            self.distribution_addresses[1].as_str(),
+        ))
         .unwrap();
-        self.genesis_dev.launch_incentive_to = RedeemAddress::from_str(
-            &input()
-                .msg(format!(
-                    "launch_incentive_to({})=",
-                    self.distribution_addresses[2]
-                ))
-                .default(self.distribution_addresses[2].clone())
-                .get(),
-        )
+        self.genesis_dev.launch_incentive_to = RedeemAddress::from_str(&self.ask_string(
+            format!("launch_incentive_to({})=", self.distribution_addresses[2]).as_str(),
+            self.distribution_addresses[2].as_str(),
+        ))
         .unwrap();
-        self.genesis_dev.long_term_incentive = RedeemAddress::from_str(
-            &input()
-                .msg(format!(
-                    "long_term_incentive({})=",
-                    self.distribution_addresses[3]
-                ))
-                .default(self.distribution_addresses[3].clone())
-                .get(),
-        )
+        self.genesis_dev.long_term_incentive = RedeemAddress::from_str(&self.ask_string(
+            format!("long_term_incentive({})=", self.distribution_addresses[3]).as_str(),
+            self.distribution_addresses[3].as_str(),
+        ))
         .unwrap();
         Ok(())
     }
@@ -257,10 +243,8 @@ impl InitCommand {
             .with_wallet(storage)
             .build()?;
 
-        let name = input()
-            .msg("please enter wallet name=")
-            .default("my".to_string())
-            .get();
+        let name = self.ask_string("please enter wallet name=", "my");
+
         let passphrase = InitCommand::ask_passphrase()?;
         match wallet_client.new_wallet(&name.as_str(), &passphrase) {
             Ok(_a) => {}
@@ -304,5 +288,19 @@ impl InitCommand {
     fn ask(q: &str) {
         print!("\u{1B}[1m{}\u{1B}[0m", q);
         io::stdout().flush().unwrap();
+    }
+
+    fn ask_string(&self, msg: &str, default: &str) -> String {
+        quest::ask(msg);
+        match quest::text() {
+            Ok(a) => {
+                if "" == a {
+                    default.to_string()
+                } else {
+                    a
+                }
+            }
+            Err(_b) => default.to_string(),
+        }
     }
 }
