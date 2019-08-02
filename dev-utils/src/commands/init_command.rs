@@ -51,7 +51,7 @@ impl InitCommand {
             default_address,
         );
 
-        let wallet = self.ask_string(
+        let amount = self.ask_string(
             format!("wallet {}({}) amount=", id, default_amount).as_str(),
             default_amount,
         );
