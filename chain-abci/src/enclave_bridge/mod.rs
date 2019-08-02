@@ -8,7 +8,7 @@ pub mod mock;
 
 /// Abstracts over communication with an external process that does enclave calls
 pub trait EnclaveProxy: Sync + Send + Sized {
-    fn process_request(&self, request: EnclaveRequest) -> EnclaveResponse;
+    fn process_request(&mut self, request: EnclaveRequest) -> EnclaveResponse;
 }
 
 /// Provides communication with the enclave wrapper app over ZMQ
@@ -27,7 +27,7 @@ impl ZmqEnclaveClient {
 }
 
 impl EnclaveProxy for ZmqEnclaveClient {
-    fn process_request(&self, request: EnclaveRequest) -> EnclaveResponse {
+    fn process_request(&mut self, request: EnclaveRequest) -> EnclaveResponse {
         let asocket = Arc::clone(&self.socket);
         let socket = asocket.lock().unwrap();
         let req = request.encode();
