@@ -109,7 +109,7 @@ mod tests {
 
     use base64::encode;
     use chrono::DateTime;
-    use parity_codec::Encode;
+    use parity_scale_codec::Encode;
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
     use chain_core::common::TendermintEventType;

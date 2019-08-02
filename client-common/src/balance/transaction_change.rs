@@ -3,7 +3,7 @@ use std::str::FromStr;
 
 use chrono::offset::Utc;
 use chrono::DateTime;
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use serde::{Deserialize, Serialize};
 
 use chain_core::init::coin::Coin;
@@ -39,13 +39,14 @@ impl Encode for TransactionChange {
 }
 
 impl Decode for TransactionChange {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, Error> {
         let transaction_id = TxId::decode(input)?;
         let address = ExtendedAddr::decode(input)?;
         let balance_change = BalanceChange::decode(input)?;
         let block_height = u64::decode(input)?;
-        let block_time = DateTime::from_str(&String::decode(input)?).ok()?;
-        Some(TransactionChange {
+        let block_time = DateTime::from_str(&String::decode(input)?)
+            .map_err(|_| Error::from("Unable to parse block time"))?;
+        Ok(TransactionChange {
             transaction_id,
             address,
             balance_change,

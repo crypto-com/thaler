@@ -22,7 +22,7 @@ pub mod tx;
 use blake2::Blake2s;
 use common::{hash256, MerkleTree, Timespec, H256};
 use init::coin::Coin;
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use state::RewardsPoolState;
 use tx::fee::Fee;
 
@@ -67,12 +67,12 @@ impl Encode for ChainInfo {
 }
 
 impl Decode for ChainInfo {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let fee = Coin::decode(input)?;
         let chain_hex_id: u8 = input.read_byte()?;
         let previous_block_time = Timespec::decode(input)?;
         let unbonding_period = u32::decode(input)?;
-        Some(ChainInfo {
+        Ok(ChainInfo {
             min_fee_computed: Fee::new(fee),
             chain_hex_id,
             previous_block_time,

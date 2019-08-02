@@ -1,7 +1,7 @@
 /// Witness for Merklized Abstract Syntax Trees (MAST) + Schnorr
 pub mod tree;
 
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use std::fmt;
 use std::prelude::v1::Vec;
 // TODO: switch to normal signatures + explicit public key
@@ -75,17 +75,18 @@ impl Encode for TxInWitness {
 }
 
 impl Decode for TxInWitness {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let tag = input.read_byte()?;
         let constructor_len = input.read_byte()?;
         match (tag, constructor_len) {
             (0, 3) => {
                 let raw_sig = RawSignature::decode(input)?;
-                let schnorrsig = SchnorrSignature::from_default(&raw_sig).ok()?;
+                let schnorrsig = SchnorrSignature::from_default(&raw_sig)
+                    .map_err(|_| Error::from("Unable to parse schnorr signature"))?;
                 let proof = Proof::decode(input)?;
-                Some(TxInWitness::TreeSig(schnorrsig, proof))
+                Ok(TxInWitness::TreeSig(schnorrsig, proof))
             }
-            _ => None,
+            _ => Err(Error::from("Invalid tag and length")),
         }
     }
 }

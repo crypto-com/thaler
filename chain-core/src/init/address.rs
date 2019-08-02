@@ -13,7 +13,7 @@
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
 #[cfg(feature = "bech32")]
 use bech32::{self, u5, FromBase32, ToBase32};
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use std::prelude::v1::{String, ToString};
 use std::str::FromStr;
 use std::{fmt, ops};

@@ -1,5 +1,5 @@
 use failure::ResultExt;
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use secstr::SecUtf8;
 
 use chain_core::common::H256;
@@ -49,7 +49,8 @@ where
             .get_secure(KEYSPACE, name, passphrase)?
             .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
         Wallet::decode(&mut wallet_bytes.as_slice())
-            .ok_or_else(|| Error::from(ErrorKind::DeserializationError))
+            .context(ErrorKind::DeserializationError)
+            .map_err(Into::into)
     }
 
     fn set_wallet(&self, name: &str, passphrase: &SecUtf8, wallet: Wallet) -> Result<()> {
@@ -165,8 +166,8 @@ where
             .fetch_and_update_secure(KEYSPACE, name, passphrase, |value| {
                 let mut wallet_bytes =
                     value.ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
-                let mut wallet = Wallet::decode(&mut wallet_bytes)
-                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                let mut wallet =
+                    Wallet::decode(&mut wallet_bytes).context(ErrorKind::DeserializationError)?;
                 wallet.public_keys.push(public_key.clone());
 
                 Ok(Some(wallet.encode()))
@@ -180,8 +181,8 @@ where
             .fetch_and_update_secure(KEYSPACE, name, passphrase, |value| {
                 let mut wallet_bytes =
                     value.ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
-                let mut wallet = Wallet::decode(&mut wallet_bytes)
-                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                let mut wallet =
+                    Wallet::decode(&mut wallet_bytes).context(ErrorKind::DeserializationError)?;
                 wallet.root_hashes.push(root_hash);
 
                 Ok(Some(wallet.encode()))

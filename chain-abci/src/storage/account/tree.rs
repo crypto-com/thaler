@@ -6,7 +6,9 @@
 use blake2::{Blake2s, Digest};
 use chain_core::common::H256;
 use chain_core::state::account::Count;
-use parity_codec::{Decode as ScaleDecode, Encode as ScaleEncode, Input, Output};
+use parity_scale_codec::{
+    Decode as ScaleDecode, Encode as ScaleEncode, Error as ScaleError, Input, Output,
+};
 use starling::constants::KEY_LEN;
 use starling::merkle_bit::{BinaryMerkleTreeResult, MerkleBIT};
 use starling::traits::Hasher;
@@ -215,7 +217,7 @@ impl ScaleEncode for TreeNode {
 }
 
 impl ScaleDecode for TreeNode {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, ScaleError> {
         let tag = input.read_byte()?;
         let references = u64::decode(input)?;
         match tag {
@@ -225,7 +227,7 @@ impl ScaleDecode for TreeNode {
                 let one = H256::decode(input)?;
                 let split_index: u8 = input.read_byte()?;
                 let key = H256::decode(input)?;
-                Some(TreeNode {
+                Ok(TreeNode {
                     references,
                     node: NodeVariant::Branch(TreeBranch {
                         count,
@@ -239,7 +241,7 @@ impl ScaleDecode for TreeNode {
             1 => {
                 let key = H256::decode(input)?;
                 let data = H256::decode(input)?;
-                Some(TreeNode {
+                Ok(TreeNode {
                     references,
                     node: NodeVariant::Leaf(TreeLeaf { key, data }),
                 })
@@ -248,12 +250,12 @@ impl ScaleDecode for TreeNode {
                 let data: Vec<u8> = ScaleDecode::decode(input)?;
                 let mut tree_data = TreeData::new();
                 tree_data.set_value(&data);
-                Some(TreeNode {
+                Ok(TreeNode {
                     references,
                     node: NodeVariant::Data(tree_data),
                 })
             }
-            _ => None,
+            _ => Err(ScaleError::from("Invalid tag")),
         }
     }
 }
