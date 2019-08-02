@@ -63,10 +63,6 @@ impl InitCommand {
         let amount_coin = Coin::new(amount_u64).unwrap();
 
         let distribution = &mut self.genesis_dev.distribution;
-        println!(
-            "do_read_wallet in cro ={}",
-            RedeemAddress::from_str(&address).unwrap().to_string()
-        );
         distribution.insert(RedeemAddress::from_str(&address).unwrap(), amount_coin);
         self.remain_coin = (self.remain_coin - amount_coin).unwrap();
         self.distribution_addresses.push(address.to_string());
