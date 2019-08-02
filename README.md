@@ -329,7 +329,7 @@ Genesis funds are bonded funds, to transfer freely around, you first have to wit
 
 ```bash
 $ ./target/debug/client-cli address new --name Default --type Transfer
-cro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42asjwegvg
+dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg
 ```
 
 - Withdrawal Bonded Funds
@@ -341,7 +341,7 @@ cro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42asjwegvg
 $ ./target/debug/client-cli transaction new --chain-id AB --name Default --type Withdraw
 Enter passphrase: 
 Enter staking address: 0xbdb46d64ed9da69093490a578158b1a20d96370b
-Enter transfer address: cro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42asjwegvg
+Enter transfer address: dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg
 ```
 
 - Transfer CRO to another address
