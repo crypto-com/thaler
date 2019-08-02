@@ -2,7 +2,9 @@ use super::genesis_command::GenesisCommand;
 use super::genesis_dev_config::GenesisDevConfig;
 use chain_core::init::config::{InitialValidator, ValidatorKeyType};
 use chain_core::init::{address::RedeemAddress, coin::Coin};
+
 use chrono::DateTime;
+use chrono::SecondsFormat;
 use client_common::storage::SledStorage;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use failure::ResultExt;
@@ -139,7 +141,11 @@ impl InitCommand {
     }
     fn read_information_genesis_time(&mut self) -> Result<(), Error> {
         // change
-        let old_genesis_time = self.genesis_dev.genesis_time.to_rfc3339();
+        let old_genesis_time = self
+            .genesis_dev
+            .genesis_time
+            .to_rfc3339_opts(SecondsFormat::Micros, true);
+
         let new_genesis_time: String = self.ask_string(
             format!("genesis_time( {} )=", old_genesis_time).as_str(),
             old_genesis_time.as_str(),
@@ -228,8 +234,10 @@ impl InitCommand {
 
         let app_hash = self.app_hash.clone();
         let app_state = self.app_state.clone();
-        let gt = self.genesis_dev.genesis_time.to_rfc3339();
-
+        let gt = self
+            .genesis_dev
+            .genesis_time
+            .to_rfc3339_opts(SecondsFormat::Micros, true);
         let mut json_string = String::from("");
         fs::read_to_string(&self.get_tendermint_filename())
             .and_then(|contents| {
@@ -296,6 +304,7 @@ impl InitCommand {
     }
     pub fn execute(&mut self) -> Result<(), Error> {
         println!("initialize");
+
         self.prepare_tendermint()
             .and_then(|_| self.read_tendermint_genesis())
             .and_then(|_| self.read_information())
