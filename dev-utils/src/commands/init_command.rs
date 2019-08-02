@@ -95,10 +95,9 @@ impl InitCommand {
 
         self.check_chainid(&chainid).map(|_a| {
             self.chainid = chainid;
-            ()
         })
     }
-    fn read_infomration_wallets(&mut self) -> Result<(), Error> {
+    fn read_wallets(&mut self) -> Result<(), Error> {
         let default_address = RedeemAddress::default().to_string();
         let default_addresses = [
             "0xc55139f8d416511020293dd3b121ee8beb3bd469",
@@ -139,7 +138,7 @@ impl InitCommand {
         }
         Ok(())
     }
-    fn read_information_genesis_time(&mut self) -> Result<(), Error> {
+    fn read_genesis_time(&mut self) -> Result<(), Error> {
         // change
         let old_genesis_time = self
             .genesis_dev
@@ -155,7 +154,7 @@ impl InitCommand {
             DateTime::from(DateTime::parse_from_rfc3339(&new_genesis_time).unwrap());
         Ok(())
     }
-    fn read_information_councils(&mut self) -> Result<(), Error> {
+    fn read_councils(&mut self) -> Result<(), Error> {
         let councils = &mut self.genesis_dev.council_nodes;
         println!(
             "{} {}",
@@ -173,7 +172,7 @@ impl InitCommand {
         councils.push(staking_validator);
         Ok(())
     }
-    fn read_information_incentives(&mut self) -> Result<(), Error> {
+    fn read_incentives(&mut self) -> Result<(), Error> {
         assert!(self.distribution_addresses.len() >= 4);
 
         self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(&self.ask_string(
@@ -197,10 +196,10 @@ impl InitCommand {
     fn read_information(&mut self) -> Result<(), Error> {
         self.read_chainid()
             .and_then(|_| self.read_staking_address())
-            .and_then(|_| self.read_infomration_wallets())
-            .and_then(|_| self.read_information_genesis_time())
-            .and_then(|_| self.read_information_councils())
-            .and_then(|_| self.read_information_incentives())
+            .and_then(|_| self.read_wallets())
+            .and_then(|_| self.read_genesis_time())
+            .and_then(|_| self.read_councils())
+            .and_then(|_| self.read_incentives())
     }
     fn generate_app_info(&mut self) -> Result<(), Error> {
         // app_hash,  app_state
