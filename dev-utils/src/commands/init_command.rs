@@ -56,7 +56,7 @@ impl InitCommand {
             default_amount,
         );
 
-        self.do_read_wallet(address, wallet);
+        self.do_read_wallet(address, amount);
     }
     fn do_read_wallet(&mut self, address: String, amount_cro: String) {
         let amount_u64 = (amount_cro.parse::<f64>().unwrap() * 1_0000_0000_f64) as u64;
