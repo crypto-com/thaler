@@ -2,7 +2,9 @@ use super::genesis_command::GenesisCommand;
 use super::genesis_dev_config::GenesisDevConfig;
 use chain_core::init::config::{InitialValidator, ValidatorKeyType};
 use chain_core::init::{address::RedeemAddress, coin::Coin};
+
 use chrono::DateTime;
+use chrono::SecondsFormat;
 use client_common::storage::SledStorage;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use failure::ResultExt;
@@ -22,6 +24,7 @@ use client_common::ErrorKind;
 
 #[derive(Debug)]
 pub struct InitCommand {
+    chainid: String,
     app_hash: String,
     app_state: String,
     genesis_dev: GenesisDevConfig,
@@ -34,6 +37,7 @@ pub struct InitCommand {
 impl InitCommand {
     pub fn new() -> Self {
         InitCommand {
+            chainid: "".to_string(),
             app_hash: "".to_string(),
             app_state: "".to_string(),
             genesis_dev: GenesisDevConfig::new(),
@@ -51,12 +55,12 @@ impl InitCommand {
             default_address,
         );
 
-        let wallet = self.ask_string(
+        let amount = self.ask_string(
             format!("wallet {}({}) amount=", id, default_amount).as_str(),
             default_amount,
         );
 
-        self.do_read_wallet(address, wallet);
+        self.do_read_wallet(address, amount);
     }
     fn do_read_wallet(&mut self, address: String, amount_cro: String) {
         let amount_u64 = (amount_cro.parse::<f64>().unwrap() * 1_0000_0000_f64) as u64;
@@ -67,7 +71,33 @@ impl InitCommand {
         self.remain_coin = (self.remain_coin - amount_coin).unwrap();
         self.distribution_addresses.push(address.to_string());
     }
-    fn read_infomration_wallets(&mut self) -> Result<(), Error> {
+    fn check_chainid(&self, chainid: &String) -> Result<(), Error> {
+        if chainid.len() < 6 {
+            return Err(format_err!("chainid too short"));
+        }
+        let networkid = &chainid[(chainid.len() - 2)..];
+        let netkind = &chainid[..4];
+        if "main" == netkind || "test" == netkind {
+            // ok
+        } else {
+            return Err(format_err!("chain-id should start from main or test"));
+        }
+
+        hex::decode(networkid)
+            .map(|_a| ())
+            .map_err(|_a| format_err!("last two digits should be hex string such as AB"))
+    }
+    fn read_chainid(&mut self) -> Result<(), Error> {
+        let chainid = self.ask_string(
+            format!("new chain id( {} )=", self.chainid).as_str(),
+            self.chainid.as_str(),
+        );
+
+        self.check_chainid(&chainid).map(|_a| {
+            self.chainid = chainid;
+        })
+    }
+    fn read_wallets(&mut self) -> Result<(), Error> {
         let default_address = RedeemAddress::default().to_string();
         let default_addresses = [
             "0xc55139f8d416511020293dd3b121ee8beb3bd469",
@@ -108,9 +138,13 @@ impl InitCommand {
         }
         Ok(())
     }
-    fn read_information_genesis_time(&mut self) -> Result<(), Error> {
+    fn read_genesis_time(&mut self) -> Result<(), Error> {
         // change
-        let old_genesis_time = self.genesis_dev.genesis_time.to_rfc3339();
+        let old_genesis_time = self
+            .genesis_dev
+            .genesis_time
+            .to_rfc3339_opts(SecondsFormat::Micros, true);
+
         let new_genesis_time: String = self.ask_string(
             format!("genesis_time( {} )=", old_genesis_time).as_str(),
             old_genesis_time.as_str(),
@@ -120,7 +154,7 @@ impl InitCommand {
             DateTime::from(DateTime::parse_from_rfc3339(&new_genesis_time).unwrap());
         Ok(())
     }
-    fn read_information_councils(&mut self) -> Result<(), Error> {
+    fn read_councils(&mut self) -> Result<(), Error> {
         let councils = &mut self.genesis_dev.council_nodes;
         println!(
             "{} {}",
@@ -138,7 +172,7 @@ impl InitCommand {
         councils.push(staking_validator);
         Ok(())
     }
-    fn read_information_incentives(&mut self) -> Result<(), Error> {
+    fn read_incentives(&mut self) -> Result<(), Error> {
         assert!(self.distribution_addresses.len() >= 4);
 
         self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(&self.ask_string(
@@ -160,10 +194,12 @@ impl InitCommand {
     }
     // read information from user
     fn read_information(&mut self) -> Result<(), Error> {
-        self.read_infomration_wallets()
-            .and_then(|_| self.read_information_genesis_time())
-            .and_then(|_| self.read_information_councils())
-            .and_then(|_| self.read_information_incentives())
+        self.read_chainid()
+            .and_then(|_| self.read_staking_address())
+            .and_then(|_| self.read_wallets())
+            .and_then(|_| self.read_genesis_time())
+            .and_then(|_| self.read_councils())
+            .and_then(|_| self.read_incentives())
     }
     fn generate_app_info(&mut self) -> Result<(), Error> {
         // app_hash,  app_state
@@ -187,6 +223,7 @@ impl InitCommand {
                 let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let pub_key = &json["validators"][0]["pub_key"]["value"];
                 self.tendermint_pubkey = pub_key.as_str().unwrap().to_string();
+                self.chainid = json["chain_id"].as_str().unwrap().to_string();
                 Ok(())
             })
             .map_err(|_e| format_err!("read tendermint genesis error"))
@@ -196,8 +233,10 @@ impl InitCommand {
 
         let app_hash = self.app_hash.clone();
         let app_state = self.app_state.clone();
-        let gt = self.genesis_dev.genesis_time.to_rfc3339();
-
+        let gt = self
+            .genesis_dev
+            .genesis_time
+            .to_rfc3339_opts(SecondsFormat::Micros, true);
         let mut json_string = String::from("");
         fs::read_to_string(&self.get_tendermint_filename())
             .and_then(|contents| {
@@ -207,6 +246,7 @@ impl InitCommand {
                 obj.insert("app_state".to_string(), json!(""));
                 obj["app_state"] = json!(app_state);
                 obj["genesis_time"] = json!(gt);
+                obj["chain_id"] = json!(self.chainid.clone());
                 json_string = serde_json::to_string_pretty(&json).unwrap();
                 println!("{}", json_string);
 
@@ -263,9 +303,9 @@ impl InitCommand {
     }
     pub fn execute(&mut self) -> Result<(), Error> {
         println!("initialize");
+
         self.prepare_tendermint()
             .and_then(|_| self.read_tendermint_genesis())
-            .and_then(|_| self.read_staking_address())
             .and_then(|_| self.read_information())
             .and_then(|_| self.generate_app_info())
             .and_then(|_| self.write_tendermint_genesis())
