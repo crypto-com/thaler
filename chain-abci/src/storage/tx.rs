@@ -1,19 +1,16 @@
 use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::account::AccountStorage;
 use crate::storage::account::AccountWrapper;
-use crate::storage::{COL_BODIES, COL_TX_META};
+use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
 use chain_core::state::account::{to_stake_key, StakedState, StakedStateAddress};
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
-use chain_tx_validation::{
-    verify_unbonding, witness::verify_tx_recover_address, ChainInfo, Error, TxWithOutputs,
-};
+use chain_tx_validation::{verify_unbonding, witness::verify_tx_recover_address, ChainInfo, Error};
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::KeyValueDB;
-use parity_scale_codec::Decode;
 use starling::constants::KEY_LEN;
 use std::sync::Arc;
 
@@ -41,15 +38,11 @@ pub fn get_account(
     }
 }
 
-fn check_spent_input_lookup(
-    inputs: &[TxoPointer],
-    db: Arc<dyn KeyValueDB>,
-) -> Result<Vec<TxWithOutputs>, Error> {
+fn check_spent_input_lookup(inputs: &[TxoPointer], db: Arc<dyn KeyValueDB>) -> Result<(), Error> {
     // check that there are inputs
     if inputs.is_empty() {
         return Err(Error::NoInputs);
     }
-    let mut result = Vec::with_capacity(inputs.len());
     for txin in inputs.iter() {
         let txo = db.get(COL_TX_META, &txin.id[..]);
         match txo {
@@ -62,10 +55,6 @@ fn check_spent_input_lookup(
                 if bv.unwrap() {
                     return Err(Error::InputSpent);
                 }
-                let txdata = db.get(COL_BODIES, &txin.id[..]).unwrap().unwrap().to_vec();
-                // only TxWithOutputs should have an entry in COL_TX_META
-                let tx = TxWithOutputs::decode(&mut txdata.as_slice()).unwrap();
-                result.push(tx);
             }
             Ok(None) => {
                 return Err(Error::InvalidInput);
@@ -75,13 +64,13 @@ fn check_spent_input_lookup(
             }
         }
     }
-    Ok(result)
+    Ok(())
 }
 
 /// Checks TX against the current DB and returns an `Error` if something fails.
 /// If OK, returns the paid fee.
 pub fn verify<T: EnclaveProxy>(
-    tx_validator: &T,
+    tx_validator: &mut T,
     txaux: &TxAux,
     extra_info: ChainInfo,
     last_account_root_hash: &StarlingFixedKey,
@@ -90,13 +79,10 @@ pub fn verify<T: EnclaveProxy>(
 ) -> Result<(Fee, Option<StakedState>), Error> {
     let paid_fee = match txaux {
         TxAux::TransferTx { inputs, .. } => {
-            // TODO: the input lookup would probably later be done on the enclave side (as it'll store the sealed TX data)
-            // so one will only check and send TX IDs
-            let input_transactions = check_spent_input_lookup(&inputs, db)?;
+            check_spent_input_lookup(&inputs, db)?;
             let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
                 tx: txaux.clone(),
                 account: None,
-                inputs: input_transactions,
                 info: extra_info,
             });
             match response {
@@ -115,13 +101,10 @@ pub fn verify<T: EnclaveProxy>(
                     return Err(e);
                 }
             };
-            // TODO: the input lookup would probably later be done on the enclave side (as it'll store the sealed TX data)
-            // so one will only check and send TX IDs
-            let input_transactions = check_spent_input_lookup(&tx.inputs, db)?;
+            check_spent_input_lookup(&tx.inputs, db)?;
             let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
                 tx: txaux.clone(),
                 account,
-                inputs: input_transactions,
                 info: extra_info,
             });
             match response {
@@ -148,7 +131,6 @@ pub fn verify<T: EnclaveProxy>(
             let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
                 tx: txaux.clone(),
                 account: Some(account),
-                inputs: vec![],
                 info: extra_info,
             });
             match response {
@@ -255,6 +237,7 @@ pub mod tests {
 
     fn prepate_init_tx(
         timelocked: bool,
+        mock_client: &mut MockClient,
     ) -> (
         Arc<dyn KeyValueDB>,
         TxoPointer,
@@ -273,11 +256,9 @@ pub mod tests {
         let old_tx_id = old_tx.id();
 
         let mut inittx = db.transaction();
-        inittx.put(
-            COL_BODIES,
-            &old_tx_id[..],
-            &TxWithOutputs::Transfer(old_tx).encode(),
-        );
+        mock_client
+            .local_tx_store
+            .insert(old_tx_id, TxWithOutputs::Transfer(old_tx));
 
         inittx.put(
             COL_TX_META,
@@ -291,6 +272,7 @@ pub mod tests {
 
     fn prepare_app_valid_transfer_tx(
         timelocked: bool,
+        mock_client: &mut MockClient,
     ) -> (
         Arc<dyn KeyValueDB>,
         TxAux,
@@ -300,7 +282,7 @@ pub mod tests {
         SecretKey,
         AccountStorage,
     ) {
-        let (db, txp, addr, merkle_tree, secret_key) = prepate_init_tx(timelocked);
+        let (db, txp, addr, merkle_tree, secret_key) = prepate_init_tx(timelocked, mock_client);
         let secp = Secp256k1::new();
         let mut tx = Tx::new();
         tx.add_input(txp);
@@ -370,7 +352,7 @@ pub mod tests {
             unbonding_period: 1,
         };
         let result = verify(
-            &get_enclave_bridge_mock(),
+            &mut get_enclave_bridge_mock(),
             &txaux,
             extra_info,
             &last_account_root_hash,
@@ -393,13 +375,13 @@ pub mod tests {
             previous_block_time: 0,
             unbonding_period: 1,
         };
-        let mock_bridge = get_enclave_bridge_mock();
+        let mut mock_bridge = get_enclave_bridge_mock();
         // WrongChainHexId
         {
             let mut extra_info = extra_info.clone();
             extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -411,7 +393,7 @@ pub mod tests {
         // AccountNotFound
         {
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &[0; 32],
@@ -429,7 +411,7 @@ pub mod tests {
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -447,7 +429,7 @@ pub mod tests {
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -465,7 +447,7 @@ pub mod tests {
                 get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -547,7 +529,7 @@ pub mod tests {
             unbonding_period: 1,
         };
         let result = verify(
-            &get_enclave_bridge_mock(),
+            &mut get_enclave_bridge_mock(),
             &txaux,
             extra_info,
             &last_account_root_hash,
@@ -570,13 +552,13 @@ pub mod tests {
             previous_block_time: 0,
             unbonding_period: 1,
         };
-        let mock_bridge = get_enclave_bridge_mock();
+        let mut mock_bridge = get_enclave_bridge_mock();
         // WrongChainHexId
         {
             let mut extra_info = extra_info.clone();
             extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -599,7 +581,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -622,7 +604,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -647,7 +629,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -673,7 +655,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -687,7 +669,7 @@ pub mod tests {
         // AccountNotFound
         {
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &[0; 32],
@@ -708,7 +690,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -731,7 +713,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -747,7 +729,7 @@ pub mod tests {
             let (txaux, _, _, account, _, accounts, last_account_root_hash) =
                 prepare_app_valid_withdraw_tx(20);
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -762,6 +744,7 @@ pub mod tests {
 
     fn prepare_app_valid_deposit_tx(
         timelocked: bool,
+        mock_client: &mut MockClient,
     ) -> (
         Arc<dyn KeyValueDB>,
         TxAux,
@@ -770,7 +753,7 @@ pub mod tests {
         SecretKey,
         AccountStorage,
     ) {
-        let (db, txp, _, merkle_tree, secret_key) = prepate_init_tx(timelocked);
+        let (db, txp, _, merkle_tree, secret_key) = prepate_init_tx(timelocked, mock_client);
         let secp = Secp256k1::new();
         let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
         let pk2 = PublicKey::from_secret_key(&secp, &sk2);
@@ -805,7 +788,9 @@ pub mod tests {
 
     #[test]
     fn existing_utxo_input_tx_should_verify() {
-        let (db, txaux, _, _, _, _, accounts) = prepare_app_valid_transfer_tx(false);
+        let mut mock_bridge = get_enclave_bridge_mock();
+        let (db, txaux, _, _, _, _, accounts) =
+            prepare_app_valid_transfer_tx(false, &mut mock_bridge);
         let extra_info = ChainInfo {
             min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
                 .calculate_for_txaux(&txaux)
@@ -814,10 +799,9 @@ pub mod tests {
             previous_block_time: 0,
             unbonding_period: 1,
         };
-        let mock_bridge = get_enclave_bridge_mock();
         let last_account_root_hash = [0u8; 32];
         let result = verify(
-            &mock_bridge,
+            &mut mock_bridge,
             &txaux,
             extra_info,
             &last_account_root_hash,
@@ -825,9 +809,9 @@ pub mod tests {
             &accounts,
         );
         assert!(result.is_ok());
-        let (db, txaux, _, _, _, accounts) = prepare_app_valid_deposit_tx(false);
+        let (db, txaux, _, _, _, accounts) = prepare_app_valid_deposit_tx(false, &mut mock_bridge);
         let result = verify(
-            &mock_bridge,
+            &mut mock_bridge,
             &txaux,
             extra_info,
             &last_account_root_hash,
@@ -850,7 +834,9 @@ pub mod tests {
 
     #[test]
     fn test_deposit_verify_fail() {
-        let (db, txaux, tx, witness, secret_key, accounts) = prepare_app_valid_deposit_tx(false);
+        let mut mock_bridge = get_enclave_bridge_mock();
+        let (db, txaux, tx, witness, secret_key, accounts) =
+            prepare_app_valid_deposit_tx(false, &mut mock_bridge);
         let extra_info = ChainInfo {
             min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
                 .calculate_for_txaux(&txaux)
@@ -859,14 +845,13 @@ pub mod tests {
             previous_block_time: 0,
             unbonding_period: 1,
         };
-        let mock_bridge = get_enclave_bridge_mock();
         let last_account_root_hash = [0u8; 32];
         // WrongChainHexId
         {
             let mut extra_info = extra_info.clone();
             extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -888,7 +873,7 @@ pub mod tests {
                 Some(tx.clone()),
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -911,7 +896,7 @@ pub mod tests {
                 Some(tx.clone()),
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -934,7 +919,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -954,7 +939,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -976,7 +961,7 @@ pub mod tests {
             db.write(inittx).unwrap();
 
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1030,7 +1015,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1042,7 +1027,7 @@ pub mod tests {
         // InvalidInput
         {
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1056,7 +1041,7 @@ pub mod tests {
             let mut extra_info = extra_info.clone();
             extra_info.min_fee_computed = Fee::new(Coin::one());
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1138,8 +1123,9 @@ pub mod tests {
 
     #[test]
     fn test_transfer_verify_fail() {
+        let mut mock_bridge = get_enclave_bridge_mock();
         let (db, txaux, tx, witness, merkle_tree, secret_key, accounts) =
-            prepare_app_valid_transfer_tx(false);
+            prepare_app_valid_transfer_tx(false, &mut mock_bridge);
         let extra_info = ChainInfo {
             min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
                 .calculate_for_txaux(&txaux)
@@ -1148,14 +1134,13 @@ pub mod tests {
             previous_block_time: 0,
             unbonding_period: 1,
         };
-        let mock_bridge = get_enclave_bridge_mock();
         let last_account_root_hash = [0u8; 32];
         // WrongChainHexId
         {
             let mut extra_info = extra_info.clone();
             extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
             let result = verify(
-                &MockClient::new(DEFAULT_CHAIN_ID + 1),
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1177,7 +1162,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1199,7 +1184,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1222,7 +1207,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1244,7 +1229,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1267,7 +1252,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1285,7 +1270,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1316,7 +1301,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1336,7 +1321,7 @@ pub mod tests {
             db.write(inittx).unwrap();
 
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1389,7 +1374,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1401,7 +1386,7 @@ pub mod tests {
         // InvalidInput
         {
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1426,7 +1411,7 @@ pub mod tests {
                 None,
             );
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
@@ -1437,7 +1422,8 @@ pub mod tests {
         }
         // OutputInTimelock
         {
-            let (db, txaux, tx, witness, _, _, accounts) = prepare_app_valid_transfer_tx(true);
+            let (db, txaux, tx, witness, _, _, accounts) =
+                prepare_app_valid_transfer_tx(true, &mut mock_bridge);
             let addr = get_address(&Secp256k1::new(), &secret_key).0;
             let input_tx = get_old_tx(addr, true);
             let result = verify_transfer(
@@ -1448,7 +1434,7 @@ pub mod tests {
             );
             expect_error(&result, Error::OutputInTimelock);
             let result = verify(
-                &mock_bridge,
+                &mut mock_bridge,
                 &txaux,
                 extra_info,
                 &last_account_root_hash,
