@@ -8,7 +8,7 @@ use crate::tx::data::output::TxOut;
 use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
 use crate::tx::TransactionId;
 use blake2::Blake2s;
-use parity_codec::{Decode, Encode, Input, Output};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::prelude::v1::Vec;
@@ -193,15 +193,15 @@ impl Encode for StakedStateOpAttributes {
 }
 
 impl Decode for StakedStateOpAttributes {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let tag = input.read_byte()?;
         let constructor_len = input.read_byte()?;
         match (tag, constructor_len) {
             (0, 1) => {
                 let chain_hex_id: u8 = input.read_byte()?;
-                Some(StakedStateOpAttributes { chain_hex_id })
+                Ok(StakedStateOpAttributes { chain_hex_id })
             }
-            _ => None,
+            _ => Err(Error::from("Invalid tag and length")),
         }
     }
 }
@@ -339,17 +339,19 @@ impl Encode for StakedStateOpWitness {
 }
 
 impl Decode for StakedStateOpWitness {
-    fn decode<I: Input>(input: &mut I) -> Option<Self> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let tag = input.read_byte()?;
         match tag {
             0 => {
                 let rid: u8 = input.read_byte()?;
                 let raw_sig = RawSignature::decode(input)?;
-                let recovery_id = RecoveryId::from_i32(i32::from(rid)).ok()?;
-                let sig = RecoverableSignature::from_compact(&raw_sig, recovery_id).ok()?;
-                Some(StakedStateOpWitness::BasicRedeem(sig))
+                let recovery_id = RecoveryId::from_i32(i32::from(rid))
+                    .map_err(|_| Error::from("Unable to parse recovery ID"))?;
+                let sig = RecoverableSignature::from_compact(&raw_sig, recovery_id)
+                    .map_err(|_| Error::from("Unable to create recoverable signature"))?;
+                Ok(StakedStateOpWitness::BasicRedeem(sig))
             }
-            _ => None,
+            _ => Err(Error::from("Invalid tag")),
         }
     }
 }

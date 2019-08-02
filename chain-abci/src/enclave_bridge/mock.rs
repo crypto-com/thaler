@@ -1,23 +1,40 @@
 #![allow(dead_code)]
 ///! TODO: feature-guard when workspaces can be built with --features flag: https://github.com/rust-lang/cargo/issues/5015
 use super::*;
+use chain_core::state::account::DepositBondTx;
+use chain_core::tx::data::TxId;
 use chain_core::tx::PlainTxAux;
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use chain_core::tx::TxObfuscated;
+use chain_core::tx::TxWithOutputs;
 use chain_tx_validation::{verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw};
+use std::collections::HashMap;
 
 pub struct MockClient {
     chain_hex_id: u8,
+    pub local_tx_store: HashMap<TxId, TxWithOutputs>,
 }
 
 impl MockClient {
     pub fn new(chain_hex_id: u8) -> Self {
-        MockClient { chain_hex_id }
+        MockClient {
+            chain_hex_id,
+            local_tx_store: HashMap::new(),
+        }
+    }
+
+    fn lookup(&self, txid: &TxId) -> TxWithOutputs {
+        let tx = self
+            .local_tx_store
+            .get(txid)
+            .expect("mock is expected to be fed valid/existing TX");
+        (*tx).clone()
     }
 }
 
 impl EnclaveProxy for MockClient {
-    fn process_request(&self, request: EnclaveRequest) -> EnclaveResponse {
+    fn process_request(&mut self, request: EnclaveRequest) -> EnclaveResponse {
         match request {
             EnclaveRequest::CheckChain { chain_hex_id } => {
                 if chain_hex_id == self.chain_hex_id {
@@ -26,25 +43,28 @@ impl EnclaveProxy for MockClient {
                     EnclaveResponse::CheckChain(Err(()))
                 }
             }
-            EnclaveRequest::VerifyTx {
-                tx,
-                account,
-                inputs,
-                info,
-            } => {
-                let txpayload = match &tx {
+            EnclaveRequest::VerifyTx { tx, account, info } => {
+                let (txpayload, inputs) = match &tx {
                     TxAux::TransferTx {
+                        inputs,
                         payload: TxObfuscated { txpayload, .. },
                         ..
-                    } => txpayload,
+                    } => (
+                        txpayload,
+                        inputs.iter().map(|x| self.lookup(&x.id)).collect(),
+                    ),
                     TxAux::DepositStakeTx {
+                        tx: DepositBondTx { inputs, .. },
                         payload: TxObfuscated { txpayload, .. },
                         ..
-                    } => txpayload,
+                    } => (
+                        txpayload,
+                        inputs.iter().map(|x| self.lookup(&x.id)).collect(),
+                    ),
                     TxAux::WithdrawUnbondedStakeTx {
                         payload: TxObfuscated { txpayload, .. },
                         ..
-                    } => txpayload,
+                    } => (txpayload, vec![]),
                     _ => {
                         return EnclaveResponse::UnsupportedTxType;
                     }
@@ -54,30 +74,34 @@ impl EnclaveProxy for MockClient {
                 // verify_bonded_deposit(maintx, witness, extra_info, input_transactions, account)?
                 // verify_unbonded_withdraw(maintx, extra_info, account)?
                 match (tx, plain_tx) {
-                    (_, Some(PlainTxAux::TransferTx(maintx, witness))) => {
+                    (_, Ok(PlainTxAux::TransferTx(maintx, witness))) => {
                         let result = verify_transfer(&maintx, &witness, info, inputs);
                         if let Ok(fee) = result {
+                            self.local_tx_store
+                                .insert(maintx.id(), TxWithOutputs::Transfer(maintx));
                             EnclaveResponse::VerifyTx(Ok((fee, account)))
                         } else {
                             EnclaveResponse::VerifyTx(Err(()))
                         }
                     }
-                    (
-                        TxAux::DepositStakeTx { tx, .. },
-                        Some(PlainTxAux::DepositStakeTx(witness)),
-                    ) => {
+                    (TxAux::DepositStakeTx { tx, .. }, Ok(PlainTxAux::DepositStakeTx(witness))) => {
                         let result = verify_bonded_deposit(&tx, &witness, info, inputs, account);
                         EnclaveResponse::VerifyTx(result.map_err(|_| ()))
                     }
-                    (_, Some(PlainTxAux::WithdrawUnbondedStakeTx(tx))) => {
+                    (_, Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx))) => {
                         let result = verify_unbonded_withdraw(
                             &tx,
                             info,
                             account.expect("account exists in withdraw"),
                         );
-                        EnclaveResponse::VerifyTx(result.map_err(|_| ()))
+                        if result.is_ok() {
+                            self.local_tx_store
+                                .insert(tx.id(), TxWithOutputs::StakeWithdraw(tx));
+                            EnclaveResponse::VerifyTx(result.map_err(|_| ()))
+                        } else {
+                            EnclaveResponse::VerifyTx(Err(()))
+                        }
                     }
-
                     _ => EnclaveResponse::UnsupportedTxType,
                 }
             }

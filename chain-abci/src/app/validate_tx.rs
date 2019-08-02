@@ -6,7 +6,7 @@ use chain_core::state::account::StakedState;
 use chain_core::tx::fee::{Fee, FeeAlgorithm};
 use chain_core::tx::TxAux;
 use chain_tx_validation::ChainInfo;
-use parity_codec::Decode;
+use parity_scale_codec::Decode;
 
 /// Wrapper to astract over CheckTx and DeliverTx requests
 pub trait RequestWithTx {
@@ -55,26 +55,26 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Gets CheckTx or DeliverTx requests, tries to parse its data into TxAux and validate that TxAux.
     /// Returns Some(parsed txaux, (paid fee, updated staking account)) if OK, or None if some problems (and sets log + error code in the passed in response).
     pub fn validate_tx_req(
-        &self,
+        &mut self,
         _req: &dyn RequestWithTx,
         resp: &mut dyn ResponseWithCodeAndLog,
     ) -> Option<(TxAux, (Fee, Option<StakedState>))> {
         let data = Vec::from(_req.tx());
         let dtx = TxAux::decode(&mut data.as_slice());
         match dtx {
-            None => {
+            Err(e) => {
                 resp.set_code(1);
-                resp.add_log("failed to deserialize tx");
+                resp.add_log(&format!("failed to deserialize tx: {}", e.what()));
                 None
             }
-            Some(txaux) => {
+            Ok(txaux) => {
                 let state = self.last_state.as_ref().expect("the app state is expected");
                 let min_fee = state
                     .fee_policy
                     .calculate_fee(_req.tx().len())
                     .expect("invalid fee policy");
                 let fee_paid = verify(
-                    &self.tx_validator,
+                    &mut self.tx_validator,
                     &txaux,
                     ChainInfo {
                         min_fee_computed: min_fee,

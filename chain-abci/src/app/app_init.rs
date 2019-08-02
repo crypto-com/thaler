@@ -23,7 +23,7 @@ use chain_tx_filter::BlockFilter;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::DBTransaction;
 use log::{info, warn};
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use protobuf::{Message, RepeatedField};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -269,7 +269,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// * `storage` - underlying storage to be used (in-mem or persistent)
     /// * `accounts` - underlying storage for account tries to be used (in-mem or persistent)    
     pub fn new_with_storage(
-        tx_validator: T,
+        mut tx_validator: T,
         gah: &str,
         chain_id: &str,
         storage: Storage,

@@ -9,7 +9,7 @@ pub mod witness;
 
 use std::fmt;
 
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 use self::data::Tx;
 use self::witness::TxWitness;
@@ -20,7 +20,7 @@ use data::input::{TxoIndex, TxoPointer};
 use data::output::TxOut;
 
 /// wrapper around transactions with outputs
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Clone)]
 pub enum TxWithOutputs {
     /// normal transfer
     Transfer(Tx),
@@ -168,7 +168,7 @@ pub mod tests {
     use crate::tx::data::output::TxOut;
     use crate::tx::witness::tree::RawPubkey;
     use crate::tx::witness::TxInWitness;
-    use parity_codec::{Decode, Encode};
+    use parity_scale_codec::{Decode, Encode};
     use secp256k1::{schnorrsig::schnorr_sign, Message, PublicKey, Secp256k1, SecretKey};
 
     // TODO: rewrite as quickcheck prop

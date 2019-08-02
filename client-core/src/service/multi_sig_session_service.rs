@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use failure::ResultExt;
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use rand::rngs::OsRng;
 use secp256k1::key::PublicKeyHash;
 use secp256k1::musig::{MuSigNonceCommitment, MuSigPartialSignature, MuSigSession, MuSigSessionID};
@@ -422,7 +422,7 @@ where
                 let mut session_bytes =
                     value.ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
                 let mut session = MultiSigSession::decode(&mut session_bytes)
-                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                    .context(ErrorKind::DeserializationError)?;
                 session.add_nonce_commitment(public_key, nonce_commitment)?;
 
                 Ok(Some(session.encode()))
@@ -453,7 +453,7 @@ where
                 let mut session_bytes =
                     value.ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
                 let mut session = MultiSigSession::decode(&mut session_bytes)
-                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                    .context(ErrorKind::DeserializationError)?;
                 session.add_nonce(public_key, nonce.clone())?;
 
                 Ok(Some(session.encode()))
@@ -484,7 +484,7 @@ where
                 let mut session_bytes =
                     value.ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
                 let mut session = MultiSigSession::decode(&mut session_bytes)
-                    .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+                    .context(ErrorKind::DeserializationError)?;
                 session.add_partial_signature(public_key, partial_signature)?;
 
                 Ok(Some(session.encode()))
@@ -505,7 +505,8 @@ where
             .get_secure(KEYSPACE, session_id, passphrase)?
             .ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
         MultiSigSession::decode(&mut session_bytes.as_slice())
-            .ok_or_else(|| Error::from(ErrorKind::DeserializationError))
+            .context(ErrorKind::DeserializationError)
+            .map_err(Into::into)
     }
 
     /// Persists a session in storage

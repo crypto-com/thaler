@@ -15,7 +15,7 @@ use chain_core::tx::TxAux;
 use chain_tx_validation::TxWithOutputs;
 use integer_encoding::VarInt;
 use kvdb::{DBTransaction, KeyValueDB};
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use std::sync::Arc;
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
@@ -60,7 +60,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     } => {
                         // FIXME: temporary hack / this shouldn't be here
                         let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
-                        if let Some(PlainTxAux::TransferTx(tx, witness)) = plain_tx {
+                        if let Ok(PlainTxAux::TransferTx(tx, witness)) = plain_tx {
                             inittx.put(
                                 COL_BODIES,
                                 &txid[..],
@@ -96,7 +96,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     } => {
                         // FIXME: temporary hack / this shouldn't be here
                         let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
-                        if let Some(PlainTxAux::WithdrawUnbondedStakeTx(tx)) = plain_tx {
+                        if let Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx)) = plain_tx {
                             inittx.put(
                                 COL_BODIES,
                                 &txid[..],
