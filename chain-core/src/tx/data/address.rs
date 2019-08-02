@@ -99,7 +99,7 @@ mod test {
         let b = a.to_cro().unwrap();
         assert_eq!(
             b,
-            "cro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42asjwegvg"
+            "dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg"
         );
         let c = ExtendedAddr::from_cro(&b).unwrap();
         assert_eq!(c, a);
@@ -114,7 +114,7 @@ mod test {
         );
         let a = ExtendedAddr::OrTree(ar);
         let b = ExtendedAddr::from_str(
-            "cro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42asjwegvg",
+            "dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg",
         )
         .unwrap();
         assert_eq!(a, b);

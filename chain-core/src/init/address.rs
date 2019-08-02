@@ -42,7 +42,7 @@ impl ::std::error::Error for CroAddressError {}
 
 // CRO: mainnet transfer
 // TCRO: testnet transfer
-// DCRO: testnet transfer
+// DCRO: devnet/regnet transfer
 #[cfg(feature = "bech32")]
 pub trait CroAddress<T> {
     fn to_cro(&self) -> Result<String, CroAddressError>;
@@ -365,7 +365,7 @@ mod tests {
     fn should_be_correct_textual_address() {
         let a = RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
         let b = a.to_cro().unwrap();
-        assert_eq!(b.to_string(), "cro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5xxnlp9");
+        assert_eq!(b.to_string(), "dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5rm547c");
         let c = RedeemAddress::from_cro(&b).unwrap();
         assert_eq!(c, a);
     }

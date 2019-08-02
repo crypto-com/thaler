@@ -74,7 +74,7 @@ pub fn get_full_network_name() -> &'static str {
 
 mod chosen_network {
     use super::*;
-    pub static mut NETWORK: Network = Network::Mainnet;
+    pub static mut NETWORK: Network = Network::Devnet;
     pub static mut NETWORK_ID: u8 = 0 as u8;
 }
 
@@ -83,8 +83,8 @@ mod test {
     use super::*;
     #[test]
     fn init_chain_id_should_setup_correctly() {
-        init_chain_id("main-chain-y3m1e6-AB");
+        init_chain_id("dev-chain-y3m1e6-AB");
         assert_eq!(0xab as u8, get_network_id());
-        assert_eq!(Network::Mainnet, get_network());
+        assert_eq!(Network::Devnet, get_network());
     }
 }
