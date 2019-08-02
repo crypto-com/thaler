@@ -69,12 +69,32 @@ impl InitCommand {
         self.remain_coin = (self.remain_coin - amount_coin).unwrap();
         self.distribution_addresses.push(address.to_string());
     }
+    fn check_chainid(&self, chainid: &String) -> Result<(), Error> {
+        if chainid.len() < 6 {
+            return Err(format_err!("chainid too short"));
+        }
+        let networkid = &chainid[(chainid.len() - 2)..];
+        let netkind = &chainid[..4];
+        if "main" == netkind || "test" == netkind {
+            // ok
+        } else {
+            return Err(format_err!("chain-id should start from main or test"));
+        }
+
+        hex::decode(networkid)
+            .map(|_a| ())
+            .map_err(|_a| format_err!("last two digits should be hex string such as AB"))
+    }
     fn read_chainid(&mut self) -> Result<(), Error> {
-        self.chainid = self.ask_string(
+        let chainid = self.ask_string(
             format!("new chain id( {} )=", self.chainid).as_str(),
             self.chainid.as_str(),
         );
-        Ok(())
+
+        self.check_chainid(&chainid).map(|_a| {
+            self.chainid = chainid;
+            ()
+        })
     }
     fn read_infomration_wallets(&mut self) -> Result<(), Error> {
         let default_address = RedeemAddress::default().to_string();
