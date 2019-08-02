@@ -22,6 +22,7 @@ use client_common::ErrorKind;
 
 #[derive(Debug)]
 pub struct InitCommand {
+    chainid: String,
     app_hash: String,
     app_state: String,
     genesis_dev: GenesisDevConfig,
@@ -34,6 +35,7 @@ pub struct InitCommand {
 impl InitCommand {
     pub fn new() -> Self {
         InitCommand {
+            chainid: "".to_string(),
             app_hash: "".to_string(),
             app_state: "".to_string(),
             genesis_dev: GenesisDevConfig::new(),
@@ -66,6 +68,13 @@ impl InitCommand {
         distribution.insert(RedeemAddress::from_str(&address).unwrap(), amount_coin);
         self.remain_coin = (self.remain_coin - amount_coin).unwrap();
         self.distribution_addresses.push(address.to_string());
+    }
+    fn read_chainid(&mut self) -> Result<(), Error> {
+        self.chainid = self.ask_string(
+            format!("new chain id( {} )=", self.chainid).as_str(),
+            self.chainid.as_str(),
+        );
+        Ok(())
     }
     fn read_infomration_wallets(&mut self) -> Result<(), Error> {
         let default_address = RedeemAddress::default().to_string();
@@ -160,7 +169,9 @@ impl InitCommand {
     }
     // read information from user
     fn read_information(&mut self) -> Result<(), Error> {
-        self.read_infomration_wallets()
+        self.read_chainid()
+            .and_then(|_| self.read_staking_address())
+            .and_then(|_| self.read_infomration_wallets())
             .and_then(|_| self.read_information_genesis_time())
             .and_then(|_| self.read_information_councils())
             .and_then(|_| self.read_information_incentives())
@@ -187,6 +198,7 @@ impl InitCommand {
                 let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let pub_key = &json["validators"][0]["pub_key"]["value"];
                 self.tendermint_pubkey = pub_key.as_str().unwrap().to_string();
+                self.chainid = json["chain_id"].as_str().unwrap().to_string();
                 Ok(())
             })
             .map_err(|_e| format_err!("read tendermint genesis error"))
@@ -207,6 +219,7 @@ impl InitCommand {
                 obj.insert("app_state".to_string(), json!(""));
                 obj["app_state"] = json!(app_state);
                 obj["genesis_time"] = json!(gt);
+                obj["chain_id"] = json!(self.chainid.clone());
                 json_string = serde_json::to_string_pretty(&json).unwrap();
                 println!("{}", json_string);
 
@@ -265,7 +278,6 @@ impl InitCommand {
         println!("initialize");
         self.prepare_tendermint()
             .and_then(|_| self.read_tendermint_genesis())
-            .and_then(|_| self.read_staking_address())
             .and_then(|_| self.read_information())
             .and_then(|_| self.generate_app_info())
             .and_then(|_| self.write_tendermint_genesis())
