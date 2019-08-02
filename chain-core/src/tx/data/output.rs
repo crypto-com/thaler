@@ -1,6 +1,6 @@
 use std::fmt;
 
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

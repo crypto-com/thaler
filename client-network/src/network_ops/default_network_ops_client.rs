@@ -1,5 +1,5 @@
 use failure::ResultExt;
-use parity_codec::Decode;
+use parity_scale_codec::Decode;
 use secstr::SecUtf8;
 
 use chain_core::init::coin::Coin;
@@ -68,17 +68,14 @@ where
 
     /// Get account info
     fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
-        self.client
-            .query("account", staked_state_address)
-            .map(|x| x.response.value)
-            .and_then(|value| match base64::decode(value.as_bytes()) {
-                Ok(a) => Ok(a),
-                Err(_b) => Err(Error::from(ErrorKind::RpcError)),
-            })
-            .and_then(|data| match StakedState::decode(&mut data.as_slice()) {
-                Some(a) => Ok(a),
-                None => Err(Error::from(ErrorKind::RpcError)),
-            })
+        let bytes = self
+            .client
+            .query("account", staked_state_address)?
+            .bytes()?;
+
+        StakedState::decode(&mut bytes.as_slice())
+            .context(ErrorKind::DeserializationError)
+            .map_err(Into::into)
     }
 
     /// Get staked state info
@@ -263,7 +260,7 @@ where
 mod tests {
     use super::*;
 
-    use parity_codec::Encode;
+    use parity_scale_codec::Encode;
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::CoinError;
@@ -568,7 +565,7 @@ mod tests {
 
                 // NOTE: Mock decryption based on encryption logic in `MockTransactionCipher`
                 let tx = PlainTxAux::decode(&mut txpayload.as_slice());
-                if let Some(PlainTxAux::WithdrawUnbondedStakeTx(transaction)) = tx {
+                if let Ok(PlainTxAux::WithdrawUnbondedStakeTx(transaction)) = tx {
                     let amount = transaction.outputs[0].value;
                     assert_eq!(amount, Coin::new(2500000000000000000 - 1).unwrap());
                 }

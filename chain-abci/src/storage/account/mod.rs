@@ -5,7 +5,7 @@ mod tree;
 
 use crate::storage::Storage;
 use chain_core::state::account::StakedState;
-use parity_codec::{Decode as ScaleDecode, Encode as ScaleEncode};
+use parity_scale_codec::{Decode as ScaleDecode, Encode as ScaleEncode};
 use starling::constants::KEY_LEN;
 use starling::traits::{Database, Decode, Encode, Exception};
 use std::path::PathBuf;
@@ -28,7 +28,7 @@ impl Decode for AccountWrapper {
     fn decode(buffer: &[u8]) -> Result<Self, Exception> {
         let data = Vec::from(buffer);
         let account = StakedState::decode(&mut data.as_slice())
-            .ok_or_else(|| Exception::new("failed to decode"))?;
+            .map_err(|e| Exception::new(&format!("failed to decode: {}", e.what())))?;
         Ok(AccountWrapper(account))
     }
 }
@@ -49,7 +49,9 @@ impl Database for Storage {
     fn get_node(&self, key: &[u8; KEY_LEN]) -> Result<Option<Self::NodeType>, Exception> {
         if let Some(buffer) = self.db.get(None, key).map_err(tree::convert_io_err)? {
             let data = buffer.to_vec();
-            Ok(Self::NodeType::decode(&mut data.as_slice()))
+            let storage = Self::NodeType::decode(&mut data.as_slice())
+                .map_err(|e| Exception::new(e.what()))?;
+            Ok(Some(storage))
         } else {
             Ok(None)
         }

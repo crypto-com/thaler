@@ -30,7 +30,7 @@ use criterion::Criterion;
 use criterion::{criterion_group, criterion_main};
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
-use parity_codec::Encode;
+use parity_scale_codec::Encode;
 use secp256k1::{
     key::{PublicKey, SecretKey},
     Message, Secp256k1, Signing,

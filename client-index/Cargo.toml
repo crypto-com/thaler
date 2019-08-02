@@ -10,7 +10,7 @@ client-common = { path = "../client-common" }
 chain-tx-filter = { path = "../chain-tx-filter" }
 enclave-protocol = { path = "../enclave-protocol" }
 failure = "0.1"
-parity-codec = { features = ["derive"], version = "4.1.4" }
+parity-scale-codec = { features = ["derive"], version = "1.0" }
 chrono = { version = "0.4", features = ["serde"] }
 jsonrpc = { version = "0.11", optional = true }
 base64 = "0.10"

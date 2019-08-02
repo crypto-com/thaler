@@ -1,5 +1,6 @@
+use failure::ResultExt;
 use itertools::Itertools;
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use secstr::SecUtf8;
 
 use chain_core::common::{MerkleTree, Proof, H256};
@@ -84,7 +85,7 @@ where
             .get_secure(KEYSPACE, root_hash, passphrase)?
             .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
         let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
-            .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+            .context(ErrorKind::DeserializationError)?;
 
         if public_keys.len() != address.m as usize {
             return Err(ErrorKind::InvalidInput.into());
@@ -106,7 +107,7 @@ where
             .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
 
         let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
-            .ok_or_else(|| Error::from(ErrorKind::DeserializationError))?;
+            .context(ErrorKind::DeserializationError)?;
 
         Ok(address.m as usize)
     }
@@ -119,7 +120,7 @@ where
             .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
 
         let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
-            .ok_or_else(|| client_common::Error::from(ErrorKind::DeserializationError))?;
+            .context(ErrorKind::DeserializationError)?;
 
         Ok(address.self_public_key)
     }

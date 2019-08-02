@@ -2,7 +2,7 @@ use std::prelude::v1::{Box, Vec};
 use std::vec::IntoIter;
 
 use blake2::Blake2s;
-use parity_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 
 use super::{hash256, H256, H512, HASH_SIZE_256};
 

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use parity_codec::{Decode, Encode};
+use failure::ResultExt;
+use parity_scale_codec::{Decode, Encode};
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -184,7 +185,7 @@ where
             .get(KEYSPACE, address.encode())?
             .map(|bytes| {
                 Ok(AddressDetails::decode(&mut bytes.as_slice())
-                    .ok_or(ErrorKind::DeserializationError)?)
+                    .context(ErrorKind::DeserializationError)?)
             })
             .unwrap_or_else(|| Ok(Default::default()))
     }
@@ -204,7 +205,7 @@ where
                     let mut address_details = value
                         .map(|mut bytes| -> Result<AddressDetails> {
                             Ok(AddressDetails::decode(&mut bytes)
-                                .ok_or(ErrorKind::DeserializationError)?)
+                                .context(ErrorKind::DeserializationError)?)
                         })
                         .unwrap_or_else(|| Ok(Default::default()))?;
 
