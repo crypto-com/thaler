@@ -6,6 +6,7 @@ static INIT_NETWORK_ID: Once = Once::new();
 pub enum Network {
     Mainnet,
     Testnet,
+    Devnet,
 }
 
 pub fn init_chain_id(chain_id_src: &str) {
@@ -21,8 +22,10 @@ pub fn init_chain_id(chain_id_src: &str) {
     let kind = &chain_id[..4];
     if "main" == kind {
         init_network(Network::Mainnet);
-    } else {
+    } else if "test" == kind {
         init_network(Network::Testnet);
+    } else {
+        init_network(Network::Devnet);
     }
 }
 pub fn init_network(network: Network) {
@@ -52,8 +55,9 @@ pub fn get_network() -> Network {
 pub fn get_bech32_human_part() -> &'static str {
     unsafe {
         match chosen_network::NETWORK {
-            Network::Mainnet => "crmt",
-            Network::Testnet => "crtt",
+            Network::Mainnet => "cro",
+            Network::Testnet => "tcro",
+            Network::Devnet => "dcro",
         }
     }
 }
@@ -63,13 +67,14 @@ pub fn get_full_network_name() -> &'static str {
         match chosen_network::NETWORK {
             Network::Mainnet => "mainnet",
             Network::Testnet => "testnet",
+            Network::Devnet => "devnet",
         }
     }
 }
 
 mod chosen_network {
     use super::*;
-    pub static mut NETWORK: Network = Network::Mainnet;
+    pub static mut NETWORK: Network = Network::Devnet;
     pub static mut NETWORK_ID: u8 = 0 as u8;
 }
 
@@ -78,8 +83,8 @@ mod test {
     use super::*;
     #[test]
     fn init_chain_id_should_setup_correctly() {
-        init_chain_id("main-chain-y3m1e6-AB");
+        init_chain_id("dev-chain-y3m1e6-AB");
         assert_eq!(0xab as u8, get_network_id());
-        assert_eq!(Network::Mainnet, get_network());
+        assert_eq!(Network::Devnet, get_network());
     }
 }
