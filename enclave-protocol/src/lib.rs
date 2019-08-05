@@ -29,7 +29,6 @@ pub enum EnclaveRequest {
     VerifyTx {
         tx: TxAux,
         account: Option<StakedState>,
-        inputs: Vec<TxWithOutputs>,
         info: ChainInfo,
     },
 }
@@ -41,16 +40,10 @@ impl Encode for EnclaveRequest {
                 dest.push_byte(0);
                 dest.push_byte(*chain_hex_id);
             }
-            EnclaveRequest::VerifyTx {
-                tx,
-                account,
-                inputs,
-                info,
-            } => {
+            EnclaveRequest::VerifyTx { tx, account, info } => {
                 dest.push_byte(1);
                 tx.encode_to(dest);
                 account.encode_to(dest);
-                inputs.encode_to(dest);
                 info.encode_to(dest);
             }
         }
@@ -68,14 +61,8 @@ impl Decode for EnclaveRequest {
             1 => {
                 let tx = TxAux::decode(input)?;
                 let account: Option<StakedState> = Option::decode(input)?;
-                let inputs: Vec<TxWithOutputs> = Vec::decode(input)?;
                 let info = ChainInfo::decode(input)?;
-                Ok(EnclaveRequest::VerifyTx {
-                    tx,
-                    account,
-                    inputs,
-                    info,
-                })
+                Ok(EnclaveRequest::VerifyTx { tx, account, info })
             }
             _ => Err(Error::from("Invalid tag")),
         }
