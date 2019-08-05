@@ -71,7 +71,7 @@ impl InitCommand {
         self.remain_coin = (self.remain_coin - amount_coin).unwrap();
         self.distribution_addresses.push(address.to_string());
     }
-    fn check_chainid(&self, chainid: &String) -> Result<(), Error> {
+    fn check_chainid(&self, chainid: String) -> Result<(), Error> {
         if chainid.len() < 6 {
             return Err(format_err!("chainid too short"));
         }
@@ -93,7 +93,7 @@ impl InitCommand {
             self.chainid.as_str(),
         );
 
-        self.check_chainid(&chainid).map(|_a| {
+        self.check_chainid(chainid.clone()).map(|_a| {
             self.chainid = chainid;
         })
     }
