@@ -244,7 +244,7 @@ impl InitCommand {
                 let obj = json.as_object_mut().unwrap();
                 obj["app_hash"] = json!(app_hash);
                 obj.insert("app_state".to_string(), json!(""));
-                obj["app_state"] = json!(app_state);
+                obj["app_state"] = serde_json::from_str(&app_state).unwrap();
                 obj["genesis_time"] = json!(gt);
                 obj["chain_id"] = json!(self.chainid.clone());
                 json_string = serde_json::to_string_pretty(&json).unwrap();
