@@ -37,38 +37,14 @@ pub struct RowTx {
 
 #[rpc]
 pub trait ClientRpc: Send + Sync {
-    #[rpc(name = "wallet_addresses")]
-    fn addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
-
-    #[rpc(name = "wallet_balance")]
-    fn balance(&self, request: WalletRequest) -> Result<Coin>;
-
-    #[rpc(name = "wallet_create")]
-    fn create(&self, request: WalletRequest) -> Result<String>;
-
-    #[rpc(name = "wallet_list")]
-    fn list(&self) -> Result<Vec<String>>;
-
-    #[rpc(name = "wallet_sendtoaddress")]
-    fn send_to_address(
-        &self,
-        request: WalletRequest,
-        to_address: String,
-        amount: Coin,
-        view_keys: Vec<String>,
-    ) -> Result<()>;
-
     #[rpc(name = "sync")]
     fn sync(&self, request: WalletRequest) -> Result<()>;
 
     #[rpc(name = "sync_all")]
     fn sync_all(&self, request: WalletRequest) -> Result<()>;
 
-    #[rpc(name = "wallet_transactions")]
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>>;
-
-    #[rpc(name = "multi_sig_new_session")]
-    fn new_multi_sig_session(
+    #[rpc(name = "wallet_newMultiSigSession")]
+    fn wallet_new_multi_sig_session(
         &self,
         request: WalletRequest,
         message: String,
@@ -76,11 +52,11 @@ pub trait ClientRpc: Send + Sync {
         self_public_key: String,
     ) -> Result<String>;
 
-    #[rpc(name = "multi_sig_nonce_commitment")]
-    fn nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    #[rpc(name = "multiSig_nonceCommitment")]
+    fn multi_sig_nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
 
     #[rpc(name = "multi_sig_add_nonce_commitment")]
-    fn add_nonce_commitment(
+    fn multi_sig_add_nonce_commitment(
         &self,
         session_id: String,
         passphrase: SecUtf8,
@@ -88,11 +64,11 @@ pub trait ClientRpc: Send + Sync {
         public_key: String,
     ) -> Result<()>;
 
-    #[rpc(name = "multi_sig_nonce")]
-    fn nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    #[rpc(name = "multiSig_nonce")]
+    fn multi_sig_nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
 
-    #[rpc(name = "multi_sig_add_nonce")]
-    fn add_nonce(
+    #[rpc(name = "multiSig_addNonce")]
+    fn multi_sig_add_nonce(
         &self,
         session_id: String,
         passphrase: SecUtf8,
@@ -100,11 +76,11 @@ pub trait ClientRpc: Send + Sync {
         public_key: String,
     ) -> Result<()>;
 
-    #[rpc(name = "multi_sig_partial_signature")]
-    fn partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    #[rpc(name = "multiSig_partialSign")]
+    fn multi_sig_partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
 
-    #[rpc(name = "multi_sig_add_partial_signature")]
-    fn add_partial_signature(
+    #[rpc(name = "multiSig_addPartialSignature")]
+    fn multi_sig_add_partial_signature(
         &self,
         session_id: String,
         passphrase: SecUtf8,
@@ -112,33 +88,57 @@ pub trait ClientRpc: Send + Sync {
         public_key: String,
     ) -> Result<()>;
 
-    #[rpc(name = "multi_sig_signature")]
-    fn signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    #[rpc(name = "multiSig_signature")]
+    fn multi_sig_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
 
-    #[rpc(name = "deposit_stake")]
-    fn deposit_stake_transaction(
+    #[rpc(name = "staking_depositStake")]
+    fn staking_deposit_stake(
         &self,
         request: WalletRequest,
         to_address: String,
         inputs: Vec<TxoPointer>,
     ) -> Result<()>;
 
-    #[rpc(name = "unbond_stake")]
-    fn unbond_stake_transaction(
+    #[rpc(name = "staking_unbondStake")]
+    fn staking_unbond_stake(
         &self,
         request: WalletRequest,
         staking_address: String,
         amount: Coin,
     ) -> Result<()>;
 
-    #[rpc(name = "withdraw_all_unbonded_stake")]
-    fn withdraw_all_unbonded_stake_transaction(
+    #[rpc(name = "staking_withdrawAllUnbondedStake")]
+    fn staking_withdraw_all_unbonded_stake(
         &self,
         request: WalletRequest,
         from_address: String,
         to_address: String,
         view_keys: Vec<String>,
     ) -> Result<()>;
+
+    #[rpc(name = "wallet_addresses")]
+    fn wallet_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
+
+    #[rpc(name = "wallet_balance")]
+    fn wallet_balance(&self, request: WalletRequest) -> Result<Coin>;
+
+    #[rpc(name = "wallet_create")]
+    fn wallet_create(&self, request: WalletRequest) -> Result<String>;
+
+    #[rpc(name = "wallet_list")]
+    fn wallet_list(&self) -> Result<Vec<String>>;
+
+    #[rpc(name = "wallet_sendToAddress")]
+    fn wallet_send_to_address(
+        &self,
+        request: WalletRequest,
+        to_address: String,
+        amount: Coin,
+        view_keys: Vec<String>,
+    ) -> Result<()>;
+
+    #[rpc(name = "wallet_transactions")]
+    fn wallet_transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>>;
 }
 
 pub struct ClientRpcImpl<T, N, S, C, H>
@@ -186,7 +186,51 @@ where
     C: Client + 'static,
     H: BlockHandler + 'static,
 {
-    fn addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
+    fn sync(&self, request: WalletRequest) -> Result<()> {
+        let view_key = self
+            .client
+            .view_key(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+        let private_key = self
+            .client
+            .private_key(&request.passphrase, &view_key)
+            .map_err(to_rpc_error)?
+            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
+            .map_err(to_rpc_error)?;
+
+        let staking_addresses = self
+            .client
+            .staking_addresses(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+
+        self.synchronizer
+            .sync(&staking_addresses, &view_key, &private_key)
+            .map_err(to_rpc_error)
+    }
+
+    fn sync_all(&self, request: WalletRequest) -> Result<()> {
+        let view_key = self
+            .client
+            .view_key(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+        let private_key = self
+            .client
+            .private_key(&request.passphrase, &view_key)
+            .map_err(to_rpc_error)?
+            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
+            .map_err(to_rpc_error)?;
+
+        let staking_addresses = self
+            .client
+            .staking_addresses(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+
+        self.synchronizer
+            .sync_all(&staking_addresses, &view_key, &private_key)
+            .map_err(to_rpc_error)
+    }
+
+    fn wallet_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
         // TODO: Currently, it only returns staking addresses
         match self
             .client
@@ -200,7 +244,7 @@ where
         }
     }
 
-    fn balance(&self, request: WalletRequest) -> Result<Coin> {
+    fn wallet_balance(&self, request: WalletRequest) -> Result<Coin> {
         self.sync(request.clone())?;
 
         match self.client.balance(&request.name, &request.passphrase) {
@@ -209,7 +253,7 @@ where
         }
     }
 
-    fn create(&self, request: WalletRequest) -> Result<String> {
+    fn wallet_create(&self, request: WalletRequest) -> Result<String> {
         if let Err(e) = self.client.new_wallet(&request.name, &request.passphrase) {
             return Err(to_rpc_error(e));
         }
@@ -224,11 +268,11 @@ where
         }
     }
 
-    fn list(&self) -> Result<Vec<String>> {
+    fn wallet_list(&self) -> Result<Vec<String>> {
         self.client.wallets().map_err(to_rpc_error)
     }
 
-    fn send_to_address(
+    fn wallet_send_to_address(
         &self,
         request: WalletRequest,
         to_address: String,
@@ -289,51 +333,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn sync(&self, request: WalletRequest) -> Result<()> {
-        let view_key = self
-            .client
-            .view_key(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)?;
-        let private_key = self
-            .client
-            .private_key(&request.passphrase, &view_key)
-            .map_err(to_rpc_error)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
-            .map_err(to_rpc_error)?;
-
-        let staking_addresses = self
-            .client
-            .staking_addresses(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)?;
-
-        self.synchronizer
-            .sync(&staking_addresses, &view_key, &private_key)
-            .map_err(to_rpc_error)
-    }
-
-    fn sync_all(&self, request: WalletRequest) -> Result<()> {
-        let view_key = self
-            .client
-            .view_key(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)?;
-        let private_key = self
-            .client
-            .private_key(&request.passphrase, &view_key)
-            .map_err(to_rpc_error)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
-            .map_err(to_rpc_error)?;
-
-        let staking_addresses = self
-            .client
-            .staking_addresses(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)?;
-
-        self.synchronizer
-            .sync_all(&staking_addresses, &view_key, &private_key)
-            .map_err(to_rpc_error)
-    }
-
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
+    fn wallet_transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
         self.sync(request.clone())?;
 
         self.client
@@ -361,7 +361,7 @@ where
             })
     }
 
-    fn new_multi_sig_session(
+    fn wallet_new_multi_sig_session(
         &self,
         request: WalletRequest,
         message: String,
@@ -388,7 +388,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn multi_sig_nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
@@ -397,7 +397,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn add_nonce_commitment(
+    fn multi_sig_add_nonce_commitment(
         &self,
         session_id: String,
         passphrase: SecUtf8,
@@ -413,7 +413,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn multi_sig_nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
@@ -422,7 +422,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn add_nonce(
+    fn multi_sig_add_nonce(
         &self,
         session_id: String,
         passphrase: SecUtf8,
@@ -438,7 +438,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn multi_sig_partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
@@ -447,7 +447,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn add_partial_signature(
+    fn multi_sig_add_partial_signature(
         &self,
         session_id: String,
         passphrase: SecUtf8,
@@ -463,7 +463,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn multi_sig_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
@@ -472,7 +472,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn deposit_stake_transaction(
+    fn staking_deposit_stake(
         &self,
         request: WalletRequest,
         to_address: String,
@@ -499,7 +499,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn unbond_stake_transaction(
+    fn staking_unbond_stake(
         &self,
         request: WalletRequest,
         staking_address: String,
@@ -527,7 +527,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn withdraw_all_unbonded_stake_transaction(
+    fn staking_withdraw_all_unbonded_stake(
         &self,
         request: WalletRequest,
         from_address: String,
@@ -820,46 +820,46 @@ pub mod tests {
 
     #[test]
     fn test_create_duplicated_wallet() {
-        let wallet_rpc = setup_wallet_rpc();
+        let client_rpc = setup_client_rpc();
 
         assert_eq!(
             "Default".to_owned(),
-            wallet_rpc
-                .create(create_wallet_request("Default", "123456"))
+            client_rpc
+                .wallet_create(create_wallet_request("Default", "123456"))
                 .unwrap()
         );
 
         assert_eq!(
             to_rpc_error(Error::from(ErrorKind::AlreadyExists)),
-            wallet_rpc
-                .create(create_wallet_request("Default", "123456"))
+            client_rpc
+                .wallet_create(create_wallet_request("Default", "123456"))
                 .unwrap_err()
         );
     }
 
     #[test]
     fn test_create_and_list_wallet_flow() {
-        let wallet_rpc = setup_wallet_rpc();
+        let client_rpc = setup_client_rpc();
 
-        assert_eq!(0, wallet_rpc.list().unwrap().len());
+        assert_eq!(0, client_rpc.wallet_list().unwrap().len());
 
         assert_eq!(
             "Default".to_owned(),
-            wallet_rpc
-                .create(create_wallet_request("Default", "123456"))
+            client_rpc
+                .wallet_create(create_wallet_request("Default", "123456"))
                 .unwrap()
         );
 
-        assert_eq!(vec!["Default"], wallet_rpc.list().unwrap());
+        assert_eq!(vec!["Default"], client_rpc.wallet_list().unwrap());
 
         assert_eq!(
             "Personal".to_owned(),
-            wallet_rpc
-                .create(create_wallet_request("Personal", "123456"))
+            client_rpc
+                .wallet_create(create_wallet_request("Personal", "123456"))
                 .unwrap()
         );
 
-        let wallet_list = wallet_rpc.list().unwrap();
+        let wallet_list = client_rpc.wallet_list().unwrap();
         assert_eq!(2, wallet_list.len());
         assert!(wallet_list.contains(&"Default".to_owned()));
         assert!(wallet_list.contains(&"Personal".to_owned()));
@@ -867,26 +867,26 @@ pub mod tests {
 
     #[test]
     fn test_create_and_list_wallet_addresses_flow() {
-        let wallet_rpc = setup_wallet_rpc();
+        let client_rpc = setup_client_rpc();
 
         assert_eq!(
             to_rpc_error(Error::from(ErrorKind::WalletNotFound)),
-            wallet_rpc
-                .addresses(create_wallet_request("Default", "123456"))
+            client_rpc
+                .wallet_addresses(create_wallet_request("Default", "123456"))
                 .unwrap_err()
         );
 
         assert_eq!(
             "Default".to_owned(),
-            wallet_rpc
-                .create(create_wallet_request("Default", "123456"))
+            client_rpc
+                .wallet_create(create_wallet_request("Default", "123456"))
                 .unwrap()
         );
 
         assert_eq!(
             1,
-            wallet_rpc
-                .addresses(create_wallet_request("Default", "123456"))
+            client_rpc
+                .wallet_addresses(create_wallet_request("Default", "123456"))
                 .unwrap()
                 .len()
         );
@@ -894,30 +894,30 @@ pub mod tests {
 
     #[test]
     fn test_wallet_balance() {
-        let wallet_rpc = setup_wallet_rpc();
+        let client_rpc = setup_client_rpc();
 
-        wallet_rpc
-            .create(create_wallet_request("Default", "123456"))
+        client_rpc
+            .wallet_create(create_wallet_request("Default", "123456"))
             .unwrap();
         assert_eq!(
             Coin::new(30).unwrap(),
-            wallet_rpc
-                .balance(create_wallet_request("Default", "123456"))
+            client_rpc
+                .wallet_balance(create_wallet_request("Default", "123456"))
                 .unwrap()
         )
     }
 
     #[test]
     fn test_wallet_transactions() {
-        let wallet_rpc = setup_wallet_rpc();
+        let client_rpc = setup_client_rpc();
 
-        wallet_rpc
-            .create(create_wallet_request("Default", "123456"))
+        client_rpc
+            .wallet_create(create_wallet_request("Default", "123456"))
             .unwrap();
         assert_eq!(
             1,
-            wallet_rpc
-                .transactions(create_wallet_request("Default", "123456"))
+            client_rpc
+                .wallet_transactions(create_wallet_request("Default", "123456"))
                 .unwrap()
                 .len()
         )
@@ -965,7 +965,7 @@ pub mod tests {
         ManualSynchronizer::new(storage, MockRpcClient, block_handler)
     }
 
-    fn setup_wallet_rpc() -> ClientRpcImpl<
+    fn setup_client_rpc() -> ClientRpcImpl<
         TestWalletClient,
         TestOpsClient,
         MemoryStorage,
