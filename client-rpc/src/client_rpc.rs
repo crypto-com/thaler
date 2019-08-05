@@ -260,7 +260,7 @@ where
 
         if let Err(e) = self
             .client
-            .new_single_transfer_address(&request.name, &request.passphrase)
+            .new_transfer_address(&request.name, &request.passphrase)
         {
             Err(to_rpc_error(e))
         } else {
@@ -313,7 +313,7 @@ where
 
         let return_address = self
             .client
-            .new_single_transfer_address(&request.name, &request.passphrase)
+            .new_transfer_address(&request.name, &request.passphrase)
             .map_err(to_rpc_error)?;
 
         let transaction = self
