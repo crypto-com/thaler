@@ -3,7 +3,7 @@ use secp256k1::key::PublicKey;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::tx::witness::tree::RawPubkey;
+use crate::common::H264;
 
 /// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
@@ -33,28 +33,18 @@ pub struct TxAccessPolicy {
 
 impl Encode for TxAccessPolicy {
     fn encode_to<W: Output>(&self, dest: &mut W) {
-        dest.push_byte(0);
-        dest.push_byte(2);
-        let vk: RawPubkey = self.view_key.serialize().into();
-        vk.encode_to(dest);
+        self.view_key.serialize().encode_to(dest);
         self.access.encode_to(dest);
     }
 }
 
 impl Decode for TxAccessPolicy {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let tag = input.read_byte()?;
-        let constructor_len = input.read_byte()?;
-        match (tag, constructor_len) {
-            (0, 2) => {
-                let rawkey = RawPubkey::decode(input)?;
-                let view_key = PublicKey::from_slice(rawkey.as_bytes())
-                    .map_err(|_| Error::from("Unable to parse public key"))?;
-                let access = TxAccess::decode(input)?;
-                Ok(TxAccessPolicy::new(view_key, access))
-            }
-            _ => Err(Error::from("Invalid tag and length")),
-        }
+        let view_key_bytes = H264::decode(input)?;
+        let view_key = PublicKey::from_slice(&view_key_bytes)
+            .map_err(|_| Error::from("Unable to parse public key"))?;
+        let access = TxAccess::decode(input)?;
+        Ok(TxAccessPolicy::new(view_key, access))
     }
 }
 

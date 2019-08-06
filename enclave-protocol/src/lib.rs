@@ -1,6 +1,4 @@
 //! This crate contains messages exchanged in REQ-REP socket between chain-abci app to enclave wrapper server
-
-use chain_core::init::coin::Coin;
 use chain_core::state::account::DepositBondTx;
 use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateOpWitness;
@@ -12,11 +10,12 @@ use chain_core::tx::{fee::Fee, TxAux};
 use chain_core::ChainInfo;
 use chain_tx_validation::TxWithOutputs;
 
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+use parity_scale_codec::{Decode, Encode};
 
 /// requests sent from chain-abci app to enclave wrapper server
 /// FIXME: the variant will be smaller once the TX storage is on the enclave side
 #[allow(clippy::large_enum_variant)]
+#[derive(Encode, Decode)]
 pub enum EnclaveRequest {
     /// a sanity check (sends the chain network ID -- last byte / two hex digits convention)
     /// during InitChain or startup (to test one connected to the correct process)
@@ -33,44 +32,9 @@ pub enum EnclaveRequest {
     },
 }
 
-impl Encode for EnclaveRequest {
-    fn encode_to<W: Output>(&self, dest: &mut W) {
-        match self {
-            EnclaveRequest::CheckChain { chain_hex_id } => {
-                dest.push_byte(0);
-                dest.push_byte(*chain_hex_id);
-            }
-            EnclaveRequest::VerifyTx { tx, account, info } => {
-                dest.push_byte(1);
-                tx.encode_to(dest);
-                account.encode_to(dest);
-                info.encode_to(dest);
-            }
-        }
-    }
-}
-
-impl Decode for EnclaveRequest {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let tag = input.read_byte()?;
-        match tag {
-            0 => {
-                let chain_hex_id: u8 = input.read_byte()?;
-                Ok(EnclaveRequest::CheckChain { chain_hex_id })
-            }
-            1 => {
-                let tx = TxAux::decode(input)?;
-                let account: Option<StakedState> = Option::decode(input)?;
-                let info = ChainInfo::decode(input)?;
-                Ok(EnclaveRequest::VerifyTx { tx, account, info })
-            }
-            _ => Err(Error::from("Invalid tag")),
-        }
-    }
-}
-
 /// reponses sent from enclave wrapper server to chain-abci app
 /// TODO: better error responses?
+#[derive(Encode, Decode)]
 pub enum EnclaveResponse {
     /// returns OK if chain_hex_id matches the one embedded in enclave
     CheckChain(Result<(), ()>),
@@ -80,66 +44,6 @@ pub enum EnclaveResponse {
     UnsupportedTxType,
     /// response if the enclave failed to parse the request
     UnknownRequest,
-}
-
-impl Encode for EnclaveResponse {
-    fn encode_to<W: Output>(&self, dest: &mut W) {
-        match self {
-            EnclaveResponse::CheckChain(result) => {
-                dest.push_byte(0);
-                if result.is_ok() {
-                    dest.push_byte(0);
-                } else {
-                    dest.push_byte(1);
-                }
-            }
-            EnclaveResponse::VerifyTx(Err(_)) => {
-                dest.push_byte(1);
-                dest.push_byte(1);
-            }
-            EnclaveResponse::VerifyTx(Ok((fee, acc))) => {
-                dest.push_byte(1);
-                dest.push_byte(0);
-                fee.to_coin().encode_to(dest);
-                acc.encode_to(dest);
-            }
-            EnclaveResponse::UnsupportedTxType => {
-                dest.push_byte(2);
-            }
-            EnclaveResponse::UnknownRequest => {
-                dest.push_byte(3);
-            }
-        }
-    }
-}
-
-impl Decode for EnclaveResponse {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let tag = input.read_byte()?;
-        match tag {
-            0 => {
-                let result: u8 = input.read_byte()?;
-                if result == 0 {
-                    Ok(EnclaveResponse::CheckChain(Ok(())))
-                } else {
-                    Ok(EnclaveResponse::CheckChain(Err(())))
-                }
-            }
-            1 => {
-                let result: u8 = input.read_byte()?;
-                if result == 0 {
-                    let fee = Coin::decode(input)?;
-                    let acc: Option<StakedState> = Option::decode(input)?;
-                    Ok(EnclaveResponse::VerifyTx(Ok((Fee::new(fee), acc))))
-                } else {
-                    Ok(EnclaveResponse::VerifyTx(Err(())))
-                }
-            }
-            2 => Ok(EnclaveResponse::UnsupportedTxType),
-            3 => Ok(EnclaveResponse::UnknownRequest),
-            _ => Err(Error::from("Invalid tag")),
-        }
-    }
 }
 
 /// ZMQ flags to be used in the socket connection
