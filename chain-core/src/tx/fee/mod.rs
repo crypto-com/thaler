@@ -15,7 +15,7 @@ use std::str::FromStr;
 use std::{error, fmt};
 
 /// A fee value that represent either a fee to pay, or a fee paid.
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Encode, Decode)]
 pub struct Fee(Coin);
 
 impl Fee {

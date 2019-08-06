@@ -1,13 +1,13 @@
 use std::cmp::Ordering;
 use std::fmt;
 
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+use parity_scale_codec::{Decode, Encode};
 
 use crate::common::{H264, H512};
 
 // there was no [T; 33] / [u8; 33] impl in parity-codec :/
 // TODO: Do we remove `RawPubKey` and directly use [u8; 33] as `Encode` and `Decode` impls are now available?
-#[derive(Clone)]
+#[derive(Clone, Encode, Decode)]
 pub struct RawPubkey(H264);
 
 #[cfg(feature = "serde")]
@@ -96,24 +96,6 @@ impl RawPubkey {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         &self.0
-    }
-}
-
-impl Encode for RawPubkey {
-    fn encode_to<W: Output>(&self, dest: &mut W) {
-        for item in self.0.iter() {
-            dest.push_byte(*item);
-        }
-    }
-}
-
-impl Decode for RawPubkey {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let mut r = [0u8; 33];
-        for item in (&mut r).iter_mut() {
-            *item = input.read_byte()?;
-        }
-        Ok(RawPubkey(r))
     }
 }
 
