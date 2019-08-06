@@ -162,13 +162,16 @@ where
         )))
     }
 
-    fn new_transfer_address(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-    ) -> Result<ExtendedAddr> {
+    fn new_transfer_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr> {
         let public_key = self.new_public_key(name, passphrase)?;
-        self.new_multisig_transfer_address(name, passphrase, vec![public_key.clone()], public_key, 1, 1)
+        self.new_multisig_transfer_address(
+            name,
+            passphrase,
+            vec![public_key.clone()],
+            public_key,
+            1,
+            1,
+        )
     }
 
     fn new_multisig_transfer_address(

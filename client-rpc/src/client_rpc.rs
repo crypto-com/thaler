@@ -53,7 +53,8 @@ pub trait ClientRpc: Send + Sync {
     ) -> Result<String>;
 
     #[rpc(name = "multiSig_nonceCommitment")]
-    fn multi_sig_nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    fn multi_sig_nonce_commitment(&self, session_id: String, passphrase: SecUtf8)
+        -> Result<String>;
 
     #[rpc(name = "multiSig_addNonceCommitment")]
     fn multi_sig_add_nonce_commitment(
@@ -77,7 +78,11 @@ pub trait ClientRpc: Send + Sync {
     ) -> Result<()>;
 
     #[rpc(name = "multiSig_partialSignature")]
-    fn multi_sig_partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    fn multi_sig_partial_signature(
+        &self,
+        session_id: String,
+        passphrase: SecUtf8,
+    ) -> Result<String>;
 
     #[rpc(name = "multiSig_addPartialSignature")]
     fn multi_sig_add_partial_signature(
@@ -388,7 +393,11 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn multi_sig_nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn multi_sig_nonce_commitment(
+        &self,
+        session_id: String,
+        passphrase: SecUtf8,
+    ) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
@@ -438,7 +447,11 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn multi_sig_partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn multi_sig_partial_signature(
+        &self,
+        session_id: String,
+        passphrase: SecUtf8,
+    ) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
