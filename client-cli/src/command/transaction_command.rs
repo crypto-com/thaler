@@ -232,7 +232,7 @@ fn new_transfer_transaction<T: WalletClient>(
     );
     let outputs = ask_outputs()?;
 
-    let return_address = wallet_client.new_single_transfer_address(name, &passphrase)?;
+    let return_address = wallet_client.new_transfer_address(name, &passphrase)?;
 
     wallet_client.create_transaction(name, &passphrase, outputs, attributes, None, return_address)
 }
