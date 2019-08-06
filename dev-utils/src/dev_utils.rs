@@ -4,6 +4,7 @@ use structopt::StructOpt;
 use crate::commands::GenesisCommand;
 use crate::commands::InitCommand;
 use crate::commands::RunCommand;
+use crate::commands::StopCommand;
 
 /// Enum used to specify subcommands under dev-utils
 #[derive(Debug, StructOpt)]
@@ -32,6 +33,10 @@ pub enum DevUtils {
     /// Used for running
     #[structopt(name = "run", about = "run all chain components")]
     Run,
+
+    /// Used for stopping
+    #[structopt(name = "stop", about = "stop all chain components")]
+    Stop,
 }
 
 impl DevUtils {
@@ -45,6 +50,10 @@ impl DevUtils {
             DevUtils::Run => {
                 let mut run_command = RunCommand::new();
                 run_command.execute()
+            }
+            DevUtils::Stop => {
+                let mut stop_command = StopCommand::new();
+                stop_command.execute()
             }
         }
     }
