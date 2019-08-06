@@ -208,16 +208,19 @@ impl InitCommand {
         self.app_state = result.1;
         Ok(())
     }
-    fn get_tendermint_filename(&self) -> String {
-        format!(
-            "{}/.tendermint/config/genesis.json",
-            dirs::home_dir().unwrap().to_str().unwrap()
-        )
-        .to_string()
+    pub fn get_tendermint_filename() -> String {
+        match std::env::var("TENDERMINT_HOME") {
+            Ok(path) => format!("{}/config/genesis.json", path).to_owned(),
+            Err(_) => format!(
+                "{}/.tendermint/config/genesis.json",
+                dirs::home_dir().unwrap().to_str().unwrap()
+            )
+            .to_owned(),
+        }
     }
     fn read_tendermint_genesis(&mut self) -> Result<(), Error> {
         // check whether file exists
-        fs::read_to_string(&self.get_tendermint_filename())
+        fs::read_to_string(&InitCommand::get_tendermint_filename())
             .and_then(|contents| {
                 println!("current tendermint genesis={}", contents);
                 let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
@@ -229,7 +232,10 @@ impl InitCommand {
             .map_err(|_e| format_err!("read tendermint genesis error"))
     }
     fn write_tendermint_genesis(&self) -> Result<(), Error> {
-        println!("write genesis to {}", self.get_tendermint_filename());
+        println!(
+            "write genesis to {}",
+            InitCommand::get_tendermint_filename()
+        );
 
         let app_hash = self.app_hash.clone();
         let app_state = self.app_state.clone();
@@ -238,7 +244,7 @@ impl InitCommand {
             .genesis_time
             .to_rfc3339_opts(SecondsFormat::Micros, true);
         let mut json_string = String::from("");
-        fs::read_to_string(&self.get_tendermint_filename())
+        fs::read_to_string(&InitCommand::get_tendermint_filename())
             .and_then(|contents| {
                 let mut json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let obj = json.as_object_mut().unwrap();
@@ -250,20 +256,20 @@ impl InitCommand {
                 json_string = serde_json::to_string_pretty(&json).unwrap();
                 println!("{}", json_string);
 
-                File::create(&self.get_tendermint_filename())
+                File::create(&InitCommand::get_tendermint_filename())
             })
             .map(|mut file| file.write_all(json_string.as_bytes()))
             .map(|_e| {
                 println!(
                     "writing tendermint genesis OK {}",
-                    self.get_tendermint_filename()
+                    InitCommand::get_tendermint_filename()
                 );
             })
             .map_err(|_e| format_err!("write tendermint genesis error"))
     }
     fn prepare_tendermint(&self) -> Result<(), Error> {
         // check whether file exists
-        fs::read_to_string(&self.get_tendermint_filename())
+        fs::read_to_string(&InitCommand::get_tendermint_filename())
             .or_else(|_e| {
                 // file not exist
                 Command::new("tendermint")

@@ -2,6 +2,7 @@ use failure::{format_err, Error};
 use std::fs;
 use std::process::Command;
 use std::{thread, time};
+use super::init_command::InitCommand;
 #[derive(Debug)]
 pub struct RunCommand {
     chain_id: String,
@@ -16,16 +17,10 @@ impl RunCommand {
         }
     }
 
-    fn get_tendermint_filename(&self) -> String {
-        format!(
-            "{}/.tendermint/config/genesis.json",
-            dirs::home_dir().unwrap().to_str().unwrap()
-        )
-        .to_string()
-    }
+    
     fn read_tendermint_genesis(&mut self) -> Result<(), Error> {
         // check whether file exists
-        fs::read_to_string(&self.get_tendermint_filename())
+        fs::read_to_string(&InitCommand::get_tendermint_filename())
             .and_then(|contents| {
                 println!("current tendermint genesis={}", contents);
                 let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
