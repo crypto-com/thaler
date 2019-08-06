@@ -4,14 +4,14 @@ use std::process::Command;
 use std::{thread, time};
 #[derive(Debug)]
 pub struct RunCommand {
-    chainid: String,
+    chain_id: String,
     app_hash: String,
 }
 
 impl RunCommand {
     pub fn new() -> Self {
         RunCommand {
-            chainid: "".to_string(),
+            chain_id: "".to_string(),
             app_hash: "".to_string(),
         }
     }
@@ -29,9 +29,9 @@ impl RunCommand {
             .and_then(|contents| {
                 println!("current tendermint genesis={}", contents);
                 let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
-                self.chainid = json["chain_id"].as_str().unwrap().to_string();
+                self.chain_id = json["chain_id"].as_str().unwrap().to_string();
                 self.app_hash = json["app_hash"].as_str().unwrap().to_string();
-                println!("chainid={}", self.chainid);
+                println!("chain_id={}", self.chain_id);
                 println!("app_hash={}", self.app_hash);
                 Ok(())
             })
@@ -73,7 +73,7 @@ impl RunCommand {
                     "--port",
                     "26658",
                     "--chain_id",
-                    self.chainid.as_str(),
+                    self.chain_id.as_str(),
                     "--genesis_app_hash",
                     self.app_hash.as_str(),
                     "--enclave_server",
