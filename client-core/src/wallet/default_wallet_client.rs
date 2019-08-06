@@ -162,16 +162,19 @@ where
         )))
     }
 
-    fn new_single_transfer_address(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-    ) -> Result<ExtendedAddr> {
+    fn new_transfer_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr> {
         let public_key = self.new_public_key(name, passphrase)?;
-        self.new_transfer_address(name, passphrase, vec![public_key.clone()], public_key, 1, 1)
+        self.new_multisig_transfer_address(
+            name,
+            passphrase,
+            vec![public_key.clone()],
+            public_key,
+            1,
+            1,
+        )
     }
 
-    fn new_transfer_address(
+    fn new_multisig_transfer_address(
         &self,
         name: &str,
         passphrase: &SecUtf8,
@@ -748,7 +751,7 @@ mod tests {
         assert_eq!(1, wallet.wallets().unwrap().len());
 
         let address = wallet
-            .new_single_transfer_address("name", &SecUtf8::from("passphrase"))
+            .new_transfer_address("name", &SecUtf8::from("passphrase"))
             .expect("Unable to generate new address");
 
         let addresses = wallet
@@ -794,19 +797,19 @@ mod tests {
             .new_wallet("wallet_1", &SecUtf8::from("passphrase"))
             .unwrap();
         let addr_1 = wallet
-            .new_single_transfer_address("wallet_1", &SecUtf8::from("passphrase"))
+            .new_transfer_address("wallet_1", &SecUtf8::from("passphrase"))
             .unwrap();
         wallet
             .new_wallet("wallet_2", &SecUtf8::from("passphrase"))
             .unwrap();
         let addr_2 = wallet
-            .new_single_transfer_address("wallet_2", &SecUtf8::from("passphrase"))
+            .new_transfer_address("wallet_2", &SecUtf8::from("passphrase"))
             .unwrap();
         wallet
             .new_wallet("wallet_3", &SecUtf8::from("passphrase"))
             .unwrap();
         let addr_3 = wallet
-            .new_single_transfer_address("wallet_3", &SecUtf8::from("passphrase"))
+            .new_transfer_address("wallet_3", &SecUtf8::from("passphrase"))
             .unwrap();
 
         assert_eq!(
@@ -1125,7 +1128,7 @@ mod tests {
         ];
 
         let tree_address = wallet
-            .new_transfer_address(
+            .new_multisig_transfer_address(
                 name,
                 &passphrase,
                 public_keys.clone(),
@@ -1177,7 +1180,7 @@ mod tests {
         ];
 
         let multi_sig_address = wallet
-            .new_transfer_address(
+            .new_multisig_transfer_address(
                 name,
                 passphrase,
                 public_keys.clone(),
@@ -1287,7 +1290,7 @@ mod tests {
         ];
 
         let tree_address = wallet
-            .new_transfer_address(
+            .new_multisig_transfer_address(
                 name,
                 passphrase,
                 public_keys.clone(),
