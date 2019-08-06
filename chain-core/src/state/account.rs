@@ -171,7 +171,7 @@ impl StakedState {
 }
 
 /// attributes in StakedState-related transactions
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct StakedStateOpAttributes {
     pub chain_hex_id: u8,
@@ -181,28 +181,6 @@ pub struct StakedStateOpAttributes {
 impl StakedStateOpAttributes {
     pub fn new(chain_hex_id: u8) -> Self {
         StakedStateOpAttributes { chain_hex_id }
-    }
-}
-
-impl Encode for StakedStateOpAttributes {
-    fn encode_to<W: Output>(&self, dest: &mut W) {
-        dest.push_byte(0);
-        dest.push_byte(1);
-        dest.push_byte(self.chain_hex_id);
-    }
-}
-
-impl Decode for StakedStateOpAttributes {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let tag = input.read_byte()?;
-        let constructor_len = input.read_byte()?;
-        match (tag, constructor_len) {
-            (0, 1) => {
-                let chain_hex_id: u8 = input.read_byte()?;
-                Ok(StakedStateOpAttributes { chain_hex_id })
-            }
-            _ => Err(Error::from("Invalid tag and length")),
-        }
     }
 }
 

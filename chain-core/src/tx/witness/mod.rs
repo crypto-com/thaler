@@ -65,9 +65,7 @@ impl Encode for TxInWitness {
         match *self {
             TxInWitness::TreeSig(ref schnorrsig, ref proof) => {
                 dest.push_byte(0);
-                dest.push_byte(3);
-                let serialized_sig: RawSignature = schnorrsig.serialize_default();
-                serialized_sig.encode_to(dest);
+                schnorrsig.serialize_default().encode_to(dest);
                 proof.encode_to(dest);
             }
         }
@@ -77,16 +75,15 @@ impl Encode for TxInWitness {
 impl Decode for TxInWitness {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let tag = input.read_byte()?;
-        let constructor_len = input.read_byte()?;
-        match (tag, constructor_len) {
-            (0, 3) => {
+        match tag {
+            0 => {
                 let raw_sig = RawSignature::decode(input)?;
                 let schnorrsig = SchnorrSignature::from_default(&raw_sig)
                     .map_err(|_| Error::from("Unable to parse schnorr signature"))?;
                 let proof = Proof::decode(input)?;
                 Ok(TxInWitness::TreeSig(schnorrsig, proof))
             }
-            _ => Err(Error::from("Invalid tag and length")),
+            _ => Err(Error::from("Invalid tag")),
         }
     }
 }

@@ -71,7 +71,7 @@ impl InitCommand {
         self.remain_coin = (self.remain_coin - amount_coin).unwrap();
         self.distribution_addresses.push(address.to_string());
     }
-    fn check_chainid(&self, chainid: &String) -> Result<(), Error> {
+    fn check_chainid(&self, chainid: String) -> Result<(), Error> {
         if chainid.len() < 6 {
             return Err(format_err!("chainid too short"));
         }
@@ -93,7 +93,7 @@ impl InitCommand {
             self.chainid.as_str(),
         );
 
-        self.check_chainid(&chainid).map(|_a| {
+        self.check_chainid(chainid.clone()).map(|_a| {
             self.chainid = chainid;
         })
     }
@@ -244,7 +244,7 @@ impl InitCommand {
                 let obj = json.as_object_mut().unwrap();
                 obj["app_hash"] = json!(app_hash);
                 obj.insert("app_state".to_string(), json!(""));
-                obj["app_state"] = json!(app_state);
+                obj["app_state"] = serde_json::from_str(&app_state).unwrap();
                 obj["genesis_time"] = json!(gt);
                 obj["chain_id"] = json!(self.chainid.clone());
                 json_string = serde_json::to_string_pretty(&json).unwrap();
