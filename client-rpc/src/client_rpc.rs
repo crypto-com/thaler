@@ -55,7 +55,7 @@ pub trait ClientRpc: Send + Sync {
     #[rpc(name = "multiSig_nonceCommitment")]
     fn multi_sig_nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
 
-    #[rpc(name = "multi_sig_add_nonce_commitment")]
+    #[rpc(name = "multiSig_addNonceCommitment")]
     fn multi_sig_add_nonce_commitment(
         &self,
         session_id: String,
@@ -76,7 +76,7 @@ pub trait ClientRpc: Send + Sync {
         public_key: String,
     ) -> Result<()>;
 
-    #[rpc(name = "multiSig_partialSign")]
+    #[rpc(name = "multiSig_partialSignature")]
     fn multi_sig_partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
 
     #[rpc(name = "multiSig_addPartialSignature")]
