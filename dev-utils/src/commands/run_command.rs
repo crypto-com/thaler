@@ -1,6 +1,7 @@
 use failure::{format_err, Error};
 use std::fs;
 use std::process::Command;
+use std::{thread, time };
 #[derive(Debug)]
 pub struct RunCommand {
     chainid: String,
@@ -58,6 +59,7 @@ impl RunCommand {
     pub fn execute(&mut self) -> Result<(), Error> {
         println!("run program");
         self.read_tendermint_genesis()
+            .and_then(|_| self.run_program("killall", vec!["tx-validation-app", "tendermint", "chain-abci"]))
             .and_then(|_| self.run_program("./tx-validation-app", vec!["tcp://0.0.0.0:25933"]))
             .and_then(|_| {
                 let args = vec![
@@ -73,6 +75,11 @@ impl RunCommand {
                     "tcp://127.0.0.1:25933",
                 ];
                 self.run_program("./chain-abci", args)
+            })
+            .and_then(|_| {
+                println!("wait for abci booting");
+                thread::sleep( time::Duration::from_millis(3000));
+                Ok(())
             })
             .and_then(|_| self.run_program("./tendermint", vec!["node"]))
     }
