@@ -15,19 +15,20 @@
 1. [Description](#description)
 2. [Contributing](#contributing)
 3. [License](#license)
-4. [Building](#building)<br />
-  4.1. [Build Prerequisites](#build-prerequisites)<br />
-  4.2. [Build from Source Code](#build-from-src)<br />
-5. [Start a Local Full Node](#start-local-full-node)<br />
-  5.1. [Create a Wallet](#create-wallet)<br />
-  5.2. [Generate Genesis](#generate-genesis)<br />
-  5.3. [Start Chain Transaction Enclaves](#start-chain-transaction-enclaves)<br />
-  5.4. [Start Tendermint](#start-tendermint)<br />
-  5.5. [Start Chain ABCI](#start-chain-abci)<br />
-6. [Start a Basic Lite Node](#start-lite-node)<br />
-7. [Send your First Transaction](#send-first-transaction)
-8. [Testing](#testing)
-8. [Useful LInks](#useful-links)
+4. [Documentation](#documentation)<br />
+5. [Building](#building)<br />
+  5.1. [Build Prerequisites](#build-prerequisites)<br />
+  5.2. [Build from Source Code](#build-from-src)<br />
+6. [Start a Local Full Node](#start-local-full-node)<br />
+  6.1. [Create a Wallet](#create-wallet)<br />
+  6.2. [Generate Genesis](#generate-genesis)<br />
+  6.3. [Start Chain Transaction Enclaves](#start-chain-transaction-enclaves)<br />
+  6.4. [Start Tendermint](#start-tendermint)<br />
+  6.5. [Start Chain ABCI](#start-chain-abci)<br />
+7. [Start a Basic Lite Node](#start-lite-node)<br />
+8. [Send your First Transaction](#send-first-transaction)
+9. [Testing](#testing)
+10. [Useful LInks](#useful-links)
  
 <a id="description" />
 
@@ -62,11 +63,17 @@ and the [contributing guidelines](CONTRIBUTING.md) when submitting code.
 
 <a id="building" />
 
-## 4. Build
+## 4. Documentation
+
+Technical documentation can be found in this [Github repository](https://github.com/crypto-com/chain-docs) (you can read it in [this hosted version](https://crypto-com.github.io)).
+
+<a id="documentation" />
+
+## 5. Build
 
 <a id="build-prerequisites" />
 
-### 4.1. Build Prerequisites
+### 5.1. Build Prerequisites
 
 Crypto.com chain requires the following to be installed before build.
 
@@ -95,7 +102,7 @@ rustflags = ["-Ctarget-feature=+aes,+ssse3"]
 
 <a id="build-instructions" />
 
-### 4.2. Build Instructions
+### 5.2. Build Instructions
 ```bash
 $ git clone git@github.com:crypto-com/chain.git
 $ cd chain
@@ -106,9 +113,9 @@ The built executables will be put inside folder `/target/debug/` by default.
 
 <a id="start-local-full-node" />
 
-## 5. Start a Local Full Node
+## 6. Start a Local Full Node
 
-### 5.1. Initialize Tendermint
+### 6.1. Initialize Tendermint
 
 ```bash
 $ tendermint init
@@ -120,7 +127,7 @@ $ tendermint unsafe_reset_all
 ```
 <a id="create-wallet" />
 
-### 5.1. Create a Wallet
+### 6.1. Create a Wallet
 
 We will need a wallet to receive genesis funds.
 
@@ -139,7 +146,7 @@ To create a wallet, currently we have [client-rpc](https://github.com/crypto-com
 
 <a id="generate-genesis" />
 
-### 5.2. Generate Genesis
+### 6.2. Generate Genesis
 
 Genesis describes the initial funding distributions as well as other configurations such as validators setup. We will be distributing funds to our newly-created wallet address.
 
@@ -191,13 +198,13 @@ We now have the initial App Hash as well as the App State. In the above example,
 
 <a id="start-chain-transaction-enclaves" />
 
-### 5.3. Start Transaction Enclaves
+### 6.3. Start Transaction Enclaves
 
 Follow the instructions in [Crypto.com Chain Transaction Enclaves](https://github.com/crypto-com/chain-tx-enclave) to build and run the Chain Transaction Enclaves.
 
 <a id="start-tendermint" />
 
-### 5.4. Start Tendermint
+### 6.4. Start Tendermint
 
 - Update Tendermint Genesis Configuration
 
@@ -287,7 +294,7 @@ $ tendermint node
 
 <a id="start-chain-abci" />
 
-### 5.5. Start Chain ABCI
+### 6.5. Start Chain ABCI
 
 To start the Chain ABCI, you will need two pieces of data
 - **App Hash**: Prepared in the [Generate Genesis](#generate-genesis) step
@@ -311,7 +318,7 @@ chain-abci \
 
 <a id="start-lite-node" />
 
-## 6. Start a Basic Lite Node
+## 7. Start a Basic Lite Node
 
 ```bash
 $ tendermint lite
@@ -321,7 +328,7 @@ $ tendermint lite
 
 <a id="send-first-transaction" />
 
-## 7. Send Your First Transaction
+## 8. Send Your First Transaction
 
 Genesis funds are bonded funds, to transfer freely around, you first have to withdraw to UTXO
 
@@ -352,7 +359,7 @@ Work in Progresss
 
 <a id="testing" />
 
-## 8. Testing
+## 9. Testing
 
 To run the test cases
 ```bash
@@ -374,8 +381,9 @@ $ docker run --security-opt seccomp=unconfined -v "$PWD:/volume" xd009642/tarpau
 
 <a id="useful-links" />
 
-## 9. Useful links
+## 10. Useful links
 
 * [Project Website](http://crypto.com/chain)
+* [Technical Documentation](https://crypto-com.github.io)
 * Community chatrooms (non-technical): [Discord](https://discord.gg/nsp9JTC) [Telegram](https://t.me/CryptoComOfficial)
 * Developer community chatroom (technical): [![Gitter](https://badges.gitter.im/crypto-com/community.svg)](https://gitter.im/crypto-com/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
