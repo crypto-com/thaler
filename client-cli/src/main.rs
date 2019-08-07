@@ -23,6 +23,8 @@ fn main() {
             }
             Err(_) => error(&format!("Error: {}", err)),
         }
+
+        std::process::exit(1);
     }
 }
 
