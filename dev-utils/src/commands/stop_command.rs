@@ -16,7 +16,6 @@ impl StopCommand {
             .spawn()
             .map(|_e| {
                 println!("{} launched!", command);
-                ()
             })
             .map_err(|_e| {
                 println!("{} error!", command);

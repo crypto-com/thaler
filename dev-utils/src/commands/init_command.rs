@@ -15,6 +15,7 @@ use serde_json::json;
 use std::fs;
 use std::fs::File;
 use std::io;
+use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 
@@ -267,6 +268,7 @@ impl InitCommand {
             })
             .map_err(|_e| format_err!("write tendermint genesis error"))
     }
+
     fn prepare_tendermint(&self) -> Result<(), Error> {
         // check whether file exists
         fs::read_to_string(&InitCommand::get_tendermint_filename())
@@ -283,6 +285,7 @@ impl InitCommand {
             })
             .map(|_e| ())
     }
+
     fn read_staking_address(&mut self) -> Result<(), Error> {
         let storage = SledStorage::new(InitCommand::storage_path())?;
         let wallet_client = DefaultWalletClient::builder()
@@ -307,10 +310,35 @@ impl InitCommand {
         assert!(address.to_string().trim().to_string().len() == 42);
         Ok(())
     }
-    pub fn execute(&mut self) -> Result<(), Error> {
-        println!("initialize");
 
-        self.prepare_tendermint()
+    fn clear_disk(&self) -> Result<(), Error> {
+        let _ = fs::remove_dir_all(format!(
+            "{}/.tendermint/config",
+            dirs::home_dir().unwrap().to_str().unwrap()
+        ));
+        let _ = fs::remove_dir_all(format!(
+            "{}/.tendermint/data",
+            dirs::home_dir().unwrap().to_str().unwrap()
+        ));
+
+        let _ = fs::canonicalize(PathBuf::from("./.cro-storage")).and_then(|p| {
+            let _ = fs::remove_dir_all(p);
+            Ok(())
+        });
+
+        let _ = fs::canonicalize(PathBuf::from("./.storage")).and_then(|p| {
+            let _ = fs::remove_dir_all(p);
+            Ok(())
+        });
+
+        Ok(())
+    }
+
+    pub fn execute(&mut self) -> Result<(), Error> {
+        println!("initialize chain");
+
+        self.clear_disk()
+            .and_then(|_| self.prepare_tendermint())
             .and_then(|_| self.read_tendermint_genesis())
             .and_then(|_| self.read_information())
             .and_then(|_| self.generate_app_info())

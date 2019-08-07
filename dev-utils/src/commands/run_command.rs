@@ -1,8 +1,8 @@
+use super::init_command::InitCommand;
 use failure::{format_err, Error};
 use std::fs;
 use std::process::Command;
 use std::{thread, time};
-use super::init_command::InitCommand;
 #[derive(Debug)]
 pub struct RunCommand {
     chain_id: String,
@@ -17,7 +17,6 @@ impl RunCommand {
         }
     }
 
-    
     fn read_tendermint_genesis(&mut self) -> Result<(), Error> {
         // check whether file exists
         fs::read_to_string(&InitCommand::get_tendermint_filename())
@@ -39,7 +38,6 @@ impl RunCommand {
             .spawn()
             .map(|_e| {
                 println!("{} launched!", command);
-                ()
             })
             .map_err(|_e| {
                 println!("{} error!", command);
@@ -51,6 +49,12 @@ impl RunCommand {
             })
     }
 
+    pub fn wait(&self, task: &str, milliseconds: u64) -> Result<(), Error> {
+        println!("{}", task);
+        thread::sleep(time::Duration::from_millis(milliseconds));
+        Ok(())
+    }
+
     pub fn execute(&mut self) -> Result<(), Error> {
         println!("run program");
         self.read_tendermint_genesis()
@@ -60,8 +64,11 @@ impl RunCommand {
                     vec!["tx-validation-app", "tendermint", "chain-abci"],
                 )
             })
+            .and_then(|_| self.wait("wait for process cleanup", 1000))
             .and_then(|_| self.run_program("./tx-validation-app", vec!["tcp://0.0.0.0:25933"]))
+            .and_then(|_| self.wait("wait for booting enclave", 1000))
             .and_then(|_| {
+                println!("chain_id={} app_hash={}", self.chain_id, self.app_hash);
                 let args = vec![
                     "--host",
                     "0.0.0.0",
@@ -76,11 +83,7 @@ impl RunCommand {
                 ];
                 self.run_program("./chain-abci", args)
             })
-            .and_then(|_| {
-                println!("wait for abci booting");
-                thread::sleep(time::Duration::from_millis(3000));
-                Ok(())
-            })
+            .and_then(|_| self.wait("wait for booting abci", 2000))
             .and_then(|_| self.run_program("./tendermint", vec!["node"]))
     }
 }
