@@ -1,8 +1,8 @@
 use super::genesis_command::GenesisCommand;
 use super::genesis_dev_config::GenesisDevConfig;
 use chain_core::init::config::{InitialValidator, ValidatorKeyType};
-use chain_core::init::{address::RedeemAddress, coin::Coin};
 
+use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chrono::DateTime;
 use chrono::SecondsFormat;
 use client_common::storage::SledStorage;
@@ -26,7 +26,7 @@ use client_common::ErrorKind;
 pub struct InitCommand {
     chainid: String,
     app_hash: String,
-    app_state: String,
+    app_state: Option<InitConfig>,
     genesis_dev: GenesisDevConfig,
     tendermint_pubkey: String,
     staking_account_address: String,
@@ -39,7 +39,7 @@ impl InitCommand {
         InitCommand {
             chainid: "".to_string(),
             app_hash: "".to_string(),
-            app_state: "".to_string(),
+            app_state: None,
             genesis_dev: GenesisDevConfig::new(),
             tendermint_pubkey: "".to_string(),
             staking_account_address: "".to_string(),
@@ -205,7 +205,7 @@ impl InitCommand {
         // app_hash,  app_state
         let result = GenesisCommand::do_generate(&self.genesis_dev).unwrap();
         self.app_hash = result.0;
-        self.app_state = result.1;
+        self.app_state = Some(result.1);
         Ok(())
     }
     pub fn get_tendermint_filename() -> String {
@@ -250,10 +250,10 @@ impl InitCommand {
                 let obj = json.as_object_mut().unwrap();
                 obj["app_hash"] = json!(app_hash);
                 obj.insert("app_state".to_string(), json!(""));
-                obj["app_state"] = serde_json::from_str(&app_state).unwrap();
+                obj["app_state"] = json!(&app_state.unwrap());
                 obj["genesis_time"] = json!(gt);
                 obj["chain_id"] = json!(self.chainid.clone());
-                json_string = serde_json::to_string_pretty(&json).unwrap();
+                json_string = serde_json::to_string(&json).unwrap();
                 println!("{}", json_string);
 
                 File::create(&InitCommand::get_tendermint_filename())
