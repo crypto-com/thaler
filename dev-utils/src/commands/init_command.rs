@@ -232,6 +232,21 @@ impl InitCommand {
             })
             .map_err(|_e| format_err!("read tendermint genesis error"))
     }
+    fn write_overmind_procfile(&self) -> Result<(), Error> {
+        println!("write overmind Procfile");
+        let mut a = "".to_string();
+        a.push_str("enclave: ./tx-validation-app tcp://0.0.0.0:25933\n");
+        a.push_str(format!("abci: ./chain-abci --host 0.0.0.0 --port 26658 --chain_id {}  --genesis_app_hash {}     --enclave_server tcp://127.0.0.1:25933 \n", self.chainid,  self.app_hash).as_str());
+        a.push_str("tendermint: ./tendermint node\n");
+
+        File::create("./Procfile")
+            .map_err(|_| format_err!("Procfile Create Fail"))
+            .and_then(|mut file| {
+                file.write_all(a.as_bytes())
+                    .map(|_| ())
+                    .map_err(|_| format_err!("Procfile Write Fail"))
+            })
+    }
     fn write_tendermint_genesis(&self) -> Result<(), Error> {
         println!(
             "write genesis to {}",
@@ -293,7 +308,6 @@ impl InitCommand {
             .output()
             .map(|_e| {
                 println!("tenermint reset all");
-                ()
             })
             .map_err(|_e| format_err!("tendermint not found"))
     }
@@ -347,6 +361,7 @@ impl InitCommand {
             .and_then(|_| self.read_information())
             .and_then(|_| self.generate_app_info())
             .and_then(|_| self.write_tendermint_genesis())
+            .and_then(|_| self.write_overmind_procfile())
             .map_err(|e| format_err!("init error={}", e))
     }
 
