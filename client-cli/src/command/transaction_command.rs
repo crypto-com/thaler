@@ -105,9 +105,7 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
     transaction_type: &TransactionType,
     view_keys: &[PublicKey],
 ) -> Result<()> {
-    println!("view_keys: {:?}", view_keys);
-
-    let passphrase = ask_passphrase()?;
+    let passphrase = ask_passphrase(None)?;
 
     let transaction = match transaction_type {
         TransactionType::Transfer => {

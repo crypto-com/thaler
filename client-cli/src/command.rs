@@ -216,7 +216,7 @@ impl Command {
         name: &str,
         address: &StakedStateAddress,
     ) -> Result<()> {
-        let passphrase = ask_passphrase()?;
+        let passphrase = ask_passphrase(None)?;
         let staked_state = network_ops_client.get_staked_state(name, &passphrase, address)?;
 
         let mut table = Table::new();
@@ -242,7 +242,7 @@ impl Command {
     }
 
     fn get_view_key<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
-        let passphrase = ask_passphrase()?;
+        let passphrase = ask_passphrase(None)?;
         let view_key = wallet_client.view_key(name, &passphrase)?;
 
         success(&format!("View Key: {}", view_key));
@@ -250,7 +250,7 @@ impl Command {
     }
 
     fn get_balance<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
-        let passphrase = ask_passphrase()?;
+        let passphrase = ask_passphrase(None)?;
         let balance = wallet_client.balance(name, &passphrase)?;
 
         success(&format!("Wallet balance: {}", balance));
@@ -258,7 +258,7 @@ impl Command {
     }
 
     fn get_history<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
-        let passphrase = ask_passphrase()?;
+        let passphrase = ask_passphrase(None)?;
         let history = wallet_client.history(name, &passphrase)?;
 
         if !history.is_empty() {
@@ -303,7 +303,7 @@ impl Command {
         name: &str,
         force: bool,
     ) -> Result<()> {
-        let passphrase = ask_passphrase()?;
+        let passphrase = ask_passphrase(None)?;
 
         let view_key = wallet_client.view_key(name, &passphrase)?;
         let private_key = wallet_client
