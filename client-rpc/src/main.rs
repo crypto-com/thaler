@@ -1,4 +1,5 @@
 mod client_rpc;
+mod rpc;
 mod server;
 
 use structopt::StructOpt;
