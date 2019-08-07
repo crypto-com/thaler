@@ -286,6 +286,18 @@ impl InitCommand {
             .map(|_e| ())
     }
 
+    fn reset_tendermint(&self) -> Result<(), Error> {
+        // file not exist
+        Command::new("tendermint")
+            .args(&["unsafe_reset_all"])
+            .output()
+            .map(|_e| {
+                println!("tenermint reset all");
+                ()
+            })
+            .map_err(|_e| format_err!("tendermint not found"))
+    }
+
     fn read_staking_address(&mut self) -> Result<(), Error> {
         let storage = SledStorage::new(InitCommand::storage_path())?;
         let wallet_client = DefaultWalletClient::builder()
@@ -312,15 +324,6 @@ impl InitCommand {
     }
 
     fn clear_disk(&self) -> Result<(), Error> {
-        let _ = fs::remove_dir_all(format!(
-            "{}/.tendermint/config",
-            dirs::home_dir().unwrap().to_str().unwrap()
-        ));
-        let _ = fs::remove_dir_all(format!(
-            "{}/.tendermint/data",
-            dirs::home_dir().unwrap().to_str().unwrap()
-        ));
-
         let _ = fs::canonicalize(PathBuf::from("./.cro-storage")).and_then(|p| {
             let _ = fs::remove_dir_all(p);
             Ok(())
@@ -339,6 +342,7 @@ impl InitCommand {
 
         self.clear_disk()
             .and_then(|_| self.prepare_tendermint())
+            .and_then(|_| self.reset_tendermint())
             .and_then(|_| self.read_tendermint_genesis())
             .and_then(|_| self.read_information())
             .and_then(|_| self.generate_app_info())
