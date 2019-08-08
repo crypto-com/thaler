@@ -19,7 +19,7 @@ use crate::tx::data::{txid_hash, TxId};
 use data::input::{TxoIndex, TxoPointer};
 use data::output::TxOut;
 
-const TX_AUX_SIZE: usize = 1024 * 1024; // 1 MB
+const TX_AUX_SIZE: usize = 1024 * 60; // 60 KB
 
 /// wrapper around transactions with outputs
 #[derive(Encode, Decode, Clone)]
