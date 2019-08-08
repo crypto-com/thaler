@@ -23,6 +23,8 @@ fn main() {
             }
             Err(_) => error(&format!("Error: {}", err)),
         }
+
+        std::process::exit(1);
     }
 }
 
@@ -45,7 +47,10 @@ pub(crate) fn tendermint_url() -> String {
     }
 }
 
-pub(crate) fn ask_passphrase() -> Result<SecUtf8> {
-    ask("Enter passphrase: ");
+pub(crate) fn ask_passphrase(message: Option<&str>) -> Result<SecUtf8> {
+    match message {
+        None => ask("Enter passphrase: "),
+        Some(message) => ask(message),
+    }
     Ok(password().context(ErrorKind::IoError)?.into())
 }

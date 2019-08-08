@@ -47,7 +47,7 @@ impl GenesisCommand {
         }
     }
 
-    pub fn do_generate(genesis_dev: &GenesisDevConfig) -> Result<(String, String), Error> {
+    pub fn do_generate(genesis_dev: &GenesisDevConfig) -> Result<(String, InitConfig), Error> {
         let mut dist: BTreeMap<RedeemAddress, (Coin, AccountType)> = BTreeMap::new();
 
         for (address, amount) in genesis_dev.distribution.iter() {
@@ -97,7 +97,7 @@ impl GenesisCommand {
             println!();
 
             // app_hash, app_state
-            Ok((encode_upper(genesis_app_hash), config_str))
+            Ok((encode_upper(genesis_app_hash), config))
         } else {
             Err(format_err!(
                 "distribution validation error: {} ",
@@ -105,7 +105,7 @@ impl GenesisCommand {
             ))
         }
     }
-    pub fn generate(genesis_dev_config_path: &PathBuf) -> Result<(String, String), Error> {
+    pub fn generate(genesis_dev_config_path: &PathBuf) -> Result<(String, InitConfig), Error> {
         let genesis_dev_config = fs::read_to_string(genesis_dev_config_path)
             .context(format_err!("Something went wrong reading the file"))?;
         let genesis_dev: GenesisDevConfig =

@@ -510,6 +510,7 @@ where
 mod tests {
     use super::*;
 
+    use std::collections::BTreeMap;
     use std::sync::RwLock;
     use std::time::SystemTime;
 
@@ -631,14 +632,17 @@ mod tests {
                         },
                     ];
                 } else {
-                    address_details.unspent_transactions = vec![(
+                    let mut unspent_transactions = BTreeMap::new();
+                    unspent_transactions.insert(
                         TxoPointer::new([1u8; 32], 0),
                         TxOut {
                             address: self.addr_2.clone(),
                             value: Coin::new(30).unwrap(),
                             valid_from: None,
                         },
-                    )];
+                    );
+
+                    address_details.unspent_transactions = unspent_transactions;
 
                     address_details.transaction_history = vec![TransactionChange {
                         transaction_id: [1u8; 32],
@@ -651,14 +655,17 @@ mod tests {
                     address_details.balance = Coin::new(30).unwrap();
                 }
             } else if *self.changed.read().unwrap() && address == &self.addr_3 {
-                address_details.unspent_transactions = vec![(
+                let mut unspent_transactions = BTreeMap::new();
+                unspent_transactions.insert(
                     TxoPointer::new([2u8; 32], 0),
                     TxOut {
                         address: self.addr_3.clone(),
                         value: Coin::new(30).unwrap(),
                         valid_from: None,
                     },
-                )];
+                );
+
+                address_details.unspent_transactions = unspent_transactions;
 
                 address_details.transaction_history = vec![TransactionChange {
                     transaction_id: [1u8; 32],

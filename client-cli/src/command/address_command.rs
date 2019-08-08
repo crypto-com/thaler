@@ -64,7 +64,7 @@ impl AddressCommand {
         name: &str,
         address_type: &AddressType,
     ) -> Result<()> {
-        let passphrase = ask_passphrase()?;
+        let passphrase = ask_passphrase(None)?;
 
         match address_type {
             AddressType::Staking => {
@@ -85,7 +85,7 @@ impl AddressCommand {
         name: &str,
         address_type: &AddressType,
     ) -> Result<()> {
-        let passphrase = ask_passphrase()?;
+        let passphrase = ask_passphrase(None)?;
 
         match address_type {
             AddressType::Staking => {

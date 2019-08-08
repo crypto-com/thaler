@@ -1,4 +1,6 @@
 //! This crate contains messages exchanged in REQ-REP socket between chain-abci app to enclave wrapper server
+use parity_scale_codec::{Decode, Encode, Error, Input};
+
 use chain_core::state::account::DepositBondTx;
 use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateOpWitness;
@@ -10,7 +12,7 @@ use chain_core::tx::{fee::Fee, TxAux};
 use chain_core::ChainInfo;
 use chain_tx_validation::TxWithOutputs;
 
-use parity_scale_codec::{Decode, Encode};
+const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
 
 /// requests sent from chain-abci app to enclave wrapper server
 /// FIXME: the variant will be smaller once the TX storage is on the enclave side
@@ -50,11 +52,40 @@ pub enum EnclaveResponse {
 pub const FLAGS: i32 = 0;
 
 /// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
-#[derive(Encode, Decode)]
+#[derive(Encode)]
 pub enum EncryptionRequest {
     TransferTx(Tx, TxWitness),
     DepositStake(DepositBondTx, TxWitness),
     WithdrawStake(WithdrawUnbondedTx, StakedState, StakedStateOpWitness),
+}
+
+impl Decode for EncryptionRequest {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let size = input
+            .remaining_len()?
+            .ok_or_else(|| "Unable to calculate size of input")?;
+
+        if size > ENCRYPTION_REQUEST_SIZE {
+            return Err("Request too large".into());
+        }
+
+        match input.read_byte()? {
+            0 => Ok(EncryptionRequest::TransferTx(
+                Tx::decode(input)?,
+                TxWitness::decode(input)?,
+            )),
+            1 => Ok(EncryptionRequest::DepositStake(
+                DepositBondTx::decode(input)?,
+                TxWitness::decode(input)?,
+            )),
+            2 => Ok(EncryptionRequest::WithdrawStake(
+                WithdrawUnbondedTx::decode(input)?,
+                StakedState::decode(input)?,
+                StakedStateOpWitness::decode(input)?,
+            )),
+            _ => Err("No such variant in enum EncryptionRequest".into()),
+        }
+    }
 }
 
 /// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
