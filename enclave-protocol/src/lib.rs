@@ -12,7 +12,7 @@ use chain_core::tx::{fee::Fee, TxAux};
 use chain_core::ChainInfo;
 use chain_tx_validation::TxWithOutputs;
 
-const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 1024; // 1 MB
+const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
 
 /// requests sent from chain-abci app to enclave wrapper server
 /// FIXME: the variant will be smaller once the TX storage is on the enclave side

@@ -9,7 +9,7 @@ pub mod witness;
 
 use std::fmt;
 
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Error, Input};
 
 use self::data::Tx;
 use self::witness::TxWitness;
@@ -18,6 +18,8 @@ use crate::state::tendermint::BlockHeight;
 use crate::tx::data::{txid_hash, TxId};
 use data::input::{TxoIndex, TxoPointer};
 use data::output::TxOut;
+
+const TX_AUX_SIZE: usize = 1024 * 60; // 60 KB
 
 /// wrapper around transactions with outputs
 #[derive(Encode, Decode, Clone)]
@@ -82,7 +84,7 @@ pub struct TxObfuscated {
     pub txpayload: Vec<u8>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode)]
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 pub enum TxAux {
     /// normal value transfer Tx with the vector of witnesses
@@ -106,6 +108,42 @@ pub enum TxAux {
         witness: StakedStateOpWitness,
         payload: TxObfuscated,
     },
+}
+
+impl Decode for TxAux {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let size = input
+            .remaining_len()?
+            .ok_or_else(|| "Unable to calculate size of input")?;
+
+        if size > TX_AUX_SIZE {
+            return Err("Input too large".into());
+        }
+
+        match input.read_byte()? {
+            0 => Ok(TxAux::TransferTx {
+                txid: TxId::decode(input)?,
+                inputs: <Vec<TxoPointer>>::decode(input)?,
+                no_of_outputs: TxoIndex::decode(input)?,
+                payload: TxObfuscated::decode(input)?,
+            }),
+            1 => Ok(TxAux::DepositStakeTx {
+                tx: DepositBondTx::decode(input)?,
+                payload: TxObfuscated::decode(input)?,
+            }),
+            2 => Ok(TxAux::UnbondStakeTx(
+                UnbondTx::decode(input)?,
+                StakedStateOpWitness::decode(input)?,
+            )),
+            3 => Ok(TxAux::WithdrawUnbondedStakeTx {
+                txid: TxId::decode(input)?,
+                no_of_outputs: TxoIndex::decode(input)?,
+                witness: StakedStateOpWitness::decode(input)?,
+                payload: TxObfuscated::decode(input)?,
+            }),
+            _ => Err("No such variant in enum TxAux".into()),
+        }
+    }
 }
 
 pub trait TransactionId: Encode {
