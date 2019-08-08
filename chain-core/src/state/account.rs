@@ -210,6 +210,7 @@ impl Decode for DepositBondTx {
             return Err("Input too large".into());
         }
 
+        let inputs = <Vec<TxoPointer>>::decode(input)?;
         let to_staked_account = StakedStateAddress::decode(input)?;
         let attributes = StakedStateOpAttributes::decode(input)?;
 
