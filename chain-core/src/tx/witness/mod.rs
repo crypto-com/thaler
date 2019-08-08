@@ -12,8 +12,6 @@ use crate::tx::witness::tree::{RawPubkey, RawSignature};
 
 pub type EcdsaSignature = RecoverableSignature;
 
-const MAX_WITNESS_LENGTH: usize = 64; // Should ideally be equal to the maximum number of transaction inputs
-
 /// Each witness is made up of a schnorr signature (64 bytes) + merkle proof
 /// Each merkle proof is 32 bytes (root hash) + 33 bytes (public key) + path to leaf node
 /// Each step of path is 32 bytes (node hash) + 33 bytes (sibling hash, if present) + 1 byte if next step is present
@@ -47,11 +45,7 @@ impl Decode for TxWitness {
 
         let witnesses = <Vec<TxInWitness>>::decode(input)?;
 
-        if witnesses.len() > MAX_WITNESS_LENGTH {
-            Err("Too many witnesses".into())
-        } else {
-            Ok(TxWitness(witnesses))
-        }
+        Ok(TxWitness(witnesses))
     }
 }
 

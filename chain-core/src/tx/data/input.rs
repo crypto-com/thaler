@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::tx::data::TxId;
 
 // TODO: u16 and Vec size check in Decode implementation
-pub type TxoIndex = u64;
+pub type TxoIndex = u16;
 
 /// Structure used for addressing a specific output of a transaction
 /// built from a TxId (hash of the tx) and the offset in the outputs of this

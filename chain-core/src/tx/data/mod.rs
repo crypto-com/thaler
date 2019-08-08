@@ -23,15 +23,13 @@ use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
 use crate::tx::TransactionId;
 
-const MAX_INPUTS_LENGTH: usize = 64;
-
-/// Each input is 33 bytes
+/// Each input is 34 bytes
 /// Each output is 33 (address) + 8 (amount) + 9 (timelock) = 50 bytes
 /// Assuming maximum allowed view keys are 64. Attributes are 1 + (64 * 42) = 2688 bytes
 ///
 /// Assuming maximum inputs and outputs allowed are 64 each,
-/// So, maximum transaction size (33 * 64) + (50 * 64) + 2688 = 8000
-const MAX_TX_SIZE: usize = 8000; // 8000 bytes
+/// So, maximum transaction size (34 * 64) + (50 * 64) + 2688 = 8064
+const MAX_TX_SIZE: usize = 8100; // 8100 bytes
 
 /// Calculates hash of the input data -- if SCALE-serialized TX is passed in, it's equivalent to TxId.
 /// Currently, it uses blake2s.
@@ -67,11 +65,6 @@ impl Decode for Tx {
         }
 
         let inputs = <Vec<TxoPointer>>::decode(input)?;
-
-        if inputs.len() > MAX_INPUTS_LENGTH {
-            return Err("Too many inputs".into());
-        }
-
         let outputs = <Vec<TxOut>>::decode(input)?;
         let attributes = TxAttributes::decode(input)?;
 
