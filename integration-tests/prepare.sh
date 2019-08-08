@@ -189,11 +189,11 @@ check_command_exist "../target/debug/dev-utils"
 print_step "Initialize Tendermint"
 print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
 mkdir -p ./tendermint
-if [ ! -z "${CI}" ];
+if [ ! -z "${CI}" ]; then
     chmod 777 ./tendermint
 fi
 docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
-if [ ! -z "${CI}" ];
+if [ ! -z "${CI}" ]; then
     sudo chmod -R 777 ./tendermint
 fi
 
