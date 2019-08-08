@@ -19,11 +19,11 @@ use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::{From, TryFrom};
 use std::fmt;
 
-/// Each input is 33 bytes
+/// Each input is 34 bytes
 ///
 /// Assuming maximum inputs allowed are 64,
-/// So, maximum deposit transaction size (33 * 64) + 21 (address) + 1 (attributes) = 2134 bytes
-const MAX_DEPOSIT_TX_SIZE: usize = 2150; // 2150 bytes
+/// So, maximum deposit transaction size (34 * 64) + 21 (address) + 1 (attributes) = 2198 bytes
+const MAX_DEPOSIT_TX_SIZE: usize = 2200; // 2200 bytes
 
 /// reference counter in the sparse patricia merkle tree/trie
 pub type Count = u64;
