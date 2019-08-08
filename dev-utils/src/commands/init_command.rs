@@ -340,22 +340,24 @@ impl InitCommand {
     fn clear_disk(&self) -> Result<(), Error> {
         InitCommand::ask("** DANGER **\n");
 
-        let first=self.ask_string("will remove all storages including wallets and blocks please type cleardisk=","");
-        let second=self.ask_string("please type cleardisk onemore=","");
-        if first=="cleardisk" && second=="cleardisk" {
-        let _ = fs::canonicalize(PathBuf::from("./.cro-storage")).and_then(|p| {
-            let _ = fs::remove_dir_all(p);
-            Ok(())
-        });
+        let first = self.ask_string(
+            "will remove all storages including wallets and blocks please type cleardisk=",
+            "",
+        );
+        let second = self.ask_string("please type cleardisk onemore=", "");
+        if first == "cleardisk" && second == "cleardisk" {
+            let _ = fs::canonicalize(PathBuf::from("./.cro-storage")).and_then(|p| {
+                let _ = fs::remove_dir_all(p);
+                Ok(())
+            });
 
-        let _ = fs::canonicalize(PathBuf::from("./.storage")).and_then(|p| {
-            let _ = fs::remove_dir_all(p);
-            Ok(())
-        });
+            let _ = fs::canonicalize(PathBuf::from("./.storage")).and_then(|p| {
+                let _ = fs::remove_dir_all(p);
+                Ok(())
+            });
 
-        Ok(())
-        }
-        else {
+            Ok(())
+        } else {
             Err(format_err!("clear disk error"))
         }
     }
