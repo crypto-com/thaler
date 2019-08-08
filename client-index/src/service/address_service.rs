@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode};
@@ -17,24 +17,14 @@ const KEYSPACE: &str = "index_address";
 #[derive(Debug, Encode, Decode)]
 pub struct AddressDetails {
     /// Unpent transactions corresponding to an address
-    ///
-    /// # Note
-    ///
-    /// Ideally, we should use `HashSet` or `BTreeSet` instead of `Vec` here. But, `parity_codec::Encode` is not
-    /// implemented for them. Implementation for `BTreeSet` will be available in next release of `parity_codec`.
-    pub unspent_transactions: Vec<(TxoPointer, TxOut)>,
+    pub unspent_transactions: BTreeMap<TxoPointer, TxOut>,
     /// Transaction history corresponding to an address
     pub transaction_history: Vec<TransactionChange>,
     /// Balance of an address
     pub balance: Coin,
 
     /// Stores a set of transaction_ids that have been updated for current address.
-    ///
-    /// # Note
-    ///
-    /// Ideally, we should use `HashSet` or `BTreeSet` instead of `Vec` here. But, `parity_codec::Encode` is not
-    /// implemented for them. Implementation for `BTreeSet` will be available in next release of `parity_codec`.
-    transaction_ids: Vec<TxId>,
+    transaction_ids: BTreeSet<TxId>,
 }
 
 impl AddressDetails {
@@ -52,7 +42,7 @@ impl AddressDetails {
             self.apply_memento_operation(operation)?;
         }
 
-        self.transaction_ids.push(transaction_id);
+        self.transaction_ids.insert(transaction_id);
 
         Ok(())
     }
@@ -65,13 +55,10 @@ impl AddressDetails {
             }
             MementoOperation::AddUnspentTransaction(input, output) => {
                 self.unspent_transactions
-                    .push(((*input).clone(), (*output).clone()));
+                    .insert((*input).clone(), (*output).clone());
             }
             MementoOperation::RemoveUnspentTransaction(input) => {
-                self.unspent_transactions
-                    .iter()
-                    .position(|(pointer, _)| input == pointer)
-                    .map(|i| self.unspent_transactions.remove(i));
+                self.unspent_transactions.remove(input);
             }
         }
 

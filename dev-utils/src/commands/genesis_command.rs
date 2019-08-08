@@ -9,37 +9,17 @@ use chain_abci::storage::tx::StarlingFixedKey;
 use chain_abci::storage::Storage;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
-use chain_core::init::config::{AccountType, InitNetworkParameters, InitialValidator};
+use chain_core::init::config::{AccountType, InitNetworkParameters};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::{LinearFee, Milli};
-use chrono::offset::Utc;
-use chrono::DateTime;
 use kvdb_memorydb::create;
-use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[derive(Deserialize)]
-pub struct GenesisDevConfig {
-    distribution: BTreeMap<RedeemAddress, Coin>,
-    unbonding_period: u32,
-    required_council_node_stake: Coin,
-    initial_fee_policy: InitialFeePolicy,
-    council_nodes: Vec<InitialValidator>,
-    launch_incentive_from: RedeemAddress,
-    launch_incentive_to: RedeemAddress,
-    long_term_incentive: RedeemAddress,
-    genesis_time: DateTime<Utc>,
-}
-
-#[derive(Deserialize)]
-pub struct InitialFeePolicy {
-    base_fee: String,
-    per_byte_fee: String,
-}
+use crate::commands::genesis_dev_config::GenesisDevConfig;
 
 #[derive(Debug, StructOpt)]
 pub enum GenesisCommand {
@@ -63,15 +43,11 @@ impl GenesisCommand {
         match self {
             GenesisCommand::Generate {
                 genesis_dev_config_path,
-            } => GenesisCommand::generate(&genesis_dev_config_path),
+            } => GenesisCommand::generate(&genesis_dev_config_path).map(|_e| ()),
         }
     }
 
-    fn generate(genesis_dev_config_path: &PathBuf) -> Result<(), Error> {
-        let genesis_dev_config = fs::read_to_string(genesis_dev_config_path)
-            .context(format_err!("Something went wrong reading the file"))?;
-        let genesis_dev: GenesisDevConfig =
-            serde_json::from_str(&genesis_dev_config).expect("failed to parse genesis dev config");
+    pub fn do_generate(genesis_dev: &GenesisDevConfig) -> Result<(String, InitConfig), Error> {
         let mut dist: BTreeMap<RedeemAddress, (Coin, AccountType)> = BTreeMap::new();
 
         for (address, amount) in genesis_dev.distribution.iter() {
@@ -93,7 +69,7 @@ impl GenesisCommand {
             genesis_dev.launch_incentive_to,
             genesis_dev.long_term_incentive,
             params,
-            genesis_dev.council_nodes,
+            genesis_dev.council_nodes.clone(),
         );
         let result = config.validate_config_get_genesis(genesis_dev.genesis_time.timestamp());
         if let Ok((accounts, rp, _nodes)) = result {
@@ -118,15 +94,23 @@ impl GenesisCommand {
             let config_str =
                 serde_json::to_string(&config).context(format_err!("Invalid config"))?;
             println!("\"app_state\": {}", config_str);
+            println!();
+
+            // app_hash, app_state
+            Ok((encode_upper(genesis_app_hash), config))
         } else {
-            return Err(format_err!(
+            Err(format_err!(
                 "distribution validation error: {} ",
                 result.unwrap_err()
-            ));
+            ))
         }
+    }
+    pub fn generate(genesis_dev_config_path: &PathBuf) -> Result<(String, InitConfig), Error> {
+        let genesis_dev_config = fs::read_to_string(genesis_dev_config_path)
+            .context(format_err!("Something went wrong reading the file"))?;
+        let genesis_dev: GenesisDevConfig =
+            serde_json::from_str(&genesis_dev_config).expect("failed to parse genesis dev config");
 
-        println!();
-
-        Ok(())
+        GenesisCommand::do_generate(&genesis_dev)
     }
 }

@@ -15,19 +15,20 @@
 1. [Description](#description)
 2. [Contributing](#contributing)
 3. [License](#license)
-4. [Building](#building)<br />
-  4.1. [Build Prerequisites](#build-prerequisites)<br />
-  4.2. [Build from Source Code](#build-from-src)<br />
-5. [Start a Local Full Node](#start-local-full-node)<br />
-  5.1. [Create a Wallet](#create-wallet)<br />
-  5.2. [Generate Genesis](#generate-genesis)<br />
-  5.3. [Start Chain Transaction Enclaves](#start-chain-transaction-enclaves)<br />
-  5.4. [Start Tendermint](#start-tendermint)<br />
-  5.5. [Start Chain ABCI](#start-chain-abci)<br />
-6. [Start a Basic Lite Node](#start-lite-node)<br />
-7. [Send your First Transaction](#send-first-transaction)
-8. [Testing](#testing)
-8. [Useful LInks](#useful-links)
+4. [Documentation](#documentation)<br />
+5. [Building](#building)<br />
+  5.1. [Build Prerequisites](#build-prerequisites)<br />
+  5.2. [Build from Source Code](#build-from-src)<br />
+6. [Start a Local Full Node](#start-local-full-node)<br />
+  6.1. [Create a Wallet](#create-wallet)<br />
+  6.2. [Generate Genesis](#generate-genesis)<br />
+  6.3. [Start Chain Transaction Enclaves](#start-chain-transaction-enclaves)<br />
+  6.4. [Start Tendermint](#start-tendermint)<br />
+  6.5. [Start Chain ABCI](#start-chain-abci)<br />
+7. [Start a Basic Lite Node](#start-lite-node)<br />
+8. [Send your First Transaction](#send-first-transaction)
+9. [Testing](#testing)
+10. [Useful LInks](#useful-links)
  
 <a id="description" />
 
@@ -62,11 +63,17 @@ and the [contributing guidelines](CONTRIBUTING.md) when submitting code.
 
 <a id="building" />
 
-## 4. Build
+## 4. Documentation
+
+Technical documentation can be found in this [Github repository](https://github.com/crypto-com/chain-docs) (you can read it in [this hosted version](https://crypto-com.github.io)).
+
+<a id="documentation" />
+
+## 5. Build
 
 <a id="build-prerequisites" />
 
-### 4.1. Build Prerequisites
+### 5.1. Build Prerequisites
 
 Crypto.com chain requires the following to be installed before build.
 
@@ -95,7 +102,7 @@ rustflags = ["-Ctarget-feature=+aes,+ssse3"]
 
 <a id="build-instructions" />
 
-### 4.2. Build Instructions
+### 5.2. Build Instructions
 ```bash
 $ git clone git@github.com:crypto-com/chain.git
 $ cd chain
@@ -106,9 +113,9 @@ The built executables will be put inside folder `/target/debug/` by default.
 
 <a id="start-local-full-node" />
 
-## 5. Start a Local Full Node
+## 6. Start a Local Full Node
 
-### 5.1. Initialize Tendermint
+### 6.1. Initialize Tendermint
 
 ```bash
 $ tendermint init
@@ -120,7 +127,7 @@ $ tendermint unsafe_reset_all
 ```
 <a id="create-wallet" />
 
-### 5.1. Create a Wallet
+### 6.1. Create a Wallet
 
 We will need a wallet to receive genesis funds.
 
@@ -139,7 +146,7 @@ To create a wallet, currently we have [client-rpc](https://github.com/crypto-com
 
 <a id="generate-genesis" />
 
-### 5.2. Generate Genesis
+### 6.2. Generate Genesis
 
 Genesis describes the initial funding distributions as well as other configurations such as validators setup. We will be distributing funds to our newly-created wallet address.
 
@@ -191,13 +198,13 @@ We now have the initial App Hash as well as the App State. In the above example,
 
 <a id="start-chain-transaction-enclaves" />
 
-### 5.3. Start Transaction Enclaves
+### 6.3. Start Transaction Enclaves
 
 Follow the instructions in [Crypto.com Chain Transaction Enclaves](https://github.com/crypto-com/chain-tx-enclave) to build and run the Chain Transaction Enclaves.
 
 <a id="start-tendermint" />
 
-### 5.4. Start Tendermint
+### 6.4. Start Tendermint
 
 - Update Tendermint Genesis Configuration
 
@@ -226,35 +233,27 @@ Copy the generated genesis configuration prepared previously and append it to `~
       "name": ""
     }
   ],
-  "app_hash": "BA827BE4C6367614322C1727B5E752A5D2FA1B03E227D574A9DCDFA653EDB56D",
+ "app_hash": "B3B873229A5FD2921801E592F3122B61C3CAE0C55FE0346369059F6643C751CC",
   "app_state": {
     "distribution": {
       "0x20a0bee429d6907e556205ef9d48ab6fe6a55531": [
-        100000000000000000,
+        "2500000000000000000",
         "ExternallyOwnedAccount"
       ],
       "0x35f517cab9a37bc31091c2f155d965af84e0bc85": [
-        100000000000000000,
+        "2500000000000000000",
+        "ExternallyOwnedAccount"
+      ],
+      "0x3a102b53a12334e984ef51fda0baab1768116363": [
+        "2500000000000000000",
         "ExternallyOwnedAccount"
       ],
       "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": [
-        2500000000000000000,
-        "ExternallyOwnedAccount"
-      ],
-      "0x3c747bbc06d1f57e66c6655f37d8157b4b3def96": [
-        3000000000000000000,
+        "1250000000000000000",
         "ExternallyOwnedAccount"
       ],
       "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07": [
-        50000000000000000,
-        "ExternallyOwnedAccount"
-      ],
-      "0xb63b606ac810a52cca15e44bb630fd42d8d1d83d": [
-        1250000000000000000,
-        "ExternallyOwnedAccount"
-      ],
-      "0xc3ea1251f8793456bb4435c50abf2ab2bfc99db6": [
-        3000000000000000000,
+        "1250000000000000000",
         "ExternallyOwnedAccount"
       ]
     },
@@ -262,20 +261,21 @@ Copy the generated genesis configuration prepared previously and append it to `~
     "launch_incentive_to": "0x20a0bee429d6907e556205ef9d48ab6fe6a55531",
     "long_term_incentive": "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07",
     "network_params": {
-      "initial_fee_policy": { "constant": 1055, "coefficient": 16 },
-      "required_council_node_stake": 1250000000000000000,
+      "initial_fee_policy": {
+        "constant": 1001,
+        "coefficient": 1025
+      },
+      "required_council_node_stake": "1250000000000000000",
       "unbonding_period": 60
     },
     "council_nodes": [
       {
-        "staking_account_address": "0xb63b606ac810a52cca15e44bb630fd42d8d1d83d",
+        "staking_account_address": "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de",
         "consensus_pubkey_type": "Ed25519",
-        "consensus_pubkey_b64": "MFgW9OkoKufCrdAjk7Zx0LMWKA/0ixkmuBpO0flyRtU="
+        "consensus_pubkey_b64": "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE="
       }
     ]
-  },
-  "app_hash": "B3B873229A5FD2921801E592F3122B61C3CAE0C55FE0346369059F6643C751CC",
-  "app_state": {"distribution":{"0x20a0bee429d6907e556205ef9d48ab6fe6a55531":["2500000000000000000","ExternallyOwnedAccount"],"0x35f517cab9a37bc31091c2f155d965af84e0bc85":["2500000000000000000","ExternallyOwnedAccount"],"0x3a102b53a12334e984ef51fda0baab1768116363":["2500000000000000000","ExternallyOwnedAccount"],"0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de":["1250000000000000000","ExternallyOwnedAccount"],"0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07":["1250000000000000000","ExternallyOwnedAccount"]},"launch_incentive_from":"0x35f517cab9a37bc31091c2f155d965af84e0bc85","launch_incentive_to":"0x20a0bee429d6907e556205ef9d48ab6fe6a55531","long_term_incentive":"0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07","network_params":{"initial_fee_policy":{"constant":1001,"coefficient":1025},"required_council_node_stake":"1250000000000000000","unbonding_period":60},"council_nodes":[{"staking_account_address":"0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de","consensus_pubkey_type":"Ed25519","consensus_pubkey_b64":"EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE="}]}
+  }
 }
 ```
 
@@ -287,7 +287,7 @@ $ tendermint node
 
 <a id="start-chain-abci" />
 
-### 5.5. Start Chain ABCI
+### 6.5. Start Chain ABCI
 
 To start the Chain ABCI, you will need two pieces of data
 - **App Hash**: Prepared in the [Generate Genesis](#generate-genesis) step
@@ -311,7 +311,7 @@ chain-abci \
 
 <a id="start-lite-node" />
 
-## 6. Start a Basic Lite Node
+## 7. Start a Basic Lite Node
 
 ```bash
 $ tendermint lite
@@ -321,7 +321,7 @@ $ tendermint lite
 
 <a id="send-first-transaction" />
 
-## 7. Send Your First Transaction
+## 8. Send Your First Transaction
 
 Genesis funds are bonded funds, to transfer freely around, you first have to withdraw to UTXO
 
@@ -352,7 +352,7 @@ Work in Progresss
 
 <a id="testing" />
 
-## 8. Testing
+## 9. Testing
 
 To run the test cases
 ```bash
@@ -374,8 +374,9 @@ $ docker run --security-opt seccomp=unconfined -v "$PWD:/volume" xd009642/tarpau
 
 <a id="useful-links" />
 
-## 9. Useful links
+## 10. Useful links
 
 * [Project Website](http://crypto.com/chain)
+* [Technical Documentation](https://crypto-com.github.io)
 * Community chatrooms (non-technical): [Discord](https://discord.gg/nsp9JTC) [Telegram](https://t.me/CryptoComOfficial)
 * Developer community chatroom (technical): [![Gitter](https://badges.gitter.im/crypto-com/community.svg)](https://gitter.im/crypto-com/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)

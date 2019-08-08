@@ -21,8 +21,7 @@ pub mod tx;
 
 use blake2::Blake2s;
 use common::{hash256, MerkleTree, Timespec, H256};
-use init::coin::Coin;
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+use parity_scale_codec::{Decode, Encode};
 use state::RewardsPoolState;
 use tx::fee::Fee;
 
@@ -45,7 +44,7 @@ pub fn compute_app_hash(
 }
 
 /// External information needed for TX validation
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Encode, Decode)]
 pub struct ChainInfo {
     /// minimal fee computed for the transaction
     pub min_fee_computed: Fee,
@@ -55,28 +54,4 @@ pub struct ChainInfo {
     pub previous_block_time: Timespec,
     /// how much time is required to wait until stake state's unbonded amount can be withdrawn
     pub unbonding_period: u32,
-}
-
-impl Encode for ChainInfo {
-    fn encode_to<W: Output>(&self, dest: &mut W) {
-        self.min_fee_computed.to_coin().encode_to(dest);
-        dest.push_byte(self.chain_hex_id);
-        self.previous_block_time.encode_to(dest);
-        self.unbonding_period.encode_to(dest);
-    }
-}
-
-impl Decode for ChainInfo {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let fee = Coin::decode(input)?;
-        let chain_hex_id: u8 = input.read_byte()?;
-        let previous_block_time = Timespec::decode(input)?;
-        let unbonding_period = u32::decode(input)?;
-        Ok(ChainInfo {
-            min_fee_computed: Fee::new(fee),
-            chain_hex_id,
-            previous_block_time,
-            unbonding_period,
-        })
-    }
 }

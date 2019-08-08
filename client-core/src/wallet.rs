@@ -78,8 +78,7 @@ pub trait WalletClient: Send + Sync {
     fn new_staking_address(&self, name: &str, passphrase: &SecUtf8) -> Result<StakedStateAddress>;
 
     /// Generates a new 1-of-1 transfer address
-    fn new_single_transfer_address(&self, name: &str, passphrase: &SecUtf8)
-        -> Result<ExtendedAddr>;
+    fn new_transfer_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr>;
 
     /// Generates a new multi-sig transfer address for creating m-of-n transactions
     ///
@@ -91,7 +90,7 @@ pub trait WalletClient: Send + Sync {
     /// `self_public_key`: Public key of current co-signer
     /// `m`: Number of required co-signers
     /// `n`: Total number of co-signers
-    fn new_transfer_address(
+    fn new_multisig_transfer_address(
         &self,
         name: &str,
         passphrase: &SecUtf8,

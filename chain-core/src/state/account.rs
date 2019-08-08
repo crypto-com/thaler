@@ -19,6 +19,12 @@ use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::{From, TryFrom};
 use std::fmt;
 
+/// Each input is 34 bytes
+///
+/// Assuming maximum inputs allowed are 64,
+/// So, maximum deposit transaction size (34 * 64) + 21 (address) + 1 (attributes) = 2198 bytes
+const MAX_DEPOSIT_TX_SIZE: usize = 2200; // 2200 bytes
+
 /// reference counter in the sparse patricia merkle tree/trie
 pub type Count = u64;
 
@@ -171,7 +177,7 @@ impl StakedState {
 }
 
 /// attributes in StakedState-related transactions
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct StakedStateOpAttributes {
     pub chain_hex_id: u8,
@@ -184,36 +190,36 @@ impl StakedStateOpAttributes {
     }
 }
 
-impl Encode for StakedStateOpAttributes {
-    fn encode_to<W: Output>(&self, dest: &mut W) {
-        dest.push_byte(0);
-        dest.push_byte(1);
-        dest.push_byte(self.chain_hex_id);
-    }
-}
-
-impl Decode for StakedStateOpAttributes {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let tag = input.read_byte()?;
-        let constructor_len = input.read_byte()?;
-        match (tag, constructor_len) {
-            (0, 1) => {
-                let chain_hex_id: u8 = input.read_byte()?;
-                Ok(StakedStateOpAttributes { chain_hex_id })
-            }
-            _ => Err(Error::from("Invalid tag and length")),
-        }
-    }
-}
-
 /// takes UTXOs inputs, deposits them in the specified StakedState's bonded amount - fee
 /// (updates StakedState's bonded + nonce)
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DepositBondTx {
     pub inputs: Vec<TxoPointer>,
     pub to_staked_account: StakedStateAddress,
     pub attributes: StakedStateOpAttributes,
+}
+
+impl Decode for DepositBondTx {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let size = input
+            .remaining_len()?
+            .ok_or_else(|| "Unable to calculate size of input")?;
+
+        if size > MAX_DEPOSIT_TX_SIZE {
+            return Err("Input too large".into());
+        }
+
+        let inputs = <Vec<TxoPointer>>::decode(input)?;
+        let to_staked_account = StakedStateAddress::decode(input)?;
+        let attributes = StakedStateOpAttributes::decode(input)?;
+
+        Ok(DepositBondTx {
+            inputs,
+            to_staked_account,
+            attributes,
+        })
+    }
 }
 
 impl TransactionId for DepositBondTx {}

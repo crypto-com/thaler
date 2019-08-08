@@ -138,7 +138,7 @@ mod tests {
         ];
 
         let tree_address = wallet_client
-            .new_transfer_address(
+            .new_multisig_transfer_address(
                 name,
                 passphrase,
                 public_keys.clone(),
@@ -185,7 +185,7 @@ mod tests {
         ];
 
         let tree_address = wallet_client
-            .new_transfer_address(
+            .new_multisig_transfer_address(
                 name,
                 passphrase,
                 public_keys.clone(),

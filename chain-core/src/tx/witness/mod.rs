@@ -12,8 +12,18 @@ use crate::tx::witness::tree::{RawPubkey, RawSignature};
 
 pub type EcdsaSignature = RecoverableSignature;
 
+/// Each witness is made up of a schnorr signature (64 bytes) + merkle proof
+/// Each merkle proof is 32 bytes (root hash) + 33 bytes (public key) + path to leaf node
+/// Each step of path is 32 bytes (node hash) + 33 bytes (sibling hash, if present) + 1 byte if next step is present
+///
+/// If we want to support a maximum of 1024 leaf nodes in merkle tree, the maximum size of merkle proof will be around
+/// 32 + 33 + 660 = 725 bytes. So, each witness will be around 64 + 725 = 789 bytes == 800 bytes
+///
+/// Assuming maximum 64 witnesses are allowed, maximum witness size will be 800 * 64 = 51200
+const MAX_WITNESS_SIZE: usize = 51200; // 800 bytes for each of 64 witnesses = 51200 bytes
+
 /// A transaction witness is a vector of input witnesses
-#[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Encode)]
 pub struct TxWitness(Vec<TxInWitness>);
 
 impl TxWitness {
@@ -22,11 +32,29 @@ impl TxWitness {
         TxWitness::default()
     }
 }
+
+impl Decode for TxWitness {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let size = input
+            .remaining_len()?
+            .ok_or_else(|| "Unable to calculate size of input")?;
+
+        if size > MAX_WITNESS_SIZE {
+            return Err("Input too large".into());
+        }
+
+        let witnesses = <Vec<TxInWitness>>::decode(input)?;
+
+        Ok(TxWitness(witnesses))
+    }
+}
+
 impl From<Vec<TxInWitness>> for TxWitness {
     fn from(v: Vec<TxInWitness>) -> Self {
         TxWitness(v)
     }
 }
+
 impl ::std::iter::FromIterator<TxInWitness> for TxWitness {
     fn from_iter<I>(iter: I) -> Self
     where
@@ -35,6 +63,7 @@ impl ::std::iter::FromIterator<TxInWitness> for TxWitness {
         TxWitness(Vec::from_iter(iter))
     }
 }
+
 impl ::std::ops::Deref for TxWitness {
     type Target = Vec<TxInWitness>;
     fn deref(&self) -> &Self::Target {
@@ -65,9 +94,7 @@ impl Encode for TxInWitness {
         match *self {
             TxInWitness::TreeSig(ref schnorrsig, ref proof) => {
                 dest.push_byte(0);
-                dest.push_byte(3);
-                let serialized_sig: RawSignature = schnorrsig.serialize_default();
-                serialized_sig.encode_to(dest);
+                schnorrsig.serialize_default().encode_to(dest);
                 proof.encode_to(dest);
             }
         }
@@ -77,16 +104,15 @@ impl Encode for TxInWitness {
 impl Decode for TxInWitness {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let tag = input.read_byte()?;
-        let constructor_len = input.read_byte()?;
-        match (tag, constructor_len) {
-            (0, 3) => {
+        match tag {
+            0 => {
                 let raw_sig = RawSignature::decode(input)?;
                 let schnorrsig = SchnorrSignature::from_default(&raw_sig)
                     .map_err(|_| Error::from("Unable to parse schnorr signature"))?;
                 let proof = Proof::decode(input)?;
                 Ok(TxInWitness::TreeSig(schnorrsig, proof))
             }
-            _ => Err(Error::from("Invalid tag and length")),
+            _ => Err(Error::from("Invalid tag")),
         }
     }
 }

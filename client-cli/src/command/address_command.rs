@@ -64,7 +64,7 @@ impl AddressCommand {
         name: &str,
         address_type: &AddressType,
     ) -> Result<()> {
-        let passphrase = ask_passphrase()?;
+        let passphrase = ask_passphrase(None)?;
 
         match address_type {
             AddressType::Staking => {
@@ -73,7 +73,7 @@ impl AddressCommand {
                 Ok(())
             }
             AddressType::Transfer => {
-                let address = wallet_client.new_single_transfer_address(name, &passphrase)?;
+                let address = wallet_client.new_transfer_address(name, &passphrase)?;
                 success(&format!("New address: {}", address));
                 Ok(())
             }
@@ -85,7 +85,7 @@ impl AddressCommand {
         name: &str,
         address_type: &AddressType,
     ) -> Result<()> {
-        let passphrase = ask_passphrase()?;
+        let passphrase = ask_passphrase(None)?;
 
         match address_type {
             AddressType::Staking => {
