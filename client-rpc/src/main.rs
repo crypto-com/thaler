@@ -1,4 +1,3 @@
-mod client_rpc;
 mod rpc;
 mod server;
 

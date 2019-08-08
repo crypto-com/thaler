@@ -1,24 +1,18 @@
+use secstr::SecUtf8;
 use std::str::FromStr;
 
-use failure::ResultExt;
-use hex::{decode, encode};
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
-use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 
-use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use client_common::balance::BalanceChange;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
-use client_network::NetworkOpsClient;
 
 use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
 
@@ -33,80 +27,7 @@ pub struct RowTx {
 }
 
 #[rpc]
-pub trait ClientRpc: Send + Sync {
-    #[rpc(name = "wallet_newMultiSigSession")]
-    fn wallet_new_multi_sig_session(
-        &self,
-        request: WalletRequest,
-        message: String,
-        signer_public_keys: Vec<String>,
-        self_public_key: String,
-    ) -> Result<String>;
-
-    #[rpc(name = "multiSig_nonceCommitment")]
-    fn multi_sig_nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
-
-    #[rpc(name = "multi_sig_add_nonce_commitment")]
-    fn multi_sig_add_nonce_commitment(
-        &self,
-        session_id: String,
-        passphrase: SecUtf8,
-        nonce_commitment: String,
-        public_key: String,
-    ) -> Result<()>;
-
-    #[rpc(name = "multiSig_nonce")]
-    fn multi_sig_nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
-
-    #[rpc(name = "multiSig_addNonce")]
-    fn multi_sig_add_nonce(
-        &self,
-        session_id: String,
-        passphrase: SecUtf8,
-        nonce: String,
-        public_key: String,
-    ) -> Result<()>;
-
-    #[rpc(name = "multiSig_partialSign")]
-    fn multi_sig_partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
-
-    #[rpc(name = "multiSig_addPartialSignature")]
-    fn multi_sig_add_partial_signature(
-        &self,
-        session_id: String,
-        passphrase: SecUtf8,
-        partial_signature: String,
-        public_key: String,
-    ) -> Result<()>;
-
-    #[rpc(name = "multiSig_signature")]
-    fn multi_sig_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
-
-    #[rpc(name = "staking_depositStake")]
-    fn staking_deposit_stake(
-        &self,
-        request: WalletRequest,
-        to_address: String,
-        inputs: Vec<TxoPointer>,
-    ) -> Result<()>;
-
-    #[rpc(name = "staking_unbondStake")]
-    fn staking_unbond_stake(
-        &self,
-        request: WalletRequest,
-        staking_address: String,
-        amount: Coin,
-    ) -> Result<()>;
-
-    #[rpc(name = "staking_withdrawAllUnbondedStake")]
-    fn staking_withdraw_all_unbonded_stake(
-        &self,
-        request: WalletRequest,
-        from_address: String,
-        to_address: String,
-        view_keys: Vec<String>,
-    ) -> Result<()>;
-
+pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_addresses")]
     fn wallet_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
@@ -132,38 +53,32 @@ pub trait ClientRpc: Send + Sync {
     fn wallet_transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>>;
 }
 
-pub struct ClientRpcImpl<T, N>
+pub struct WalletRpcImpl<T>
 where
     T: WalletClient,
-    N: NetworkOpsClient,
 {
     client: T,
-    ops_client: N,
     network_id: u8,
 }
 
-impl<T, N> ClientRpcImpl<T, N>
+impl<T> WalletRpcImpl<T>
 where
     T: WalletClient,
-    N: NetworkOpsClient,
 {
     pub fn new(
         client: T,
-        ops_client: N,
         network_id: u8,
     ) -> Self {
-        ClientRpcImpl {
+        WalletRpcImpl {
             client,
-            ops_client,
             network_id,
         }
     }
 }
 
-impl<T, N> ClientRpc for ClientRpcImpl<T, N>
+impl<T> WalletRpc for WalletRpcImpl<T>
 where
     T: WalletClient + MultiSigWalletClient + 'static,
-    N: NetworkOpsClient + 'static,
 {
     fn wallet_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
         // TODO: Currently, it only returns staking addresses
@@ -289,254 +204,6 @@ where
                 rowtxs
             })
     }
-
-    fn wallet_new_multi_sig_session(
-        &self,
-        request: WalletRequest,
-        message: String,
-        signer_public_keys: Vec<String>,
-        self_public_key: String,
-    ) -> Result<String> {
-        let message = parse_hash_256(message).map_err(to_rpc_error)?;
-        let signer_public_keys = signer_public_keys
-            .into_iter()
-            .map(parse_public_key)
-            .collect::<CommonResult<Vec<PublicKey>>>()
-            .map_err(to_rpc_error)?;
-        let self_public_key = parse_public_key(self_public_key).map_err(to_rpc_error)?;
-
-        self.client
-            .new_multi_sig_session(
-                &request.name,
-                &request.passphrase,
-                message,
-                signer_public_keys,
-                self_public_key,
-            )
-            .map(serialize_hash_256)
-            .map_err(to_rpc_error)
-    }
-
-    fn multi_sig_nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
-        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
-
-        self.client
-            .nonce_commitment(&session_id, &passphrase)
-            .map(serialize_hash_256)
-            .map_err(to_rpc_error)
-    }
-
-    fn multi_sig_add_nonce_commitment(
-        &self,
-        session_id: String,
-        passphrase: SecUtf8,
-        nonce_commitment: String,
-        public_key: String,
-    ) -> Result<()> {
-        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
-        let nonce_commitment = parse_hash_256(nonce_commitment).map_err(to_rpc_error)?;
-        let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
-
-        self.client
-            .add_nonce_commitment(&session_id, &passphrase, nonce_commitment, &public_key)
-            .map_err(to_rpc_error)
-    }
-
-    fn multi_sig_nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
-        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
-
-        self.client
-            .nonce(&session_id, &passphrase)
-            .map(serialize_public_key)
-            .map_err(to_rpc_error)
-    }
-
-    fn multi_sig_add_nonce(
-        &self,
-        session_id: String,
-        passphrase: SecUtf8,
-        nonce: String,
-        public_key: String,
-    ) -> Result<()> {
-        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
-        let nonce = parse_public_key(nonce).map_err(to_rpc_error)?;
-        let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
-
-        self.client
-            .add_nonce(&session_id, &passphrase, &nonce, &public_key)
-            .map_err(to_rpc_error)
-    }
-
-    fn multi_sig_partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
-        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
-
-        self.client
-            .partial_signature(&session_id, &passphrase)
-            .map(serialize_hash_256)
-            .map_err(to_rpc_error)
-    }
-
-    fn multi_sig_add_partial_signature(
-        &self,
-        session_id: String,
-        passphrase: SecUtf8,
-        partial_signature: String,
-        public_key: String,
-    ) -> Result<()> {
-        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
-        let partial_signature = parse_hash_256(partial_signature).map_err(to_rpc_error)?;
-        let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
-
-        self.client
-            .add_partial_signature(&session_id, &passphrase, partial_signature, &public_key)
-            .map_err(to_rpc_error)
-    }
-
-    fn multi_sig_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
-        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
-
-        self.client
-            .signature(&session_id, &passphrase)
-            .map(|sig| sig.to_string())
-            .map_err(to_rpc_error)
-    }
-
-    fn staking_deposit_stake(
-        &self,
-        request: WalletRequest,
-        to_address: String,
-        inputs: Vec<TxoPointer>,
-    ) -> Result<()> {
-        let addr = StakedStateAddress::from_str(&to_address)
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::<Error>::into)
-            .map_err(to_rpc_error)?;
-        let attr = StakedStateOpAttributes::new(self.network_id);
-        let transaction = self
-            .ops_client
-            .create_deposit_bonded_stake_transaction(
-                &request.name,
-                &request.passphrase,
-                inputs,
-                addr,
-                attr,
-            )
-            .map_err(to_rpc_error)?;
-
-        self.client
-            .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)
-    }
-
-    fn staking_unbond_stake(
-        &self,
-        request: WalletRequest,
-        staking_address: String,
-        amount: Coin,
-    ) -> Result<()> {
-        let attr = StakedStateOpAttributes::new(self.network_id);
-        let addr = StakedStateAddress::from_str(&staking_address)
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::<Error>::into)
-            .map_err(to_rpc_error)?;
-
-        let transaction = self
-            .ops_client
-            .create_unbond_stake_transaction(
-                &request.name,
-                &request.passphrase,
-                &addr,
-                amount,
-                attr,
-            )
-            .map_err(to_rpc_error)?;
-
-        self.client
-            .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)
-    }
-
-    fn staking_withdraw_all_unbonded_stake(
-        &self,
-        request: WalletRequest,
-        from_address: String,
-        to_address: String,
-        view_keys: Vec<String>,
-    ) -> Result<()> {
-        let from_address = StakedStateAddress::from_str(&from_address)
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::<Error>::into)
-            .map_err(to_rpc_error)?;
-        let to_address = ExtendedAddr::from_str(&to_address)
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::<Error>::into)
-            .map_err(to_rpc_error)?;
-        let view_keys = view_keys
-            .into_iter()
-            .map(|key| PublicKey::from_str(&key))
-            .collect::<CommonResult<Vec<PublicKey>>>()
-            .map_err(to_rpc_error)?;
-
-        let view_key = self
-            .client
-            .view_key(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)?;
-
-        let mut access_policies = vec![TxAccessPolicy {
-            view_key: view_key.into(),
-            access: TxAccess::AllData,
-        }];
-
-        for key in view_keys.iter() {
-            access_policies.push(TxAccessPolicy {
-                view_key: key.into(),
-                access: TxAccess::AllData,
-            });
-        }
-
-        let attributes = TxAttributes::new_with_access(self.network_id, access_policies);
-
-        let transaction = self
-            .ops_client
-            .create_withdraw_all_unbonded_stake_transaction(
-                &request.name,
-                &request.passphrase,
-                &from_address,
-                to_address,
-                attributes,
-            )
-            .map_err(to_rpc_error)?;
-
-        self.client
-            .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)
-    }
-}
-
-fn serialize_hash_256(hash: H256) -> String {
-    encode(&hash)
-}
-
-fn parse_hash_256(hash: String) -> CommonResult<H256> {
-    let array = decode(hash).context(ErrorKind::DeserializationError)?;
-
-    if array.len() != HASH_SIZE_256 {
-        return Err(Error::from(ErrorKind::DeserializationError));
-    }
-
-    let mut new_hash: H256 = [0; HASH_SIZE_256];
-    new_hash.copy_from_slice(&array);
-
-    Ok(new_hash)
-}
-
-fn serialize_public_key(public_key: PublicKey) -> String {
-    encode(&public_key.serialize())
-}
-
-fn parse_public_key(public_key: String) -> CommonResult<PublicKey> {
-    let array = decode(public_key).context(ErrorKind::DeserializationError)?;
-    PublicKey::deserialize_from(&array)
 }
 
 #[cfg(test)]
@@ -563,7 +230,6 @@ pub mod tests {
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
     use client_index::{AddressDetails, Index, TransactionCipher};
-    use client_network::network_ops::DefaultNetworkOpsClient;
 
     #[derive(Default)]
     pub struct MockIndex;
@@ -680,13 +346,6 @@ pub mod tests {
         DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm, MockTransactionCipher>;
     type TestSigner = DefaultSigner<MemoryStorage>;
     type TestWalletClient = DefaultWalletClient<MemoryStorage, MockIndex, TestTxBuilder>;
-    type TestOpsClient = DefaultNetworkOpsClient<
-        TestWalletClient,
-        TestSigner,
-        MockRpcClient,
-        ZeroFeeAlgorithm,
-        MockTransactionCipher,
-    >;
 
     #[derive(Default)]
     pub struct MockRpcClient;
@@ -853,37 +512,16 @@ pub mod tests {
             .build()
             .unwrap()
     }
-    fn make_test_ops_client(storage: MemoryStorage) -> TestOpsClient {
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage.clone())
-            .with_transaction_read(MockIndex::default())
-            .with_transaction_write(DefaultTransactionBuilder::new(
-                DefaultSigner::new(storage.clone()),
-                ZeroFeeAlgorithm::default(),
-                MockTransactionCipher,
-            ))
-            .build()
-            .unwrap();
-        DefaultNetworkOpsClient::new(
-            wallet_client,
-            DefaultSigner::new(storage.clone()),
-            MockRpcClient,
-            ZeroFeeAlgorithm::default(),
-            MockTransactionCipher,
-        )
-    }
 
-    fn setup_client_rpc() -> ClientRpcImpl<
+    fn setup_client_rpc() -> WalletRpcImpl<
         TestWalletClient,
-        TestOpsClient,
     > {
         let storage = MemoryStorage::default();
 
         let wallet_client = make_test_wallet_client(storage.clone());
-        let ops_client = make_test_ops_client(storage.clone());
         let chain_id = 171u8;
 
-        ClientRpcImpl::new(wallet_client, ops_client, chain_id)
+        WalletRpcImpl::new(wallet_client, chain_id)
     }
 
     fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
