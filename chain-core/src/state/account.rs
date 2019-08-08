@@ -19,8 +19,6 @@ use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::{From, TryFrom};
 use std::fmt;
 
-const MAX_INPUTS_LENGTH: usize = 64;
-
 /// Each input is 33 bytes
 ///
 /// Assuming maximum inputs allowed are 64,
@@ -210,12 +208,6 @@ impl Decode for DepositBondTx {
 
         if size > MAX_DEPOSIT_TX_SIZE {
             return Err("Input too large".into());
-        }
-
-        let inputs = <Vec<TxoPointer>>::decode(input)?;
-
-        if inputs.len() > MAX_INPUTS_LENGTH {
-            return Err("Too many inputs".into());
         }
 
         let to_staked_account = StakedStateAddress::decode(input)?;
