@@ -12,8 +12,20 @@ use crate::tx::witness::tree::{RawPubkey, RawSignature};
 
 pub type EcdsaSignature = RecoverableSignature;
 
+const MAX_WITNESS_LENGTH: usize = 64; // Should ideally be equal to the maximum number of transaction inputs
+
+/// Each witness is made up of a schnorr signature (64 bytes) + merkle proof
+/// Each merkle proof is 32 bytes (root hash) + 33 bytes (public key) + path to leaf node
+/// Each step of path is 32 bytes (node hash) + 33 bytes (sibling hash, if present) + 1 byte if next step is present
+///
+/// If we want to support a maximum of 1024 leaf nodes in merkle tree, the maximum size of merkle proof will be around
+/// 32 + 33 + 660 = 725 bytes. So, each witness will be around 64 + 725 = 789 bytes == 800 bytes
+///
+/// Assuming maximum 64 witnesses are allowed, maximum witness size will be 800 * 64 = 51200
+const MAX_WITNESS_SIZE: usize = 51200; // 800 bytes for each of 64 witnesses = 51200 bytes
+
 /// A transaction witness is a vector of input witnesses
-#[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Encode)]
 pub struct TxWitness(Vec<TxInWitness>);
 
 impl TxWitness {
@@ -22,11 +34,33 @@ impl TxWitness {
         TxWitness::default()
     }
 }
+
+impl Decode for TxWitness {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let size = input
+            .remaining_len()?
+            .ok_or_else(|| "Unable to calculate size of input")?;
+
+        if size > MAX_WITNESS_SIZE {
+            return Err("Input too large".into());
+        }
+
+        let witnesses = <Vec<TxInWitness>>::decode(input)?;
+
+        if witnesses.len() > MAX_WITNESS_LENGTH {
+            Err("Too many witnesses".into())
+        } else {
+            Ok(TxWitness(witnesses))
+        }
+    }
+}
+
 impl From<Vec<TxInWitness>> for TxWitness {
     fn from(v: Vec<TxInWitness>) -> Self {
         TxWitness(v)
     }
 }
+
 impl ::std::iter::FromIterator<TxInWitness> for TxWitness {
     fn from_iter<I>(iter: I) -> Self
     where
@@ -35,6 +69,7 @@ impl ::std::iter::FromIterator<TxInWitness> for TxWitness {
         TxWitness(Vec::from_iter(iter))
     }
 }
+
 impl ::std::ops::Deref for TxWitness {
     type Target = Vec<TxInWitness>;
     fn deref(&self) -> &Self::Target {

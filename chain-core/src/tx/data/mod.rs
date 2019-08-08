@@ -14,7 +14,7 @@ pub mod output;
 use std::fmt;
 
 use blake2::Blake2s;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Error, Input};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +22,16 @@ use crate::common::{hash256, H256};
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
 use crate::tx::TransactionId;
+
+const MAX_INPUTS_LENGTH: usize = 64;
+
+/// Each input is 33 bytes
+/// Each output is 33 (address) + 8 (amount) + 9 (timelock) = 50 bytes
+/// Assuming maximum allowed view keys are 64. Attributes are 1 + (64 * 42) = 2688 bytes
+///
+/// Assuming maximum inputs and outputs allowed are 64 each,
+/// So, maximum transaction size (33 * 64) + (50 * 64) + 2688 = 8000
+const MAX_TX_SIZE: usize = 8000; // 8000 bytes
 
 /// Calculates hash of the input data -- if SCALE-serialized TX is passed in, it's equivalent to TxId.
 /// Currently, it uses blake2s.
@@ -38,12 +48,39 @@ pub type TxId = H256;
 /// A Transaction containing tx inputs and tx outputs.
 /// TODO: max input/output size?
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Tx {
     pub inputs: Vec<TxoPointer>,
     pub outputs: Vec<TxOut>,
     pub attributes: TxAttributes,
+}
+
+impl Decode for Tx {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let size = input
+            .remaining_len()?
+            .ok_or_else(|| "Unable to calculate size of input")?;
+
+        if size > MAX_TX_SIZE {
+            return Err("Input too large".into());
+        }
+
+        let inputs = <Vec<TxoPointer>>::decode(input)?;
+
+        if inputs.len() > MAX_INPUTS_LENGTH {
+            return Err("Too many inputs".into());
+        }
+
+        let outputs = <Vec<TxOut>>::decode(input)?;
+        let attributes = TxAttributes::decode(input)?;
+
+        Ok(Tx {
+            inputs,
+            outputs,
+            attributes,
+        })
+    }
 }
 
 impl fmt::Display for Tx {
