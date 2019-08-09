@@ -34,6 +34,7 @@ pub struct InitCommand {
     other_staking_accounts: Vec<String>,
     distribution_addresses: Vec<String>,
     remain_coin: Coin,
+    tendermint_command: String,
 }
 
 impl InitCommand {
@@ -48,6 +49,7 @@ impl InitCommand {
             other_staking_accounts: vec![],
             distribution_addresses: vec![],
             remain_coin: Coin::max(),
+            tendermint_command: "./tendermint".to_string(),
         }
     }
 
@@ -104,7 +106,13 @@ impl InitCommand {
         let default_address = RedeemAddress::default().to_string();
         assert!(self.other_staking_accounts.len() > 3);
         let default_addresses = self.other_staking_accounts.clone();
-        let default_coins = ["12500000000", "12500000000","12500000000","12500000000","12500000000"];
+        let default_coins = [
+            "12500000000",
+            "12500000000",
+            "12500000000",
+            "12500000000",
+            "12500000000",
+        ];
         println!(
             "maximum coin to distribute={}",
             self.remain_coin.to_string()
@@ -177,7 +185,10 @@ impl InitCommand {
 
         InitCommand::ask("** CAUTION **\n");
         self.ask_string("validator staking addresse is special, cannot be withdrawn in single node mode (anykey)","");
-        self.ask_string("these incentive wallets are special, cannot be withdrawn (anykey)","");
+        self.ask_string(
+            "these incentive wallets are special, cannot be withdrawn (anykey)",
+            "",
+        );
         self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(&self.ask_string(
             format!("launch_incentive_from({})=", self.distribution_addresses[1]).as_str(),
             self.distribution_addresses[1].as_str(),
@@ -291,7 +302,7 @@ impl InitCommand {
         fs::read_to_string(&InitCommand::get_tendermint_filename())
             .or_else(|_e| {
                 // file not exist
-                Command::new("tendermint")
+                Command::new(&self.tendermint_command)
                     .args(&["init"])
                     .output()
                     .map(|_e| {
@@ -305,7 +316,7 @@ impl InitCommand {
 
     fn reset_tendermint(&self) -> Result<(), Error> {
         // file not exist
-        Command::new("tendermint")
+        Command::new(&self.tendermint_command)
             .args(&["unsafe_reset_all"])
             .output()
             .map(|_e| {
@@ -344,7 +355,6 @@ impl InitCommand {
                 .push(address.to_string().trim().to_string());
             success(&format!("Other New address {}: {}", i + 1, address));
         }
-
 
         Ok(())
     }
