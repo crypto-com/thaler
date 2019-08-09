@@ -3,6 +3,7 @@ use jsonrpc_derive::rpc;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+use chain_core::init::address::CroAddress;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -26,14 +27,17 @@ pub struct RowTx {
 
 #[rpc]
 pub trait WalletRpc: Send + Sync {
-    #[rpc(name = "wallet_addresses")]
-    fn addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
-
     #[rpc(name = "wallet_balance")]
     fn balance(&self, request: WalletRequest) -> Result<Coin>;
 
     #[rpc(name = "wallet_create")]
     fn create(&self, request: WalletRequest) -> Result<String>;
+
+    #[rpc(name = "wallet_createStakingAddress")]
+    fn create_staking_address(&self, request: WalletRequest) -> Result<String>;
+
+    #[rpc(name = "wallet_createTransferAddress")]
+    fn create_transfer_address(&self, request: WalletRequest) -> Result<String>;
 
     #[rpc(name = "wallet_list")]
     fn list(&self) -> Result<Vec<String>>;
@@ -46,6 +50,12 @@ pub trait WalletRpc: Send + Sync {
         amount: Coin,
         view_keys: Vec<String>,
     ) -> Result<()>;
+
+    #[rpc(name = "wallet_listStakingAddresses")]
+    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
+
+    #[rpc(name = "wallet_listTransferAddresses")]
+    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_transactions")]
     fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>>;
@@ -72,20 +82,6 @@ impl<T> WalletRpc for WalletRpcImpl<T>
 where
     T: WalletClient + MultiSigWalletClient + 'static,
 {
-    fn addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
-        // TODO: Currently, it only returns staking addresses
-        match self
-            .client
-            .staking_addresses(&request.name, &request.passphrase)
-        {
-            Ok(addresses) => addresses
-                .iter()
-                .map(|address| Ok(address.to_string()))
-                .collect(),
-            Err(e) => Err(to_rpc_error(e)),
-        }
-    }
-
     fn balance(&self, request: WalletRequest) -> Result<Coin> {
         match self.client.balance(&request.name, &request.passphrase) {
             Ok(balance) => Ok(balance),
@@ -94,18 +90,35 @@ where
     }
 
     fn create(&self, request: WalletRequest) -> Result<String> {
-        if let Err(e) = self.client.new_wallet(&request.name, &request.passphrase) {
-            return Err(to_rpc_error(e));
+        if let Err(err) = self.client.new_wallet(&request.name, &request.passphrase) {
+            return Err(to_rpc_error(err));
         }
 
-        if let Err(e) = self
+        self.client
+            .new_staking_address(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+        self.client
+            .new_transfer_address(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+        Ok(request.name)
+    }
+
+    fn create_staking_address(&self, request: WalletRequest) -> Result<String> {
+        self.client
+            .new_staking_address(&request.name, &request.passphrase)
+            .map(|extended_addr| extended_addr.to_string())
+            .map_err(to_rpc_error)
+    }
+
+    fn create_transfer_address(&self, request: WalletRequest) -> Result<String> {
+        let extended_address = self
             .client
             .new_transfer_address(&request.name, &request.passphrase)
-        {
-            Err(to_rpc_error(e))
-        } else {
-            Ok(request.name)
-        }
+            .map_err(to_rpc_error)?;
+
+        extended_address
+            .to_cro()
+            .map_err(|err| rpc_error_from_string(format!("{}", err)))
     }
 
     fn list(&self) -> Result<Vec<String>> {
@@ -169,6 +182,32 @@ where
         self.client
             .broadcast_transaction(&transaction)
             .map_err(to_rpc_error)
+    }
+
+    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
+        match self
+            .client
+            .staking_addresses(&request.name, &request.passphrase)
+        {
+            Ok(addresses) => addresses
+                .iter()
+                .map(|address| Ok(address.to_string()))
+                .collect(),
+            Err(e) => Err(to_rpc_error(e)),
+        }
+    }
+
+    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
+        match self
+            .client
+            .transfer_addresses(&request.name, &request.passphrase)
+        {
+            Ok(addresses) => addresses
+                .iter()
+                .map(|address| Ok(address.to_string()))
+                .collect(),
+            Err(e) => Err(to_rpc_error(e)),
+        }
     }
 
     fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
@@ -389,46 +428,80 @@ pub mod tests {
         }
     }
 
-    #[test]
-    fn test_create_duplicated_wallet() {
-        let wallet_rpc = setup_wallet_rpc();
+    mod create {
+        use super::*;
 
-        assert_eq!(
-            "Default".to_owned(),
+        #[test]
+        fn create_duplicated_wallet_should_throw_error() {
+            let wallet_rpc = setup_wallet_rpc();
+
             wallet_rpc
                 .create(create_wallet_request("Default", "123456"))
-                .unwrap()
-        );
+                .unwrap();
 
-        assert_eq!(
-            to_rpc_error(Error::from(ErrorKind::AlreadyExists)),
-            wallet_rpc
-                .create(create_wallet_request("Default", "123456"))
-                .unwrap_err()
-        );
+            assert_eq!(
+                to_rpc_error(Error::from(ErrorKind::AlreadyExists)),
+                wallet_rpc
+                    .create(create_wallet_request("Default", "123456"))
+                    .unwrap_err()
+            );
+        }
+
+        #[test]
+        fn create_should_create_named_wallet() {
+            let wallet_rpc = setup_wallet_rpc();
+
+            assert_eq!(
+                "Default".to_owned(),
+                wallet_rpc
+                    .create(create_wallet_request("Default", "123456"))
+                    .unwrap()
+            );
+
+            assert_eq!(vec!["Default"], wallet_rpc.list().unwrap());
+        }
+
+        #[test]
+        fn create_should_create_staking_and_transfer_address_for_the_wallet() {
+            let wallet_rpc = setup_wallet_rpc();
+            let wallet_request = create_wallet_request("Default", "123456");
+
+            wallet_rpc.create(wallet_request.clone()).unwrap();
+
+            assert_eq!(
+                1,
+                wallet_rpc
+                    .list_transfer_addresses(wallet_request.clone())
+                    .unwrap()
+                    .len()
+            );
+            // FIXME: Create a transfer address also creates a staking address
+            // which is a known problem
+            assert_eq!(
+                2,
+                wallet_rpc
+                    .list_staking_addresses(wallet_request.clone())
+                    .unwrap()
+                    .len()
+            );
+        }
     }
 
     #[test]
-    fn test_create_and_list_wallet_flow() {
+    fn list_should_list_all_wallets() {
         let wallet_rpc = setup_wallet_rpc();
 
         assert_eq!(0, wallet_rpc.list().unwrap().len());
 
-        assert_eq!(
-            "Default".to_owned(),
-            wallet_rpc
-                .create(create_wallet_request("Default", "123456"))
-                .unwrap()
-        );
+        wallet_rpc
+            .create(create_wallet_request("Default", "123456"))
+            .unwrap();
 
         assert_eq!(vec!["Default"], wallet_rpc.list().unwrap());
 
-        assert_eq!(
-            "Personal".to_owned(),
-            wallet_rpc
-                .create(create_wallet_request("Personal", "123456"))
-                .unwrap()
-        );
+        wallet_rpc
+            .create(create_wallet_request("Personal", "123456"))
+            .unwrap();
 
         let wallet_list = wallet_rpc.list().unwrap();
         assert_eq!(2, wallet_list.len());
@@ -437,34 +510,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_create_and_list_wallet_addresses_flow() {
-        let wallet_rpc = setup_wallet_rpc();
-
-        assert_eq!(
-            to_rpc_error(Error::from(ErrorKind::WalletNotFound)),
-            wallet_rpc
-                .addresses(create_wallet_request("Default", "123456"))
-                .unwrap_err()
-        );
-
-        assert_eq!(
-            "Default".to_owned(),
-            wallet_rpc
-                .create(create_wallet_request("Default", "123456"))
-                .unwrap()
-        );
-
-        assert_eq!(
-            1,
-            wallet_rpc
-                .addresses(create_wallet_request("Default", "123456"))
-                .unwrap()
-                .len()
-        );
-    }
-
-    #[test]
-    fn test_wallet_balance() {
+    fn balance_should_return_wallet_balance() {
         let wallet_rpc = setup_wallet_rpc();
 
         wallet_rpc
@@ -479,19 +525,75 @@ pub mod tests {
     }
 
     #[test]
-    fn test_wallet_transactions() {
+    fn transactions_should_return_list_of_wallet_transactions() {
         let wallet_rpc = setup_wallet_rpc();
+        let wallet_request = create_wallet_request("Default", "123456");
 
-        wallet_rpc
-            .create(create_wallet_request("Default", "123456"))
-            .unwrap();
+        wallet_rpc.create(wallet_request.clone()).unwrap();
         assert_eq!(
             1,
             wallet_rpc
-                .transactions(create_wallet_request("Default", "123456"))
+                .transactions(wallet_request.clone())
                 .unwrap()
                 .len()
         )
+    }
+
+    #[test]
+    fn create_staking_address_should_work() {
+        let wallet_rpc = setup_wallet_rpc();
+        let wallet_request = create_wallet_request("Default", "123456");
+
+        wallet_rpc.create(wallet_request.clone()).unwrap();
+        // FIXME: Create a transfer address also creates a staking address
+        // which is a known problem
+        assert_eq!(
+            2,
+            wallet_rpc
+                .list_staking_addresses(wallet_request.clone())
+                .unwrap()
+                .len()
+        );
+
+        wallet_rpc
+            .create_staking_address(wallet_request.clone())
+            .unwrap();
+
+        assert_eq!(
+            3,
+            wallet_rpc
+                .list_staking_addresses(wallet_request.clone())
+                .unwrap()
+                .len()
+        );
+    }
+
+    #[test]
+    fn create_transfer_address_should_work() {
+        let wallet_rpc = setup_wallet_rpc();
+        let wallet_request = create_wallet_request("Default", "123456");
+
+        wallet_rpc.create(wallet_request.clone()).unwrap();
+
+        assert_eq!(
+            1,
+            wallet_rpc
+                .list_transfer_addresses(wallet_request.clone())
+                .unwrap()
+                .len()
+        );
+
+        wallet_rpc
+            .create_transfer_address(wallet_request.clone())
+            .unwrap();
+
+        assert_eq!(
+            2,
+            wallet_rpc
+                .list_transfer_addresses(wallet_request.clone())
+                .unwrap()
+                .len()
+        );
     }
 
     fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
