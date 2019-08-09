@@ -19,7 +19,7 @@ use crate::server::{to_rpc_error, WalletRequest};
 #[rpc]
 pub trait StakingRpc: Send + Sync {
     #[rpc(name = "staking_depositStake")]
-    fn staking_deposit_stake(
+    fn deposit_stake(
         &self,
         request: WalletRequest,
         to_address: String,
@@ -27,7 +27,7 @@ pub trait StakingRpc: Send + Sync {
     ) -> Result<()>;
 
     #[rpc(name = "staking_unbondStake")]
-    fn staking_unbond_stake(
+    fn unbond_stake(
         &self,
         request: WalletRequest,
         staking_address: String,
@@ -35,7 +35,7 @@ pub trait StakingRpc: Send + Sync {
     ) -> Result<()>;
 
     #[rpc(name = "staking_withdrawAllUnbondedStake")]
-    fn staking_withdraw_all_unbonded_stake(
+    fn withdraw_all_unbonded_stake(
         &self,
         request: WalletRequest,
         from_address: String,
@@ -73,7 +73,7 @@ where
     T: WalletClient + MultiSigWalletClient + 'static,
     N: NetworkOpsClient + 'static,
 {
-    fn staking_deposit_stake(
+    fn deposit_stake(
         &self,
         request: WalletRequest,
         to_address: String,
@@ -100,7 +100,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn staking_unbond_stake(
+    fn unbond_stake(
         &self,
         request: WalletRequest,
         staking_address: String,
@@ -128,7 +128,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn staking_withdraw_all_unbonded_stake(
+    fn withdraw_all_unbonded_stake(
         &self,
         request: WalletRequest,
         from_address: String,
