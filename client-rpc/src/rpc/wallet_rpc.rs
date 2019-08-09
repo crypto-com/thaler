@@ -1,3 +1,4 @@
+use secstr::SecUtf8;
 use std::str::FromStr;
 
 use jsonrpc_core::Result;
@@ -10,7 +11,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use client_common::balance::BalanceChange;
-use client_common::{PublicKey, Result as CommonResult};
+use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
