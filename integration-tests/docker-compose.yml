@@ -45,6 +45,7 @@ services:
     image: integration-tests-tx-enclave
     build:
       context: ./docker/chain-tx-enclave
+      dockerfile: ./tx-validation/Dockerfile
       args:
         SGX_MODE: SW
         NETWORK_ID: ${CHAIN_HEX_ID:-AB}

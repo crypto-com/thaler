@@ -19,6 +19,12 @@ use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::{From, TryFrom};
 use std::fmt;
 
+/// Each input is 34 bytes
+///
+/// Assuming maximum inputs allowed are 64,
+/// So, maximum deposit transaction size (34 * 64) + 21 (address) + 1 (attributes) = 2198 bytes
+const MAX_DEPOSIT_TX_SIZE: usize = 2200; // 2200 bytes
+
 /// reference counter in the sparse patricia merkle tree/trie
 pub type Count = u64;
 
@@ -186,12 +192,34 @@ impl StakedStateOpAttributes {
 
 /// takes UTXOs inputs, deposits them in the specified StakedState's bonded amount - fee
 /// (updates StakedState's bonded + nonce)
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct DepositBondTx {
     pub inputs: Vec<TxoPointer>,
     pub to_staked_account: StakedStateAddress,
     pub attributes: StakedStateOpAttributes,
+}
+
+impl Decode for DepositBondTx {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let size = input
+            .remaining_len()?
+            .ok_or_else(|| "Unable to calculate size of input")?;
+
+        if size > MAX_DEPOSIT_TX_SIZE {
+            return Err("Input too large".into());
+        }
+
+        let inputs = <Vec<TxoPointer>>::decode(input)?;
+        let to_staked_account = StakedStateAddress::decode(input)?;
+        let attributes = StakedStateOpAttributes::decode(input)?;
+
+        Ok(DepositBondTx {
+            inputs,
+            to_staked_account,
+            attributes,
+        })
+    }
 }
 
 impl TransactionId for DepositBondTx {}
