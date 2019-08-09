@@ -103,9 +103,9 @@ jobs:
         - git clone https://github.com/crypto-com/chain-tx-enclave ./integration-tests/docker/chain-tx-enclave
       script:
         - cd integration-tests
-        - ./prepare.sh
+        - ./prepare.sh || travis_terminate 1;
         - . ./env.sh
-        - docker-compose up -d
+        - docker-compose up -d || travis_terminate 1;
         - |
           sleep 5
           docker-compose ps
