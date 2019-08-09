@@ -3,8 +3,8 @@ use jsonrpc_derive::rpc;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-use chain_core::init::coin::Coin;
 use chain_core::init::address::CroAddress;
+use chain_core::init::coin::Coin;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
@@ -111,11 +111,14 @@ where
     }
 
     fn create_transfer_address(&self, request: WalletRequest) -> Result<String> {
-        let extended_address = self.client
+        let extended_address = self
+            .client
             .new_transfer_address(&request.name, &request.passphrase)
             .map_err(to_rpc_error)?;
 
-        extended_address.to_cro().map_err(|err| rpc_error_from_string(format!("{}", err)))
+        extended_address
+            .to_cro()
+            .map_err(|err| rpc_error_from_string(format!("{}", err)))
     }
 
     fn list(&self) -> Result<Vec<String>> {
