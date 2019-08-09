@@ -102,9 +102,9 @@ impl InitCommand {
     }
     fn read_wallets(&mut self) -> Result<(), Error> {
         let default_address = RedeemAddress::default().to_string();
-        assert!(self.other_staking_accounts.len() == 3);
+        assert!(self.other_staking_accounts.len() > 3);
         let default_addresses = self.other_staking_accounts.clone();
-        let default_coins = ["25000000000", "25000000000"];
+        let default_coins = ["12500000000", "12500000000","12500000000","12500000000","12500000000"];
         println!(
             "maximum coin to distribute={}",
             self.remain_coin.to_string()
@@ -175,6 +175,9 @@ impl InitCommand {
     fn read_incentives(&mut self) -> Result<(), Error> {
         assert!(self.distribution_addresses.len() >= 4);
 
+        InitCommand::ask("** CAUTION **\n");
+        self.ask_string("validator staking addresse is special, cannot be withdrawn in single node mode (anykey)","");
+        self.ask_string("these incentive wallets are special, cannot be withdrawn (anykey)","");
         self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(&self.ask_string(
             format!("launch_incentive_from({})=", self.distribution_addresses[1]).as_str(),
             self.distribution_addresses[1].as_str(),
@@ -335,12 +338,13 @@ impl InitCommand {
         println!("staking address={}", self.staking_account_address);
         assert!(address.to_string().trim().to_string().len() == 42);
 
-        for i in 0..3 {
+        for i in 0..6 {
             let address = wallet_client.new_staking_address(&name.as_str(), &passphrase)?;
             self.other_staking_accounts
                 .push(address.to_string().trim().to_string());
             success(&format!("Other New address {}: {}", i + 1, address));
         }
+
 
         Ok(())
     }
