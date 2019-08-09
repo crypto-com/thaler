@@ -64,14 +64,8 @@ impl<T> WalletRpcImpl<T>
 where
     T: WalletClient,
 {
-    pub fn new(
-        client: T,
-        network_id: u8,
-    ) -> Self {
-        WalletRpcImpl {
-            client,
-            network_id,
-        }
+    pub fn new(client: T, network_id: u8) -> Self {
+        WalletRpcImpl { client, network_id }
     }
 }
 
@@ -512,9 +506,7 @@ pub mod tests {
             .unwrap()
     }
 
-    fn setup_client_rpc() -> WalletRpcImpl<
-        TestWalletClient,
-    > {
+    fn setup_client_rpc() -> WalletRpcImpl<TestWalletClient> {
         let storage = MemoryStorage::default();
 
         let wallet_client = make_test_wallet_client(storage.clone());

@@ -2,8 +2,8 @@ use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
 use chain_core::state::account::StakedStateAddress;
-use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
 use client_common::tendermint::Client;
+use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_index::synchronizer::ManualSynchronizer;
 use client_index::BlockHandler;
@@ -38,7 +38,8 @@ where
     H: BlockHandler + 'static,
 {
     fn sync(&self, request: WalletRequest) -> Result<()> {
-        let (view_key, private_key, staking_addresses) = self.prepare_synchronized_parameters(&request)?;
+        let (view_key, private_key, staking_addresses) =
+            self.prepare_synchronized_parameters(&request)?;
 
         self.synchronizer
             .sync(&staking_addresses, &view_key, &private_key)
@@ -46,7 +47,8 @@ where
     }
 
     fn sync_all(&self, request: WalletRequest) -> Result<()> {
-        let (view_key, private_key, staking_addresses) = self.prepare_synchronized_parameters(&request)?;
+        let (view_key, private_key, staking_addresses) =
+            self.prepare_synchronized_parameters(&request)?;
 
         self.synchronizer
             .sync_all(&staking_addresses, &view_key, &private_key)
@@ -61,17 +63,17 @@ where
     C: Client,
     H: BlockHandler,
 {
-    pub fn new(
-        client: T,
-        synchronizer: ManualSynchronizer<S, C, H>,
-    ) -> Self {
+    pub fn new(client: T, synchronizer: ManualSynchronizer<S, C, H>) -> Self {
         SyncRpcImpl {
             client,
             synchronizer,
         }
     }
 
-    fn prepare_synchronized_parameters(&self, request: &WalletRequest) -> Result<(PublicKey, PrivateKey, Vec<StakedStateAddress>)> {
+    fn prepare_synchronized_parameters(
+        &self,
+        request: &WalletRequest,
+    ) -> Result<(PublicKey, PrivateKey, Vec<StakedStateAddress>)> {
         let view_key = self
             .client
             .view_key(&request.name, &request.passphrase)

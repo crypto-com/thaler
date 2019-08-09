@@ -72,12 +72,8 @@ impl<T> MultiSigRpcImpl<T>
 where
     T: WalletClient,
 {
-    pub fn new(
-        client: T,
-    ) -> Self {
-        MultiSigRpcImpl {
-            client,
-        }
+    pub fn new(client: T) -> Self {
+        MultiSigRpcImpl { client }
     }
 }
 

@@ -106,7 +106,8 @@ impl Server {
 
         let staking_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let ops_client = self.make_ops_client(storage.clone());
-        let staking_rpc = StakingRpcImpl::new(staking_rpc_wallet_client, ops_client, self.network_id);
+        let staking_rpc =
+            StakingRpcImpl::new(staking_rpc_wallet_client, ops_client, self.network_id);
 
         let sync_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let synchronizer = self.make_synchronizer(storage.clone());

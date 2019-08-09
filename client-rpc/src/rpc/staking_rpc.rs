@@ -59,11 +59,7 @@ where
     T: WalletClient,
     N: NetworkOpsClient,
 {
-    pub fn new(
-        client: T,
-        ops_client: N,
-        network_id: u8,
-    ) -> Self {
+    pub fn new(client: T, ops_client: N, network_id: u8) -> Self {
         StakingRpcImpl {
             client,
             ops_client,
