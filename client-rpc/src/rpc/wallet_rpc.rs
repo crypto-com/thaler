@@ -1,9 +1,7 @@
-use secstr::SecUtf8;
-use std::str::FromStr;
-
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
@@ -11,7 +9,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use client_common::balance::BalanceChange;
-use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
+use client_common::{PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
@@ -204,6 +202,7 @@ where
 pub mod tests {
     use super::*;
 
+    use secstr::SecUtf8;
     use std::time::SystemTime;
 
     use chrono::DateTime;
@@ -219,7 +218,7 @@ pub mod tests {
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
-    use client_common::{PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
+    use client_common::{Error, ErrorKind, PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
