@@ -31,6 +31,7 @@ pub struct InitCommand {
     genesis_dev: GenesisDevConfig,
     tendermint_pubkey: String,
     staking_account_address: String,
+    other_staking_accounts: Vec<String>,
     distribution_addresses: Vec<String>,
     remain_coin: Coin,
 }
@@ -44,6 +45,7 @@ impl InitCommand {
             genesis_dev: GenesisDevConfig::new(),
             tendermint_pubkey: "".to_string(),
             staking_account_address: "".to_string(),
+            other_staking_accounts: vec![],
             distribution_addresses: vec![],
             remain_coin: Coin::max(),
         }
@@ -100,11 +102,8 @@ impl InitCommand {
     }
     fn read_wallets(&mut self) -> Result<(), Error> {
         let default_address = RedeemAddress::default().to_string();
-        let default_addresses = [
-            "0xc55139f8d416511020293dd3b121ee8beb3bd469",
-            "0x9b4597438fc9e72617232a7aed37567405cb80dd",
-            "0xf75dc04a0a77c8178a6880c44c6d8a8ffb436093",
-        ];
+        assert!(self.other_staking_accounts.len() == 3);
+        let default_addresses = self.other_staking_accounts.clone();
         let default_coins = ["25000000000", "25000000000"];
         println!(
             "maximum coin to distribute={}",
@@ -329,11 +328,20 @@ impl InitCommand {
         }
         success(&format!("Wallet created with name: {}", name));
 
+        // main validator staking
         let address = wallet_client.new_staking_address(&name.as_str(), &passphrase)?;
         success(&format!("New address: {}", address));
         self.staking_account_address = address.to_string().trim().to_string();
         println!("staking address={}", self.staking_account_address);
         assert!(address.to_string().trim().to_string().len() == 42);
+
+        for i in 0..3 {
+            let address = wallet_client.new_staking_address(&name.as_str(), &passphrase)?;
+            self.other_staking_accounts
+                .push(address.to_string().trim().to_string());
+            success(&format!("Other New address {}: {}", i + 1, address));
+        }
+
         Ok(())
     }
 
