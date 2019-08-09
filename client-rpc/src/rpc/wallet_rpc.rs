@@ -218,7 +218,9 @@ pub mod tests {
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
-    use client_common::{Error, ErrorKind, PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
+    use client_common::{
+        Error, ErrorKind, PrivateKey, Result as CommonResult, SignedTransaction, Transaction,
+    };
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
