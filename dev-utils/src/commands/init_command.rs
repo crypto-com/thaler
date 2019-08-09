@@ -15,6 +15,7 @@ use serde_json::json;
 use std::fs;
 use std::fs::File;
 use std::io;
+use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 
@@ -208,16 +209,19 @@ impl InitCommand {
         self.app_state = Some(result.1);
         Ok(())
     }
-    fn get_tendermint_filename(&self) -> String {
-        format!(
-            "{}/.tendermint/config/genesis.json",
-            dirs::home_dir().unwrap().to_str().unwrap()
-        )
-        .to_string()
+    pub fn get_tendermint_filename() -> String {
+        match std::env::var("TENDERMINT_HOME") {
+            Ok(path) => format!("{}/config/genesis.json", path).to_owned(),
+            Err(_) => format!(
+                "{}/.tendermint/config/genesis.json",
+                dirs::home_dir().unwrap().to_str().unwrap()
+            )
+            .to_owned(),
+        }
     }
     fn read_tendermint_genesis(&mut self) -> Result<(), Error> {
         // check whether file exists
-        fs::read_to_string(&self.get_tendermint_filename())
+        fs::read_to_string(&InitCommand::get_tendermint_filename())
             .and_then(|contents| {
                 println!("current tendermint genesis={}", contents);
                 let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
@@ -228,8 +232,26 @@ impl InitCommand {
             })
             .map_err(|_e| format_err!("read tendermint genesis error"))
     }
+    fn write_overmind_procfile(&self) -> Result<(), Error> {
+        println!("write overmind Procfile");
+        let mut a = "".to_string();
+        a.push_str("enclave: ./tx-validation-app tcp://0.0.0.0:25933\n");
+        a.push_str(format!("abci: ./chain-abci --host 0.0.0.0 --port 26658 --chain_id {}  --genesis_app_hash {}     --enclave_server tcp://127.0.0.1:25933 \n", self.chainid,  self.app_hash).as_str());
+        a.push_str("tendermint: ./tendermint node\n");
+
+        File::create("./Procfile")
+            .map_err(|_| format_err!("Procfile Create Fail"))
+            .and_then(|mut file| {
+                file.write_all(a.as_bytes())
+                    .map(|_| ())
+                    .map_err(|_| format_err!("Procfile Write Fail"))
+            })
+    }
     fn write_tendermint_genesis(&self) -> Result<(), Error> {
-        println!("write genesis to {}", self.get_tendermint_filename());
+        println!(
+            "write genesis to {}",
+            InitCommand::get_tendermint_filename()
+        );
 
         let app_hash = self.app_hash.clone();
         let app_state = self.app_state.clone();
@@ -238,7 +260,7 @@ impl InitCommand {
             .genesis_time
             .to_rfc3339_opts(SecondsFormat::Micros, true);
         let mut json_string = String::from("");
-        fs::read_to_string(&self.get_tendermint_filename())
+        fs::read_to_string(&InitCommand::get_tendermint_filename())
             .and_then(|contents| {
                 let mut json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let obj = json.as_object_mut().unwrap();
@@ -250,20 +272,21 @@ impl InitCommand {
                 json_string = serde_json::to_string(&json).unwrap();
                 println!("{}", json_string);
 
-                File::create(&self.get_tendermint_filename())
+                File::create(&InitCommand::get_tendermint_filename())
             })
             .map(|mut file| file.write_all(json_string.as_bytes()))
             .map(|_e| {
                 println!(
                     "writing tendermint genesis OK {}",
-                    self.get_tendermint_filename()
+                    InitCommand::get_tendermint_filename()
                 );
             })
             .map_err(|_e| format_err!("write tendermint genesis error"))
     }
+
     fn prepare_tendermint(&self) -> Result<(), Error> {
         // check whether file exists
-        fs::read_to_string(&self.get_tendermint_filename())
+        fs::read_to_string(&InitCommand::get_tendermint_filename())
             .or_else(|_e| {
                 // file not exist
                 Command::new("tendermint")
@@ -277,6 +300,18 @@ impl InitCommand {
             })
             .map(|_e| ())
     }
+
+    fn reset_tendermint(&self) -> Result<(), Error> {
+        // file not exist
+        Command::new("tendermint")
+            .args(&["unsafe_reset_all"])
+            .output()
+            .map(|_e| {
+                println!("tenermint reset all");
+            })
+            .map_err(|_e| format_err!("tendermint not found"))
+    }
+
     fn read_staking_address(&mut self) -> Result<(), Error> {
         let storage = SledStorage::new(InitCommand::storage_path())?;
         let wallet_client = DefaultWalletClient::builder()
@@ -301,14 +336,43 @@ impl InitCommand {
         assert!(address.to_string().trim().to_string().len() == 42);
         Ok(())
     }
-    pub fn execute(&mut self) -> Result<(), Error> {
-        println!("initialize");
 
-        self.prepare_tendermint()
+    fn clear_disk(&self) -> Result<(), Error> {
+        InitCommand::ask("** DANGER **\n");
+
+        let first = self.ask_string(
+            "will remove all storages including wallets and blocks please type cleardisk=",
+            "",
+        );
+        let second = self.ask_string("please type cleardisk onemore=", "");
+        if first == "cleardisk" && second == "cleardisk" {
+            let _ = fs::canonicalize(PathBuf::from("./.cro-storage")).and_then(|p| {
+                let _ = fs::remove_dir_all(p);
+                Ok(())
+            });
+
+            let _ = fs::canonicalize(PathBuf::from("./.storage")).and_then(|p| {
+                let _ = fs::remove_dir_all(p);
+                Ok(())
+            });
+
+            Ok(())
+        } else {
+            Err(format_err!("clear disk error"))
+        }
+    }
+
+    pub fn execute(&mut self) -> Result<(), Error> {
+        println!("initialize chain");
+
+        self.clear_disk()
+            .and_then(|_| self.prepare_tendermint())
+            .and_then(|_| self.reset_tendermint())
             .and_then(|_| self.read_tendermint_genesis())
             .and_then(|_| self.read_information())
             .and_then(|_| self.generate_app_info())
             .and_then(|_| self.write_tendermint_genesis())
+            .and_then(|_| self.write_overmind_procfile())
             .map_err(|e| format_err!("init error={}", e))
     }
 

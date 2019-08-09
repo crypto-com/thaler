@@ -69,7 +69,7 @@ function create_wallet_staking_address() {
 
     print_step "Retrieving last staking address for wallet \"${1}\""
     ADDRESS_LIST=$(printf "${2}\n" | CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli address list --name ${1} --type Staking)
-    RET_VALUE=$(echo $ADDRESS_LIST | tail -n2 | sed -En "s/^.*(0x[0-9a-zA-Z]+)/\1/p")
+    RET_VALUE=$(echo $ADDRESS_LIST | tail -n1 | sed -En "s/^.*(0x[0-9a-zA-Z]+).*$/\1/p")
 }
 
 # Create wallet staking address
@@ -82,7 +82,7 @@ function create_wallet_transfer_address() {
     print_step "Retrieving last transfer address for wallet \"${1}\""
     ADDRESS_LIST=$(printf "${2}\n" | CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli address list --name ${1} --type Transfer)
     echo "${ADDRESS_LIST}"
-    RET_VALUE=$(echo $ADDRESS_LIST | tail -n1 | sed -En "s/^.*(cro[0-9a-zA-Z]+)/\1/p")
+    RET_VALUE=$(echo $ADDRESS_LIST | tail -n1 | sed -En "s/^.*(dcro[0-9a-zA-Z]+).*$/\1/p")
 }
 
 # Save wallet addresses into JSON file
@@ -188,9 +188,14 @@ check_command_exist "../target/debug/dev-utils"
 
 print_step "Initialize Tendermint"
 print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
-mkdir ./tendermint; chmod 777 ./tendermint
+mkdir -p ./tendermint
+if [ ! -z "${CI}" ]; then
+    chmod 777 ./tendermint
+fi
 docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
-sudo chmod -R 777 ./tendermint
+if [ ! -z "${CI}" ]; then
+    sudo chmod -R 777 ./tendermint
+fi
 
 print_step "Clone Tendermint configuration"
 mkdir -p "${TENDERMINT_WITHFEE_DIRECTORY}"; cp -r ./tendermint/. "${TENDERMINT_WITHFEE_DIRECTORY}"
