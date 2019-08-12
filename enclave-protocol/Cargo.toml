@@ -10,3 +10,4 @@ edition = "2018"
 chain-core = { path = "../chain-core" }
 chain-tx-validation = { path = "../chain-tx-validation" }
 parity-scale-codec = { version = "1.0", features = ["derive"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "29991f23eaaa55ec86491dc78e7455f8f1fe3212" }

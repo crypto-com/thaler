@@ -1,14 +1,17 @@
 //! Utilities for encryption and decryption
 mod abci_transaction_cipher;
+pub mod cert;
+mod default;
+pub mod sgx;
 
-pub use abci_transaction_cipher::AbciTransactionCipher;
+pub use abci_transaction_cipher::MockAbciTransactionObfuscation;
 
 use chain_core::tx::data::TxId;
 use chain_core::tx::TxAux;
 use client_common::{PrivateKey, Result, SignedTransaction, Transaction};
 
 /// Interface for encryption and decryption of transactions
-pub trait TransactionCipher: Send + Sync {
+pub trait TransactionObfuscation: Send + Sync {
     /// Retrieves decrypted transactions with given ids. Only transactions of type `Transfer` and `Withdraw` need to be
     /// decrypted.
     fn decrypt(

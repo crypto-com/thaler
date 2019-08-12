@@ -16,7 +16,7 @@ use chain_core::tx::{TransactionId, TxAux};
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, Result, SignedTransaction};
 use client_core::{Signer, UnspentTransactions, WalletClient};
-use client_index::TransactionCipher;
+use client_index::TransactionObfuscation;
 
 use crate::NetworkOpsClient;
 
@@ -27,7 +27,7 @@ where
     S: Signer,
     C: Client,
     F: FeeAlgorithm,
-    E: TransactionCipher,
+    E: TransactionObfuscation,
 {
     /// WalletClient
     wallet_client: W,
@@ -43,7 +43,7 @@ where
     S: Signer,
     C: Client,
     F: FeeAlgorithm,
-    E: TransactionCipher,
+    E: TransactionObfuscation,
 {
     /// use WalletClient
     pub fn get_wallet(&self) -> &W {
@@ -95,7 +95,7 @@ where
     S: Signer,
     C: Client,
     F: FeeAlgorithm,
-    E: TransactionCipher,
+    E: TransactionObfuscation,
 {
     fn create_deposit_bonded_stake_transaction(
         &self,
@@ -278,7 +278,7 @@ mod tests {
     #[derive(Debug)]
     struct MockTransactionCipher;
 
-    impl TransactionCipher for MockTransactionCipher {
+    impl TransactionObfuscation for MockTransactionCipher {
         fn decrypt(
             &self,
             _transaction_ids: &[TxId],
