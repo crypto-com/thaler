@@ -99,6 +99,12 @@ impl Encode for TxInWitness {
             }
         }
     }
+
+    fn size_hint(&self) -> usize {
+        match self {
+            TxInWitness::TreeSig(_, ref proof) => 65 + proof.size_hint(),
+        }
+    }
 }
 
 impl Decode for TxInWitness {

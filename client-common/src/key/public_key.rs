@@ -104,6 +104,10 @@ impl Encode for PublicKey {
     fn encode_to<W: Output>(&self, dest: &mut W) {
         self.serialize().encode_to(dest)
     }
+
+    fn size_hint(&self) -> usize {
+        66
+    }
 }
 
 impl Decode for PublicKey {
