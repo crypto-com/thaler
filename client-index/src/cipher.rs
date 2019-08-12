@@ -5,6 +5,7 @@ mod default;
 pub mod sgx;
 
 pub use abci_transaction_cipher::MockAbciTransactionObfuscation;
+pub use default::DefaultTransactionObfuscation;
 
 use chain_core::tx::data::TxId;
 use chain_core::tx::TxAux;
