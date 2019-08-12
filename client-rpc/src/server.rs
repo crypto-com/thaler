@@ -1,8 +1,9 @@
-use std::net::SocketAddr;
-
 use failure::ResultExt;
 use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
+use secstr::SecUtf8;
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 
 use chain_core::tx::fee::LinearFee;
 use client_common::error::{Error, ErrorKind, Result};
@@ -17,7 +18,10 @@ use client_index::index::DefaultIndex;
 use client_index::synchronizer::ManualSynchronizer;
 use client_network::network_ops::DefaultNetworkOpsClient;
 
-use crate::client_rpc::{ClientRpc, ClientRpcImpl};
+use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
+use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
+use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
+use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
 use crate::Options;
 
 type AppSigner = DefaultSigner<SledStorage>;
@@ -97,12 +101,25 @@ impl Server {
     }
 
     pub fn start_client(&self, io: &mut IoHandler, storage: SledStorage) -> Result<()> {
-        let wallet_client = self.make_wallet_client(storage.clone());
+        let multisig_rpc_wallet_client = self.make_wallet_client(storage.clone());
+        let multisig_rpc = MultiSigRpcImpl::new(multisig_rpc_wallet_client);
+
+        let staking_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let ops_client = self.make_ops_client(storage.clone());
+        let staking_rpc =
+            StakingRpcImpl::new(staking_rpc_wallet_client, ops_client, self.network_id);
+
+        let sync_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let synchronizer = self.make_synchronizer(storage.clone());
-        let client_rpc =
-            ClientRpcImpl::new(wallet_client, ops_client, synchronizer, self.network_id);
-        io.extend_with(client_rpc.to_delegate());
+        let sync_rpc = SyncRpcImpl::new(sync_rpc_wallet_client, synchronizer);
+
+        let wallet_rpc_wallet_client = self.make_wallet_client(storage.clone());
+        let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);
+
+        io.extend_with(multisig_rpc.to_delegate());
+        io.extend_with(staking_rpc.to_delegate());
+        io.extend_with(sync_rpc.to_delegate());
+        io.extend_with(wallet_rpc.to_delegate());
         Ok(())
     }
 
@@ -140,4 +157,10 @@ pub(crate) fn rpc_error_from_string(error: String) -> jsonrpc_core::Error {
         message: error,
         data: None,
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WalletRequest {
+    pub name: String,
+    pub passphrase: SecUtf8,
 }
