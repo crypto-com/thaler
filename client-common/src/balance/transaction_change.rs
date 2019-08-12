@@ -36,6 +36,14 @@ impl Encode for TransactionChange {
         self.block_height.encode_to(dest);
         self.block_time.to_rfc3339().encode_to(dest);
     }
+
+    fn size_hint(&self) -> usize {
+        self.transaction_id.size_hint()
+            + self.address.size_hint()
+            + self.balance_change.size_hint()
+            + self.block_height.size_hint()
+            + self.block_time.to_rfc3339().as_bytes().size_hint()
+    }
 }
 
 impl Decode for TransactionChange {
