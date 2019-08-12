@@ -35,7 +35,8 @@ pub struct DefaultTransactionObfuscation {
 }
 
 impl DefaultTransactionObfuscation {
-    #[allow(dead_code)]
+    /// tdqe_address: connection string <HOST/IP:PORT>
+    /// tdqe_hostname: expected hostname (e.g. localhost in testing)
     pub fn new(tdqe_address: String, tdqe_hostname: String) -> Self {
         DefaultTransactionObfuscation {
             tdqe_address,
