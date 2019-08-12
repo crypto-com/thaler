@@ -107,6 +107,18 @@ pub enum ErrorKind {
     /// Signing error
     #[fail(display = "Signing error")]
     SigningError,
+    /// Invalid certificate
+    #[fail(display = "Invalid certificate format in TLS")]
+    InvalidCertFormat,
+    /// Bad attestation report
+    #[fail(display = "Bad SGX attestation report")]
+    BadAttnReport,
+    /// Webpki check failure
+    #[fail(display = "Webpki check failure")]
+    WebpkiFailure,
+    /// TDQE connection failure
+    #[fail(display = "Transaction decryption enclave connection failure")]
+    TDQEConnectionError,
 }
 
 impl Fail for Error {

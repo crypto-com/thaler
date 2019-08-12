@@ -263,7 +263,7 @@ pub mod tests {
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
-    use client_index::{AddressDetails, Index, TransactionCipher};
+    use client_index::{AddressDetails, Index, TransactionObfuscation};
 
     #[derive(Default)]
     pub struct MockIndex;
@@ -324,7 +324,7 @@ pub mod tests {
     #[derive(Debug)]
     struct MockTransactionCipher;
 
-    impl TransactionCipher for MockTransactionCipher {
+    impl TransactionObfuscation for MockTransactionCipher {
         fn decrypt(
             &self,
             _transaction_ids: &[TxId],

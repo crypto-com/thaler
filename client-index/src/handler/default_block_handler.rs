@@ -4,12 +4,12 @@ use chain_core::tx::TransactionId;
 use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
 
 use crate::service::{GlobalStateService, TransactionService};
-use crate::{BlockHandler, TransactionCipher, TransactionHandler};
+use crate::{BlockHandler, TransactionHandler, TransactionObfuscation};
 
 /// Default implementation of `BlockHandler`
 pub struct DefaultBlockHandler<C, H, S>
 where
-    C: TransactionCipher,
+    C: TransactionObfuscation,
     H: TransactionHandler,
     S: Storage,
 {
@@ -22,7 +22,7 @@ where
 
 impl<C, H, S> DefaultBlockHandler<C, H, S>
 where
-    C: TransactionCipher,
+    C: TransactionObfuscation,
     H: TransactionHandler,
     S: Storage + Clone,
 {
@@ -40,7 +40,7 @@ where
 
 impl<C, H, S> DefaultBlockHandler<C, H, S>
 where
-    C: TransactionCipher,
+    C: TransactionObfuscation,
     H: TransactionHandler,
     S: Storage,
 {
@@ -59,7 +59,7 @@ where
 
 impl<C, H, S> BlockHandler for DefaultBlockHandler<C, H, S>
 where
-    C: TransactionCipher,
+    C: TransactionObfuscation,
     H: TransactionHandler,
     S: Storage,
 {
@@ -119,7 +119,7 @@ mod tests {
 
     struct MockTransactionCipher;
 
-    impl TransactionCipher for MockTransactionCipher {
+    impl TransactionObfuscation for MockTransactionCipher {
         fn decrypt(
             &self,
             transaction_ids: &[TxId],
