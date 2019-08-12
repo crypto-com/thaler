@@ -36,6 +36,10 @@ impl Encode for TxAccessPolicy {
         self.view_key.serialize().encode_to(dest);
         self.access.encode_to(dest);
     }
+
+    fn size_hint(&self) -> usize {
+        33 + self.access.size_hint()
+    }
 }
 
 impl Decode for TxAccessPolicy {

@@ -15,7 +15,7 @@ use client_common::{Error, ErrorKind, Result, Storage};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
-use client_index::cipher::AbciTransactionCipher;
+use client_index::cipher::MockAbciTransactionObfuscation;
 use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
 use client_index::synchronizer::ManualSynchronizer;
@@ -137,7 +137,8 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let transaction_cipher =
+                    MockAbciTransactionObfuscation::new(tendermint_client.clone());
                 let transaction_builder = DefaultTransactionBuilder::new(
                     signer.clone(),
                     fee_algorithm,
@@ -165,7 +166,8 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let transaction_cipher =
+                    MockAbciTransactionObfuscation::new(tendermint_client.clone());
                 let transaction_builder = DefaultTransactionBuilder::new(
                     signer.clone(),
                     fee_algorithm,
@@ -193,7 +195,8 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
 
                 let transaction_handler = DefaultTransactionHandler::new(storage.clone());
-                let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+                let transaction_cipher =
+                    MockAbciTransactionObfuscation::new(tendermint_client.clone());
                 let block_handler = DefaultBlockHandler::new(
                     transaction_cipher,
                     transaction_handler,

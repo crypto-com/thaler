@@ -54,6 +54,10 @@ impl Encode for PrivateKey {
     fn encode_to<W: Output>(&self, dest: &mut W) {
         self.serialize().encode_to(dest)
     }
+
+    fn size_hint(&self) -> usize {
+        33
+    }
 }
 
 impl Decode for PrivateKey {

@@ -9,7 +9,7 @@ use chain_core::tx::data::Tx;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::{ErrorKind, Result, SignedTransaction};
-use client_index::TransactionCipher;
+use client_index::TransactionObfuscation;
 
 use crate::{SelectedUnspentTransactions, Signer, TransactionBuilder, UnspentTransactions};
 
@@ -32,7 +32,7 @@ pub struct DefaultTransactionBuilder<S, F, C>
 where
     S: Signer,
     F: FeeAlgorithm,
-    C: TransactionCipher,
+    C: TransactionObfuscation,
 {
     signer: S,
     fee_algorithm: F,
@@ -43,7 +43,7 @@ impl<S, F, C> DefaultTransactionBuilder<S, F, C>
 where
     S: Signer,
     F: FeeAlgorithm,
-    C: TransactionCipher,
+    C: TransactionObfuscation,
 {
     /// Creates a new instance of transaction builder
     #[inline]
@@ -60,7 +60,7 @@ impl<S, F, C> TransactionBuilder for DefaultTransactionBuilder<S, F, C>
 where
     S: Signer,
     F: FeeAlgorithm,
-    C: TransactionCipher,
+    C: TransactionObfuscation,
 {
     fn build(
         &self,
@@ -154,7 +154,7 @@ mod tests {
     #[derive(Debug)]
     struct MockTransactionCipher;
 
-    impl TransactionCipher for MockTransactionCipher {
+    impl TransactionObfuscation for MockTransactionCipher {
         fn decrypt(
             &self,
             _transaction_ids: &[TxId],

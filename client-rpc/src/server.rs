@@ -12,7 +12,7 @@ use client_common::tendermint::{Client, RpcClient};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
-use client_index::cipher::AbciTransactionCipher;
+use client_index::cipher::MockAbciTransactionObfuscation;
 use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
 use client_index::synchronizer::ManualSynchronizer;
@@ -26,7 +26,7 @@ use crate::Options;
 
 type AppSigner = DefaultSigner<SledStorage>;
 type AppIndex = DefaultIndex<SledStorage, RpcClient>;
-type AppTransactionCipher = AbciTransactionCipher<RpcClient>;
+type AppTransactionCipher = MockAbciTransactionObfuscation<RpcClient>;
 type AppTxBuilder = DefaultTransactionBuilder<AppSigner, LinearFee, AppTransactionCipher>;
 type AppWalletClient = DefaultWalletClient<SledStorage, AppIndex, AppTxBuilder>;
 type AppOpsClient =
@@ -60,7 +60,7 @@ impl Server {
     fn make_wallet_client(&self, storage: SledStorage) -> AppWalletClient {
         let tendermint_client = RpcClient::new(&self.tendermint_url);
         let signer = DefaultSigner::new(storage.clone());
-        let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+        let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
         let transaction_builder = DefaultTransactionBuilder::new(
             signer,
             tendermint_client.genesis().unwrap().fee_policy(),
@@ -77,7 +77,7 @@ impl Server {
 
     pub fn make_ops_client(&self, storage: SledStorage) -> AppOpsClient {
         let tendermint_client = RpcClient::new(&self.tendermint_url);
-        let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+        let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
         let signer = DefaultSigner::new(storage.clone());
         let fee_algorithm = tendermint_client.genesis().unwrap().fee_policy();
         let wallet_client = self.make_wallet_client(storage);
@@ -92,7 +92,7 @@ impl Server {
 
     pub fn make_synchronizer(&self, storage: SledStorage) -> AppSynchronizer {
         let tendermint_client = RpcClient::new(&self.tendermint_url);
-        let transaction_cipher = AbciTransactionCipher::new(tendermint_client.clone());
+        let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
         let transaction_handler = DefaultTransactionHandler::new(storage.clone());
         let block_handler =
             DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
