@@ -7,7 +7,7 @@ pub mod service;
 pub mod synchronizer;
 
 #[doc(inline)]
-pub use crate::cipher::TransactionCipher;
+pub use crate::cipher::TransactionObfuscation;
 #[doc(inline)]
 pub use crate::handler::{BlockHandler, TransactionHandler};
 #[doc(inline)]

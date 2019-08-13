@@ -1,31 +1,31 @@
 use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode};
 
-use chain_core::tx::data::{txid_hash, TxId};
+use chain_core::tx::data::TxId;
 use chain_core::tx::{TxAux, TxWithOutputs};
 use client_common::tendermint::Client;
+use client_common::SECP;
 use client_common::{ErrorKind, PrivateKey, Result, SignedTransaction, Transaction};
 use enclave_protocol::{
-    DecryptionRequest, DecryptionRequestBody, DecryptionResponse, EncryptionRequest,
-    EncryptionResponse,
+    DecryptionRequest, DecryptionResponse, EncryptionRequest, EncryptionResponse,
 };
 
-use crate::TransactionCipher;
+use crate::TransactionObfuscation;
 
 /// Implementation of transaction cipher which uses Tendermint ABCI to encrypt/decrypt transactions
 #[derive(Debug, Clone)]
-pub struct AbciTransactionCipher<C>
+pub struct MockAbciTransactionObfuscation<C>
 where
     C: Client,
 {
     client: C,
 }
 
-impl<C> AbciTransactionCipher<C>
+impl<C> MockAbciTransactionObfuscation<C>
 where
     C: Client,
 {
-    /// Creates a new instance of `AbciTransactionCipher`
+    /// Creates a new instance of `MockAbciTransactionObfuscation`
     #[inline]
     pub fn new(client: C) -> Self {
         Self { client }
@@ -45,7 +45,7 @@ where
     }
 }
 
-impl<C> TransactionCipher for AbciTransactionCipher<C>
+impl<C> TransactionObfuscation for MockAbciTransactionObfuscation<C>
 where
     C: Client,
 {
@@ -54,17 +54,14 @@ where
         transaction_ids: &[TxId],
         private_key: &PrivateKey,
     ) -> Result<Vec<Transaction>> {
-        let body = DecryptionRequestBody {
-            txs: transaction_ids.to_owned(),
-        };
-
-        let message = txid_hash(&body.encode());
-        let signature = private_key.sign(message)?.serialize_compact().1;
-
-        let request = DecryptionRequest {
-            body,
-            view_key_sig: signature,
-        };
+        let request = SECP.with(|secp| {
+            DecryptionRequest::create(
+                &secp,
+                transaction_ids.to_owned(),
+                [0u8; 32],
+                &private_key.into(),
+            )
+        });
 
         let response = self
             .client
@@ -184,7 +181,7 @@ mod tests {
 
     #[test]
     fn check_decryption() {
-        let cipher = AbciTransactionCipher::new(MockClient);
+        let cipher = MockAbciTransactionObfuscation::new(MockClient);
 
         assert_eq!(
             1,
@@ -197,7 +194,7 @@ mod tests {
 
     #[test]
     fn check_encryption() {
-        let cipher = AbciTransactionCipher::new(MockClient);
+        let cipher = MockAbciTransactionObfuscation::new(MockClient);
 
         let encrypted_transaction = cipher
             .encrypt(SignedTransaction::TransferTransaction(

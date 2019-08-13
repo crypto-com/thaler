@@ -16,6 +16,7 @@ use enclave_protocol::{
     EncryptionResponse,
 };
 use integer_encoding::VarInt;
+use log::warn;
 use parity_scale_codec::{Decode, Encode};
 use std::convert::TryFrom;
 
@@ -26,6 +27,106 @@ fn get_witness_proof_op(witness: &[u8]) -> ProofOp {
     op.set_key(TXID_HASH_ID.to_vec());
     op.set_data(txid_hash(witness).to_vec());
     op
+}
+
+#[cfg(not(feature = "mock-enc-dec"))]
+fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Storage) {
+    let msg = "received a temporary *mock* encryption/decryption query in abci (use the dedicated enclaves instead)";
+    warn!(msg);
+    resp.log += msg;
+    resp.code = 1;
+}
+
+#[cfg(feature = "mock-enc-dec")]
+fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Storage) {
+    warn!("received a temporary *mock* encryption/decryption query in abci");
+    match _req.path.as_ref() {
+        // FIXME: temporary mock
+        "mockencrypt" => {
+            let request = EncryptionRequest::decode(&mut _req.data.as_slice());
+            match request {
+                Ok(EncryptionRequest::TransferTx(tx, witness)) => {
+                    let plain = PlainTxAux::TransferTx(tx.clone(), witness);
+                    let mock = EncryptionResponse {
+                        tx: TxAux::TransferTx {
+                            txid: tx.id(),
+                            inputs: tx.inputs.clone(),
+                            no_of_outputs: tx.outputs.len() as TxoIndex,
+                            payload: TxObfuscated {
+                                key_from: 0,
+                                nonce: [0u8; 12],
+                                txpayload: plain.encode(),
+                            },
+                        },
+                    };
+                    resp.value = mock.encode();
+                }
+                Ok(EncryptionRequest::DepositStake(maintx, witness)) => {
+                    let plain = PlainTxAux::DepositStakeTx(witness);
+                    let mock = EncryptionResponse {
+                        tx: TxAux::DepositStakeTx {
+                            tx: maintx,
+                            payload: TxObfuscated {
+                                key_from: 0,
+                                nonce: [0u8; 12],
+                                txpayload: plain.encode(),
+                            },
+                        },
+                    };
+                    resp.value = mock.encode();
+                }
+                Ok(EncryptionRequest::WithdrawStake(tx, _, witness)) => {
+                    let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
+                    let mock = EncryptionResponse {
+                        tx: TxAux::WithdrawUnbondedStakeTx {
+                            txid: tx.id(),
+                            no_of_outputs: tx.outputs.len() as TxoIndex,
+                            witness,
+                            payload: TxObfuscated {
+                                key_from: 0,
+                                nonce: [0u8; 12],
+                                txpayload: plain.encode(),
+                            },
+                        },
+                    };
+                    resp.value = mock.encode();
+                }
+                _ => {
+                    resp.log += "invalid request";
+                    resp.code = 1;
+                }
+            }
+        }
+        // FIXME: temporary mock
+        "mockdecrypt" => {
+            let request = DecryptionRequest::decode(&mut _req.data.as_slice());
+            if let Ok(DecryptionRequest {
+                body: DecryptionRequestBody { txs, .. },
+                ..
+            }) = request
+            {
+                let mut resp_txs = Vec::with_capacity(txs.len());
+                let looked_up = txs.iter().map(|txid| storage.db.get(COL_BODIES, txid));
+                for found in looked_up {
+                    if let Ok(Some(uv)) = found {
+                        let tx = TxWithOutputs::decode(&mut uv.to_vec().as_slice());
+                        if let Ok(ttx) = tx {
+                            resp_txs.push(ttx);
+                        }
+                    }
+                }
+                let mock = DecryptionResponse { txs: resp_txs };
+                resp.value = mock.encode();
+            } else {
+                resp.log += "invalid request";
+                resp.code = 1;
+            }
+        }
+        _ => {
+            resp.log += "invalid path";
+            resp.code = 1;
+        }
+    }
 }
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
@@ -57,88 +158,14 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             return resp;
         }
 
-        // TODO: auth / verification (when TXs are encrypted)
         match _req.path.as_ref() {
-            // FIXME: temporary mock
+            // FIXME: remove when no longer necessary
             "mockencrypt" => {
-                let request = EncryptionRequest::decode(&mut _req.data.as_slice());
-                match request {
-                    Ok(EncryptionRequest::TransferTx(tx, witness)) => {
-                        let plain = PlainTxAux::TransferTx(tx.clone(), witness);
-                        let mock = EncryptionResponse {
-                            tx: TxAux::TransferTx {
-                                txid: tx.id(),
-                                inputs: tx.inputs.clone(),
-                                no_of_outputs: tx.outputs.len() as TxoIndex,
-                                payload: TxObfuscated {
-                                    key_from: 0,
-                                    nonce: [0u8; 12],
-                                    txpayload: plain.encode(),
-                                },
-                            },
-                        };
-                        resp.value = mock.encode();
-                    }
-                    Ok(EncryptionRequest::DepositStake(maintx, witness)) => {
-                        let plain = PlainTxAux::DepositStakeTx(witness);
-                        let mock = EncryptionResponse {
-                            tx: TxAux::DepositStakeTx {
-                                tx: maintx,
-                                payload: TxObfuscated {
-                                    key_from: 0,
-                                    nonce: [0u8; 12],
-                                    txpayload: plain.encode(),
-                                },
-                            },
-                        };
-                        resp.value = mock.encode();
-                    }
-                    Ok(EncryptionRequest::WithdrawStake(tx, _, witness)) => {
-                        let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
-                        let mock = EncryptionResponse {
-                            tx: TxAux::WithdrawUnbondedStakeTx {
-                                txid: tx.id(),
-                                no_of_outputs: tx.outputs.len() as TxoIndex,
-                                witness,
-                                payload: TxObfuscated {
-                                    key_from: 0,
-                                    nonce: [0u8; 12],
-                                    txpayload: plain.encode(),
-                                },
-                            },
-                        };
-                        resp.value = mock.encode();
-                    }
-                    _ => {
-                        resp.log += "invalid request";
-                        resp.code = 1;
-                    }
-                }
+                handle_enc_dec(&_req, &mut resp, &self.storage);
             }
-            // FIXME: temporary mock
+            // FIXME: remove when no longer necessary
             "mockdecrypt" => {
-                let request = DecryptionRequest::decode(&mut _req.data.as_slice());
-                if let Ok(DecryptionRequest {
-                    body: DecryptionRequestBody { txs },
-                    ..
-                }) = request
-                {
-                    let mut resp_txs = Vec::with_capacity(txs.len());
-                    let looked_up = txs.iter().map(|txid| self.storage.db.get(COL_BODIES, txid));
-                    for found in looked_up {
-                        if let Ok(Some(uv)) = found {
-                            let tx = TxWithOutputs::decode(&mut uv.to_vec().as_slice());
-                            if let Ok(ttx) = tx {
-                                resp_txs.push(ttx);
-                            }
-                        }
-                    }
-                    let mock = DecryptionResponse { txs: resp_txs };
-                    resp.value = mock.encode();
-                } else {
-                    resp.log += "invalid request";
-                    resp.code = 1;
-                }
+                handle_enc_dec(&_req, &mut resp, &self.storage);
             }
             "store" => {
                 self.lookup(&mut resp, COL_BODIES, &_req.data[..], "tx not found");
