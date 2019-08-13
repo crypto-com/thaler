@@ -2,7 +2,7 @@ FROM alpine:3.9.4
 LABEL maintainer="hello@tendermint.com"
 LABEL maintainer="calvin@crypto.com"
 
-ARG VERSION=0.30.2
+ARG VERSION
 
 # WITHFEE|ZEROFEE
 ENV FEE_SCHEMA="WITHFEE"
@@ -26,6 +26,7 @@ RUN apk update && \
     adduser -S -G tmuser tmuser -h "$TMHOME"
 
 # Download and install Tendermint
+RUN echo "Installing Tendermint ${VERSION}"
 RUN curl -LO https://github.com/tendermint/tendermint/releases/download/v${VERSION}/tendermint_v${VERSION}_linux_amd64.zip
 RUN unzip tendermint_v${VERSION}_linux_amd64.zip -d /usr/bin/
 RUN rm tendermint_v${VERSION}_linux_amd64.zip

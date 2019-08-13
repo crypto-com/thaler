@@ -7,72 +7,82 @@ import {
   newRpcClient,
   newWalletRequest,
   generateWalletName,
-  RECEIVE_WALLET_ADDRESS,
-  SPEND_WALLET_ADDRESS
+  WALLET_STAKING_ADDRESS,
+  WALLET_TRANSFER_ADDRESS_1,
+  WALLET_TRANSFER_ADDRESS_2,
+  newZeroFeeRpcClient,
 } from "./core/setup";
 import BigNumber from "bignumber.js";
 chaiUse(chaiAsPromised);
 
 describe("Wallet transaction", () => {
-  let client: RpcClient;
+  let zeroFeeClient: RpcClient;
   before(() => {
-    client = newRpcClient();
+    zeroFeeClient = newZeroFeeRpcClient();
   });
 
-  it("User can view genesis distribution in transaction", async () => {
+  it("cannot send funds larger than wallet balance", async () => {
     const walletRequest = newWalletRequest("Spend");
 
-    const transactionList = await client.request("wallet_transactions", [
-      walletRequest
-    ]);
-
-    expect(transactionList.length).to.be.greaterThan(0);
-    const firstTransaction = transactionList[0];
-    expectTransactionShouldBe(firstTransaction, {
-      address: SPEND_WALLET_ADDRESS,
-      direction: TransactionDirection.INCOMING,
-      amount: new BigNumber("3000000000000000000"),
-      height: 0
-    });
-  });
-
-  it("User cannot send funds larger than wallet balance", async () => {
-    const walletRequest = newWalletRequest("Spend");
-
-    const totalCROSupply = 10000000000000000000;
+    const totalCROSupply = "10000000000000000000";
     return expect(
-      client.request("wallet_sendtoaddress", [
+      zeroFeeClient.request("wallet_sendToAddress", [
         walletRequest,
-        RECEIVE_WALLET_ADDRESS,
+        WALLET_TRANSFER_ADDRESS_2,
         totalCROSupply
       ])
     ).to.eventually.rejectedWith("Insufficient balance");
   });
 
-  it("User can send funds", async () => {
-    const spendWalletRequest = newWalletRequest("Spend");
-
-    const spendWalletTransactionListBeforeSend = await client.request(
+  it("can transfer funds between two wallets", async () => {
+    const receiveWalletName = generateWalletName("Receive");
+    const receiveWalletRequest = newWalletRequest("Receive");
+    const receiveWalletTransactionListBeforeSend = await zeroFeeClient.request(
       "wallet_transactions",
-      [spendWalletRequest]
+      [receiveWalletRequest]
     );
-    const spendWalletBalanceBeforeSend = await client.request(
+    const spendWalletBalanceBeforeSend = await zeroFeeClient.request(
       "wallet_balance",
       [spendWalletRequest]
     );
 
-    const amountToSpend = 500000000000000000;
+    const receiveWalletTransferAddress = await zeroFeeClient.request(
+      "wallet_newTransferAddress",
+      [receiveWalletRequest],
+    );
+
+
+
+
+
+
+
+
+
+
+    const spendWalletRequest = newWalletRequest("Spend");
+
+    const spendWalletTransactionListBeforeSend = await zeroFeeClient.request(
+      "wallet_transactions",
+      [spendWalletRequest]
+    );
+    const spendWalletBalanceBeforeSend = await zeroFeeClient.request(
+      "wallet_balance",
+      [spendWalletRequest]
+    );
+
+    const amountToSpend = 1000;
     await expect(
-      client.request("wallet_sendtoaddress", [
+      zeroFeeClient.request("wallet_sendToAddress", [
         spendWalletRequest,
-        RECEIVE_WALLET_ADDRESS,
+        WALLET_TRANSFER_ADDRESS_2,
         amountToSpend
       ])
     ).to.eventually.deep.eq(null);
 
     await sleep(2000);
 
-    const spendWalletTransactionList = await client.request(
+    const spendWalletTransactionList = await zeroFeeClient.request(
       "wallet_transactions",
       [spendWalletRequest]
     );
@@ -98,7 +108,7 @@ describe("Wallet transaction", () => {
     });
 
     return expect(
-      client.request("wallet_balance", [spendWalletRequest])
+      zeroFeeClient.request("wallet_balance", [spendWalletRequest])
     ).to.eventually.deep.eq(expectedSpendWalletBalanceAfterSend);
   });
 
@@ -107,10 +117,10 @@ describe("Wallet transaction", () => {
     const walletRequest = newWalletRequest(walletName);
 
     await expect(
-      client.request("wallet_create", [walletRequest])
+      zeroFeeClient.request("wallet_create", [walletRequest])
     ).to.eventually.eq(walletName);
 
-    const walletAddresses = await client.request("wallet_addresses", [
+    const walletAddresses = await zeroFeeClient.request("wallet_addresses", [
       walletRequest
     ]);
     expect(walletAddresses).to.be.an("array");
@@ -124,19 +134,19 @@ describe("Wallet transaction", () => {
     const receiveWalletRequest = newWalletRequest(receiveWalletName);
 
     await expect(
-      client.request("wallet_create", [receiveWalletRequest])
+      zeroFeeClient.request("wallet_create", [receiveWalletRequest])
     ).to.eventually.eq(receiveWalletName);
-    const receiveWalletAddresses = await client.request("wallet_addresses", [
+    const receiveWalletAddresses = await zeroFeeClient.request("wallet_addresses", [
       receiveWalletRequest
     ]);
     const receiveWalletAddress = receiveWalletAddresses[0];
 
     await expect(
-      client.request("wallet_balance", [receiveWalletRequest])
+      zeroFeeClient.request("wallet_balance", [receiveWalletRequest])
     ).to.eventually.deep.eq(new BigNumber(0));
 
     await expect(
-      client.request("wallet_sendtoaddress", [
+      zeroFeeClient.request("wallet_sendtoaddress", [
         spendWalletRequest,
         receiveWalletAddress,
         500000000000000000
@@ -145,7 +155,7 @@ describe("Wallet transaction", () => {
 
     await sleep(2000);
 
-    const transactionList = await client.request("wallet_transactions", [
+    const transactionList = await zeroFeeClient.request("wallet_transactions", [
       receiveWalletRequest
     ]);
     expect(transactionList.length).to.eq(1);
@@ -158,7 +168,7 @@ describe("Wallet transaction", () => {
     });
 
     return expect(
-      client.request("wallet_balance", [receiveWalletRequest])
+      zeroFeeClient.request("wallet_balance", [receiveWalletRequest])
     ).to.eventually.deep.eq(new BigNumber("500000000000000000"));
   });
 
@@ -166,17 +176,17 @@ describe("Wallet transaction", () => {
     const spendWalletRequest = newWalletRequest("Spend");
     const receiveWalletRequest = newWalletRequest("Receive");
 
-    const receiveWalletTransactionListBeforeSend = await client.request(
+    const receiveWalletTransactionListBeforeSend = await zeroFeeClient.request(
       "wallet_transactions",
       [receiveWalletRequest]
     );
-    const receiveWalletBalanceBeforeSend = await client.request(
+    const receiveWalletBalanceBeforeSend = await zeroFeeClient.request(
       "wallet_balance",
       [receiveWalletRequest]
     );
 
     await expect(
-      client.request("wallet_sendtoaddress", [
+      zeroFeeClient.request("wallet_sendtoaddress", [
         spendWalletRequest,
         RECEIVE_WALLET_ADDRESS,
         500000000000000000
@@ -185,7 +195,7 @@ describe("Wallet transaction", () => {
 
     await sleep(2000);
 
-    const receiveWalletTransactionList = await client.request(
+    const receiveWalletTransactionList = await zeroFeeClient.request(
       "wallet_transactions",
       [receiveWalletRequest]
     );
@@ -207,7 +217,7 @@ describe("Wallet transaction", () => {
       "500000000000000000"
     );
     return expect(
-      client.request("wallet_balance", [receiveWalletRequest])
+      zeroFeeClient.request("wallet_balance", [receiveWalletRequest])
     ).to.eventually.deep.eq(expectedReceiveWalletBalanceAfterSend);
   });
 

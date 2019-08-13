@@ -4,7 +4,7 @@ IFS=
 
 TENDERMINT_PATH=${TENDERMINT_PATH:-tendermint}
 WALLET_PASSPHRASE=${WALLET_PASSPHRASE:-123456}
-TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.30.4}
+TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.32.0}
 
 # Constants (No not modify unless you are absolutely sure what you are doing)
 WALLET_STORAGE_DIRECTORY="./docker/chain/wallet-storage"
@@ -239,3 +239,4 @@ generate_tendermint_genesis "${DEV_CONF_ZEROFEE_PATH}" "${TENDERMINT_ZEROFEE_DIR
 print_step "Update Tendermint configuration"
 disable_empty_blocks "${TENDERMINT_WITHFEE_DIRECTORY}"
 disable_empty_blocks "${TENDERMINT_ZEROFEE_DIRECTORY}"
+sleep 3
