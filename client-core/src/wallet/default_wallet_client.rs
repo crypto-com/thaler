@@ -526,7 +526,7 @@ mod tests {
     use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
     use client_common::{PrivateKey, SignedTransaction, Transaction};
-    use client_index::{AddressDetails, TransactionCipher};
+    use client_index::{AddressDetails, TransactionObfuscation};
 
     use crate::signer::DefaultSigner;
     use crate::transaction_builder::DefaultTransactionBuilder;
@@ -534,7 +534,7 @@ mod tests {
     #[derive(Debug)]
     struct MockTransactionCipher;
 
-    impl TransactionCipher for MockTransactionCipher {
+    impl TransactionObfuscation for MockTransactionCipher {
         fn decrypt(
             &self,
             _transaction_ids: &[TxId],

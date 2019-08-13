@@ -342,6 +342,12 @@ impl Encode for StakedStateOpWitness {
             }
         }
     }
+
+    fn size_hint(&self) -> usize {
+        match self {
+            StakedStateOpWitness::BasicRedeem(_) => 66,
+        }
+    }
 }
 
 impl Decode for StakedStateOpWitness {
