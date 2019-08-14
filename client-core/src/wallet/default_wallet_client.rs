@@ -1130,8 +1130,6 @@ mod tests {
             wallet.transfer_addresses(name, &passphrase).unwrap().len()
         );
 
-        let wallet_public_key = wallet.new_public_key(name, &passphrase).unwrap();
-
         let public_keys = vec![
             PublicKey::from(&PrivateKey::new().unwrap()),
             PublicKey::from(&PrivateKey::new().unwrap()),
@@ -1152,6 +1150,7 @@ mod tests {
                 .kind()
         );
 
+        let wallet_public_key = wallet.new_public_key(name, &passphrase).unwrap();
         let public_keys = vec![
             wallet_public_key,
             PublicKey::from(&PrivateKey::new().unwrap()),

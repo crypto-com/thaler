@@ -101,16 +101,21 @@ where
         let public_keys = parse_public_keys(public_keys).map_err(to_rpc_error)?;
         let total_public_keys = public_keys.len();
         let self_public_key = parse_public_key(self_public_key).map_err(to_rpc_error)?;
-        let extended_address = self.client.new_multisig_transfer_address(
-            &request.name,
-            &request.passphrase,
-            public_keys,
-            self_public_key,
-            required_signatures,
-            total_public_keys,
-        ).map_err(to_rpc_error)?;
+        let extended_address = self
+            .client
+            .new_multisig_transfer_address(
+                &request.name,
+                &request.passphrase,
+                public_keys,
+                self_public_key,
+                required_signatures,
+                total_public_keys,
+            )
+            .map_err(to_rpc_error)?;
 
-        extended_address.to_cro().map_err(|err| rpc_error_from_string(format!("{}", err)))
+        extended_address
+            .to_cro()
+            .map_err(|err| rpc_error_from_string(format!("{}", err)))
     }
 
     fn new_session(
@@ -273,20 +278,44 @@ mod test {
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
-    use client_common::{
-        PrivateKey, Result as CommonResult, SignedTransaction, Transaction,
-    };
+    use client_common::{PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
     use client_index::{AddressDetails, Index, TransactionObfuscation};
 
-    // #[test]
-    // fn create_address_should_return_bech32_multisig_address() {
-    //     let multisig_rpc = setup_multisig_rpc();
+    #[test]
+    fn create_address_should_return_bech32_multisig_address() {
+        let multisig_rpc = setup_multisig_rpc();
 
-    //     multisig_rpc.create_address(create_wallet_request("Default", "123456"), public_keys: Vec<String>, self_public_key: String, required_signatures: usize)
-    // }
+        let name = "Default";
+        let passphrase = SecUtf8::from("123456");
+
+        multisig_rpc.client.new_wallet(name, &passphrase).unwrap();
+
+        let wallet_public_key = multisig_rpc
+            .client
+            .new_public_key(name, &passphrase)
+            .unwrap();
+        let public_keys = vec![
+            wallet_public_key.clone(),
+            PublicKey::from(&PrivateKey::new().unwrap()),
+            PublicKey::from(&PrivateKey::new().unwrap()),
+        ];
+        let public_keys = public_keys
+            .into_iter()
+            .map(|public_key| format!("{}", public_key))
+            .collect::<Vec<String>>();
+
+        let multisig_address = multisig_rpc.create_address(
+            create_wallet_request("Default", "123456"),
+            public_keys,
+            format!("{}", wallet_public_key),
+            2,
+        ).unwrap();
+
+        assert!(multisig_address.starts_with("dcro"), "Return address should be bech32");
+    }
 
     fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
         let signer = DefaultSigner::new(storage.clone());
@@ -306,7 +335,6 @@ mod test {
         let storage = MemoryStorage::default();
 
         let wallet_client = make_test_wallet_client(storage.clone());
-        let chain_id = 171u8;
 
         MultiSigRpcImpl::new(wallet_client)
     }
@@ -322,7 +350,7 @@ mod test {
     pub struct MockIndex;
 
     impl Index for MockIndex {
-        fn address_details(&self, address: &ExtendedAddr) -> CommonResult<AddressDetails> {
+        fn address_details(&self, _address: &ExtendedAddr) -> CommonResult<AddressDetails> {
             unreachable!("address_details")
         }
 
@@ -364,7 +392,7 @@ mod test {
             unreachable!("decrypt")
         }
 
-        fn encrypt(&self, transaction: SignedTransaction) -> CommonResult<TxAux> {
+        fn encrypt(&self, _transaction: SignedTransaction) -> CommonResult<TxAux> {
             unreachable!("encrypt")
         }
     }
@@ -404,4 +432,3 @@ mod test {
     }
 
 }
-
