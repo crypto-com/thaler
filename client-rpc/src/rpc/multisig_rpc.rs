@@ -5,13 +5,23 @@ use jsonrpc_derive::rpc;
 use secstr::SecUtf8;
 
 use chain_core::common::{H256, HASH_SIZE_256};
+use chain_core::init::address::CroAddress;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
 
-use crate::server::{to_rpc_error, WalletRequest};
+use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
 
 #[rpc]
 pub trait MultiSigRpc: Send + Sync {
+    #[rpc(name = "multiSig_createAddress")]
+    fn create_address(
+        &self,
+        request: WalletRequest,
+        public_keys: Vec<String>,
+        self_public_key: String,
+        required_signatures: usize,
+    ) -> Result<String>;
+
     #[rpc(name = "multiSig_newSession")]
     fn new_session(
         &self,
@@ -81,6 +91,28 @@ impl<T> MultiSigRpc for MultiSigRpcImpl<T>
 where
     T: WalletClient + MultiSigWalletClient + 'static,
 {
+    fn create_address(
+        &self,
+        request: WalletRequest,
+        public_keys: Vec<String>,
+        self_public_key: String,
+        required_signatures: usize,
+    ) -> Result<String> {
+        let public_keys = parse_public_keys(public_keys).map_err(to_rpc_error)?;
+        let total_public_keys = public_keys.len();
+        let self_public_key = parse_public_key(self_public_key).map_err(to_rpc_error)?;
+        let extended_address = self.client.new_multisig_transfer_address(
+            &request.name,
+            &request.passphrase,
+            public_keys,
+            self_public_key,
+            required_signatures,
+            total_public_keys,
+        ).map_err(to_rpc_error)?;
+
+        extended_address.to_cro().map_err(|err| rpc_error_from_string(format!("{}", err)))
+    }
+
     fn new_session(
         &self,
         request: WalletRequest,
@@ -214,7 +246,162 @@ fn serialize_public_key(public_key: PublicKey) -> String {
     encode(&public_key.serialize())
 }
 
+fn parse_public_keys(public_keys: Vec<String>) -> CommonResult<Vec<PublicKey>> {
+    public_keys
+        .into_iter()
+        .map(parse_public_key)
+        .collect::<CommonResult<Vec<PublicKey>>>()
+}
+
 fn parse_public_key(public_key: String) -> CommonResult<PublicKey> {
     let array = decode(public_key).context(ErrorKind::DeserializationError)?;
     PublicKey::deserialize_from(&array)
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use secstr::SecUtf8;
+
+    use chain_core::init::coin::CoinError;
+    use chain_core::tx::data::address::ExtendedAddr;
+    use chain_core::tx::data::input::TxoPointer;
+    use chain_core::tx::data::output::TxOut;
+    use chain_core::tx::data::TxId;
+    use chain_core::tx::fee::{Fee, FeeAlgorithm};
+    use chain_core::tx::TxAux;
+    use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::*;
+    use client_common::tendermint::Client;
+    use client_common::{
+        PrivateKey, Result as CommonResult, SignedTransaction, Transaction,
+    };
+    use client_core::signer::DefaultSigner;
+    use client_core::transaction_builder::DefaultTransactionBuilder;
+    use client_core::wallet::DefaultWalletClient;
+    use client_index::{AddressDetails, Index, TransactionObfuscation};
+
+    // #[test]
+    // fn create_address_should_return_bech32_multisig_address() {
+    //     let multisig_rpc = setup_multisig_rpc();
+
+    //     multisig_rpc.create_address(create_wallet_request("Default", "123456"), public_keys: Vec<String>, self_public_key: String, required_signatures: usize)
+    // }
+
+    fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
+        let signer = DefaultSigner::new(storage.clone());
+        DefaultWalletClient::builder()
+            .with_wallet(storage)
+            .with_transaction_read(MockIndex::default())
+            .with_transaction_write(DefaultTransactionBuilder::new(
+                signer,
+                ZeroFeeAlgorithm::default(),
+                MockTransactionCipher,
+            ))
+            .build()
+            .unwrap()
+    }
+
+    fn setup_multisig_rpc() -> MultiSigRpcImpl<TestWalletClient> {
+        let storage = MemoryStorage::default();
+
+        let wallet_client = make_test_wallet_client(storage.clone());
+        let chain_id = 171u8;
+
+        MultiSigRpcImpl::new(wallet_client)
+    }
+
+    fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
+        WalletRequest {
+            name: name.to_owned(),
+            passphrase: SecUtf8::from(passphrase),
+        }
+    }
+
+    #[derive(Default)]
+    pub struct MockIndex;
+
+    impl Index for MockIndex {
+        fn address_details(&self, address: &ExtendedAddr) -> CommonResult<AddressDetails> {
+            unreachable!("address_details")
+        }
+
+        fn transaction(&self, _: &TxId) -> CommonResult<Option<Transaction>> {
+            unreachable!("transaction")
+        }
+
+        fn output(&self, _input: &TxoPointer) -> CommonResult<TxOut> {
+            unreachable!("output")
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
+            unreachable!("broadcast_transaction")
+        }
+    }
+
+    #[derive(Default)]
+    pub struct ZeroFeeAlgorithm;
+
+    impl FeeAlgorithm for ZeroFeeAlgorithm {
+        fn calculate_fee(&self, _num_bytes: usize) -> std::result::Result<Fee, CoinError> {
+            unreachable!("calculate_fee")
+        }
+
+        fn calculate_for_txaux(&self, _txaux: &TxAux) -> std::result::Result<Fee, CoinError> {
+            unreachable!("calculate_for_txaux")
+        }
+    }
+
+    #[derive(Debug)]
+    struct MockTransactionCipher;
+
+    impl TransactionObfuscation for MockTransactionCipher {
+        fn decrypt(
+            &self,
+            _transaction_ids: &[TxId],
+            _private_key: &PrivateKey,
+        ) -> CommonResult<Vec<Transaction>> {
+            unreachable!("decrypt")
+        }
+
+        fn encrypt(&self, transaction: SignedTransaction) -> CommonResult<TxAux> {
+            unreachable!("encrypt")
+        }
+    }
+
+    type TestTxBuilder =
+        DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm, MockTransactionCipher>;
+    type TestSigner = DefaultSigner<MemoryStorage>;
+    type TestWalletClient = DefaultWalletClient<MemoryStorage, MockIndex, TestTxBuilder>;
+
+    #[derive(Default)]
+    pub struct MockRpcClient;
+
+    impl Client for MockRpcClient {
+        fn genesis(&self) -> CommonResult<Genesis> {
+            unreachable!("genesis")
+        }
+
+        fn status(&self) -> CommonResult<Status> {
+            unreachable!("status")
+        }
+
+        fn block(&self, _height: u64) -> CommonResult<Block> {
+            unreachable!("block")
+        }
+
+        fn block_results(&self, _height: u64) -> CommonResult<BlockResults> {
+            unreachable!("block_results")
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
+            unreachable!("broadcast_transaction")
+        }
+
+        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<QueryResult> {
+            unreachable!("query")
+        }
+    }
+
+}
+
