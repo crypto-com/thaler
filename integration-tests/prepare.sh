@@ -188,6 +188,7 @@ check_command_exist "../target/debug/dev-utils"
 
 print_step "Initialize Tendermint"
 print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
+rm -rf ./tendermint
 mkdir -p ./tendermint
 if [ ! -z "${CI}" ]; then
     chmod 777 ./tendermint
@@ -239,4 +240,4 @@ generate_tendermint_genesis "${DEV_CONF_ZEROFEE_PATH}" "${TENDERMINT_ZEROFEE_DIR
 print_step "Update Tendermint configuration"
 disable_empty_blocks "${TENDERMINT_WITHFEE_DIRECTORY}"
 disable_empty_blocks "${TENDERMINT_ZEROFEE_DIRECTORY}"
-sleep 3
+sleep 5

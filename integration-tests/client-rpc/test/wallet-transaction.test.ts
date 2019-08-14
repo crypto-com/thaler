@@ -5,12 +5,8 @@ import BigNumber from "bignumber.js";
 
 import { RpcClient } from "./core/rpc-client";
 import {
-	sleep,
-	newRpcClient,
 	newWalletRequest,
 	generateWalletName,
-	WALLET_STAKING_ADDRESS,
-	WALLET_TRANSFER_ADDRESS_1,
 	WALLET_TRANSFER_ADDRESS_2,
 	newZeroFeeRpcClient,
 	newWithFeeRpcClient,
