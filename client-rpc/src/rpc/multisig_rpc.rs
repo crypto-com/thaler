@@ -307,14 +307,19 @@ mod test {
             .map(|public_key| format!("{}", public_key))
             .collect::<Vec<String>>();
 
-        let multisig_address = multisig_rpc.create_address(
-            create_wallet_request("Default", "123456"),
-            public_keys,
-            format!("{}", wallet_public_key),
-            2,
-        ).unwrap();
+        let multisig_address = multisig_rpc
+            .create_address(
+                create_wallet_request("Default", "123456"),
+                public_keys,
+                format!("{}", wallet_public_key),
+                2,
+            )
+            .unwrap();
 
-        assert!(multisig_address.starts_with("dcro"), "Return address should be bech32");
+        assert!(
+            multisig_address.starts_with("dcro"),
+            "Return address should be bech32"
+        );
     }
 
     fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {

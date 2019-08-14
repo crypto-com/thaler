@@ -1147,7 +1147,8 @@ mod tests {
                     2,
                     3,
                 ).expect_err("New multisig transfer address without self public key in public key list should not work")
-                .kind()
+                .kind(),
+            "Should throw error when self public key does not belong to wallet"
         );
 
         let wallet_public_key = wallet.new_public_key(name, &passphrase).unwrap();
