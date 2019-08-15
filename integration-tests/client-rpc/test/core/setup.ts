@@ -40,7 +40,7 @@ export const generateWalletName = (prefix: string = "NewWallet"): string => {
 
 export const newWalletRequest = (
 	name: string,
-	passphrase: string = "123456",
+	passphrase: string,
 ): WalletRequest => {
 	return {
 		name,

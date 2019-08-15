@@ -10,19 +10,22 @@ import {
 	WALLET_TRANSFER_ADDRESS_2,
 	newZeroFeeRpcClient,
 	newWithFeeRpcClient,
+	sleep,
+	unbondAndWithdrawStake,
 } from "./core/setup";
 chaiUse(chaiAsPromised);
 
 describe("Wallet transaction", () => {
 	let zeroFeeClient: RpcClient;
 	let withFeeClient: RpcClient;
-	before(() => {
+	before(async () => {
+		await unbondAndWithdrawStake();
 		zeroFeeClient = newZeroFeeRpcClient();
 		withFeeClient = newWithFeeRpcClient();
 	});
 
 	it("cannot send funds larger than wallet balance", async () => {
-		const walletRequest = newWalletRequest("Spend");
+		const walletRequest = newWalletRequest("Default", "123456");
 
 		const totalCROSupply = "10000000000000000000";
 		return expect(
@@ -30,6 +33,7 @@ describe("Wallet transaction", () => {
 				walletRequest,
 				WALLET_TRANSFER_ADDRESS_2,
 				totalCROSupply,
+				[],
 			]),
 		).to.eventually.rejectedWith("Insufficient balance");
 	});
@@ -39,6 +43,8 @@ describe("Wallet transaction", () => {
 		const senderWalletRequest = newWalletRequest("Default", "123456");
 		const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
 		const transferAmount = "1000";
+
+		await zeroFeeClient.request("wallet_create", [receiverWalletRequest]);
 
 		const senderWalletTransactionListBeforeSend = await zeroFeeClient.request(
 			"wallet_transactions",
@@ -50,7 +56,7 @@ describe("Wallet transaction", () => {
 		);
 
 		const receiverWalletTransferAddress = await zeroFeeClient.request(
-			"wallet_newTransferAddress",
+			"wallet_createTransferAddress",
 			[receiverWalletRequest],
 		);
 		const receiverWalletTransactionListBeforeReceive = await zeroFeeClient.request(
@@ -67,8 +73,14 @@ describe("Wallet transaction", () => {
 				senderWalletRequest,
 				receiverWalletTransferAddress,
 				transferAmount,
+				[],
 			]),
 		).to.eventually.eq(null, "wallet_sendToAddress should work");
+
+		await sleep(2000);
+
+		await zeroFeeClient.request("sync", [senderWalletRequest]);
+		await zeroFeeClient.request("sync", [receiverWalletRequest]);
 
 		const senderWalletTransactionListAfterSend = await zeroFeeClient.request(
 			"wallet_transactions",
@@ -106,10 +118,9 @@ describe("Wallet transaction", () => {
 			"wallet_balance",
 			[senderWalletRequest],
 		);
-
 		expect(senderWalletBalanceAfterSend).to.eq(
 			new BigNumber(senderWalletBalanceBeforeSend)
-				.plus(transferAmount)
+				.minus(transferAmount)
 				.toString(10),
 			"Sender balance should be deducted by transfer amount",
 		);
@@ -119,7 +130,7 @@ describe("Wallet transaction", () => {
 			[receiverWalletRequest],
 		);
 		expect(receiverWalletTransactionListAfterReceive.length).to.eq(
-			receiverWalletTransactionListBeforeReceive.length + 2,
+			receiverWalletTransactionListBeforeReceive.length + 1,
 			"Receiver should have one extra transaction record",
 		);
 
@@ -147,11 +158,13 @@ describe("Wallet transaction", () => {
 		);
 	});
 
-	it("can transfer funds between two wallets with fee included", async () => {
+	it("can transfer funds between two wallets with fee included", async function() {
 		const receiverWalletName = generateWalletName("Receive");
 		const senderWalletRequest = newWalletRequest("Default", "123456");
 		const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
 		const transferAmount = "1000";
+
+		await withFeeClient.request("wallet_create", [receiverWalletRequest]);
 
 		const senderWalletTransactionListBeforeSend = await withFeeClient.request(
 			"wallet_transactions",
@@ -163,7 +176,7 @@ describe("Wallet transaction", () => {
 		);
 
 		const receiverWalletTransferAddress = await withFeeClient.request(
-			"wallet_newTransferAddress",
+			"wallet_createTransferAddress",
 			[receiverWalletRequest],
 		);
 		const receiverWalletTransactionListBeforeReceive = await withFeeClient.request(
@@ -180,14 +193,19 @@ describe("Wallet transaction", () => {
 				senderWalletRequest,
 				receiverWalletTransferAddress,
 				transferAmount,
+				[],
 			]),
 		).to.eventually.eq(null, "wallet_sendToAddress should work");
+
+		await sleep(2000);
+
+		await withFeeClient.request("sync", [senderWalletRequest]);
+		await withFeeClient.request("sync", [receiverWalletRequest]);
 
 		const senderWalletTransactionListAfterSend = await withFeeClient.request(
 			"wallet_transactions",
 			[senderWalletRequest],
 		);
-
 		expect(senderWalletTransactionListAfterSend.length).to.eq(
 			senderWalletTransactionListBeforeSend.length + 2,
 			"Sender should have two extra transaction records",
@@ -213,8 +231,8 @@ describe("Wallet transaction", () => {
 			},
 			"Sender should have one Incoming transaction",
 		);
-		const senderWalletIncomingAmount =
-			senderWalletLastTransaction.balance_change.Incoming;
+		expect(senderWalletLastTransaction.kind).to.eq("incoming");
+		const senderWalletIncomingAmount = senderWalletLastTransaction.amount;
 		expect(
 			new BigNumber(senderWalletIncomingAmount).isLessThan(
 				new BigNumber(senderWalletBalanceBeforeSend).minus(transferAmount),
@@ -225,7 +243,6 @@ describe("Wallet transaction", () => {
 			"wallet_balance",
 			[senderWalletRequest],
 		);
-
 		expect(
 			new BigNumber(senderWalletBalanceAfterSend).isLessThan(
 				new BigNumber(senderWalletBalanceBeforeSend).minus(transferAmount),
@@ -237,7 +254,7 @@ describe("Wallet transaction", () => {
 			[receiverWalletRequest],
 		);
 		expect(receiverWalletTransactionListAfterReceive.length).to.eq(
-			receiverWalletTransactionListBeforeReceive.length + 2,
+			receiverWalletTransactionListBeforeReceive.length + 1,
 			"Receiver should have one extra transaction record",
 		);
 
@@ -267,8 +284,8 @@ describe("Wallet transaction", () => {
 });
 
 enum TransactionDirection {
-	INCOMING = "Incoming",
-	OUTGOING = "Outgoing",
+	INCOMING = "incoming",
+	OUTGOING = "outgoing",
 }
 interface TransactionAssertion {
 	address?: string;
@@ -284,10 +301,11 @@ const expectTransactionShouldBe = (
 ): boolean => {
 	expect(actual).to.contain.keys([
 		"address",
-		"balance_change",
+		"amount",
 		"height",
-		"time",
+		"kind",
 		"transaction_id",
+		"time",
 	]);
 
 	if (typeof expected.address !== "undefined") {
@@ -299,20 +317,15 @@ const expectTransactionShouldBe = (
 		);
 	}
 
-	expect(actual.balance_change).to.contain.keys(expected.direction);
+	expect(actual.kind).to.eq(expected.direction);
 	if (typeof expected.amount !== "undefined") {
-		expect(actual.balance_change).to.deep.eq(
-			{
-				[expected.direction]: expected.amount,
-			},
-			message,
-		);
+		expect(actual.amount).to.eq(expected.amount.toString(10), message);
 	}
 
 	if (typeof expected.height !== "undefined") {
-		expect(actual.height).to.deep.eq(new BigNumber(expected.height), message);
+		expect(actual.height).to.eq(expected.height.toString(), message);
 	} else {
-		expect(actual.height.isGreaterThan(0)).to.eq(true, message);
+		expect(new BigNumber(actual.height).isGreaterThan(0)).to.eq(true, message);
 	}
 	return true;
 };

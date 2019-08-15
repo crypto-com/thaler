@@ -173,12 +173,6 @@ function _change_tenermint_chain_id() {
     RET_VALUE=$(echo "${1}" | jq --arg CHAIN_ID "${CHAIN_ID}" '.chain_id=($CHAIN_ID)')
 }
 
-# @argument Tendermint directory
-function disable_empty_blocks() {
-    print_step "Disabling empty blocks for ${1}"
-    cat "${1}/config/config.toml" | sed "s/create_empty_blocks = true/create_empty_blocks = false/g" | tee "${1}/config/config.toml" > /dev/null
-}
-
 # Always execute at script located directory
 cd "$(dirname "${0}")"
 
@@ -237,7 +231,4 @@ generate_dev_conf "0.0" "0.0" "${DEV_CONF_ZEROFEE_PATH}"
 generate_tendermint_genesis "${DEV_CONF_WITHFEE_PATH}" "${TENDERMINT_WITHFEE_DIRECTORY}" "${CHAIN_ID}"
 generate_tendermint_genesis "${DEV_CONF_ZEROFEE_PATH}" "${TENDERMINT_ZEROFEE_DIRECTORY}" "${CHAIN_ID}"
 
-print_step "Update Tendermint configuration"
-disable_empty_blocks "${TENDERMINT_WITHFEE_DIRECTORY}"
-disable_empty_blocks "${TENDERMINT_ZEROFEE_DIRECTORY}"
 sleep 5

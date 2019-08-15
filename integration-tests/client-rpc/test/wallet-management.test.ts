@@ -19,7 +19,10 @@ describe("Wallet management", () => {
 
 	it("cannot access un-existing wallet", async () => {
 		const nonExistingWalletName = generateWalletName();
-		const nonExistingWalletRequest = newWalletRequest(nonExistingWalletName);
+		const nonExistingWalletRequest = newWalletRequest(
+			nonExistingWalletName,
+			"123456",
+		);
 
 		await expect(
 			client.request("wallet_listStakingAddresses", [nonExistingWalletRequest]),
@@ -37,7 +40,7 @@ describe("Wallet management", () => {
 
 	it("can create wallet with specified name", async () => {
 		const walletName = generateWalletName();
-		const walletRequest = newWalletRequest(walletName);
+		const walletRequest = newWalletRequest(walletName, "123456");
 
 		const walletCreateResult = await client.request("wallet_create", [
 			walletRequest,
@@ -50,7 +53,7 @@ describe("Wallet management", () => {
 
 	it("Newly created wallet has a staking and transfer address associated", async () => {
 		const walletName = generateWalletName();
-		const walletRequest = newWalletRequest(walletName);
+		const walletRequest = newWalletRequest(walletName, "123456");
 
 		const walletCreateResponse = await client.request("wallet_create", [
 			walletRequest,
@@ -76,7 +79,7 @@ describe("Wallet management", () => {
 
 	it("cannot create duplicated wallet", async () => {
 		const walletName = generateWalletName();
-		const walletRequest = newWalletRequest(walletName);
+		const walletRequest = newWalletRequest(walletName, "123456");
 
 		const walletCreateResponse = await client.request("wallet_create", [
 			walletRequest,
@@ -132,7 +135,6 @@ describe("Wallet management", () => {
 			"wallet_listTransferAddresses",
 			[walletRequest],
 		);
-		console.log(133, transferAddressList);
 		expect(transferAddressList).to.be.an("array");
 		expect(transferAddressList).to.include(transferAddress);
 	});
