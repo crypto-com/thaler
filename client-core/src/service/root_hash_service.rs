@@ -188,7 +188,23 @@ mod tests {
                     &passphrase
                 )
                 .expect_err("Created invalid multi-sig address")
-                .kind()
+                .kind(),
+            "Should throw error when required signature is larger than public key size"
+        );
+
+        assert_eq!(
+            ErrorKind::InvalidInput,
+            root_hash_service
+                .new_root_hash(
+                    public_keys.clone(),
+                    public_keys[0].clone(),
+                    5,
+                    3,
+                    &passphrase
+                )
+                .expect_err("Created invalid multi-sig address")
+                .kind(),
+            "Should throw error when required signature is larger than total public keys"
         );
 
         assert_eq!(
@@ -202,7 +218,8 @@ mod tests {
                     &passphrase
                 )
                 .expect_err("Created multi-sig address without self public key")
-                .kind()
+                .kind(),
+            "Should throw error when self public key is not one of the public keys"
         );
 
         assert_eq!(
@@ -210,7 +227,8 @@ mod tests {
             root_hash_service
                 .new_root_hash(vec![], public_keys[0].clone(), 0, 0, &passphrase)
                 .expect_err("Created invalid multi-sig address")
-                .kind()
+                .kind(),
+            "Should throw error when required signature is 0"
         );
 
         let root_hash = root_hash_service
