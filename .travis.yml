@@ -112,7 +112,7 @@ jobs:
           docker-compose logs -t --tail="all"
         - ./run-test.sh || travis_terminate 1;
         - |
-          cd client-cli
+          cd client-rpc
           yarn
           yarn test
 
