@@ -22,7 +22,7 @@ pub struct RowTx {
     address: String,
     height: String,
     time: String,
-    amount: String,
+    amount: Coin,
 }
 
 #[rpc]
@@ -233,7 +233,7 @@ where
                             address: c.address.to_string(),
                             height: c.block_height.to_string(),
                             time: c.block_time.to_string(),
-                            amount: bc.1.to_string(),
+                            amount: bc.1,
                         }
                     })
                     .collect()
