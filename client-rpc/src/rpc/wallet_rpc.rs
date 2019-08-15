@@ -9,6 +9,8 @@ use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
+use chain_core::tx::data::TxId;
+use chain_core::tx::TxAux;
 use client_common::balance::BalanceChange;
 use client_common::{PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
@@ -52,7 +54,7 @@ pub trait WalletRpc: Send + Sync {
         to_address: String,
         amount: Coin,
         view_keys: Vec<String>,
-    ) -> Result<()>;
+    ) -> Result<TxId>;
 
     #[rpc(name = "wallet_listStakingAddresses")]
     fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
@@ -142,7 +144,7 @@ where
         to_address: String,
         amount: Coin,
         view_keys: Vec<String>,
-    ) -> Result<()> {
+    ) -> Result<TxId> {
         let address = to_address
             .parse::<ExtendedAddr>()
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
@@ -192,7 +194,15 @@ where
 
         self.client
             .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error)?;
+
+        if let TxAux::TransferTx { txid, .. } = transaction {
+            Ok(txid)
+        } else {
+            Err(rpc_error_from_string(String::from(
+                "Transaction is not transfer transaction",
+            )))
+        }
     }
 
     fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
