@@ -3,13 +3,11 @@ use jsonrpc_derive::rpc;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-use chain_core::init::address::CroAddress;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::TxId;
 use chain_core::tx::TxAux;
 use client_common::balance::BalanceChange;
 use client_common::{PublicKey, Result as CommonResult};
@@ -54,7 +52,7 @@ pub trait WalletRpc: Send + Sync {
         to_address: String,
         amount: Coin,
         view_keys: Vec<String>,
-    ) -> Result<TxId>;
+    ) -> Result<String>;
 
     #[rpc(name = "wallet_listStakingAddresses")]
     fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
@@ -121,9 +119,7 @@ where
             .new_transfer_address(&request.name, &request.passphrase)
             .map_err(to_rpc_error)?;
 
-        extended_address
-            .to_cro()
-            .map_err(|err| rpc_error_from_string(format!("{}", err)))
+        Ok(extended_address.to_string())
     }
 
     fn get_view_key(&self, request: WalletRequest) -> Result<String> {
@@ -131,7 +127,7 @@ where
             .client
             .view_key(&request.name, &request.passphrase)
             .map_err(to_rpc_error)?;
-        Ok(format!("{}", public_key))
+        Ok(public_key.to_string())
     }
 
     fn list(&self) -> Result<Vec<String>> {
@@ -144,15 +140,15 @@ where
         to_address: String,
         amount: Coin,
         view_keys: Vec<String>,
-    ) -> Result<TxId> {
+    ) -> Result<String> {
         let address = to_address
             .parse::<ExtendedAddr>()
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
         let tx_out = TxOut::new(address, amount);
 
         let view_keys = view_keys
-            .into_iter()
-            .map(|key| PublicKey::from_str(&key))
+            .iter()
+            .map(|view_key| PublicKey::from_str(view_key))
             .collect::<CommonResult<Vec<PublicKey>>>()
             .map_err(to_rpc_error)?;
 
@@ -197,7 +193,7 @@ where
             .map_err(to_rpc_error)?;
 
         if let TxAux::TransferTx { txid, .. } = transaction {
-            Ok(txid)
+            Ok(hex::encode(txid))
         } else {
             Err(rpc_error_from_string(String::from(
                 "Transaction is not transfer transaction",
@@ -206,29 +202,17 @@ where
     }
 
     fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
-        match self
-            .client
+        self.client
             .staking_addresses(&request.name, &request.passphrase)
-        {
-            Ok(addresses) => addresses
-                .iter()
-                .map(|address| Ok(address.to_string()))
-                .collect(),
-            Err(e) => Err(to_rpc_error(e)),
-        }
+            .map(|addresses| addresses.iter().map(ToString::to_string).collect())
+            .map_err(to_rpc_error)
     }
 
     fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
-        match self
-            .client
+        self.client
             .transfer_addresses(&request.name, &request.passphrase)
-        {
-            Ok(addresses) => addresses
-                .iter()
-                .map(|address| Ok(address.to_string()))
-                .collect(),
-            Err(e) => Err(to_rpc_error(e)),
-        }
+            .map(|addresses| addresses.iter().map(ToString::to_string).collect())
+            .map_err(to_rpc_error)
     }
 
     fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
@@ -236,12 +220,12 @@ where
             .history(&request.name, &request.passphrase)
             .map_err(to_rpc_error)
             .map(|transaction_changes| {
-                let rowtxs: Vec<RowTx> = transaction_changes
+                transaction_changes
                     .into_iter()
                     .map(|c| {
                         let bc = match c.balance_change {
-                            BalanceChange::Incoming(change) => ("incoming", u64::from(change)),
-                            BalanceChange::Outgoing(change) => ("outgoing", u64::from(change)),
+                            BalanceChange::Incoming(change) => ("incoming", change),
+                            BalanceChange::Outgoing(change) => ("outgoing", change),
                         };
                         RowTx {
                             kind: bc.0.to_string(),
@@ -252,8 +236,7 @@ where
                             amount: bc.1.to_string(),
                         }
                     })
-                    .collect();
-                rowtxs
+                    .collect()
             })
     }
 }
