@@ -39,6 +39,9 @@ pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_createTransferAddress")]
     fn create_transfer_address(&self, request: WalletRequest) -> Result<String>;
 
+    #[rpc(name = "wallet_getViewKey")]
+    fn get_view_key(&self, request: WalletRequest) -> Result<String>;
+
     #[rpc(name = "wallet_list")]
     fn list(&self) -> Result<Vec<String>>;
 
@@ -119,6 +122,14 @@ where
         extended_address
             .to_cro()
             .map_err(|err| rpc_error_from_string(format!("{}", err)))
+    }
+
+    fn get_view_key(&self, request: WalletRequest) -> Result<String> {
+        let public_key = self
+            .client
+            .view_key(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+        Ok(format!("{}", public_key))
     }
 
     fn list(&self) -> Result<Vec<String>> {
@@ -428,6 +439,21 @@ pub mod tests {
         }
     }
 
+    #[test]
+    fn balance_should_return_wallet_balance() {
+        let wallet_rpc = setup_wallet_rpc();
+
+        wallet_rpc
+            .create(create_wallet_request("Default", "123456"))
+            .unwrap();
+        assert_eq!(
+            Coin::new(30).unwrap(),
+            wallet_rpc
+                .balance(create_wallet_request("Default", "123456"))
+                .unwrap()
+        )
+    }
+
     mod create {
         use super::*;
 
@@ -488,58 +514,6 @@ pub mod tests {
     }
 
     #[test]
-    fn list_should_list_all_wallets() {
-        let wallet_rpc = setup_wallet_rpc();
-
-        assert_eq!(0, wallet_rpc.list().unwrap().len());
-
-        wallet_rpc
-            .create(create_wallet_request("Default", "123456"))
-            .unwrap();
-
-        assert_eq!(vec!["Default"], wallet_rpc.list().unwrap());
-
-        wallet_rpc
-            .create(create_wallet_request("Personal", "123456"))
-            .unwrap();
-
-        let wallet_list = wallet_rpc.list().unwrap();
-        assert_eq!(2, wallet_list.len());
-        assert!(wallet_list.contains(&"Default".to_owned()));
-        assert!(wallet_list.contains(&"Personal".to_owned()));
-    }
-
-    #[test]
-    fn balance_should_return_wallet_balance() {
-        let wallet_rpc = setup_wallet_rpc();
-
-        wallet_rpc
-            .create(create_wallet_request("Default", "123456"))
-            .unwrap();
-        assert_eq!(
-            Coin::new(30).unwrap(),
-            wallet_rpc
-                .balance(create_wallet_request("Default", "123456"))
-                .unwrap()
-        )
-    }
-
-    #[test]
-    fn transactions_should_return_list_of_wallet_transactions() {
-        let wallet_rpc = setup_wallet_rpc();
-        let wallet_request = create_wallet_request("Default", "123456");
-
-        wallet_rpc.create(wallet_request.clone()).unwrap();
-        assert_eq!(
-            1,
-            wallet_rpc
-                .transactions(wallet_request.clone())
-                .unwrap()
-                .len()
-        )
-    }
-
-    #[test]
     fn create_staking_address_should_work() {
         let wallet_rpc = setup_wallet_rpc();
         let wallet_request = create_wallet_request("Default", "123456");
@@ -594,6 +568,59 @@ pub mod tests {
                 .unwrap()
                 .len()
         );
+    }
+
+    #[test]
+    fn get_view_key_should_return_public_key() {
+        let wallet_rpc = setup_wallet_rpc();
+        let wallet_request = create_wallet_request("Default", "123456");
+
+        wallet_rpc.create(wallet_request.clone()).unwrap();
+
+        assert_eq!(
+            wallet_rpc
+                .get_view_key(wallet_request.clone())
+                .unwrap()
+                .len(),
+            66
+        );
+    }
+
+    #[test]
+    fn list_should_list_all_wallets() {
+        let wallet_rpc = setup_wallet_rpc();
+
+        assert_eq!(0, wallet_rpc.list().unwrap().len());
+
+        wallet_rpc
+            .create(create_wallet_request("Default", "123456"))
+            .unwrap();
+
+        assert_eq!(vec!["Default"], wallet_rpc.list().unwrap());
+
+        wallet_rpc
+            .create(create_wallet_request("Personal", "123456"))
+            .unwrap();
+
+        let wallet_list = wallet_rpc.list().unwrap();
+        assert_eq!(2, wallet_list.len());
+        assert!(wallet_list.contains(&"Default".to_owned()));
+        assert!(wallet_list.contains(&"Personal".to_owned()));
+    }
+
+    #[test]
+    fn transactions_should_return_list_of_wallet_transactions() {
+        let wallet_rpc = setup_wallet_rpc();
+        let wallet_request = create_wallet_request("Default", "123456");
+
+        wallet_rpc.create(wallet_request.clone()).unwrap();
+        assert_eq!(
+            1,
+            wallet_rpc
+                .transactions(wallet_request.clone())
+                .unwrap()
+                .len()
+        )
     }
 
     fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
