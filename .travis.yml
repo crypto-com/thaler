@@ -110,7 +110,11 @@ jobs:
           sleep 5
           docker-compose ps
           docker-compose logs -t --tail="all"
-        - ./run-test.sh
+        - ./run-test.sh || travis_terminate 1;
+        - |
+          cd client-cli
+          yarn
+          yarn test
 
     # - name: Integration Tests
     #   language: node_js
