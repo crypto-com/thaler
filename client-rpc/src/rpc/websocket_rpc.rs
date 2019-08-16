@@ -72,7 +72,7 @@ impl WebsocketRpc {
         // get synchronous sink
         let mut channel_sink = channel_tx.clone().wait();
         self.start_sync(channel_tx.clone());
-       
+
         let runner = ClientBuilder::new(CONNECTION)
             .unwrap()
             .add_protocol("rust-websocket")
