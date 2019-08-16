@@ -32,6 +32,18 @@ impl WebsocketCore {
             my_receiver,
         }
     }
+
+    fn get_latest_height(&self) -> u64 {
+        0
+    }
+    fn save_block(&self, value: &Value) {
+        let block_length = serde_json::to_string(&value).unwrap().len();
+        let block_height = value["result"]["block"]["header"]["height"]
+            .as_str()
+            .unwrap();
+        println!("save block height={}  size={}", block_height, block_length);
+    }
+
     pub fn get_queue(&self) -> Sender<OwnedMessage> {
         self.my_sender.clone()
     }
@@ -48,17 +60,16 @@ impl WebsocketCore {
             "block_reply" => {
                 let block_height = value["result"]["block"]["header"]["height"].as_str()?;
                 println!("core- block_reply id={} block_height={}", id, block_height);
+                self.save_block(&value);
             }
             _ => {}
         }
-
         None
     }
     pub fn parse(&mut self, message: OwnedMessage) {
         match message {
             OwnedMessage::Text(a) => {
                 let b: Value = serde_json::from_str(a.as_str()).unwrap();
-
                 self.do_parse(b);
             }
             _ => (),
