@@ -71,17 +71,12 @@ impl WebsocketCore {
     }
     pub fn start(&mut self) {
         loop {
-            println!("WebsocketCore polling===============================");
-
-            let r = self
+            let _ = self
                 .my_receiver
-                .recv_timeout(time::Duration::from_millis(1000));
-            match r {
-                Ok(a) => {
+                .recv_timeout(time::Duration::from_millis(1000))
+                .map(|a| {
                     self.parse(a);
-                }
-                Err(b) => {}
-            }
+                });
         }
     }
 }
