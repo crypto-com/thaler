@@ -58,19 +58,14 @@ impl Server {
     }
 
     fn make_wallet_client(&self, storage: SledStorage) -> AppWalletClient {
-        println!("61");
         let tendermint_client = RpcClient::new(&self.tendermint_url);
-        println!("63");
         let signer = DefaultSigner::new(storage.clone());
-        println!("65");
         let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
-        println!("67");
         let transaction_builder = DefaultTransactionBuilder::new(
             signer,
             tendermint_client.genesis().unwrap().fee_policy(),
             transaction_cipher,
         );
-        println!("73");
         let index = DefaultIndex::new(storage.clone(), tendermint_client);
         DefaultWalletClient::builder()
             .with_wallet(storage)
@@ -108,28 +103,23 @@ impl Server {
     pub fn start_client(&self, io: &mut IoHandler, storage: SledStorage) -> Result<()> {
         let multisig_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let multisig_rpc = MultiSigRpcImpl::new(multisig_rpc_wallet_client);
-        println!("106");
 
         let staking_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let ops_client = self.make_ops_client(storage.clone());
         let staking_rpc =
             StakingRpcImpl::new(staking_rpc_wallet_client, ops_client, self.network_id);
-        println!("112");
 
         let sync_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let synchronizer = self.make_synchronizer(storage.clone());
         let sync_rpc = SyncRpcImpl::new(sync_rpc_wallet_client, synchronizer);
-        println!("117");
 
         let wallet_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);
-        println!("121");
 
         io.extend_with(multisig_rpc.to_delegate());
         io.extend_with(staking_rpc.to_delegate());
         io.extend_with(sync_rpc.to_delegate());
         io.extend_with(wallet_rpc.to_delegate());
-        println!("127");
         Ok(())
     }
 
