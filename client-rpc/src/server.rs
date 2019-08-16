@@ -102,10 +102,10 @@ impl Server {
     }
 
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
-        let child = thread::spawn(move || {
+        let _child = thread::spawn(move || {
             // some work here
             println!("start websocket");
-            let web = WebsocketRpc::new();
+            let mut web = WebsocketRpc::new();
             web.run();
         });
 
