@@ -36,13 +36,14 @@ impl MockClient {
 impl EnclaveProxy for MockClient {
     fn process_request(&mut self, request: EnclaveRequest) -> EnclaveResponse {
         match request {
-            EnclaveRequest::CheckChain { chain_hex_id } => {
+            EnclaveRequest::CheckChain { chain_hex_id, .. } => {
                 if chain_hex_id == self.chain_hex_id {
                     EnclaveResponse::CheckChain(Ok(()))
                 } else {
-                    EnclaveResponse::CheckChain(Err(()))
+                    EnclaveResponse::CheckChain(Err(None))
                 }
             }
+            EnclaveRequest::CommitBlock { .. } => EnclaveResponse::CommitBlock(Ok(())),
             EnclaveRequest::VerifyTx { tx, account, info } => {
                 let (txpayload, inputs) = match &tx {
                     TxAux::TransferTx {
