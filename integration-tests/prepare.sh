@@ -4,7 +4,7 @@ IFS=
 
 TENDERMINT_PATH=${TENDERMINT_PATH:-tendermint}
 WALLET_PASSPHRASE=${WALLET_PASSPHRASE:-123456}
-TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.30.4}
+TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.32.0}
 
 # Constants (No not modify unless you are absolutely sure what you are doing)
 WALLET_STORAGE_DIRECTORY="./docker/chain/wallet-storage"
@@ -173,12 +173,6 @@ function _change_tenermint_chain_id() {
     RET_VALUE=$(echo "${1}" | jq --arg CHAIN_ID "${CHAIN_ID}" '.chain_id=($CHAIN_ID)')
 }
 
-# @argument Tendermint directory
-function disable_empty_blocks() {
-    print_step "Disabling empty blocks for ${1}"
-    cat "${1}/config/config.toml" | sed "s/create_empty_blocks = true/create_empty_blocks = false/g" | tee "${1}/config/config.toml" > /dev/null
-}
-
 # Always execute at script located directory
 cd "$(dirname "${0}")"
 
@@ -188,6 +182,7 @@ check_command_exist "../target/debug/dev-utils"
 
 print_step "Initialize Tendermint"
 print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
+rm -rf ./tendermint
 mkdir -p ./tendermint
 if [ ! -z "${CI}" ]; then
     chmod 777 ./tendermint
@@ -236,6 +231,4 @@ generate_dev_conf "0.0" "0.0" "${DEV_CONF_ZEROFEE_PATH}"
 generate_tendermint_genesis "${DEV_CONF_WITHFEE_PATH}" "${TENDERMINT_WITHFEE_DIRECTORY}" "${CHAIN_ID}"
 generate_tendermint_genesis "${DEV_CONF_ZEROFEE_PATH}" "${TENDERMINT_ZEROFEE_DIRECTORY}" "${CHAIN_ID}"
 
-print_step "Update Tendermint configuration"
-disable_empty_blocks "${TENDERMINT_WITHFEE_DIRECTORY}"
-disable_empty_blocks "${TENDERMINT_ZEROFEE_DIRECTORY}"
+sleep 5

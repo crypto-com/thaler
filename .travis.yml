@@ -97,6 +97,7 @@ jobs:
           cd zeromq-4.2.5 && ./configure --prefix=$HOME --with-libsodium && make && make install && cd ..
           cargo clean
           cargo build
+        - nvm install 10
         - |
           sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
           sudo chmod +x /usr/local/bin/wait-for-it.sh
@@ -110,7 +111,11 @@ jobs:
           sleep 5
           docker-compose ps
           docker-compose logs -t --tail="all"
-        - ./run-test.sh
+        - ./run-test.sh || travis_terminate 1;
+        - |
+          cd client-rpc
+          yarn
+          yarn test
 
     # - name: Integration Tests
     #   language: node_js
