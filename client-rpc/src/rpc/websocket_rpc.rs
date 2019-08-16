@@ -61,19 +61,6 @@ impl WebsocketRpc {
         ret
     }
 
-    pub fn start_refresh(&self, sender: Sender<OwnedMessage>) {
-        let mut sink = sender.clone().wait();
-        let mut current_block: u64 = 1;
-        let mut json: Value = serde_json::from_str(CMD_BLOCK).unwrap();
-        let _child = thread::spawn(move || loop {
-            thread::sleep(time::Duration::from_millis(1000));
-            json["params"] = json!([current_block.to_string()]);
-            println!("get block {}", json.to_string());
-            sink.send(OwnedMessage::Text(json.to_string())).unwrap();
-            current_block += 1;
-        });
-    }
-
     pub fn run(&mut self) {
         println!("Connecting to {}", CONNECTION);
         let mut runtime = tokio::runtime::current_thread::Builder::new()
@@ -85,8 +72,7 @@ impl WebsocketRpc {
         // get synchronous sink
         let mut channel_sink = channel_tx.clone().wait();
         self.start_sync(channel_tx.clone());
-        self.start_refresh(channel_tx.clone());
-
+       
         let runner = ClientBuilder::new(CONNECTION)
             .unwrap()
             .add_protocol("rust-websocket")
