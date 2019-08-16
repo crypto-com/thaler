@@ -65,8 +65,9 @@ impl WebsocketCore {
         }
     }
     pub fn check_status(&mut self) {
-       let mut sink = self.sender.clone().wait();
-       sink.send(OwnedMessage::Text(CMD_STATUS.to_string())).unwrap()
+        let mut sink = self.sender.clone().wait();
+        sink.send(OwnedMessage::Text(CMD_STATUS.to_string()))
+            .unwrap()
     }
     pub fn start(&mut self) {
         loop {

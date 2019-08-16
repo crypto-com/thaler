@@ -100,12 +100,9 @@ impl WebsocketRpc {
                 stream
                     .filter_map(|message| match message {
                         OwnedMessage::Text(a) => {
-                            match &mut self.core {
-                                Some(b) => {
-                                    b.send(OwnedMessage::Text(a.clone())).unwrap();
-                                }
-                                None => {}
-                            }
+                            self.core.as_ref().map(|core| {
+                                core.send(OwnedMessage::Text(a.clone())).unwrap();
+                            });
                             None
                         }
                         OwnedMessage::Binary(a) => None,
