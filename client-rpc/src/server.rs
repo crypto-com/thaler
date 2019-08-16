@@ -19,6 +19,7 @@ use client_index::synchronizer::ManualSynchronizer;
 use client_network::network_ops::DefaultNetworkOpsClient;
 
 use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
+use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
 use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
@@ -104,6 +105,8 @@ impl Server {
         let multisig_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let multisig_rpc = MultiSigRpcImpl::new(multisig_rpc_wallet_client);
 
+        let transaction_rpc = TransactionRpcImpl::new(self.network_id);
+
         let staking_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let ops_client = self.make_ops_client(storage.clone());
         let staking_rpc =
@@ -117,6 +120,7 @@ impl Server {
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);
 
         io.extend_with(multisig_rpc.to_delegate());
+        io.extend_with(transaction_rpc.to_delegate());
         io.extend_with(staking_rpc.to_delegate());
         io.extend_with(sync_rpc.to_delegate());
         io.extend_with(wallet_rpc.to_delegate());

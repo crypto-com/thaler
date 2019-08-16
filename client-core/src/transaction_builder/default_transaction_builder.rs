@@ -110,21 +110,6 @@ where
             }
         }
     }
-
-    fn build_raw(
-        inputs: Vec<TxoPointer>,
-        outputs: Vec<TxOut>,
-        attributes: TxAttributess,
-    ) {
-        Tx {
-            inputs: inputs
-                .iter()
-                .map(|input| input.clone())
-                .collect(),
-            outputs,
-            attributes,
-        } 
-    }
 }
 
 fn build_transaction(

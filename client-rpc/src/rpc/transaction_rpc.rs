@@ -1,19 +1,17 @@
-use failure::ResultExt;
-use hex::{decode, encode};
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 use serde::{Deserialize, Serialize};
-use secstr::SecUtf8;
+use std::str::FromStr;
 
 use chain_core::tx::TransactionId;
+use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::input::{TxoPointer, TxoIndex};
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::data::output::TxOut;
-use chain_core::common::{H256, HASH_SIZE_256};
-use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
+use client_common::{PublicKey, Result as CommonResult};
 
-use crate::server::{to_rpc_error, WalletRequest};
+use crate::server::{to_rpc_error};
 
 #[derive(Serialize, Deserialize)]
 pub struct RawTransaction {
@@ -32,11 +30,13 @@ pub trait TransactionRpc: Send + Sync {
     ) -> Result<RawTransaction>;
 }
 
-pub struct TransactionRpcImpl { }
+pub struct TransactionRpcImpl {
+    network_id: u8,
+}
 
 impl TransactionRpcImpl {
-    pub fn new() -> Self {
-        TransactionRpcImpl { }
+    pub fn new(network_id: u8) -> Self {
+        TransactionRpcImpl { network_id }
     }
 }
 
@@ -47,15 +47,33 @@ impl TransactionRpc for TransactionRpcImpl {
         outputs: Vec<TxOut>,
         view_keys: Vec<String>,
     ) -> Result<RawTransaction> {
+        let view_keys = view_keys
+            .iter()
+            .map(|view_key| PublicKey::from_str(view_key))
+            .collect::<CommonResult<Vec<PublicKey>>>()
+            .map_err(to_rpc_error)?;
+
+        let mut access_policies: Vec<TxAccessPolicy> = vec![];
+
+        for key in view_keys.iter() {
+            access_policies.push(TxAccessPolicy {
+                view_key: key.into(),
+                access: TxAccess::AllData,
+            });
+        }
+
+        let attributes = TxAttributes::new_with_access(self.network_id, access_policies);
+
         let tx = Tx {
             inputs,
             outputs,
             attributes,
-        } 
+        };
+        let tx_id = tx.id();
 
-        RawTransaction {
+        Ok(RawTransaction {
             tx,
-            tx.id(),
-        }
+            tx_id,
+        })
     }
 }
