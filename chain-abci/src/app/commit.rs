@@ -8,13 +8,14 @@ use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::TxId;
-use chain_core::tx::TxObfuscated;
-
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TxAux;
+use chain_core::tx::TxObfuscated;
 use chain_tx_validation::TxWithOutputs;
+use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use integer_encoding::VarInt;
 use kvdb::{DBTransaction, KeyValueDB};
+use log::debug;
 use parity_scale_codec::{Decode, Encode};
 use std::sync::Arc;
 
@@ -123,6 +124,17 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             );
             inittx.put(COL_MERKLE_PROOFS, &app_hash[..], &tree.encode());
             new_state.last_apphash = app_hash;
+            match self
+                .tx_validator
+                .process_request(EnclaveRequest::CommitBlock { app_hash })
+            {
+                EnclaveResponse::CommitBlock(Ok(_)) => {
+                    debug!("enclave storage persisted");
+                }
+                _ => {
+                    panic!("persisting enclave storage failed");
+                }
+            }
         }
 
         inittx.put(
