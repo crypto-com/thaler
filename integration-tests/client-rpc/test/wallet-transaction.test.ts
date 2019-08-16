@@ -68,14 +68,13 @@ describe("Wallet transaction", () => {
 			[receiverWalletRequest],
 		);
 
-		await expect(
-			zeroFeeClient.request("wallet_sendToAddress", [
-				senderWalletRequest,
-				receiverWalletTransferAddress,
-				transferAmount,
-				[],
-			]),
-		).to.eventually.eq(null, "wallet_sendToAddress should work");
+		const txId = await zeroFeeClient.request("wallet_sendToAddress", [
+			senderWalletRequest,
+			receiverWalletTransferAddress,
+			transferAmount,
+			[],
+		]);
+		expect(txId.length).to.eq(64, "wallet_sendToAddress should return transaction id");
 
 		await sleep(2000);
 
