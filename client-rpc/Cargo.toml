@@ -21,6 +21,9 @@ structopt = "0.2"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.3.2"
 secstr = { version = "0.3.2", features = ["serde"] }
+websocket = "0.23.0"
+futures = "0.1.28"
+tokio = "0.1.22"
 
 [dev-dependencies]
 parity-scale-codec = "1.0"

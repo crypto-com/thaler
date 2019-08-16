@@ -5,6 +5,12 @@ use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 
+use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
+use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
+use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
+use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
+use crate::rpc::websocket_rpc::WebsocketRpc;
+use crate::Options;
 use chain_core::tx::fee::LinearFee;
 use client_common::error::{Error, ErrorKind, Result};
 use client_common::storage::SledStorage;
@@ -17,12 +23,7 @@ use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
 use client_index::synchronizer::ManualSynchronizer;
 use client_network::network_ops::DefaultNetworkOpsClient;
-
-use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
-use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
-use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
-use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
-use crate::Options;
+use std::thread;
 
 type AppSigner = DefaultSigner<SledStorage>;
 type AppIndex = DefaultIndex<SledStorage, RpcClient>;
@@ -100,6 +101,17 @@ impl Server {
         ManualSynchronizer::new(storage, tendermint_client, block_handler)
     }
 
+    pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
+        let child = thread::spawn(move || {
+            // some work here
+            println!("start websocket");
+            let web = WebsocketRpc::new();
+            web.run();
+        });
+
+        Ok(())
+    }
+
     pub fn start_client(&self, io: &mut IoHandler, storage: SledStorage) -> Result<()> {
         let multisig_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let multisig_rpc = MultiSigRpcImpl::new(multisig_rpc_wallet_client);
@@ -123,10 +135,12 @@ impl Server {
         Ok(())
     }
 
-    pub(crate) fn start(&self) -> Result<()> {
+    pub(crate) fn start(&mut self) -> Result<()> {
         let mut io = IoHandler::new();
         let storage = SledStorage::new(&self.storage_dir)?;
 
+        self.start_websocket(storage.clone()).unwrap();
+        println!("ok start_websocket");
         self.start_client(&mut io, storage.clone()).unwrap();
 
         let server = ServerBuilder::new(io)
@@ -137,6 +151,7 @@ impl Server {
             .start_http(&SocketAddr::new(self.host.parse().unwrap(), self.port))
             .expect("Unable to start JSON-RPC server");
 
+        println!("server wait");
         server.wait();
 
         Ok(())
