@@ -66,7 +66,7 @@ const unbondAndWithdrawStakeFromClient = async (client: RpcClient) => {
 		console.info(`[Info] Wallet balance: ${walletBalance}`);
 		return;
 	}
-	console.info("[Init] Withdrawing boned funds");
+	console.info("[Init] Withdrawing bonded funds");
 
 	await client.request("staking_withdrawAllUnbondedStake", [
 		walletRequest,
