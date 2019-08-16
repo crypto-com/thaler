@@ -5,11 +5,10 @@ use jsonrpc_derive::rpc;
 use secstr::SecUtf8;
 
 use chain_core::common::{H256, HASH_SIZE_256};
-use chain_core::init::address::CroAddress;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
 
-use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
+use crate::server::{to_rpc_error, WalletRequest};
 
 #[rpc]
 pub trait MultiSigRpc: Send + Sync {
@@ -113,9 +112,7 @@ where
             )
             .map_err(to_rpc_error)?;
 
-        extended_address
-            .to_cro()
-            .map_err(|err| rpc_error_from_string(format!("{}", err)))
+        Ok(extended_address.to_string())
     }
 
     fn new_session(
