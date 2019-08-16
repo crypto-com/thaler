@@ -266,6 +266,23 @@ fn extract_quote_body(attn_report: Value) -> Result<(u64, SgxQuoteStatus, SgxQuo
     Ok((quote_freshness, quote_status, quote_body))
 }
 
+/// Intel Attestation Service (IAS) certificate obtained from https://software.intel.com/sites/default/files/managed/7b/de/RK_PUB.zip
+const IAS_CERT: &[u8] = include_bytes!("AttestationReportSigningCACert.pem");
+
+/// returns the original IAS certificate + the base64-decoded payload
+fn get_ias_cert() -> Result<(&'static [u8], Vec<u8>)> {
+    let ias_report_ca = IAS_CERT;
+    let mut ias_ca_stripped: Vec<u8> = ias_report_ca.to_vec();
+    ias_ca_stripped.retain(|&x| x != 0x0d && x != 0x0a);
+    let head_len = "-----BEGIN CERTIFICATE-----".len();
+    let tail_len = "-----END CERTIFICATE-----".len();
+    let full_len = ias_ca_stripped.len();
+    let ias_ca_core: &[u8] = &ias_ca_stripped[head_len..full_len - tail_len];
+    let ias_cert_dec = base64::decode_config(ias_ca_core, base64::STANDARD)
+        .context(ErrorKind::InvalidCertFormat)?;
+    Ok((ias_report_ca, ias_cert_dec))
+}
+
 /// seems the closure is needed for type inference
 #[allow(clippy::redundant_closure)]
 fn extract_sgx_quote_from_mra_cert(cert_der: &[u8]) -> Result<SgxQuote> {
@@ -290,53 +307,9 @@ fn extract_sgx_quote_from_mra_cert(cert_der: &[u8]) -> Result<SgxQuote> {
         webpki::EndEntityCert::from(&sig_cert_dec).context(ErrorKind::InvalidCertFormat)?;
 
     // Verify if the signing cert is issued by Intel CA
-    // TODO: move to a file and include_bytes
-    let ias_report_ca = "
-    -----BEGIN CERTIFICATE-----
-MIIFSzCCA7OgAwIBAgIJANEHdl0yo7CUMA0GCSqGSIb3DQEBCwUAMH4xCzAJBgNV
-BAYTAlVTMQswCQYDVQQIDAJDQTEUMBIGA1UEBwwLU2FudGEgQ2xhcmExGjAYBgNV
-BAoMEUludGVsIENvcnBvcmF0aW9uMTAwLgYDVQQDDCdJbnRlbCBTR1ggQXR0ZXN0
-YXRpb24gUmVwb3J0IFNpZ25pbmcgQ0EwIBcNMTYxMTE0MTUzNzMxWhgPMjA0OTEy
-MzEyMzU5NTlaMH4xCzAJBgNVBAYTAlVTMQswCQYDVQQIDAJDQTEUMBIGA1UEBwwL
-U2FudGEgQ2xhcmExGjAYBgNVBAoMEUludGVsIENvcnBvcmF0aW9uMTAwLgYDVQQD
-DCdJbnRlbCBTR1ggQXR0ZXN0YXRpb24gUmVwb3J0IFNpZ25pbmcgQ0EwggGiMA0G
-CSqGSIb3DQEBAQUAA4IBjwAwggGKAoIBgQCfPGR+tXc8u1EtJzLA10Feu1Wg+p7e
-LmSRmeaCHbkQ1TF3Nwl3RmpqXkeGzNLd69QUnWovYyVSndEMyYc3sHecGgfinEeh
-rgBJSEdsSJ9FpaFdesjsxqzGRa20PYdnnfWcCTvFoulpbFR4VBuXnnVLVzkUvlXT
-L/TAnd8nIZk0zZkFJ7P5LtePvykkar7LcSQO85wtcQe0R1Raf/sQ6wYKaKmFgCGe
-NpEJUmg4ktal4qgIAxk+QHUxQE42sxViN5mqglB0QJdUot/o9a/V/mMeH8KvOAiQ
-byinkNndn+Bgk5sSV5DFgF0DffVqmVMblt5p3jPtImzBIH0QQrXJq39AT8cRwP5H
-afuVeLHcDsRp6hol4P+ZFIhu8mmbI1u0hH3W/0C2BuYXB5PC+5izFFh/nP0lc2Lf
-6rELO9LZdnOhpL1ExFOq9H/B8tPQ84T3Sgb4nAifDabNt/zu6MmCGo5U8lwEFtGM
-RoOaX4AS+909x00lYnmtwsDVWv9vBiJCXRsCAwEAAaOByTCBxjBgBgNVHR8EWTBX
-MFWgU6BRhk9odHRwOi8vdHJ1c3RlZHNlcnZpY2VzLmludGVsLmNvbS9jb250ZW50
-L0NSTC9TR1gvQXR0ZXN0YXRpb25SZXBvcnRTaWduaW5nQ0EuY3JsMB0GA1UdDgQW
-BBR4Q3t2pn680K9+QjfrNXw7hwFRPDAfBgNVHSMEGDAWgBR4Q3t2pn680K9+Qjfr
-NXw7hwFRPDAOBgNVHQ8BAf8EBAMCAQYwEgYDVR0TAQH/BAgwBgEB/wIBADANBgkq
-hkiG9w0BAQsFAAOCAYEAeF8tYMXICvQqeXYQITkV2oLJsp6J4JAqJabHWxYJHGir
-IEqucRiJSSx+HjIJEUVaj8E0QjEud6Y5lNmXlcjqRXaCPOqK0eGRz6hi+ripMtPZ
-sFNaBwLQVV905SDjAzDzNIDnrcnXyB4gcDFCvwDFKKgLRjOB/WAqgscDUoGq5ZVi
-zLUzTqiQPmULAQaB9c6Oti6snEFJiCQ67JLyW/E83/frzCmO5Ru6WjU4tmsmy8Ra
-Ud4APK0wZTGtfPXU7w+IBdG5Ez0kE1qzxGQaL4gINJ1zMyleDnbuS8UicjJijvqA
-152Sq049ESDz+1rRGc2NVEqh1KaGXmtXvqxXcTB+Ljy5Bw2ke0v8iGngFBPqCTVB
-3op5KBG3RjbF6RRSzwzuWfL7QErNC8WEy5yDVARzTA5+xmBc388v9Dm21HGfcC8O
-DD+gT9sSpssq0ascmvH49MOgjt1yoysLtdCtJW/9FZpoOypaHx0R+mJTLwPXVMrv
-DaVzWh5aiEx+idkSGMnX
------END CERTIFICATE-----
-    "
-    .to_owned()
-    .into_bytes();
-    let mut ias_ca_stripped: Vec<u8> = ias_report_ca.clone();
-    ias_ca_stripped.retain(|&x| x != 0x0d && x != 0x0a);
-    let head_len = "-----BEGIN CERTIFICATE-----".len();
-    let tail_len = "-----END CERTIFICATE-----".len();
-    let full_len = ias_ca_stripped.len();
-    let ias_ca_core: &[u8] = &ias_ca_stripped[head_len..full_len - tail_len];
-    let ias_cert_dec = base64::decode_config(ias_ca_core, base64::STANDARD)
-        .context(ErrorKind::InvalidCertFormat)?;
-    let ias_cert_input = &ias_cert_dec;
+    let (ias_report_ca, ias_cert_dec) = get_ias_cert()?;
 
-    let mut ca_reader = BufReader::new(&ias_report_ca[..]);
+    let mut ca_reader = BufReader::new(ias_report_ca);
 
     let mut root_store = rustls::RootCertStore::empty();
     // this should not fail
@@ -353,7 +326,7 @@ DaVzWh5aiEx+idkSGMnX
     let now_func = webpki::Time::try_from(SystemTime::now())
         .map_err(|_| Error::from(ErrorKind::WebpkiFailure))?;
 
-    let chain = vec![ias_cert_input.as_slice()];
+    let chain = vec![ias_cert_dec.as_slice()];
 
     sig_cert
         .verify_is_valid_tls_server_cert(
@@ -439,4 +412,16 @@ impl rustls::ServerCertVerifier for EnclaveAttr {
             ))
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_ias_cert() {
+        // sanity check
+        assert!(get_ias_cert().is_ok())
+    }
+
 }

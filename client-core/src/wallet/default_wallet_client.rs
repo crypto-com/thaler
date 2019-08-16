@@ -183,8 +183,10 @@ where
         m: usize,
         n: usize,
     ) -> Result<ExtendedAddr> {
-        // To verify if the passphrase is correct or not
-        self.transfer_addresses(name, passphrase)?;
+        let wallet_public_keys = self.public_keys(&name, &passphrase)?;
+        if !wallet_public_keys.contains(&self_public_key) {
+            return Err(Error::from(ErrorKind::MultiSigInvalidSelfPubKey));
+        }
 
         let root_hash =
             self.root_hash_service
@@ -1130,6 +1132,28 @@ mod tests {
 
         let public_keys = vec![
             PublicKey::from(&PrivateKey::new().unwrap()),
+            PublicKey::from(&PrivateKey::new().unwrap()),
+            PublicKey::from(&PrivateKey::new().unwrap()),
+        ];
+
+        assert_eq!(
+            ErrorKind::MultiSigInvalidSelfPubKey,
+            wallet
+                .new_multisig_transfer_address(
+                    name,
+                    &passphrase,
+                    public_keys.clone(),
+                    public_keys[0].clone(),
+                    2,
+                    3,
+                ).expect_err("New multisig transfer address without self public key in public key list should not work")
+                .kind(),
+            "Should throw error when self public key does not belong to wallet"
+        );
+
+        let wallet_public_key = wallet.new_public_key(name, &passphrase).unwrap();
+        let public_keys = vec![
+            wallet_public_key,
             PublicKey::from(&PrivateKey::new().unwrap()),
             PublicKey::from(&PrivateKey::new().unwrap()),
         ];

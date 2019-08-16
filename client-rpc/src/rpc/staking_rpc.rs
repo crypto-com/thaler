@@ -10,7 +10,7 @@ use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
-use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
+use client_common::{ErrorKind, PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_network::NetworkOpsClient;
 
@@ -81,7 +81,7 @@ where
     ) -> Result<()> {
         let addr = StakedStateAddress::from_str(&to_address)
             .context(ErrorKind::DeserializationError)
-            .map_err(Into::<Error>::into)
+            .map_err(Into::into)
             .map_err(to_rpc_error)?;
         let attr = StakedStateOpAttributes::new(self.network_id);
         let transaction = self
@@ -109,7 +109,7 @@ where
         let attr = StakedStateOpAttributes::new(self.network_id);
         let addr = StakedStateAddress::from_str(&staking_address)
             .context(ErrorKind::DeserializationError)
-            .map_err(Into::<Error>::into)
+            .map_err(Into::into)
             .map_err(to_rpc_error)?;
 
         let transaction = self
@@ -137,15 +137,15 @@ where
     ) -> Result<()> {
         let from_address = StakedStateAddress::from_str(&from_address)
             .context(ErrorKind::DeserializationError)
-            .map_err(Into::<Error>::into)
+            .map_err(Into::into)
             .map_err(to_rpc_error)?;
         let to_address = ExtendedAddr::from_str(&to_address)
             .context(ErrorKind::DeserializationError)
-            .map_err(Into::<Error>::into)
+            .map_err(Into::into)
             .map_err(to_rpc_error)?;
         let view_keys = view_keys
-            .into_iter()
-            .map(|key| PublicKey::from_str(&key))
+            .iter()
+            .map(|key| PublicKey::from_str(key))
             .collect::<CommonResult<Vec<PublicKey>>>()
             .map_err(to_rpc_error)?;
 

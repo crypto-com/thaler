@@ -119,6 +119,9 @@ pub enum ErrorKind {
     /// TDQE connection failure
     #[fail(display = "Transaction decryption enclave connection failure")]
     TDQEConnectionError,
+    /// Multisig error
+    #[fail(display = "Invalid self public key in wallet multisig address")]
+    MultiSigInvalidSelfPubKey,
 }
 
 impl Fail for Error {
