@@ -1,9 +1,7 @@
 use crate::rpc::websocket_core::WebsocketCore;
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
-use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
-use client_core::{MultiSigWalletClient, WalletClient};
-use client_index::service::GlobalStateService;
+use client_common::{PrivateKey, PublicKey, Storage};
 use client_index::BlockHandler;
 use futures::future::Future;
 use futures::sink::Sink;
@@ -14,24 +12,24 @@ use std::thread;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
 
-pub const CONNECTION: &'static str = "ws://localhost:26657/websocket";
-pub const CMD_SUBSCRIBE: &'static str = r#"
+pub const CONNECTION: &str = "ws://localhost:26657/websocket";
+pub const CMD_SUBSCRIBE: &str = r#"
     {
         "jsonrpc": "2.0",
         "method": "subscribe",
         "id": "subscribe_reply",
         "params": {
             "query": "tm.event='NewBlock'"
-        }
+        } 
     }"#;
-pub const CMD_BLOCK: &'static str = r#"
+pub const CMD_BLOCK: &str = r#"
     {
         "method": "block",
         "jsonrpc": "2.0",
         "params": [ "2" ],
         "id": "block_reply"
     }"#;
-pub const CMD_STATUS: &'static str = r#"
+pub const CMD_STATUS: &str = r#"
     {
         "method": "status",
         "jsonrpc": "2.0",
@@ -109,12 +107,13 @@ impl WebsocketRpc {
                 stream
                     .filter_map(|message| match message {
                         OwnedMessage::Text(a) => {
-                            self.core.as_ref().map(|core| {
+                            if let Some(core) = self.core.as_ref() {
                                 core.send(OwnedMessage::Text(a.clone())).unwrap();
-                            });
+                            }
+
                             None
                         }
-                        OwnedMessage::Binary(a) => None,
+                        OwnedMessage::Binary(_a) => None,
                         OwnedMessage::Close(e) => Some(OwnedMessage::Close(e)),
                         OwnedMessage::Ping(d) => Some(OwnedMessage::Pong(d)),
                         _ => None,

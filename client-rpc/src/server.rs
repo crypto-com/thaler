@@ -20,7 +20,7 @@ use client_network::network_ops::DefaultNetworkOpsClient;
 use failure::ResultExt;
 use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
-use quest::{ask, password, success};
+use quest::{ask, password};
 use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -139,7 +139,7 @@ impl Server {
         loop {
             let name = self.ask_string("enter wallet name=", "");
             if name == "" {
-                if wallet_infos.len() == 0 {
+                if wallet_infos.is_empty() {
                     println!("you need at least one wallet to proceed");
                     continue;
                 } else {
@@ -169,9 +169,9 @@ impl Server {
                 println!("staking_address={}", x);
             }
         }
-        assert!(wallet_infos.len() > 0);
+        assert!(!wallet_infos.is_empty());
         println!("press anykey to continue");
-        quest::text();
+        let _ = quest::text();
         let _child = thread::spawn(move || {
             // some work here
             println!("start websocket");

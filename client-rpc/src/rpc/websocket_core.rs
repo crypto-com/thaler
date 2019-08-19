@@ -5,7 +5,7 @@ use chain_tx_filter::BlockFilter;
 use chrono::Local;
 use client_common::tendermint::types::Block;
 use client_common::tendermint::Client;
-use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
+use client_common::{BlockHeader, Result, Storage, Transaction};
 use client_index::service::GlobalStateService;
 use client_index::BlockHandler;
 use futures::sink::Sink;
@@ -40,7 +40,7 @@ where
     my_receiver: Receiver<OwnedMessage>,
     old_blocktime: SystemTime,
     state_time: SystemTime,
-    current_height2: u64,
+
     max_height: u64,
     state: WebsocketState,
     global_state_service: GlobalStateService<S>,
@@ -75,7 +75,7 @@ where
             my_receiver,
             old_blocktime: SystemTime::now(),
             state_time: SystemTime::now(),
-            current_height2: 0,
+
             max_height: 0,
             state: WebsocketState::ReadyProcess,
             global_state_service: gss,
@@ -87,9 +87,9 @@ where
     }
 
     fn get_current_wallet(&self) -> WalletInfo {
-        assert!(self.wallets.len() > 0);
-        assert!(0 <= self.current_wallet && self.current_wallet < self.wallets.len());
-        return self.wallets[self.current_wallet].clone();
+        assert!(!self.wallets.is_empty());
+        assert!(self.current_wallet < self.wallets.len());
+        self.wallets[self.current_wallet].clone()
     }
     fn get_current_height(&self) -> u64 {
         let wallet = self.get_current_wallet();
@@ -106,15 +106,18 @@ where
             .parse::<u64>()
             .unwrap();
         let current = self.get_current_height();
-        if height!= current +1 {
-            println!("drop block {} current={} max={}", height, current, self.max_height);
+        if height != current + 1 {
+            println!(
+                "drop block {} current={} max={}",
+                height, current, self.max_height
+            );
             return;
         }
         println!("******************* {} {}", height, kind);
         let m = serde_json::to_string(&value).unwrap();
         let m2: Block = serde_json::from_str(&m).unwrap();
 
-        self.write_block(height, &m2);
+        let _ = self.write_block(height, &m2);
     }
 
     pub fn write_block(&self, block_height: u64, block: &Block) -> Result<()> {
@@ -159,9 +162,6 @@ where
         let id = value["id"].as_str()?;
         match id {
             "subscribe_reply#event" => {
-                let block = value["result"]["data"]["value"]["block"].clone();
-                let height = block["header"]["height"].as_str().unwrap();
-
                 self.do_save_block_to_chain(&value["result"]["data"]["value"], "event");
             }
             "status_reply" => {
@@ -190,16 +190,13 @@ where
         println!("change wallet");
         // increase
         self.current_wallet += 1;
-        assert!(0 < self.wallets.len());
+        assert!(!self.wallets.is_empty());
         self.current_wallet %= self.wallets.len();
     }
     pub fn parse(&mut self, message: OwnedMessage) {
-        match message {
-            OwnedMessage::Text(a) => {
-                let b: Value = serde_json::from_str(a.as_str()).unwrap();
-                self.do_parse(b);
-            }
-            _ => (),
+        if let OwnedMessage::Text(a) = message {
+            let b: Value = serde_json::from_str(a.as_str()).unwrap();
+            self.do_parse(b);
         }
     }
     pub fn prepare_get_blocks(&mut self, height: String) {
