@@ -1,6 +1,5 @@
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
-use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use chain_core::init::coin::Coin;
@@ -9,21 +8,11 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::balance::BalanceChange;
+use client_common::balance::TransactionChange;
 use client_common::{PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
-
-#[derive(Serialize, Deserialize)]
-pub struct RowTx {
-    kind: String,
-    transaction_id: String,
-    address: String,
-    height: String,
-    time: String,
-    amount: Coin,
-}
 
 #[rpc]
 pub trait WalletRpc: Send + Sync {
@@ -61,7 +50,7 @@ pub trait WalletRpc: Send + Sync {
     fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_transactions")]
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>>;
+    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>>;
 }
 
 pub struct WalletRpcImpl<T>
@@ -215,29 +204,10 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<RowTx>> {
+    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>> {
         self.client
             .history(&request.name, &request.passphrase)
             .map_err(to_rpc_error)
-            .map(|transaction_changes| {
-                transaction_changes
-                    .into_iter()
-                    .map(|c| {
-                        let bc = match c.balance_change {
-                            BalanceChange::Incoming(change) => ("incoming", change),
-                            BalanceChange::Outgoing(change) => ("outgoing", change),
-                        };
-                        RowTx {
-                            kind: bc.0.to_string(),
-                            transaction_id: hex::encode(c.transaction_id),
-                            address: c.address.to_string(),
-                            height: c.block_height.to_string(),
-                            time: c.block_time.to_string(),
-                            amount: bc.1,
-                        }
-                    })
-                    .collect()
-            })
     }
 }
 
