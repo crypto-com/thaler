@@ -3,17 +3,17 @@ use jsonrpc_derive::rpc;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-use chain_core::tx::TransactionId;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
-use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::data::output::TxOut;
+use chain_core::tx::data::{Tx, TxId};
+use chain_core::tx::TransactionId;
 use client_common::{PublicKey, Result as CommonResult};
 
-use crate::server::{to_rpc_error};
+use crate::server::to_rpc_error;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RawTransaction {
     tx: Tx,
     tx_id: TxId,
@@ -71,9 +71,98 @@ impl TransactionRpc for TransactionRpcImpl {
         };
         let tx_id = tx.id();
 
-        Ok(RawTransaction {
-            tx,
-            tx_id,
-        })
+        Ok(RawTransaction { tx, tx_id })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use chain_core::init::address::CroAddress;
+    use chain_core::init::coin::Coin;
+    use chain_core::tx::data::address::ExtendedAddr;
+    use client_common::{Error, ErrorKind, PrivateKey};
+
+    #[test]
+    fn create_raw_should_throw_error_when_view_key_is_invalid() {
+        let transaction_rpc = TransactionRpcImpl::new(hex::decode("AB").unwrap()[0]);
+
+        let inputs = vec![TxoPointer::new([0; 32], 0), TxoPointer::new([1; 32], 0)];
+
+        let outputs = vec![TxOut::new(
+            ExtendedAddr::from_cro(
+                "dcro1zz30nheum6vnug3mjs0j4kw4w739tca8cuqae2kdjmt8suhv693qcs3qyn",
+            )
+            .unwrap(),
+            Coin::new(750).unwrap(),
+        )];
+
+        let invalid_view_key = String::from("invalid_view_key");
+        let view_keys = vec![invalid_view_key];
+
+        assert_eq!(
+            transaction_rpc
+                .create_raw(inputs, outputs, view_keys)
+                .unwrap_err(),
+            to_rpc_error(Error::from(ErrorKind::DeserializationError)),
+        );
+    }
+    #[test]
+    fn create_raw_flow() {
+        let chain_id = hex::decode("AB").unwrap()[0];
+        let transaction_rpc = TransactionRpcImpl::new(chain_id);
+
+        let inputs = vec![TxoPointer::new([0; 32], 0), TxoPointer::new([1; 32], 0)];
+
+        let outputs = vec![TxOut::new(
+            ExtendedAddr::from_cro(
+                "dcro1zz30nheum6vnug3mjs0j4kw4w739tca8cuqae2kdjmt8suhv693qcs3qyn",
+            )
+            .unwrap(),
+            Coin::new(750).unwrap(),
+        )];
+
+        let view_key_1 = PublicKey::from(&PrivateKey::new().unwrap());
+        let view_key_2 = PublicKey::from(&PrivateKey::new().unwrap());
+        let view_keys = vec![view_key_1.to_string(), view_key_2.to_string()];
+
+        let raw_transaction = transaction_rpc
+            .create_raw(inputs.clone(), outputs.clone(), view_keys.clone())
+            .expect("create_raw does not work for valid parameters");
+
+        assert_eq!(
+            raw_transaction.tx.inputs, inputs,
+            "Returned raw transaction should have same inputs from parameter"
+        );
+        assert_eq!(
+            raw_transaction.tx.outputs, outputs,
+            "Returned raw transaction should have same outputs from parameter"
+        );
+
+        assert_eq!(
+            raw_transaction.tx.attributes.chain_id, chain_id,
+            "Returned raw transaction should have same chain_id as network"
+        );
+        assert_eq!(
+            raw_transaction.tx.attributes.allowed_view.len(),
+            2,
+            "Returned raw transaction should have all view_keys from parameter"
+        );
+        assert_eq!(
+            raw_transaction.tx.attributes.allowed_view[0],
+            TxAccessPolicy {
+                view_key: view_key_1.into(),
+                access: TxAccess::AllData,
+            },
+            "Returned raw transaction should have the same view key from parameter"
+        );
+        assert_eq!(
+            raw_transaction.tx.attributes.allowed_view[1],
+            TxAccessPolicy {
+                view_key: view_key_2.into(),
+                access: TxAccess::AllData,
+            },
+            "Returned raw transaction should have the same view key from parameter"
+        );
     }
 }
