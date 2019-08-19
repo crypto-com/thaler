@@ -41,7 +41,7 @@ pub const CMD_STATUS: &'static str = r#"
 
 type MyQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct WalletInfo {
     pub name: String,
     pub staking_addresses: Vec<StakedStateAddress>,

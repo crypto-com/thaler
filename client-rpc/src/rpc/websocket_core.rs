@@ -105,6 +105,11 @@ where
             .unwrap()
             .parse::<u64>()
             .unwrap();
+        let current = self.get_current_height();
+        if height!= current +1 {
+            println!("drop block {} current={} max={}", height, current, self.max_height);
+            return;
+        }
         println!("******************* {} {}", height, kind);
         let m = serde_json::to_string(&value).unwrap();
         let m2: Block = serde_json::from_str(&m).unwrap();
