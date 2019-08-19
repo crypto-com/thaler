@@ -2,7 +2,7 @@ use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
 use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
 use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
-use crate::rpc::websocket_rpc::WebsocketRpc;
+use crate::rpc::websocket_rpc::{WalletInfo, WalletInfos, WebsocketRpc};
 use crate::Options;
 use chain_core::tx::fee::LinearFee;
 use client_common::error::{Error, ErrorKind, Result};
@@ -126,8 +126,7 @@ impl Server {
 
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
         println!("web socket");
-        let name = self.ask_string("enter wallet name=", "a");
-        let passphrase = self.ask_passphrase(None)?;
+        let mut wallet_infos: WalletInfos = vec![];
         let tendermint_client = RpcClient::new(&self.tendermint_url);
         let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
         let transaction_handler = DefaultTransactionHandler::new(storage.clone());
@@ -136,33 +135,53 @@ impl Server {
 
         let wallet_client = self.make_wallet_client(storage.clone());
 
-        let view_key = wallet_client.view_key(name.as_str(), &passphrase)?;
-        let private_key = wallet_client
-            .private_key(&passphrase, &view_key)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
+        println!("press enter to complete");
+        loop {
+            let name = self.ask_string("enter wallet name=", "");
+            if name == "" {
+                if wallet_infos.len() == 0 {
+                    println!("you need at least one wallet to proceed");
+                    continue;
+                } else {
+                    break;
+                }
+            }
 
-        let staking_addresses = wallet_client.staking_addresses(name.as_str(), &passphrase)?;
+            let passphrase = self.ask_passphrase(None)?;
 
-        println!("view-key={}", view_key);
-        for x in &staking_addresses {
-            println!("staking_address={}", x);
+            let view_key = wallet_client.view_key(name.as_str(), &passphrase)?;
+            let private_key = wallet_client
+                .private_key(&passphrase, &view_key)?
+                .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
+
+            let staking_addresses = wallet_client.staking_addresses(name.as_str(), &passphrase)?;
+
+            wallet_infos.push(WalletInfo {
+                name: name.to_string(),
+                staking_addresses,
+                view_key,
+                private_key,
+            });
         }
-
-        println!("\nOK");
+        for w in &wallet_infos {
+            println!("name={}   view-key={}", w.name, w.view_key);
+            for x in &w.staking_addresses {
+                println!("staking_address={}", x);
+            }
+        }
+        assert!(wallet_infos.len() > 0);
+        println!("press anykey to continue");
         quest::text();
-
         let _child = thread::spawn(move || {
             // some work here
             println!("start websocket");
-            let mut web = WebsocketRpc::new(
-                storage,
+            let mut web = WebsocketRpc::new();
+            web.run(
+                wallet_infos,
                 tendermint_client,
+                storage.clone(),
                 block_handler,
-                staking_addresses.to_vec(),
-                view_key.clone(),
-                private_key.clone(),
             );
-            web.run();
         });
 
         Ok(())

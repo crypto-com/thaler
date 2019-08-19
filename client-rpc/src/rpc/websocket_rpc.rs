@@ -41,65 +41,35 @@ pub const CMD_STATUS: &'static str = r#"
 
 type MyQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
+#[derive(Clone)]
+pub struct WalletInfo {
+    pub name: String,
+    pub staking_addresses: Vec<StakedStateAddress>,
+    pub view_key: PublicKey,
+    pub private_key: PrivateKey,
+}
+pub type WalletInfos = Vec<WalletInfo>;
+
 // constanct connection
 // using ws://localhost:26657/websocket
-pub struct WebsocketRpc<S, C, H>
-where
-    S: Storage,
-    C: Client,
-    H: BlockHandler,
-{
+pub struct WebsocketRpc {
     core: Option<MyQueue>,
-    storage: Option<S>,
-    client: Option<C>,
-    block_handler: Option<H>,
-    staking_addresses: Vec<StakedStateAddress>,
-    view_key: PublicKey,
-    private_key: PrivateKey,
 }
 
-impl<S, C, H> WebsocketRpc<S, C, H>
-where
-    S: Storage + 'static,
-    C: Client + 'static,
-    H: BlockHandler + 'static,
-{
-    pub fn new(
-        storage: S,
-        client: C,
-        block_handler: H,
-        staking_addresses: Vec<StakedStateAddress>,
-        view_key: PublicKey,
-        private_key: PrivateKey,
-    ) -> Self {
-        Self {
-            core: None,
-            storage: Some(storage),
-            client: Some(client),
-            block_handler: Some(block_handler),
-            staking_addresses,
-            view_key,
-            private_key,
-        }
+impl WebsocketRpc {
+    pub fn new() -> Self {
+        Self { core: None }
     }
 
-    pub fn start_sync(
+    pub fn start_sync<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
         &mut self,
         sender: Sender<OwnedMessage>,
+        wallet_infos: WalletInfos,
+        client: C,
+        storage: S,
+        handler: H,
     ) -> std::sync::mpsc::Sender<OwnedMessage> {
-        let client = self.client.take().unwrap();
-        let storage = self.storage.take().unwrap();
-        let handler = self.block_handler.take().unwrap();
-
-        let mut core = WebsocketCore::new(
-            sender.clone(),
-            storage,
-            client,
-            handler,
-            self.staking_addresses.clone(),
-            self.view_key.clone(),
-            self.private_key.clone(),
-        );
+        let mut core = WebsocketCore::new(sender.clone(), storage, client, handler, wallet_infos);
         self.core = Some(core.get_queue());
         let ret = core.get_queue().clone();
         let _child = thread::spawn(move || {
@@ -108,7 +78,13 @@ where
         ret
     }
 
-    pub fn run(&mut self) {
+    pub fn run<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
+        &mut self,
+        wallets: WalletInfos,
+        client: C,
+        storage: S,
+        block_handler: H,
+    ) {
         println!("Connecting to {}", CONNECTION);
         let mut runtime = tokio::runtime::current_thread::Builder::new()
             .build()
@@ -118,7 +94,7 @@ where
         let (channel_tx, channel_rx) = channel;
         // get synchronous sink
         let mut channel_sink = channel_tx.clone().wait();
-        self.start_sync(channel_tx.clone());
+        self.start_sync(channel_tx.clone(), wallets, client, storage, block_handler);
 
         let runner = ClientBuilder::new(CONNECTION)
             .unwrap()

@@ -1,3 +1,4 @@
+use crate::rpc::websocket_rpc::{WalletInfo, WalletInfos};
 use crate::rpc::websocket_rpc::{CMD_BLOCK, CMD_STATUS};
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_filter::BlockFilter;
@@ -45,9 +46,8 @@ where
     global_state_service: GlobalStateService<S>,
     client: C,
     block_handler: H,
-    staking_addresses: Vec<StakedStateAddress>,
-    view_key: PublicKey,
-    private_key: PrivateKey,
+    wallets: Vec<WalletInfo>,
+    current_wallet: usize,
 }
 
 impl<S, C, H> WebsocketCore<S, C, H>
@@ -61,9 +61,7 @@ where
         storage: S,
         client: C,
         block_handler: H,
-        staking_addresses: Vec<StakedStateAddress>,
-        view_key: PublicKey,
-        private_key: PrivateKey,
+        wallets: WalletInfos,
     ) -> Self {
         let gss = GlobalStateService::new(storage);
 
@@ -83,15 +81,20 @@ where
             global_state_service: gss,
             client,
             block_handler,
-            staking_addresses,
-            view_key,
-            private_key,
+            wallets,
+            current_wallet: 0,
         }
     }
 
+    fn get_current_wallet(&self) -> WalletInfo {
+        assert!(self.wallets.len() > 0);
+        assert!(0 <= self.current_wallet && self.current_wallet < self.wallets.len());
+        return self.wallets[self.current_wallet].clone();
+    }
     fn get_current_height(&self) -> u64 {
+        let wallet = self.get_current_wallet();
         self.global_state_service
-            .last_block_height(&self.view_key)
+            .last_block_height(&wallet.view_key)
             .unwrap()
     }
 
@@ -117,9 +120,10 @@ where
         let transaction_ids = block_results.transaction_ids()?;
         let block_filter = block_results.block_filter()?;
 
+        let wallet = self.get_current_wallet();
         let unencrypted_transactions = self.check_unencrypted_transactions(
             &block_filter,
-            self.staking_addresses.as_slice(),
+            wallet.staking_addresses.as_slice(),
             block,
         )?;
 
@@ -132,7 +136,7 @@ where
         };
 
         self.block_handler
-            .on_next(block_header, &self.view_key, &self.private_key)?;
+            .on_next(block_header, &wallet.view_key, &wallet.private_key)?;
         Ok(())
     }
 
@@ -164,10 +168,11 @@ where
                 if block.is_null() {
                     self.change_to_wait();
                 } else {
+                    let wallet = self.get_current_wallet();
                     self.do_save_block_to_chain(&value["result"], "get block");
 
                     if self.get_current_height() >= self.max_height {
-                        println!("all synced.. wait");
+                        println!("all synced wallet {}.. wait", wallet.name);
                         self.change_to_wait();
                     }
                 }
@@ -175,6 +180,13 @@ where
             _ => {}
         }
         None
+    }
+    pub fn change_wallet(&mut self) {
+        println!("change wallet");
+        // increase
+        self.current_wallet += 1;
+        assert!(0 < self.wallets.len());
+        self.current_wallet %= self.wallets.len();
     }
     pub fn parse(&mut self, message: OwnedMessage) {
         match message {
@@ -196,13 +208,16 @@ where
                 self.max_height
             );
         } else {
+            let w = self.get_current_wallet();
             println!(
-                "synced now current {}  max_height {}   {}",
+                "synced now current wallet {}  current {}  max_height {}   {}",
+                w.name,
                 self.get_current_height(),
                 self.max_height,
                 Local::now()
             );
             self.change_to_wait();
+            self.change_wallet();
         }
     }
     pub fn check_status(&mut self) {
