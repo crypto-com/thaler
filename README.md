@@ -124,7 +124,7 @@ $ tendermint lite
 
 ## 8. Send Your First Transaction
 
- Before doing any transaction, It is noted that, the genesis fund is **bonded** at the beginning. To move funds freely around, we first have to withdraw it to UTXO:
+ Before doing any transaction, It is noted that, the genesis fund is **staked** at the beginning. To move funds freely around, we first have to withdraw it to UTXO:
 
 - Create an address in type  `Transfer` to receive funds by:
 
