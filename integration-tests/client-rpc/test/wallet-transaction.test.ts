@@ -160,7 +160,7 @@ describe("Wallet transaction", () => {
 		);
 	});
 
-	it("can transfer funds between two wallets with fee included", async function() {
+	it("can transfer funds between two wallets with fee included", async function () {
 		const receiverWalletName = generateWalletName("Receive");
 		const senderWalletRequest = newWalletRequest("Default", "123456");
 		const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
@@ -306,10 +306,10 @@ const expectTransactionShouldBe = (
 	expect(actual).to.contain.keys([
 		"address",
 		"amount",
-		"height",
+		"block_height",
 		"kind",
 		"transaction_id",
-		"time",
+		"block_time",
 	]);
 
 	if (typeof expected.address !== "undefined") {
@@ -327,9 +327,9 @@ const expectTransactionShouldBe = (
 	}
 
 	if (typeof expected.height !== "undefined") {
-		expect(actual.height).to.eq(expected.height.toString(), message);
+		expect(actual.block_height).to.eq(expected.height.toString(), message);
 	} else {
-		expect(new BigNumber(actual.height).isGreaterThan(0)).to.eq(true, message);
+		expect(new BigNumber(actual.block_height).isGreaterThan(0)).to.eq(true, message);
 	}
 	return true;
 };
