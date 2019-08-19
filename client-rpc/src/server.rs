@@ -1,10 +1,3 @@
-use failure::ResultExt;
-use jsonrpc_core::{self, IoHandler};
-use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
-use secstr::SecUtf8;
-use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
-
 use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
 use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
 use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
@@ -18,11 +11,19 @@ use client_common::tendermint::{Client, RpcClient};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
+use client_core::wallet::WalletClient;
 use client_index::cipher::MockAbciTransactionObfuscation;
 use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
 use client_index::synchronizer::ManualSynchronizer;
 use client_network::network_ops::DefaultNetworkOpsClient;
+use failure::ResultExt;
+use jsonrpc_core::{self, IoHandler};
+use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
+use quest::{ask, password, success};
+use secstr::SecUtf8;
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
 use std::thread;
 
 type AppSigner = DefaultSigner<SledStorage>;
@@ -101,11 +102,66 @@ impl Server {
         ManualSynchronizer::new(storage, tendermint_client, block_handler)
     }
 
+    fn ask_passphrase(&self, message: Option<&str>) -> Result<SecUtf8> {
+        match message {
+            None => ask("Enter passphrase: "),
+            Some(message) => ask(message),
+        }
+        Ok(password().context(ErrorKind::IoError)?.into())
+    }
+
+    fn ask_string(&self, msg: &str, default: &str) -> String {
+        quest::ask(msg);
+        match quest::text() {
+            Ok(a) => {
+                if "" == a {
+                    default.to_string()
+                } else {
+                    a
+                }
+            }
+            Err(_b) => default.to_string(),
+        }
+    }
+
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
+        println!("web socket");
+        let name = self.ask_string("enter wallet name=", "a");
+        let passphrase = self.ask_passphrase(None)?;
+        let tendermint_client = RpcClient::new(&self.tendermint_url);
+        let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
+        let transaction_handler = DefaultTransactionHandler::new(storage.clone());
+        let block_handler =
+            DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
+
+        let wallet_client = self.make_wallet_client(storage.clone());
+
+        let view_key = wallet_client.view_key(name.as_str(), &passphrase)?;
+        let private_key = wallet_client
+            .private_key(&passphrase, &view_key)?
+            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
+
+        let staking_addresses = wallet_client.staking_addresses(name.as_str(), &passphrase)?;
+
+        println!("view-key={}", view_key);
+        for x in &staking_addresses {
+            println!("staking_address={}", x);
+        }
+
+        println!("\nOK");
+        quest::text();
+
         let _child = thread::spawn(move || {
             // some work here
             println!("start websocket");
-            let mut web = WebsocketRpc::new();
+            let mut web = WebsocketRpc::new(
+                storage,
+                tendermint_client,
+                block_handler,
+                staking_addresses.to_vec(),
+                view_key.clone(),
+                private_key.clone(),
+            );
             web.run();
         });
 

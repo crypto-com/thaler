@@ -1,15 +1,19 @@
 use crate::rpc::websocket_core::WebsocketCore;
+use chain_core::state::account::StakedStateAddress;
+use client_common::tendermint::Client;
+use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
+use client_core::{MultiSigWalletClient, WalletClient};
+use client_index::service::GlobalStateService;
+use client_index::BlockHandler;
 use futures::future::Future;
 use futures::sink::Sink;
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use mpsc::Sender;
 use std::thread;
-use std::time;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
 
-use serde_json::{json, Value};
 pub const CONNECTION: &'static str = "ws://localhost:26657/websocket";
 pub const CMD_SUBSCRIBE: &'static str = r#"
     {
@@ -39,20 +43,63 @@ type MyQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
 // constanct connection
 // using ws://localhost:26657/websocket
-pub struct WebsocketRpc {
+pub struct WebsocketRpc<S, C, H>
+where
+    S: Storage,
+    C: Client,
+    H: BlockHandler,
+{
     core: Option<MyQueue>,
+    storage: Option<S>,
+    client: Option<C>,
+    block_handler: Option<H>,
+    staking_addresses: Vec<StakedStateAddress>,
+    view_key: PublicKey,
+    private_key: PrivateKey,
 }
 
-impl WebsocketRpc {
-    pub fn new() -> WebsocketRpc {
-        WebsocketRpc { core: None }
+impl<S, C, H> WebsocketRpc<S, C, H>
+where
+    S: Storage + 'static,
+    C: Client + 'static,
+    H: BlockHandler + 'static,
+{
+    pub fn new(
+        storage: S,
+        client: C,
+        block_handler: H,
+        staking_addresses: Vec<StakedStateAddress>,
+        view_key: PublicKey,
+        private_key: PrivateKey,
+    ) -> Self {
+        Self {
+            core: None,
+            storage: Some(storage),
+            client: Some(client),
+            block_handler: Some(block_handler),
+            staking_addresses,
+            view_key,
+            private_key,
+        }
     }
 
     pub fn start_sync(
         &mut self,
         sender: Sender<OwnedMessage>,
     ) -> std::sync::mpsc::Sender<OwnedMessage> {
-        let mut core = WebsocketCore::new(sender.clone());
+        let client = self.client.take().unwrap();
+        let storage = self.storage.take().unwrap();
+        let handler = self.block_handler.take().unwrap();
+
+        let mut core = WebsocketCore::new(
+            sender.clone(),
+            storage,
+            client,
+            handler,
+            self.staking_addresses.clone(),
+            self.view_key.clone(),
+            self.private_key.clone(),
+        );
         self.core = Some(core.get_queue());
         let ret = core.get_queue().clone();
         let _child = thread::spawn(move || {
