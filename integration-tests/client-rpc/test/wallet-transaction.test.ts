@@ -288,8 +288,8 @@ describe("Wallet transaction", () => {
 });
 
 enum TransactionDirection {
-	INCOMING = "incoming",
-	OUTGOING = "outgoing",
+	INCOMING = "Incoming",
+	OUTGOING = "Outgoing",
 }
 interface TransactionAssertion {
 	address?: string;
