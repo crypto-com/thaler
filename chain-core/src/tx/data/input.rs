@@ -17,13 +17,17 @@ pub type TxoIndex = u16;
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxoPointer {
-    #[serde(serialize_with = "serialize_transaction_id")]
-    #[serde(deserialize_with = "deserialize_transaction_id")]
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_transaction_id"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(deserialize_with = "deserialize_transaction_id")
+    )]
     pub id: TxId,
     // TODO: u16 and Vec size check in Decode implementation
     pub index: TxoIndex,
 }
 
+#[cfg(feature = "serde")]
 fn serialize_transaction_id<S>(
     transaction_id: &TxId,
     serializer: S,
@@ -34,6 +38,7 @@ where
     serializer.serialize_str(&hex::encode(transaction_id))
 }
 
+#[cfg(feature = "serde")]
 fn deserialize_transaction_id<'de, D>(deserializer: D) -> std::result::Result<TxId, D::Error>
 where
     D: Deserializer<'de>,

@@ -13,12 +13,16 @@ use crate::tx::data::access::TxAccessPolicy;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxAttributes {
     #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_chain_hex_id"))]
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_chain_hex_id"))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(deserialize_with = "deserialize_chain_hex_id")
+    )]
     pub chain_hex_id: u8,
     pub allowed_view: Vec<TxAccessPolicy>,
     // TODO: other attributes, e.g. versioning info
 }
 
+#[cfg(feature = "serde")]
 fn serialize_chain_hex_id<S>(
     chain_hex_id: &u8,
     serializer: S,
@@ -29,6 +33,7 @@ where
     serializer.serialize_str(&hex::encode_upper(vec![chain_hex_id.to_owned()]))
 }
 
+#[cfg(feature = "serde")]
 fn deserialize_chain_hex_id<'de, D>(deserializer: D) -> std::result::Result<u8, D::Error>
 where
     D: Deserializer<'de>,

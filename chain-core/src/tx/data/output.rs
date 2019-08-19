@@ -16,13 +16,14 @@ use crate::tx::data::address::ExtendedAddr;
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxOut {
-    #[serde(serialize_with = "serialize_address")]
-    #[serde(deserialize_with = "deserialize_address")]
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_address"))]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_address"))]
     pub address: ExtendedAddr,
     pub value: Coin,
     pub valid_from: Option<Timespec>,
 }
 
+#[cfg(feature = "serde")]
 fn serialize_address<S>(
     address: &ExtendedAddr,
     serializer: S,
@@ -33,6 +34,7 @@ where
     serializer.serialize_str(&address.to_string())
 }
 
+#[cfg(feature = "serde")]
 fn deserialize_address<'de, D>(deserializer: D) -> std::result::Result<ExtendedAddr, D::Error>
 where
     D: Deserializer<'de>,

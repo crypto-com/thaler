@@ -32,12 +32,13 @@ impl Default for TxAccess {
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxAccessPolicy {
-    #[serde(serialize_with = "serialize_view_key")]
-    #[serde(deserialize_with = "deserialize_view_key")]
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_view_key"))]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_view_key"))]
     pub view_key: PublicKey,
     pub access: TxAccess,
 }
 
+#[cfg(feature = "serde")]
 fn serialize_view_key<S>(
     view_key: &PublicKey,
     serializer: S,
@@ -49,6 +50,7 @@ where
     serializer.serialize_str(&view_key_string)
 }
 
+#[cfg(feature = "serde")]
 fn deserialize_view_key<'de, D>(deserializer: D) -> std::result::Result<PublicKey, D::Error>
 where
     D: Deserializer<'de>,
