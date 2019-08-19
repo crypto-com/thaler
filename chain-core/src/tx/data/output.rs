@@ -1,8 +1,11 @@
 use std::fmt;
+use std::str::FromStr;
 
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use serde::de;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::Timespec;
 use crate::init::coin::Coin;
@@ -13,9 +16,46 @@ use crate::tx::data::address::ExtendedAddr;
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxOut {
+    #[serde(serialize_with = "serialize_address")]
+    #[serde(deserialize_with = "deserialize_address")]
     pub address: ExtendedAddr,
     pub value: Coin,
     pub valid_from: Option<Timespec>,
+}
+
+fn serialize_address<S>(
+    address: &ExtendedAddr,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&address.to_string())
+}
+
+fn deserialize_address<'de, D>(deserializer: D) -> std::result::Result<ExtendedAddr, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct StrVisitor;
+
+    impl<'de> de::Visitor<'de> for StrVisitor {
+        type Value = ExtendedAddr;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("transfer address in bech32 format")
+        }
+
+        #[inline]
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            ExtendedAddr::from_str(value).map_err(|err| de::Error::custom(err.to_string()))
+        }
+    }
+
+    deserializer.deserialize_str(StrVisitor)
 }
 
 impl fmt::Display for TxOut {
