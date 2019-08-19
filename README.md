@@ -126,7 +126,7 @@ $ tendermint lite
 
  Before doing any transaction, It is noted that, the genesis fund is **staked** at the beginning. To move funds freely around, we first have to withdraw it to UTXO:
 
-- Create an address in type  `Transfer` to receive funds by:
+- Create an address in type `Transfer` to receive funds by:
 
   ```bash
   $ ./target/debug/client-cli address new --name Default --type Transfer
@@ -147,7 +147,7 @@ $ tendermint lite
   ```
 
 Transfer CRO to another address: 
-  - Once we have withdrawn the genesis funds, we can run the subcommand `sync`   to sync our wallet:
+  - Once we have withdrawn the genesis funds, we can run the subcommand `sync` to sync our wallet:
     ```bash
     $ ./target/debug/client-cli sync --name Default
     ```
