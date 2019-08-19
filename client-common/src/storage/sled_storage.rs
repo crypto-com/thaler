@@ -63,7 +63,7 @@ impl Storage for SledStorage {
             .open_tree(keyspace.as_ref().to_vec())
             .context(ErrorKind::StorageError)?;
 
-        let value = tree.set(key, value).context(ErrorKind::StorageError)?;
+        let value = tree.insert(key, value).context(ErrorKind::StorageError)?;
         let value = value.map(|inner| inner.to_vec());
 
         Ok(value)
@@ -100,7 +100,10 @@ impl Storage for SledStorage {
 
         tree.iter()
             .keys()
-            .map(|key| Ok(key.context(ErrorKind::StorageError)?))
+            .map(|key| {
+                let key = key.context(ErrorKind::StorageError)?;
+                Ok(key.as_ref().to_vec())
+            })
             .collect()
     }
 
