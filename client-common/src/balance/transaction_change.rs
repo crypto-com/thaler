@@ -1,10 +1,10 @@
 use std::ops::Add;
 use std::str::FromStr;
 
-use chrono::offset::Utc;
-use chrono::DateTime;
+use chrono::{DateTime, Utc};
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-use serde::{Deserialize, Serialize};
+use serde::de;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -17,15 +17,65 @@ use crate::Result;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransactionChange {
     /// ID of transaction which caused this change
+    #[serde(serialize_with = "serialize_transaction_id")]
+    #[serde(deserialize_with = "deserialize_transaction_id")]
     pub transaction_id: TxId,
     /// Address which is affected by this change
+    #[serde(serialize_with = "serialize_address")]
+    #[serde(deserialize_with = "deserialize_address")]
     pub address: ExtendedAddr,
     /// Change in balance
+    #[serde(flatten)]
     pub balance_change: BalanceChange,
     /// Height of block which has this transaction
     pub block_height: u64,
     /// Time of block which has this transaction
     pub block_time: DateTime<Utc>,
+}
+
+fn serialize_transaction_id<S>(
+    transaction_id: &TxId,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&hex::encode(transaction_id))
+}
+
+fn deserialize_transaction_id<'de, D>(deserializer: D) -> std::result::Result<TxId, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let transaction_id_raw: &str = Deserialize::deserialize(deserializer)?;
+    let transaction_id_vec =
+        hex::decode(transaction_id_raw).map_err(|e| de::Error::custom(e.to_string()))?;
+    if transaction_id_vec.len() != 32 {
+        return Err(de::Error::custom("Invalid transaction id length"));
+    }
+
+    let mut transaction_id = [0; 32];
+    transaction_id.copy_from_slice(&transaction_id_vec);
+
+    Ok(transaction_id)
+}
+
+fn serialize_address<S>(
+    address: &ExtendedAddr,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&address.to_string())
+}
+
+fn deserialize_address<'de, D>(deserializer: D) -> std::result::Result<ExtendedAddr, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let address_raw: &str = Deserialize::deserialize(deserializer)?;
+    ExtendedAddr::from_str(address_raw).map_err(|e| de::Error::custom(e.to_string()))
 }
 
 impl Encode for TransactionChange {

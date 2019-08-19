@@ -280,17 +280,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         genesis_app_hash.copy_from_slice(&decoded_gah[..]);
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
-        // TODO: genesis app hash check when embedded in enclave binary
-        let enclave_sanity_check =
-            tx_validator.process_request(EnclaveRequest::CheckChain { chain_hex_id });
-        match enclave_sanity_check {
-            EnclaveResponse::CheckChain(Ok(_)) => {
-                info!("enclave connection OK");
-            }
-            _ => {
-                panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process)");
-            }
-        }
+
         if let Some(last_app_state) = storage
             .db
             .get(COL_NODE_INFO, LAST_STATE_KEY)
@@ -300,6 +290,22 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             let data = last_app_state.to_vec();
             let last_state =
                 ChainNodeState::decode(&mut data.as_slice()).expect("deserialize app state");
+            // TODO: genesis app hash check when embedded in enclave binary
+            let enclave_sanity_check = tx_validator.process_request(EnclaveRequest::CheckChain {
+                chain_hex_id,
+                last_app_hash: Some(last_state.last_apphash),
+            });
+            match enclave_sanity_check {
+                EnclaveResponse::CheckChain(Ok(_)) => {
+                    info!("enclave connection OK");
+                }
+                EnclaveResponse::CheckChain(Err(enc_app)) => {
+                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process),
+                    enclave app hash: {:?} (chain-abci app hash: {:?})", enc_app, last_state.last_apphash);
+                }
+                _ => unreachable!("unexpected enclave response"),
+            }
+
             ChainNodeApp::restore_from_storage(
                 tx_validator,
                 last_state,
@@ -310,6 +316,21 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             )
         } else {
             info!("no last app state stored");
+            // TODO: genesis app hash check when embedded in enclave binary
+            let enclave_sanity_check = tx_validator.process_request(EnclaveRequest::CheckChain {
+                chain_hex_id,
+                last_app_hash: None,
+            });
+            match enclave_sanity_check {
+                EnclaveResponse::CheckChain(Ok(_)) => {
+                    info!("enclave connection OK");
+                }
+                EnclaveResponse::CheckChain(Err(enc_app)) => {
+                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process),
+                    enclave app hash: {:?}", enc_app);
+                }
+                _ => unreachable!("unexpected enclave response"),
+            }
             let mut inittx = storage.db.transaction();
             inittx.put(COL_NODE_INFO, GENESIS_APP_HASH_KEY, &genesis_app_hash);
             inittx.put(COL_EXTRA, CHAIN_ID_KEY, chain_id.as_bytes());
