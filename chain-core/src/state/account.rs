@@ -10,7 +10,9 @@ use crate::tx::TransactionId;
 use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use serde::de;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::prelude::v1::Vec;
 use std::str::FromStr;
 // TODO: switch to normal signatures + explicit public key
@@ -71,13 +73,23 @@ impl FromStr for StakedStateAddress {
 
 /// represents the StakedState (account involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub struct StakedState {
     pub nonce: Nonce,
     pub bonded: Coin,
     pub unbonded: Coin,
     pub unbonded_from: Timespec,
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_address"))]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_address"))]
     pub address: StakedStateAddress,
     // TODO: slashing + jailing
+}
+
+fn serialize_address<S>(address: &StakedStateAddress, serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&address.to_string())
 }
 
 /// the tree used in StakedState storage db has a hardcoded 32-byte keys,
