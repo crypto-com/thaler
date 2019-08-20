@@ -23,6 +23,7 @@ pub struct TxAttributes {
 }
 
 #[cfg(feature = "serde")]
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn serialize_chain_hex_id<S>(
     chain_hex_id: &u8,
     serializer: S,
@@ -30,7 +31,7 @@ fn serialize_chain_hex_id<S>(
 where
     S: Serializer,
 {
-    serializer.serialize_str(&hex::encode_upper(vec![chain_hex_id.to_owned()]))
+    serializer.serialize_str(&hex::encode_upper(vec![*chain_hex_id]))
 }
 
 #[cfg(feature = "serde")]
