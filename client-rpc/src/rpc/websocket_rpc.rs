@@ -11,6 +11,11 @@ use futures::sync::mpsc;
 use std::thread;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
+
+// this handles low level network connection
+// packet processing and core works are done in websocket_core
+// it uses channel to communicate with core
+// through send queue
 pub const CMD_SUBSCRIBE: &str = r#"
     {
         "jsonrpc": "2.0",
@@ -65,6 +70,7 @@ impl WebsocketRpc {
         }
     }
 
+    // launch core thread
     pub fn run<
         S: Storage + 'static,
         C: Client + 'static,
@@ -93,6 +99,7 @@ impl WebsocketRpc {
             wallets,
             wallet_client,
         );
+        // save send_queue to communicate with core
         self.core = Some(core.get_queue());
 
         let _child = thread::spawn(move || {
@@ -102,6 +109,7 @@ impl WebsocketRpc {
         assert!(self.core.is_some());
     }
 
+    // activate tokio websocket 
     pub fn run_network(&mut self) {
         println!("Connecting to {}", self.websocket_url);
         let mut runtime = tokio::runtime::current_thread::Builder::new()

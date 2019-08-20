@@ -23,6 +23,15 @@ use std::time;
 use std::time::SystemTime;
 use websocket::OwnedMessage;
 
+// finite state machine that manages blocks
+// just use one thread to multi-plexing for data and command
+
+// rust don't allow sharing between threads without mutex
+// so multi-plexed with OwnedMessage
+
+// Network is handled websocket_rpc 
+
+// not to use too much cpu, it takes some time for waiting
 const WAIT_PROCESS_TIME: u128 = 5000; // milli seconds
 const BLOCK_REQUEST_TIME: u128 = 10; // milli seconds
 const RECEIVE_TIMEOUT: u64 = 10; //  milli seconds
@@ -97,10 +106,13 @@ where
         }
     }
 
+    // to process multiple wallets
     fn get_current_wallet(&self) -> WalletInfo {
         assert!(self.current_wallet < self.wallets.len());
         self.wallets[self.current_wallet].clone()
     }
+
+    // get height from database 
     fn get_current_height(&self) -> u64 {
         let wallet = self.get_current_wallet();
         self.global_state_service
@@ -108,6 +120,7 @@ where
             .unwrap()
     }
 
+    // write block to internal database
     fn do_save_block_to_chain(&mut self, value: &Value, kind: &str) {
         if self.wallets.is_empty() {
             return;
@@ -133,6 +146,7 @@ where
         let _ = self.write_block(height, &m2);
     }
 
+    // low level block processing
     pub fn write_block(&self, block_height: u64, block: &Block) -> Result<()> {
         let block_results = self.client.block_results(block_height)?;
 
@@ -161,15 +175,21 @@ where
         Ok(())
     }
 
+    // now one session is complete
+    // let's wait some time to next blocks
     pub fn change_to_wait(&mut self) {
         self.state = WebsocketState::WaitProcess;
         self.state_time = SystemTime::now();
     }
 
+    // tx channel for this thread
     pub fn get_queue(&self) -> Sender<OwnedMessage> {
         self.my_sender.clone()
     }
 
+    // because everything is done via channel
+    // no mutex is necessary
+    // wallet can be added in runtime
     pub fn add_wallet(&mut self, name: String, passphrase2: String) -> JsonResult<()> {
         let passphrase: SecUtf8 = passphrase2.into();
         println!("add_wallet ***** {} {}", name, passphrase);
@@ -201,10 +221,12 @@ where
         Ok(())
     }
 
+    // Value is given from websocket_rpc
     // received
     fn do_parse(&mut self, value: Value) -> Option<()> {
         let id = value["id"].as_str()?;
         match id {
+            // this is special, it's command
             "add_wallet" => {
                 let name = value["wallet"]["name"].as_str().unwrap();
                 let passphrase = value["wallet"]["passphrase"].as_str().unwrap();
@@ -238,6 +260,7 @@ where
         }
         None
     }
+    // proceed next wallet
     pub fn change_wallet(&mut self) {
         println!("change wallet");
         // increase
@@ -245,12 +268,16 @@ where
         assert!(!self.wallets.is_empty());
         self.current_wallet %= self.wallets.len();
     }
+    // only process text messages
+    // session is handled in websocket_rpc
     pub fn parse(&mut self, message: OwnedMessage) {
         if let OwnedMessage::Text(a) = message {
             let b: Value = serde_json::from_str(a.as_str()).unwrap();
             self.do_parse(b);
         }
     }
+    // max height is queried
+    // get those blocks from tendermint
     pub fn prepare_get_blocks(&mut self, height: String) {
         self.max_height = height.parse::<u64>().unwrap();
         if self.get_current_height() < self.max_height {
@@ -274,6 +301,7 @@ where
             self.change_wallet();
         }
     }
+    // request status to fetch max height
     pub fn check_status(&mut self) {
         let mut sink = self.sender.clone().wait();
         sink.send(OwnedMessage::Text(CMD_STATUS.to_string()))
@@ -281,6 +309,7 @@ where
         self.state = WebsocketState::GetStatus;
     }
 
+    // called regularly, when receive time expires
     pub fn polling(&mut self) {
         match self.state {
             WebsocketState::ReadyProcess => {
@@ -301,6 +330,7 @@ where
         }
     }
 
+    // called in get blocks state
     pub fn polling_get_blocks(&mut self) {
         let now = SystemTime::now();
         let diff = now.duration_since(self.old_blocktime).unwrap().as_millis();
@@ -312,6 +342,8 @@ where
         self.send_request_block();
     }
 
+    // fetching blocks is handled indivisually 
+    // in one thread instead of dedicated thread
     pub fn send_request_block(&mut self) {
         let mut json: Value = serde_json::from_str(CMD_BLOCK).unwrap();
         let request = self.get_current_height() + 1;
@@ -320,6 +352,7 @@ where
         sink.send(OwnedMessage::Text(json.to_string())).unwrap();
     }
 
+    // decrypt using viewkey
     fn check_unencrypted_transactions(
         &self,
         block_filter: &BlockFilter,
