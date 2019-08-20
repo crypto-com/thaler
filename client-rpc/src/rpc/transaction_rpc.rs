@@ -55,12 +55,6 @@ impl TransactionRpc for TransactionRpcImpl {
         outputs: Vec<TxOut>,
         view_keys: Vec<PublicKey>,
     ) -> Result<RawTransaction> {
-        // let view_keys = view_keys
-        //     .iter()
-        //     .map(|view_key| PublicKey::from_str(view_key))
-        //     .collect::<CommonResult<Vec<PublicKey>>>()
-        //     .map_err(to_rpc_error)?;
-
         let mut access_policies: Vec<TxAccessPolicy> = vec![];
 
         for key in view_keys.iter() {
