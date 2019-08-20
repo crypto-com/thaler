@@ -12,7 +12,6 @@ use std::thread;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
 
-pub const CONNECTION: &str = "ws://localhost:26657/websocket";
 pub const CMD_SUBSCRIBE: &str = r#"
     {
         "jsonrpc": "2.0",
@@ -52,11 +51,15 @@ pub type WalletInfos = Vec<WalletInfo>;
 // using ws://localhost:26657/websocket
 pub struct WebsocketRpc {
     core: Option<MyQueue>,
+    websocket_url: String,
 }
 
 impl WebsocketRpc {
-    pub fn new() -> Self {
-        Self { core: None }
+    pub fn new(websocket_url: String) -> Self {
+        Self {
+            core: None,
+            websocket_url,
+        }
     }
 
     pub fn start_sync<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
@@ -83,7 +86,7 @@ impl WebsocketRpc {
         storage: S,
         block_handler: H,
     ) {
-        println!("Connecting to {}", CONNECTION);
+        println!("Connecting to {}", self.websocket_url);
         let mut runtime = tokio::runtime::current_thread::Builder::new()
             .build()
             .unwrap();
@@ -94,7 +97,7 @@ impl WebsocketRpc {
         let mut channel_sink = channel_tx.clone().wait();
         self.start_sync(channel_tx.clone(), wallets, client, storage, block_handler);
 
-        let runner = ClientBuilder::new(CONNECTION)
+        let runner = ClientBuilder::new(&self.websocket_url)
             .unwrap()
             .add_protocol("rust-websocket")
             .async_connect_insecure()

@@ -44,6 +44,7 @@ pub(crate) struct Server {
     network_id: u8,
     storage_dir: String,
     tendermint_url: String,
+    websocket_url: String,
 }
 
 impl Server {
@@ -56,6 +57,7 @@ impl Server {
             network_id,
             storage_dir: options.storage_dir,
             tendermint_url: options.tendermint_url,
+            websocket_url: options.websocket_url,
         })
     }
 
@@ -126,6 +128,7 @@ impl Server {
 
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
         println!("web socket");
+        let url = self.websocket_url.clone();
         let mut wallet_infos: WalletInfos = vec![];
         let tendermint_client = RpcClient::new(&self.tendermint_url);
         let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
@@ -175,7 +178,7 @@ impl Server {
         let _child = thread::spawn(move || {
             // some work here
             println!("start websocket");
-            let mut web = WebsocketRpc::new();
+            let mut web = WebsocketRpc::new(url);
             web.run(
                 wallet_infos,
                 tendermint_client,
