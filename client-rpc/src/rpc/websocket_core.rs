@@ -17,6 +17,11 @@ use std::sync::mpsc;
 use std::time;
 use std::time::SystemTime;
 use websocket::OwnedMessage;
+use client_core::{ WalletClient};
+use crate::server::{to_rpc_error};
+use jsonrpc_core::Result as JsonResult;
+use secstr::SecUtf8;
+use client_common::{ Error,ErrorKind};
 
 const WAIT_PROCESS_TIME: u128 = 5000; // milli seconds
 const BLOCK_REQUEST_TIME: u128 = 10; // milli seconds
@@ -29,11 +34,12 @@ pub enum WebsocketState {
     WaitProcess,
 }
 
-pub struct WebsocketCore<S, C, H>
+pub struct WebsocketCore<S, C, H,T>
 where
     S: Storage,
     C: Client,
     H: BlockHandler,
+    T: WalletClient,
 {
     sender: futures::sync::mpsc::Sender<OwnedMessage>,
     my_sender: Sender<OwnedMessage>,
@@ -48,13 +54,15 @@ where
     block_handler: H,
     wallets: Vec<WalletInfo>,
     current_wallet: usize,
+    wallet_client: T, 
 }
 
-impl<S, C, H> WebsocketCore<S, C, H>
+impl<S, C, H,T> WebsocketCore<S, C, H,T>
 where
     S: Storage,
     C: Client,
     H: BlockHandler,
+    T: WalletClient,
 {
     pub fn new(
         sender: futures::sync::mpsc::Sender<OwnedMessage>,
@@ -62,6 +70,7 @@ where
         client: C,
         block_handler: H,
         wallets: WalletInfos,
+        wallet_client:T,
     ) -> Self {
         let gss = GlobalStateService::new(storage);
 
@@ -83,6 +92,8 @@ where
             block_handler,
             wallets,
             current_wallet: 0,
+
+            wallet_client,
         }
     }
 
@@ -157,10 +168,47 @@ where
         self.my_sender.clone()
     }
 
+    pub fn add_wallet(&mut self, name: String, passphrase2: String) -> JsonResult<()>{
+        let passphrase: SecUtf8 = passphrase2.into();
+           println!("add_wallet ***** {} {}", name, passphrase);
+            let view_key = self
+            .wallet_client
+            .view_key(&name, &passphrase)
+            .map_err(to_rpc_error)?;
+        let private_key = self
+            .wallet_client
+            .private_key(&passphrase, &view_key)
+            .map_err(to_rpc_error)?
+            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
+            .map_err(to_rpc_error)?;
+
+        let staking_addresses = self
+            .wallet_client
+            .staking_addresses(&name, &passphrase)
+            .map_err(to_rpc_error)?;
+
+        let info = WalletInfo {
+            name: name.to_string(),
+            staking_addresses,
+            view_key: view_key.clone(),
+            private_key,
+        };
+
+        self.wallets.push(info.clone());
+        println!("{:?} length {}", info, self.wallets.len());
+        Ok(())
+    }
+
     // received
     fn do_parse(&mut self, value: Value) -> Option<()> {
         let id = value["id"].as_str()?;
         match id {
+            "add_wallet" => {
+                let name = value["wallet"]["name"].as_str().unwrap();
+                let passphrase = value["wallet"]["passphrase"].as_str().unwrap();
+             
+                self.add_wallet(name.to_string(), passphrase.to_string());
+            }  
             "subscribe_reply#event" => {
                 self.do_save_block_to_chain(&value["result"]["data"]["value"], "event");
             }
@@ -182,7 +230,9 @@ where
                     }
                 }
             }
-            _ => {}
+            _ => {
+                println!("unprocessed {}", serde_json::to_string(&value).unwrap());
+            }
         }
         None
     }
