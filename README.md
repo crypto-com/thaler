@@ -119,6 +119,8 @@ Please follow the [instruction](https://crypto-com.github.io/getting-started/loc
 
 Kindly refer to this [instruction](https://crypto-com.github.io/getting-started/send_your_first_transaction.html#send-your-first-transaction) to perform transactions between addresses.
 
+<a id="testing" />
+
 ## 8. Testing
 
 To run the test cases
