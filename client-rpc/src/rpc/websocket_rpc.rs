@@ -2,14 +2,13 @@ use crate::rpc::websocket_core::WebsocketCore;
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
 use client_common::{PrivateKey, PublicKey, Storage};
+use client_core::WalletClient;
 use client_index::BlockHandler;
 use futures::future::Future;
 use futures::sink::Sink;
 use futures::stream::Stream;
 use futures::sync::mpsc;
 use mpsc::Sender;
-use serde::{Deserialize, Serialize};
-use client_core::{MultiSigWalletClient, WalletClient};
 use std::thread;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
@@ -67,21 +66,28 @@ impl WebsocketRpc {
         }
     }
 
-    pub fn add_wallet(wallet: WalletInfo) {
-        println!("add wallet");
-    }
-
-    pub fn start_sync<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static,
-    T: WalletClient + 'static >(
+    pub fn start_sync<
+        S: Storage + 'static,
+        C: Client + 'static,
+        H: BlockHandler + 'static,
+        T: WalletClient + 'static,
+    >(
         &mut self,
         sender: Sender<OwnedMessage>,
         wallet_infos: WalletInfos,
         client: C,
         storage: S,
         handler: H,
-        wallet_client: T, 
+        wallet_client: T,
     ) -> std::sync::mpsc::Sender<OwnedMessage> {
-        let mut core = WebsocketCore::new(sender.clone(), storage, client, handler, wallet_infos, wallet_client);
+        let mut core = WebsocketCore::new(
+            sender.clone(),
+            storage,
+            client,
+            handler,
+            wallet_infos,
+            wallet_client,
+        );
         self.core = Some(core.get_queue());
         let ret = core.get_queue().clone();
         let _child = thread::spawn(move || {
@@ -90,14 +96,18 @@ impl WebsocketRpc {
         ret
     }
 
-    pub fn run<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static,
-     T: WalletClient+ 'static>(
+    pub fn run<
+        S: Storage + 'static,
+        C: Client + 'static,
+        H: BlockHandler + 'static,
+        T: WalletClient + 'static,
+    >(
         &mut self,
         wallets: WalletInfos,
         client: C,
         storage: S,
         block_handler: H,
-        wallet_cleint:T, 
+        wallet_cleint: T,
     ) {
         println!("Connecting to {}", self.websocket_url);
         let channel = mpsc::channel(0);
@@ -106,7 +116,14 @@ impl WebsocketRpc {
         self.my_sender = Some(channel_tx.clone());
         self.my_receiver = Some(channel_rx);
 
-        self.start_sync(channel_tx.clone(), wallets, client, storage, block_handler, wallet_cleint);
+        self.start_sync(
+            channel_tx.clone(),
+            wallets,
+            client,
+            storage,
+            block_handler,
+            wallet_cleint,
+        );
         assert!(self.core.is_some());
     }
 

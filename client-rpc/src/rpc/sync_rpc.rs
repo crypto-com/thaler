@@ -1,7 +1,6 @@
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
-use crate::rpc::websocket_rpc::{WalletInfo, WalletInfos, WebsocketRpc};
 use crate::server::{to_rpc_error, WalletRequest};
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;

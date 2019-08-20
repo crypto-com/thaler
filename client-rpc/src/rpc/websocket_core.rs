@@ -1,27 +1,27 @@
 use crate::rpc::websocket_rpc::{WalletInfo, WalletInfos};
 use crate::rpc::websocket_rpc::{CMD_BLOCK, CMD_STATUS};
+use crate::server::to_rpc_error;
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_filter::BlockFilter;
 use chrono::Local;
 use client_common::tendermint::types::Block;
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, Result, Storage, Transaction};
+use client_common::{Error, ErrorKind};
+use client_core::WalletClient;
 use client_index::service::GlobalStateService;
 use client_index::BlockHandler;
 use futures::sink::Sink;
+use jsonrpc_core::Result as JsonResult;
 use mpsc::Receiver;
 use mpsc::Sender;
+use secstr::SecUtf8;
 use serde_json::json;
 use serde_json::Value;
 use std::sync::mpsc;
 use std::time;
 use std::time::SystemTime;
 use websocket::OwnedMessage;
-use client_core::{ WalletClient};
-use crate::server::{to_rpc_error};
-use jsonrpc_core::Result as JsonResult;
-use secstr::SecUtf8;
-use client_common::{ Error,ErrorKind};
 
 const WAIT_PROCESS_TIME: u128 = 5000; // milli seconds
 const BLOCK_REQUEST_TIME: u128 = 10; // milli seconds
@@ -34,7 +34,7 @@ pub enum WebsocketState {
     WaitProcess,
 }
 
-pub struct WebsocketCore<S, C, H,T>
+pub struct WebsocketCore<S, C, H, T>
 where
     S: Storage,
     C: Client,
@@ -54,10 +54,10 @@ where
     block_handler: H,
     wallets: Vec<WalletInfo>,
     current_wallet: usize,
-    wallet_client: T, 
+    wallet_client: T,
 }
 
-impl<S, C, H,T> WebsocketCore<S, C, H,T>
+impl<S, C, H, T> WebsocketCore<S, C, H, T>
 where
     S: Storage,
     C: Client,
@@ -70,7 +70,7 @@ where
         client: C,
         block_handler: H,
         wallets: WalletInfos,
-        wallet_client:T,
+        wallet_client: T,
     ) -> Self {
         let gss = GlobalStateService::new(storage);
 
@@ -98,7 +98,6 @@ where
     }
 
     fn get_current_wallet(&self) -> WalletInfo {
-        assert!(!self.wallets.is_empty());
         assert!(self.current_wallet < self.wallets.len());
         self.wallets[self.current_wallet].clone()
     }
@@ -110,6 +109,9 @@ where
     }
 
     fn do_save_block_to_chain(&mut self, value: &Value, kind: &str) {
+        if self.wallets.is_empty() {
+            return;
+        }
         // restore as object
         let height: u64 = value["block"]["header"]["height"]
             .as_str()
@@ -168,10 +170,10 @@ where
         self.my_sender.clone()
     }
 
-    pub fn add_wallet(&mut self, name: String, passphrase2: String) -> JsonResult<()>{
+    pub fn add_wallet(&mut self, name: String, passphrase2: String) -> JsonResult<()> {
         let passphrase: SecUtf8 = passphrase2.into();
-           println!("add_wallet ***** {} {}", name, passphrase);
-            let view_key = self
+        println!("add_wallet ***** {} {}", name, passphrase);
+        let view_key = self
             .wallet_client
             .view_key(&name, &passphrase)
             .map_err(to_rpc_error)?;
@@ -195,7 +197,7 @@ where
         };
 
         self.wallets.push(info.clone());
-        println!("{:?} length {}", info, self.wallets.len());
+        println!("wallets length {}", self.wallets.len());
         Ok(())
     }
 
@@ -206,9 +208,9 @@ where
             "add_wallet" => {
                 let name = value["wallet"]["name"].as_str().unwrap();
                 let passphrase = value["wallet"]["passphrase"].as_str().unwrap();
-             
-                self.add_wallet(name.to_string(), passphrase.to_string());
-            }  
+
+                let _ = self.add_wallet(name.to_string(), passphrase.to_string());
+            }
             "subscribe_reply#event" => {
                 self.do_save_block_to_chain(&value["result"]["data"]["value"], "event");
             }
@@ -282,7 +284,9 @@ where
     pub fn polling(&mut self) {
         match self.state {
             WebsocketState::ReadyProcess => {
-                self.check_status();
+                if !self.wallets.is_empty() {
+                    self.check_status();
+                }
             }
             WebsocketState::WaitProcess => {
                 let now = SystemTime::now();

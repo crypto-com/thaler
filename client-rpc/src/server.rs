@@ -37,7 +37,7 @@ type AppTransactionHandler = DefaultTransactionHandler<SledStorage>;
 type AppBlockHandler =
     DefaultBlockHandler<AppTransactionCipher, AppTransactionHandler, SledStorage>;
 type AppSynchronizer = ManualSynchronizer<SledStorage, RpcClient, AppBlockHandler>;
-use websocket::{ClientBuilder, OwnedMessage};
+use websocket::OwnedMessage;
 pub(crate) struct Server {
     host: String,
     port: u16,
@@ -130,9 +130,6 @@ impl Server {
 
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
         println!("web socket");
-        let (tx, rx) = std::sync::mpsc::channel::<OwnedMessage>();
-        self.websocket_queue = Some(tx);
-
         let url = self.websocket_url.clone();
         let mut wallet_infos: WalletInfos = vec![];
         let tendermint_client = RpcClient::new(&self.tendermint_url);
@@ -147,12 +144,7 @@ impl Server {
         loop {
             let name = self.ask_string("enter wallet name=", "");
             if name == "" {
-                if wallet_infos.is_empty() {
-                    println!("you need at least one wallet to proceed");
-                    continue;
-                } else {
-                    break;
-                }
+                break;
             }
 
             let passphrase = self.ask_passphrase(None)?;
@@ -169,8 +161,6 @@ impl Server {
                 staking_addresses,
                 view_key,
                 private_key,
-               
-                
             });
         }
         for w in &wallet_infos {
@@ -179,7 +169,7 @@ impl Server {
                 println!("staking_address={}", x);
             }
         }
-        assert!(!wallet_infos.is_empty());
+
         println!("press anykey to continue");
         let _ = quest::text();
         let mut web = WebsocketRpc::new(url);
@@ -189,7 +179,7 @@ impl Server {
             tendermint_client,
             storage.clone(),
             block_handler,
-             wallet_client,
+            wallet_client,
         );
         assert!(web.core.is_some());
         self.websocket_queue = Some(web.core.as_mut().unwrap().clone());
