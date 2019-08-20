@@ -20,10 +20,9 @@
   5.1. [Build Prerequisites](#build-prerequisites)<br />
   5.2. [Build from Source Code](#build-from-src)<br />
 6. [Start a Local Full Node](#start-local-full-node)<br />
-7. [Start a Basic Lite Node](#start-lite-node)<br />
-8. [Send your First Transaction](#send-first-transaction)
-9. [Testing](#testing)
-10. [Useful LInks](#useful-links)
+7. [Send your First Transaction](#send-first-transaction)
+8. [Testing](#testing)
+9. [Useful LInks](#useful-links)
  
 <a id="description" />
 
@@ -112,64 +111,15 @@ The built executables will be put inside folder `/target/debug/` by default.
 
 Please follow the [instruction](https://crypto-com.github.io/getting-started/local_full_node_development.html) to deploy a local full node.
 
-## 7. Start a Basic Lite Node
 
-```bash
-$ tendermint lite
-```
-
----
 
 <a id="send-first-transaction" />
 
-## 8. Send Your First Transaction
+## 7. Send Your First Transaction
 
- Before doing any transaction, It is noted that, the genesis fund is **staked** at the beginning. To move funds freely around, we first have to withdraw it to UTXO:
+Kindly refer to this [instruction](https://crypto-com.github.io/getting-started/send_your_first_transaction.html#send-your-first-transaction) to perform transactions between addresses.
 
-- Create an address in type `Transfer` to receive funds by:
-
-  ```bash
-  $ ./target/debug/client-cli address new --name Default --type Transfer
-  Enter passphrase: 
-  New address: dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg
-  ```
-
-- Withdrawal the bonded funds.
-
-  **staking address**: Previously [generated address](https://crypto-com.github.io/getting-started/local_full_node_development.html#step-1-generate-genesis) in your wallet to receive genesis funds
-  **transfer address**: Wallet Transfer address we just generated 
-
-  ```bash
-  $ ./target/debug/client-cli transaction new --chain-id AB --name Default --type Withdraw
-  Enter passphrase: 
-  Enter staking address: 0xbdb46d64ed9da69093490a578158b1a20d96370b
-  Enter transfer address: dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg
-  ```
-
-Transfer CRO to another address: 
-  - Once we have withdrawn the genesis funds, we can run the subcommand `sync` to sync our wallet:
-    ```bash
-    $ ./target/debug/client-cli sync --name Default
-    ```
-  - Then we can show the current balance by:
-    ```bash
-    $ ./target/debug/client-cli balance --name Default
-    Enter passphrase: 
-    Wallet balance: 24999999999.99999774
-    ``` 
-
-  - Lastly, we can transfer our tokens to another address by:
-    ```bash
-    $./target/debug/client-cli transaction new  --chain-id AB --name Default --type Transfer
-    Enter passphrase: 
-    Enter output address: <Receiver_Address>
-    Enter amount: <Transfer_Amount>
-    ```
----
-
-<a id="testing" />
-
-## 9. Testing
+## 8. Testing
 
 To run the test cases
 ```bash
@@ -191,7 +141,7 @@ $ docker run --security-opt seccomp=unconfined -v "$PWD:/volume" xd009642/tarpau
 
 <a id="useful-links" />
 
-## 10. Useful links
+## 9. Useful links
 
 * [Project Website](http://crypto.com/chain)
 * [Technical Documentation](https://crypto-com.github.io)
