@@ -7,7 +7,7 @@ services:
       context: ../
       dockerfile: ./integration-tests/docker/tendermint/Dockerfile
       args:
-        VERSION: ${TENDERMINT_VERSION:-0.30.4}
+        VERSION: ${TENDERMINT_VERSION:-0.32.0}
     environment:
       FEE_SCHEMA: WITHFEE
       PROXY_APP: tcp://chain-abci:26658

@@ -38,8 +38,12 @@ const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
 pub enum EnclaveRequest {
     /// a sanity check (sends the chain network ID -- last byte / two hex digits convention)
     /// during InitChain or startup (to test one connected to the correct process)
+    /// and the last processed app hash
     /// FIXME: test genesis hash etc.
-    CheckChain { chain_hex_id: u8 },
+    CheckChain {
+        chain_hex_id: u8,
+        last_app_hash: Option<H256>,
+    },
     /// "stateless" transaction validation requests (sends transaction + all required information)
     /// double-spent / BitVec check done in chain-abci
     /// FIXME: when sealing is done, sealed TX would probably be stored by enclave server, hence this should send TxPointers instead
@@ -49,16 +53,21 @@ pub enum EnclaveRequest {
         account: Option<StakedState>,
         info: ChainInfo,
     },
+    /// request to flush/persist storage + store the computed app hash
+    /// FIXME: enclave should be able to compute a part of app hash, so send the other parts and check the same app hash was computed
+    CommitBlock { app_hash: H256 },
 }
 
 /// reponses sent from enclave wrapper server to chain-abci app
 /// TODO: better error responses?
 #[derive(Encode, Decode)]
 pub enum EnclaveResponse {
-    /// returns OK if chain_hex_id matches the one embedded in enclave
-    CheckChain(Result<(), ()>),
+    /// returns OK if chain_hex_id matches the one embedded in enclave and last_app_hash matches (returns the last app hash if any)
+    CheckChain(Result<(), Option<H256>>),
     /// returns the affected (account) state (if any) and paid fee if the TX is valid
     VerifyTx(Result<(Fee, Option<StakedState>), ()>),
+    /// returns if the data was sucessfully persisted in the enclave's local storage
+    CommitBlock(Result<(), ()>),
     /// response if unsupported tx type is sent (e.g. unbondtx) -- TODO: probably unnecessary if there is a data type with a subset of TxAux
     UnsupportedTxType,
     /// response if the enclave failed to parse the request
