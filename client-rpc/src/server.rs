@@ -105,29 +105,6 @@ impl Server {
 
         ManualSynchronizer::new(storage, tendermint_client, block_handler)
     }
-
-    fn ask_passphrase(&self, message: Option<&str>) -> Result<SecUtf8> {
-        match message {
-            None => ask("Enter passphrase: "),
-            Some(message) => ask(message),
-        }
-        Ok(password().context(ErrorKind::IoError)?.into())
-    }
-
-    fn ask_string(&self, msg: &str, default: &str) -> String {
-        quest::ask(msg);
-        match quest::text() {
-            Ok(a) => {
-                if "" == a {
-                    default.to_string()
-                } else {
-                    a
-                }
-            }
-            Err(_b) => default.to_string(),
-        }
-    }
-
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
         println!("web socket");
         let url = self.websocket_url.clone();
@@ -140,38 +117,6 @@ impl Server {
 
         let wallet_client = self.make_wallet_client(storage.clone());
 
-        println!("press enter to complete");
-        loop {
-            let name = self.ask_string("enter wallet name=", "");
-            if name == "" {
-                break;
-            }
-
-            let passphrase = self.ask_passphrase(None)?;
-
-            let view_key = wallet_client.view_key(name.as_str(), &passphrase)?;
-            let private_key = wallet_client
-                .private_key(&passphrase, &view_key)?
-                .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
-
-            let staking_addresses = wallet_client.staking_addresses(name.as_str(), &passphrase)?;
-
-            wallet_infos.push(WalletInfo {
-                name: name.to_string(),
-                staking_addresses,
-                view_key,
-                private_key,
-            });
-        }
-        for w in &wallet_infos {
-            println!("name={}   view-key={}", w.name, w.view_key);
-            for x in &w.staking_addresses {
-                println!("staking_address={}", x);
-            }
-        }
-
-        println!("press anykey to continue");
-        let _ = quest::text();
         let mut web = WebsocketRpc::new(url);
 
         web.run(
