@@ -105,7 +105,7 @@ where
 
     fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState> {
         self.ops_client
-            .get_staked_state(&request.name, &request.passphrase, address)
+            .get_staked_state(&request.name, &request.passphrase, &address)
             .map_err(to_rpc_error)
     }
 

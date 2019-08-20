@@ -35,9 +35,47 @@ pub type Nonce = u64;
 
 /// StakedState address type
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum StakedStateAddress {
     BasicRedeem(RedeemAddress),
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for StakedStateAddress {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for StakedStateAddress {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct StrVisitor;
+
+        impl<'de> de::Visitor<'de> for StrVisitor {
+            type Value = StakedStateAddress;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("staking address")
+            }
+
+            #[inline]
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                StakedStateAddress::from_str(value)
+                    .map_err(|err| de::Error::custom(err.to_string()))
+            }
+        }
+
+        deserializer.deserialize_str(StrVisitor)
+    }
 }
 
 impl TryFrom<&[u8]> for StakedStateAddress {
@@ -79,17 +117,8 @@ pub struct StakedState {
     pub bonded: Coin,
     pub unbonded: Coin,
     pub unbonded_from: Timespec,
-    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_address"))]
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_address"))]
     pub address: StakedStateAddress,
     // TODO: slashing + jailing
-}
-
-fn serialize_address<S>(address: &StakedStateAddress, serializer: S) -> std::result::Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    serializer.serialize_str(&address.to_string())
 }
 
 /// the tree used in StakedState storage db has a hardcoded 32-byte keys,
