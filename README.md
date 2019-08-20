@@ -20,11 +20,6 @@
   5.1. [Build Prerequisites](#build-prerequisites)<br />
   5.2. [Build from Source Code](#build-from-src)<br />
 6. [Start a Local Full Node](#start-local-full-node)<br />
-  6.1. [Create a Wallet](#create-wallet)<br />
-  6.2. [Generate Genesis](#generate-genesis)<br />
-  6.3. [Start Chain Transaction Enclaves](#start-chain-transaction-enclaves)<br />
-  6.4. [Start Tendermint](#start-tendermint)<br />
-  6.5. [Start Chain ABCI](#start-chain-abci)<br />
 7. [Start a Basic Lite Node](#start-lite-node)<br />
 8. [Send your First Transaction](#send-first-transaction)
 9. [Testing](#testing)
@@ -76,14 +71,14 @@ Technical documentation can be found in this [Github repository](https://github.
 ### 5.1. Build Prerequisites
 
 Crypto.com chain requires the following to be installed before build.
-
-- [Tendermint](https://github.com/tendermint/tendermint/releases)
-- [Rust and Cargo](https://rustup.rs)
-- cmake
+- [Homebrew](https://brew.sh/)
+- [Tendermint](https://tendermint.com/docs/introduction/install.html#from-binary)
+- [Rust and Cargo](https://rustup.rs) (cargo version: 1.36 onwards)
+- [cmake](https://cmake.org/install/)
   ```bash
   $ brew install cmake
   ```
-- ZeroMQ
+- [ZeroMQ](https://zeromq.org/download/)
   ```bash
   $ brew install zmq
   ```
@@ -115,201 +110,7 @@ The built executables will be put inside folder `/target/debug/` by default.
 
 ## 6. Start a Local Full Node
 
-### 6.1. Initialize Tendermint
-
-```bash
-$ tendermint init
-```
-
-If you previously initialized a Tendermint node, you may need to run before it:
-```bash
-$ tendermint unsafe_reset_all
-```
-<a id="create-wallet" />
-
-### 6.1. Create a Wallet
-
-We will need a wallet to receive genesis funds.
-
-To create a wallet, currently we have [client-rpc](https://github.com/crypto-com/chain/client-rpc) and [client-cli](https://github.com/crypto-com/chain/client-cli) available for this purpose. We will be using [client-cli](https://github.com/crypto-com/chain/client-cli) in this guide.
-
-- Create a new wallet with name "Default". You will be prompted to enter a passphrase.
-  ```bash
-  $ ./target/debug/client-cli wallet new --name Default
-  ```
-- Generate an address for the wallet to receive genesis funds. You will be prompted to enter the wallet passphrase again
-  ```bash
-  $ ./target/debug/client-cli address new --name Default --type Staking
-  Enter passphrase: 
-  New address: 0x3a102b53a12334e984ef51fda0baab1768116363
-  ```
-
-<a id="generate-genesis" />
-
-### 6.2. Generate Genesis
-
-Genesis describes the initial funding distributions as well as other configurations such as validators setup. We will be distributing funds to our newly-created wallet address.
-
-We will need the following information to generate a genesis:
-- **Address to Receive Genesis Funds**: We have just created one in the last step
-- **Genesis Time**: Copy the `genesis_time` from `~/.tendermint/config/genesis.json`
-- **Validator Pub Key**: Copy the `pub_key.value` from `~/.tendermint/config/priv_validator_key.json`
-
-Create a Genesis configuration file `dev-conf.json`
-- Replace `{WALLET_ADDRESS}`, `{PUB_KEY}` and `{GENESIS_TIME}` with information obtained above.
-```json
-{
-    "distribution": {
-        "{WALLET_ADDRESS}": "2500000000000000000",
-        "0x20a0bee429d6907e556205ef9d48ab6fe6a55531": "2500000000000000000",
-        "0x35f517cab9a37bc31091c2f155d965af84e0bc85": "2500000000000000000",
-        "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": "1250000000000000000",
-        "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07": "1250000000000000000"
-    },
-    "unbonding_period": 60,
-    "required_council_node_stake": "1250000000000000000",
-    "initial_fee_policy": {
-        "base_fee": "1.1",
-        "per_byte_fee": "1.25"
-    },
-    "council_nodes": [
-        {
-            "staking_account_address": "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de",
-            "consensus_pubkey_type": "Ed25519",
-            "consensus_pubkey_b64": "{PUB_KEY}"
-        }
-    ],
-    "launch_incentive_from": "0x35f517cab9a37bc31091c2f155d965af84e0bc85",
-    "launch_incentive_to": "0x20a0bee429d6907e556205ef9d48ab6fe6a55531",
-    "long_term_incentive": "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07",
-    "genesis_time": "{GENESIS_TIME}"
-}
-```
-
-- Next, we generate the Genesis Configuration based on the configuration file.
-```bash
-$ ./target/debug/dev-utils genesis generate --genesis_dev_config_path ./dev-conf.json
-
-"app_hash": "B3B873229A5FD2921801E592F3122B61C3CAE0C55FE0346369059F6643C751CC",
-"app_state": {"distribution":{"0x20a0bee429d6907e556205ef9d48ab6fe6a55531":["2500000000000000000","ExternallyOwnedAccount"],"0x35f517cab9a37bc31091c2f155d965af84e0bc85":["2500000000000000000","ExternallyOwnedAccount"],"0x3a102b53a12334e984ef51fda0baab1768116363":["2500000000000000000","ExternallyOwnedAccount"],"0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de":["1250000000000000000","ExternallyOwnedAccount"],"0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07":["1250000000000000000","ExternallyOwnedAccount"]},"launch_incentive_from":"0x35f517cab9a37bc31091c2f155d965af84e0bc85","launch_incentive_to":"0x20a0bee429d6907e556205ef9d48ab6fe6a55531","long_term_incentive":"0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07","network_params":{"initial_fee_policy":{"constant":1001,"coefficient":1025},"required_council_node_stake":"1250000000000000000","unbonding_period":60},"council_nodes":[{"staking_account_address":"0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de","consensus_pubkey_type":"Ed25519","consensus_pubkey_b64":"EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE="}]}
-```
-
-We now have the initial App Hash as well as the App State. In the above example, the App Hash is  `B3B873229A5FD2921801E592F3122B61C3CAE0C55FE0346369059F6643C751CC`
-
-<a id="start-chain-transaction-enclaves" />
-
-### 6.3. Start Transaction Enclaves
-
-Follow the instructions in [Crypto.com Chain Transaction Enclaves](https://github.com/crypto-com/chain-tx-enclave) to build and run the Chain Transaction Enclaves.
-
-<a id="start-tendermint" />
-
-### 6.4. Start Tendermint
-
-- Update Tendermint Genesis Configuration
-
-Copy the generated genesis configuration prepared previously and append it to `~/.tendermint/config/genesis.json` such that the file looks similar to this:
-```json
-{
-  "genesis_time": "2019-05-21T09:47:56.206264Z",
-  "chain_id": "test-chain-y3m1e6-AB",
-  "consensus_params": {
-    "block": {
-      "max_bytes": "22020096",
-      "max_gas": "-1",
-      "time_iota_ms": "1000"
-    },
-    "evidence": { "max_age": "100000" },
-    "validator": { "pub_key_types": ["ed25519"] }
-  },
-  "validators": [
-    {
-      "address": "91A26F2D061827567FE1E2ADC1C22206D4AD0FEF",
-      "pub_key": {
-        "type": "tendermint/PubKeyEd25519",
-        "value": "MFgW9OkoKufCrdAjk7Zx0LMWKA/0ixkmuBpO0flyRtU="
-      },
-      "power": "10",
-      "name": ""
-    }
-  ],
- "app_hash": "B3B873229A5FD2921801E592F3122B61C3CAE0C55FE0346369059F6643C751CC",
-  "app_state": {
-    "distribution": {
-      "0x20a0bee429d6907e556205ef9d48ab6fe6a55531": [
-        "2500000000000000000",
-        "ExternallyOwnedAccount"
-      ],
-      "0x35f517cab9a37bc31091c2f155d965af84e0bc85": [
-        "2500000000000000000",
-        "ExternallyOwnedAccount"
-      ],
-      "0x3a102b53a12334e984ef51fda0baab1768116363": [
-        "2500000000000000000",
-        "ExternallyOwnedAccount"
-      ],
-      "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": [
-        "1250000000000000000",
-        "ExternallyOwnedAccount"
-      ],
-      "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07": [
-        "1250000000000000000",
-        "ExternallyOwnedAccount"
-      ]
-    },
-    "launch_incentive_from": "0x35f517cab9a37bc31091c2f155d965af84e0bc85",
-    "launch_incentive_to": "0x20a0bee429d6907e556205ef9d48ab6fe6a55531",
-    "long_term_incentive": "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07",
-    "network_params": {
-      "initial_fee_policy": {
-        "constant": 1001,
-        "coefficient": 1025
-      },
-      "required_council_node_stake": "1250000000000000000",
-      "unbonding_period": 60
-    },
-    "council_nodes": [
-      {
-        "staking_account_address": "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de",
-        "consensus_pubkey_type": "Ed25519",
-        "consensus_pubkey_b64": "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE="
-      }
-    ]
-  }
-}
-```
-
-- Start Tendermint Node
-
-```bash
-$ tendermint node
-```
-
-<a id="start-chain-abci" />
-
-### 6.5. Start Chain ABCI
-
-To start the Chain ABCI, you will need two pieces of data
-- **App Hash**: Prepared in the [Generate Genesis](#generate-genesis) step
-- **Full Chain ID**: Copy the `chain_id` found in `~/.tendermint/config/genesis.json` (e.g. test-chain-mafL4t-AA)
-
-Run
-```bash
-$ chain-abci -g <APP_HASHx> -c <FULL_CHAIN_ID> --enclave_server tcp://127.0.0.1:25933
-```
-
-If you need backtraces or logging, set the environment variables before it:
-```bash
-$ RUST_BACKTRACE=1 RUST_LOG=info \
-chain-abci \
--g <APP_HASH> \
--c <FULL_CHAIN_ID> \
---enclave_server tcp://127.0.0.1:25933
-```
-
----
-
-<a id="start-lite-node" />
+Please follow the [instruction](https://crypto-com.github.io/getting-started/local_full_node_development.html) to deploy a local full node.
 
 ## 7. Start a Basic Lite Node
 
@@ -323,31 +124,47 @@ $ tendermint lite
 
 ## 8. Send Your First Transaction
 
-Genesis funds are bonded funds, to transfer freely around, you first have to withdraw to UTXO
+ Before doing any transaction, It is noted that, the genesis fund is **staked** at the beginning. To move funds freely around, we first have to withdraw it to UTXO:
 
-- Create Transfer Address
+- Create an address in type `Transfer` to receive funds by:
 
-```bash
-$ ./target/debug/client-cli address new --name Default --type Transfer
-dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg
-```
+  ```bash
+  $ ./target/debug/client-cli address new --name Default --type Transfer
+  Enter passphrase: 
+  New address: dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg
+  ```
 
-- Withdrawal Bonded Funds
+- Withdrawal the bonded funds.
 
-**staking address**: Previously generated address in your wallet to receive genesis funds
-**transfer address**: Wallet Transfer address we just generated
+  **staking address**: Previously [generated address](https://crypto-com.github.io/getting-started/local_full_node_development.html#step-1-generate-genesis) in your wallet to receive genesis funds
+  **transfer address**: Wallet Transfer address we just generated 
 
-```bash
-$ ./target/debug/client-cli transaction new --chain-id AB --name Default --type Withdraw
-Enter passphrase: 
-Enter staking address: 0xbdb46d64ed9da69093490a578158b1a20d96370b
-Enter transfer address: dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg
-```
+  ```bash
+  $ ./target/debug/client-cli transaction new --chain-id AB --name Default --type Withdraw
+  Enter passphrase: 
+  Enter staking address: 0xbdb46d64ed9da69093490a578158b1a20d96370b
+  Enter transfer address: dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg
+  ```
 
-- Transfer CRO to another address
+Transfer CRO to another address: 
+  - Once we have withdrawn the genesis funds, we can run the subcommand `sync` to sync our wallet:
+    ```bash
+    $ ./target/debug/client-cli sync --name Default
+    ```
+  - Then we can show the current balance by:
+    ```bash
+    $ ./target/debug/client-cli balance --name Default
+    Enter passphrase: 
+    Wallet balance: 24999999999.99999774
+    ``` 
 
-Work in Progresss
-
+  - Lastly, we can transfer our tokens to another address by:
+    ```bash
+    $./target/debug/client-cli transaction new  --chain-id AB --name Default --type Transfer
+    Enter passphrase: 
+    Enter output address: <Receiver_Address>
+    Enter amount: <Transfer_Amount>
+    ```
 ---
 
 <a id="testing" />
@@ -359,7 +176,7 @@ To run the test cases
 $ cargo test
 ```
 
-To measure code coverage
+To measure code coverage by [cargo-tarpaulin](https://crates.io/crates/cargo-tarpaulin):
 ```bash
 $ cargo tarpaulin
 ```

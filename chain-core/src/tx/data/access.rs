@@ -1,7 +1,12 @@
+use std::fmt;
+use std::str::FromStr;
+
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use secp256k1::key::PublicKey;
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use serde::de;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::H264;
 
@@ -27,8 +32,48 @@ impl Default for TxAccess {
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxAccessPolicy {
+    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_view_key"))]
+    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_view_key"))]
     pub view_key: PublicKey,
     pub access: TxAccess,
+}
+
+#[cfg(feature = "serde")]
+fn serialize_view_key<S>(
+    view_key: &PublicKey,
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let view_key_string = format!("{}", view_key);
+    serializer.serialize_str(&view_key_string)
+}
+
+#[cfg(feature = "serde")]
+fn deserialize_view_key<'de, D>(deserializer: D) -> std::result::Result<PublicKey, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct StrVisitor;
+
+    impl<'de> de::Visitor<'de> for StrVisitor {
+        type Value = PublicKey;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+            formatter.write_str("view key in hexadecimal string")
+        }
+
+        #[inline]
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            PublicKey::from_str(value).map_err(|err| de::Error::custom(err.to_string()))
+        }
+    }
+
+    deserializer.deserialize_str(StrVisitor)
 }
 
 impl Encode for TxAccessPolicy {

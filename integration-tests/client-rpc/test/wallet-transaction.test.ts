@@ -235,7 +235,7 @@ describe("Wallet transaction", () => {
 			},
 			"Sender should have one Incoming transaction",
 		);
-		expect(senderWalletLastTransaction.kind).to.eq("incoming");
+		expect(senderWalletLastTransaction.kind).to.eq(TransactionDirection.INCOMING);
 		const senderWalletIncomingAmount = senderWalletLastTransaction.amount;
 		expect(
 			new BigNumber(senderWalletIncomingAmount).isLessThan(
@@ -288,8 +288,8 @@ describe("Wallet transaction", () => {
 });
 
 enum TransactionDirection {
-	INCOMING = "incoming",
-	OUTGOING = "outgoing",
+	INCOMING = "Incoming",
+	OUTGOING = "Outgoing",
 }
 interface TransactionAssertion {
 	address?: string;
