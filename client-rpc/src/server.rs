@@ -1,8 +1,9 @@
 use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
 use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
 use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
+use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
-use crate::rpc::websocket_rpc::{WalletInfo, WalletInfos, WebsocketRpc};
+use crate::rpc::websocket_rpc::{WalletInfos, WebsocketRpc};
 use crate::Options;
 use chain_core::tx::fee::LinearFee;
 use client_common::error::{Error, ErrorKind, Result};
@@ -11,7 +12,6 @@ use client_common::tendermint::{Client, RpcClient};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
-use client_core::wallet::WalletClient;
 use client_index::cipher::MockAbciTransactionObfuscation;
 use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
@@ -20,7 +20,6 @@ use client_network::network_ops::DefaultNetworkOpsClient;
 use failure::ResultExt;
 use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
-use quest::{ask, password};
 use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
@@ -108,7 +107,7 @@ impl Server {
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
         println!("web socket");
         let url = self.websocket_url.clone();
-        let mut wallet_infos: WalletInfos = vec![];
+        let wallet_infos: WalletInfos = vec![];
         let tendermint_client = RpcClient::new(&self.tendermint_url);
         let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
         let transaction_handler = DefaultTransactionHandler::new(storage.clone());
@@ -142,6 +141,8 @@ impl Server {
         let multisig_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let multisig_rpc = MultiSigRpcImpl::new(multisig_rpc_wallet_client);
 
+        let transaction_rpc = TransactionRpcImpl::new(self.network_id);
+
         let staking_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let ops_client = self.make_ops_client(storage.clone());
         let staking_rpc =
@@ -158,6 +159,7 @@ impl Server {
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);
 
         io.extend_with(multisig_rpc.to_delegate());
+        io.extend_with(transaction_rpc.to_delegate());
         io.extend_with(staking_rpc.to_delegate());
         io.extend_with(sync_rpc.to_delegate());
         io.extend_with(wallet_rpc.to_delegate());
