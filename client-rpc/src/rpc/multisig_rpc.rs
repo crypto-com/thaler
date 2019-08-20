@@ -420,8 +420,19 @@ mod test {
             unreachable!("block")
         }
 
+        fn block_batch<T: Iterator<Item = u64>>(&self, _heights: T) -> CommonResult<Vec<Block>> {
+            unreachable!("block_batch")
+        }
+
         fn block_results(&self, _height: u64) -> CommonResult<BlockResults> {
             unreachable!("block_results")
+        }
+
+        fn block_results_batch<T: Iterator<Item = u64>>(
+            &self,
+            _heights: T,
+        ) -> CommonResult<Vec<BlockResults>> {
+            unreachable!("block_results_batch")
         }
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {

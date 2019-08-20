@@ -20,4 +20,4 @@ parity-scale-codec = { features = ["derive"], version = "1.0" }
 hex = "0.3.2"
 
 [dev-dependencies]
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "29991f23eaaa55ec86491dc78e7455f8f1fe3212", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "ac9843a361114b42178acc119ab77d5a149985f5", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
