@@ -1,14 +1,16 @@
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
+use crate::server::{to_rpc_error, WalletRequest};
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_index::synchronizer::ManualSynchronizer;
 use client_index::BlockHandler;
-
-use crate::server::{to_rpc_error, WalletRequest};
+use serde_json::json;
+use std::sync::Mutex;
+use websocket::OwnedMessage;
 
 #[rpc]
 pub trait SyncRpc: Send + Sync {
@@ -17,6 +19,9 @@ pub trait SyncRpc: Send + Sync {
 
     #[rpc(name = "sync_all")]
     fn sync_all(&self, request: WalletRequest) -> Result<()>;
+
+    #[rpc(name = "sync_continuous")]
+    fn sync_continuous(&self, request: WalletRequest) -> Result<String>;
 }
 
 pub struct SyncRpcImpl<T, S, C, H>
@@ -28,6 +33,7 @@ where
 {
     client: T,
     synchronizer: ManualSynchronizer<S, C, H>,
+    websocket_queue: Mutex<Option<std::sync::mpsc::Sender<OwnedMessage>>>,
 }
 
 impl<T, S, C, H> SyncRpc for SyncRpcImpl<T, S, C, H>
@@ -54,6 +60,23 @@ where
             .sync_all(&staking_addresses, &view_key, &private_key)
             .map_err(to_rpc_error)
     }
+
+    fn sync_continuous(&self, request: WalletRequest) -> Result<String> {
+        let data = json!({
+            "id":"add_wallet",
+            "wallet": request,
+        });
+        let ret = "OK".to_string();
+        {
+            let sendqoption = self.websocket_queue.lock().unwrap();
+            assert!(sendqoption.is_some());
+            let sendq = sendqoption.as_ref().unwrap();
+            sendq
+                .send(OwnedMessage::Text(serde_json::to_string(&data).unwrap()))
+                .unwrap();
+        }
+        Ok(ret)
+    }
 }
 
 impl<T, S, C, H> SyncRpcImpl<T, S, C, H>
@@ -67,7 +90,12 @@ where
         SyncRpcImpl {
             client,
             synchronizer,
+            websocket_queue: Mutex::new(None),
         }
+    }
+
+    pub fn set_websocket_queue(&mut self, q: std::sync::mpsc::Sender<OwnedMessage>) {
+        *self.websocket_queue.lock().unwrap() = Some(q);
     }
 
     fn prepare_synchronized_parameters(

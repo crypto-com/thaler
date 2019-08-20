@@ -1,10 +1,10 @@
-use failure::ResultExt;
-use jsonrpc_core::{self, IoHandler};
-use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
-use secstr::SecUtf8;
-use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
-
+use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
+use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
+use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
+use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
+use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
+use crate::rpc::websocket_rpc::{WalletInfos, WebsocketRpc};
+use crate::Options;
 use chain_core::tx::fee::LinearFee;
 use client_common::error::{Error, ErrorKind, Result};
 use client_common::storage::SledStorage;
@@ -17,12 +17,13 @@ use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
 use client_index::synchronizer::ManualSynchronizer;
 use client_network::network_ops::DefaultNetworkOpsClient;
-
-use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
-use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
-use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
-use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
-use crate::Options;
+use failure::ResultExt;
+use jsonrpc_core::{self, IoHandler};
+use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
+use secstr::SecUtf8;
+use serde::{Deserialize, Serialize};
+use std::net::SocketAddr;
+use std::thread;
 
 type AppSigner = DefaultSigner<SledStorage>;
 type AppIndex = DefaultIndex<SledStorage, RpcClient>;
@@ -35,13 +36,15 @@ type AppTransactionHandler = DefaultTransactionHandler<SledStorage>;
 type AppBlockHandler =
     DefaultBlockHandler<AppTransactionCipher, AppTransactionHandler, SledStorage>;
 type AppSynchronizer = ManualSynchronizer<SledStorage, RpcClient, AppBlockHandler>;
-
+use websocket::OwnedMessage;
 pub(crate) struct Server {
     host: String,
     port: u16,
     network_id: u8,
     storage_dir: String,
     tendermint_url: String,
+    websocket_url: String,
+    websocket_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
 }
 
 impl Server {
@@ -54,6 +57,8 @@ impl Server {
             network_id,
             storage_dir: options.storage_dir,
             tendermint_url: options.tendermint_url,
+            websocket_url: options.websocket_url,
+            websocket_queue: None,
         })
     }
 
@@ -99,10 +104,44 @@ impl Server {
 
         ManualSynchronizer::new(storage, tendermint_client, block_handler)
     }
+    pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
+        println!("web socket");
+        let url = self.websocket_url.clone();
+        let wallet_infos: WalletInfos = vec![];
+        let tendermint_client = RpcClient::new(&self.tendermint_url);
+        let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
+        let transaction_handler = DefaultTransactionHandler::new(storage.clone());
+        let block_handler =
+            DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
+
+        let wallet_client = self.make_wallet_client(storage.clone());
+
+        let mut web = WebsocketRpc::new(url);
+
+        web.run(
+            wallet_infos,
+            tendermint_client,
+            storage.clone(),
+            block_handler,
+            wallet_client,
+        );
+        assert!(web.core.is_some());
+        self.websocket_queue = Some(web.core.as_mut().unwrap().clone());
+
+        let _child = thread::spawn(move || {
+            // some work here
+            println!("start websocket");
+            web.run_network();
+        });
+
+        Ok(())
+    }
 
     pub fn start_client(&self, io: &mut IoHandler, storage: SledStorage) -> Result<()> {
         let multisig_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let multisig_rpc = MultiSigRpcImpl::new(multisig_rpc_wallet_client);
+
+        let transaction_rpc = TransactionRpcImpl::new(self.network_id);
 
         let staking_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let ops_client = self.make_ops_client(storage.clone());
@@ -111,22 +150,28 @@ impl Server {
 
         let sync_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let synchronizer = self.make_synchronizer(storage.clone());
-        let sync_rpc = SyncRpcImpl::new(sync_rpc_wallet_client, synchronizer);
+        let mut sync_rpc = SyncRpcImpl::new(sync_rpc_wallet_client, synchronizer);
+        assert!(self.websocket_queue.is_some());
+        let newone = self.websocket_queue.as_ref().unwrap().clone();
+        sync_rpc.set_websocket_queue(newone);
 
         let wallet_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);
 
         io.extend_with(multisig_rpc.to_delegate());
+        io.extend_with(transaction_rpc.to_delegate());
         io.extend_with(staking_rpc.to_delegate());
         io.extend_with(sync_rpc.to_delegate());
         io.extend_with(wallet_rpc.to_delegate());
         Ok(())
     }
 
-    pub(crate) fn start(&self) -> Result<()> {
+    pub(crate) fn start(&mut self) -> Result<()> {
         let mut io = IoHandler::new();
         let storage = SledStorage::new(&self.storage_dir)?;
 
+        self.start_websocket(storage.clone()).unwrap();
+        println!("ok start_websocket");
         self.start_client(&mut io, storage.clone()).unwrap();
 
         let server = ServerBuilder::new(io)
@@ -137,6 +182,7 @@ impl Server {
             .start_http(&SocketAddr::new(self.host.parse().unwrap(), self.port))
             .expect("Unable to start JSON-RPC server");
 
+        println!("server wait");
         server.wait();
 
         Ok(())
