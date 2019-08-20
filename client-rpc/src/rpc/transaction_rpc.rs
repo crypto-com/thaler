@@ -83,7 +83,7 @@ mod test {
     use chain_core::init::address::CroAddress;
     use chain_core::init::coin::Coin;
     use chain_core::tx::data::address::ExtendedAddr;
-    use client_common::{Error, ErrorKind, PrivateKey};
+    use client_common::PrivateKey;
 
     #[test]
     fn create_raw_flow() {
