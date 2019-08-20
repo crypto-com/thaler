@@ -62,6 +62,10 @@ impl WebsocketRpc {
         }
     }
 
+    pub fn add_wallet(wallet: WalletInfo) {
+        println!("add wallet");
+    }
+
     pub fn start_sync<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
         &mut self,
         sender: Sender<OwnedMessage>,
