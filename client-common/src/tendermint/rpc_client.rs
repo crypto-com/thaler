@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use crate::tendermint::types::*;
 use crate::tendermint::Client;
 use crate::{Error, ErrorKind, Result};
+
 /// Tendermint RPC Client
 #[derive(Clone)]
 pub struct RpcClient {
@@ -41,28 +42,39 @@ impl RpcClient {
     where
         for<'de> T: Deserialize<'de>,
     {
-        // jsonrpc does not handle Hyper connection reset properly. The current
-        // inefficient workaround is to create a new client on every call.
-        // https://github.com/apoelstra/rust-jsonrpc/issues/26
-        let client = JsonRpcClient::new(self.url.to_owned(), None, None);
-        let requests = params
-            .iter()
-            .map(|(name, params)| client.build_request(name, params))
-            .collect::<Vec<Request>>();
-        let responses = client.send_batch(&requests).context(ErrorKind::RpcError)?;
-        responses
-            .into_iter()
-            .map(|response| -> Result<Option<T>> {
-                response
-                    .map(|inner| -> Result<T> {
-                        inner
-                            .result::<T>()
-                            .context(ErrorKind::RpcError)
-                            .map_err(Into::into)
-                    })
-                    .transpose()
-            })
-            .collect::<Result<Vec<Option<T>>>>()
+        if params.is_empty() {
+            // Do not send empty batch requests
+            return Ok(Default::default());
+        }
+
+        if params.len() == 1 {
+            // Do not send batch request when there is only one set of params
+            self.call::<T>(params[0].0, &params[0].1)
+                .map(|value| vec![Some(value)])
+        } else {
+            // jsonrpc does not handle Hyper connection reset properly. The current
+            // inefficient workaround is to create a new client on every call.
+            // https://github.com/apoelstra/rust-jsonrpc/issues/26
+            let client = JsonRpcClient::new(self.url.to_owned(), None, None);
+            let requests = params
+                .iter()
+                .map(|(name, params)| client.build_request(name, params))
+                .collect::<Vec<Request>>();
+            let responses = client.send_batch(&requests).context(ErrorKind::RpcError)?;
+            responses
+                .into_iter()
+                .map(|response| -> Result<Option<T>> {
+                    response
+                        .map(|inner| -> Result<T> {
+                            inner
+                                .result::<T>()
+                                .context(ErrorKind::RpcError)
+                                .map_err(Into::into)
+                        })
+                        .transpose()
+                })
+                .collect::<Result<Vec<Option<T>>>>()
+        }
     }
 }
 
