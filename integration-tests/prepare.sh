@@ -2,9 +2,6 @@
 set -e
 IFS=
 
-# Source constants
-. ./constant-env.sh
-
 # Global function return value
 RET_VALUE=0
 
@@ -169,6 +166,9 @@ function _change_tenermint_chain_id() {
 
 # Always execute at script located directory
 cd "$(dirname "${0}")"
+
+# Source constants
+. ./constant-env.sh
 
 check_command_exist "jq"
 check_command_exist "git"
