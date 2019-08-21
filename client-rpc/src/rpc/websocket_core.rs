@@ -121,16 +121,12 @@ where
     }
 
     // write block to internal database
-    fn do_save_block_to_chain(&mut self, value: &Value, kind: &str) {
+    fn do_save_block_to_chain(&mut self, block: Block, kind: &str) {
         if self.wallets.is_empty() {
             return;
         }
         // restore as object
-        let height: u64 = value["block"]["header"]["height"]
-            .as_str()
-            .unwrap()
-            .parse::<u64>()
-            .unwrap();
+        let height: u64 = block.block.header.height.parse().unwrap();
         let current = self.get_current_height();
         if height != current + 1 {
             println!(
@@ -140,10 +136,7 @@ where
             return;
         }
         println!("******************* {} {}", height, kind);
-        let m = serde_json::to_string(&value).unwrap();
-        let m2: Block = serde_json::from_str(&m).unwrap();
-
-        let _ = self.write_block(height, &m2);
+        let _ = self.write_block(height, &block);
     }
 
     // low level block processing
@@ -234,7 +227,9 @@ where
                 );
             }
             "subscribe_reply#event" => {
-                self.do_save_block_to_chain(&value["result"]["data"]["value"], "event");
+                let newblock: Block =
+                    serde_json::from_value(value["result"]["data"]["value"].clone()).unwrap();
+                self.do_save_block_to_chain(newblock, "event");
             }
             "status_reply" => {
                 let height = value["result"]["sync_info"]["latest_block_height"].as_str()?;
@@ -246,7 +241,8 @@ where
                     self.change_to_wait();
                 } else {
                     let wallet = self.get_current_wallet();
-                    self.do_save_block_to_chain(&value["result"], "get block");
+                    let newblock: Block = serde_json::from_value(value["result"].clone()).unwrap();
+                    self.do_save_block_to_chain(newblock, "get block");
 
                     if self.get_current_height() >= self.max_height {
                         println!("all synced wallet {}.. wait", wallet.name);
