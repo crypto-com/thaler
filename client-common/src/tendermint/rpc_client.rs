@@ -41,6 +41,11 @@ impl RpcClient {
     where
         for<'de> T: Deserialize<'de>,
     {
+        if params.is_empty() {
+            // Do not send empty batch requests
+            return Ok(Default::default());
+        }
+
         // jsonrpc does not handle Hyper connection reset properly. The current
         // inefficient workaround is to create a new client on every call.
         // https://github.com/apoelstra/rust-jsonrpc/issues/26
