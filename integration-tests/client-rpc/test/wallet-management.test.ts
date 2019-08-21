@@ -6,6 +6,9 @@ import {
 	generateWalletName,
 	newWalletRequest,
 	unbondAndWithdrawStake,
+	newZeroFeeRpcClient,
+	shouldTest,
+	FEE_SCHEMA,
 	newWithFeeRpcClient,
 } from "./core/setup";
 chaiUse(chaiAsPromised);
@@ -14,7 +17,11 @@ describe("Wallet management", () => {
 	let client: RpcClient;
 	before(async () => {
 		await unbondAndWithdrawStake();
-		client = newWithFeeRpcClient();
+		if (shouldTest(FEE_SCHEMA.WITH_FEE)) {
+			client = newWithFeeRpcClient();
+		} else if (shouldTest(FEE_SCHEMA.ZERO_FEE)) {
+			client = newZeroFeeRpcClient();
+		}
 	});
 
 	it("cannot access un-existing wallet", async () => {

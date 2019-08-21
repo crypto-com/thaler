@@ -48,12 +48,26 @@ export const newWalletRequest = (
 	};
 };
 
-export const unbondAndWithdrawStake = async () => {
-	const zeroFeeClient: RpcClient = newRpcClient();
-	await unbondAndWithdrawStakeFromClient(zeroFeeClient);
+export const shouldTest = (feeSchema: FEE_SCHEMA) => {
+	const testOnly = process.env.TEST_ONLY;
+	return (!testOnly || testOnly === feeSchema);
+}
 
-	const withFeeClient: RpcClient = newRpcClient("localhost", 26659);
-	await unbondAndWithdrawStakeFromClient(withFeeClient);
+export enum FEE_SCHEMA {
+	ZERO_FEE = "ZERO_FEE",
+	WITH_FEE = "WITH_FEE",
+}
+
+export const unbondAndWithdrawStake = async () => {
+	if (shouldTest(FEE_SCHEMA.ZERO_FEE)) {
+		const zeroFeeClient: RpcClient = newRpcClient();
+		await unbondAndWithdrawStakeFromClient(zeroFeeClient);
+	}
+
+	if (shouldTest(FEE_SCHEMA.WITH_FEE)) {
+		const withFeeClient: RpcClient = newRpcClient("localhost", 26659);
+		await unbondAndWithdrawStakeFromClient(withFeeClient);
+	}
 };
 
 const unbondAndWithdrawStakeFromClient = async (client: RpcClient) => {
@@ -77,3 +91,10 @@ const unbondAndWithdrawStakeFromClient = async (client: RpcClient) => {
 
 	await client.request("sync", [walletRequest]);
 };
+
+if (!shouldTest(FEE_SCHEMA.ZERO_FEE)) {
+	console.info("[Test] Skipping Zero Fee Tests");
+}
+if (!shouldTest(FEE_SCHEMA.WITH_FEE)) {
+	console.info("[Test] Skipping With Fee Tests");
+}

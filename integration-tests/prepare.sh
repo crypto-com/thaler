@@ -38,8 +38,33 @@ function check_command_exist() {
 }
 
 function git_clone_chain_tx_enclave() {
-    rm -rf "${CHAIN_TX_ENCLAVE_DIRECTORY}"
-    git clone https://github.com/crypto-com/chain-tx-enclave.git "${CHAIN_TX_ENCLAVE_DIRECTORY}"
+    if [ -d "${CHAIN_TX_ENCLAVE_DIRECTORY}" ]; then
+        CWD=$(pwd)
+        cd "${CHAIN_TX_ENCLAVE_DIRECTORY}" && git pull
+        cd "${CWD}"
+    else
+        git clone https://github.com/crypto-com/chain-tx-enclave.git "${CHAIN_TX_ENCLAVE_DIRECTORY}"
+    fi
+}
+
+function init_tendermint() {
+    print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
+    rm -rf ./tendermint
+    mkdir -p ./tendermint
+    if [ ! -z "${CI}" ]; then
+        chmod 777 ./tendermint
+    fi
+    docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
+    if [ ! -z "${CI}" ]; then
+        sudo chmod -R 777 ./tendermint
+    fi
+}
+
+# @argument Tendermint directory
+function clone_tendermint_config() {
+    rm -rf "${1}"
+    mkdir -p "${1}"
+    cp -r ./tendermint/. "${1}"
 }
 
 # Create wallet
@@ -177,24 +202,15 @@ check_command_exist "cargo"
 print_step "cargo build"
 cargo build
 
-print_step "git clone Chain Transaction Enclave"
+print_step "git update Chain Transaction Enclave"
 git_clone_chain_tx_enclave
 
 print_step "Initialize Tendermint"
-print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
-rm -rf ./tendermint
-mkdir -p ./tendermint
-if [ ! -z "${CI}" ]; then
-    chmod 777 ./tendermint
-fi
-docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
-if [ ! -z "${CI}" ]; then
-    sudo chmod -R 777 ./tendermint
-fi
+init_tendermint
 
 print_step "Clone Tendermint configuration"
-mkdir -p "${TENDERMINT_WITHFEE_DIRECTORY}"; cp -r ./tendermint/. "${TENDERMINT_WITHFEE_DIRECTORY}"
-mkdir -p "${TENDERMINT_ZEROFEE_DIRECTORY}"; cp -r ./tendermint/. "${TENDERMINT_ZEROFEE_DIRECTORY}"
+clone_tendermint_config "${TENDERMINT_WITHFEE_DIRECTORY}"
+clone_tendermint_config "${TENDERMINT_ZEROFEE_DIRECTORY}"
 
 print_step "Generate wallet and addresses"
 create_wallet "Default" "${WALLET_PASSPHRASE}"
