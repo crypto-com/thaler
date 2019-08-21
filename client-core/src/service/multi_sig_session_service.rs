@@ -278,6 +278,24 @@ impl MultiSigSession {
             .binary_search_by(|signer| signer.public_key.cmp(&public_key))
             .map_err(|_| Error::from(ErrorKind::SignerNotFound))
     }
+
+    /// Returns true if nonce commitment for given public key is already set, false otherwise
+    pub fn has_nonce_commitment(&self, public_key: &PublicKey) -> Result<bool> {
+        let signer_index = self.signer_index(public_key)?;
+        Ok(self.signers[signer_index].nonce_commitment.is_some())
+    }
+
+    /// Returns true if nonce for given public key is already set, false otherwise
+    fn has_nonce(&self, public_key: &PublicKey) -> Result<bool> {
+        let signer_index = self.signer_index(public_key)?;
+        Ok(self.signers[signer_index].nonce.is_some())
+    }
+
+    /// Returns true if partial signature for given public key is already set, false otherwise
+    pub fn has_partial_signature(&mut self, public_key: &PublicKey) -> Result<bool> {
+        let signer_index = self.signer_index(public_key)?;
+        Ok(self.signers[signer_index].partial_signature.is_some())
+    }
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -403,7 +421,11 @@ where
         let mut session = self.get_session(session_id, passphrase)?;
         let nonce_commitment = session.nonce_commitment()?;
         let public_key = session.public_key.clone();
-        session.add_nonce_commitment(&public_key, nonce_commitment)?;
+
+        if !session.has_nonce_commitment(&public_key)? {
+            session.add_nonce_commitment(&public_key, nonce_commitment)?;
+        }
+
         self.set_session(session_id, session, passphrase)?;
 
         Ok(nonce_commitment)
@@ -435,7 +457,11 @@ where
         let mut session = self.get_session(session_id, passphrase)?;
         let nonce = session.nonce()?;
         let public_key = session.public_key.clone();
-        session.add_nonce(&public_key, nonce.clone())?;
+
+        if !session.has_nonce(&public_key)? {
+            session.add_nonce(&public_key, nonce.clone())?;
+        }
+
         self.set_session(session_id, session, passphrase)?;
         Ok(nonce)
     }
@@ -466,7 +492,11 @@ where
         let mut session = self.get_session(session_id, passphrase)?;
         let partial_signature = session.partial_signature()?;
         let public_key = session.public_key.clone();
-        session.add_partial_signature(&public_key, partial_signature)?;
+
+        if !session.has_partial_signature(&public_key)? {
+            session.add_partial_signature(&public_key, partial_signature)?;
+        }
+
         self.set_session(session_id, session, passphrase)?;
         Ok(partial_signature)
     }
@@ -565,6 +595,13 @@ mod tests {
         let nonce_commitment_1 = multi_sig_service
             .nonce_commitment(&session_id_1, &passphrase)
             .unwrap();
+        assert!(
+            multi_sig_service
+                .nonce_commitment(&session_id_1, &passphrase)
+                .is_ok(),
+            "Not able to retrieve nonce commitment multiple times"
+        );
+
         let nonce_commitment_2 = multi_sig_service
             .nonce_commitment(&session_id_2, &passphrase)
             .unwrap();
@@ -587,6 +624,11 @@ mod tests {
             .expect("Unable to add nonce commitment to session 2");
 
         let nonce_1 = multi_sig_service.nonce(&session_id_1, &passphrase).unwrap();
+        assert!(
+            multi_sig_service.nonce(&session_id_1, &passphrase).is_ok(),
+            "Not able to retrieve nonce multiple times"
+        );
+
         let nonce_2 = multi_sig_service.nonce(&session_id_2, &passphrase).unwrap();
 
         multi_sig_service
@@ -602,6 +644,13 @@ mod tests {
         let partial_signature_1 = multi_sig_service
             .partial_signature(&session_id_1, &passphrase)
             .expect("Unable to generate partial signature for session 1");
+        assert!(
+            multi_sig_service
+                .partial_signature(&session_id_1, &passphrase)
+                .is_ok(),
+            "Not able to retrieve partial signatures multiple times"
+        );
+
         let partial_signature_2 = multi_sig_service
             .partial_signature(&session_id_2, &passphrase)
             .expect("Unable to generate partial signature for session 2");
