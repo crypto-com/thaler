@@ -150,10 +150,10 @@ impl Server {
 
         let sync_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let synchronizer = self.make_synchronizer(storage.clone());
-        let mut sync_rpc = SyncRpcImpl::new(sync_rpc_wallet_client, synchronizer);
         assert!(self.websocket_queue.is_some());
         let newone = self.websocket_queue.as_ref().unwrap().clone();
-        sync_rpc.set_websocket_queue(newone);
+
+        let sync_rpc = SyncRpcImpl::new(sync_rpc_wallet_client, synchronizer, Some(newone));
 
         let wallet_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);

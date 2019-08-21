@@ -91,16 +91,16 @@ where
     C: Client,
     H: BlockHandler,
 {
-    pub fn new(client: T, synchronizer: ManualSynchronizer<S, C, H>) -> Self {
+    pub fn new(
+        client: T,
+        synchronizer: ManualSynchronizer<S, C, H>,
+        queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
+    ) -> Self {
         SyncRpcImpl {
             client,
             synchronizer,
-            websocket_queue: Mutex::new(None),
+            websocket_queue: Mutex::new(queue),
         }
-    }
-
-    pub fn set_websocket_queue(&mut self, q: std::sync::mpsc::Sender<OwnedMessage>) {
-        *self.websocket_queue.lock().unwrap() = Some(q);
     }
 
     fn prepare_synchronized_parameters(
