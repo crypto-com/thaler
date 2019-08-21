@@ -26,6 +26,7 @@ websocket = "0.23.0"
 futures = "0.1.28"
 tokio = "0.1.22"
 quest = "0.3"
-
+env_logger="0.6.2"
+log ="0.4.8"
 [dev-dependencies]
 parity-scale-codec = "1.0"

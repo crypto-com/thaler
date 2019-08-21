@@ -66,6 +66,7 @@ pub(crate) struct Options {
 }
 
 fn main() {
+    env_logger::init();
     let options = Options::from_args();
     Server::new(options).unwrap().start().unwrap();
 }

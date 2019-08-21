@@ -105,7 +105,7 @@ impl Server {
         ManualSynchronizer::new(storage, tendermint_client, block_handler)
     }
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
-        println!("web socket");
+        log::info!("start_websocket");
         let url = self.websocket_url.clone();
         let wallet_infos: WalletInfos = vec![];
         let tendermint_client = RpcClient::new(&self.tendermint_url);
@@ -130,7 +130,7 @@ impl Server {
 
         let _child = thread::spawn(move || {
             // some work here
-            println!("start websocket");
+            log::info!("start websocket");
             web.run_network();
         });
 
@@ -171,7 +171,6 @@ impl Server {
         let storage = SledStorage::new(&self.storage_dir)?;
 
         self.start_websocket(storage.clone()).unwrap();
-        println!("ok start_websocket");
         self.start_client(&mut io, storage.clone()).unwrap();
 
         let server = ServerBuilder::new(io)
@@ -182,7 +181,7 @@ impl Server {
             .start_http(&SocketAddr::new(self.host.parse().unwrap(), self.port))
             .expect("Unable to start JSON-RPC server");
 
-        println!("server wait");
+        log::info!("server wait");
         server.wait();
 
         Ok(())

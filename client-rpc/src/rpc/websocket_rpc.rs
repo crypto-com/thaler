@@ -84,7 +84,6 @@ impl WebsocketRpc {
         block_handler: H,
         wallet_client: T,
     ) {
-        println!("Connecting to {}", self.websocket_url);
         let channel = mpsc::channel(0);
         // tx, rx
         let (channel_tx, channel_rx) = channel;
@@ -111,7 +110,7 @@ impl WebsocketRpc {
 
     // activate tokio websocket
     pub fn run_network(&mut self) {
-        println!("Connecting to {}", self.websocket_url);
+        log::info!("Connecting to {}", self.websocket_url);
         let mut runtime = tokio::runtime::current_thread::Builder::new()
             .build()
             .unwrap();

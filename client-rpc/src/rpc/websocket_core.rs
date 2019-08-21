@@ -3,7 +3,6 @@ use crate::rpc::websocket_rpc::{CMD_BLOCK, CMD_STATUS};
 use crate::server::to_rpc_error;
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_filter::BlockFilter;
-use chrono::Local;
 use client_common::tendermint::types::Block;
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, Result, Storage, Transaction};
@@ -129,13 +128,15 @@ where
         let height: u64 = block.block.header.height.parse().unwrap();
         let current = self.get_current_height();
         if height != current + 1 {
-            println!(
+            log::info!(
                 "drop block {} current={} max={}",
-                height, current, self.max_height
+                height,
+                current,
+                self.max_height
             );
             return;
         }
-        println!("******************* {} {}", height, kind);
+        log::info!("save block height={} kind={}", height, kind);
         let _ = self.write_block(height, &block);
     }
 
@@ -184,7 +185,7 @@ where
     // no mutex is necessary
     // wallet can be added in runtime
     pub fn add_wallet(&mut self, name: String, passphrase: SecUtf8) -> JsonResult<()> {
-        println!("add_wallet ***** {} {}", name, passphrase);
+        log::info!("add_wallet ***** {} {}", name, passphrase);
         let view_key = self
             .wallet_client
             .view_key(&name, &passphrase)
@@ -209,7 +210,7 @@ where
         };
 
         self.wallets.push(info.clone());
-        println!("wallets length {}", self.wallets.len());
+        log::info!("wallets length {}", self.wallets.len());
         Ok(())
     }
 
@@ -245,20 +246,18 @@ where
                     self.do_save_block_to_chain(newblock, "get block");
 
                     if self.get_current_height() >= self.max_height {
-                        println!("all synced wallet {}.. wait", wallet.name);
+                        log::info!("all synced wallet {}.. wait", wallet.name);
                         self.change_to_wait();
                     }
                 }
             }
-            _ => {
-                println!("unprocessed {}", serde_json::to_string(&value).unwrap());
-            }
+            _ => {}
         }
         None
     }
     // proceed next wallet
     pub fn change_wallet(&mut self) {
-        println!("change wallet");
+        log::info!("change wallet");
         // increase
         self.current_wallet += 1;
         assert!(!self.wallets.is_empty());
@@ -279,19 +278,18 @@ where
         if self.get_current_height() < self.max_height {
             self.state = WebsocketState::GetBlocks;
 
-            println!(
+            log::info!(
                 "get blocks current {}  max_height {}",
                 self.get_current_height(),
                 self.max_height
             );
         } else {
             let w = self.get_current_wallet();
-            println!(
-                "synced now current wallet {}  current {}  max_height {}   {}",
+            log::info!(
+                "synced now current wallet {}  current {}  max_height {}",
                 w.name,
                 self.get_current_height(),
                 self.max_height,
-                Local::now()
             );
             self.change_to_wait();
             self.change_wallet();
