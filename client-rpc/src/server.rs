@@ -128,7 +128,7 @@ impl Server {
         assert!(web.core.is_some());
         self.websocket_queue = Some(web.core.as_mut().unwrap().clone());
 
-        let _child = thread::spawn(move || {
+        thread::spawn(move || {
             // some work here
             log::info!("start websocket");
             web.run_network();
