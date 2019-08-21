@@ -62,6 +62,11 @@ where
     }
 
     fn sync_continuous(&self, request: WalletRequest) -> Result<String> {
+        match self.prepare_synchronized_parameters(&request) {
+            Ok(_) => {}
+            Err(_) => return Ok("incorrect password".to_string()),
+        }
+
         let data = json!(AddWalletCommand {
             id: "add_wallet".to_string(),
             wallet: request.clone(),
