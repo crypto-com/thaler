@@ -88,7 +88,18 @@ mod tests {
             unreachable!()
         }
 
+        fn block_batch<T: Iterator<Item = u64>>(&self, _heights: T) -> Result<Vec<Block>> {
+            unreachable!()
+        }
+
         fn block_results(&self, _height: u64) -> Result<BlockResults> {
+            unreachable!()
+        }
+
+        fn block_results_batch<T: Iterator<Item = u64>>(
+            &self,
+            _heights: T,
+        ) -> Result<Vec<BlockResults>> {
             unreachable!()
         }
 

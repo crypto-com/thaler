@@ -103,9 +103,10 @@ impl EnclaveProxy for MockClient {
                             EnclaveResponse::VerifyTx(Err(()))
                         }
                     }
-                    _ => EnclaveResponse::UnsupportedTxType,
+                    _ => EnclaveResponse::UnknownRequest,
                 }
             }
+            _ => EnclaveResponse::UnknownRequest,
         }
     }
 }

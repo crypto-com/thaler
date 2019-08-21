@@ -5,6 +5,8 @@ use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input, Output};
 use secp256k1::key::pubkey_combine;
 use secp256k1::PublicKey as SecpPublicKey;
+use serde::de::{Deserialize, Deserializer, Error as SerdeDeError, Visitor};
+use serde::ser::{Serialize, Serializer};
 
 use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
@@ -15,6 +17,42 @@ use crate::{Error, ErrorKind, Result, SECP};
 /// Public key used in Crypto.com Chain
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub struct PublicKey(SecpPublicKey);
+
+impl Serialize for PublicKey {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for PublicKey {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct StrVisitor;
+
+        impl<'de> Visitor<'de> for StrVisitor {
+            type Value = PublicKey;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("public key in hexadecimal string")
+            }
+
+            #[inline]
+            fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+            where
+                E: SerdeDeError,
+            {
+                PublicKey::from_str(value).map_err(|err| E::custom(format!("{}", err)))
+            }
+        }
+
+        deserializer.deserialize_str(StrVisitor)
+    }
+}
 
 impl PublicKey {
     /// Serializes current public key
