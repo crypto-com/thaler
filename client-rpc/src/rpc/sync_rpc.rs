@@ -1,6 +1,7 @@
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
+use crate::rpc::websocket_rpc::AddWalletCommand;
 use crate::server::{to_rpc_error, WalletRequest};
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
@@ -11,7 +12,6 @@ use client_index::BlockHandler;
 use serde_json::json;
 use std::sync::Mutex;
 use websocket::OwnedMessage;
-
 #[rpc]
 pub trait SyncRpc: Send + Sync {
     #[rpc(name = "sync")]
@@ -62,9 +62,9 @@ where
     }
 
     fn sync_continuous(&self, request: WalletRequest) -> Result<String> {
-        let data = json!({
-            "id":"add_wallet",
-            "wallet": request,
+        let data = json!(AddWalletCommand {
+            id: "add_wallet".to_string(),
+            wallet: request.clone(),
         });
         let ret = "OK".to_string();
         {

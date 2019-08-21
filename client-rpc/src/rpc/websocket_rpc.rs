@@ -1,4 +1,5 @@
 use crate::rpc::websocket_core::WebsocketCore;
+use crate::server::WalletRequest;
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
 use client_common::{PrivateKey, PublicKey, Storage};
@@ -8,10 +9,10 @@ use futures::future::Future;
 use futures::sink::Sink;
 use futures::stream::Stream;
 use futures::sync::mpsc;
+use serde::{Deserialize, Serialize};
 use std::thread;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
-
 /// this handles low level network connection
 /// packet processing and core works are done in websocket_core
 /// it uses channel to communicate with core
@@ -50,6 +51,12 @@ pub struct WalletInfo {
     pub private_key: PrivateKey,
 }
 pub type WalletInfos = Vec<WalletInfo>;
+
+#[derive(Serialize, Deserialize)]
+pub struct AddWalletCommand {
+    pub id: String,
+    pub wallet: WalletRequest,
+}
 
 // constanct connection
 // using ws://localhost:26657/websocket
