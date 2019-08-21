@@ -29,7 +29,7 @@ use websocket::OwnedMessage;
 // rust don't allow sharing between threads without mutex
 // so multi-plexed with OwnedMessage
 
-// Network is handled websocket_rpc 
+// Network is handled websocket_rpc
 
 // not to use too much cpu, it takes some time for waiting
 const WAIT_PROCESS_TIME: u128 = 5000; // milli seconds
@@ -112,7 +112,7 @@ where
         self.wallets[self.current_wallet].clone()
     }
 
-    // get height from database 
+    // get height from database
     fn get_current_height(&self) -> u64 {
         let wallet = self.get_current_wallet();
         self.global_state_service
@@ -190,8 +190,7 @@ where
     // because everything is done via channel
     // no mutex is necessary
     // wallet can be added in runtime
-    pub fn add_wallet(&mut self, name: String, passphrase2: String) -> JsonResult<()> {
-        let passphrase: SecUtf8 = passphrase2.into();
+    pub fn add_wallet(&mut self, name: String, passphrase: SecUtf8) -> JsonResult<()> {
         println!("add_wallet ***** {} {}", name, passphrase);
         let view_key = self
             .wallet_client
@@ -229,9 +228,10 @@ where
             // this is special, it's command
             "add_wallet" => {
                 let name = value["wallet"]["name"].as_str().unwrap();
-                let passphrase = value["wallet"]["passphrase"].as_str().unwrap();
-
-                let _ = self.add_wallet(name.to_string(), passphrase.to_string());
+                let _ = self.add_wallet(
+                    name.to_string(),
+                    value["wallet"]["passphrase"].as_str().unwrap().into(),
+                );
             }
             "subscribe_reply#event" => {
                 self.do_save_block_to_chain(&value["result"]["data"]["value"], "event");
@@ -342,7 +342,7 @@ where
         self.send_request_block();
     }
 
-    // fetching blocks is handled indivisually 
+    // fetching blocks is handled indivisually
     // in one thread instead of dedicated thread
     pub fn send_request_block(&mut self) {
         let mut json: Value = serde_json::from_str(CMD_BLOCK).unwrap();

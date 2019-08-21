@@ -109,7 +109,7 @@ impl WebsocketRpc {
         assert!(self.core.is_some());
     }
 
-    // activate tokio websocket 
+    // activate tokio websocket
     pub fn run_network(&mut self) {
         println!("Connecting to {}", self.websocket_url);
         let mut runtime = tokio::runtime::current_thread::Builder::new()
