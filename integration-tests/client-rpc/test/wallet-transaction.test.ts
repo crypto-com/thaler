@@ -27,6 +27,9 @@ describe("Wallet transaction", () => {
 	});
 
 	describe("Zero Fee", () => {
+		if (!shouldTest(FEE_SCHEMA.ZERO_FEE)) {
+			return;
+		}
 		it("cannot send funds larger than wallet balance", async () => {
 			const walletRequest = newWalletRequest("Default", "123456");
 
@@ -165,6 +168,9 @@ describe("Wallet transaction", () => {
 	});
 
 	describe("With Fee", () => {
+		if (!shouldTest(FEE_SCHEMA.WITH_FEE)) {
+			return;
+		}
 		it("can transfer funds between two wallets with fee included", async function() {
 			const receiverWalletName = generateWalletName("Receive");
 			const senderWalletRequest = newWalletRequest("Default", "123456");
