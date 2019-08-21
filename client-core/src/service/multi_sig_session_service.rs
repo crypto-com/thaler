@@ -280,7 +280,7 @@ impl MultiSigSession {
     }
 
     /// Returns true if nonce commitment for given public key is already set, false otherwise
-    pub fn has_nonce_commitment(&self, public_key: &PublicKey) -> Result<bool> {
+    fn has_nonce_commitment(&self, public_key: &PublicKey) -> Result<bool> {
         let signer_index = self.signer_index(public_key)?;
         Ok(self.signers[signer_index].nonce_commitment.is_some())
     }
@@ -292,7 +292,7 @@ impl MultiSigSession {
     }
 
     /// Returns true if partial signature for given public key is already set, false otherwise
-    pub fn has_partial_signature(&mut self, public_key: &PublicKey) -> Result<bool> {
+    fn has_partial_signature(&mut self, public_key: &PublicKey) -> Result<bool> {
         let signer_index = self.signer_index(public_key)?;
         Ok(self.signers[signer_index].partial_signature.is_some())
     }
