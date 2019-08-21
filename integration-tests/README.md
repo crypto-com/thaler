@@ -35,6 +35,8 @@ The environment used your local build, which is suitable when you are under acti
 
 You have to start each component one-by-one using the provided script, each component has normal (With fee) mode and zero-fee mode. Suffix the component name with `-zerofee` for zero-fee mode.
 
+When a component is started, it will create a new "workspace" for the component. It will contain only the initialized wallet and genesis funds distribution. Any data you have in previous session, such as transactions data are gone.
+
 e.g. `tendermint` to `tendermint-zerofee`
 
 #### Start Chain Tx Enclave
@@ -89,11 +91,12 @@ $ docker-compose -f ./integration-tests/docker-compose.yml up
 | Integration Test Suite | Description                                                    |
 | ---------------------- | -------------------------------------------------------------- |
 | run-test.sh            | Test Tendermint, Chain ABCI and ClientRPC are connect together |
-| client-rpc | Test related to client RPC server operations |
+| client-rpc             | Test related to client RPC server operations                   |
 
 ## How to run `client-rpc` Integration Tests Suite
 
 Go to `client-rpc` directory, run
+
 ```bash
 $ yarn
 $ yarn test
@@ -108,6 +111,7 @@ The wallet initialized by the prepare script contains a wallet named `Default` w
 ### Update Tendermint version
 
 There are two places specifying Tendermint version to build and run:
+
 - integration-tests/constant-env.sh
 - integration-tests/docker-compose.yml
 
