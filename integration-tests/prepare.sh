@@ -2,19 +2,8 @@
 set -e
 IFS=
 
-TENDERMINT_PATH=${TENDERMINT_PATH:-tendermint}
-WALLET_PASSPHRASE=${WALLET_PASSPHRASE:-123456}
-TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.32.0}
-
-# Constants (No not modify unless you are absolutely sure what you are doing)
-WALLET_STORAGE_DIRECTORY="./docker/chain/wallet-storage"
-ADDRESS_STATE_PATH="./address-state.json"
-DEV_CONF_WITHFEE_PATH="./dev-conf-withfee.json"
-DEV_CONF_ZEROFEE_PATH="./dev-conf-zerofee.json"
-TENDERMINT_TEMP_DIRECTORY="./tendermint"
-TENDERMINT_WITHFEE_DIRECTORY="./docker/tendermint/tendermint-withfee"
-TENDERMINT_ZEROFEE_DIRECTORY="./docker/tendermint/tendermint-zerofee"
-CHAIN_ID="test-chain-y3m1e6-AB"
+# Source constants
+. ./constant-env.sh
 
 # Global function return value
 RET_VALUE=0
@@ -49,6 +38,11 @@ function check_command_exist() {
         exit 1
     fi
     set -e
+}
+
+function git_clone_chain_tx_enclave() {
+    rm -rf "${CHAIN_TX_ENCLAVE_DIRECTORY}"
+    git clone https://github.com/crypto-com/chain-tx-enclave.git "${CHAIN_TX_ENCLAVE_DIRECTORY}"
 }
 
 # Create wallet
@@ -177,8 +171,14 @@ function _change_tenermint_chain_id() {
 cd "$(dirname "${0}")"
 
 check_command_exist "jq"
-check_command_exist "../target/debug/client-cli"
-check_command_exist "../target/debug/dev-utils"
+check_command_exist "git"
+check_command_exist "cargo"
+
+print_step "cargo build"
+cargo build
+
+print_step "git clone Chain Transaction Enclave"
+git_clone_chain_tx_enclave
 
 print_step "Initialize Tendermint"
 print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
