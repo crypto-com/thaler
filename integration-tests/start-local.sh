@@ -48,6 +48,8 @@ function start_chain_tx_enclave() {
 
     cd "${CHAIN_TX_ENCLAVE_DIRECTORY}" && docker build -t chain-tx-validation \
         -f ./tx-validation/Dockerfile . \
+        --env RUST_BACKTRACE=1 \
+        --env RUST_LOG=debug \
         --build-arg SGX_MODE=SW \
         --build-arg NETWORK_ID="${CHAIN_HEX_ID}"
     
@@ -65,14 +67,23 @@ function start_tendermint() {
     print_config "TENDERMINT_PORT" "${2}"
     print_config "CHAIN_ABCI_PORT" "${3}"
 
-    docker run -v "$(pwd)/${1}:/tendermint" \
-        --env TMHOME=/tendermint \
-        -p "${2}:26657" \
-        "tendermint/tendermint:v${TENDERMINT_VERSION}" \
-        node \
-            --proxy_app="tcp://host.docker.internal:${3}" \
-            --rpc.laddr=tcp://0.0.0.0:26657 \
-            --consensus.create_empty_blocks=false
+    TENDERMINT_GENESIS_APP_HASH="$(cat "${1}/config/genesis.json" | jq -r .app_hash)"
+    print_config "TENDERMINT_GENESIS_APP_HASH" "${TENDERMINT_GENESIS_APP_HASH}"
+
+    # docker run -v "$(pwd)/${1}:/tendermint" \
+    #     --env TMHOME=/tendermint \
+    #     -p "${2}:26657" \
+    #     "tendermint/tendermint:v${TENDERMINT_VERSION}" \
+    #     node \
+    #         --proxy_app="tcp://host.docker.internal:${3}" \
+    #         --rpc.laddr=tcp://0.0.0.0:26657 \
+    #         --consensus.create_empty_blocks=false
+
+    tendermint node \
+        --home "${1}" \
+        --proxy_app="tcp://127.0.0.1:${3}" \
+        --rpc.laddr="tcp://0.0.0.0:${2}" \
+        --consensus.create_empty_blocks=false
 }
 
 # @argument App Hash
@@ -84,9 +95,13 @@ function start_chain_abci() {
     print_config "PORT" "${2}"
     print_config "ENCLAVE_PORT" "${3}"
 
+    STORAGE=$(mktemp -d)    
+    print_config "STORAGE" "${STORAGE}"
+
     RUST_BACKTRACE=1 && RUST_LOG=info cargo run \
         --bin chain-abci -- \
-            --port "${1}" \
+            --data "${STORAGE}" \
+            --port "${2}" \
             --chain_id "${CHAIN_ID}" \
             --genesis_app_hash ${1} \
             --enclave_server "tcp://127.0.0.1:${3}"
@@ -101,15 +116,15 @@ function start_client_rpc() {
     print_config "PORT" "${1}"
     print_config "TENDERMINT_PORT" "${2}"
 
-    rm -rf "/tmp/${2}"
-    mkdir -p  "/tmp/${2}"
-    cp -r "${WALLET_STORAGE_DIRECTORY}" "/tmp/${2}"
+    rm -rf "/tmp/${1}"
+    mkdir -p  "/tmp/${1}"
+    cp -r "${WALLET_STORAGE_DIRECTORY}" "/tmp/${1}"
 
     RUST_BACKTRACE=1 && RUST_LOG=info cargo run \
         --bin client-rpc -- \
             --port "${2}" \
             --network_id "${CHAIN_HEX_ID}" \
-            --storage-dir "${1}" \
+            --storage-dir "/tmp/${1}" \
             --tendermint-url "http://127.0.0.1:${3}"
 }
 
