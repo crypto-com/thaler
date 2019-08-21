@@ -12,10 +12,10 @@ use std::thread;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
 
-// this handles low level network connection
-// packet processing and core works are done in websocket_core
-// it uses channel to communicate with core
-// through send queue
+/// this handles low level network connection
+/// packet processing and core works are done in websocket_core
+/// it uses channel to communicate with core
+/// through send queue
 pub const CMD_SUBSCRIBE: &str = r#"
     {
         "jsonrpc": "2.0",

@@ -22,15 +22,15 @@ use std::time;
 use std::time::SystemTime;
 use websocket::OwnedMessage;
 
-// finite state machine that manages blocks
-// just use one thread to multi-plexing for data and command
+/// finite state machine that manages blocks
+/// just use one thread to multi-plexing for data and command
 
-// rust don't allow sharing between threads without mutex
-// so multi-plexed with OwnedMessage
+/// rust don't allow sharing between threads without mutex
+/// so multi-plexed with OwnedMessage
 
-// Network is handled websocket_rpc
+/// Network is handled websocket_rpc
 
-// not to use too much cpu, it takes some time for waiting
+/// not to use too much cpu, it takes some time for waiting
 const WAIT_PROCESS_TIME: u128 = 5000; // milli seconds
 const BLOCK_REQUEST_TIME: u128 = 10; // milli seconds
 const RECEIVE_TIMEOUT: u64 = 10; //  milli seconds
