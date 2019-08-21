@@ -2,20 +2,6 @@
 set -e
 IFS=
 
-TENDERMINT_PATH=${TENDERMINT_PATH:-tendermint}
-WALLET_PASSPHRASE=${WALLET_PASSPHRASE:-123456}
-TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.32.0}
-
-# Constants (No not modify unless you are absolutely sure what you are doing)
-WALLET_STORAGE_DIRECTORY="./docker/chain/wallet-storage"
-ADDRESS_STATE_PATH="./address-state.json"
-DEV_CONF_WITHFEE_PATH="./dev-conf-withfee.json"
-DEV_CONF_ZEROFEE_PATH="./dev-conf-zerofee.json"
-TENDERMINT_TEMP_DIRECTORY="./tendermint"
-TENDERMINT_WITHFEE_DIRECTORY="./docker/tendermint/tendermint-withfee"
-TENDERMINT_ZEROFEE_DIRECTORY="./docker/tendermint/tendermint-zerofee"
-CHAIN_ID="test-chain-y3m1e6-AB"
-
 # Global function return value
 RET_VALUE=0
 
@@ -49,6 +35,36 @@ function check_command_exist() {
         exit 1
     fi
     set -e
+}
+
+function git_clone_chain_tx_enclave() {
+    if [ -d "${CHAIN_TX_ENCLAVE_DIRECTORY}" ]; then
+        CWD=$(pwd)
+        cd "${CHAIN_TX_ENCLAVE_DIRECTORY}" && git pull
+        cd "${CWD}"
+    else
+        git clone https://github.com/crypto-com/chain-tx-enclave.git "${CHAIN_TX_ENCLAVE_DIRECTORY}"
+    fi
+}
+
+function init_tendermint() {
+    print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
+    rm -rf ./tendermint
+    mkdir -p ./tendermint
+    if [ ! -z "${CI}" ]; then
+        chmod 777 ./tendermint
+    fi
+    docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
+    if [ ! -z "${CI}" ]; then
+        sudo chmod -R 777 ./tendermint
+    fi
+}
+
+# @argument Tendermint directory
+function clone_tendermint_config() {
+    rm -rf "${1}"
+    mkdir -p "${1}"
+    cp -r ./tendermint/. "${1}"
 }
 
 # Create wallet
@@ -176,25 +192,25 @@ function _change_tenermint_chain_id() {
 # Always execute at script located directory
 cd "$(dirname "${0}")"
 
+# Source constants
+. ./constant-env.sh
+
 check_command_exist "jq"
-check_command_exist "../target/debug/client-cli"
-check_command_exist "../target/debug/dev-utils"
+check_command_exist "git"
+check_command_exist "cargo"
+
+print_step "cargo build"
+cargo build
+
+print_step "git update Chain Transaction Enclave"
+git_clone_chain_tx_enclave
 
 print_step "Initialize Tendermint"
-print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
-rm -rf ./tendermint
-mkdir -p ./tendermint
-if [ ! -z "${CI}" ]; then
-    chmod 777 ./tendermint
-fi
-docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
-if [ ! -z "${CI}" ]; then
-    sudo chmod -R 777 ./tendermint
-fi
+init_tendermint
 
 print_step "Clone Tendermint configuration"
-mkdir -p "${TENDERMINT_WITHFEE_DIRECTORY}"; cp -r ./tendermint/. "${TENDERMINT_WITHFEE_DIRECTORY}"
-mkdir -p "${TENDERMINT_ZEROFEE_DIRECTORY}"; cp -r ./tendermint/. "${TENDERMINT_ZEROFEE_DIRECTORY}"
+clone_tendermint_config "${TENDERMINT_WITHFEE_DIRECTORY}"
+clone_tendermint_config "${TENDERMINT_ZEROFEE_DIRECTORY}"
 
 print_step "Generate wallet and addresses"
 create_wallet "Default" "${WALLET_PASSPHRASE}"

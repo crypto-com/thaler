@@ -96,12 +96,10 @@ jobs:
           tar xvfz zeromq-4.2.5.tar.gz
           cd zeromq-4.2.5 && ./configure --prefix=$HOME --with-libsodium && make && make install && cd ..
           cargo clean
-          cargo build
         - nvm install 10
         - |
           sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
           sudo chmod +x /usr/local/bin/wait-for-it.sh
-        - git clone https://github.com/crypto-com/chain-tx-enclave ./integration-tests/docker/chain-tx-enclave
       script:
         - cd integration-tests
         - ./prepare.sh || travis_terminate 1;
