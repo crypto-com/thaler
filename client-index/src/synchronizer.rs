@@ -1,4 +1,6 @@
 //! Utilities for synchronizing transaction index with Crypto.com Chain
+use itertools::Itertools;
+
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::Block;
@@ -46,34 +48,39 @@ where
         let last_block_height = self.global_state_service.last_block_height(view_key)?;
         let current_block_height = self.client.status()?.last_block_height()?;
 
-        let blocks = self
-            .client
-            .block_batch((last_block_height + 1)..=current_block_height)?;
+        // Send batch RPC requests to tendermint in chunks of 100 requests per batch call
+        for chunk in ((last_block_height + 1)..=current_block_height)
+            .chunks(100)
+            .into_iter()
+        {
+            let range = chunk.collect::<Vec<u64>>();
 
-        let block_results = self
-            .client
-            .block_results_batch((last_block_height + 1)..=current_block_height)?;
+            println!("Range: {:?}", range);
 
-        for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
-            let block_height = block.height()?;
-            let block_time = block.time();
+            let blocks = self.client.block_batch(range.iter())?;
+            let block_results = self.client.block_results_batch(range.iter())?;
 
-            let transaction_ids = block_result.transaction_ids()?;
-            let block_filter = block_result.block_filter()?;
+            for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
+                let block_height = block.height()?;
+                let block_time = block.time();
 
-            let unencrypted_transactions =
-                check_unencrypted_transactions(&block_filter, staking_addresses, &block)?;
+                let transaction_ids = block_result.transaction_ids()?;
+                let block_filter = block_result.block_filter()?;
 
-            let block_header = BlockHeader {
-                block_height,
-                block_time,
-                transaction_ids,
-                block_filter,
-                unencrypted_transactions,
-            };
+                let unencrypted_transactions =
+                    check_unencrypted_transactions(&block_filter, staking_addresses, &block)?;
 
-            self.block_handler
-                .on_next(block_header, view_key, private_key)?;
+                let block_header = BlockHeader {
+                    block_height,
+                    block_time,
+                    transaction_ids,
+                    block_filter,
+                    unencrypted_transactions,
+                };
+
+                self.block_handler
+                    .on_next(block_header, view_key, private_key)?;
+            }
         }
 
         Ok(())
@@ -205,8 +212,8 @@ mod tests {
             }
         }
 
-        fn block_batch<T: Iterator<Item = u64>>(&self, heights: T) -> Result<Vec<Block>> {
-            heights.map(|height| self.block(height)).collect()
+        fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, heights: T) -> Result<Vec<Block>> {
+            heights.map(|height| self.block(*height)).collect()
         }
 
         fn block_results(&self, height: u64) -> Result<BlockResults> {
@@ -258,11 +265,11 @@ mod tests {
             }
         }
 
-        fn block_results_batch<T: Iterator<Item = u64>>(
+        fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             heights: T,
         ) -> Result<Vec<BlockResults>> {
-            heights.map(|height| self.block_results(height)).collect()
+            heights.map(|height| self.block_results(*height)).collect()
         }
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
