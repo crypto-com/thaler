@@ -94,7 +94,7 @@ function start_tendermint() {
         node \
             --proxy_app="tcp://host.docker.internal:${3}" \
             --rpc.laddr=tcp://0.0.0.0:26657 \
-            --consensus.create_empty_blocks=false
+            --consensus.create_empty_blocks=true
 }
 
 # @argument App Hash

@@ -2,10 +2,7 @@ import "mocha";
 import chaiAsPromised = require("chai-as-promised");
 import { use as chaiUse, expect } from "chai";
 import { RpcClient } from "./core/rpc-client";
-import {
-	unbondAndWithdrawStake,
-	WALLET_STAKING_ADDRESS,
-} from "./core/setup";
+import { unbondAndWithdrawStake, WALLET_STAKING_ADDRESS } from "./core/setup";
 import {
 	generateWalletName,
 	newWalletRequest,
@@ -18,7 +15,7 @@ import {
 import BigNumber from "bignumber.js";
 chaiUse(chaiAsPromised);
 
-describe.only("Staking", () => {
+describe("Staking", () => {
 	let client: RpcClient;
 	before(async () => {
 		await unbondAndWithdrawStake();
@@ -29,7 +26,8 @@ describe.only("Staking", () => {
 		}
 	});
 
-	it("should support staking, unbonding and withdrawing", async () => {
+	it("should support staking, unbonding and withdrawing", async function() {
+		this.timeout(30000);
 		const defaultWalletRequest = newWalletRequest("Default", "123456");
 
 		const walletName = generateWalletName();
@@ -47,10 +45,10 @@ describe.only("Staking", () => {
 		console.info(`[Info] Staking Address: "${stakingAddress}"`);
 		console.info(`[Info] Transfer Address: "${transferAddress}"`);
 
+		const stakingAmount = "10000";
 		console.log(
-			`[Log] Transfer funds from Default wallet to new wallet ${walletName}`,
+			`[Log] Transfer ${stakingAmount}CRO from Default wallet to new wallet ${walletName}`,
 		);
-		const stakingAmount = "1000";
 		let txId = await client.request("wallet_sendToAddress", [
 			defaultWalletRequest,
 			transferAddress,
@@ -66,7 +64,7 @@ describe.only("Staking", () => {
 			client.request("wallet_balance", [walletRequest]),
 		).to.eventually.deep.eq(stakingAmount);
 
-		console.log(`[Log] Deposit stake to staking address "${stakingAddress}"`);
+		console.log(`[Log] Deposit ${stakingAmount}CRO stake to staking address "${stakingAddress}"`);
 		await expect(
 			client.request("staking_depositStake", [
 				walletRequest,
@@ -101,8 +99,8 @@ describe.only("Staking", () => {
 			"Wallet balance should be deducted after deposit stake",
 		);
 
-		console.log(`[Log] Unbond stake from staking address "${stakingAddress}"`);
-		const unbondAmount = "500";
+		const unbondAmount = "5000";
+		console.log(`[Log] Unbond ${unbondAmount}CRO stake from staking address "${stakingAddress}"`);
 		const remainingBondedAmount = new BigNumber(stakingAmount)
 			.minus(unbondAmount)
 			.toString(10);
@@ -138,18 +136,32 @@ describe.only("Staking", () => {
 				transferAddress,
 				[],
 			]),
+		).to.eventually.rejectedWith(
+			"Transaction validation failed",
+			"Withdraw unbonded stake should fail before unbond from period",
+		);
+
+		console.log("[Log] Waiting for unbond period to exceed");
+		await sleep(8000);
+
+		await expect(
+			client.request("staking_withdrawAllUnbondedStake", [
+				walletRequest,
+				stakingAddress,
+				transferAddress,
+				[],
+			]),
 		).to.eventually.eq(null, "Withdraw unbonded stake should work");
 		await sleep(1000);
 		await client.request("sync", [walletRequest]);
 		const stakingStateAfterWithdraw = await client.request("staking_state", [
 			walletRequest,
-			WALLET_STAKING_ADDRESS,
+			stakingAddress,
 		]);
-		console.log(stakingStateAfterWithdraw)
 		assertStakingState(
 			stakingStateAfterWithdraw,
 			{
-				address: WALLET_STAKING_ADDRESS,
+				address: stakingAddress,
 				bonded: remainingBondedAmount,
 				unbonded: "0",
 			},
@@ -159,7 +171,7 @@ describe.only("Staking", () => {
 		return expect(
 			client.request("wallet_balance", [walletRequest]),
 		).to.eventually.deep.eq(
-			stakingAmount,
+			unbondAmount,
 			"Wallet balance should be credited after withdraw stake",
 		);
 	});

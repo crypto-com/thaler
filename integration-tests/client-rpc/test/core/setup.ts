@@ -7,6 +7,7 @@ import {
 	FEE_SCHEMA,
 	newRpcClient,
 	newWalletRequest,
+	sleep,
 } from "./utils";
 
 export const WALLET_STAKING_ADDRESS = (<any>addressState).staking;
@@ -47,6 +48,7 @@ const unbondAndWithdrawStakeFromClient = async (client: RpcClient) => {
 		WALLET_TRANSFER_ADDRESS_1,
 		[],
 	]);
+	await sleep(1000);
 
 	await syncWallet(client, walletRequest);
 };
