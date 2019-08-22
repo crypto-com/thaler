@@ -2,6 +2,7 @@ mod address_command;
 mod transaction_command;
 mod wallet_command;
 
+use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use hex::encode;
 use prettytable::{cell, format, row, Cell, Row, Table};
 use quest::success;
@@ -236,7 +237,13 @@ impl Command {
         ]));
         table.add_row(Row::new(vec![
             Cell::from(&"Unbonded From".to_string()),
-            Cell::from(&format!("{}", staked_state.unbonded_from)),
+            Cell::from(&format!(
+                "{}",
+                <DateTime<Local>>::from(DateTime::<Utc>::from_utc(
+                    NaiveDateTime::from_timestamp(staked_state.unbonded_from, 0),
+                    Utc
+                ))
+            )),
         ]));
 
         table.printstd();
