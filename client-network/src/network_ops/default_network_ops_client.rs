@@ -363,7 +363,7 @@ mod tests {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _: &[u8]) -> Result<()> {
+        fn broadcast_transaction(&self, _: &[u8]) -> Result<BroadcastTxResult> {
             unreachable!()
         }
 

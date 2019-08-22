@@ -9,6 +9,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
+use client_common::tendermint::types::BroadcastTxResult;
 use client_common::{Result, Transaction};
 
 use crate::AddressDetails;
@@ -25,5 +26,5 @@ pub trait Index: Send + Sync {
     fn output(&self, input: &TxoPointer) -> Result<TxOut>;
 
     /// Broadcasts a transaction to Crypto.com Chain
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()>;
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult>;
 }

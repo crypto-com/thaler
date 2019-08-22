@@ -277,8 +277,13 @@ pub mod tests {
             })
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
-            Ok(())
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
+            Ok(BroadcastTxResult {
+                code: 0,
+                data: String::from(""),
+                hash: String::from(""),
+                log: String::from(""),
+            })
         }
     }
 
@@ -421,7 +426,7 @@ pub mod tests {
             }])
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
             unreachable!("broadcast_transaction")
         }
 

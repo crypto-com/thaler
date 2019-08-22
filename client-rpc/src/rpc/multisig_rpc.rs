@@ -364,7 +364,7 @@ mod test {
             unreachable!("output")
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
             unreachable!("broadcast_transaction")
         }
     }
@@ -438,7 +438,7 @@ mod test {
             unreachable!("block_results_batch")
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
             unreachable!("broadcast_transaction")
         }
 
