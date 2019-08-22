@@ -24,7 +24,7 @@ pub trait Client: Send + Sync {
         -> Result<Vec<BlockResults>>;
 
     /// Makes `broadcast_tx_sync` call to tendermint
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()>;
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult>;
 
     /// Makes `abci_query` call to tendermint
     fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult>;

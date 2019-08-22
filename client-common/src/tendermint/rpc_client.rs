@@ -34,6 +34,7 @@ impl RpcClient {
         let client = JsonRpcClient::new(self.url.to_owned(), None, None);
         let request = client.build_request(name, params);
         let response = client.send_request(&request).context(ErrorKind::RpcError)?;
+
         let result = response.result::<T>().context(ErrorKind::RpcError)?;
         Ok(result)
     }
@@ -136,10 +137,15 @@ impl Client for RpcClient {
             .collect::<Result<Vec<BlockResults>>>()
     }
 
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()> {
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult> {
         let params = [json!(transaction)];
-        self.call::<serde_json::Value>("broadcast_tx_sync", &params)
-            .map(|_| ())
+        self.call::<BroadcastTxResult>("broadcast_tx_sync", &params)
+            .and_then(|result| {
+                if result.code != 0 {
+                    return Err(Error::from(ErrorKind::TransactionValidationFailed));
+                }
+                Ok(result)
+            })
     }
 
     fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult> {

@@ -17,6 +17,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
+use client_common::tendermint::types::BroadcastTxResult;
 use client_common::{PrivateKey, PublicKey, Result};
 
 use crate::{InputSelectionStrategy, UnspentTransactions};
@@ -151,7 +152,7 @@ pub trait WalletClient: Send + Sync {
     ) -> Result<TxAux>;
 
     /// Broadcasts a transaction to Crypto.com Chain
-    fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()>;
+    fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<BroadcastTxResult>;
 }
 
 /// Interface for a generic wallet for multi-signature transactions
