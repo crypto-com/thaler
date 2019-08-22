@@ -2,6 +2,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
+use client_common::tendermint::types::BroadcastTxResult;
 use client_common::tendermint::Client;
 use client_common::{Result, Storage, Transaction};
 
@@ -59,7 +60,7 @@ where
     }
 
     #[inline]
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()> {
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult> {
         self.client.broadcast_transaction(transaction)
     }
 }

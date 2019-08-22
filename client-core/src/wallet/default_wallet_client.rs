@@ -15,6 +15,7 @@ use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
 use client_common::storage::UnauthorizedStorage;
+use client_common::tendermint::types::BroadcastTxResult;
 use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Result, Storage};
 use client_index::index::{Index, UnauthorizedIndex};
 
@@ -297,7 +298,7 @@ where
     }
 
     #[inline]
-    fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<()> {
+    fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<BroadcastTxResult> {
         self.index.broadcast_transaction(&tx_aux.encode())
     }
 }
