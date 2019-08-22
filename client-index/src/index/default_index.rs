@@ -104,8 +104,13 @@ mod tests {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
-            Ok(())
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+            Ok(BroadcastTxResult {
+                code: 0,
+                data: String::from(""),
+                hash: String::from(""),
+                log: String::from(""),
+            })
         }
 
         fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
