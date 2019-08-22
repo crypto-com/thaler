@@ -93,7 +93,7 @@ impl Client for RpcClient {
         self.call("block", &params)
     }
 
-    fn block_batch<T: Iterator<Item = u64>>(&self, heights: T) -> Result<Vec<Block>> {
+    fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, heights: T) -> Result<Vec<Block>> {
         let params = heights
             .map(|height| ("block", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
@@ -116,7 +116,7 @@ impl Client for RpcClient {
         self.call("block_results", &params)
     }
 
-    fn block_results_batch<T: Iterator<Item = u64>>(
+    fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
         &self,
         heights: T,
     ) -> Result<Vec<BlockResults>> {
