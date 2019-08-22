@@ -122,6 +122,9 @@ pub enum ErrorKind {
     /// Multisig error
     #[fail(display = "Invalid self public key in wallet multisig address")]
     MultiSigInvalidSelfPubKey,
+    /// Transaction validation failure
+    #[fail(display = "Transaction validation failed")]
+    TransactionValidationFailed,
 }
 
 impl Fail for Error {

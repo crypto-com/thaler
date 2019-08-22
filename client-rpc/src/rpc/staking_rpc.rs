@@ -100,7 +100,9 @@ where
 
         self.client
             .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error)?;
+
+        Ok(())
     }
 
     fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState> {
@@ -134,7 +136,9 @@ where
 
         self.client
             .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error)?;
+
+        Ok(())
     }
 
     fn withdraw_all_unbonded_stake(
@@ -190,6 +194,8 @@ where
 
         self.client
             .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error)?;
+
+        Ok(())
     }
 }

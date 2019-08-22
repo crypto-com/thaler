@@ -265,7 +265,7 @@ mod tests {
             heights.map(|height| self.block_results(height)).collect()
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
             unreachable!()
         }
 

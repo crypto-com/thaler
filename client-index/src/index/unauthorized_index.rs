@@ -2,6 +2,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
+use client_common::tendermint::types::BroadcastTxResult;
 use client_common::{ErrorKind, Result, Transaction};
 
 use crate::{AddressDetails, Index};
@@ -23,7 +24,7 @@ impl Index for UnauthorizedIndex {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
+    fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
         Err(ErrorKind::PermissionDenied.into())
     }
 }
