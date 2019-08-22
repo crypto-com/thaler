@@ -55,8 +55,6 @@ where
         {
             let range = chunk.collect::<Vec<u64>>();
 
-            println!("Range: {:?}", range);
-
             let blocks = self.client.block_batch(range.iter())?;
             let block_results = self.client.block_results_batch(range.iter())?;
 
