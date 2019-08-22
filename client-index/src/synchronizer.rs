@@ -46,14 +46,20 @@ where
         let last_block_height = self.global_state_service.last_block_height(view_key)?;
         let current_block_height = self.client.status()?.last_block_height()?;
 
-        for block_height in (last_block_height + 1)..=current_block_height {
-            let block = self.client.block(block_height)?;
-            let block_results = self.client.block_results(block_height)?;
+        let blocks = self
+            .client
+            .block_batch((last_block_height + 1)..=current_block_height)?;
 
+        let block_results = self
+            .client
+            .block_results_batch((last_block_height + 1)..=current_block_height)?;
+
+        for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
+            let block_height = block.height()?;
             let block_time = block.time();
 
-            let transaction_ids = block_results.transaction_ids()?;
-            let block_filter = block_results.block_filter()?;
+            let transaction_ids = block_result.transaction_ids()?;
+            let block_filter = block_result.block_filter()?;
 
             let unencrypted_transactions =
                 check_unencrypted_transactions(&block_filter, staking_addresses, &block)?;
@@ -199,6 +205,10 @@ mod tests {
             }
         }
 
+        fn block_batch<T: Iterator<Item = u64>>(&self, heights: T) -> Result<Vec<Block>> {
+            heights.map(|height| self.block(height)).collect()
+        }
+
         fn block_results(&self, height: u64) -> Result<BlockResults> {
             if height == 1 {
                 Ok(BlockResults {
@@ -246,6 +256,13 @@ mod tests {
             } else {
                 Err(ErrorKind::InvalidInput.into())
             }
+        }
+
+        fn block_results_batch<T: Iterator<Item = u64>>(
+            &self,
+            heights: T,
+        ) -> Result<Vec<BlockResults>> {
+            heights.map(|height| self.block_results(height)).collect()
         }
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {

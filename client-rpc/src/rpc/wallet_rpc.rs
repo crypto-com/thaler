@@ -383,6 +383,18 @@ pub mod tests {
             })
         }
 
+        fn block_batch<T: Iterator<Item = u64>>(&self, _heights: T) -> CommonResult<Vec<Block>> {
+            Ok(vec![Block {
+                block: BlockInner {
+                    header: Header {
+                        height: "1".to_string(),
+                        time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                    },
+                    data: Data { txs: None },
+                },
+            }])
+        }
+
         fn block_results(&self, _height: u64) -> CommonResult<BlockResults> {
             Ok(BlockResults {
                 height: "1".to_string(),
@@ -391,6 +403,19 @@ pub mod tests {
                     end_block: None,
                 },
             })
+        }
+
+        fn block_results_batch<T: Iterator<Item = u64>>(
+            &self,
+            _heights: T,
+        ) -> CommonResult<Vec<BlockResults>> {
+            Ok(vec![BlockResults {
+                height: "1".to_string(),
+                results: Results {
+                    deliver_tx: None,
+                    end_block: None,
+                },
+            }])
         }
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
