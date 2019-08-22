@@ -5,16 +5,18 @@ import BigNumber from "bignumber.js";
 
 import { RpcClient } from "./core/rpc-client";
 import {
+	WALLET_TRANSFER_ADDRESS_2,
+	unbondAndWithdrawStake,
+} from "./core/setup";
+import {
 	newWalletRequest,
 	generateWalletName,
-	WALLET_TRANSFER_ADDRESS_2,
 	newZeroFeeRpcClient,
 	newWithFeeRpcClient,
 	sleep,
-	unbondAndWithdrawStake,
 	shouldTest,
 	FEE_SCHEMA,
-} from "./core/setup";
+} from "./core/utils";
 chaiUse(chaiAsPromised);
 
 describe("Wallet transaction", () => {

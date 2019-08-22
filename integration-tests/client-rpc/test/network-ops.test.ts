@@ -3,13 +3,18 @@ import chaiAsPromised = require("chai-as-promised");
 import { use as chaiUse, expect } from "chai";
 import { RpcClient } from "./core/rpc-client";
 import {
+	unbondAndWithdrawStake,
+	WALLET_STAKING_ADDRESS,
+} from "./core/setup";
+import {
 	generateWalletName,
 	newWalletRequest,
-	unbondAndWithdrawStake,
 	newZeroFeeRpcClient,
-	WALLET_STAKING_ADDRESS,
 	sleep,
-} from "./core/setup";
+	shouldTest,
+	newWithFeeRpcClient,
+	FEE_SCHEMA,
+} from "./core/utils";
 import BigNumber from "bignumber.js";
 chaiUse(chaiAsPromised);
 
@@ -17,27 +22,34 @@ describe.only("Staking", () => {
 	let client: RpcClient;
 	before(async () => {
 		await unbondAndWithdrawStake();
-		client = newZeroFeeRpcClient();
+		if (shouldTest(FEE_SCHEMA.WITH_FEE)) {
+			client = newWithFeeRpcClient();
+		} else if (shouldTest(FEE_SCHEMA.ZERO_FEE)) {
+			client = newZeroFeeRpcClient();
+		}
 	});
 
 	it("should support staking, unbonding and withdrawing", async () => {
-        const defaultWalletRequest = newWalletRequest("Default", "123456");
+		const defaultWalletRequest = newWalletRequest("Default", "123456");
 
 		const walletName = generateWalletName();
-        const walletRequest = newWalletRequest(walletName, "123456");
-		await client.request("wallet_create", [
-			walletRequest,
-		]);
+		const walletRequest = newWalletRequest(walletName, "123456");
+		await client.request("wallet_create", [walletRequest]);
 		const stakingAddress = await client.request("wallet_createStakingAddress", [
 			walletRequest,
 		]);
 		const transferAddress = await client.request("wallet_createTransferAddress", [
 			walletRequest,
 		]);
-        const viewKey = await client.request("wallet_getViewKey", [walletRequest]);
-        
-        console.log(walletName, stakingAddress, transferAddress, viewKey);
+		const viewKey = await client.request("wallet_getViewKey", [walletRequest]);
 
+		console.info(`[Info] Wallet name: "${walletName}"`);
+		console.info(`[Info] Staking Address: "${stakingAddress}"`);
+		console.info(`[Info] Transfer Address: "${transferAddress}"`);
+
+		console.log(
+			`[Log] Transfer funds from Default wallet to new wallet ${walletName}`,
+		);
 		const stakingAmount = "1000";
 		let txId = await client.request("wallet_sendToAddress", [
 			defaultWalletRequest,
@@ -45,16 +57,16 @@ describe.only("Staking", () => {
 			stakingAmount,
 			[viewKey],
 		]);
+		console.info(`[Info] Transaction ID: "${txId}"`);
+		await sleep(1000);
 
-		await sleep(2000);
+		await client.request("sync", [walletRequest]);
 
-		client.request("sync", [walletRequest]);
-		expect(
+		await expect(
 			client.request("wallet_balance", [walletRequest]),
-        ).to.eventually.deep.eq(stakingAmount);
-        
-        console.log(txId);
+		).to.eventually.deep.eq(stakingAmount);
 
+		console.log(`[Log] Deposit stake to staking address "${stakingAddress}"`);
 		await expect(
 			client.request("staking_depositStake", [
 				walletRequest,
@@ -67,6 +79,7 @@ describe.only("Staking", () => {
 				],
 			]),
 		).to.eventually.eq(null, "Deposit stake should work");
+		await sleep(1000);
 		const stakingStateAfterDeposit = await client.request("staking_state", [
 			walletRequest,
 			stakingAddress,
@@ -80,12 +93,15 @@ describe.only("Staking", () => {
 			},
 			"Staking state is incorrect after deposit stake",
 		);
-		await sleep(2000);
-        client.request("sync", [walletRequest]);
-		expect(
+		await client.request("sync", [walletRequest]);
+		await expect(
 			client.request("wallet_balance", [walletRequest]),
-		).to.eventually.deep.eq(stakingAmount, "Wallet balance should be deducted after deposit stake");
+		).to.eventually.deep.eq(
+			"0",
+			"Wallet balance should be deducted after deposit stake",
+		);
 
+		console.log(`[Log] Unbond stake from staking address "${stakingAddress}"`);
 		const unbondAmount = "500";
 		const remainingBondedAmount = new BigNumber(stakingAmount)
 			.minus(unbondAmount)
@@ -97,6 +113,7 @@ describe.only("Staking", () => {
 				unbondAmount,
 			]),
 		).to.eventually.eq(null, "Unbond stake should work");
+		await sleep(1000);
 		const stakingStateAfterUnbond = await client.request("staking_state", [
 			walletRequest,
 			stakingAddress,
@@ -111,6 +128,9 @@ describe.only("Staking", () => {
 			"Staking state is incorrect after unbond stake",
 		);
 
+		console.log(
+			`[Log] Withdraw all unbonded stake from staking address "${stakingAddress}" to address "${transferAddress}"`,
+		);
 		await expect(
 			client.request("staking_withdrawAllUnbondedStake", [
 				walletRequest,
@@ -118,11 +138,14 @@ describe.only("Staking", () => {
 				transferAddress,
 				[],
 			]),
-		).to.eventually.eq(null, "Unbond stake should work");
+		).to.eventually.eq(null, "Withdraw unbonded stake should work");
+		await sleep(1000);
+		await client.request("sync", [walletRequest]);
 		const stakingStateAfterWithdraw = await client.request("staking_state", [
 			walletRequest,
 			WALLET_STAKING_ADDRESS,
 		]);
+		console.log(stakingStateAfterWithdraw)
 		assertStakingState(
 			stakingStateAfterWithdraw,
 			{
@@ -132,11 +155,13 @@ describe.only("Staking", () => {
 			},
 			"Staking state is incorrect after withdraw stake",
 		);
-		await sleep(2000);
-        client.request("sync", [walletRequest]);
-		expect(
+		await client.request("sync", [walletRequest]);
+		return expect(
 			client.request("wallet_balance", [walletRequest]),
-		).to.eventually.deep.eq(stakingAmount, "Wallet balance should be credited after withdraw stake");
+		).to.eventually.deep.eq(
+			stakingAmount,
+			"Wallet balance should be credited after withdraw stake",
+		);
 	});
 
 	const assertStakingState = (
@@ -145,11 +170,14 @@ describe.only("Staking", () => {
 		errorMessage: string = "Staking state does not match",
 	) => {
 		Object.keys(expectedState).forEach((prop) => {
-			expect(expectedState[prop]).to.deep.eq(actualState[prop], errorMessage);
+			expect(actualState[prop]).to.deep.eq(
+				expectedState[prop],
+				`${errorMessage}: "${prop}"`,
+			);
 		});
-    };
-    
-    type Omit<T, K> = Pick<T, Exclude<keyof T, K>>;
+	};
+
+	type Omit<T, K> = Pick<T, Exclude<keyof T, K>>;
 
 	interface StakingState {
 		address?: string;
