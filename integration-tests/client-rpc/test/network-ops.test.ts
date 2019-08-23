@@ -45,7 +45,7 @@ describe("Staking", () => {
 
 		const stakingAmount = "10000";
 		console.log(
-			`[Log] Transfer ${stakingAmount}CRO from Default wallet to new wallet ${walletName}`,
+			`[Log] Transfer ${stakingAmount} base unit from Default wallet to new wallet ${walletName}`,
 		);
 		let txId = await client.request("wallet_sendToAddress", [
 			defaultWalletRequest,
@@ -62,7 +62,7 @@ describe("Staking", () => {
 			client.request("wallet_balance", [walletRequest]),
 		).to.eventually.deep.eq(stakingAmount);
 
-		console.log(`[Log] Deposit ${stakingAmount}CRO stake to staking address "${stakingAddress}"`);
+		console.log(`[Log] Deposit ${stakingAmount} base unit stake to staking address "${stakingAddress}"`);
 		await expect(
 			client.request("staking_depositStake", [
 				walletRequest,
@@ -98,7 +98,7 @@ describe("Staking", () => {
 		);
 
 		const unbondAmount = "5000";
-		console.log(`[Log] Unbond ${unbondAmount}CRO stake from staking address "${stakingAddress}"`);
+		console.log(`[Log] Unbond ${unbondAmount} base unit stake from staking address "${stakingAddress}"`);
 		const remainingBondedAmount = new BigNumber(stakingAmount)
 			.minus(unbondAmount)
 			.toString(10);
