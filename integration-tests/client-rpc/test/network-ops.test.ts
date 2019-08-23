@@ -140,7 +140,7 @@ describe("Staking", () => {
 		);
 
 		console.log("[Log] Waiting for unbond period to exceed");
-		await sleep(8000);
+		await sleep(10000);
 
 		await expect(
 			client.request("staking_withdrawAllUnbondedStake", [
