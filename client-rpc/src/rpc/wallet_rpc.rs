@@ -372,6 +372,9 @@ pub mod tests {
             Ok(Status {
                 sync_info: SyncInfo {
                     latest_block_height: "1".to_string(),
+                    latest_app_hash:
+                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                            .to_string(),
                 },
             })
         }
@@ -380,6 +383,9 @@ pub mod tests {
             Ok(Block {
                 block: BlockInner {
                     header: Header {
+                        app_hash:
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                                .to_string(),
                         height: "1".to_string(),
                         time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                     },
@@ -395,6 +401,9 @@ pub mod tests {
             Ok(vec![Block {
                 block: BlockInner {
                     header: Header {
+                        app_hash:
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                                .to_string(),
                         height: "1".to_string(),
                         time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                     },
