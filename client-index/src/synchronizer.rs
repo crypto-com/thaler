@@ -10,6 +10,8 @@ use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transac
 use crate::service::GlobalStateService;
 use crate::BlockHandler;
 
+const DEFAULT_BATCH_SIZE: usize = 20;
+
 /// Synchronizer for transaction index which can be triggered manually
 pub struct ManualSynchronizer<S, C, H>
 where
@@ -44,13 +46,14 @@ where
         staking_addresses: &[StakedStateAddress],
         view_key: &PublicKey,
         private_key: &PrivateKey,
+        batch_size: Option<usize>,
     ) -> Result<()> {
         let last_block_height = self.global_state_service.last_block_height(view_key)?;
         let current_block_height = self.client.status()?.last_block_height()?;
 
-        // Send batch RPC requests to tendermint in chunks of 100 requests per batch call
+        // Send batch RPC requests to tendermint in chunks of `batch_size` requests per batch call
         for chunk in ((last_block_height + 1)..=current_block_height)
-            .chunks(100)
+            .chunks(batch_size.unwrap_or(DEFAULT_BATCH_SIZE))
             .into_iter()
         {
             let range = chunk.collect::<Vec<u64>>();
@@ -91,10 +94,11 @@ where
         staking_addresses: &[StakedStateAddress],
         view_key: &PublicKey,
         private_key: &PrivateKey,
+        batch_size: Option<usize>,
     ) -> Result<()> {
         self.global_state_service
             .set_last_block_height(view_key, 0)?;
-        self.sync(staking_addresses, view_key, private_key)
+        self.sync(staking_addresses, view_key, private_key, batch_size)
     }
 }
 
@@ -294,7 +298,7 @@ mod tests {
         );
 
         synchronizer
-            .sync(&[staking_address], &view_key, &private_key)
+            .sync(&[staking_address], &view_key, &private_key, None)
             .expect("Unable to synchronize");
     }
 }
