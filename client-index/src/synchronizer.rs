@@ -1,4 +1,6 @@
 //! Utilities for synchronizing transaction index with Crypto.com Chain
+use std::sync::mpsc::Sender;
+
 use itertools::Itertools;
 
 use chain_core::state::account::StakedStateAddress;
@@ -11,6 +13,23 @@ use crate::service::GlobalStateService;
 use crate::BlockHandler;
 
 const DEFAULT_BATCH_SIZE: usize = 20;
+
+/// A struct for providing progress report for synchronization
+#[derive(Debug)]
+pub enum ProgressReport {
+    /// Initial report to send start/finish heights
+    Init {
+        /// Block height from which synchronization started
+        start_block_height: u64,
+        /// Block height at which synchronization will finish
+        finish_block_height: u64,
+    },
+    /// Report to update progress status
+    Update {
+        /// Current synchronized block height
+        current_block_height: u64,
+    },
+}
 
 /// Synchronizer for transaction index which can be triggered manually
 pub struct ManualSynchronizer<S, C, H>
@@ -47,18 +66,32 @@ where
         view_key: &PublicKey,
         private_key: &PrivateKey,
         batch_size: Option<usize>,
+        progress_reporter: Option<Sender<ProgressReport>>,
     ) -> Result<()> {
         let status = self.client.status()?;
 
         let last_block_height = self.global_state_service.last_block_height(view_key)?;
         let current_block_height = status.last_block_height()?;
 
+        if let Some(ref sender) = &progress_reporter {
+            let _ = sender.send(ProgressReport::Init {
+                start_block_height: last_block_height,
+                finish_block_height: current_block_height,
+            });
+        }
+
         // Send batch RPC requests to tendermint in chunks of `batch_size` requests per batch call
         for chunk in ((last_block_height + 1)..=current_block_height)
             .chunks(batch_size.unwrap_or(DEFAULT_BATCH_SIZE))
             .into_iter()
         {
-            if self.fast_forward_status(staking_addresses, view_key, private_key, &status)? {
+            if self.fast_forward_status(
+                staking_addresses,
+                view_key,
+                private_key,
+                &status,
+                &progress_reporter,
+            )? {
                 // Fast forward to latest state if possible
                 return Ok(());
             }
@@ -72,6 +105,7 @@ where
                 view_key,
                 private_key,
                 &blocks[blocks.len() - 1],
+                &progress_reporter,
             )? {
                 // Fast forward batch if possible
                 continue;
@@ -80,7 +114,13 @@ where
             let block_results = self.client.block_results_batch(range.iter())?;
 
             for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
-                if self.fast_forward_status(staking_addresses, view_key, private_key, &status)? {
+                if self.fast_forward_status(
+                    staking_addresses,
+                    view_key,
+                    private_key,
+                    &status,
+                    &progress_reporter,
+                )? {
                     // Fast forward to latest state if possible
                     return Ok(());
                 }
@@ -88,6 +128,12 @@ where
                 let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
                 self.block_handler
                     .on_next(block_header, view_key, private_key)?;
+
+                if let Some(ref sender) = &progress_reporter {
+                    let _ = sender.send(ProgressReport::Update {
+                        current_block_height: block.height()?,
+                    });
+                }
             }
         }
 
@@ -102,10 +148,17 @@ where
         view_key: &PublicKey,
         private_key: &PrivateKey,
         batch_size: Option<usize>,
+        progress_reporter: Option<Sender<ProgressReport>>,
     ) -> Result<()> {
         self.global_state_service
             .set_global_state(view_key, 0, "".to_string())?;
-        self.sync(staking_addresses, view_key, private_key, batch_size)
+        self.sync(
+            staking_addresses,
+            view_key,
+            private_key,
+            batch_size,
+            progress_reporter,
+        )
     }
 
     /// Fast forwards state to given status if app hashes match
@@ -115,6 +168,7 @@ where
         view_key: &PublicKey,
         private_key: &PrivateKey,
         status: &Status,
+        progress_reporter: &Option<Sender<ProgressReport>>,
     ) -> Result<bool> {
         let last_app_hash = self.global_state_service.last_app_hash(view_key)?;
         let current_app_hash = status.last_app_hash();
@@ -129,6 +183,12 @@ where
             self.block_handler
                 .on_next(block_header, view_key, private_key)?;
 
+            if let Some(ref sender) = progress_reporter {
+                let _ = sender.send(ProgressReport::Update {
+                    current_block_height,
+                });
+            }
+
             Ok(true)
         } else {
             Ok(false)
@@ -142,6 +202,7 @@ where
         view_key: &PublicKey,
         private_key: &PrivateKey,
         block: &Block,
+        progress_reporter: &Option<Sender<ProgressReport>>,
     ) -> Result<bool> {
         let last_app_hash = self.global_state_service.last_app_hash(view_key)?;
         let current_app_hash = block.app_hash();
@@ -154,6 +215,12 @@ where
             let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
             self.block_handler
                 .on_next(block_header, view_key, private_key)?;
+
+            if let Some(ref sender) = progress_reporter {
+                let _ = sender.send(ProgressReport::Update {
+                    current_block_height,
+                });
+            }
 
             Ok(true)
         } else {
@@ -392,7 +459,7 @@ mod tests {
         );
 
         synchronizer
-            .sync(&[staking_address], &view_key, &private_key, None)
+            .sync(&[staking_address], &view_key, &private_key, None, None)
             .expect("Unable to synchronize");
     }
 }

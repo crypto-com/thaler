@@ -2,8 +2,12 @@ mod address_command;
 mod transaction_command;
 mod wallet_command;
 
+use std::sync::mpsc::channel;
+use std::thread;
+
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use hex::encode;
+use pbr::ProgressBar;
 use prettytable::{cell, format, row, Cell, Row, Table};
 use quest::success;
 use structopt::StructOpt;
@@ -19,7 +23,7 @@ use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_index::cipher::MockAbciTransactionObfuscation;
 use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
-use client_index::synchronizer::ManualSynchronizer;
+use client_index::synchronizer::{ManualSynchronizer, ProgressReport};
 use client_index::BlockHandler;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 
@@ -334,10 +338,62 @@ impl Command {
 
         let staking_addresses = wallet_client.staking_addresses(name, &passphrase)?;
 
+        let (sender, receiver) = channel();
+
+        let handle = thread::spawn(move || {
+            let mut init_block_height = 0;
+            let mut final_block_height = 0;
+            let mut progress_bar = None;
+
+            for progress_report in receiver.iter() {
+                match progress_report {
+                    ProgressReport::Init {
+                        start_block_height,
+                        finish_block_height,
+                    } => {
+                        init_block_height = start_block_height;
+                        final_block_height = finish_block_height;
+                        progress_bar =
+                            Some(ProgressBar::new(finish_block_height - start_block_height));
+
+                        let pb = progress_bar.as_mut().unwrap();
+                        pb.message("Synchronizing: ");
+                    }
+                    ProgressReport::Update {
+                        current_block_height,
+                    } => {
+                        if let Some(ref mut pb) = progress_bar {
+                            if current_block_height == final_block_height {
+                                pb.finish_println("Synchronization complete!");
+                            } else {
+                                pb.set(current_block_height - init_block_height);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
         if force {
-            synchronizer.sync_all(&staking_addresses, &view_key, &private_key, batch_size)
+            synchronizer.sync_all(
+                &staking_addresses,
+                &view_key,
+                &private_key,
+                batch_size,
+                Some(sender),
+            )?;
         } else {
-            synchronizer.sync(&staking_addresses, &view_key, &private_key, batch_size)
+            synchronizer.sync(
+                &staking_addresses,
+                &view_key,
+                &private_key,
+                batch_size,
+                Some(sender),
+            )?;
         }
+
+        let _ = handle.join();
+
+        Ok(())
     }
 }
