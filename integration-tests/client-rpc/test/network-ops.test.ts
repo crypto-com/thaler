@@ -2,14 +2,13 @@ import "mocha";
 import chaiAsPromised = require("chai-as-promised");
 import { use as chaiUse, expect } from "chai";
 import { RpcClient } from "./core/rpc-client";
-import { unbondAndWithdrawStake, WALLET_STAKING_ADDRESS } from "./core/setup";
+import { unbondAndWithdrawStake } from "./core/setup";
 import {
 	generateWalletName,
 	newWalletRequest,
 	newZeroFeeRpcClient,
 	sleep,
 	shouldTest,
-	newWithFeeRpcClient,
 	FEE_SCHEMA,
 } from "./core/utils";
 import BigNumber from "bignumber.js";
@@ -17,13 +16,12 @@ chaiUse(chaiAsPromised);
 
 describe("Staking", () => {
 	let client: RpcClient;
+	if (!shouldTest(FEE_SCHEMA.ZERO_FEE)) {
+		return;
+	}
 	before(async () => {
 		await unbondAndWithdrawStake();
-		if (shouldTest(FEE_SCHEMA.WITH_FEE)) {
-			client = newWithFeeRpcClient();
-		} else if (shouldTest(FEE_SCHEMA.ZERO_FEE)) {
-			client = newZeroFeeRpcClient();
-		}
+		client = newZeroFeeRpcClient();
 	});
 
 	it("should support staking, unbonding and withdrawing", async function() {
