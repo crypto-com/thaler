@@ -77,6 +77,13 @@ pub enum Command {
         #[structopt(name = "name", short, long, help = "Name of wallet")]
         name: String,
         #[structopt(
+            name = "batch-size",
+            short,
+            long,
+            help = "Number of requests per batch in RPC calls to tendermint"
+        )]
+        batch_size: Option<usize>,
+        #[structopt(
             name = "force",
             short,
             long,
@@ -191,7 +198,11 @@ impl Command {
                 );
                 Self::get_staked_stake(&network_ops_client, name, address)
             }
-            Command::Sync { name, force } => {
+            Command::Sync {
+                name,
+                batch_size,
+                force,
+            } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = RpcClient::new(&tendermint_url());
 
@@ -210,7 +221,7 @@ impl Command {
                 let synchronizer =
                     ManualSynchronizer::new(storage, tendermint_client, block_handler);
 
-                Self::resync(wallet_client, synchronizer, name, *force)
+                Self::resync(wallet_client, synchronizer, name, *batch_size, *force)
             }
         }
     }
@@ -311,6 +322,7 @@ impl Command {
         wallet_client: T,
         synchronizer: ManualSynchronizer<S, C, H>,
         name: &str,
+        batch_size: Option<usize>,
         force: bool,
     ) -> Result<()> {
         let passphrase = ask_passphrase(None)?;
@@ -323,9 +335,9 @@ impl Command {
         let staking_addresses = wallet_client.staking_addresses(name, &passphrase)?;
 
         if force {
-            synchronizer.sync_all(&staking_addresses, &view_key, &private_key)
+            synchronizer.sync_all(&staking_addresses, &view_key, &private_key, batch_size)
         } else {
-            synchronizer.sync(&staking_addresses, &view_key, &private_key)
+            synchronizer.sync(&staking_addresses, &view_key, &private_key, batch_size)
         }
     }
 }
