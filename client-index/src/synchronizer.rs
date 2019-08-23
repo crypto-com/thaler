@@ -108,7 +108,7 @@ where
         self.sync(staking_addresses, view_key, private_key, batch_size)
     }
 
-    /// Fast forwards state to given status state if app hashes match
+    /// Fast forwards state to given status if app hashes match
     fn fast_forward_status(
         &self,
         staking_addresses: &[StakedStateAddress],
