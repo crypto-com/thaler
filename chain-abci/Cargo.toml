@@ -37,7 +37,7 @@ parity-scale-codec = { features = ["derive"], version = "1.0" }
 zmq = "0.9"
 
 [dev-dependencies]
-quickcheck = "0.8"
+quickcheck = "0.9"
 criterion = "0.2"
 digest = "0.8"
 sha3 = "0.8"
