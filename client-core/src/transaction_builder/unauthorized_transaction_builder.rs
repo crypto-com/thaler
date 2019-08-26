@@ -4,7 +4,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{ErrorKind, Result};
+use client_common::{ErrorKind, Result, SignedTransaction};
 
 use crate::{TransactionBuilder, UnspentTransactions};
 
@@ -22,6 +22,10 @@ impl TransactionBuilder for UnauthorizedTransactionBuilder {
         _: UnspentTransactions,
         _: ExtendedAddr,
     ) -> Result<TxAux> {
+        Err(ErrorKind::PermissionDenied.into())
+    }
+
+    fn obfuscate(&self, _signed_transaction: SignedTransaction) -> Result<TxAux> {
         Err(ErrorKind::PermissionDenied.into())
     }
 }
