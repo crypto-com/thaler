@@ -2,6 +2,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
+use client_common::tendermint::types::BroadcastTxResult;
 use client_common::tendermint::Client;
 use client_common::{Result, Storage, Transaction};
 
@@ -59,7 +60,7 @@ where
     }
 
     #[inline]
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()> {
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult> {
         self.client.broadcast_transaction(transaction)
     }
 }
@@ -88,7 +89,7 @@ mod tests {
             unreachable!()
         }
 
-        fn block_batch<T: Iterator<Item = u64>>(&self, _heights: T) -> Result<Vec<Block>> {
+        fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, _heights: T) -> Result<Vec<Block>> {
             unreachable!()
         }
 
@@ -96,15 +97,20 @@ mod tests {
             unreachable!()
         }
 
-        fn block_results_batch<T: Iterator<Item = u64>>(
+        fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             _heights: T,
         ) -> Result<Vec<BlockResults>> {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
-            Ok(())
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+            Ok(BroadcastTxResult {
+                code: 0,
+                data: String::from(""),
+                hash: String::from(""),
+                log: String::from(""),
+            })
         }
 
         fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {

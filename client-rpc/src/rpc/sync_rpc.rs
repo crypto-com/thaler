@@ -48,7 +48,7 @@ where
             self.prepare_synchronized_parameters(&request)?;
 
         self.synchronizer
-            .sync(&staking_addresses, &view_key, &private_key)
+            .sync(&staking_addresses, &view_key, &private_key, None, None)
             .map_err(to_rpc_error)
     }
 
@@ -57,7 +57,7 @@ where
             self.prepare_synchronized_parameters(&request)?;
 
         self.synchronizer
-            .sync_all(&staking_addresses, &view_key, &private_key)
+            .sync_all(&staking_addresses, &view_key, &private_key, None, None)
             .map_err(to_rpc_error)
     }
 

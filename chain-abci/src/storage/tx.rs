@@ -24,17 +24,14 @@ pub fn get_account(
     accounts: &AccountStorage,
 ) -> Result<StakedState, Error> {
     let account_key = to_stake_key(account_address);
-    let items = accounts.get(last_root, &mut [&account_key]);
-    if let Err(e) = items {
-        return Err(Error::IoError(std::io::Error::new(
+    let account = accounts.get_one(last_root, &account_key);
+    match account {
+        Err(e) => Err(Error::IoError(std::io::Error::new(
             std::io::ErrorKind::Other,
             e,
-        )));
-    }
-    let account = items.unwrap()[&account_key].clone();
-    match account {
-        None => Err(Error::AccountNotFound),
-        Some(AccountWrapper(a)) => Ok(a),
+        ))),
+        Ok(None) => Err(Error::AccountNotFound),
+        Ok(Some(AccountWrapper(a))) => Ok(a),
     }
 }
 
@@ -328,7 +325,7 @@ pub mod tests {
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
-            .insert(None, &mut [&key], &mut vec![&wrapped])
+            .insert(None, &mut [key], &mut vec![wrapped])
             .expect("insert");
         let tx = UnbondTx::new(
             Coin::new(9).unwrap(),
@@ -479,7 +476,7 @@ pub mod tests {
         let key = account.key();
         let wrapped = AccountWrapper(account.clone());
         let new_root = tree
-            .insert(None, &mut [&key], &mut vec![&wrapped])
+            .insert(None, &mut [key], &mut vec![wrapped])
             .expect("insert");
 
         let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");

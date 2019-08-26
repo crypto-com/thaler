@@ -403,17 +403,13 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
             let tx_tree = MerkleTree::empty();
 
-            let keys: Vec<StarlingFixedKey> = accounts.iter().map(StakedState::key).collect();
+            let mut keys: Vec<StarlingFixedKey> = accounts.iter().map(StakedState::key).collect();
             // TODO: get rid of the extra allocations
             let wrapped: Vec<AccountWrapper> =
                 accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
             let new_account_root = self
                 .accounts
-                .insert(
-                    None,
-                    &mut keys.iter().collect::<Vec<_>>(),
-                    &mut wrapped.iter().collect::<Vec<_>>(),
-                )
+                .insert(None, &mut keys, &wrapped)
                 .expect("initial insert");
 
             let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);

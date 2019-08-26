@@ -1,12 +1,35 @@
 //! Utilities for synchronizing transaction index with Crypto.com Chain
+use std::sync::mpsc::Sender;
+
+use itertools::Itertools;
+
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_filter::BlockFilter;
-use client_common::tendermint::types::Block;
+use client_common::tendermint::types::{Block, BlockResults, Status};
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
 
 use crate::service::GlobalStateService;
 use crate::BlockHandler;
+
+const DEFAULT_BATCH_SIZE: usize = 20;
+
+/// A struct for providing progress report for synchronization
+#[derive(Debug)]
+pub enum ProgressReport {
+    /// Initial report to send start/finish heights
+    Init {
+        /// Block height from which synchronization started
+        start_block_height: u64,
+        /// Block height at which synchronization will finish
+        finish_block_height: u64,
+    },
+    /// Report to update progress status
+    Update {
+        /// Current synchronized block height
+        current_block_height: u64,
+    },
+}
 
 /// Synchronizer for transaction index which can be triggered manually
 pub struct ManualSynchronizer<S, C, H>
@@ -42,38 +65,76 @@ where
         staking_addresses: &[StakedStateAddress],
         view_key: &PublicKey,
         private_key: &PrivateKey,
+        batch_size: Option<usize>,
+        progress_reporter: Option<Sender<ProgressReport>>,
     ) -> Result<()> {
+        let status = self.client.status()?;
+
         let last_block_height = self.global_state_service.last_block_height(view_key)?;
-        let current_block_height = self.client.status()?.last_block_height()?;
+        let current_block_height = status.last_block_height()?;
 
-        let blocks = self
-            .client
-            .block_batch((last_block_height + 1)..=current_block_height)?;
+        if let Some(ref sender) = &progress_reporter {
+            let _ = sender.send(ProgressReport::Init {
+                start_block_height: last_block_height,
+                finish_block_height: current_block_height,
+            });
+        }
 
-        let block_results = self
-            .client
-            .block_results_batch((last_block_height + 1)..=current_block_height)?;
+        // Send batch RPC requests to tendermint in chunks of `batch_size` requests per batch call
+        for chunk in ((last_block_height + 1)..=current_block_height)
+            .chunks(batch_size.unwrap_or(DEFAULT_BATCH_SIZE))
+            .into_iter()
+        {
+            if self.fast_forward_status(
+                staking_addresses,
+                view_key,
+                private_key,
+                &status,
+                &progress_reporter,
+            )? {
+                // Fast forward to latest state if possible
+                return Ok(());
+            }
 
-        for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
-            let block_height = block.height()?;
-            let block_time = block.time();
+            let range = chunk.collect::<Vec<u64>>();
 
-            let transaction_ids = block_result.transaction_ids()?;
-            let block_filter = block_result.block_filter()?;
+            let blocks = self.client.block_batch(range.iter())?;
 
-            let unencrypted_transactions =
-                check_unencrypted_transactions(&block_filter, staking_addresses, &block)?;
+            if self.fast_forward_block(
+                staking_addresses,
+                view_key,
+                private_key,
+                &blocks[blocks.len() - 1],
+                &progress_reporter,
+            )? {
+                // Fast forward batch if possible
+                continue;
+            }
 
-            let block_header = BlockHeader {
-                block_height,
-                block_time,
-                transaction_ids,
-                block_filter,
-                unencrypted_transactions,
-            };
+            let block_results = self.client.block_results_batch(range.iter())?;
 
-            self.block_handler
-                .on_next(block_header, view_key, private_key)?;
+            for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
+                if self.fast_forward_status(
+                    staking_addresses,
+                    view_key,
+                    private_key,
+                    &status,
+                    &progress_reporter,
+                )? {
+                    // Fast forward to latest state if possible
+                    return Ok(());
+                }
+
+                let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
+                self.block_handler
+                    .on_next(block_header, view_key, private_key)?;
+
+                if let Some(ref sender) = &progress_reporter {
+                    let _ = sender.send(ProgressReport::Update {
+                        current_block_height: block.height()?,
+                    });
+                }
+            }
         }
 
         Ok(())
@@ -86,10 +147,85 @@ where
         staking_addresses: &[StakedStateAddress],
         view_key: &PublicKey,
         private_key: &PrivateKey,
+        batch_size: Option<usize>,
+        progress_reporter: Option<Sender<ProgressReport>>,
     ) -> Result<()> {
         self.global_state_service
-            .set_last_block_height(view_key, 0)?;
-        self.sync(staking_addresses, view_key, private_key)
+            .set_global_state(view_key, 0, "".to_string())?;
+        self.sync(
+            staking_addresses,
+            view_key,
+            private_key,
+            batch_size,
+            progress_reporter,
+        )
+    }
+
+    /// Fast forwards state to given status if app hashes match
+    fn fast_forward_status(
+        &self,
+        staking_addresses: &[StakedStateAddress],
+        view_key: &PublicKey,
+        private_key: &PrivateKey,
+        status: &Status,
+        progress_reporter: &Option<Sender<ProgressReport>>,
+    ) -> Result<bool> {
+        let last_app_hash = self.global_state_service.last_app_hash(view_key)?;
+        let current_app_hash = status.last_app_hash();
+
+        if current_app_hash == last_app_hash {
+            let current_block_height = status.last_block_height()?;
+
+            let block = self.client.block(current_block_height)?;
+            let block_result = self.client.block_results(current_block_height)?;
+
+            let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
+            self.block_handler
+                .on_next(block_header, view_key, private_key)?;
+
+            if let Some(ref sender) = progress_reporter {
+                let _ = sender.send(ProgressReport::Update {
+                    current_block_height,
+                });
+            }
+
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    /// Fast forwards state to given block if app hashes match
+    fn fast_forward_block(
+        &self,
+        staking_addresses: &[StakedStateAddress],
+        view_key: &PublicKey,
+        private_key: &PrivateKey,
+        block: &Block,
+        progress_reporter: &Option<Sender<ProgressReport>>,
+    ) -> Result<bool> {
+        let last_app_hash = self.global_state_service.last_app_hash(view_key)?;
+        let current_app_hash = block.app_hash();
+
+        if current_app_hash == last_app_hash {
+            let current_block_height = block.height()?;
+
+            let block_result = self.client.block_results(current_block_height)?;
+
+            let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
+            self.block_handler
+                .on_next(block_header, view_key, private_key)?;
+
+            if let Some(ref sender) = progress_reporter {
+                let _ = sender.send(ProgressReport::Update {
+                    current_block_height,
+                });
+            }
+
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -105,6 +241,31 @@ fn check_unencrypted_transactions(
     }
 
     Ok(Default::default())
+}
+
+fn prepare_block_header(
+    staking_addresses: &[StakedStateAddress],
+    block: &Block,
+    block_result: &BlockResults,
+) -> Result<BlockHeader> {
+    let app_hash = block.app_hash();
+    let block_height = block.height()?;
+    let block_time = block.time();
+
+    let transaction_ids = block_result.transaction_ids()?;
+    let block_filter = block_result.block_filter()?;
+
+    let unencrypted_transactions =
+        check_unencrypted_transactions(&block_filter, staking_addresses, block)?;
+
+    Ok(BlockHeader {
+        app_hash,
+        block_height,
+        block_time,
+        transaction_ids,
+        block_filter,
+        unencrypted_transactions,
+    })
 }
 
 #[cfg(test)]
@@ -173,6 +334,9 @@ mod tests {
             Ok(Status {
                 sync_info: SyncInfo {
                     latest_block_height: "2".to_owned(),
+                    latest_app_hash:
+                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                            .to_string(),
                 },
             })
         }
@@ -182,6 +346,9 @@ mod tests {
                 Ok(Block {
                     block: BlockInner {
                         header: Header {
+                            app_hash:
+                                "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3D"
+                                    .to_string(),
                             height: "1".to_owned(),
                             time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                         },
@@ -192,6 +359,9 @@ mod tests {
                 Ok(Block {
                     block: BlockInner {
                         header: Header {
+                            app_hash:
+                                "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                                    .to_string(),
                             height: "2".to_owned(),
                             time: DateTime::from_str("2019-04-10T09:38:41.735577Z").unwrap(),
                         },
@@ -205,8 +375,8 @@ mod tests {
             }
         }
 
-        fn block_batch<T: Iterator<Item = u64>>(&self, heights: T) -> Result<Vec<Block>> {
-            heights.map(|height| self.block(height)).collect()
+        fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, heights: T) -> Result<Vec<Block>> {
+            heights.map(|height| self.block(*height)).collect()
         }
 
         fn block_results(&self, height: u64) -> Result<BlockResults> {
@@ -258,14 +428,14 @@ mod tests {
             }
         }
 
-        fn block_results_batch<T: Iterator<Item = u64>>(
+        fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             heights: T,
         ) -> Result<Vec<BlockResults>> {
-            heights.map(|height| self.block_results(height)).collect()
+            heights.map(|height| self.block_results(*height)).collect()
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
             unreachable!()
         }
 
@@ -289,7 +459,7 @@ mod tests {
         );
 
         synchronizer
-            .sync(&[staking_address], &view_key, &private_key)
+            .sync(&[staking_address], &view_key, &private_key, None, None)
             .expect("Unable to synchronize");
     }
 }

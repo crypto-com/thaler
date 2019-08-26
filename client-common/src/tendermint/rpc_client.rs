@@ -9,6 +9,7 @@ use serde_json::{json, Value};
 use crate::tendermint::types::*;
 use crate::tendermint::Client;
 use crate::{Error, ErrorKind, Result};
+
 /// Tendermint RPC Client
 #[derive(Clone)]
 pub struct RpcClient {
@@ -33,6 +34,7 @@ impl RpcClient {
         let client = JsonRpcClient::new(self.url.to_owned(), None, None);
         let request = client.build_request(name, params);
         let response = client.send_request(&request).context(ErrorKind::RpcError)?;
+
         let result = response.result::<T>().context(ErrorKind::RpcError)?;
         Ok(result)
     }
@@ -41,28 +43,39 @@ impl RpcClient {
     where
         for<'de> T: Deserialize<'de>,
     {
-        // jsonrpc does not handle Hyper connection reset properly. The current
-        // inefficient workaround is to create a new client on every call.
-        // https://github.com/apoelstra/rust-jsonrpc/issues/26
-        let client = JsonRpcClient::new(self.url.to_owned(), None, None);
-        let requests = params
-            .iter()
-            .map(|(name, params)| client.build_request(name, params))
-            .collect::<Vec<Request>>();
-        let responses = client.send_batch(&requests).context(ErrorKind::RpcError)?;
-        responses
-            .into_iter()
-            .map(|response| -> Result<Option<T>> {
-                response
-                    .map(|inner| -> Result<T> {
-                        inner
-                            .result::<T>()
-                            .context(ErrorKind::RpcError)
-                            .map_err(Into::into)
-                    })
-                    .transpose()
-            })
-            .collect::<Result<Vec<Option<T>>>>()
+        if params.is_empty() {
+            // Do not send empty batch requests
+            return Ok(Default::default());
+        }
+
+        if params.len() == 1 {
+            // Do not send batch request when there is only one set of params
+            self.call::<T>(params[0].0, &params[0].1)
+                .map(|value| vec![Some(value)])
+        } else {
+            // jsonrpc does not handle Hyper connection reset properly. The current
+            // inefficient workaround is to create a new client on every call.
+            // https://github.com/apoelstra/rust-jsonrpc/issues/26
+            let client = JsonRpcClient::new(self.url.to_owned(), None, None);
+            let requests = params
+                .iter()
+                .map(|(name, params)| client.build_request(name, params))
+                .collect::<Vec<Request>>();
+            let responses = client.send_batch(&requests).context(ErrorKind::RpcError)?;
+            responses
+                .into_iter()
+                .map(|response| -> Result<Option<T>> {
+                    response
+                        .map(|inner| -> Result<T> {
+                            inner
+                                .result::<T>()
+                                .context(ErrorKind::RpcError)
+                                .map_err(Into::into)
+                        })
+                        .transpose()
+                })
+                .collect::<Result<Vec<Option<T>>>>()
+        }
     }
 }
 
@@ -80,7 +93,7 @@ impl Client for RpcClient {
         self.call("block", &params)
     }
 
-    fn block_batch<T: Iterator<Item = u64>>(&self, heights: T) -> Result<Vec<Block>> {
+    fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, heights: T) -> Result<Vec<Block>> {
         let params = heights
             .map(|height| ("block", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
@@ -103,7 +116,7 @@ impl Client for RpcClient {
         self.call("block_results", &params)
     }
 
-    fn block_results_batch<T: Iterator<Item = u64>>(
+    fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
         &self,
         heights: T,
     ) -> Result<Vec<BlockResults>> {
@@ -124,10 +137,15 @@ impl Client for RpcClient {
             .collect::<Result<Vec<BlockResults>>>()
     }
 
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<()> {
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult> {
         let params = [json!(transaction)];
-        self.call::<serde_json::Value>("broadcast_tx_sync", &params)
-            .map(|_| ())
+        self.call::<BroadcastTxResult>("broadcast_tx_sync", &params)
+            .and_then(|result| {
+                if result.code != 0 {
+                    return Err(Error::from(ErrorKind::TransactionValidationFailed));
+                }
+                Ok(result)
+            })
     }
 
     fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult> {
