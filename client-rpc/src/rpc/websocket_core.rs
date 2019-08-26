@@ -220,8 +220,10 @@ where
 
     // Value is given from websocket_rpc
     // received
-    fn do_parse(&mut self, value: Value) -> Option<()> {
-        let id = value["id"].as_str()?;
+    fn do_parse(&mut self, value: Value) -> Result<()> {
+        let id = value["id"].as_str().ok_or(client_common::Error::from(
+            client_common::ErrorKind::RpcError,
+        ))?;
         match id {
             // this is special, it's command
             "add_wallet" => {
@@ -237,7 +239,11 @@ where
                 self.do_save_block_to_chain(newblock, "event");
             }
             "status_reply" => {
-                let height = value["result"]["sync_info"]["latest_block_height"].as_str()?;
+                let height = value["result"]["sync_info"]["latest_block_height"]
+                    .as_str()
+                    .ok_or(client_common::Error::from(
+                        client_common::ErrorKind::RpcError,
+                    ))?;
                 self.prepare_get_blocks(height.to_string());
             }
             "block_reply" => {
@@ -257,7 +263,7 @@ where
             }
             _ => {}
         }
-        None
+        Ok(())
     }
     // proceed next wallet
     pub fn change_wallet(&mut self) {
@@ -269,11 +275,12 @@ where
     }
     // only process text messages
     // session is handled in websocket_rpc
-    pub fn parse(&mut self, message: OwnedMessage) {
+    pub fn parse(&mut self, message: OwnedMessage) -> Result<()> {
         if let OwnedMessage::Text(a) = message {
             let b: Value = serde_json::from_str(a.as_str()).unwrap();
-            self.do_parse(b);
+            return self.do_parse(b);
         }
+        Ok(())
     }
     /** max height is queried
     get those blocks from tendermint
@@ -375,7 +382,7 @@ where
                 .my_receiver
                 .recv_timeout(time::Duration::from_millis(RECEIVE_TIMEOUT))
                 .map(|a| {
-                    self.parse(a);
+                    self.parse(a).expect("correct parsing");
                 });
             self.polling();
         }
