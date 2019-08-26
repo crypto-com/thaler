@@ -10,6 +10,7 @@ use client_common::{Error, ErrorKind};
 use client_core::WalletClient;
 use client_index::service::GlobalStateService;
 use client_index::BlockHandler;
+use failure::ResultExt;
 use futures::sink::Sink;
 use jsonrpc_core::Result as JsonResult;
 use mpsc::Receiver;
@@ -118,16 +119,16 @@ where
         let wallet = self.get_current_wallet();
         self.global_state_service
             .last_block_height(&wallet.view_key)
-            .unwrap()
+            .expect("get current height")
     }
 
     /// write block to internal database
-    fn do_save_block_to_chain(&mut self, block: Block, kind: &str) {
+    fn do_save_block_to_chain(&mut self, block: Block, kind: &str) -> Result<()> {
         if self.wallets.is_empty() {
-            return;
+            return Ok(());
         }
         // restore as object
-        let height: u64 = block.height().unwrap();
+        let height: u64 = block.height()?;
         let current = self.get_current_height();
         if height != current + 1 {
             log::info!(
@@ -136,10 +137,10 @@ where
                 current,
                 self.max_height
             );
-            return;
+            return Ok(());
         }
         log::info!("save block height={} kind={}", height, kind);
-        let _ = self.write_block(height, &block);
+        self.write_block(height, &block)
     }
 
     // low level block processing
@@ -227,16 +228,22 @@ where
         match id {
             // this is special, it's command
             "add_wallet" => {
-                let name = value["wallet"]["name"].as_str().unwrap();
+                let name = value["wallet"]["name"]
+                    .as_str()
+                    .ok_or(Error::from(ErrorKind::RpcError))?;
                 let _ = self.add_wallet(
                     name.to_string(),
-                    value["wallet"]["passphrase"].as_str().unwrap().into(),
+                    value["wallet"]["passphrase"]
+                        .as_str()
+                        .ok_or(Error::from(ErrorKind::RpcError))?
+                        .into(),
                 );
             }
             "subscribe_reply#event" => {
                 let newblock: Block =
-                    serde_json::from_value(value["result"]["data"]["value"].clone()).unwrap();
-                self.do_save_block_to_chain(newblock, "event");
+                    serde_json::from_value(value["result"]["data"]["value"].clone())
+                        .context(ErrorKind::RpcError)?;
+                self.do_save_block_to_chain(newblock, "event")?;
             }
             "status_reply" => {
                 let height = value["result"]["sync_info"]["latest_block_height"]
@@ -252,8 +259,8 @@ where
                     self.change_to_wait();
                 } else {
                     let wallet = self.get_current_wallet();
-                    let newblock: Block = serde_json::from_value(value["result"].clone()).unwrap();
-                    self.do_save_block_to_chain(newblock, "get block");
+                    let newblock: Block = serde_json::from_value(value["result"].clone()).context(ErrorKind::RpcError)?;
+                    self.do_save_block_to_chain(newblock, "get block")?;
 
                     if self.get_current_height() >= self.max_height {
                         log::info!("all synced wallet {}.. wait", wallet.name);
@@ -277,7 +284,7 @@ where
     // session is handled in websocket_rpc
     pub fn parse(&mut self, message: OwnedMessage) -> Result<()> {
         if let OwnedMessage::Text(a) = message {
-            let b: Value = serde_json::from_str(a.as_str()).unwrap();
+            let b: Value = serde_json::from_str(a.as_str()).context(ErrorKind::RpcError)?;
             return self.do_parse(b);
         }
         Ok(())
@@ -286,7 +293,7 @@ where
     get those blocks from tendermint
     */
     pub fn prepare_get_blocks(&mut self, height: String) {
-        self.max_height = height.parse::<u64>().unwrap();
+        self.max_height = height.parse::<u64>().expect("get height in preparing a block");
         if self.get_current_height() < self.max_height {
             self.state = WebsocketState::GetBlocks;
 
@@ -308,55 +315,63 @@ where
         }
     }
     /// request status to fetch max height
-    pub fn check_status(&mut self) {
+    pub fn check_status(&mut self) -> Result<()> {
         let mut sink = self.sender.clone().wait();
-        sink.send(OwnedMessage::Text(CMD_STATUS.to_string()))
-            .unwrap();
+        sink.send(OwnedMessage::Text(CMD_STATUS.to_string())).context(ErrorKind::RpcError)
+            ?;
         self.state = WebsocketState::GetStatus;
+        Ok(())
     }
 
     /// called regularly, when receive time expires
-    pub fn polling(&mut self) {
+    pub fn polling(&mut self) -> Result<()> {
         match self.state {
             WebsocketState::ReadyProcess => {
                 if !self.wallets.is_empty() {
-                    self.check_status();
+                    self.check_status()?;
                 }
+                Ok(())
             }
             WebsocketState::WaitProcess => {
                 let now = SystemTime::now();
-                let diff = now.duration_since(self.state_time).unwrap().as_millis();
+                let diff = now
+                    .duration_since(self.state_time)
+                    .expect("get duration time")
+                    .as_millis();
 
                 if diff > WAIT_PROCESS_TIME {
                     self.state = WebsocketState::ReadyProcess;
                 }
+                Ok(())
             }
-            WebsocketState::GetStatus => {}
+            WebsocketState::GetStatus => Ok(()),
             WebsocketState::GetBlocks => self.polling_get_blocks(),
         }
     }
 
     /// called in get blocks state
-    pub fn polling_get_blocks(&mut self) {
+    pub fn polling_get_blocks(&mut self) -> Result<()> {
         let now = SystemTime::now();
-        let diff = now.duration_since(self.old_blocktime).unwrap().as_millis();
+        let diff = now.duration_since(self.old_blocktime).expect("get duration time").as_millis();
 
         if diff < BLOCK_REQUEST_TIME {
-            return;
+            return Ok(());
         }
         self.old_blocktime = now;
-        self.send_request_block();
+        self.send_request_block()
     }
 
     /** fetching blocks is handled indivisually
     in one thread instead of dedicated thread
     */
-    pub fn send_request_block(&mut self) {
-        let mut json: Value = serde_json::from_str(CMD_BLOCK).unwrap();
+    pub fn send_request_block(&mut self) -> Result<()> {
+        let mut json: Value = serde_json::from_str(CMD_BLOCK).context(ErrorKind::RpcError)?;
         let request = self.get_current_height() + 1;
         json["params"] = json!([request.to_string()]);
         let mut sink = self.sender.clone().wait();
-        sink.send(OwnedMessage::Text(json.to_string())).unwrap();
+        sink.send(OwnedMessage::Text(json.to_string()))
+            .context(ErrorKind::RpcError)?;
+        Ok(())
     }
 
     /// decrypt using viewkey
@@ -384,7 +399,7 @@ where
                 .map(|a| {
                     self.parse(a).expect("correct parsing");
                 });
-            self.polling();
+            let _ = self.polling();
         }
     }
 }
