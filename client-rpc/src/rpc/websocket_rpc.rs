@@ -2,6 +2,7 @@ use crate::rpc::websocket_core::WebsocketCore;
 use crate::server::WalletRequest;
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
+use client_common::Result;
 use client_common::{PrivateKey, PublicKey, Storage};
 use client_core::WalletClient;
 use client_index::BlockHandler;
@@ -13,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::thread;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
+
 /** this handles low level network connection
  packet processing and core works are done in websocket_core
 it uses channel to communicate with core
@@ -119,7 +121,7 @@ impl WebsocketRpc {
     }
 
     /// activate tokio websocket
-    pub fn run_network(&mut self) {
+    pub fn run_network(&mut self) -> Result<()> {
         log::info!("Connecting to {}", self.websocket_url);
         let mut runtime = tokio::runtime::current_thread::Builder::new()
             .build()
@@ -127,8 +129,8 @@ impl WebsocketRpc {
         // get synchronous sink
         assert!(self.my_sender.is_some());
         assert!(self.my_receiver.is_some());
-        let channel_tx = self.my_sender.as_ref().unwrap().clone();
-        let channel_rx = self.my_receiver.take().unwrap();
+        let channel_tx = self.my_sender.as_ref().expect("get ref").clone();
+        let channel_rx = self.my_receiver.take().expect("take");
         let mut channel_sink = channel_tx.clone().wait();
 
         let runner = ClientBuilder::new(&self.websocket_url)
@@ -145,7 +147,7 @@ impl WebsocketRpc {
                     .filter_map(|message| match message {
                         OwnedMessage::Text(a) => {
                             if let Some(core) = self.core.as_ref() {
-                                core.send(OwnedMessage::Text(a.clone())).unwrap();
+                                core.send(OwnedMessage::Text(a.clone())).expect("core send");
                             }
 
                             None
@@ -159,5 +161,6 @@ impl WebsocketRpc {
                     .forward(sink)
             });
         runtime.block_on(runner).expect("tokio block_on");
+        Ok(())
     }
 }

@@ -131,7 +131,7 @@ impl Server {
         thread::spawn(move || {
             // some work here
             log::info!("start websocket");
-            web.run_network();
+            let _ = web.run_network();
         });
 
         Ok(())

@@ -259,7 +259,8 @@ where
                     self.change_to_wait();
                 } else {
                     let wallet = self.get_current_wallet();
-                    let newblock: Block = serde_json::from_value(value["result"].clone()).context(ErrorKind::RpcError)?;
+                    let newblock: Block = serde_json::from_value(value["result"].clone())
+                        .context(ErrorKind::RpcError)?;
                     self.do_save_block_to_chain(newblock, "get block")?;
 
                     if self.get_current_height() >= self.max_height {
@@ -293,7 +294,9 @@ where
     get those blocks from tendermint
     */
     pub fn prepare_get_blocks(&mut self, height: String) {
-        self.max_height = height.parse::<u64>().expect("get height in preparing a block");
+        self.max_height = height
+            .parse::<u64>()
+            .expect("get height in preparing a block");
         if self.get_current_height() < self.max_height {
             self.state = WebsocketState::GetBlocks;
 
@@ -317,8 +320,8 @@ where
     /// request status to fetch max height
     pub fn check_status(&mut self) -> Result<()> {
         let mut sink = self.sender.clone().wait();
-        sink.send(OwnedMessage::Text(CMD_STATUS.to_string())).context(ErrorKind::RpcError)
-            ?;
+        sink.send(OwnedMessage::Text(CMD_STATUS.to_string()))
+            .context(ErrorKind::RpcError)?;
         self.state = WebsocketState::GetStatus;
         Ok(())
     }
@@ -352,7 +355,10 @@ where
     /// called in get blocks state
     pub fn polling_get_blocks(&mut self) -> Result<()> {
         let now = SystemTime::now();
-        let diff = now.duration_since(self.old_blocktime).expect("get duration time").as_millis();
+        let diff = now
+            .duration_since(self.old_blocktime)
+            .expect("get duration time")
+            .as_millis();
 
         if diff < BLOCK_REQUEST_TIME {
             return Ok(());
