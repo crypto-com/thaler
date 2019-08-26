@@ -125,7 +125,7 @@ where
             return;
         }
         // restore as object
-        let height: u64 = block.block.header.height.parse().unwrap();
+        let height: u64 = block.height().unwrap();
         let current = self.get_current_height();
         if height != current + 1 {
             log::info!(
