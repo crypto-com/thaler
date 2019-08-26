@@ -37,7 +37,7 @@ rust: &rust
       cargo fmt -- --check --color=auto &&
       (cargo-clippy --version || rustup component add clippy) &&
       cargo clippy -- -D warnings &&
-      (cargo-audit --version || cargo install cargo-audit) &&
+      (cargo-audit -h || cargo install cargo-audit) &&
       cargo audit       
     fi
 
