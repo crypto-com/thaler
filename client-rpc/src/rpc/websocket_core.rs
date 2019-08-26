@@ -187,7 +187,7 @@ where
     // no mutex is necessary
     // wallet can be added in runtime
     pub fn add_wallet(&mut self, name: String, passphrase: SecUtf8) -> JsonResult<()> {
-        log::info!("add_wallet ***** {} {}", name, passphrase);
+        log::info!("add_wallet ***** {}", name);
         let view_key = self
             .wallet_client
             .view_key(&name, &passphrase)
