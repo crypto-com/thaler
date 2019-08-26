@@ -142,6 +142,7 @@ where
 
     // low level block processing
     pub fn write_block(&self, block_height: u64, block: &Block) -> Result<()> {
+        let app_hash = block.app_hash();
         let block_results = self.client.block_results(block_height)?;
 
         let block_time = block.time();
@@ -157,6 +158,7 @@ where
         )?;
 
         let block_header = BlockHeader {
+            app_hash,
             block_height,
             block_time,
             transaction_ids,
