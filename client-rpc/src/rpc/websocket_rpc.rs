@@ -13,10 +13,11 @@ use serde::{Deserialize, Serialize};
 use std::thread;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
-/// this handles low level network connection
-/// packet processing and core works are done in websocket_core
-/// it uses channel to communicate with core
-/// through send queue
+/** this handles low level network connection
+ packet processing and core works are done in websocket_core
+it uses channel to communicate with core
+ through send queue
+ */
 pub const CMD_SUBSCRIBE: &str = r#"
     {
         "jsonrpc": "2.0",
@@ -58,8 +59,9 @@ pub struct AddWalletCommand {
     pub wallet: WalletRequest,
 }
 
-// constanct connection
-// using ws://localhost:26657/websocket
+/** constanct connection
+using ws://localhost:26657/websocket
+*/
 pub struct WebsocketRpc {
     pub core: Option<MyQueue>,
     websocket_url: String,
@@ -67,6 +69,7 @@ pub struct WebsocketRpc {
     my_receiver: Option<mpsc::Receiver<OwnedMessage>>,
 }
 
+/// handling web-socket
 impl WebsocketRpc {
     pub fn new(websocket_url: String) -> Self {
         Self {
@@ -77,7 +80,7 @@ impl WebsocketRpc {
         }
     }
 
-    // launch core thread
+    /// launch core thread
     pub fn run<
         S: Storage + 'static,
         C: Client + 'static,
@@ -115,7 +118,7 @@ impl WebsocketRpc {
         assert!(self.core.is_some());
     }
 
-    // activate tokio websocket
+    /// activate tokio websocket
     pub fn run_network(&mut self) {
         log::info!("Connecting to {}", self.websocket_url);
         let mut runtime = tokio::runtime::current_thread::Builder::new()
