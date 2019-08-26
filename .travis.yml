@@ -108,7 +108,7 @@ jobs:
         - . ./env.sh
         - docker-compose up -d || travis_terminate 1;
         - |
-          sleep 5
+          sleep 10
           docker-compose ps
           docker-compose logs -t --tail="all"
         - ./run-test.sh || travis_terminate 1;

@@ -2,15 +2,15 @@ import "mocha";
 import chaiAsPromised = require("chai-as-promised");
 import { use as chaiUse, expect } from "chai";
 import { RpcClient } from "./core/rpc-client";
+import { unbondAndWithdrawStake } from "./core/setup";
 import {
 	generateWalletName,
 	newWalletRequest,
-	unbondAndWithdrawStake,
 	newZeroFeeRpcClient,
 	shouldTest,
 	FEE_SCHEMA,
 	newWithFeeRpcClient,
-} from "./core/setup";
+} from "./core/utils";
 chaiUse(chaiAsPromised);
 
 describe("Wallet management", () => {
