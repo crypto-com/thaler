@@ -123,7 +123,7 @@ impl WebsocketRpc {
         log::info!("Connecting to {}", self.websocket_url);
         let mut runtime = tokio::runtime::current_thread::Builder::new()
             .build()
-            .unwrap();
+            .expect("get tokio builder");
         // get synchronous sink
         assert!(self.my_sender.is_some());
         assert!(self.my_receiver.is_some());
@@ -132,13 +132,13 @@ impl WebsocketRpc {
         let mut channel_sink = channel_tx.clone().wait();
 
         let runner = ClientBuilder::new(&self.websocket_url)
-            .unwrap()
+            .expect("client-builder new")
             .add_protocol("rust-websocket")
             .async_connect_insecure()
             .and_then(|(duplex, _)| {
                 channel_sink
                     .send(OwnedMessage::Text(CMD_SUBSCRIBE.to_string()))
-                    .unwrap();
+                    .expect("send to channel sink");
                 let (sink, stream) = duplex.split();
 
                 stream
@@ -158,6 +158,6 @@ impl WebsocketRpc {
                     .select(channel_rx.map_err(|_| WebSocketError::NoDataAvailable))
                     .forward(sink)
             });
-        runtime.block_on(runner).unwrap();
+        runtime.block_on(runner).expect("tokio block_on");
     }
 }
