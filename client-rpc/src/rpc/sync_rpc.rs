@@ -20,8 +20,9 @@ pub trait SyncRpc: Send + Sync {
     #[rpc(name = "sync_all")]
     fn sync_all(&self, request: WalletRequest) -> Result<()>;
 
-    #[rpc(name = "sync_continuous")]
-    fn sync_continuous(&self, request: WalletRequest) -> Result<String>;
+    // sync continuously
+    #[rpc(name = "sync_unlockWallet")]
+    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String>;
 }
 
 pub struct SyncRpcImpl<T, S, C, H>
@@ -61,7 +62,7 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn sync_continuous(&self, request: WalletRequest) -> Result<String> {
+    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String> {
         match self.prepare_synchronized_parameters(&request) {
             Ok(_) => {}
             Err(_) => return Ok("incorrect password".to_string()),
