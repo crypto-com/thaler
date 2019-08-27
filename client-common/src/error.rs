@@ -65,6 +65,9 @@ pub enum ErrorKind {
     /// Transaction not found
     #[fail(display = "Transaction not found")]
     TransactionNotFound,
+    /// Output not found
+    #[fail(display = "Output not found")]
+    OutputNotFound,
     /// Private key not found
     #[fail(display = "Private key not found")]
     PrivateKeyNotFound,
