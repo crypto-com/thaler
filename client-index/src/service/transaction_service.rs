@@ -127,6 +127,7 @@ mod tests {
             transaction_service
                 .get_output(&TxoPointer::new(transaction_id, 0))
                 .unwrap()
+                .unwrap()
                 .value
         );
 
