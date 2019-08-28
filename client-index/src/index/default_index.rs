@@ -4,7 +4,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use client_common::tendermint::types::BroadcastTxResult;
 use client_common::tendermint::Client;
-use client_common::{Result, Storage, Transaction};
+use client_common::{Error, ErrorKind, Result, Storage, Transaction};
 
 use crate::service::*;
 use crate::Index;
@@ -56,7 +56,9 @@ where
 
     #[inline]
     fn output(&self, input: &TxoPointer) -> Result<TxOut> {
-        self.transaction_service.get_output(input)
+        self.transaction_service
+            .get_output(input)?
+            .ok_or_else(|| Error::from(ErrorKind::TransactionNotFound))
     }
 
     #[inline]

@@ -14,6 +14,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
+use chain_core::tx::data::Tx;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
@@ -224,4 +225,13 @@ pub trait MultiSigWalletClient: WalletClient {
 
     /// Returns final signature. This function will fail if partial signatures from all co-signers are not received.
     fn signature(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<SchnorrSignature>;
+
+    /// Returns obfuscated transaction by signing given transaction with signature produced by current session id.
+    fn transaction(
+        &self,
+        name: &str,
+        session_id: &H256,
+        passphrase: &SecUtf8,
+        unsigned_transaction: Tx,
+    ) -> Result<TxAux>;
 }

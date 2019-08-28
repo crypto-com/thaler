@@ -28,39 +28,39 @@ use crate::{SelectedUnspentTransactions, Signer, TransactionBuilder, UnspentTran
 ///
 /// TODO: Create a `DummySigner` which signs a transaction with dummy values for fees calculation.
 #[derive(Debug)]
-pub struct DefaultTransactionBuilder<S, F, C>
+pub struct DefaultTransactionBuilder<S, F, O>
 where
     S: Signer,
     F: FeeAlgorithm,
-    C: TransactionObfuscation,
+    O: TransactionObfuscation,
 {
     signer: S,
     fee_algorithm: F,
-    transaction_cipher: C,
+    transaction_obfuscation: O,
 }
 
-impl<S, F, C> DefaultTransactionBuilder<S, F, C>
+impl<S, F, O> DefaultTransactionBuilder<S, F, O>
 where
     S: Signer,
     F: FeeAlgorithm,
-    C: TransactionObfuscation,
+    O: TransactionObfuscation,
 {
     /// Creates a new instance of transaction builder
     #[inline]
-    pub fn new(signer: S, fee_algorithm: F, transaction_cipher: C) -> Self {
+    pub fn new(signer: S, fee_algorithm: F, transaction_obfuscation: O) -> Self {
         Self {
             signer,
             fee_algorithm,
-            transaction_cipher,
+            transaction_obfuscation,
         }
     }
 }
 
-impl<S, F, C> TransactionBuilder for DefaultTransactionBuilder<S, F, C>
+impl<S, F, O> TransactionBuilder for DefaultTransactionBuilder<S, F, O>
 where
     S: Signer,
     F: FeeAlgorithm,
-    C: TransactionObfuscation,
+    O: TransactionObfuscation,
 {
     fn build(
         &self,
@@ -95,7 +95,7 @@ where
             )?;
 
             let signed_transaction = SignedTransaction::TransferTransaction(transaction, witness);
-            let tx_aux = self.transaction_cipher.encrypt(signed_transaction)?;
+            let tx_aux = self.transaction_obfuscation.encrypt(signed_transaction)?;
 
             let new_fees = self
                 .fee_algorithm
@@ -109,6 +109,11 @@ where
                 return Ok(tx_aux);
             }
         }
+    }
+
+    #[inline]
+    fn obfuscate(&self, signed_transaction: SignedTransaction) -> Result<TxAux> {
+        self.transaction_obfuscation.encrypt(signed_transaction)
     }
 }
 

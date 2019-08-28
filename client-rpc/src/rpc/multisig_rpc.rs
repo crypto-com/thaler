@@ -5,6 +5,7 @@ use jsonrpc_derive::rpc;
 use secstr::SecUtf8;
 
 use chain_core::common::{H256, HASH_SIZE_256};
+use chain_core::tx::data::Tx;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
 use client_core::{MultiSigWalletClient, WalletClient};
 
@@ -68,6 +69,14 @@ pub trait MultiSigRpc: Send + Sync {
 
     #[rpc(name = "multiSig_signature")]
     fn signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+
+    #[rpc(name = "multiSig_broadcastWithSignature")]
+    fn broadcast_with_signature(
+        &self,
+        request: WalletRequest,
+        session_id: String,
+        unsigned_transaction: Tx,
+    ) -> Result<String>;
 }
 
 pub struct MultiSigRpcImpl<T>
@@ -223,6 +232,30 @@ where
         self.client
             .signature(&session_id, &passphrase)
             .map(|sig| sig.to_string())
+            .map_err(to_rpc_error)
+    }
+
+    fn broadcast_with_signature(
+        &self,
+        request: WalletRequest,
+        session_id: String,
+        unsigned_transaction: Tx,
+    ) -> Result<String> {
+        let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
+
+        let tx_aux = self
+            .client
+            .transaction(
+                &request.name,
+                &session_id,
+                &request.passphrase,
+                unsigned_transaction,
+            )
+            .map_err(to_rpc_error)?;
+
+        self.client
+            .broadcast_transaction(&tx_aux)
+            .map(|result| result.data)
             .map_err(to_rpc_error)
     }
 }

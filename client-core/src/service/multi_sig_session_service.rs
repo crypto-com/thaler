@@ -237,6 +237,14 @@ impl MultiSigSession {
         })
     }
 
+    /// Returns public keys of all signers in this session
+    pub fn public_keys(&self) -> Vec<PublicKey> {
+        self.signers
+            .iter()
+            .map(|signer| signer.public_key.clone())
+            .collect()
+    }
+
     /// Returns all the partial signatures. This function will fail if partial signatures from all co-signers are not
     /// received.
     fn partial_signatures(&self) -> Result<Vec<H256>> {
@@ -526,6 +534,12 @@ where
     pub fn signature(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<SchnorrSignature> {
         let session = self.get_session(session_id, passphrase)?;
         session.signature()
+    }
+
+    /// Returns public keys of all signers in this session
+    pub fn public_keys(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<Vec<PublicKey>> {
+        let session = self.get_session(session_id, passphrase)?;
+        Ok(session.public_keys())
     }
 
     /// Retrieves a session from storage
