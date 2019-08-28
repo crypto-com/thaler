@@ -391,7 +391,7 @@ dependencies = [
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.99 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)",
- "sled 0.26.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sled 0.26.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "zeroize 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1492,7 +1492,7 @@ dependencies = [
 
 [[package]]
 name = "pagecache"
-version = "0.19.0"
+version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bincode 1.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2334,11 +2334,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "sled"
-version = "0.26.0"
+version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "pagecache 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pagecache 0.19.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.99 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_bytes 0.11.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3226,7 +3226,7 @@ dependencies = [
 "checksum numtoa 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b8f8bdf33df195859076e54ab11ee78a1b208382d3a26ec40d142ffc1ecc49ef"
 "checksum opaque-debug 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "2839e79665f131bdb5782e51f2c6c9599c133c6098982a54c794358bf432529c"
 "checksum owning_ref 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "49a4b8ea2179e6a2e27411d3bca09ca6dd630821cf6894c6c7c8467a8ee7ef13"
-"checksum pagecache 0.19.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e0643d2c17194b9e75fb85554dddb4c547fbc9a6859ea6f03c82754d04bc7f3d"
+"checksum pagecache 0.19.1 (registry+https://github.com/rust-lang/crates.io-index)" = "bfcab3b8ebef15558baac23982a3ef1246f14ecfe81b0db876b4462abcbb2119"
 "checksum parity-bytes 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fa5168b4cf41f3835e4bc6ffb32f51bc9365dc50cb351904595b3931d917fd0c"
 "checksum parity-rocksdb 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2d17caf6640e24b70242f3f48615e3f0764f98871e8c7aea25584e29833eb5a8"
 "checksum parity-rocksdb-sys 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)" = "9581e6b8c63f3808500638372ee56faaaffb57c4d349974bff591606b94d5f57"
@@ -3320,7 +3320,7 @@ dependencies = [
 "checksum sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "dd26bc0e7a2e3a7c959bc494caf58b72ee0c71d67704e9520f736ca7e4853ecf"
 "checksum skeptic 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "24ebf8a06f5f8bae61ae5bbc7af7aac4ef6907ae975130faba1199e5fe82256a"
 "checksum slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
-"checksum sled 0.26.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a9eda7ea212eaed138457b5f51e404884df306667d0c484e992ffa137c7a6f72"
+"checksum sled 0.26.3 (registry+https://github.com/rust-lang/crates.io-index)" = "cf554c5502988d57aa2abee4145f27e7dee186c740a4e0a7c8f1e9083b532d7d"
 "checksum smallvec 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)" = "ab606a9c5e214920bb66c458cd7be8ef094f813f20fe77a54cc7dbfff220d4b7"
 "checksum sourcefile 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "4bf77cb82ba8453b42b6ae1d692e4cdc92f9a47beaf89a847c8be83f4e328ad3"
 "checksum spin 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cbdb51a221842709c2dd65b62ad4b78289fc3e706a02c17a26104528b6aa7837"
