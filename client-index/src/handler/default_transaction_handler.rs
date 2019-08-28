@@ -127,21 +127,23 @@ where
     ) -> Result<()> {
         let output = self.transaction_service.get_output(&input)?;
 
-        let change = TransactionChange {
-            transaction_id,
-            address: output.address,
-            balance_change: BalanceChange::Outgoing(output.value),
-            block_height,
-            block_time,
-        };
+        if let Some(output) = output {
+            let change = TransactionChange {
+                transaction_id,
+                address: output.address,
+                balance_change: BalanceChange::Outgoing(output.value),
+                block_height,
+                block_time,
+            };
 
-        let address = change.address.clone();
+            let address = change.address.clone();
 
-        // Update transaction history and balance
-        memento.add_transaction_change(&address, change);
+            // Update transaction history and balance
+            memento.add_transaction_change(&address, change);
 
-        // Update unspent transactions
-        memento.remove_unspent_transaction(&address, input);
+            // Update unspent transactions
+            memento.remove_unspent_transaction(&address, input);
+        }
 
         Ok(())
     }
