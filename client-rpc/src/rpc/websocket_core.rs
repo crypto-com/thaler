@@ -222,20 +222,20 @@ where
     // Value is given from websocket_rpc
     // received
     fn do_parse(&mut self, value: Value) -> Result<()> {
-        let id = value["id"].as_str().ok_or(client_common::Error::from(
-            client_common::ErrorKind::RpcError,
-        ))?;
+        let id = value["id"]
+            .as_str()
+            .ok_or_else(|| Error::from(ErrorKind::RpcError))?;
         match id {
             // this is special, it's command
             "add_wallet" => {
                 let name = value["wallet"]["name"]
                     .as_str()
-                    .ok_or(Error::from(ErrorKind::RpcError))?;
+                    .ok_or_else(|| Error::from(ErrorKind::RpcError))?;
                 let _ = self.add_wallet(
                     name.to_string(),
                     value["wallet"]["passphrase"]
                         .as_str()
-                        .ok_or(Error::from(ErrorKind::RpcError))?
+                        .ok_or_else(|| Error::from(ErrorKind::RpcError))?
                         .into(),
                 );
             }
@@ -248,9 +248,7 @@ where
             "status_reply" => {
                 let height = value["result"]["sync_info"]["latest_block_height"]
                     .as_str()
-                    .ok_or(client_common::Error::from(
-                        client_common::ErrorKind::RpcError,
-                    ))?;
+                    .ok_or_else(|| Error::from(ErrorKind::RpcError))?;
                 self.prepare_get_blocks(height.to_string());
             }
             "block_reply" => {
