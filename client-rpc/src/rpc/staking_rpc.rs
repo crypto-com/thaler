@@ -5,7 +5,7 @@ use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
+use chain_core::state::account::{StakedState, StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
@@ -25,6 +25,9 @@ pub trait StakingRpc: Send + Sync {
         to_address: String,
         inputs: Vec<TxoPointer>,
     ) -> Result<()>;
+
+    #[rpc(name = "staking_state")]
+    fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState>;
 
     #[rpc(name = "staking_unbondStake")]
     fn unbond_stake(
@@ -97,6 +100,14 @@ where
 
         self.client
             .broadcast_transaction(&transaction)
+            .map_err(to_rpc_error)?;
+
+        Ok(())
+    }
+
+    fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState> {
+        self.ops_client
+            .get_staked_state(&request.name, &request.passphrase, &address)
             .map_err(to_rpc_error)
     }
 
@@ -125,7 +136,9 @@ where
 
         self.client
             .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error)?;
+
+        Ok(())
     }
 
     fn withdraw_all_unbonded_stake(
@@ -181,6 +194,8 @@ where
 
         self.client
             .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error)?;
+
+        Ok(())
     }
 }

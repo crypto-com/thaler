@@ -4,6 +4,7 @@
 mod tree;
 
 use crate::storage::Storage;
+use chain_core::common::H256;
 use chain_core::state::account::StakedState;
 use parity_scale_codec::{Decode as ScaleDecode, Encode as ScaleEncode};
 use starling::constants::KEY_LEN;
@@ -33,7 +34,7 @@ impl Decode for AccountWrapper {
     }
 }
 
-impl Database for Storage {
+impl Database<H256> for Storage {
     type NodeType = tree::TreeNode;
     type EntryType = ([u8; KEY_LEN], Vec<u8>);
 
@@ -46,8 +47,8 @@ impl Database for Storage {
     }
 
     #[inline]
-    fn get_node(&self, key: &[u8; KEY_LEN]) -> Result<Option<Self::NodeType>, Exception> {
-        if let Some(buffer) = self.db.get(None, key).map_err(tree::convert_io_err)? {
+    fn get_node(&self, key: H256) -> Result<Option<Self::NodeType>, Exception> {
+        if let Some(buffer) = self.db.get(None, &key).map_err(tree::convert_io_err)? {
             let data = buffer.to_vec();
             let storage = Self::NodeType::decode(&mut data.as_slice())
                 .map_err(|e| Exception::new(e.what()))?;
@@ -58,7 +59,7 @@ impl Database for Storage {
     }
 
     #[inline]
-    fn insert(&mut self, key: [u8; KEY_LEN], value: Self::NodeType) -> Result<(), Exception> {
+    fn insert(&mut self, key: H256, value: Self::NodeType) -> Result<(), Exception> {
         let serialized = value.encode();
         let mut insert_tx = self.db.transaction();
         insert_tx.put(None, &key, &serialized);
@@ -103,9 +104,9 @@ mod test {
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
-            .insert(None, &mut [&key], &mut vec![&wrapped])
+            .insert(None, &mut [key], &mut vec![wrapped.clone()])
             .expect("insert");
-        let items = tree.get(&new_root, &mut [&key]).expect("get");
+        let items = tree.get(&new_root, &mut [key]).expect("get");
         assert_eq!(items[&key], Some(wrapped));
     }
 
@@ -116,7 +117,7 @@ mod test {
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree
-            .insert(None, &mut [&key], &mut vec![&wrapped])
+            .insert(None, &mut [key], &mut vec![wrapped.clone()])
             .expect("insert");
         let updated_account = StakedState::new(
             1,
@@ -128,12 +129,16 @@ mod test {
         let wrapped_updated = AccountWrapper(updated_account);
         assert_ne!(wrapped, wrapped_updated);
         let new_root = tree
-            .insert(Some(&old_root), &mut [&key], &mut vec![&wrapped_updated])
+            .insert(
+                Some(&old_root),
+                &mut [key],
+                &mut vec![wrapped_updated.clone()],
+            )
             .expect("insert 2");
         assert_ne!(old_root, new_root);
-        let items = tree.get(&new_root, &mut [&key]).expect("get");
+        let items = tree.get(&new_root, &mut [key]).expect("get");
         assert_eq!(items[&key], Some(wrapped_updated));
-        let old_items = tree.get(&old_root, &mut [&key]).expect("get 2");
+        let old_items = tree.get(&old_root, &mut [key]).expect("get 2");
         assert_eq!(old_items[&key], Some(wrapped));
     }
 
@@ -144,7 +149,7 @@ mod test {
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree
-            .insert(None, &mut [&key], &mut vec![&wrapped])
+            .insert(None, &mut [key], &mut vec![wrapped])
             .expect("insert");
         let updated_account = StakedState::new(
             1,
@@ -155,12 +160,16 @@ mod test {
         );
         let wrapped_updated = AccountWrapper(updated_account);
         let new_root = tree
-            .insert(Some(&old_root), &mut [&key], &mut vec![&wrapped_updated])
+            .insert(
+                Some(&old_root),
+                &mut [key],
+                &mut vec![wrapped_updated.clone()],
+            )
             .expect("insert 2");
         tree.remove(&old_root).expect("remove");
-        let items = tree.get(&new_root, &mut [&key]).expect("get");
+        let items = tree.get(&new_root, &mut [key]).expect("get");
         assert_eq!(items[&key], Some(wrapped_updated));
-        let old_items = tree.get(&old_root, &mut [&key]).expect("get 2");
+        let old_items = tree.get(&old_root, &mut [key]).expect("get 2");
         assert_eq!(old_items[&key], None);
     }
 

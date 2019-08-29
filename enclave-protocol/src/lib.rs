@@ -12,7 +12,7 @@
 extern crate sgx_tstd as std;
 
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-use std::prelude::v1::Vec;
+use std::prelude::v1::{Box, Vec};
 
 use chain_core::common::{H256, H264, H512};
 use chain_core::state::account::DepositBondTx;
@@ -30,9 +30,10 @@ use secp256k1::{
 };
 
 const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
+const TOKEN_LEN: usize = 1024;
 
 /// requests sent from chain-abci app to enclave wrapper server
-/// FIXME: the variant will be smaller once the TX storage is on the enclave side
+/// FIXME: box chain info or txaux?
 #[allow(clippy::large_enum_variant)]
 #[derive(Encode, Decode)]
 pub enum EnclaveRequest {
@@ -56,6 +57,15 @@ pub enum EnclaveRequest {
     /// request to flush/persist storage + store the computed app hash
     /// FIXME: enclave should be able to compute a part of app hash, so send the other parts and check the same app hash was computed
     CommitBlock { app_hash: H256 },
+    /// request to get a stored launch token (requested by TDQE -- they should be on the same machine)
+    GetCachedLaunchToken { enclave_metaname: Vec<u8> },
+    /// request to update the stored launch token (requested by TDQE -- they should be on the same machine)
+    UpdateCachedLaunchToken {
+        enclave_metaname: Vec<u8>,
+        token: Box<[u8; TOKEN_LEN]>,
+    },
+    /// request to get tx data sealed to "mrsigner" (requested by TDQE -- they should be on the same machine)
+    GetSealedTxData { txids: Vec<TxId> },
 }
 
 /// reponses sent from enclave wrapper server to chain-abci app
@@ -68,6 +78,12 @@ pub enum EnclaveResponse {
     VerifyTx(Result<(Fee, Option<StakedState>), ()>),
     /// returns if the data was sucessfully persisted in the enclave's local storage
     CommitBlock(Result<(), ()>),
+    /// returns a stored launch token if any
+    GetCachedLaunchToken(Result<Option<Box<[u8; TOKEN_LEN]>>, ()>),
+    /// indicates whether the update was successful
+    UpdateCachedLaunchToken(Result<(), ()>),
+    /// returns Some(sealed data payloads) or None (if any TXID was not found / invalid)
+    GetSealedTxData(Option<Vec<Vec<u8>>>),
     /// response if unsupported tx type is sent (e.g. unbondtx) -- TODO: probably unnecessary if there is a data type with a subset of TxAux
     UnsupportedTxType,
     /// response if the enclave failed to parse the request

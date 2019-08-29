@@ -6,7 +6,10 @@ use chain_tx_filter::BlockFilter;
 use crate::Transaction;
 
 /// Structure for representing a block header on Crypto.com Chain
+#[derive(Debug)]
 pub struct BlockHeader {
+    /// App hash of block
+    pub app_hash: String,
     /// Block height
     pub block_height: u64,
     /// Block time

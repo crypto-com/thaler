@@ -127,7 +127,9 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
         ),
     }?;
 
-    wallet_client.broadcast_transaction(&transaction)
+    wallet_client.broadcast_transaction(&transaction)?;
+
+    Ok(())
 }
 
 fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(

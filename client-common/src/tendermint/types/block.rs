@@ -28,6 +28,7 @@ pub struct Data {
 
 #[derive(Debug, Deserialize)]
 pub struct Header {
+    pub app_hash: String,
     pub height: String,
     pub time: DateTime<Utc>,
 }
@@ -76,8 +77,15 @@ impl Block {
     }
 
     /// Returns time of this block
+    #[inline]
     pub fn time(&self) -> DateTime<Utc> {
         self.block.header.time
+    }
+
+    /// Returns app hash of this block
+    #[inline]
+    pub fn app_hash(&self) -> String {
+        self.block.header.app_hash.clone()
     }
 }
 
@@ -136,6 +144,8 @@ mod tests {
         let block = Block {
             block: BlockInner {
                 header: Header {
+                    app_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                        .to_owned(),
                     height: "1".to_owned(),
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
@@ -165,6 +175,8 @@ mod tests {
         let block = Block {
             block: BlockInner {
                 header: Header {
+                    app_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                        .to_owned(),
                     height: "1".to_owned(),
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },
@@ -180,6 +192,8 @@ mod tests {
         let block = Block {
             block: BlockInner {
                 header: Header {
+                    app_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                        .to_owned(),
                     height: "a".to_owned(),
                     time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 },

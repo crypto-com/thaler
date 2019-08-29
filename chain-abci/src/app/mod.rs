@@ -52,10 +52,10 @@ pub fn update_account(
 ) -> (StarlingFixedKey, Option<StakedState>) {
     (
         accounts
-            .insert(
+            .insert_one(
                 Some(account_root_hash),
-                &mut [&account.key()],
-                &mut [&AccountWrapper(account.clone())],
+                &account.key(),
+                &AccountWrapper(account.clone()),
             )
             .expect("update account"),
         Some(account),

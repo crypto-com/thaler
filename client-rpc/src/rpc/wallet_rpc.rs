@@ -277,8 +277,13 @@ pub mod tests {
             })
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
-            Ok(())
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
+            Ok(BroadcastTxResult {
+                code: 0,
+                data: String::from(""),
+                hash: String::from(""),
+                log: String::from(""),
+            })
         }
     }
 
@@ -367,6 +372,9 @@ pub mod tests {
             Ok(Status {
                 sync_info: SyncInfo {
                     latest_block_height: "1".to_string(),
+                    latest_app_hash:
+                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                            .to_string(),
                 },
             })
         }
@@ -375,12 +383,33 @@ pub mod tests {
             Ok(Block {
                 block: BlockInner {
                     header: Header {
+                        app_hash:
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                                .to_string(),
                         height: "1".to_string(),
                         time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                     },
                     data: Data { txs: None },
                 },
             })
+        }
+
+        fn block_batch<'a, T: Iterator<Item = &'a u64>>(
+            &self,
+            _heights: T,
+        ) -> CommonResult<Vec<Block>> {
+            Ok(vec![Block {
+                block: BlockInner {
+                    header: Header {
+                        app_hash:
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                                .to_string(),
+                        height: "1".to_string(),
+                        time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                    },
+                    data: Data { txs: None },
+                },
+            }])
         }
 
         fn block_results(&self, _height: u64) -> CommonResult<BlockResults> {
@@ -393,7 +422,20 @@ pub mod tests {
             })
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<()> {
+        fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
+            &self,
+            _heights: T,
+        ) -> CommonResult<Vec<BlockResults>> {
+            Ok(vec![BlockResults {
+                height: "1".to_string(),
+                results: Results {
+                    deliver_tx: None,
+                    end_block: None,
+                },
+            }])
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
             unreachable!("broadcast_transaction")
         }
 
