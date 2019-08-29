@@ -3,6 +3,7 @@ use parity_scale_codec::{Decode, Encode};
 use serde::de;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "serde")]
 use std::fmt;
 use std::prelude::v1::Vec;
 
