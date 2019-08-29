@@ -172,5 +172,4 @@ mod test {
         let old_items = tree.get(&old_root, &mut [key]).expect("get 2");
         assert_eq!(old_items[&key], None);
     }
-
 }

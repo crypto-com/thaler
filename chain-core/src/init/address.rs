@@ -369,5 +369,4 @@ mod tests {
         let c = RedeemAddress::from_cro(&b).unwrap();
         assert_eq!(c, a);
     }
-
 }
