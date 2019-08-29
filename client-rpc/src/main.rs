@@ -42,7 +42,7 @@ pub(crate) struct Options {
         short = "i",
         long,
         default_value = "test",
-        help = "Network Type (main, test, deve)"
+        help = "Network Type (main, test, dev)"
     )]
     network_type: String,
 
