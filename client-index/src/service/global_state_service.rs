@@ -5,6 +5,12 @@ use client_common::{ErrorKind, PublicKey, Result, Storage};
 
 const KEYSPACE: &str = "index_global_state";
 
+#[derive(Debug, Encode, Decode)]
+struct GlobalState {
+    last_block_height: u64,
+    last_app_hash: String,
+}
+
 /// Exposes functionalities for managing client's global state
 ///
 /// Stores `view_key -> last_block_height`
@@ -26,26 +32,46 @@ where
         Self { storage }
     }
 
-    /// Returns currently stored last block height
+    /// Returns currently stored last block height for given view key
     pub fn last_block_height(&self, view_key: &PublicKey) -> Result<u64> {
-        let last_block_height_optional = self.storage.get(KEYSPACE, view_key.encode())?;
+        let global_state_optional = self.storage.get(KEYSPACE, view_key.encode())?;
 
-        match last_block_height_optional {
+        match global_state_optional {
             None => Ok(0),
-            Some(bytes) => u64::decode(&mut bytes.as_slice())
+            Some(bytes) => GlobalState::decode(&mut bytes.as_slice())
+                .map(|global_state| global_state.last_block_height)
                 .context(ErrorKind::DeserializationError)
                 .map_err(Into::into),
         }
     }
 
-    /// Updates last block height with given value and returns old value
-    pub fn set_last_block_height(
+    /// Returns currently stored last app hash for given view key
+    pub fn last_app_hash(&self, view_key: &PublicKey) -> Result<String> {
+        let global_state_optional = self.storage.get(KEYSPACE, view_key.encode())?;
+
+        match global_state_optional {
+            None => Ok("".to_string()),
+            Some(bytes) => GlobalState::decode(&mut bytes.as_slice())
+                .map(|global_state| global_state.last_app_hash)
+                .context(ErrorKind::DeserializationError)
+                .map_err(Into::into),
+        }
+    }
+
+    /// Updates last block height and last app hash with given values
+    pub fn set_global_state(
         &self,
         view_key: &PublicKey,
         last_block_height: u64,
+        last_app_hash: String,
     ) -> Result<()> {
+        let global_state = GlobalState {
+            last_block_height,
+            last_app_hash,
+        };
+
         self.storage
-            .set(KEYSPACE, view_key.encode(), last_block_height.encode())
+            .set(KEYSPACE, view_key.encode(), global_state.encode())
             .map(|_| ())
     }
 
@@ -76,11 +102,19 @@ mod tests {
             global_state_service.last_block_height(&public_key).unwrap()
         );
         assert!(global_state_service
-            .set_last_block_height(&public_key, 5)
+            .set_global_state(
+                &public_key,
+                5,
+                "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C".to_string(),
+            )
             .is_ok());
         assert_eq!(
             5,
             global_state_service.last_block_height(&public_key).unwrap()
+        );
+        assert_eq!(
+            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C".to_string(),
+            global_state_service.last_app_hash(&public_key).unwrap()
         );
         assert!(global_state_service.clear().is_ok());
         assert_eq!(

@@ -53,27 +53,29 @@ where
     }
 
     /// Retrieves transaction output corresponding to given pointer
-    pub fn get_output(&self, input: &TxoPointer) -> Result<TxOut> {
-        let transaction = self
-            .get(&input.id)?
-            .ok_or_else(|| Error::from(ErrorKind::TransactionNotFound))?;
+    pub fn get_output(&self, input: &TxoPointer) -> Result<Option<TxOut>> {
+        let transaction = self.get(&input.id)?;
 
-        let outputs = match transaction {
-            Transaction::TransferTransaction(transfer_transaction) => {
-                Ok(transfer_transaction.outputs)
-            }
-            Transaction::WithdrawUnbondedStakeTransaction(withdraw_transaction) => {
-                Ok(withdraw_transaction.outputs)
-            }
-            _ => Err(Error::from(ErrorKind::InvalidTransaction)),
-        }?;
+        transaction
+            .map(|transaction| {
+                let outputs = match transaction {
+                    Transaction::TransferTransaction(transfer_transaction) => {
+                        Ok(transfer_transaction.outputs)
+                    }
+                    Transaction::WithdrawUnbondedStakeTransaction(withdraw_transaction) => {
+                        Ok(withdraw_transaction.outputs)
+                    }
+                    _ => Err(Error::from(ErrorKind::InvalidTransaction)),
+                }?;
 
-        let output = outputs
-            .into_iter()
-            .nth(input.index.try_into().unwrap())
-            .ok_or_else(|| Error::from(ErrorKind::TransactionNotFound))?;
+                let output = outputs
+                    .into_iter()
+                    .nth(input.index.try_into().unwrap())
+                    .ok_or_else(|| Error::from(ErrorKind::OutputNotFound))?;
 
-        Ok(output)
+                Ok(output)
+            })
+            .transpose()
     }
 
     /// Clears all storage
@@ -124,6 +126,7 @@ mod tests {
             Coin::new(100).unwrap(),
             transaction_service
                 .get_output(&TxoPointer::new(transaction_id, 0))
+                .unwrap()
                 .unwrap()
                 .value
         );

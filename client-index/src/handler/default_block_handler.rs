@@ -93,8 +93,12 @@ where
             }
         }
 
-        self.global_state_service
-            .set_last_block_height(view_key, block_header.block_height)
+        // TODO: Set current block's app hash
+        self.global_state_service.set_global_state(
+            view_key,
+            block_header.block_height,
+            block_header.app_hash,
+        )
     }
 }
 
@@ -184,6 +188,8 @@ mod tests {
         block_filter.add_view_key(&view_key.into());
 
         BlockHeader {
+            app_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                .to_string(),
             block_height: 1,
             block_time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             transaction_ids,

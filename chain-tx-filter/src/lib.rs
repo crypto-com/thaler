@@ -5,7 +5,7 @@ use secp256k1::key::PublicKey;
 use std::convert::TryFrom;
 
 /// Probabilistic fixed-size filter wrapper
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct BlockFilter {
     // may be replaced with GCS, e.g. https://github.com/dac-gmbh/golomb-set
     bloom: Bloom,

@@ -11,7 +11,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::Result;
+use client_common::{Result, SignedTransaction};
 
 use crate::UnspentTransactions;
 
@@ -37,4 +37,7 @@ pub trait TransactionBuilder: Send + Sync {
         unspent_transactions: UnspentTransactions,
         return_address: ExtendedAddr,
     ) -> Result<TxAux>;
+
+    /// Obfuscates given signed transaction
+    fn obfuscate(&self, signed_transaction: SignedTransaction) -> Result<TxAux>;
 }

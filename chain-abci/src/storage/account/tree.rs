@@ -21,7 +21,7 @@ use std::error::Error;
 
 #[derive(Clone)]
 pub struct Blake2sHasher(Blake2s);
-impl Hasher for Blake2sHasher {
+impl Hasher<H256> for Blake2sHasher {
     type HashType = Self;
 
     #[inline]
@@ -55,12 +55,12 @@ pub struct TreeBranch {
     /// The location of the next node when traversing the one branch.
     one: H256,
     /// The index bit of the associated key on which to make a decision to go down the zero or one branch.
-    split_index: u8,
+    split_index: usize,
     /// The associated key with this branch.
     key: H256,
 }
 
-impl Branch for TreeBranch {
+impl Branch<H256> for TreeBranch {
     #[inline]
     fn new() -> Self {
         let zero = [0u8; 32];
@@ -86,7 +86,7 @@ impl Branch for TreeBranch {
         &self.one
     }
     #[inline]
-    fn get_split_index(&self) -> u8 {
+    fn get_split_index(&self) -> usize {
         self.split_index
     }
     #[inline]
@@ -107,7 +107,7 @@ impl Branch for TreeBranch {
         self.one = one
     }
     #[inline]
-    fn set_split_index(&mut self, index: u8) {
+    fn set_split_index(&mut self, index: usize) {
         self.split_index = index
     }
     #[inline]
@@ -116,7 +116,7 @@ impl Branch for TreeBranch {
     }
 
     #[inline]
-    fn decompose(self) -> (u64, [u8; KEY_LEN], [u8; KEY_LEN], u8, [u8; KEY_LEN]) {
+    fn decompose(self) -> (u64, [u8; KEY_LEN], [u8; KEY_LEN], usize, [u8; KEY_LEN]) {
         (
             self.get_count(),
             self.zero,
@@ -135,7 +135,7 @@ pub struct TreeLeaf {
     data: H256,
 }
 
-impl Leaf for TreeLeaf {
+impl Leaf<H256> for TreeLeaf {
     /// Creates a new `TreeLeaf`
     #[inline]
     fn new() -> Self {
@@ -183,12 +183,15 @@ pub struct TreeNode {
     /// The number of references to this node.
     pub references: Count,
     /// The `NodeVariant` of the node.
-    pub node: NodeVariant<TreeBranch, TreeLeaf, TreeData>,
+    pub node: NodeVariant<TreeBranch, TreeLeaf, TreeData, H256>,
 }
 
 impl ScaleEncode for TreeNode {
     fn encode_to<W: Output>(&self, dest: &mut W) {
         match self.node {
+            NodeVariant::Phantom(_) => {
+                // TODO: panic or nothing?
+            }
             NodeVariant::Branch(ref tb) => {
                 // TreeBranch{count, zero, one, split_index, key}
                 dest.push_byte(0);
@@ -196,7 +199,7 @@ impl ScaleEncode for TreeNode {
                 tb.count.encode_to(dest);
                 tb.zero.encode_to(dest);
                 tb.one.encode_to(dest);
-                dest.push_byte(tb.split_index);
+                (tb.split_index as u64).encode_to(dest);
                 tb.key.encode_to(dest);
             }
             NodeVariant::Leaf(ref tl) => {
@@ -225,7 +228,7 @@ impl ScaleDecode for TreeNode {
                 let count = Count::decode(input)?;
                 let zero = H256::decode(input)?;
                 let one = H256::decode(input)?;
-                let split_index: u8 = input.read_byte()?;
+                let split_index: usize = u64::decode(input)? as usize;
                 let key = H256::decode(input)?;
                 Ok(TreeNode {
                     references,
@@ -263,7 +266,7 @@ impl ScaleDecode for TreeNode {
 impl TreeNode {
     /// Creates a new `TreeNode`.
     #[inline]
-    pub fn new(node_variant: NodeVariant<TreeBranch, TreeLeaf, TreeData>) -> Self {
+    pub fn new(node_variant: NodeVariant<TreeBranch, TreeLeaf, TreeData, H256>) -> Self {
         Self {
             references: 0,
             node: node_variant,
@@ -296,9 +299,9 @@ impl TreeNode {
     }
 }
 
-impl Node<TreeBranch, TreeLeaf, TreeData> for TreeNode {
+impl Node<TreeBranch, TreeLeaf, TreeData, H256> for TreeNode {
     #[inline]
-    fn new(node_variant: NodeVariant<TreeBranch, TreeLeaf, TreeData>) -> Self {
+    fn new(node_variant: NodeVariant<TreeBranch, TreeLeaf, TreeData, H256>) -> Self {
         Self::new(node_variant)
     }
     #[inline]
@@ -306,7 +309,7 @@ impl Node<TreeBranch, TreeLeaf, TreeData> for TreeNode {
         Self::get_references(self)
     }
     #[inline]
-    fn get_variant(self) -> NodeVariant<TreeBranch, TreeLeaf, TreeData> {
+    fn get_variant(self) -> NodeVariant<TreeBranch, TreeLeaf, TreeData, H256> {
         self.node
     }
     #[inline]
@@ -330,15 +333,24 @@ impl Node<TreeBranch, TreeLeaf, TreeData> for TreeNode {
 pub struct HashTree<ValueType, DatabaseType>
 where
     ValueType: Encode + Decode + Sync + Send,
-    DatabaseType: Database<NodeType = TreeNode>,
+    DatabaseType: Database<H256, NodeType = TreeNode>,
 {
-    tree: MerkleBIT<DatabaseType, TreeBranch, TreeLeaf, TreeData, TreeNode, TreeHasher, ValueType>,
+    tree: MerkleBIT<
+        DatabaseType,
+        TreeBranch,
+        TreeLeaf,
+        TreeData,
+        TreeNode,
+        TreeHasher,
+        ValueType,
+        H256,
+    >,
 }
 
 impl<ValueType, DatabaseType> HashTree<ValueType, DatabaseType>
 where
     ValueType: Encode + Decode + Sync + Send,
-    DatabaseType: Database<NodeType = TreeNode>,
+    DatabaseType: Database<H256, NodeType = TreeNode>,
 {
     /// Creates a new `HashTree`.
     #[inline]
@@ -349,12 +361,22 @@ where
 
     /// Gets the values associated with `keys` from the tree.
     #[inline]
-    pub fn get<'a>(
+    pub fn get(
         &self,
         root_hash: &[u8; KEY_LEN],
-        keys: &mut [&'a [u8; KEY_LEN]],
-    ) -> BinaryMerkleTreeResult<HashMap<&'a [u8; KEY_LEN], Option<ValueType>>> {
+        keys: &mut [[u8; KEY_LEN]],
+    ) -> BinaryMerkleTreeResult<HashMap<[u8; KEY_LEN], Option<ValueType>>> {
         self.tree.get(root_hash, keys)
+    }
+
+    /// Gets one value associated with `key` from the tree.
+    #[inline]
+    pub fn get_one(
+        &self,
+        root_hash: &[u8; KEY_LEN],
+        key: &[u8; KEY_LEN],
+    ) -> BinaryMerkleTreeResult<Option<ValueType>> {
+        self.tree.get_one(root_hash, key)
     }
 
     /// Inserts elements into the tree.  Using `previous_root` specifies that the insert depends on
@@ -363,10 +385,22 @@ where
     pub fn insert(
         &mut self,
         previous_root: Option<&[u8; KEY_LEN]>,
-        keys: &mut [&[u8; KEY_LEN]],
-        values: &mut [&ValueType],
+        keys: &mut [[u8; KEY_LEN]],
+        values: &[ValueType],
     ) -> BinaryMerkleTreeResult<[u8; KEY_LEN]> {
         self.tree.insert(previous_root, keys, values)
+    }
+
+    /// Inserts one element into the tree.  Using `previous_root` specifies that the insert depends on
+    /// the state from the previous root, and will update references accordingly.
+    #[inline]
+    pub fn insert_one(
+        &mut self,
+        previous_root: Option<&[u8; KEY_LEN]>,
+        key: &[u8; KEY_LEN],
+        value: &ValueType,
+    ) -> BinaryMerkleTreeResult<[u8; KEY_LEN]> {
+        self.tree.insert_one(previous_root, key, value)
     }
 
     /// Removes a root from the tree.  This will remove all elements with less than two references

@@ -224,16 +224,12 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
         let mut account_tree =
             AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db");
 
-        let keys: Vec<StarlingFixedKey> = accounts.iter().map(|x| x.key()).collect();
+        let mut keys: Vec<StarlingFixedKey> = accounts.iter().map(|x| x.key()).collect();
         // TODO: get rid of the extra allocations
-        let wrapped: Vec<AccountWrapper> =
+        let mut wrapped: Vec<AccountWrapper> =
             accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
         let new_account_root = account_tree
-            .insert(
-                None,
-                &mut keys.iter().collect::<Vec<_>>(),
-                &mut wrapped.iter().collect::<Vec<_>>(),
-            )
+            .insert(None, &mut keys, &mut wrapped)
             .expect("initial insert");
 
         let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
@@ -280,7 +276,7 @@ fn init_chain_should_create_db_items() {
     assert_eq!(
         1,
         app.accounts
-            .get(&state.last_account_root_hash, &mut [&key])
+            .get(&state.last_account_root_hash, &mut [key])
             .expect("account")
             .iter()
             .count()
@@ -765,7 +761,7 @@ fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp<MockClient>) 
     println!("committed root hash: {:?}", &state.last_account_root_hash);
     let items = app
         .accounts
-        .get(&state.last_account_root_hash, &mut [&account_key]);
+        .get(&state.last_account_root_hash, &mut [account_key.clone()]);
 
     let account = items.expect("account lookup problem")[&account_key].clone();
     match account {

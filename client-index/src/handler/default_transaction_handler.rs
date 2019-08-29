@@ -127,21 +127,23 @@ where
     ) -> Result<()> {
         let output = self.transaction_service.get_output(&input)?;
 
-        let change = TransactionChange {
-            transaction_id,
-            address: output.address,
-            balance_change: BalanceChange::Outgoing(output.value),
-            block_height,
-            block_time,
-        };
+        if let Some(output) = output {
+            let change = TransactionChange {
+                transaction_id,
+                address: output.address,
+                balance_change: BalanceChange::Outgoing(output.value),
+                block_height,
+                block_time,
+            };
 
-        let address = change.address.clone();
+            let address = change.address.clone();
 
-        // Update transaction history and balance
-        memento.add_transaction_change(&address, change);
+            // Update transaction history and balance
+            memento.add_transaction_change(&address, change);
 
-        // Update unspent transactions
-        memento.remove_unspent_transaction(&address, input);
+            // Update unspent transactions
+            memento.remove_unspent_transaction(&address, input);
+        }
 
         Ok(())
     }
@@ -233,7 +235,7 @@ mod tests {
             unreachable!()
         }
 
-        fn block_batch<T: Iterator<Item = u64>>(&self, _heights: T) -> Result<Vec<Block>> {
+        fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, _heights: T) -> Result<Vec<Block>> {
             unreachable!()
         }
 
@@ -241,14 +243,14 @@ mod tests {
             unreachable!()
         }
 
-        fn block_results_batch<T: Iterator<Item = u64>>(
+        fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             _heights: T,
         ) -> Result<Vec<BlockResults>> {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<()> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
             unreachable!()
         }
 
