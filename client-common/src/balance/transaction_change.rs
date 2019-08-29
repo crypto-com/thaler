@@ -195,5 +195,4 @@ mod tests {
 
         assert!(coin.is_err(), "Created negative coin")
     }
-
 }
