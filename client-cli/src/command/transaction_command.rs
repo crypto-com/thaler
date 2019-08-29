@@ -63,13 +63,6 @@ pub enum TransactionCommand {
         name: String,
         #[structopt(name = "type", short, long, help = "Type of transaction to create")]
         transaction_type: TransactionType,
-        #[structopt(
-            name = "view-keys",
-            short,
-            long,
-            help = "List of view keys for new transaction"
-        )]
-        view_keys: Vec<PublicKey>,
     },
 }
 
@@ -84,14 +77,12 @@ impl TransactionCommand {
                 chain_id,
                 name,
                 transaction_type,
-                view_keys,
             } => new_transaction(
                 wallet_client,
                 network_ops_client,
                 name,
                 chain_id,
                 transaction_type,
-                view_keys,
             ),
         }
     }
@@ -103,13 +94,12 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
     name: &str,
     chain_id: &str,
     transaction_type: &TransactionType,
-    view_keys: &[PublicKey],
 ) -> Result<()> {
     let passphrase = ask_passphrase(None)?;
 
     let transaction = match transaction_type {
         TransactionType::Transfer => {
-            new_transfer_transaction(wallet_client, name, &passphrase, chain_id, view_keys)
+            new_transfer_transaction(wallet_client, name, &passphrase, chain_id)
         }
         TransactionType::Deposit => {
             new_deposit_transaction(network_ops_client, name, &passphrase, chain_id)
@@ -123,7 +113,6 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
             name,
             &passphrase,
             chain_id,
-            view_keys,
         ),
     }?;
 
@@ -138,12 +127,15 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
     name: &str,
     passphrase: &SecUtf8,
     chain_id: &str,
-    view_keys: &[PublicKey],
 ) -> Result<TxAux> {
-    let view_key = wallet_client.view_key(name, passphrase)?;
+    let from_address = ask_staking_address()?;
+    let to_address = ask_transfer_address()?;
+    let view_keys = ask_view_keys()?;
+
+    let self_view_key = wallet_client.view_key(name, passphrase)?;
 
     let mut access_policies = vec![TxAccessPolicy {
-        view_key: view_key.into(),
+        view_key: self_view_key.into(),
         access: TxAccess::AllData,
     }];
 
@@ -158,8 +150,6 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
         decode(chain_id).context(ErrorKind::DeserializationError)?[0],
         access_policies,
     );
-    let from_address = ask_staking_address()?;
-    let to_address = ask_transfer_address()?;
 
     network_ops_client.create_withdraw_all_unbonded_stake_transaction(
         name,
@@ -210,12 +200,14 @@ fn new_transfer_transaction<T: WalletClient>(
     name: &str,
     passphrase: &SecUtf8,
     chain_id: &str,
-    view_keys: &[PublicKey],
 ) -> Result<TxAux> {
-    let view_key = wallet_client.view_key(name, passphrase)?;
+    let outputs = ask_outputs()?;
+    let view_keys = ask_view_keys()?;
+
+    let self_view_key = wallet_client.view_key(name, passphrase)?;
 
     let mut access_policies = vec![TxAccessPolicy {
-        view_key: view_key.into(),
+        view_key: self_view_key.into(),
         access: TxAccess::AllData,
     }];
 
@@ -230,11 +222,30 @@ fn new_transfer_transaction<T: WalletClient>(
         decode(chain_id).context(ErrorKind::DeserializationError)?[0],
         access_policies,
     );
-    let outputs = ask_outputs()?;
 
     let return_address = wallet_client.new_transfer_address(name, &passphrase)?;
 
     wallet_client.create_transaction(name, &passphrase, outputs, attributes, None, return_address)
+}
+
+fn ask_view_keys() -> Result<Vec<PublicKey>> {
+    ask(
+        "Enter view keys (comma separated) (leave blank if you don't want any additional view keys in transaction): ",
+    );
+
+    let view_keys_str = text().context(ErrorKind::IoError)?;
+
+    if view_keys_str.is_empty() {
+        Ok(Vec::new())
+    } else {
+        view_keys_str
+            .split(',')
+            .map(|view_key| {
+                let view_key = view_key.trim();
+                PublicKey::from_str(view_key)
+            })
+            .collect::<Result<Vec<PublicKey>>>()
+    }
 }
 
 fn ask_outputs() -> Result<Vec<TxOut>> {

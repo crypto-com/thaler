@@ -423,5 +423,4 @@ mod tests {
         // sanity check
         assert!(get_ias_cert().is_ok())
     }
-
 }
