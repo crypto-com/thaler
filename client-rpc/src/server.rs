@@ -62,7 +62,7 @@ impl Server {
             }
         }
         println!(
-            "Network type {:?}  id {:x}",
+            "Network type {:?}  id {:02X}",
             get_network(),
             get_network_id()
         );
