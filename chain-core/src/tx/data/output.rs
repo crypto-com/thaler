@@ -1,4 +1,5 @@
 use std::fmt;
+#[cfg(feature = "serde")]
 use std::str::FromStr;
 
 use parity_scale_codec::{Decode, Encode};
