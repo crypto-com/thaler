@@ -24,8 +24,9 @@ use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
 use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
 use crate::Options;
-use chain_core::init::network::{init_network, Network};
-
+use chain_core::init::network::{
+    get_network, get_network_id, init_chain_id, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID,
+};
 type AppSigner = DefaultSigner<SledStorage>;
 type AppIndex = DefaultIndex<SledStorage, RpcClient>;
 type AppTransactionCipher = MockAbciTransactionObfuscation<RpcClient>;
@@ -51,12 +52,20 @@ impl Server {
         let network_id =
             hex::decode(&options.network_id).context(ErrorKind::SerializationError)?[0];
         let network_type = options.network_type;
-        match &network_type[..4] {
-            "main" => init_network(Network::Mainnet),
-            "test" => init_network(Network::Testnet),
-            _ => init_network(Network::Devnet),
+        if network_type.len() < 4 {
+            init_chain_id(&format!("dev-{}", options.network_id))
+        } else {
+            match &network_type[..4] {
+                "main" => init_chain_id(MAINNET_CHAIN_ID),
+                "test" => init_chain_id(TESTNET_CHAIN_ID),
+                _ => init_chain_id(&format!("dev-{}", options.network_id)),
+            }
         }
-        println!("chain-id {}-{:x}", network_type, network_id);
+        println!(
+            "Network type {:?}  id {:x}",
+            get_network(),
+            get_network_id()
+        );
         Ok(Server {
             host: options.host,
             port: options.port,

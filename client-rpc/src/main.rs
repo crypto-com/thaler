@@ -33,6 +33,7 @@ pub(crate) struct Options {
         name = "network-id",
         short,
         long,
+        default_value = "00",
         help = "Network ID (Last two hex digits of chain-id)"
     )]
     network_id: String,
@@ -41,7 +42,7 @@ pub(crate) struct Options {
         name = "network-type",
         short = "i",
         long,
-        default_value = "test",
+        default_value = "dev",
         help = "Network Type (main, test, dev)"
     )]
     network_type: String,
