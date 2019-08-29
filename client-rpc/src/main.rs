@@ -38,6 +38,15 @@ pub(crate) struct Options {
     network_id: String,
 
     #[structopt(
+        name = "network-type",
+        short = "i",
+        long,
+        default_value = "test",
+        help = "Network Type (main, test, deve)"
+    )]
+    network_type: String,
+
+    #[structopt(
         name = "storage-dir",
         short,
         long,

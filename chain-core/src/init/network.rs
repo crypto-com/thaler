@@ -74,8 +74,8 @@ pub fn get_full_network_name() -> &'static str {
 
 mod chosen_network {
     use super::*;
-    pub static mut NETWORK: Network = Network::Devnet;
-    pub static mut NETWORK_ID: u8 = 0 as u8;
+    pub static mut NETWORK: Network = Network::Testnet;
+    pub static mut NETWORK_ID: u8 = 0x42 as u8;
 }
 
 #[cfg(test)]

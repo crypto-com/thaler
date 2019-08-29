@@ -24,6 +24,7 @@ use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
 use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
 use crate::Options;
+use chain_core::init::network::{init_network, Network};
 
 type AppSigner = DefaultSigner<SledStorage>;
 type AppIndex = DefaultIndex<SledStorage, RpcClient>;
@@ -49,6 +50,13 @@ impl Server {
     pub(crate) fn new(options: Options) -> Result<Server> {
         let network_id =
             hex::decode(&options.network_id).context(ErrorKind::SerializationError)?[0];
+        let network_type = options.network_type;
+        match &network_type[..4] {
+            "main" => init_network(Network::Mainnet),
+            "test" => init_network(Network::Testnet),
+            _ => init_network(Network::Devnet),
+        }
+        println!("chain-id {}-{:x}", network_type, network_id);
         Ok(Server {
             host: options.host,
             port: options.port,
