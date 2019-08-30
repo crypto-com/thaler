@@ -18,7 +18,7 @@ pub const MAINNET_CHAIN_ID: &str = "mainnet-crypto-com-chain-2A";
 /// (as address textual format / serialization + HD-wallet path depend on the network type)
 pub fn init_chain_id(chain_id_src: &str) {
     let chain_id = chain_id_src.to_string();
-    assert!(chain_id.len() > 6);
+    assert!(chain_id.len() >= 6);
     let length = chain_id.len();
     let hexstring = &chain_id[(length - 2)..];
     let hexvalue = hex::decode(hexstring).expect("last two characters should be hex digits");
@@ -72,7 +72,7 @@ pub fn get_bech32_human_part() -> &'static str {
 mod chosen_network {
     use super::*;
     pub static mut NETWORK: Network = Network::Devnet;
-    pub static mut NETWORK_ID: u8 = 0 as u8;
+    pub static mut NETWORK_ID: u8 = 0;
 }
 
 #[cfg(test)]
