@@ -12,6 +12,7 @@ use client_index::BlockHandler;
 use serde_json::json;
 use std::sync::Mutex;
 use websocket::OwnedMessage;
+
 #[rpc]
 pub trait SyncRpc: Send + Sync {
     #[rpc(name = "sync")]
@@ -63,14 +64,16 @@ where
     }
 
     fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String> {
-        match self.prepare_synchronized_parameters(&request) {
-            Ok(_) => {}
-            Err(_) => return Ok("incorrect password".to_string()),
-        }
+        let (view_key, private_key, staking_addresses) =
+            self.prepare_synchronized_parameters(&request)?;
 
         let data = json!(AddWalletCommand {
             id: "add_wallet".to_string(),
             wallet: request.clone(),
+            name: request.name,
+            staking_addresses,
+            view_key,
+            private_key,
         });
         let ret = "OK".to_string();
         {

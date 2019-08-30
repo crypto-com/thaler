@@ -132,8 +132,6 @@ impl Server {
         let block_handler =
             DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
 
-        let wallet_client = self.make_wallet_client(storage.clone());
-
         let mut web = WebsocketRpc::new(url);
 
         web.run(
@@ -141,7 +139,6 @@ impl Server {
             tendermint_client,
             storage.clone(),
             block_handler,
-            wallet_client,
         );
         assert!(web.core.is_some());
         self.websocket_queue = Some(web.core.as_mut().unwrap().clone());

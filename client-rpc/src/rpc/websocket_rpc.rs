@@ -4,17 +4,16 @@ use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
 use client_common::Result;
 use client_common::{PrivateKey, PublicKey, Storage};
-use client_core::WalletClient;
 use client_index::BlockHandler;
 use futures::future::Future;
 use futures::sink::Sink;
 use futures::stream::Stream;
 use futures::sync::mpsc;
+
 use serde::{Deserialize, Serialize};
 use std::thread;
 use websocket::result::WebSocketError;
 use websocket::{ClientBuilder, OwnedMessage};
-
 /** this handles low level network connection
  packet processing and core works are done in websocket_core
 it uses channel to communicate with core
@@ -59,6 +58,10 @@ pub type WalletInfos = Vec<WalletInfo>;
 pub struct AddWalletCommand {
     pub id: String,
     pub wallet: WalletRequest,
+    pub name: String,
+    pub staking_addresses: Vec<StakedStateAddress>,
+    pub view_key: PublicKey,
+    pub private_key: PrivateKey,
 }
 
 /** constanct connection
@@ -83,18 +86,12 @@ impl WebsocketRpc {
     }
 
     /// launch core thread
-    pub fn run<
-        S: Storage + 'static,
-        C: Client + 'static,
-        H: BlockHandler + 'static,
-        T: WalletClient + 'static,
-    >(
+    pub fn run<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
         &mut self,
         wallets: WalletInfos,
         client: C,
         storage: S,
         block_handler: H,
-        wallet_client: T,
     ) {
         let channel = mpsc::channel(0);
         // tx, rx
@@ -102,14 +99,8 @@ impl WebsocketRpc {
         self.my_sender = Some(channel_tx.clone());
         self.my_receiver = Some(channel_rx);
 
-        let mut core = WebsocketCore::new(
-            channel_tx.clone(),
-            storage,
-            client,
-            block_handler,
-            wallets,
-            wallet_client,
-        );
+        let mut core =
+            WebsocketCore::new(channel_tx.clone(), storage, client, block_handler, wallets);
         // save send_queue to communicate with core
         self.core = Some(core.get_queue());
 

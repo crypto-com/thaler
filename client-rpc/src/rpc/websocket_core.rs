@@ -1,13 +1,13 @@
+use crate::rpc::websocket_rpc::AddWalletCommand;
 use crate::rpc::websocket_rpc::{WalletInfo, WalletInfos};
 use crate::rpc::websocket_rpc::{CMD_BLOCK, CMD_STATUS};
-use crate::server::to_rpc_error;
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::Block;
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, Result, Storage, Transaction};
 use client_common::{Error, ErrorKind};
-use client_core::WalletClient;
+use client_common::{PrivateKey, PublicKey};
 use client_index::service::GlobalStateService;
 use client_index::BlockHandler;
 use failure::ResultExt;
@@ -15,14 +15,12 @@ use futures::sink::Sink;
 use jsonrpc_core::Result as JsonResult;
 use mpsc::Receiver;
 use mpsc::Sender;
-use secstr::SecUtf8;
 use serde_json::json;
 use serde_json::Value;
 use std::sync::mpsc;
 use std::time;
 use std::time::SystemTime;
 use websocket::OwnedMessage;
-
 /**  finite state machine that manages blocks
 just use one thread to multi-plexing for data and command
 
@@ -45,12 +43,11 @@ pub enum WebsocketState {
     WaitProcess,
 }
 
-pub struct WebsocketCore<S, C, H, T>
+pub struct WebsocketCore<S, C, H>
 where
     S: Storage,
     C: Client,
     H: BlockHandler,
-    T: WalletClient,
 {
     sender: futures::sync::mpsc::Sender<OwnedMessage>,
     my_sender: Sender<OwnedMessage>,
@@ -65,15 +62,13 @@ where
     block_handler: H,
     wallets: Vec<WalletInfo>,
     current_wallet: usize,
-    wallet_client: T,
 }
 
-impl<S, C, H, T> WebsocketCore<S, C, H, T>
+impl<S, C, H> WebsocketCore<S, C, H>
 where
     S: Storage,
     C: Client,
     H: BlockHandler,
-    T: WalletClient,
 {
     pub fn new(
         sender: futures::sync::mpsc::Sender<OwnedMessage>,
@@ -81,7 +76,6 @@ where
         client: C,
         block_handler: H,
         wallets: WalletInfos,
-        wallet_client: T,
     ) -> Self {
         let gss = GlobalStateService::new(storage);
 
@@ -103,8 +97,6 @@ where
             block_handler,
             wallets,
             current_wallet: 0,
-
-            wallet_client,
         }
     }
 
@@ -189,23 +181,14 @@ where
     // because everything is done via channel
     // no mutex is necessary
     // wallet can be added in runtime
-    pub fn add_wallet(&mut self, name: String, passphrase: SecUtf8) -> JsonResult<()> {
+    pub fn add_wallet(
+        &mut self,
+        name: String,
+        staking_addresses: Vec<StakedStateAddress>,
+        view_key: PublicKey,
+        private_key: PrivateKey,
+    ) -> JsonResult<()> {
         log::info!("add_wallet ***** {}", name);
-        let view_key = self
-            .wallet_client
-            .view_key(&name, &passphrase)
-            .map_err(to_rpc_error)?;
-        let private_key = self
-            .wallet_client
-            .private_key(&passphrase, &view_key)
-            .map_err(to_rpc_error)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
-            .map_err(to_rpc_error)?;
-
-        let staking_addresses = self
-            .wallet_client
-            .staking_addresses(&name, &passphrase)
-            .map_err(to_rpc_error)?;
 
         let info = WalletInfo {
             name: name.to_string(),
@@ -228,15 +211,13 @@ where
         match id {
             // this is special, it's command
             "add_wallet" => {
-                let name = value["wallet"]["name"]
-                    .as_str()
-                    .ok_or_else(|| Error::from(ErrorKind::RpcError))?;
+                let info: AddWalletCommand =
+                    serde_json::from_value(value).expect("get AddWalletCommand");
                 let _ = self.add_wallet(
-                    name.to_string(),
-                    value["wallet"]["passphrase"]
-                        .as_str()
-                        .ok_or_else(|| Error::from(ErrorKind::RpcError))?
-                        .into(),
+                    info.name,
+                    info.staking_addresses,
+                    info.view_key,
+                    info.private_key,
                 );
             }
             "subscribe_reply#event" => {
