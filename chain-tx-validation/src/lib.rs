@@ -27,13 +27,14 @@ use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TransactionId;
 pub use chain_core::tx::TxWithOutputs;
 pub use chain_core::ChainInfo;
+use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeSet;
 use std::convert::From;
 use std::fmt;
 use witness::verify_tx_address;
 
 /// All possible TX validation errors
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub enum Error {
     /// chain hex ID does not match
     WrongChainHexId,

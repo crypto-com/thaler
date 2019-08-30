@@ -323,6 +323,7 @@ name = "chain-tx-validation"
 version = "0.1.0"
 dependencies = [
  "chain-core 0.1.0",
+ "parity-scale-codec 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=ac9843a361114b42178acc119ab77d5a149985f5)",
 ]
 
