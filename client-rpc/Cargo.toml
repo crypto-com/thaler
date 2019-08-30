@@ -5,6 +5,7 @@ authors = ["Calvin Lau <calvin@crypto.com>"]
 edition = "2018"
 
 [dependencies]
+chain-tx-filter = { path = "../chain-tx-filter" }
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
@@ -21,6 +22,11 @@ structopt = "0.2"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.3.2"
 secstr = { version = "0.3.2", features = ["serde"] }
-
+websocket = "0.23.0"
+futures = "0.1.28"
+tokio = "0.1.22"
+quest = "0.3"
+env_logger="0.6.2"
+log ="0.4.8"
 [dev-dependencies]
 parity-scale-codec = "1.0"
