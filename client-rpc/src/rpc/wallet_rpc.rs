@@ -34,6 +34,15 @@ pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_list")]
     fn list(&self) -> Result<Vec<String>>;
 
+    #[rpc(name = "wallet_listPublicKeys")]
+    fn list_public_keys(&self, request: WalletRequest) -> Result<Vec<PublicKey>>;
+
+    #[rpc(name = "wallet_listStakingAddresses")]
+    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
+
+    #[rpc(name = "wallet_listTransferAddresses")]
+    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
+
     #[rpc(name = "wallet_sendToAddress")]
     fn send_to_address(
         &self,
@@ -42,12 +51,6 @@ pub trait WalletRpc: Send + Sync {
         amount: Coin,
         view_keys: Vec<String>,
     ) -> Result<String>;
-
-    #[rpc(name = "wallet_listStakingAddresses")]
-    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
-
-    #[rpc(name = "wallet_listTransferAddresses")]
-    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_transactions")]
     fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>>;
@@ -123,6 +126,26 @@ where
         self.client.wallets().map_err(to_rpc_error)
     }
 
+    fn list_public_keys(&self, request: WalletRequest) -> Result<Vec<PublicKey>> {
+        self.client
+            .public_keys(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)
+    }
+
+    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
+        self.client
+            .staking_addresses(&request.name, &request.passphrase)
+            .map(|addresses| addresses.iter().map(ToString::to_string).collect())
+            .map_err(to_rpc_error)
+    }
+
+    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
+        self.client
+            .transfer_addresses(&request.name, &request.passphrase)
+            .map(|addresses| addresses.iter().map(ToString::to_string).collect())
+            .map_err(to_rpc_error)
+    }
+
     fn send_to_address(
         &self,
         request: WalletRequest,
@@ -188,20 +211,6 @@ where
                 "Transaction is not transfer transaction",
             )))
         }
-    }
-
-    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
-        self.client
-            .staking_addresses(&request.name, &request.passphrase)
-            .map(|addresses| addresses.iter().map(ToString::to_string).collect())
-            .map_err(to_rpc_error)
-    }
-
-    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
-        self.client
-            .transfer_addresses(&request.name, &request.passphrase)
-            .map(|addresses| addresses.iter().map(ToString::to_string).collect())
-            .map_err(to_rpc_error)
     }
 
     fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>> {

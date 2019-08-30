@@ -479,5 +479,4 @@ mod test {
             unreachable!("query")
         }
     }
-
 }

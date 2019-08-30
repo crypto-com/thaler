@@ -9,26 +9,30 @@ pub enum Network {
     Devnet,
 }
 
+/// Public testnet Chain ID (expected in Tendermint's genesis.json)
+pub const TESTNET_CHAIN_ID: &str = "testnet-thaler-crypto-com-chain-42";
+/// Mainnet Chain ID (expected in Tendermint's genesis.json)
+pub const MAINNET_CHAIN_ID: &str = "mainnet-crypto-com-chain-2A";
+
+/// One-time initialization of the chosen network
+/// (as address textual format / serialization + HD-wallet path depend on the network type)
 pub fn init_chain_id(chain_id_src: &str) {
     let chain_id = chain_id_src.to_string();
-    assert!(chain_id.len() > 6);
+    assert!(chain_id.len() >= 6);
     let length = chain_id.len();
     let hexstring = &chain_id[(length - 2)..];
-    let hexvalue = hex::decode(hexstring).unwrap();
+    let hexvalue = hex::decode(hexstring).expect("last two characters should be hex digits");
     assert!(1 == hexvalue.len());
     init_network_id(hexvalue[0]);
 
-    //main, test
-    let kind = &chain_id[..4];
-    if "main" == kind {
-        init_network(Network::Mainnet);
-    } else if "test" == kind {
-        init_network(Network::Testnet);
-    } else {
-        init_network(Network::Devnet);
+    match chain_id_src {
+        MAINNET_CHAIN_ID => init_network(Network::Mainnet),
+        TESTNET_CHAIN_ID => init_network(Network::Testnet),
+        _ => init_network(Network::Devnet),
     }
 }
-pub fn init_network(network: Network) {
+
+fn init_network(network: Network) {
     unsafe {
         INIT_NETWORK.call_once(|| {
             chosen_network::NETWORK = network;
@@ -36,7 +40,7 @@ pub fn init_network(network: Network) {
     }
 }
 
-pub fn init_network_id(id: u8) {
+fn init_network_id(id: u8) {
     unsafe {
         INIT_NETWORK_ID.call_once(|| {
             chosen_network::NETWORK_ID = id;
@@ -44,14 +48,17 @@ pub fn init_network_id(id: u8) {
     }
 }
 
+/// Returns the identifier of the chosen network (a single byte included in transaction metadata)
 pub fn get_network_id() -> u8 {
     unsafe { chosen_network::NETWORK_ID }
 }
 
+/// Returns the chosen network type
 pub fn get_network() -> Network {
     unsafe { chosen_network::NETWORK }
 }
 
+/// Given the chosen network, it returns the human readable part of Bech32 address
 pub fn get_bech32_human_part() -> &'static str {
     unsafe {
         match chosen_network::NETWORK {
@@ -62,20 +69,10 @@ pub fn get_bech32_human_part() -> &'static str {
     }
 }
 
-pub fn get_full_network_name() -> &'static str {
-    unsafe {
-        match chosen_network::NETWORK {
-            Network::Mainnet => "mainnet",
-            Network::Testnet => "testnet",
-            Network::Devnet => "devnet",
-        }
-    }
-}
-
 mod chosen_network {
     use super::*;
     pub static mut NETWORK: Network = Network::Devnet;
-    pub static mut NETWORK_ID: u8 = 0 as u8;
+    pub static mut NETWORK_ID: u8 = 0;
 }
 
 #[cfg(test)]
@@ -86,5 +83,6 @@ mod test {
         init_chain_id("dev-chain-y3m1e6-AB");
         assert_eq!(0xab as u8, get_network_id());
         assert_eq!(Network::Devnet, get_network());
+        assert_eq!("dcro", get_bech32_human_part());
     }
 }

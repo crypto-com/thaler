@@ -33,9 +33,19 @@ pub(crate) struct Options {
         name = "network-id",
         short,
         long,
+        default_value = "00",
         help = "Network ID (Last two hex digits of chain-id)"
     )]
     network_id: String,
+
+    #[structopt(
+        name = "network-type",
+        short = "i",
+        long,
+        default_value = "dev",
+        help = "Network Type (main, test, dev)"
+    )]
+    network_type: String,
 
     #[structopt(
         name = "storage-dir",
@@ -54,9 +64,19 @@ pub(crate) struct Options {
         help = "Url for connecting with tendermint RPC"
     )]
     tendermint_url: String,
+
+    #[structopt(
+        name = "websocket-url",
+        short,
+        long,
+        default_value = "ws://localhost:26657/websocket",
+        help = "Url for connecting with tendermint websocket RPC"
+    )]
+    websocket_url: String,
 }
 
 fn main() {
+    env_logger::init();
     let options = Options::from_args();
     Server::new(options).unwrap().start().unwrap();
 }
