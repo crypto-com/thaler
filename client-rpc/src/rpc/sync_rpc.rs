@@ -1,15 +1,17 @@
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
+use crate::rpc::websocket_rpc::AddWalletCommand;
+use crate::server::{to_rpc_error, WalletRequest};
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_index::synchronizer::ManualSynchronizer;
 use client_index::BlockHandler;
-
-use crate::server::{to_rpc_error, WalletRequest};
-
+use serde_json::json;
+use std::sync::Mutex;
+use websocket::OwnedMessage;
 #[rpc]
 pub trait SyncRpc: Send + Sync {
     #[rpc(name = "sync")]
@@ -17,6 +19,10 @@ pub trait SyncRpc: Send + Sync {
 
     #[rpc(name = "sync_all")]
     fn sync_all(&self, request: WalletRequest) -> Result<()>;
+
+    // sync continuously
+    #[rpc(name = "sync_unlockWallet")]
+    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String>;
 }
 
 pub struct SyncRpcImpl<T, S, C, H>
@@ -28,6 +34,7 @@ where
 {
     client: T,
     synchronizer: ManualSynchronizer<S, C, H>,
+    websocket_queue: Mutex<Option<std::sync::mpsc::Sender<OwnedMessage>>>,
 }
 
 impl<T, S, C, H> SyncRpc for SyncRpcImpl<T, S, C, H>
@@ -54,6 +61,28 @@ where
             .sync_all(&staking_addresses, &view_key, &private_key, None, None)
             .map_err(to_rpc_error)
     }
+
+    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String> {
+        match self.prepare_synchronized_parameters(&request) {
+            Ok(_) => {}
+            Err(_) => return Ok("incorrect password".to_string()),
+        }
+
+        let data = json!(AddWalletCommand {
+            id: "add_wallet".to_string(),
+            wallet: request.clone(),
+        });
+        let ret = "OK".to_string();
+        {
+            let sendqoption = self.websocket_queue.lock().unwrap();
+            assert!(sendqoption.is_some());
+            let sendq = sendqoption.as_ref().unwrap();
+            sendq
+                .send(OwnedMessage::Text(serde_json::to_string(&data).unwrap()))
+                .unwrap();
+        }
+        Ok(ret)
+    }
 }
 
 impl<T, S, C, H> SyncRpcImpl<T, S, C, H>
@@ -63,10 +92,15 @@ where
     C: Client,
     H: BlockHandler,
 {
-    pub fn new(client: T, synchronizer: ManualSynchronizer<S, C, H>) -> Self {
+    pub fn new(
+        client: T,
+        synchronizer: ManualSynchronizer<S, C, H>,
+        queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
+    ) -> Self {
         SyncRpcImpl {
             client,
             synchronizer,
+            websocket_queue: Mutex::new(queue),
         }
     }
 

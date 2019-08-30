@@ -64,9 +64,19 @@ pub(crate) struct Options {
         help = "Url for connecting with tendermint RPC"
     )]
     tendermint_url: String,
+
+    #[structopt(
+        name = "websocket-url",
+        short,
+        long,
+        default_value = "ws://localhost:26657/websocket",
+        help = "Url for connecting with tendermint websocket RPC"
+    )]
+    websocket_url: String,
 }
 
 fn main() {
+    env_logger::init();
     let options = Options::from_args();
     Server::new(options).unwrap().start().unwrap();
 }
