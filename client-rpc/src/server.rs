@@ -3,7 +3,6 @@ use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
 use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
 use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
-use crate::rpc::websocket_rpc::{WalletInfos, WebsocketRpc};
 use crate::Options;
 use chain_core::tx::fee::LinearFee;
 use client_common::error::{Error, ErrorKind, Result};
@@ -12,6 +11,7 @@ use client_common::tendermint::{Client, RpcClient};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
+use client_index::auto_synchronizer::AutoSynchronizer;
 use client_index::cipher::MockAbciTransactionObfuscation;
 use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
@@ -125,21 +125,16 @@ impl Server {
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
         log::info!("start_websocket");
         let url = self.websocket_url.clone();
-        let wallet_infos: WalletInfos = vec![];
+
         let tendermint_client = RpcClient::new(&self.tendermint_url);
         let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
         let transaction_handler = DefaultTransactionHandler::new(storage.clone());
         let block_handler =
             DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
 
-        let mut web = WebsocketRpc::new(url);
+        let mut web = AutoSynchronizer::new(url);
 
-        web.run(
-            wallet_infos,
-            tendermint_client,
-            storage.clone(),
-            block_handler,
-        );
+        web.run(tendermint_client, storage.clone(), block_handler);
         assert!(web.core.is_some());
         self.websocket_queue = Some(web.core.as_mut().unwrap().clone());
 
