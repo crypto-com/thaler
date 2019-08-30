@@ -160,7 +160,7 @@ impl WebsocketRpc {
                     .select(channel_rx.map_err(|_| WebSocketError::NoDataAvailable))
                     .forward(sink)
             });
-        runtime.block_on(runner).expect("tokio block_on");
+        let _ = runtime.block_on(runner).expect("tokio block_on");
         Ok(())
     }
 }
