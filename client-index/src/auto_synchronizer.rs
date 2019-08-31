@@ -47,6 +47,9 @@ use websocket::result::WebSocketError;
 use websocket::ClientBuilder;
 use websocket::OwnedMessage;
 
+/// give add wallet command via this queue
+pub type AutoSyncQueue = std::sync::Mutex<Option<std::sync::mpsc::Sender<OwnedMessage>>>;
+
 #[derive(Clone, Debug)]
 /// Wallet Information
 pub struct WalletInfo {
@@ -74,7 +77,7 @@ pub struct AddWalletCommand {
     /// view key
     pub view_key: PublicKey,
     /// private key
-    pub private_key: PrivateKey,
+    pub private_key: Vec<u8>,
 }
 /// subscribe command
 pub const CMD_SUBSCRIBE: &str = r#"
@@ -102,7 +105,7 @@ pub const CMD_STATUS: &str = r#"
         "method": "status",
         "jsonrpc": "2.0",
         "params": [ ],
-        "id": "status_reply",
+        "id": "status_reply"
     }"#;
 
 /// giving command to auto-sync
@@ -312,11 +315,14 @@ where
             "add_wallet" => {
                 let info: AddWalletCommand =
                     serde_json::from_value(value).expect("get AddWalletCommand");
+                let private_key = PrivateKey::deserialize_from(&info.private_key)
+                    .expect("Unable to deserialize private key from byte array");
+
                 let _ = self.add_wallet(
                     info.name,
                     info.staking_addresses,
                     info.view_key,
-                    info.private_key,
+                    private_key,
                 );
             }
             "subscribe_reply#event" => {
@@ -504,6 +510,20 @@ pub struct AutoSynchronizer {
 
 /// handling web-socket
 impl AutoSynchronizer {
+    /// send json via channel
+    pub fn send_json(websocket_queue: &AutoSyncQueue, data: serde_json::Value) {
+        let sendqoption = websocket_queue.lock().unwrap();
+        assert!(sendqoption.is_some());
+        let sendq = sendqoption.as_ref().unwrap();
+        sendq
+            .send(OwnedMessage::Text(serde_json::to_string(&data).unwrap()))
+            .unwrap();
+    }
+    /// get send queue
+    pub fn get_send_queue(&mut self) -> Option<std::sync::mpsc::Sender<OwnedMessage>> {
+        assert!(self.core.is_some());
+        Some(self.core.as_mut().unwrap().clone())
+    }
     /// create auto sync
     pub fn new(websocket_url: String) -> Self {
         Self {

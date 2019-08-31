@@ -6,7 +6,7 @@ use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
-use client_index::auto_synchronizer::AddWalletCommand;
+use client_index::auto_synchronizer::{AddWalletCommand, AutoSyncQueue, AutoSynchronizer};
 use client_index::synchronizer::ManualSynchronizer;
 use client_index::BlockHandler;
 use serde_json::json;
@@ -35,7 +35,7 @@ where
 {
     client: T,
     synchronizer: ManualSynchronizer<S, C, H>,
-    websocket_queue: Mutex<Option<std::sync::mpsc::Sender<OwnedMessage>>>,
+    websocket_queue: AutoSyncQueue,
 }
 
 impl<T, S, C, H> SyncRpc for SyncRpcImpl<T, S, C, H>
@@ -72,18 +72,10 @@ where
             name: request.name,
             staking_addresses,
             view_key,
-            private_key,
+            private_key: private_key.serialize(),
         });
-        let ret = "OK".to_string();
-        {
-            let sendqoption = self.websocket_queue.lock().unwrap();
-            assert!(sendqoption.is_some());
-            let sendq = sendqoption.as_ref().unwrap();
-            sendq
-                .send(OwnedMessage::Text(serde_json::to_string(&data).unwrap()))
-                .unwrap();
-        }
-        Ok(ret)
+        AutoSynchronizer::send_json(&self.websocket_queue, data);
+        Ok("OK".to_string())
     }
 }
 

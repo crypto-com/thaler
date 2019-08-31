@@ -135,8 +135,7 @@ impl Server {
         let mut web = AutoSynchronizer::new(url);
 
         web.run(tendermint_client, storage.clone(), block_handler);
-        assert!(web.core.is_some());
-        self.websocket_queue = Some(web.core.as_mut().unwrap().clone());
+        self.websocket_queue = web.get_send_queue();
 
         thread::spawn(move || {
             // some work here
