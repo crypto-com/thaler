@@ -10,7 +10,7 @@ client-common = { path = "../client-common" }
 client-index = { path = "../client-index" }
 client-core = { path = "../client-core" }
 client-network = { path = "../client-network" }
-structopt = "0.2"
+structopt = "0.3"
 failure = "0.1"
 quest = "0.3"
 secstr = "0.3.2"
