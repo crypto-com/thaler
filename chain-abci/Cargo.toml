@@ -30,7 +30,7 @@ serde_json = "1.0"
 hex = "0.3"
 protobuf = "2.7.0"
 integer-encoding = "1.0.7"
-structopt = "0.2"
+structopt = "0.3"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "ac9843a361114b42178acc119ab77d5a149985f5", features = ["recovery", "endomorphism"] }
 blake2 = "0.8"
 parity-scale-codec = { features = ["derive"], version = "1.0" }
