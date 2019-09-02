@@ -11,7 +11,7 @@ use client_common::tendermint::{Client, RpcClient};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
-use client_index::auto_synchronizer::AutoSynchronizer;
+use client_index::auto_synchronizer::AutoSync;
 use client_index::cipher::MockAbciTransactionObfuscation;
 use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
@@ -23,7 +23,6 @@ use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBui
 use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-use std::thread;
 
 use chain_core::init::network::{
     get_network, get_network_id, init_chain_id, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID,
@@ -39,7 +38,6 @@ type AppTransactionHandler = DefaultTransactionHandler<SledStorage>;
 type AppBlockHandler =
     DefaultBlockHandler<AppTransactionCipher, AppTransactionHandler, SledStorage>;
 type AppSynchronizer = ManualSynchronizer<SledStorage, RpcClient, AppBlockHandler>;
-use websocket::OwnedMessage;
 pub(crate) struct Server {
     host: String,
     port: u16,
@@ -47,7 +45,7 @@ pub(crate) struct Server {
     storage_dir: String,
     tendermint_url: String,
     websocket_url: String,
-    websocket_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
+    autosync: AutoSync,
 }
 
 impl Server {
@@ -76,7 +74,8 @@ impl Server {
             storage_dir: options.storage_dir,
             tendermint_url: options.tendermint_url,
             websocket_url: options.websocket_url,
-            websocket_queue: None,
+
+            autosync: AutoSync::new(),
         })
     }
 
@@ -132,16 +131,8 @@ impl Server {
         let block_handler =
             DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
 
-        let mut web = AutoSynchronizer::new(url);
-
-        web.run(tendermint_client, storage.clone(), block_handler);
-        self.websocket_queue = web.get_send_queue();
-
-        thread::spawn(move || {
-            // some work here
-            log::info!("start websocket");
-            let _ = web.run_network();
-        });
+        self.autosync
+            .run(url, tendermint_client, storage.clone(), block_handler);
 
         Ok(())
     }
@@ -159,10 +150,9 @@ impl Server {
 
         let sync_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let synchronizer = self.make_synchronizer(storage.clone());
-        assert!(self.websocket_queue.is_some());
-        let newone = self.websocket_queue.as_ref().unwrap().clone();
 
-        let sync_rpc = SyncRpcImpl::new(sync_rpc_wallet_client, synchronizer, Some(newone));
+        let sync_rpc =
+            SyncRpcImpl::new(sync_rpc_wallet_client, synchronizer, self.autosync.clone());
 
         let wallet_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);

@@ -6,12 +6,9 @@ use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
-use client_index::auto_synchronizer::{AddWalletCommand, AutoSyncQueue, AutoSynchronizer};
+use client_index::auto_synchronizer::AutoSync;
 use client_index::synchronizer::ManualSynchronizer;
 use client_index::BlockHandler;
-use serde_json::json;
-use std::sync::Mutex;
-use websocket::OwnedMessage;
 
 #[rpc]
 pub trait SyncRpc: Send + Sync {
@@ -35,7 +32,7 @@ where
 {
     client: T,
     synchronizer: ManualSynchronizer<S, C, H>,
-    websocket_queue: AutoSyncQueue,
+    auto_synchronizer: AutoSync,
 }
 
 impl<T, S, C, H> SyncRpc for SyncRpcImpl<T, S, C, H>
@@ -66,15 +63,8 @@ where
     fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String> {
         let (view_key, private_key, staking_addresses) =
             self.prepare_synchronized_parameters(&request)?;
-
-        let data = json!(AddWalletCommand {
-            id: "add_wallet".to_string(),
-            name: request.name,
-            staking_addresses,
-            view_key,
-            private_key: private_key.serialize(),
-        });
-        AutoSynchronizer::send_json(&self.websocket_queue, data);
+        self.auto_synchronizer
+            .add_wallet(request.name, view_key, private_key, staking_addresses);
         Ok("OK".to_string())
     }
 }
@@ -89,12 +79,12 @@ where
     pub fn new(
         client: T,
         synchronizer: ManualSynchronizer<S, C, H>,
-        queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
+        auto_synchronizer: AutoSync,
     ) -> Self {
         SyncRpcImpl {
             client,
             synchronizer,
-            websocket_queue: Mutex::new(queue),
+            auto_synchronizer,
         }
     }
 

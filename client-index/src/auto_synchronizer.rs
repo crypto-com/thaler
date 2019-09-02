@@ -2,23 +2,13 @@
 automatic sync
 
 how to use
-1. create and store channel
-let mut web = AutoSynchronizer::new(url);
-web.run(tendermint_client, storage.clone(), block_handler);
-self.websocket_queue = Some(web.core.as_mut().unwrap().clone());
+1. create auto-sync & run
+let autosync: AutoSync::new();
+autosync.run(url, tendermint_client, storage.clone(), block_handler);
 
-2. activate sync
-send this json as text to channel
-and sync will begin
-wallets can be added in runtime
+2. unlock wallet
+autosync.add_wallet(request.name, view_key, private_key, staking_addresses);
 
-json!(AddWalletCommand {
-    id: "add_wallet".to_string(),
-    name: request.name,
-    staking_addresses,
-    view_key,
-    private_key,
-}
 */
 use crate::service::GlobalStateService;
 use crate::BlockHandler;
@@ -40,6 +30,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serde_json::Value;
 use std::sync::mpsc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
 use std::time::SystemTime;
@@ -48,7 +39,106 @@ use websocket::ClientBuilder;
 use websocket::OwnedMessage;
 
 /// give add wallet command via this queue
-pub type AutoSyncQueue = std::sync::Mutex<Option<std::sync::mpsc::Sender<OwnedMessage>>>;
+pub type AutoSyncQueue = std::sync::mpsc::Sender<OwnedMessage>;
+
+#[derive(Clone, Debug)]
+/// auto sync internal data
+pub struct AutoSyncData {
+    /// normalized: 0.0 ~ 1.0
+    progress: f64,
+    /// current
+    current_height: u64,
+    /// max height
+    max_height: u64,
+    /// current syncing wallet name
+    wallet: String,
+    /// send queue
+    send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
+}
+impl AutoSyncData {
+    /// create auto sync data
+    pub fn new() -> Self {
+        AutoSyncData {
+            progress: 0.0,
+            wallet: "".into(),
+            send_queue: None,
+            current_height: 0,
+            max_height: 0,
+        }
+    }
+}
+
+type AutoSyncDataShared = Arc<Mutex<AutoSyncData>>;
+#[derive(Clone, Debug)]
+/// facade for auto sync manager
+pub struct AutoSync {
+    data: AutoSyncDataShared,
+}
+
+impl AutoSync {
+    /// create auto sync
+    pub fn new() -> Self {
+        AutoSync {
+            data: Arc::new(Mutex::new(AutoSyncData::new())),
+        }
+    }
+    /// activate auto sync
+    pub fn run<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
+        &mut self,
+        url: String,
+        client: C,
+        storage: S,
+        block_handler: H,
+    ) {
+        let mut web = AutoSynchronizer::new(url);
+        web.run(client, storage, block_handler, self.data.clone());
+        let websocket_queue = web.get_send_queue();
+
+        thread::spawn(move || {
+            // some work here
+            log::info!("start websocket");
+            let _ = web.run_network();
+        });
+
+        // set send queue
+        {
+            let mut data = self.data.lock().expect("auto sync lock");
+            data.send_queue = websocket_queue;
+        }
+    }
+
+    /// add wallet
+    /// PublicKey, PrivateKey, Vec<StakedStateAddress>
+    pub fn add_wallet(
+        &self,
+        name: String,
+        view_key: PublicKey,
+        private_key: PrivateKey,
+        staking_addresses: Vec<StakedStateAddress>,
+    ) {
+        let data = json!(AddWalletCommand {
+            id: "add_wallet".to_string(),
+            name,
+            staking_addresses,
+            view_key,
+            private_key: private_key.serialize(),
+        });
+
+        self.send_json(data);
+    }
+    /// send jos
+    pub fn send_json(&self, json: serde_json::Value) {
+        {
+            let send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>;
+            {
+                let data = self.data.lock().expect("auto sync lock");
+                send_queue = data.send_queue.clone();
+            }
+            let tmp_queue = send_queue.expect("auto sync send queue");
+            AutoSynchronizer::send_json(&tmp_queue, json);
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 /// Wallet Information
@@ -162,6 +252,8 @@ where
     block_handler: H,
     wallets: Vec<WalletInfo>,
     current_wallet: usize,
+
+    data: AutoSyncDataShared,
 }
 
 /// auto-sync impl
@@ -178,6 +270,7 @@ where
         client: C,
         block_handler: H,
         wallets: WalletInfos,
+        data: AutoSyncDataShared,
     ) -> Self {
         let gss = GlobalStateService::new(storage);
 
@@ -199,6 +292,7 @@ where
             block_handler,
             wallets,
             current_wallet: 0,
+            data,
         }
     }
 
@@ -233,7 +327,28 @@ where
             );
             return Ok(());
         }
-        log::info!("save block height={} kind={}", height, kind);
+
+        // update information
+        {
+            let mut data = self.data.lock().unwrap();
+            data.current_height = current;
+            data.max_height = self.max_height;
+            data.wallet = self.get_current_wallet().name.into();
+            if data.max_height > 0 {
+                data.progress = (data.current_height as f64) / (data.max_height as f64);
+            } else {
+                data.progress = 0.0;
+            }
+            log::info!(
+                "save block kind={} wallet={} height={}/{}  progress={:.4}%",
+                kind,
+                data.wallet,
+                data.current_height,
+                data.max_height,
+                data.progress * 100.0
+            );
+        }
+
         self.write_block(height, &block)
     }
 
@@ -511,10 +626,7 @@ pub struct AutoSynchronizer {
 /// handling web-socket
 impl AutoSynchronizer {
     /// send json via channel
-    pub fn send_json(websocket_queue: &AutoSyncQueue, data: serde_json::Value) {
-        let sendqoption = websocket_queue.lock().unwrap();
-        assert!(sendqoption.is_some());
-        let sendq = sendqoption.as_ref().unwrap();
+    pub fn send_json(sendq: &AutoSyncQueue, data: serde_json::Value) {
         sendq
             .send(OwnedMessage::Text(serde_json::to_string(&data).unwrap()))
             .unwrap();
@@ -544,6 +656,7 @@ impl AutoSynchronizer {
         client: C,
         storage: S,
         block_handler: H,
+        data: AutoSyncDataShared,
     ) {
         let channel = futures::sync::mpsc::channel(0);
         // tx, rx
@@ -551,8 +664,14 @@ impl AutoSynchronizer {
         self.my_sender = Some(channel_tx.clone());
         self.my_receiver = Some(channel_rx);
 
-        let mut core =
-            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, block_handler, vec![]);
+        let mut core = AutoSynchronizerCore::new(
+            channel_tx.clone(),
+            storage,
+            client,
+            block_handler,
+            vec![],
+            data,
+        );
         // save send_queue to communicate with core
         self.core = Some(core.get_queue());
 
