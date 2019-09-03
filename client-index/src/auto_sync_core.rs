@@ -536,4 +536,29 @@ mod tests {
             _ => assert!(false),
         }
     }
+
+    #[test]
+    fn check_prepare_get_blocks() {
+        let storage = MemoryStorage::default();
+        let client = MockClient {};
+        let handler = MockBlockHandler {};
+        let data = Arc::new(Mutex::new(AutoSyncData::new()));
+        let channel = futures::sync::mpsc::channel(0);
+        let (channel_tx, _channel_rx) = channel;
+        let mut core =
+            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+
+        let private_key = PrivateKey::new().unwrap();
+        let view_key = PublicKey::from(&private_key);
+        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
+        core.add_wallet("a".into(), vec![staking_address], view_key, private_key)
+            .expect("auto sync add wallet");
+
+        core.prepare_get_blocks("1".into());
+
+        match core.state {
+            WebsocketState::GetBlocks => assert!(true),
+            _ => assert!(false),
+        }
+    }
 }
