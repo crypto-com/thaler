@@ -7,7 +7,6 @@ use zeroize::Zeroize;
 
 use crate::{ErrorKind, PublicKey, Result, SECP};
 
-
 /// Private key used in Crypto.com Chain
 #[derive(Debug, PartialEq, Clone)]
 pub struct PrivateKey(SecretKey);
