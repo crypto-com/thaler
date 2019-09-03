@@ -12,15 +12,15 @@ use crate::command::Command;
 
 fn main() {
     if let Err(err) = execute() {
-        match std::env::var("CRYPTO_CLIENT_PROD") {
-            Ok(prod) => {
-                if "true" == prod {
-                    error(&format!("Error: {}", err))
-                } else {
+        match std::env::var("CRYPTO_CLIENT_DEBUG") {
+            Ok(debug) => {
+                if "true" == debug {
                     error(&format!("Error: {:?}", err))
+                } else {
+                    error(&format!("Error: {}", err))
                 }
             }
-            Err(_) => error(&format!("Error: {:?}", err)),
+            Err(_) => error(&format!("Error: {}", err)),
         }
 
         std::process::exit(1);

@@ -449,7 +449,6 @@ dependencies = [
  "client-common 0.1.0",
  "client-core 0.1.0",
  "client-index 0.1.0",
- "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=ac9843a361114b42178acc119ab77d5a149985f5)",

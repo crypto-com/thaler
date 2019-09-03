@@ -162,7 +162,7 @@ impl Client for RpcClient {
         self.call::<BroadcastTxResult>("broadcast_tx_sync", &params)
             .and_then(|result| {
                 if result.code != 0 {
-                    Err(Error::new(ErrorKind::TendermintRpcError, result.data))
+                    Err(Error::new(ErrorKind::TendermintRpcError, result.log))
                 } else {
                     Ok(result)
                 }

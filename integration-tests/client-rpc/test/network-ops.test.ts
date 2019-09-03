@@ -24,7 +24,7 @@ describe("Staking", () => {
 		client = newZeroFeeRpcClient();
 	});
 
-	it("should support staking, unbonding and withdrawing", async function() {
+	it("should support staking, unbonding and withdrawing", async function () {
 		this.timeout(30000);
 		const defaultWalletRequest = newWalletRequest("Default", "123456");
 
@@ -135,7 +135,7 @@ describe("Staking", () => {
 				[],
 			]),
 		).to.eventually.rejectedWith(
-			"Transaction validation failed",
+			"Tendermint RPC error: verification failed:",
 			"Withdraw unbonded stake should fail before unbond from period",
 		);
 
