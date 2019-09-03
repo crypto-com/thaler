@@ -1,15 +1,15 @@
-/**
-automatic sync
+//!
+//! automatic sync
+//!
+//! how to use
+//! 1. create auto-sync & run
+//! let autosync: AutoSync::new();
+//! autosync.run(url, tendermint_client, storage.clone(), block_handler);
+//!
+//! 2. unlock wallet
+//! autosync.add_wallet(request.name, view_key, private_key, staking_addresses);
+//!
 
-how to use
-1. create auto-sync & run
-let autosync: AutoSync::new();
-autosync.run(url, tendermint_client, storage.clone(), block_handler);
-
-2. unlock wallet
-autosync.add_wallet(request.name, view_key, private_key, staking_addresses);
-
-*/
 use crate::service::GlobalStateService;
 use crate::BlockHandler;
 use chain_core::state::account::StakedStateAddress;
