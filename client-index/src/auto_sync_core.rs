@@ -7,6 +7,7 @@ use crate::auto_sync_data::{
     AddWalletCommand, AutoSyncDataShared, WalletInfos, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS,
     RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
 };
+
 use crate::service::GlobalStateService;
 use crate::BlockHandler;
 use chain_core::state::account::StakedStateAddress;
@@ -426,5 +427,95 @@ where
                 });
             let _ = self.polling();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::auto_sync_data::AutoSyncData;
+    use chain_core::init::address::RedeemAddress;
+    use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::*;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    struct MockClient;
+
+    impl Client for MockClient {
+        fn genesis(&self) -> Result<Genesis> {
+            unreachable!()
+        }
+
+        fn status(&self) -> Result<Status> {
+            unreachable!()
+        }
+
+        fn block(&self, _height: u64) -> Result<Block> {
+            unreachable!()
+        }
+
+        fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, _heights: T) -> Result<Vec<Block>> {
+            unreachable!()
+        }
+
+        fn block_results(&self, _height: u64) -> Result<BlockResults> {
+            unreachable!()
+        }
+
+        fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
+            &self,
+            _heights: T,
+        ) -> Result<Vec<BlockResults>> {
+            unreachable!()
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+            Ok(BroadcastTxResult {
+                code: 0,
+                data: String::from(""),
+                hash: String::from(""),
+                log: String::from(""),
+            })
+        }
+
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+            unreachable!()
+        }
+    }
+
+    struct MockBlockHandler {}
+    impl BlockHandler for MockBlockHandler {
+        fn on_next(
+            &self,
+            _block_header: BlockHeader,
+            _view_key: &PublicKey,
+            _private_key: &PrivateKey,
+        ) -> Result<()> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn check_sync_wallet() {
+        let storage = MemoryStorage::default();
+        let client = MockClient {};
+        let handler = MockBlockHandler {};
+        let data = Arc::new(Mutex::new(AutoSyncData::new()));
+        let channel = futures::sync::mpsc::channel(0);
+        let (channel_tx, _channel_rx) = channel;
+        let mut core =
+            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+
+        let private_key = PrivateKey::new().unwrap();
+        let view_key = PublicKey::from(&private_key);
+        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
+        core.add_wallet("a".into(), vec![staking_address], view_key, private_key)
+            .expect("auto sync add wallet");
+
+        core.change_wallet();
+        assert!(core.current_wallet == 0);
+        assert!(core.get_current_wallet().name == "a".to_string());
     }
 }

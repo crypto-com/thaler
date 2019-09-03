@@ -103,3 +103,16 @@ impl AutoSync {
         (data.progress, data.wallet.clone())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_sync_flow() {
+        let sync = AutoSync::new();
+        let initial_state = sync.get_progress();
+        assert!(initial_state.0 == 0.0);
+        assert!(initial_state.1 == "");
+    }
+}
