@@ -137,7 +137,7 @@ impl AutoSync {
 
         self.send_json(data);
     }
-    /// send jos
+    /// send json
     pub fn send_json(&self, json: serde_json::Value) {
         {
             let send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>;
@@ -148,6 +148,13 @@ impl AutoSync {
             let tmp_queue = send_queue.expect("auto sync send queue");
             AutoSynchronizer::send_json(&tmp_queue, json);
         }
+    }
+
+    /// get progress , return information as tuple
+    /// (progress:0.0~1.0, current_wallet_name)
+    pub fn get_progress(&self) -> (f64, String) {
+        let data = self.data.lock().expect("get progress autosync lock");
+        (data.progress, data.wallet.clone())
     }
 }
 
