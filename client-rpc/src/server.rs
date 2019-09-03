@@ -11,7 +11,7 @@ use client_common::tendermint::{Client, RpcClient};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
-use client_index::auto_synchronizer::AutoSync;
+use client_index::auto_sync::AutoSync;
 use client_index::cipher::MockAbciTransactionObfuscation;
 use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;

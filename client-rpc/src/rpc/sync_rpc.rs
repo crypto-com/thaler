@@ -6,7 +6,7 @@ use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
-use client_index::auto_synchronizer::AutoSync;
+use client_index::auto_sync::AutoSync;
 use client_index::synchronizer::ManualSynchronizer;
 use client_index::BlockHandler;
 
