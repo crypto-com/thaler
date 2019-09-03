@@ -1,3 +1,7 @@
+//! auto sync core
+//! polling the latest state
+//! change wallets and continue syncing
+
 use crate::auto_sync_data::WalletInfo;
 use crate::auto_sync_data::{
     AddWalletCommand, AutoSyncDataShared, WalletInfos, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS,

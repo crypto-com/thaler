@@ -1,3 +1,6 @@
+//! auto sync sharing state
+//! shared between network and core threads
+
 use chain_core::state::account::StakedStateAddress;
 use client_common::{PrivateKey, PublicKey};
 use serde::{Deserialize, Serialize};
