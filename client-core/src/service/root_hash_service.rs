@@ -1,11 +1,10 @@
-use failure::ResultExt;
 use itertools::Itertools;
 use parity_scale_codec::{Decode, Encode};
 use secstr::SecUtf8;
 
 use chain_core::common::{MerkleTree, Proof, H256};
 use chain_core::tx::witness::tree::RawPubkey;
-use client_common::{Error, ErrorKind, PublicKey, Result, SecureStorage, Storage};
+use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_root_hash";
 
@@ -83,12 +82,22 @@ where
         let address_bytes = self
             .storage
             .get_secure(KEYSPACE, root_hash, passphrase)?
-            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
-        let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
-            .context(ErrorKind::DeserializationError)?;
+            .chain(|| (ErrorKind::InvalidInput, "Address not found"))?;
+        let address = MultiSigAddress::decode(&mut address_bytes.as_slice()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                format!(
+                    "Unable to deserialize multi-sig address details for root hash ({})",
+                    hex::encode(root_hash)
+                ),
+            )
+        })?;
 
         if public_keys.len() != address.m as usize {
-            return Err(ErrorKind::InvalidInput.into());
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("{} public keys are required to generate a proof", address.m),
+            ));
         }
 
         public_keys.sort();
@@ -96,7 +105,7 @@ where
         address
             .merkle_tree
             .generate_proof(raw_public_key(&public_keys)?)
-            .ok_or_else(|| Error::from(ErrorKind::InvalidInput))
+            .chain(|| (ErrorKind::InvalidInput, "Unable to generate merkle proof"))
     }
 
     /// Returns the number of required cosigners for given root_hash
@@ -104,10 +113,17 @@ where
         let address_bytes = self
             .storage
             .get_secure(KEYSPACE, root_hash, passphrase)?
-            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+            .chain(|| (ErrorKind::InvalidInput, "Address not found"))?;
 
-        let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
-            .context(ErrorKind::DeserializationError)?;
+        let address = MultiSigAddress::decode(&mut address_bytes.as_slice()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                format!(
+                    "Unable to deserialize multi-sig address details for root hash ({})",
+                    hex::encode(root_hash)
+                ),
+            )
+        })?;
 
         Ok(address.m as usize)
     }
@@ -117,10 +133,17 @@ where
         let address_bytes = self
             .storage
             .get_secure(KEYSPACE, root_hash, passphrase)?
-            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+            .chain(|| (ErrorKind::InvalidInput, "Address not found"))?;
 
-        let address = MultiSigAddress::decode(&mut address_bytes.as_slice())
-            .context(ErrorKind::DeserializationError)?;
+        let address = MultiSigAddress::decode(&mut address_bytes.as_slice()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                format!(
+                    "Unable to deserialize multi-sig address details for root hash ({})",
+                    hex::encode(root_hash)
+                ),
+            )
+        })?;
 
         Ok(address.self_public_key)
     }
@@ -140,8 +163,25 @@ fn raw_public_key(public_keys: &[PublicKey]) -> Result<RawPubkey> {
 }
 
 fn combinations(public_keys: Vec<PublicKey>, n: usize) -> Result<Vec<RawPubkey>> {
-    if public_keys.is_empty() || n > public_keys.len() || n == 0 {
-        return Err(ErrorKind::InvalidInput.into());
+    if public_keys.is_empty() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Length of public keys cannot be zero",
+        ));
+    }
+
+    if n > public_keys.len() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Length of public keys cannot be less than number of required signers",
+        ));
+    }
+
+    if n == 0 {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Number of required signers cannot be zero",
+        ));
     }
 
     let mut combinations = public_keys
@@ -256,7 +296,7 @@ mod tests {
         );
 
         assert_eq!(
-            ErrorKind::AddressNotFound,
+            ErrorKind::InvalidInput,
             root_hash_service
                 .required_signers(&[0u8; 32], &passphrase)
                 .expect_err("Found non-existent address")

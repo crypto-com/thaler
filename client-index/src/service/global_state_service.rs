@@ -1,7 +1,6 @@
-use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode};
 
-use client_common::{ErrorKind, PublicKey, Result, Storage};
+use client_common::{ErrorKind, PublicKey, Result, ResultExt, Storage};
 
 const KEYSPACE: &str = "index_global_state";
 
@@ -40,8 +39,15 @@ where
             None => Ok(0),
             Some(bytes) => GlobalState::decode(&mut bytes.as_slice())
                 .map(|global_state| global_state.last_block_height)
-                .context(ErrorKind::DeserializationError)
-                .map_err(Into::into),
+                .chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        format!(
+                            "Unable to deserialize global state for view key: {}",
+                            view_key
+                        ),
+                    )
+                }),
         }
     }
 
@@ -53,8 +59,15 @@ where
             None => Ok("".to_string()),
             Some(bytes) => GlobalState::decode(&mut bytes.as_slice())
                 .map(|global_state| global_state.last_app_hash)
-                .context(ErrorKind::DeserializationError)
-                .map_err(Into::into),
+                .chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        format!(
+                            "Unable to deserialize global state for view key: {}",
+                            view_key
+                        ),
+                    )
+                }),
         }
     }
 

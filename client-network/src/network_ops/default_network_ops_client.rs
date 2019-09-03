@@ -1,4 +1,3 @@
-use failure::ResultExt;
 use parity_scale_codec::Decode;
 use secstr::SecUtf8;
 
@@ -14,7 +13,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::tendermint::Client;
-use client_common::{Error, ErrorKind, Result, SignedTransaction};
+use client_common::{ErrorKind, Result, ResultExt, SignedTransaction};
 use client_core::{Signer, UnspentTransactions, WalletClient};
 use client_index::TransactionObfuscation;
 
@@ -73,9 +72,15 @@ where
             .query("account", staked_state_address)?
             .bytes()?;
 
-        StakedState::decode(&mut bytes.as_slice())
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::into)
+        StakedState::decode(&mut bytes.as_slice()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                format!(
+                    "Cannot deserialize staked state for address: {}",
+                    hex::encode(staked_state_address)
+                ),
+            )
+        })
     }
 
     /// Get staked state info
@@ -145,12 +150,22 @@ where
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
                 .find_public_key(name, passphrase, redeem_address)?
-                .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?,
+                .chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        "Address not found in current wallet",
+                    )
+                })?,
         };
         let private_key = self
             .wallet_client
             .private_key(passphrase, &public_key)?
-            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Not able to find private key for given address in current wallet",
+                )
+            })?;
 
         let signature = private_key
             .sign(transaction.id())
@@ -170,20 +185,28 @@ where
         let staked_state = self.get_staked_state(name, passphrase, from_address)?;
         let nonce = staked_state.nonce;
 
-        println!("State: {:?}", staked_state);
-
         let transaction = WithdrawUnbondedTx::new(nonce, outputs, attributes);
 
         let public_key = match from_address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
                 .find_public_key(name, passphrase, redeem_address)?
-                .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?,
+                .chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        "Address not found in current wallet",
+                    )
+                })?,
         };
         let private_key = self
             .wallet_client
             .private_key(passphrase, &public_key)?
-            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Not able to find private key for given address in current wallet",
+                )
+            })?;
 
         let signature = private_key
             .sign(transaction.id())
@@ -223,10 +246,20 @@ where
         let fee = self
             .fee_algorithm
             .calculate_for_txaux(&temp_transaction)
-            .context(ErrorKind::BalanceAdditionError)?
+            .chain(|| {
+                (
+                    ErrorKind::IllegalInput,
+                    "Calculated fee is more than the maximum allowed value",
+                )
+            })?
             .to_coin();
 
-        let amount = (staked_state.unbonded - fee).context(ErrorKind::BalanceAdditionError)?;
+        let amount = (staked_state.unbonded - fee).chain(|| {
+            (
+                ErrorKind::IllegalInput,
+                "Calculated fee is more than the unbonded amount",
+            )
+        })?;
         let output = TxOut::new_with_timelock(to_address, amount, staked_state.unbonded_from);
 
         self.create_withdraw_unbonded_stake_transaction(
@@ -617,7 +650,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            ErrorKind::AddressNotFound,
+            ErrorKind::InvalidInput,
             network_ops_client
                 .create_withdraw_unbonded_stake_transaction(
                     name,
@@ -658,7 +691,7 @@ mod tests {
         );
 
         assert_eq!(
-            ErrorKind::WalletNotFound,
+            ErrorKind::InvalidInput,
             network_ops_client
                 .create_withdraw_unbonded_stake_transaction(
                     name,

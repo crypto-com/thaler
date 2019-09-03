@@ -1,9 +1,7 @@
 #![allow(missing_docs)]
-
-use failure::ResultExt;
 use serde::Deserialize;
 
-use crate::{ErrorKind, Result};
+use crate::{ErrorKind, Result, ResultExt};
 
 #[derive(Debug, Deserialize)]
 pub struct Status {
@@ -23,7 +21,12 @@ impl Status {
             .sync_info
             .latest_block_height
             .parse::<u64>()
-            .context(ErrorKind::DeserializationError)?)
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    "Unable to convert last block height into integer",
+                )
+            })?)
     }
 
     /// Returns last app hash

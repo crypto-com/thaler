@@ -1,17 +1,20 @@
+use std::sync::Mutex;
+
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
+use serde_json::json;
+use websocket::OwnedMessage;
 
-use crate::rpc::websocket_rpc::AddWalletCommand;
-use crate::server::{to_rpc_error, WalletRequest};
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
-use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
+use client_common::{ErrorKind, PrivateKey, PublicKey, ResultExt, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_index::synchronizer::ManualSynchronizer;
 use client_index::BlockHandler;
-use serde_json::json;
-use std::sync::Mutex;
-use websocket::OwnedMessage;
+
+use crate::rpc::websocket_rpc::AddWalletCommand;
+use crate::server::{to_rpc_error, WalletRequest};
+
 #[rpc]
 pub trait SyncRpc: Send + Sync {
     #[rpc(name = "sync")]
@@ -116,7 +119,12 @@ where
             .client
             .private_key(&request.passphrase, &view_key)
             .map_err(to_rpc_error)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Private key corresponding to view key of given wallet not found",
+                )
+            })
             .map_err(to_rpc_error)?;
 
         let staking_addresses = self

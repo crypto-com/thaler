@@ -1,14 +1,19 @@
-use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
-use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
-use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
-use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
-use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
-use crate::rpc::websocket_rpc::{WalletInfos, WebsocketRpc};
-use crate::Options;
+use std::net::SocketAddr;
+use std::thread;
+
+use jsonrpc_core::{self, IoHandler};
+use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
+use secstr::SecUtf8;
+use serde::{Deserialize, Serialize};
+use websocket::OwnedMessage;
+
+use chain_core::init::network::{
+    get_network, get_network_id, init_chain_id, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID,
+};
 use chain_core::tx::fee::LinearFee;
-use client_common::error::{Error, ErrorKind, Result};
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
+use client_common::{Error, ErrorKind, Result, ResultExt};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
@@ -17,17 +22,15 @@ use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_index::index::DefaultIndex;
 use client_index::synchronizer::ManualSynchronizer;
 use client_network::network_ops::DefaultNetworkOpsClient;
-use failure::ResultExt;
-use jsonrpc_core::{self, IoHandler};
-use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
-use secstr::SecUtf8;
-use serde::{Deserialize, Serialize};
-use std::net::SocketAddr;
-use std::thread;
 
-use chain_core::init::network::{
-    get_network, get_network_id, init_chain_id, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID,
-};
+use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
+use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
+use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
+use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
+use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
+use crate::rpc::websocket_rpc::{WalletInfos, WebsocketRpc};
+use crate::Options;
+
 type AppSigner = DefaultSigner<SledStorage>;
 type AppIndex = DefaultIndex<SledStorage, RpcClient>;
 type AppTransactionCipher = MockAbciTransactionObfuscation<RpcClient>;
@@ -39,7 +42,7 @@ type AppTransactionHandler = DefaultTransactionHandler<SledStorage>;
 type AppBlockHandler =
     DefaultBlockHandler<AppTransactionCipher, AppTransactionHandler, SledStorage>;
 type AppSynchronizer = ManualSynchronizer<SledStorage, RpcClient, AppBlockHandler>;
-use websocket::OwnedMessage;
+
 pub(crate) struct Server {
     host: String,
     port: u16,
@@ -52,8 +55,12 @@ pub(crate) struct Server {
 
 impl Server {
     pub(crate) fn new(options: Options) -> Result<Server> {
-        let network_id =
-            hex::decode(&options.network_id).context(ErrorKind::SerializationError)?[0];
+        let network_id = hex::decode(&options.network_id).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize Network ID: Network ID is last two hex digits of chain ID",
+            )
+        })?[0];
         let network_type = options.network_type;
         if network_type.len() < 4 {
             init_chain_id(&format!("dev-{}", options.network_id))
@@ -65,7 +72,7 @@ impl Server {
             }
         }
         println!(
-            "Network type {:?}  id {:02X}",
+            "Network type {:?} id {:02X}",
             get_network(),
             get_network_id()
         );
@@ -207,6 +214,7 @@ impl Server {
 }
 
 pub(crate) fn to_rpc_error(error: Error) -> jsonrpc_core::Error {
+    log::error!("{:?}", error);
     jsonrpc_core::Error {
         code: jsonrpc_core::ErrorCode::InternalError,
         message: error.to_string(),
@@ -215,6 +223,7 @@ pub(crate) fn to_rpc_error(error: Error) -> jsonrpc_core::Error {
 }
 
 pub(crate) fn rpc_error_from_string(error: String) -> jsonrpc_core::Error {
+    log::error!("{}", error);
     jsonrpc_core::Error {
         code: jsonrpc_core::ErrorCode::InternalError,
         message: error,

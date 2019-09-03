@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode};
 
 use chain_core::init::coin::Coin;
@@ -9,7 +8,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use client_common::balance::TransactionChange;
-use client_common::{ErrorKind, Result, Storage};
+use client_common::{ErrorKind, Result, ResultExt, Storage};
 
 const KEYSPACE: &str = "index_address";
 
@@ -171,8 +170,12 @@ where
         self.storage
             .get(KEYSPACE, address.encode())?
             .map(|bytes| {
-                Ok(AddressDetails::decode(&mut bytes.as_slice())
-                    .context(ErrorKind::DeserializationError)?)
+                Ok(AddressDetails::decode(&mut bytes.as_slice()).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        format!("Unable to deserialize address details for {}", address),
+                    )
+                })?)
             })
             .unwrap_or_else(|| Ok(Default::default()))
     }
@@ -191,8 +194,12 @@ where
                 .fetch_and_update(KEYSPACE, address.encode(), |value| {
                     let mut address_details = value
                         .map(|mut bytes| -> Result<AddressDetails> {
-                            Ok(AddressDetails::decode(&mut bytes)
-                                .context(ErrorKind::DeserializationError)?)
+                            Ok(AddressDetails::decode(&mut bytes).chain(|| {
+                                (
+                                    ErrorKind::DeserializationError,
+                                    "Unable to deserialize address details while applying memento",
+                                )
+                            })?)
                         })
                         .unwrap_or_else(|| Ok(Default::default()))?;
 

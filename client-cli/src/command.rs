@@ -16,7 +16,7 @@ use chain_core::state::account::StakedStateAddress;
 use client_common::balance::BalanceChange;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
-use client_common::{Error, ErrorKind, Result, Storage};
+use client_common::{ErrorKind, Result, ResultExt, Storage};
 use client_core::signer::DefaultSigner;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
@@ -334,7 +334,12 @@ impl Command {
         let view_key = wallet_client.view_key(name, &passphrase)?;
         let private_key = wallet_client
             .private_key(&passphrase, &view_key)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    format!("View key ({}) is not owned by current wallet", view_key),
+                )
+            })?;
 
         let staking_addresses = wallet_client.staking_addresses(name, &passphrase)?;
 

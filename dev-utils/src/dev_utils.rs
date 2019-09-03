@@ -1,10 +1,8 @@
-use failure::Error;
 use structopt::StructOpt;
 
-use crate::commands::GenesisCommand;
-use crate::commands::InitCommand;
-use crate::commands::RunCommand;
-use crate::commands::StopCommand;
+use client_common::Result;
+
+use crate::commands::{GenesisCommand, InitCommand, RunCommand, StopCommand};
 
 /// Enum used to specify subcommands under dev-utils
 #[derive(Debug, StructOpt)]
@@ -40,7 +38,7 @@ pub enum DevUtils {
 }
 
 impl DevUtils {
-    pub fn execute(&self) -> Result<(), Error> {
+    pub fn execute(&self) -> Result<()> {
         match self {
             DevUtils::Genesis { genesis_command } => genesis_command.execute(),
             DevUtils::Init => {
