@@ -55,9 +55,9 @@ pub struct AutoSyncData {
     /// send queue
     send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
 }
-impl AutoSyncData {
-    /// create auto sync data
-    pub fn new() -> Self {
+
+impl Default for AutoSyncData {
+    fn default() -> Self {
         AutoSyncData {
             progress: 0.0,
             wallet: "".into(),
@@ -65,6 +65,12 @@ impl AutoSyncData {
             current_height: 0,
             max_height: 0,
         }
+    }
+}
+impl AutoSyncData {
+    /// create auto sync data
+    pub fn new() -> Self {
+        Default::default()
     }
 }
 
@@ -75,12 +81,17 @@ pub struct AutoSync {
     data: AutoSyncDataShared,
 }
 
-impl AutoSync {
-    /// create auto sync
-    pub fn new() -> Self {
+impl Default for AutoSync {
+    fn default() -> Self {
         AutoSync {
             data: Arc::new(Mutex::new(AutoSyncData::new())),
         }
+    }
+}
+impl AutoSync {
+    /// create auto sync
+    pub fn new() -> Self {
+        Default::default()
     }
     /// activate auto sync
     pub fn run<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
