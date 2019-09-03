@@ -333,7 +333,7 @@ where
             let mut data = self.data.lock().unwrap();
             data.current_height = current;
             data.max_height = self.max_height;
-            data.wallet = self.get_current_wallet().name.into();
+            data.wallet = self.get_current_wallet().name;
             if data.max_height > 0 {
                 data.progress = (data.current_height as f64) / (data.max_height as f64);
             } else {
