@@ -518,4 +518,22 @@ mod tests {
         assert!(core.current_wallet == 0);
         assert!(core.get_current_wallet().name == "a".to_string());
     }
+
+    #[test]
+    fn check_change_to_wait() {
+        let storage = MemoryStorage::default();
+        let client = MockClient {};
+        let handler = MockBlockHandler {};
+        let data = Arc::new(Mutex::new(AutoSyncData::new()));
+        let channel = futures::sync::mpsc::channel(0);
+        let (channel_tx, _channel_rx) = channel;
+        let mut core =
+            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+        core.change_to_wait();
+
+        match core.state {
+            WebsocketState::WaitProcess => assert!(true),
+            _ => assert!(false),
+        }
+    }
 }
