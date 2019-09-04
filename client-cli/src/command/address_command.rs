@@ -94,17 +94,25 @@ impl AddressCommand {
             AddressType::Staking => {
                 let addresses = wallet_client.staking_addresses(name, &passphrase)?;
 
-                for address in addresses {
-                    ask("Address: ");
-                    success(&format!("{}", address));
+                if !addresses.is_empty() {
+                    for address in addresses {
+                        ask("Address: ");
+                        success(&format!("{}", address));
+                    }
+                } else {
+                    success("No addresses found!")
                 }
             }
             AddressType::Transfer => {
                 let addresses = wallet_client.transfer_addresses(name, &passphrase)?;
 
-                for address in addresses {
-                    ask("Address: ");
-                    success(&format!("{}", address));
+                if !addresses.is_empty() {
+                    for address in addresses {
+                        ask("Address: ");
+                        success(&format!("{}", address));
+                    }
+                } else {
+                    success("No addresses found!")
                 }
             }
         }

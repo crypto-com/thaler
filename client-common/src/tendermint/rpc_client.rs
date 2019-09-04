@@ -176,6 +176,12 @@ impl Client for RpcClient {
             json!(null),
             json!(null),
         ];
-        self.call("abci_query", &params)
+        let result = self.call::<QueryResult>("abci_query", &params)?;
+
+        if result.code() != 0 {
+            return Err(Error::new(ErrorKind::TendermintRpcError, result.log()));
+        }
+
+        Ok(result)
     }
 }

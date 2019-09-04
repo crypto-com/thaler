@@ -179,7 +179,9 @@ mod tests {
 
                     Ok(QueryResult {
                         response: Response {
+                            code: 0,
                             value: encode(&response),
+                            log: "".to_owned(),
                         },
                     })
                 }
@@ -191,7 +193,9 @@ mod tests {
 
                     Ok(QueryResult {
                         response: Response {
+                            code: 0,
                             value: encode(&response),
+                            log: "".to_owned(),
                         },
                     })
                 }
