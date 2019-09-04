@@ -15,6 +15,7 @@ use crate::auto_synchronizer::AutoSynchronizer;
 use crate::BlockHandler;
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
+use client_common::Result;
 use client_common::Storage;
 use client_common::{PrivateKey, PublicKey};
 use serde_json::json;
@@ -72,7 +73,7 @@ impl AutoSync {
         view_key: PublicKey,
         private_key: PrivateKey,
         staking_addresses: Vec<StakedStateAddress>,
-    ) {
+    ) -> Result<()> {
         let data = json!(AddWalletCommand {
             id: "add_wallet".to_string(),
             name,
@@ -81,19 +82,18 @@ impl AutoSync {
             private_key: private_key.serialize(),
         });
 
-        self.send_json(data);
+        self.send_json(data)
     }
     /// send json
-    pub fn send_json(&self, json: serde_json::Value) {
+    pub fn send_json(&self, json: serde_json::Value) -> Result<()> {
+        let send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>;
         {
-            let send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>;
-            {
-                let data = self.data.lock().expect("auto sync lock");
-                send_queue = data.send_queue.clone();
-            }
-            let tmp_queue = send_queue.expect("auto sync send queue");
-            AutoSynchronizer::send_json(&tmp_queue, json);
+            let data = self.data.lock().expect("auto sync lock");
+            send_queue = data.send_queue.clone();
         }
+        let tmp_queue = send_queue.expect("auto sync send queue");
+        AutoSynchronizer::send_json(&tmp_queue, json);
+        Ok(())
     }
 
     /// get progress , return information as tuple

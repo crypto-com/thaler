@@ -1,4 +1,3 @@
-use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode};
 use secstr::SecUtf8;
 
@@ -6,7 +5,7 @@ use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
-use client_common::{Error, ErrorKind, PublicKey, Result, SecureStorage, Storage};
+use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_wallet";
 
@@ -47,10 +46,18 @@ where
         let wallet_bytes = self
             .storage
             .get_secure(KEYSPACE, name, passphrase)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
-        Wallet::decode(&mut wallet_bytes.as_slice())
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::into)
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    format!("Wallet with name ({}) not found", name),
+                )
+            })?;
+        Wallet::decode(&mut wallet_bytes.as_slice()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                format!("Unable to deserialize wallet with name {}", name),
+            )
+        })
     }
 
     fn set_wallet(&self, name: &str, passphrase: &SecUtf8, wallet: Wallet) -> Result<()> {
@@ -105,7 +112,10 @@ where
     /// Creates a new wallet and returns wallet ID
     pub fn create(&self, name: &str, passphrase: &SecUtf8, view_key: PublicKey) -> Result<()> {
         if self.storage.contains_key(KEYSPACE, name)? {
-            return Err(ErrorKind::AlreadyExists.into());
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("Wallet with name ({}) already exists", name),
+            ));
         }
 
         self.set_wallet(name, passphrase, Wallet::new(view_key))
@@ -164,10 +174,18 @@ where
     ) -> Result<()> {
         self.storage
             .fetch_and_update_secure(KEYSPACE, name, passphrase, |value| {
-                let mut wallet_bytes =
-                    value.ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
-                let mut wallet =
-                    Wallet::decode(&mut wallet_bytes).context(ErrorKind::DeserializationError)?;
+                let mut wallet_bytes = value.chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        format!("Wallet with name ({}) not found", name),
+                    )
+                })?;
+                let mut wallet = Wallet::decode(&mut wallet_bytes).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        format!("Unable to deserialize wallet with name {}", name),
+                    )
+                })?;
                 wallet.public_keys.push(public_key.clone());
 
                 Ok(Some(wallet.encode()))
@@ -179,10 +197,18 @@ where
     pub fn add_root_hash(&self, name: &str, passphrase: &SecUtf8, root_hash: H256) -> Result<()> {
         self.storage
             .fetch_and_update_secure(KEYSPACE, name, passphrase, |value| {
-                let mut wallet_bytes =
-                    value.ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
-                let mut wallet =
-                    Wallet::decode(&mut wallet_bytes).context(ErrorKind::DeserializationError)?;
+                let mut wallet_bytes = value.chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        format!("Wallet with name ({}) not found", name),
+                    )
+                })?;
+                let mut wallet = Wallet::decode(&mut wallet_bytes).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        format!("Unable to deserialize wallet with name {}", name),
+                    )
+                })?;
                 wallet.root_hashes.push(root_hash);
 
                 Ok(Some(wallet.encode()))
@@ -195,7 +221,14 @@ where
         let keys = self.storage.keys(KEYSPACE)?;
 
         keys.into_iter()
-            .map(|bytes| Ok(String::from_utf8(bytes).context(ErrorKind::DeserializationError)?))
+            .map(|bytes| {
+                String::from_utf8(bytes).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize wallet names in storage",
+                    )
+                })
+            })
             .collect()
     }
 
@@ -225,7 +258,7 @@ mod tests {
             .public_keys("name", &passphrase)
             .expect_err("Retrieved public keys for non-existent wallet");
 
-        assert_eq!(error.kind(), ErrorKind::WalletNotFound);
+        assert_eq!(error.kind(), ErrorKind::InvalidInput);
 
         assert!(wallet_service
             .create("name", &passphrase, view_key.clone())
@@ -235,7 +268,7 @@ mod tests {
             .create("name", &SecUtf8::from("new_passphrase"), view_key.clone())
             .expect_err("Created duplicate wallet");
 
-        assert_eq!(error.kind(), ErrorKind::AlreadyExists);
+        assert_eq!(error.kind(), ErrorKind::InvalidInput);
 
         assert_eq!(
             0,
@@ -249,7 +282,7 @@ mod tests {
             .create("name", &SecUtf8::from("passphrase_new"), view_key)
             .expect_err("Able to create wallet with same name as previously created");
 
-        assert_eq!(error.kind(), ErrorKind::AlreadyExists, "Invalid error kind");
+        assert_eq!(error.kind(), ErrorKind::InvalidInput, "Invalid error kind");
 
         let private_key = PrivateKey::new().unwrap();
         let public_key = PublicKey::from(&private_key);
@@ -272,6 +305,6 @@ mod tests {
             .public_keys("name", &passphrase)
             .expect_err("Retrieved public keys for non-existent wallet");
 
-        assert_eq!(error.kind(), ErrorKind::WalletNotFound);
+        assert_eq!(error.kind(), ErrorKind::InvalidInput);
     }
 }

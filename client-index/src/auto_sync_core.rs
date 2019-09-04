@@ -10,14 +10,13 @@ use crate::auto_sync_data::{
 
 use crate::service::GlobalStateService;
 use crate::BlockHandler;
-use chain_core::state::account::StakedStateAddress;
+
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::Block;
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, Result, Storage, Transaction};
 use client_common::{Error, ErrorKind};
 use client_common::{PrivateKey, PublicKey};
-use failure::ResultExt;
 use futures::sink::Sink;
 use jsonrpc_core::Result as JsonResult;
 use mpsc::Receiver;
@@ -28,6 +27,9 @@ use std::sync::mpsc;
 use std::time;
 use std::time::SystemTime;
 use websocket::OwnedMessage;
+
+use chain_core::state::account::StakedStateAddress;
+use client_common::ResultExt;
 
 /**  finite state machine that manages blocks
 just use one thread to multi-plexing for data and command
@@ -243,9 +245,12 @@ where
     /// Value is given from websocket_rpc
     /// received
     fn do_parse(&mut self, value: Value) -> Result<()> {
-        let id = value["id"]
-            .as_str()
-            .ok_or_else(|| Error::from(ErrorKind::RpcError))?;
+        let id = value["id"].as_str().chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                format!("Unable to deserialize `id` from RPC data: {}", value),
+            )
+        })?;
         match id {
             // this is special, it's command
             "add_wallet" => {
@@ -262,15 +267,29 @@ where
                 );
             }
             "subscribe_reply#event" => {
-                let newblock: Block =
-                    serde_json::from_value(value["result"]["data"]["value"].clone())
-                        .context(ErrorKind::RpcError)?;
-                self.do_save_block_to_chain(newblock, "event")?;
+                let new_block: Block = serde_json::from_value(
+                    value["result"]["data"]["value"].clone(),
+                )
+                .chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        format!("Unable to deserialize `block` from RPC data: {}", value),
+                    )
+                })?;
+                self.do_save_block_to_chain(new_block, "event")?;
             }
             "status_reply" => {
                 let height = value["result"]["sync_info"]["latest_block_height"]
                     .as_str()
-                    .ok_or_else(|| Error::from(ErrorKind::RpcError))?;
+                    .chain(|| {
+                        (
+                            ErrorKind::DeserializationError,
+                            format!(
+                                "Unable to deserialize `latest_block_height` from RPC data: {}",
+                                value
+                            ),
+                        )
+                    })?;
                 self.prepare_get_blocks(height.to_string());
             }
             "block_reply" => {
@@ -279,9 +298,14 @@ where
                     self.change_to_wait();
                 } else {
                     let wallet = self.get_current_wallet();
-                    let newblock: Block = serde_json::from_value(value["result"].clone())
-                        .context(ErrorKind::RpcError)?;
-                    self.do_save_block_to_chain(newblock, "get block")?;
+                    let new_block: Block =
+                        serde_json::from_value(value["result"].clone()).chain(|| {
+                            (
+                                ErrorKind::DeserializationError,
+                                format!("Unable to deserialize `block` from RPC data: {}", value),
+                            )
+                        })?;
+                    self.do_save_block_to_chain(new_block, "get block")?;
 
                     if self.get_current_height() >= self.max_height {
                         log::info!("all synced wallet {}.. wait", wallet.name);
@@ -305,7 +329,12 @@ where
     /// session is handled in websocket_rpc
     pub fn parse(&mut self, message: OwnedMessage) -> Result<()> {
         if let OwnedMessage::Text(a) = message {
-            let b: Value = serde_json::from_str(a.as_str()).context(ErrorKind::RpcError)?;
+            let b: Value = serde_json::from_str(a.as_str()).chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    "Unable to parse websocket data into json value",
+                )
+            })?;
             return self.do_parse(b);
         }
         Ok(())
@@ -341,7 +370,12 @@ where
     pub fn check_status(&mut self) -> Result<()> {
         let mut sink = self.sender.clone().wait();
         sink.send(OwnedMessage::Text(CMD_STATUS.to_string()))
-            .context(ErrorKind::RpcError)?;
+            .chain(|| {
+                (
+                    ErrorKind::InternalError,
+                    "Unable to send message to futures::sink",
+                )
+            })?;
         self.state = WebsocketState::GetStatus;
         Ok(())
     }
@@ -391,12 +425,21 @@ where
     in one thread instead of dedicated thread
     */
     pub fn send_request_block(&mut self) -> Result<()> {
-        let mut json: Value = serde_json::from_str(CMD_BLOCK).context(ErrorKind::RpcError)?;
+        let mut json: Value = serde_json::from_str(CMD_BLOCK).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize `CMD_BLOCK` into json value",
+            )
+        })?;
         let request = self.get_current_height() + 1;
         json["params"] = json!([request.to_string()]);
         let mut sink = self.sender.clone().wait();
-        sink.send(OwnedMessage::Text(json.to_string()))
-            .context(ErrorKind::RpcError)?;
+        sink.send(OwnedMessage::Text(json.to_string())).chain(|| {
+            (
+                ErrorKind::InternalError,
+                "Unable to send message to futures::sink",
+            )
+        })?;
         Ok(())
     }
 

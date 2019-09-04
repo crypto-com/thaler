@@ -480,7 +480,10 @@ pub mod tests {
                 .unwrap();
 
             assert_eq!(
-                to_rpc_error(Error::from(ErrorKind::AlreadyExists)),
+                to_rpc_error(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Wallet with name (Default) already exists"
+                )),
                 wallet_rpc
                     .create(create_wallet_request("Default", "123456"))
                     .unwrap_err()

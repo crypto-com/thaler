@@ -4,7 +4,7 @@ use jsonrpc_derive::rpc;
 use crate::server::{to_rpc_error, WalletRequest};
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
-use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
+use client_common::{ErrorKind, PrivateKey, PublicKey, ResultExt, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_index::auto_sync::AutoSync;
 use client_index::synchronizer::ManualSynchronizer;
@@ -20,7 +20,7 @@ pub trait SyncRpc: Send + Sync {
 
     // sync continuously
     #[rpc(name = "sync_unlockWallet")]
-    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String>;
+    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<()>;
 }
 
 pub struct SyncRpcImpl<T, S, C, H>
@@ -60,12 +60,12 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String> {
+    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<()> {
         let (view_key, private_key, staking_addresses) =
             self.prepare_synchronized_parameters(&request)?;
         self.auto_synchronizer
-            .add_wallet(request.name, view_key, private_key, staking_addresses);
-        Ok("OK".to_string())
+            .add_wallet(request.name, view_key, private_key, staking_addresses)
+            .map_err(to_rpc_error)
     }
 }
 
@@ -100,7 +100,12 @@ where
             .client
             .private_key(&request.passphrase, &view_key)
             .map_err(to_rpc_error)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Private key corresponding to view key of given wallet not found",
+                )
+            })
             .map_err(to_rpc_error)?;
 
         let staking_addresses = self

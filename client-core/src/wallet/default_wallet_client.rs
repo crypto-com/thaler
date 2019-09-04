@@ -1,4 +1,3 @@
-use failure::{format_err, ResultExt};
 use parity_scale_codec::Encode;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
@@ -18,7 +17,9 @@ use chain_core::tx::TxAux;
 use client_common::balance::TransactionChange;
 use client_common::storage::UnauthorizedStorage;
 use client_common::tendermint::types::BroadcastTxResult;
-use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Result, SignedTransaction, Storage};
+use client_common::{
+    Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SignedTransaction, Storage,
+};
 use client_index::index::{Index, UnauthorizedIndex};
 
 use crate::service::*;
@@ -188,7 +189,10 @@ where
     ) -> Result<ExtendedAddr> {
         let wallet_public_keys = self.public_keys(&name, &passphrase)?;
         if !wallet_public_keys.contains(&self_public_key) {
-            return Err(Error::from(ErrorKind::MultiSigInvalidSelfPubKey));
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Signer public keys does not contain self public key",
+            ));
         }
 
         let root_hash =
@@ -240,7 +244,12 @@ where
             .map(|address| Ok(self.index.address_details(address)?.balance))
             .collect::<Result<Vec<Coin>>>()?;
 
-        Ok(sum_coins(balances.into_iter()).context(ErrorKind::BalanceAdditionError)?)
+        sum_coins(balances.into_iter()).chain(|| {
+            (
+                ErrorKind::IllegalInput,
+                "Balance is more than maximum allowed value",
+            )
+        })
     }
 
     fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>> {
@@ -321,9 +330,12 @@ where
         // To verify if the passphrase is correct or not
         self.transfer_addresses(name, passphrase)?;
 
-        let private_key = self
-            .private_key(passphrase, public_key)?
-            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+        let private_key = self.private_key(passphrase, public_key)?.chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                format!("Public key ({}) is not owned by current wallet", public_key),
+            )
+        })?;
         private_key.schnorr_sign(message)
     }
 
@@ -338,9 +350,15 @@ where
         // To verify if the passphrase is correct or not
         self.transfer_addresses(name, passphrase)?;
 
-        let self_private_key = self
-            .private_key(passphrase, &self_public_key)?
-            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+        let self_private_key = self.private_key(passphrase, &self_public_key)?.chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                format!(
+                    "Self public key ({}) is not owned by current wallet",
+                    self_public_key
+                ),
+            )
+        })?;
 
         self.multi_sig_session_service.new_session(
             message,
@@ -419,18 +437,22 @@ where
         unsigned_transaction: Tx,
     ) -> Result<TxAux> {
         if unsigned_transaction.inputs.len() != 1 {
-            return Err(format_err!(
-                "Multi-Sig Signing is only supported for transactions with only one input"
-            )
-            .context(ErrorKind::InvalidInput)
-            .into());
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Multi-Sig Signing is only supported for transactions with only one input",
+            ));
         }
 
         let output_to_spend = self.output(&unsigned_transaction.inputs[0])?;
         let root_hash = self
             .wallet_service
             .find_root_hash(name, passphrase, &output_to_spend.address)?
-            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+            .chain(|| {
+                (
+                    ErrorKind::IllegalInput,
+                    "Output address is not owned by current wallet; cannot spend output in given transaction",
+                )
+            })?;
         let public_keys = self
             .multi_sig_session_service
             .public_keys(session_id, passphrase)?;
@@ -749,7 +771,7 @@ mod tests {
                     valid_from: None,
                 })
             } else {
-                Err(ErrorKind::TransactionNotFound.into())
+                Err(ErrorKind::InvalidInput.into())
             }
         }
 
@@ -820,7 +842,7 @@ mod tests {
             .is_some());
 
         assert_eq!(
-            ErrorKind::WalletNotFound,
+            ErrorKind::InvalidInput,
             wallet
                 .public_keys("name_new", &SecUtf8::from("passphrase"))
                 .expect_err("Found public keys for non existent wallet")
@@ -829,7 +851,7 @@ mod tests {
         );
 
         assert_eq!(
-            ErrorKind::WalletNotFound,
+            ErrorKind::InvalidInput,
             wallet
                 .new_public_key("name_new", &SecUtf8::from("passphrase"))
                 .expect_err("Generated public key for non existent wallet")
@@ -1013,7 +1035,7 @@ mod tests {
         assert!(wallet.broadcast_transaction(&transaction).is_ok());
 
         assert_eq!(
-            ErrorKind::InsufficientBalance,
+            ErrorKind::InvalidInput,
             wallet
                 .create_transaction(
                     "wallet_2",
@@ -1158,7 +1180,7 @@ mod tests {
         let name = "name";
 
         assert_eq!(
-            ErrorKind::WalletNotFound,
+            ErrorKind::InvalidInput,
             wallet
                 .transfer_addresses(name, &passphrase)
                 .expect_err("Found non-existent addresses")
@@ -1181,7 +1203,7 @@ mod tests {
         ];
 
         assert_eq!(
-            ErrorKind::MultiSigInvalidSelfPubKey,
+            ErrorKind::InvalidInput,
             wallet
                 .new_multisig_transfer_address(
                     name,

@@ -2,14 +2,13 @@
 use std::convert::TryFrom;
 
 use base64::decode;
-use failure::ResultExt;
 use serde::Deserialize;
 
 use chain_core::common::TendermintEventType;
 use chain_core::tx::data::TxId;
 use chain_tx_filter::BlockFilter;
 
-use crate::{Error, ErrorKind, Result};
+use crate::{Error, ErrorKind, Result, ResultExt};
 
 #[derive(Debug, Deserialize)]
 pub struct BlockResults {
@@ -60,10 +59,17 @@ impl BlockResults {
                     for event in transaction.events.iter() {
                         if event.event_type == TendermintEventType::ValidTransactions.to_string() {
                             for attribute in event.attributes.iter() {
-                                let decoded = decode(&attribute.value)
-                                    .context(ErrorKind::DeserializationError)?;
+                                let decoded = decode(&attribute.value).chain(|| {
+                                    (
+                                        ErrorKind::DeserializationError,
+                                        "Unable to decode base64 bytes of transaction id in block results"
+                                    )
+                                })?;
                                 if 32 != decoded.len() {
-                                    return Err(ErrorKind::DeserializationError.into());
+                                    return Err(Error::new(
+                                        ErrorKind::InvalidInput,
+                                        "Expected transaction id of 32 bytes",
+                                    ));
                                 }
 
                                 let mut id: [u8; 32] = [0; 32];
@@ -88,11 +94,16 @@ impl BlockResults {
                 for event in end_block.events.iter() {
                     if event.event_type == TendermintEventType::BlockFilter.to_string() {
                         let attribute = &event.attributes[0];
-                        let decoded =
-                            decode(&attribute.value).context(ErrorKind::DeserializationError)?;
+                        let decoded = decode(&attribute.value).chain(|| {
+                            (
+                                ErrorKind::DeserializationError,
+                                "Unable to decode base64 bytes of block filter in block results",
+                            )
+                        })?;
 
-                        return Ok(BlockFilter::try_from(decoded.as_slice())
-                            .map_err(|_| Error::from(ErrorKind::DeserializationError))?);
+                        return Ok(BlockFilter::try_from(decoded.as_slice()).map_err(
+                            |message| Error::new(ErrorKind::DeserializationError, message),
+                        )?);
                     }
                 }
 

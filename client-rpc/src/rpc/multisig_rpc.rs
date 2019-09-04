@@ -1,4 +1,3 @@
-use failure::ResultExt;
 use hex::{decode, encode};
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
@@ -6,7 +5,7 @@ use secstr::SecUtf8;
 
 use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::tx::data::Tx;
-use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
+use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt};
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{to_rpc_error, WalletRequest};
@@ -265,10 +264,18 @@ fn serialize_hash_256(hash: H256) -> String {
 }
 
 fn parse_hash_256(hash: String) -> CommonResult<H256> {
-    let array = decode(hash).context(ErrorKind::DeserializationError)?;
+    let array = decode(&hash).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            format!("({}) is not a valid hex string", hash),
+        )
+    })?;
 
     if array.len() != HASH_SIZE_256 {
-        return Err(Error::from(ErrorKind::DeserializationError));
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            format!("({}) should be a hex string of 32 bytes", hash),
+        ));
     }
 
     let mut new_hash: H256 = [0; HASH_SIZE_256];
@@ -289,7 +296,12 @@ fn parse_public_keys(public_keys: Vec<String>) -> CommonResult<Vec<PublicKey>> {
 }
 
 fn parse_public_key(public_key: String) -> CommonResult<PublicKey> {
-    let array = decode(public_key).context(ErrorKind::DeserializationError)?;
+    let array = decode(&public_key).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            format!("Unable to deserialize public key ({})", public_key),
+        )
+    })?;
     PublicKey::deserialize_from(&array)
 }
 

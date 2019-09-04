@@ -1,11 +1,10 @@
 use std::ops::Add;
 
-use chain_core::init::coin::Coin;
-use failure::ResultExt;
+use chain_core::init::coin::{Coin, CoinError};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
-use crate::{ErrorKind, Result};
+use crate::{ErrorKind, Result, ResultExt};
 
 /// Incoming or Outgoing balance change
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -24,11 +23,20 @@ impl Add<&BalanceChange> for Coin {
     fn add(self, other: &BalanceChange) -> Self::Output {
         match other {
             BalanceChange::Incoming(change) => {
-                Ok((self + change).context(ErrorKind::BalanceAdditionError)?)
+                let new_value: std::result::Result<Coin, CoinError> = self + change;
+                new_value.chain(|| {
+                    (
+                        ErrorKind::IllegalInput,
+                        "Balance exceeded maximum value while adding",
+                    )
+                })
             }
-            BalanceChange::Outgoing(change) => {
-                Ok((self - change).context(ErrorKind::BalanceAdditionError)?)
-            }
+            BalanceChange::Outgoing(change) => (self - change).chain(|| {
+                (
+                    ErrorKind::IllegalInput,
+                    "Balance became negative while adding",
+                )
+            }),
         }
     }
 }

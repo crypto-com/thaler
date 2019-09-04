@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use failure::ResultExt;
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
@@ -10,7 +9,7 @@ use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
-use client_common::{ErrorKind, PublicKey, Result as CommonResult};
+use client_common::{ErrorKind, PublicKey, Result as CommonResult, ResultExt};
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_network::NetworkOpsClient;
 
@@ -83,8 +82,12 @@ where
         inputs: Vec<TxoPointer>,
     ) -> Result<()> {
         let addr = StakedStateAddress::from_str(&to_address)
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::into)
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    format!("Unable to deserialize to_address ({})", to_address),
+                )
+            })
             .map_err(to_rpc_error)?;
         let attr = StakedStateOpAttributes::new(self.network_id);
         let transaction = self
@@ -119,8 +122,15 @@ where
     ) -> Result<()> {
         let attr = StakedStateOpAttributes::new(self.network_id);
         let addr = StakedStateAddress::from_str(&staking_address)
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::into)
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    format!(
+                        "Unable to deserialize staking address ({})",
+                        staking_address
+                    ),
+                )
+            })
             .map_err(to_rpc_error)?;
 
         let transaction = self
@@ -149,12 +159,20 @@ where
         view_keys: Vec<String>,
     ) -> Result<()> {
         let from_address = StakedStateAddress::from_str(&from_address)
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::into)
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    format!("Unable to deserialize from_address ({})", from_address),
+                )
+            })
             .map_err(to_rpc_error)?;
         let to_address = ExtendedAddr::from_str(&to_address)
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::into)
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    format!("Unable to deserialize to_address ({})", to_address),
+                )
+            })
             .map_err(to_rpc_error)?;
         let view_keys = view_keys
             .iter()

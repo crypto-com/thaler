@@ -3,9 +3,10 @@ use crate::TransactionObfuscation;
 use chain_core::tx::data::TxId;
 use chain_core::tx::{TxAux, TxWithOutputs};
 use client_common::SECP;
-use client_common::{Error, ErrorKind, PrivateKey, Result, SignedTransaction, Transaction};
+use client_common::{
+    Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction,
+};
 use enclave_protocol::{DecryptionRequest, DecryptionResponse};
-use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode};
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -52,17 +53,29 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
         private_key: &PrivateKey,
     ) -> Result<Vec<Transaction>> {
         let client_config = get_tls_config();
-        let dns_name = webpki::DNSNameRef::try_from_ascii_str(&self.tdqe_hostname)
-            .context(ErrorKind::WebpkiFailure)?;
+        let dns_name = webpki::DNSNameRef::try_from_ascii_str(&self.tdqe_hostname).chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                format!("Invalid tdqe hostname: {}", self.tdqe_hostname),
+            )
+        })?;
         let mut sess = rustls::ClientSession::new(&client_config, dns_name);
 
-        let mut conn =
-            TcpStream::connect(&self.tdqe_address).context(ErrorKind::TDQEConnectionError)?;
+        let mut conn = TcpStream::connect(&self.tdqe_address).chain(|| {
+            (
+                ErrorKind::ConnectionError,
+                format!("Unable to connect to TDQE address: {}", self.tdqe_address),
+            )
+        })?;
 
         let mut tls = rustls::Stream::new(&mut sess, &mut conn);
         let mut challenge = [0u8; 32];
-        tls.read_exact(&mut challenge)
-            .context(ErrorKind::TDQEConnectionError)?;
+        tls.read_exact(&mut challenge).chain(|| {
+            (
+                ErrorKind::IoError,
+                "Unable to read from TDQE connection stream",
+            )
+        })?;
         let request = SECP.with(|secp| {
             DecryptionRequest::create(
                 &secp,
@@ -71,14 +84,23 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
                 &private_key.into(),
             )
         });
-        tls.write_all(&request.encode())
-            .context(ErrorKind::TDQEConnectionError)?;
+        tls.write_all(&request.encode()).chain(|| {
+            (
+                ErrorKind::IoError,
+                "Unable to write to TDQE connection stream",
+            )
+        })?;
 
         let mut plaintext = Vec::new();
         match tls.read_to_end(&mut plaintext) {
             Ok(_) => {
                 let txs = DecryptionResponse::decode(&mut plaintext.as_slice())
-                    .context(ErrorKind::DeserializationError)?
+                    .chain(|| {
+                        (
+                            ErrorKind::DeserializationError,
+                            "Unable to deserialize decryption response from enclave",
+                        )
+                    })?
                     .txs;
 
                 let transactions = txs
@@ -93,7 +115,10 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
 
                 Ok(transactions)
             }
-            Err(_) => Err(Error::from(ErrorKind::TDQEConnectionError)),
+            Err(_) => Err(Error::new(
+                ErrorKind::IoError,
+                "Unable to read from TDQE connection stream",
+            )),
         }
     }
 

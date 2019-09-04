@@ -3,7 +3,7 @@ use secstr::SecUtf8;
 use chain_core::common::H256;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use client_common::{Error, ErrorKind, Result, Storage};
+use client_common::{Error, ErrorKind, Result, ResultExt, Storage};
 
 use crate::service::{KeyService, RootHashService, WalletService};
 use crate::{SelectedUnspentTransactions, Signer};
@@ -45,7 +45,15 @@ where
         let root_hash = self
             .wallet_service
             .find_root_hash(name, passphrase, &output.address)?
-            .ok_or_else(|| Error::from(ErrorKind::AddressNotFound))?;
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "Output's address ({}) does not belong to wallet with name: {}",
+                        output.address, name
+                    ),
+                )
+            })?;
 
         self.sign_with_root_hash(passphrase, message, &root_hash)
     }
@@ -62,14 +70,25 @@ where
             .required_signers(&root_hash, passphrase)?
             != 1
         {
-            return Err(ErrorKind::InvalidTransaction.into());
+            return Err(Error::new(
+                ErrorKind::IllegalInput,
+                "Default signer cannot sign with multi-sig addresses",
+            ));
         }
 
         let public_key = self.root_hash_service.public_key(&root_hash, passphrase)?;
         let private_key = self
             .key_service
             .private_key(&public_key, passphrase)?
-            .ok_or_else(|| Error::from(ErrorKind::PrivateKeyNotFound))?;
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "Unable to find private key corresponding to given root hash: {}",
+                        hex::encode(root_hash)
+                    ),
+                )
+            })?;
 
         let proof =
             self.root_hash_service
@@ -204,7 +223,7 @@ mod tests {
         let signer = DefaultSigner::new(storage);
 
         assert_eq!(
-            ErrorKind::InvalidTransaction,
+            ErrorKind::IllegalInput,
             signer
                 .sign(name, passphrase, message, selected_unspent_transactions)
                 .expect_err("Unable to sign transaction")
