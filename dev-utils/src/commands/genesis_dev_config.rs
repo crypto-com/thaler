@@ -1,10 +1,9 @@
-use chain_core::init::config::InitialValidator;
-use chain_core::init::{address::RedeemAddress, coin::Coin};
-use chrono::offset::Utc;
-use chrono::DateTime;
+use std::{collections::BTreeMap, str::FromStr};
+
+use chrono::{offset::Utc, DateTime};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
-use std::str::FromStr;
+
+use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitialValidator};
 
 #[derive(Deserialize, Debug)]
 pub struct GenesisDevConfig {

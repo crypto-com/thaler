@@ -1,13 +1,12 @@
 use std::convert::TryInto;
 
-use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode};
 
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use chain_core::tx::TransactionId;
-use client_common::{Error, ErrorKind, Result, Storage, Transaction};
+use client_common::{Error, ErrorKind, Result, ResultExt, Storage, Transaction};
 
 const KEYSPACE: &str = "index_transaction";
 
@@ -38,7 +37,12 @@ where
             .storage
             .get(KEYSPACE, id)?
             .map(|bytes| {
-                Transaction::decode(&mut bytes.as_slice()).context(ErrorKind::DeserializationError)
+                Transaction::decode(&mut bytes.as_slice()).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize transaction from bytes",
+                    )
+                })
             })
             .transpose()?;
 
@@ -65,13 +69,21 @@ where
                     Transaction::WithdrawUnbondedStakeTransaction(withdraw_transaction) => {
                         Ok(withdraw_transaction.outputs)
                     }
-                    _ => Err(Error::from(ErrorKind::InvalidTransaction)),
+                    _ => Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "Only transactions of type transfer and withdraw have outputs",
+                    )),
                 }?;
 
                 let output = outputs
                     .into_iter()
                     .nth(input.index.try_into().unwrap())
-                    .ok_or_else(|| Error::from(ErrorKind::OutputNotFound))?;
+                    .chain(|| {
+                        (
+                            ErrorKind::InvalidInput,
+                            format!("Output with index not found in TXO: {}", input),
+                        )
+                    })?;
 
                 Ok(output)
             })

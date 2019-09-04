@@ -1,31 +1,26 @@
-use super::genesis_command::GenesisCommand;
-use super::genesis_dev_config::GenesisDevConfig;
-use chain_core::init::config::{InitialValidator, ValidatorKeyType};
-
-use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
-use chrono::DateTime;
-use chrono::SecondsFormat;
-use client_common::storage::SledStorage;
-use client_core::wallet::{DefaultWalletClient, WalletClient};
-use failure::ResultExt;
-use failure::{format_err, Error};
-use quest::{password, success};
-use secstr::SecUtf8;
-use serde_json::json;
-use std::fs;
-use std::fs::File;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 
-use std::io::Write;
+use chrono::{DateTime, SecondsFormat};
+use quest::{password, success};
+use secstr::SecUtf8;
+use serde_json::json;
 
-use client_common::ErrorKind;
+use chain_core::init::config::{InitialValidator, ValidatorKeyType};
+use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
+use client_common::storage::SledStorage;
+use client_common::{Error, ErrorKind, Result, ResultExt};
+use client_core::wallet::{DefaultWalletClient, WalletClient};
+
+use super::genesis_command::GenesisCommand;
+use super::genesis_dev_config::GenesisDevConfig;
 
 #[derive(Debug)]
 pub struct InitCommand {
-    chainid: String,
+    chain_id: String,
     app_hash: String,
     app_state: Option<InitConfig>,
     genesis_dev: GenesisDevConfig,
@@ -40,7 +35,7 @@ pub struct InitCommand {
 impl InitCommand {
     pub fn new() -> Self {
         InitCommand {
-            chainid: "".to_string(),
+            chain_id: "".to_string(),
             app_hash: "".to_string(),
             app_state: None,
             genesis_dev: GenesisDevConfig::new(),
@@ -67,6 +62,7 @@ impl InitCommand {
 
         self.do_read_wallet(address, amount);
     }
+
     fn do_read_wallet(&mut self, address: String, amount_cro: String) {
         let amount_u64 = (amount_cro.parse::<f64>().unwrap() * 1_0000_0000_f64) as u64;
         let amount_coin = Coin::new(amount_u64).unwrap();
@@ -76,33 +72,44 @@ impl InitCommand {
         self.remain_coin = (self.remain_coin - amount_coin).unwrap();
         self.distribution_addresses.push(address.to_string());
     }
-    fn check_chainid(&self, chainid: String) -> Result<(), Error> {
-        if chainid.len() < 6 {
-            return Err(format_err!("chainid too short"));
-        }
-        let networkid = &chainid[(chainid.len() - 2)..];
-        let netkind = &chainid[..4];
-        if "main" == netkind || "test" == netkind {
-            // ok
-        } else {
-            return Err(format_err!("chain-id should start from main or test"));
+
+    fn check_chain_id(&self, chain_id: String) -> Result<()> {
+        if chain_id.len() < 6 {
+            return Err(Error::new(ErrorKind::InvalidInput, "Chain ID too small"));
         }
 
-        hex::decode(networkid)
-            .map(|_a| ())
-            .map_err(|_a| format_err!("last two digits should be hex string such as AB"))
-    }
-    fn read_chainid(&mut self) -> Result<(), Error> {
-        let chainid = self.ask_string(
-            format!("new chain id( {} )=", self.chainid).as_str(),
-            self.chainid.as_str(),
-        );
+        let network_id = &chain_id[(chain_id.len() - 2)..];
 
-        self.check_chainid(chainid.clone()).map(|_a| {
-            self.chainid = chainid;
+        if !chain_id.starts_with("main")
+            && !chain_id.starts_with("test")
+            && !chain_id.starts_with("dev")
+        {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Chain ID should start from main, test or dev",
+            ));
+        }
+
+        hex::decode(network_id).map(|_| ()).chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                "Last two digits should be hex string such as AB",
+            )
         })
     }
-    fn read_wallets(&mut self) -> Result<(), Error> {
+
+    fn read_chain_id(&mut self) -> Result<()> {
+        let chain_id = self.ask_string(
+            format!("new chain id( {} )=", self.chain_id).as_str(),
+            self.chain_id.as_str(),
+        );
+
+        self.check_chain_id(chain_id.clone()).map(|_a| {
+            self.chain_id = chain_id;
+        })
+    }
+
+    fn read_wallets(&mut self) -> Result<()> {
         let default_address = RedeemAddress::default().to_string();
         assert!(self.other_staking_accounts.len() > 3);
         let default_addresses = self.other_staking_accounts.clone();
@@ -114,7 +121,7 @@ impl InitCommand {
             "12500000000",
         ];
         println!(
-            "maximum coin to distribute={}",
+            "maximum coin to distribute = {}",
             self.remain_coin.to_string()
         );
 
@@ -146,7 +153,8 @@ impl InitCommand {
         }
         Ok(())
     }
-    fn read_genesis_time(&mut self) -> Result<(), Error> {
+
+    fn read_genesis_time(&mut self) -> Result<()> {
         // change
         let old_genesis_time = self
             .genesis_dev
@@ -162,7 +170,8 @@ impl InitCommand {
             DateTime::from(DateTime::parse_from_rfc3339(&new_genesis_time).unwrap());
         Ok(())
     }
-    fn read_councils(&mut self) -> Result<(), Error> {
+
+    fn read_councils(&mut self) -> Result<()> {
         let councils = &mut self.genesis_dev.council_nodes;
         println!(
             "{} {}",
@@ -180,7 +189,8 @@ impl InitCommand {
         councils.push(staking_validator);
         Ok(())
     }
-    fn read_incentives(&mut self) -> Result<(), Error> {
+
+    fn read_incentives(&mut self) -> Result<()> {
         assert!(self.distribution_addresses.len() >= 4);
 
         InitCommand::ask("** CAUTION **\n");
@@ -206,22 +216,25 @@ impl InitCommand {
         .unwrap();
         Ok(())
     }
+
     // read information from user
-    fn read_information(&mut self) -> Result<(), Error> {
-        self.read_chainid()
+    fn read_information(&mut self) -> Result<()> {
+        self.read_chain_id()
             .and_then(|_| self.read_staking_address())
             .and_then(|_| self.read_wallets())
             .and_then(|_| self.read_genesis_time())
             .and_then(|_| self.read_councils())
             .and_then(|_| self.read_incentives())
     }
-    fn generate_app_info(&mut self) -> Result<(), Error> {
+
+    fn generate_app_info(&mut self) -> Result<()> {
         // app_hash,  app_state
         let result = GenesisCommand::do_generate(&self.genesis_dev).unwrap();
         self.app_hash = result.0;
         self.app_state = Some(result.1);
         Ok(())
     }
+
     pub fn get_tendermint_filename() -> String {
         match std::env::var("TENDERMINT_HOME") {
             Ok(path) => format!("{}/config/genesis.json", path).to_owned(),
@@ -232,7 +245,8 @@ impl InitCommand {
             .to_owned(),
         }
     }
-    fn read_tendermint_genesis(&mut self) -> Result<(), Error> {
+
+    fn read_tendermint_genesis(&mut self) -> Result<()> {
         // check whether file exists
         fs::read_to_string(&InitCommand::get_tendermint_filename())
             .and_then(|contents| {
@@ -240,27 +254,32 @@ impl InitCommand {
                 let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let pub_key = &json["validators"][0]["pub_key"]["value"];
                 self.tendermint_pubkey = pub_key.as_str().unwrap().to_string();
-                self.chainid = json["chain_id"].as_str().unwrap().to_string();
+                self.chain_id = json["chain_id"].as_str().unwrap().to_string();
                 Ok(())
             })
-            .map_err(|_e| format_err!("read tendermint genesis error"))
+            .chain(|| {
+                (
+                    ErrorKind::IoError,
+                    "Unable to read tendermint initial config (genesis)",
+                )
+            })
     }
-    fn write_overmind_procfile(&self) -> Result<(), Error> {
+
+    fn write_overmind_procfile(&self) -> Result<()> {
         println!("write overmind Procfile");
         let mut a = "".to_string();
         a.push_str("enclave: ./tx-validation-app tcp://0.0.0.0:25933\n");
-        a.push_str(format!("abci: ./chain-abci --host 0.0.0.0 --port 26658 --chain_id {}  --genesis_app_hash {}     --enclave_server tcp://127.0.0.1:25933 \n", self.chainid,  self.app_hash).as_str());
+        a.push_str(format!("abci: ./chain-abci --host 0.0.0.0 --port 26658 --chain_id {}  --genesis_app_hash {}     --enclave_server tcp://127.0.0.1:25933 \n", self.chain_id,  self.app_hash).as_str());
         a.push_str("tendermint: ./tendermint node\n");
 
         File::create("./Procfile")
-            .map_err(|_| format_err!("Procfile Create Fail"))
+            .chain(|| (ErrorKind::IoError, "Procfile Create Fail"))
             .and_then(|mut file| {
                 file.write_all(a.as_bytes())
-                    .map(|_| ())
-                    .map_err(|_| format_err!("Procfile Write Fail"))
+                    .chain(|| (ErrorKind::IoError, "Procfile Write Fail"))
             })
     }
-    fn write_tendermint_genesis(&self) -> Result<(), Error> {
+    fn write_tendermint_genesis(&self) -> Result<()> {
         println!(
             "write genesis to {}",
             InitCommand::get_tendermint_filename()
@@ -281,7 +300,7 @@ impl InitCommand {
                 obj.insert("app_state".to_string(), json!(""));
                 obj["app_state"] = json!(&app_state.unwrap());
                 obj["genesis_time"] = json!(gt);
-                obj["chain_id"] = json!(self.chainid.clone());
+                obj["chain_id"] = json!(self.chain_id.clone());
                 json_string = serde_json::to_string(&json).unwrap();
                 println!("{}", json_string);
 
@@ -294,38 +313,38 @@ impl InitCommand {
                     InitCommand::get_tendermint_filename()
                 );
             })
-            .map_err(|_e| format_err!("write tendermint genesis error"))
+            .chain(|| (ErrorKind::IoError, "write tendermint genesis error"))
     }
 
-    fn prepare_tendermint(&self) -> Result<(), Error> {
+    fn prepare_tendermint(&self) -> Result<()> {
         // check whether file exists
         fs::read_to_string(&InitCommand::get_tendermint_filename())
-            .or_else(|_e| {
+            .or_else(|_| {
                 // file not exist
                 Command::new(&self.tendermint_command)
                     .args(&["init"])
                     .output()
-                    .map(|_e| {
-                        println!("tenermint initialized");
+                    .map(|_| {
+                        println!("tendermint initialized");
                         "".to_string()
                     })
-                    .map_err(|_e| format_err!("tendermint not found"))
+                    .chain(|| (ErrorKind::IoError, "tendermint not found"))
             })
-            .map(|_e| ())
+            .map(|_| ())
     }
 
-    fn reset_tendermint(&self) -> Result<(), Error> {
+    fn reset_tendermint(&self) -> Result<()> {
         // file not exist
         Command::new(&self.tendermint_command)
             .args(&["unsafe_reset_all"])
             .output()
-            .map(|_e| {
-                println!("tenermint reset all");
+            .map(|_| {
+                println!("tendermint reset all");
             })
-            .map_err(|_e| format_err!("tendermint not found"))
+            .chain(|| (ErrorKind::IoError, "tendermint not found"))
     }
 
-    fn read_staking_address(&mut self) -> Result<(), Error> {
+    fn read_staking_address(&mut self) -> Result<()> {
         let storage = SledStorage::new(InitCommand::storage_path())?;
         let wallet_client = DefaultWalletClient::builder()
             .with_wallet(storage)
@@ -359,7 +378,7 @@ impl InitCommand {
         Ok(())
     }
 
-    fn clear_disk(&self) -> Result<(), Error> {
+    fn clear_disk(&self) -> Result<()> {
         InitCommand::ask("** DANGER **\n");
 
         let first = self.ask_string(
@@ -380,11 +399,11 @@ impl InitCommand {
 
             Ok(())
         } else {
-            Err(format_err!("clear disk error"))
+            Err(Error::new(ErrorKind::InvalidInput, "Unable to clear disk"))
         }
     }
 
-    pub fn execute(&mut self) -> Result<(), Error> {
+    pub fn execute(&mut self) -> Result<()> {
         println!("initialize chain");
 
         self.clear_disk()
@@ -395,7 +414,7 @@ impl InitCommand {
             .and_then(|_| self.generate_app_info())
             .and_then(|_| self.write_tendermint_genesis())
             .and_then(|_| self.write_overmind_procfile())
-            .map_err(|e| format_err!("init error={}", e))
+            .chain(|| (ErrorKind::InitializationError, "Unable to initialize chain"))
     }
 
     fn storage_path() -> String {
@@ -405,9 +424,11 @@ impl InitCommand {
         }
     }
 
-    fn ask_passphrase() -> client_common::Result<SecUtf8> {
+    fn ask_passphrase() -> Result<SecUtf8> {
         InitCommand::ask("Enter passphrase: ");
-        Ok(password().context(ErrorKind::IoError)?.into())
+        Ok(password()
+            .chain(|| (ErrorKind::IoError, "Unable to read password"))?
+            .into())
     }
 
     /// Print a question, in bold, without creating a new line.

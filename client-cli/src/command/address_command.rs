@@ -24,7 +24,10 @@ impl FromStr for AddressType {
         } else if eq_ascii(s, "staking") {
             Ok(AddressType::Staking)
         } else {
-            Err(ErrorKind::DeserializationError.into())
+            Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Address type can either be `transfer` or `staking`",
+            ))
         }
     }
 }

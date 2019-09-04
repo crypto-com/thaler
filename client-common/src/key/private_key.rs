@@ -1,11 +1,10 @@
-use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use rand::rngs::OsRng;
 use secp256k1::schnorrsig::{schnorr_sign, SchnorrSignature};
 use secp256k1::{recovery::RecoverableSignature, Message, PublicKey as SecpPublicKey, SecretKey};
 use zeroize::Zeroize;
 
-use crate::{ErrorKind, PublicKey, Result, SECP};
+use crate::{ErrorKind, PublicKey, Result, ResultExt, SECP};
 
 /// Private key used in Crypto.com Chain
 #[derive(Debug, PartialEq, Clone)]
@@ -27,24 +26,36 @@ impl PrivateKey {
 
     /// Deserializes private key from bytes
     pub fn deserialize_from(bytes: &[u8]) -> Result<PrivateKey> {
-        let secret_key: SecretKey =
-            SecretKey::from_slice(bytes).context(ErrorKind::DeserializationError)?;
+        let secret_key: SecretKey = SecretKey::from_slice(bytes).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize secret key",
+            )
+        })?;
 
         Ok(PrivateKey(secret_key))
     }
 
     /// Signs a message with current private key
     pub fn sign<T: AsRef<[u8]>>(&self, bytes: T) -> Result<RecoverableSignature> {
-        let message =
-            Message::from_slice(bytes.as_ref()).context(ErrorKind::DeserializationError)?;
+        let message = Message::from_slice(bytes.as_ref()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize message to sign",
+            )
+        })?;
         let signature = SECP.with(|secp| secp.sign_recoverable(&message, &self.0));
         Ok(signature)
     }
 
     /// Signs a message with current private key (uses schnorr signature algorithm)
     pub fn schnorr_sign<T: AsRef<[u8]>>(&self, bytes: T) -> Result<SchnorrSignature> {
-        let message =
-            Message::from_slice(bytes.as_ref()).context(ErrorKind::DeserializationError)?;
+        let message = Message::from_slice(bytes.as_ref()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize message to sign",
+            )
+        })?;
         let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0).0);
         Ok(signature)
     }

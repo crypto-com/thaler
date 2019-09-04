@@ -2,12 +2,11 @@
 //! CLI for interacting with Crypto.com Chain
 mod command;
 
-use failure::ResultExt;
 use quest::{ask, error, password};
 use secstr::SecUtf8;
 use structopt::StructOpt;
 
-use client_common::{ErrorKind, Result};
+use client_common::{ErrorKind, Result, ResultExt};
 
 use crate::command::Command;
 
@@ -28,29 +27,27 @@ fn main() {
     }
 }
 
+#[inline]
 fn execute() -> Result<()> {
     let command = Command::from_args();
     command.execute()
 }
 
+#[inline]
 pub(crate) fn storage_path() -> String {
-    match std::env::var("CRYPTO_CLIENT_STORAGE") {
-        Ok(path) => path,
-        Err(_) => ".storage".to_owned(),
-    }
+    std::env::var("CRYPTO_CLIENT_STORAGE").unwrap_or_else(|_| ".storage".to_owned())
 }
 
+#[inline]
 pub(crate) fn tendermint_url() -> String {
-    match std::env::var("CRYPTO_CLIENT_TENDERMINT") {
-        Ok(url) => url,
-        Err(_) => "http://localhost:26657/".to_owned(),
-    }
+    std::env::var("CRYPTO_CLIENT_TENDERMINT")
+        .unwrap_or_else(|_| "http://localhost:26657/".to_owned())
 }
 
+#[inline]
 pub(crate) fn ask_passphrase(message: Option<&str>) -> Result<SecUtf8> {
-    match message {
-        None => ask("Enter passphrase: "),
-        Some(message) => ask(message),
-    }
-    Ok(password().context(ErrorKind::IoError)?.into())
+    ask(message.unwrap_or("Enter passphrase: "));
+    password()
+        .map(Into::into)
+        .chain(|| (ErrorKind::IoError, "Unable to read password"))
 }

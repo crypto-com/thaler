@@ -4,8 +4,8 @@ mod init_command;
 mod run_command;
 mod stop_command;
 
-pub use genesis_command::GenesisCommand;
-pub use genesis_dev_config::{GenesisDevConfig, InitialFeePolicy};
-pub use init_command::InitCommand;
-pub use run_command::RunCommand;
-pub use stop_command::StopCommand;
+pub use self::genesis_command::GenesisCommand;
+pub use self::genesis_dev_config::{GenesisDevConfig, InitialFeePolicy};
+pub use self::init_command::InitCommand;
+pub use self::run_command::RunCommand;
+pub use self::stop_command::StopCommand;

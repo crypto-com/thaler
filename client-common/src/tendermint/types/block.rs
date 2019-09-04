@@ -2,13 +2,12 @@
 use base64::decode;
 use chrono::offset::Utc;
 use chrono::DateTime;
-use failure::ResultExt;
 use parity_scale_codec::Decode;
 use serde::Deserialize;
 
 use chain_core::tx::TxAux;
 
-use crate::{ErrorKind, Result, Transaction};
+use crate::{ErrorKind, Result, ResultExt, Transaction};
 
 #[derive(Debug, Deserialize)]
 pub struct Block {
@@ -43,12 +42,18 @@ impl Block {
             Some(transactions) => transactions
                 .iter()
                 .map(|raw_transaction| -> Result<TxAux> {
-                    let decoded =
-                        decode(&raw_transaction).context(ErrorKind::DeserializationError)?;
-                    let tx_aux = TxAux::decode(&mut decoded.as_slice())
-                        .context(ErrorKind::DeserializationError)?;
-
-                    Ok(tx_aux)
+                    let decoded = decode(&raw_transaction).chain(|| {
+                        (
+                            ErrorKind::DeserializationError,
+                            "Unable to decode raw base64 bytes of transactions from block",
+                        )
+                    })?;
+                    TxAux::decode(&mut decoded.as_slice()).chain(|| {
+                        (
+                            ErrorKind::DeserializationError,
+                            "Unable to decode transactions from bytes in a block",
+                        )
+                    })
                 })
                 .filter_map(|tx_aux_result| match tx_aux_result {
                     Err(e) => Some(Err(e)),
@@ -68,12 +73,12 @@ impl Block {
 
     /// Returns height of this block
     pub fn height(&self) -> Result<u64> {
-        Ok(self
-            .block
-            .header
-            .height
-            .parse::<u64>()
-            .context(ErrorKind::DeserializationError)?)
+        self.block.header.height.parse::<u64>().chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to convert block height into integer",
+            )
+        })
     }
 
     /// Returns time of this block

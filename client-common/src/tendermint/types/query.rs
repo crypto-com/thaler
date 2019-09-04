@@ -1,9 +1,8 @@
 #![allow(missing_docs)]
 use base64::decode;
-use failure::ResultExt;
 use serde::Deserialize;
 
-use crate::{ErrorKind, Result};
+use crate::{ErrorKind, Result, ResultExt};
 
 #[derive(Debug, Deserialize)]
 pub struct QueryResult {
@@ -17,6 +16,11 @@ pub struct Response {
 
 impl QueryResult {
     pub fn bytes(&self) -> Result<Vec<u8>> {
-        Ok(decode(&self.response.value).context(ErrorKind::DeserializationError)?)
+        Ok(decode(&self.response.value).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode base64 bytes on query result",
+            )
+        })?)
     }
 }
