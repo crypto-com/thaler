@@ -256,7 +256,7 @@ where
             "add_wallet" => {
                 let info: AddWalletCommand = serde_json::from_value(value).chain(|| {
                     (
-                        ErrorKind::InvalidInput,
+                        ErrorKind::DeserializationError,
                         format!("Unable to make json  from add_wallet josn value"),
                     )
                 })?;
