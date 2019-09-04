@@ -10,7 +10,7 @@
 //! autosync.add_wallet(request.name, view_key, private_key, staking_addresses);
 //!
 
-use crate::auto_sync_data::{AddWalletCommand, AutoSyncData, AutoSyncDataShared};
+use crate::auto_sync_data::{AddWalletCommand, AutoSyncDataShared};
 use crate::auto_synchronizer::AutoSynchronizer;
 use crate::BlockHandler;
 use chain_core::state::account::StakedStateAddress;
@@ -19,22 +19,14 @@ use client_common::Result;
 use client_common::Storage;
 use client_common::{PrivateKey, PublicKey};
 use serde_json::json;
-use std::sync::{Arc, Mutex};
 use std::thread;
 use websocket::OwnedMessage;
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 /// facade for auto sync manager
 pub struct AutoSync {
     data: AutoSyncDataShared,
 }
 
-impl Default for AutoSync {
-    fn default() -> Self {
-        AutoSync {
-            data: Arc::new(Mutex::new(AutoSyncData::new())),
-        }
-    }
-}
 impl AutoSync {
     /// create auto sync
     pub fn new() -> Self {
