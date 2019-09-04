@@ -45,9 +45,13 @@ impl WalletCommand {
     fn list_wallets<T: WalletClient>(wallet_client: T) -> Result<()> {
         let wallets = wallet_client.wallets()?;
 
-        for wallet in wallets {
-            ask("Wallet name: ");
-            success(&wallet);
+        if !wallets.is_empty() {
+            for wallet in wallets {
+                ask("Wallet name: ");
+                success(&wallet);
+            }
+        } else {
+            success("No wallets found!")
         }
 
         Ok(())

@@ -11,7 +11,12 @@ pub struct QueryResult {
 
 #[derive(Debug, Deserialize)]
 pub struct Response {
+    #[serde(default)]
+    pub code: u8,
+    #[serde(default)]
     pub value: String,
+    #[serde(default)]
+    pub log: String,
 }
 
 impl QueryResult {
@@ -22,5 +27,15 @@ impl QueryResult {
                 "Unable to decode base64 bytes on query result",
             )
         })?)
+    }
+
+    #[inline]
+    pub fn code(&self) -> u8 {
+        self.response.code
+    }
+
+    #[inline]
+    pub fn log(&self) -> &str {
+        &self.response.log
     }
 }
