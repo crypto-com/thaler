@@ -257,7 +257,7 @@ where
                 let info: AddWalletCommand = serde_json::from_value(value).chain(|| {
                     (
                         ErrorKind::DeserializationError,
-                        format!("Unable to make json  from add_wallet josn value"),
+                        format!("Unable to deserialize add_wallet from json value"),
                     )
                 })?;
                 let private_key = PrivateKey::deserialize_from(&info.private_key)
