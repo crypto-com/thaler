@@ -98,19 +98,21 @@ where
 
             let range = chunk.collect::<Vec<u64>>();
 
-            let blocks = self.client.block_batch(range.iter())?;
-
+            // Get the last block to check if there are any changes
+            let block = self.client.block(range[range.len() - 1])?;
             if self.fast_forward_block(
                 staking_addresses,
                 view_key,
                 private_key,
-                &blocks[blocks.len() - 1],
+                &block,
                 &progress_reporter,
             )? {
                 // Fast forward batch if possible
                 continue;
             }
 
+            // Fetch batch details if it cannot be fast forwarded
+            let blocks = self.client.block_batch(range.iter())?;
             let block_results = self.client.block_results_batch(range.iter())?;
 
             for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
