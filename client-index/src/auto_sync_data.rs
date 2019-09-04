@@ -10,7 +10,7 @@ use websocket::OwnedMessage;
 /// give add wallet command via this queue
 pub type AutoSyncQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 /// auto sync internal data
 pub struct AutoSyncData {
     /// normalized: 0.0 ~ 1.0
@@ -25,17 +25,6 @@ pub struct AutoSyncData {
     pub send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
 }
 
-impl Default for AutoSyncData {
-    fn default() -> Self {
-        AutoSyncData {
-            progress: 0.0,
-            wallet: "".into(),
-            send_queue: None,
-            current_height: 0,
-            max_height: 0,
-        }
-    }
-}
 impl AutoSyncData {
     /// create auto sync data
     pub fn new() -> Self {

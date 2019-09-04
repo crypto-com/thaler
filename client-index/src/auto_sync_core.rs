@@ -254,8 +254,12 @@ where
         match id {
             // this is special, it's command
             "add_wallet" => {
-                let info: AddWalletCommand =
-                    serde_json::from_value(value).expect("get AddWalletCommand");
+                let info: AddWalletCommand = serde_json::from_value(value).chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        format!("Unable to make json  from add_wallet josn value"),
+                    )
+                })?;
                 let private_key = PrivateKey::deserialize_from(&info.private_key)
                     .expect("Unable to deserialize private key from byte array");
 
