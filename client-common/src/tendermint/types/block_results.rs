@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 use std::convert::TryFrom;
 
-use base64::decode;
+use base64;
 use serde::Deserialize;
 
 use chain_core::common::TendermintEventType;
@@ -59,7 +59,10 @@ impl BlockResults {
                     for event in transaction.events.iter() {
                         if event.event_type == TendermintEventType::ValidTransactions.to_string() {
                             for attribute in event.attributes.iter() {
-                                let decoded = decode(&attribute.value).chain(|| {
+                                if base64::decode(&attribute.key) != b"tx.id" {
+                                    continue;
+                                }
+                                let decoded = base64::decode(&attribute.value).chain(|| {
                                     (
                                         ErrorKind::DeserializationError,
                                         "Unable to decode base64 bytes of transaction id in block results"
@@ -93,8 +96,9 @@ impl BlockResults {
             Some(ref end_block) => {
                 for event in end_block.events.iter() {
                     if event.event_type == TendermintEventType::BlockFilter.to_string() {
+                        let tx_id = tx_id_from_event_attribute(&event.attribute[0])
                         let attribute = &event.attributes[0];
-                        let decoded = decode(&attribute.value).chain(|| {
+                        let decoded = base64::decode(&attribute.value).chain(|| {
                             (
                                 ErrorKind::DeserializationError,
                                 "Unable to decode base64 bytes of block filter in block results",
@@ -110,6 +114,29 @@ impl BlockResults {
                 Ok(BlockFilter::default())
             }
         }
+    }
+
+    fn find_tx_id_from_event_attributes(attributes: &Vec<Attribute>) -> Result<Option<Vec<u8>>, Error> {
+        for attribute in attributes.iter() {
+            if base64::decode(&attribute.key) != b"tx.id" {
+                continue;
+            }
+            let decoded = base64::decode(&attribute.value).chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    "Unable to decode base64 bytes of transaction id in block results"
+                )
+            })?;
+            if 32 != decoded.len() {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Expected transaction id of 32 bytes",
+                ));
+            }
+
+            Ok(Some(decoded))
+        }
+        Ok(None)
     }
 }
 
