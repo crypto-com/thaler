@@ -48,7 +48,7 @@ pub struct WalletInfo {
     pub private_key: PrivateKey,
 }
 /// Wallet infos
-pub type WalletInfos = Vec<WalletInfo>;
+pub type WalletInfos = std::collections::BTreeMap<String, WalletInfo>;
 
 /// giving command via channel
 #[derive(Serialize, Deserialize)]
