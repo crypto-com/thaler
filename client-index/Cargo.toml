@@ -21,6 +21,12 @@ num-bigint = "0.2.3"
 serde_json = "1.0.39"
 uuid = { version = "0.7.4", features = ["v4"] }
 itertools = "0.8.0"
+websocket = "0.23.0"
+futures = "0.1.28"
+jsonrpc-core = "13.1"
+log ="0.4.8"
+serde = { version = "1.0", features = ["derive"] }
+tokio="0.1.22"
 
 [dev-dependencies]
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "ac9843a361114b42178acc119ab77d5a149985f5", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }

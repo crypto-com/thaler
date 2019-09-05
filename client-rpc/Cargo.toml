@@ -21,10 +21,6 @@ structopt = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.3.2"
 secstr = { version = "0.3.2", features = ["serde"] }
-websocket = "0.23.0"
-futures = "0.1.28"
-tokio = "0.1.22"
-quest = "0.3"
 env_logger="0.6.2"
 log ="0.4.8"
 

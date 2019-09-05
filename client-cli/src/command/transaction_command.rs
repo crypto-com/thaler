@@ -7,7 +7,6 @@ use structopt::StructOpt;
 use unicase::eq_ascii;
 
 use chain_core::common::{Timespec, HASH_SIZE_256};
-use chain_core::init::coin::Coin;
 use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -19,7 +18,7 @@ use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
 
-use crate::ask_passphrase;
+use crate::{ask_passphrase, coin_from_str};
 
 #[derive(Debug)]
 pub enum TransactionType {
@@ -180,11 +179,9 @@ fn new_unbond_transaction<N: NetworkOpsClient>(
     );
     let address = ask_staking_address()?;
 
-    ask("Enter amount: ");
-    let value = text()
-        .chain(|| (ErrorKind::IoError, "Unable to read amount"))?
-        .parse::<Coin>()
-        .chain(|| (ErrorKind::DeserializationError, "Unable to parse amount"))?;
+    ask("Enter amount (in CRO): ");
+    let value_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
+    let value = coin_from_str(&value_str)?;
 
     network_ops_client
         .create_unbond_stake_transaction(name, passphrase, &address, value, attributes)
@@ -286,11 +283,9 @@ fn ask_outputs() -> Result<Vec<TxOut>> {
             )
         })?;
 
-        ask("Enter amount: ");
-        let amount = text()
-            .chain(|| (ErrorKind::IoError, "Unable to read amount"))?
-            .parse::<Coin>()
-            .chain(|| (ErrorKind::DeserializationError, "Unable to parse amount"))?;
+        ask("Enter amount (in CRO): ");
+        let amount_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
+        let amount = coin_from_str(&amount_str)?;
 
         ask(
             "Enter timelock (seconds from UNIX epoch) (leave blank if output is not time locked): ",

@@ -403,9 +403,11 @@ mod tests {
         fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
             Ok(QueryResult {
                 response: Response {
+                    code: 0,
                     value:
                         "AAAAAAAAAAAAAAAAAAAAAAAAeiLByLEia/aSXAAAAAAADbIhxPV9XTi5aBOcBukTKq+E6N8="
                             .to_string(),
+                    log: "".to_owned(),
                 },
             })
         }
