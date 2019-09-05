@@ -217,7 +217,16 @@ where
     pub fn get_queue(&self) -> Sender<OwnedMessage> {
         self.my_sender.clone()
     }
-
+    fn update_wallet(&mut self, info: &WalletInfo) -> Result<()> {
+        for i in 0..self.wallets.len() {
+            let item = &self.wallets[i];
+            if item.name == info.name {
+                self.wallets[i] = info.clone();
+                return Ok(());
+            }
+        }
+        Err(ErrorKind::InvalidInput.into())
+    }
     /// because everything is done via channel
     /// no mutex is necessary
     /// wallet can be added in runtime
@@ -237,7 +246,13 @@ where
             private_key,
         };
 
-        self.wallets.push(info.clone());
+        match self.update_wallet(&info) {
+            Ok(_a) => {}
+            Err(_b) => {
+                // not found, add new
+                self.wallets.push(info.clone());
+            }
+        }
         log::info!("wallets length {}", self.wallets.len());
         Ok(())
     }
