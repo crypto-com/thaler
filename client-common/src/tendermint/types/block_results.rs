@@ -58,28 +58,13 @@ impl BlockResults {
                 for transaction in deliver_tx.iter() {
                     for event in transaction.events.iter() {
                         if event.event_type == TendermintEventType::ValidTransactions.to_string() {
-                            for attribute in event.attributes.iter() {
-                                if base64::decode(&attribute.key) != b"tx.id" {
-                                    continue;
+                            let tx_id = find_tx_id_from_event_attributes(&event.attributes)?;
+                            match tx_id {
+                                Some(tx_id) => {
+                                    transactions.push(tx_id);
                                 }
-                                let decoded = base64::decode(&attribute.value).chain(|| {
-                                    (
-                                        ErrorKind::DeserializationError,
-                                        "Unable to decode base64 bytes of transaction id in block results"
-                                    )
-                                })?;
-                                if 32 != decoded.len() {
-                                    return Err(Error::new(
-                                        ErrorKind::InvalidInput,
-                                        "Expected transaction id of 32 bytes",
-                                    ));
-                                }
-
-                                let mut id: [u8; 32] = [0; 32];
-                                id.copy_from_slice(&decoded);
-
-                                transactions.push(id);
-                            }
+                                None => (),
+                            };
                         }
                     }
                 }
@@ -96,7 +81,6 @@ impl BlockResults {
             Some(ref end_block) => {
                 for event in end_block.events.iter() {
                     if event.event_type == TendermintEventType::BlockFilter.to_string() {
-                        let tx_id = tx_id_from_event_attribute(&event.attribute[0])
                         let attribute = &event.attributes[0];
                         let decoded = base64::decode(&attribute.value).chain(|| {
                             (
@@ -115,29 +99,44 @@ impl BlockResults {
             }
         }
     }
+}
 
-    fn find_tx_id_from_event_attributes(attributes: &Vec<Attribute>) -> Result<Option<Vec<u8>>, Error> {
-        for attribute in attributes.iter() {
-            if base64::decode(&attribute.key) != b"tx.id" {
-                continue;
-            }
-            let decoded = base64::decode(&attribute.value).chain(|| {
-                (
-                    ErrorKind::DeserializationError,
-                    "Unable to decode base64 bytes of transaction id in block results"
-                )
-            })?;
-            if 32 != decoded.len() {
-                return Err(Error::new(
-                    ErrorKind::InvalidInput,
-                    "Expected transaction id of 32 bytes",
-                ));
-            }
-
-            Ok(Some(decoded))
+fn find_tx_id_from_event_attributes(attributes: &Vec<Attribute>) -> Result<Option<[u8; 32]>> {
+    for attribute in attributes.iter() {
+        let key = base64::decode(&attribute.key).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode base64 bytes of attribute key in block results",
+            )
+        })?;
+        if key != b"tx.id" {
+            continue;
         }
-        Ok(None)
+
+        let tx_id = base64::decode(&attribute.value).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode base64 bytes of transaction id in block results",
+            )
+        })?;
+        let tx_id = hex::decode(&tx_id).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode hex bytes of transaction id in block results",
+            )
+        })?;
+        if 32 != tx_id.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Expected transaction id of 32 bytes",
+            ));
+        }
+        let mut id: [u8; 32] = [0; 32];
+        id.copy_from_slice(&tx_id);
+
+        return Ok(Some(id));
     }
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -155,8 +154,8 @@ mod tests {
                     events: vec![Event {
                         event_type: TendermintEventType::ValidTransactions.to_string(),
                         attributes: vec![Attribute {
-                            key: "dHhpZA==".to_owned(),
-                            value: "kOzcmhZgAAaw5roBdqDNniwRjjKNe+foJEiDAOObTDQ=".to_owned(),
+                            key: "dHguaWQ=".to_owned(),
+                            value: "MDc2NmQ0ZTFjMDkxMjRhZjlhZWI0YTdlZDk5ZDgxNjU0YTg0NDczZjEzMzk0OGNlYTA1MGRhYTE3ZmYwZTdmZg==".to_owned(),
                         }],
                     }],
                 }]),
@@ -195,7 +194,7 @@ mod tests {
                     events: vec![Event {
                         event_type: TendermintEventType::ValidTransactions.to_string(),
                         attributes: vec![Attribute {
-                            key: "dHhpZA==".to_owned(),
+                            key: "dHguaWQ=".to_owned(),
                             value: "kOzcmhZgAAaw5riwRjjKNe+foJEiDAOObTDQ=".to_owned(),
                         }],
                     }],

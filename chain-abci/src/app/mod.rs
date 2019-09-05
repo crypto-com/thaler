@@ -200,18 +200,12 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             // TODO: most of these intermediate uncommitted tree roots aren't useful (not exposed for querying) -- prune them / the account storage?
             self.uncommitted_account_root_hash = next_account_root;
             let mut kvpair = KVPair::new();
-            kvpair.key = Vec::from(&b"txid"[..]);
-            // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
-            kvpair.value = Vec::from(&txaux.tx_id()[..]);
-
-            let mut tx_id_kevpair = KVPair::new();
-            tx_id_kevpair.key = Vec::from(&b"tx.id"[..]);
-            tx_id_kevpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
+            kvpair.key = Vec::from(&b"tx.id"[..]);
+            kvpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
 
             let mut event = Event::new();
             event.field_type = TendermintEventType::ValidTransactions.to_string();
             event.attributes.push(kvpair);
-            event.attributes.push(tx_id_kevpair);
             resp.events.push(event);
             self.delivered_txs.push(txaux);
             let rewards_pool = &mut self
