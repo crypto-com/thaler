@@ -1,114 +1,84 @@
-use crate::rpc::websocket_core::WebsocketCore;
-use crate::server::WalletRequest;
-use chain_core::state::account::StakedStateAddress;
+//! auto sync network handler
+//! (todo) make upper json rpc wrapper
+
+use crate::auto_sync_core::AutoSynchronizerCore;
+use crate::auto_sync_data::{AutoSyncDataShared, AutoSyncQueue};
+use crate::auto_sync_data::{MyQueue, CMD_SUBSCRIBE};
+
+use crate::BlockHandler;
+
 use client_common::tendermint::Client;
-use client_common::Result;
-use client_common::{PrivateKey, PublicKey, Storage};
-use client_core::WalletClient;
-use client_index::BlockHandler;
+use client_common::{Result, Storage};
+
 use futures::future::Future;
 use futures::sink::Sink;
 use futures::stream::Stream;
-use futures::sync::mpsc;
-use serde::{Deserialize, Serialize};
 use std::thread;
 use websocket::result::WebSocketError;
-use websocket::{ClientBuilder, OwnedMessage};
-
-/** this handles low level network connection
- packet processing and core works are done in websocket_core
-it uses channel to communicate with core
- through send queue
- */
-pub const CMD_SUBSCRIBE: &str = r#"
-    {
-        "jsonrpc": "2.0",
-        "method": "subscribe",
-        "id": "subscribe_reply",
-        "params": {
-            "query": "tm.event='NewBlock'"
-        } 
-    }"#;
-pub const CMD_BLOCK: &str = r#"
-    {
-        "method": "block",
-        "jsonrpc": "2.0",
-        "params": [ "2" ],
-        "id": "block_reply"
-    }"#;
-pub const CMD_STATUS: &str = r#"
-    {
-        "method": "status",
-        "jsonrpc": "2.0",
-        "params": [ ],
-        "id": "status_reply"
-    }"#;
-
-type MyQueue = std::sync::mpsc::Sender<OwnedMessage>;
-
-#[derive(Clone, Debug)]
-pub struct WalletInfo {
-    pub name: String,
-    pub staking_addresses: Vec<StakedStateAddress>,
-    pub view_key: PublicKey,
-    pub private_key: PrivateKey,
-}
-pub type WalletInfos = Vec<WalletInfo>;
-
-#[derive(Serialize, Deserialize)]
-pub struct AddWalletCommand {
-    pub id: String,
-    pub wallet: WalletRequest,
-}
-
+use websocket::ClientBuilder;
+use websocket::OwnedMessage;
 /** constanct connection
 using ws://localhost:26657/websocket
 */
-pub struct WebsocketRpc {
+pub struct AutoSynchronizer {
+    /// core
     pub core: Option<MyQueue>,
+    /// websocket url
     websocket_url: String,
-    my_sender: Option<mpsc::Sender<OwnedMessage>>,
-    my_receiver: Option<mpsc::Receiver<OwnedMessage>>,
+    /// websocket sender
+    my_sender: Option<futures::sync::mpsc::Sender<OwnedMessage>>,
+    /// websocket receiver
+    my_receiver: Option<futures::sync::mpsc::Receiver<OwnedMessage>>,
 }
 
 /// handling web-socket
-impl WebsocketRpc {
+impl AutoSynchronizer {
+    /// send json via channel
+    pub fn send_json(sendq: &AutoSyncQueue, data: serde_json::Value) {
+        sendq
+            .send(OwnedMessage::Text(serde_json::to_string(&data).unwrap()))
+            .unwrap();
+    }
+    /// get send queue
+    pub fn get_send_queue(&mut self) -> Option<std::sync::mpsc::Sender<OwnedMessage>> {
+        assert!(self.core.is_some());
+        Some(self.core.as_mut().unwrap().clone())
+    }
+    /// create auto sync
     pub fn new(websocket_url: String) -> Self {
         Self {
+            /// core
             core: None,
+            /// websocket url
             websocket_url,
+            /// websocket sender
             my_sender: None,
+            /// websocket receiver
             my_receiver: None,
         }
     }
 
     /// launch core thread
-    pub fn run<
-        S: Storage + 'static,
-        C: Client + 'static,
-        H: BlockHandler + 'static,
-        T: WalletClient + 'static,
-    >(
+    pub fn run<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
         &mut self,
-        wallets: WalletInfos,
         client: C,
         storage: S,
         block_handler: H,
-        wallet_client: T,
+        data: AutoSyncDataShared,
     ) {
-        let channel = mpsc::channel(0);
+        let channel = futures::sync::mpsc::channel(0);
         // tx, rx
         let (channel_tx, channel_rx) = channel;
         self.my_sender = Some(channel_tx.clone());
         self.my_receiver = Some(channel_rx);
 
-        let mut core = WebsocketCore::new(
+        let mut core = AutoSynchronizerCore::new(
             channel_tx.clone(),
             storage,
             client,
             block_handler,
-            wallets,
-            wallet_client,
+            vec![],
+            data,
         );
         // save send_queue to communicate with core
         self.core = Some(core.get_queue());

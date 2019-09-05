@@ -1,4 +1,3 @@
-use failure::ResultExt;
 use secstr::SecUtf8;
 
 use chain_core::init::coin::{sum_coins, Coin};
@@ -8,7 +7,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
-use client_common::{ErrorKind, Result, SignedTransaction};
+use client_common::{ErrorKind, Result, ResultExt, SignedTransaction};
 use client_index::TransactionObfuscation;
 
 use crate::{SelectedUnspentTransactions, Signer, TransactionBuilder, UnspentTransactions};
@@ -71,13 +70,22 @@ where
         unspent_transactions: UnspentTransactions,
         return_address: ExtendedAddr,
     ) -> Result<TxAux> {
-        let output_value = sum_coins(outputs.iter().map(|output| output.value))
-            .context(ErrorKind::BalanceAdditionError)?;
+        let output_value = sum_coins(outputs.iter().map(|output| output.value)).chain(|| {
+            (
+                ErrorKind::IllegalInput,
+                "Sum of output values exceeds maximum allowed amount",
+            )
+        })?;
         let mut fees = Coin::zero();
 
         loop {
-            let (selected_unspent_transactions, difference_amount) = unspent_transactions
-                .select((output_value + fees).context(ErrorKind::BalanceAdditionError)?)?;
+            let (selected_unspent_transactions, difference_amount) =
+                unspent_transactions.select((output_value + fees).chain(|| {
+                    (
+                        ErrorKind::IllegalInput,
+                        "Sum of output values and fee exceeds maximum allowed amount",
+                    )
+                })?)?;
 
             let transaction = build_transaction(
                 &selected_unspent_transactions,
@@ -100,7 +108,12 @@ where
             let new_fees = self
                 .fee_algorithm
                 .calculate_for_txaux(&tx_aux)
-                .context(ErrorKind::BalanceAdditionError)?
+                .chain(|| {
+                    (
+                        ErrorKind::IllegalInput,
+                        "Fee exceeds maximum allowed amount",
+                    )
+                })?
                 .to_coin();
 
             if new_fees > fees {
@@ -396,7 +409,7 @@ mod tests {
         let attributes = TxAttributes::new(171);
 
         assert_eq!(
-            ErrorKind::InsufficientBalance,
+            ErrorKind::InvalidInput,
             transaction_builder
                 .build(
                     name,

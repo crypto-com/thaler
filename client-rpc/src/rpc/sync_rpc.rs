@@ -1,17 +1,15 @@
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
-use crate::rpc::websocket_rpc::AddWalletCommand;
 use crate::server::{to_rpc_error, WalletRequest};
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
-use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Storage};
+use client_common::{ErrorKind, PrivateKey, PublicKey, ResultExt, Storage};
 use client_core::{MultiSigWalletClient, WalletClient};
+use client_index::auto_sync::AutoSync;
 use client_index::synchronizer::ManualSynchronizer;
 use client_index::BlockHandler;
-use serde_json::json;
-use std::sync::Mutex;
-use websocket::OwnedMessage;
+
 #[rpc]
 pub trait SyncRpc: Send + Sync {
     #[rpc(name = "sync")]
@@ -22,7 +20,7 @@ pub trait SyncRpc: Send + Sync {
 
     // sync continuously
     #[rpc(name = "sync_unlockWallet")]
-    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String>;
+    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<()>;
 }
 
 pub struct SyncRpcImpl<T, S, C, H>
@@ -34,7 +32,7 @@ where
 {
     client: T,
     synchronizer: ManualSynchronizer<S, C, H>,
-    websocket_queue: Mutex<Option<std::sync::mpsc::Sender<OwnedMessage>>>,
+    auto_synchronizer: AutoSync,
 }
 
 impl<T, S, C, H> SyncRpc for SyncRpcImpl<T, S, C, H>
@@ -62,26 +60,12 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<String> {
-        match self.prepare_synchronized_parameters(&request) {
-            Ok(_) => {}
-            Err(_) => return Ok("incorrect password".to_string()),
-        }
-
-        let data = json!(AddWalletCommand {
-            id: "add_wallet".to_string(),
-            wallet: request.clone(),
-        });
-        let ret = "OK".to_string();
-        {
-            let sendqoption = self.websocket_queue.lock().unwrap();
-            assert!(sendqoption.is_some());
-            let sendq = sendqoption.as_ref().unwrap();
-            sendq
-                .send(OwnedMessage::Text(serde_json::to_string(&data).unwrap()))
-                .unwrap();
-        }
-        Ok(ret)
+    fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<()> {
+        let (view_key, private_key, staking_addresses) =
+            self.prepare_synchronized_parameters(&request)?;
+        self.auto_synchronizer
+            .add_wallet(request.name, view_key, private_key, staking_addresses)
+            .map_err(to_rpc_error)
     }
 }
 
@@ -95,12 +79,12 @@ where
     pub fn new(
         client: T,
         synchronizer: ManualSynchronizer<S, C, H>,
-        queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
+        auto_synchronizer: AutoSync,
     ) -> Self {
         SyncRpcImpl {
             client,
             synchronizer,
-            websocket_queue: Mutex::new(queue),
+            auto_synchronizer,
         }
     }
 
@@ -116,7 +100,12 @@ where
             .client
             .private_key(&request.passphrase, &view_key)
             .map_err(to_rpc_error)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Private key corresponding to view key of given wallet not found",
+                )
+            })
             .map_err(to_rpc_error)?;
 
         let staking_addresses = self

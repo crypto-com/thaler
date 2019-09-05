@@ -1,7 +1,7 @@
 use quest::{ask, success};
 use structopt::StructOpt;
 
-use client_common::{ErrorKind, Result};
+use client_common::{Error, ErrorKind, Result};
 use client_core::WalletClient;
 
 use crate::ask_passphrase;
@@ -30,7 +30,10 @@ impl WalletCommand {
         let confirmed_passphrase = ask_passphrase(Some("Confirm passphrase: "))?;
 
         if passphrase != confirmed_passphrase {
-            return Err(ErrorKind::InvalidInput.into());
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Passphrases do not match",
+            ));
         }
 
         wallet_client.new_wallet(name, &passphrase)?;
@@ -42,9 +45,13 @@ impl WalletCommand {
     fn list_wallets<T: WalletClient>(wallet_client: T) -> Result<()> {
         let wallets = wallet_client.wallets()?;
 
-        for wallet in wallets {
-            ask("Wallet name: ");
-            success(&wallet);
+        if !wallets.is_empty() {
+            for wallet in wallets {
+                ask("Wallet name: ");
+                success(&wallet);
+            }
+        } else {
+            success("No wallets found!")
         }
 
         Ok(())
