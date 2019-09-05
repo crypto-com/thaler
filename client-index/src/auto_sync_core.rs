@@ -152,11 +152,15 @@ where
             );
             return Ok(());
         }
+        // now height ok, extend max height
+        if height > self.max_height {
+            self.max_height = height;
+        }
 
         // update information
         {
             let mut data = self.data.lock().unwrap();
-            data.current_height = current;
+            data.current_height = height;
             data.max_height = self.max_height;
             data.wallet = self.get_current_wallet().name;
             if data.max_height > 0 {
