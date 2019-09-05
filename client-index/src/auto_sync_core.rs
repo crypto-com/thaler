@@ -4,8 +4,8 @@
 
 use crate::auto_sync_data::WalletInfo;
 use crate::auto_sync_data::{
-    AddWalletCommand, AutoSyncDataShared, WalletInfos, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS,
-    RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
+    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueue, AutoSyncSendQueueShared, WalletInfos,
+    BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS, RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
 };
 
 use crate::service::GlobalStateService;
@@ -62,7 +62,7 @@ where
     C: Client,
     H: BlockHandler,
 {
-    sender: futures::sync::mpsc::Sender<OwnedMessage>,
+    sender: AutoSyncSendQueueShared,
     my_sender: Sender<OwnedMessage>,
     my_receiver: Receiver<OwnedMessage>,
     old_blocktime: SystemTime,
@@ -88,7 +88,7 @@ where
 {
     /// create auto sync
     pub fn new(
-        sender: futures::sync::mpsc::Sender<OwnedMessage>,
+        sender: AutoSyncSendQueueShared,
         storage: S,
         client: C,
         block_handler: H,
@@ -378,7 +378,15 @@ where
     }
     /// request status to fetch max height
     pub fn check_status(&mut self) -> Result<()> {
-        let mut sink = self.sender.clone().wait();
+        let mut sendqueue: Option<futures::sync::mpsc::Sender<OwnedMessage>> = None;
+        {
+            let mut data = self.sender.lock().unwrap();
+            sendqueue = data.queue.clone();
+        }
+        if sendqueue.is_none() {
+            return Ok(());
+        }
+        let mut sink = sendqueue.unwrap().wait();
         sink.send(OwnedMessage::Text(CMD_STATUS.to_string()))
             .chain(|| {
                 (
@@ -435,6 +443,15 @@ where
     in one thread instead of dedicated thread
     */
     pub fn send_request_block(&mut self) -> Result<()> {
+        let mut sendqueue: Option<futures::sync::mpsc::Sender<OwnedMessage>> = None;
+        {
+            let mut data = self.sender.lock().unwrap();
+            sendqueue = data.queue.clone();
+        }
+        if sendqueue.is_none() {
+            return Ok(());
+        }
+        let mut sink = sendqueue.unwrap().wait();
         let mut json: Value = serde_json::from_str(CMD_BLOCK).chain(|| {
             (
                 ErrorKind::DeserializationError,
@@ -443,7 +460,6 @@ where
         })?;
         let request = self.get_current_height() + 1;
         json["params"] = json!([request.to_string()]);
-        let mut sink = self.sender.clone().wait();
         sink.send(OwnedMessage::Text(json.to_string())).chain(|| {
             (
                 ErrorKind::InternalError,

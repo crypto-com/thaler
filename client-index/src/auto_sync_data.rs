@@ -31,6 +31,24 @@ impl AutoSyncData {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+/// auto sync send queue arc
+pub struct AutoSyncSendQueue {
+    /// sending queue
+    pub queue: Option<futures::sync::mpsc::Sender<OwnedMessage>>,
+}
+
+/// make new send queue
+impl AutoSyncSendQueue {
+    /// make new data
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+/// auto sync send queue arc type
+pub type AutoSyncSendQueueShared = Arc<Mutex<AutoSyncSendQueue>>;
+
 /// auto sync data shared
 pub type AutoSyncDataShared = Arc<Mutex<AutoSyncData>>;
 
