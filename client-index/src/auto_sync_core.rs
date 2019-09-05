@@ -73,7 +73,7 @@ where
     global_state_service: GlobalStateService<S>,
     client: C,
     block_handler: H,
-    wallets: Vec<WalletInfo>,
+    wallets: WalletInfos,
     current_wallet: usize,
 
     data: AutoSyncDataShared,
@@ -122,7 +122,9 @@ where
     /// to process multiple wallets
     fn get_current_wallet(&self) -> WalletInfo {
         assert!(self.current_wallet < self.wallets.len());
-        self.wallets[self.current_wallet].clone()
+        let keys: Vec<String> = self.wallets.keys().cloned().collect();
+        let key: String = keys[self.current_wallet].clone();
+        self.wallets[&key].clone()
     }
 
     /// get height from database
@@ -217,16 +219,6 @@ where
     pub fn get_queue(&self) -> Sender<OwnedMessage> {
         self.my_sender.clone()
     }
-    fn update_wallet(&mut self, info: &WalletInfo) -> Result<()> {
-        for i in 0..self.wallets.len() {
-            let item = &self.wallets[i];
-            if item.name == info.name {
-                self.wallets[i] = info.clone();
-                return Ok(());
-            }
-        }
-        Err(ErrorKind::InvalidInput.into())
-    }
     /// because everything is done via channel
     /// no mutex is necessary
     /// wallet can be added in runtime
@@ -246,13 +238,8 @@ where
             private_key,
         };
 
-        match self.update_wallet(&info) {
-            Ok(_a) => {}
-            Err(_b) => {
-                // not found, add new
-                self.wallets.push(info.clone());
-            }
-        }
+        // upsert
+        self.wallets.insert(info.name.clone(), info);
         log::info!("wallets length {}", self.wallets.len());
         Ok(())
     }

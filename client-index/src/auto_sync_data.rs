@@ -6,7 +6,6 @@ use client_common::{PrivateKey, PublicKey};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use websocket::OwnedMessage;
-
 /// give add wallet command via this queue
 pub type AutoSyncQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
@@ -48,7 +47,7 @@ pub struct WalletInfo {
     pub private_key: PrivateKey,
 }
 /// Wallet infos
-pub type WalletInfos = Vec<WalletInfo>;
+pub type WalletInfos = std::collections::BTreeMap<String, WalletInfo>;
 
 /// giving command via channel
 #[derive(Serialize, Deserialize)]

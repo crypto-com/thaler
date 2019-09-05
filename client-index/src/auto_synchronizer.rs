@@ -2,9 +2,8 @@
 //! (todo) make upper json rpc wrapper
 
 use crate::auto_sync_core::AutoSynchronizerCore;
-use crate::auto_sync_data::{AutoSyncDataShared, AutoSyncQueue};
+use crate::auto_sync_data::{AutoSyncDataShared, AutoSyncQueue, WalletInfos};
 use crate::auto_sync_data::{MyQueue, CMD_SUBSCRIBE};
-
 use crate::BlockHandler;
 
 use client_common::tendermint::Client;
@@ -77,7 +76,7 @@ impl AutoSynchronizer {
             storage,
             client,
             block_handler,
-            vec![],
+            WalletInfos::new(),
             data,
         );
         // save send_queue to communicate with core
