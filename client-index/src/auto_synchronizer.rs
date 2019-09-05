@@ -125,9 +125,9 @@ impl AutoSynchronizer {
                         .forward(sink)
                 });
             match runtime.block_on(runner) {
-                Ok(a) => {}
+                Ok(_a) => {}
                 Err(b) => {
-                    println!("connection fail");
+                    println!("connection fail {}", b);
                     std::thread::sleep(std::time::Duration::from_millis(1000));
                 }
             }

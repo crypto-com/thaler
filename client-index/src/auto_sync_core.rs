@@ -4,8 +4,8 @@
 
 use crate::auto_sync_data::WalletInfo;
 use crate::auto_sync_data::{
-    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueue, AutoSyncSendQueueShared, WalletInfos,
-    BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS, RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
+    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueueShared, WalletInfos, BLOCK_REQUEST_TIME,
+    CMD_BLOCK, CMD_STATUS, RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
 };
 
 use crate::service::GlobalStateService;
@@ -380,7 +380,7 @@ where
     pub fn check_status(&mut self) -> Result<()> {
         let mut sendqueue: Option<futures::sync::mpsc::Sender<OwnedMessage>> = None;
         {
-            let mut data = self.sender.lock().unwrap();
+            let data = self.sender.lock().unwrap();
             sendqueue = data.queue.clone();
         }
         if sendqueue.is_none() {
@@ -445,7 +445,7 @@ where
     pub fn send_request_block(&mut self) -> Result<()> {
         let mut sendqueue: Option<futures::sync::mpsc::Sender<OwnedMessage>> = None;
         {
-            let mut data = self.sender.lock().unwrap();
+            let data = self.sender.lock().unwrap();
             sendqueue = data.queue.clone();
         }
         if sendqueue.is_none() {
@@ -491,8 +491,11 @@ where
             let _ = self
                 .my_receiver
                 .recv_timeout(time::Duration::from_millis(RECEIVE_TIMEOUT))
-                .map(|a| {
-                    self.parse(a).expect("correct parsing");
+                .map(|a| match self.parse(a) {
+                    Ok(_a) => {}
+                    Err(b) => {
+                        log::info!("Parsing Error {}", b);
+                    }
                 });
             let _ = self.polling();
         }
