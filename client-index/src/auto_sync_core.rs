@@ -157,6 +157,11 @@ where
             self.max_height = height;
         }
 
+        // now height ok, extend max height
+        if height > self.max_height {
+            self.max_height = height;
+        }
+
         // update information
         {
             let mut data = self.data.lock().unwrap();
