@@ -1,7 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input, Output};
 use secp256k1::key::pubkey_combine;
 use secp256k1::PublicKey as SecpPublicKey;
@@ -12,7 +11,7 @@ use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::tx::witness::tree::RawPubkey;
 
-use crate::{Error, ErrorKind, Result, SECP};
+use crate::{Error, ErrorKind, Result, ResultExt, SECP};
 
 /// Public key used in Crypto.com Chain
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -62,8 +61,12 @@ impl PublicKey {
 
     /// Deserializes public key from bytes
     pub fn deserialize_from(bytes: &[u8]) -> Result<PublicKey> {
-        let public_key: SecpPublicKey =
-            SecpPublicKey::from_slice(bytes).context(ErrorKind::DeserializationError)?;
+        let public_key: SecpPublicKey = SecpPublicKey::from_slice(bytes).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize public key from bytes",
+            )
+        })?;
 
         Ok(PublicKey(public_key))
     }
@@ -80,7 +83,12 @@ impl PublicKey {
                         .collect::<Vec<SecpPublicKey>>(),
                 )
             })
-            .context(ErrorKind::InvalidInput)?;
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Unable to combine multiple public keys into one",
+                )
+            })?;
 
         Ok((Self(public_key), public_key_hash.serialize()))
     }
@@ -96,9 +104,14 @@ impl FromStr for PublicKey {
     type Err = Error;
 
     fn from_str(s: &str) -> Result<PublicKey> {
-        Ok(PublicKey(
-            SecpPublicKey::from_str(s).context(ErrorKind::DeserializationError)?,
-        ))
+        SecpPublicKey::from_str(s)
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    "Unable to deserialize public key from string",
+                )
+            })
+            .map(PublicKey)
     }
 }
 

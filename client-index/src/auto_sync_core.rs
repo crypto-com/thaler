@@ -1,27 +1,35 @@
-use crate::rpc::websocket_rpc::{WalletInfo, WalletInfos};
-use crate::rpc::websocket_rpc::{CMD_BLOCK, CMD_STATUS};
-use crate::server::to_rpc_error;
-use chain_core::state::account::StakedStateAddress;
+//! auto sync core
+//! polling the latest state
+//! change wallets and continue syncing
+
+use crate::auto_sync_data::WalletInfo;
+use crate::auto_sync_data::{
+    AddWalletCommand, AutoSyncDataShared, WalletInfos, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS,
+    RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
+};
+
+use crate::service::GlobalStateService;
+use crate::BlockHandler;
+
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::Block;
 use client_common::tendermint::Client;
+use client_common::ErrorKind;
 use client_common::{BlockHeader, Result, Storage, Transaction};
-use client_common::{Error, ErrorKind};
-use client_core::WalletClient;
-use client_index::service::GlobalStateService;
-use client_index::BlockHandler;
-use failure::ResultExt;
+use client_common::{PrivateKey, PublicKey};
 use futures::sink::Sink;
 use jsonrpc_core::Result as JsonResult;
 use mpsc::Receiver;
 use mpsc::Sender;
-use secstr::SecUtf8;
 use serde_json::json;
 use serde_json::Value;
 use std::sync::mpsc;
 use std::time;
 use std::time::SystemTime;
 use websocket::OwnedMessage;
+
+use chain_core::state::account::StakedStateAddress;
+use client_common::ResultExt;
 
 /**  finite state machine that manages blocks
 just use one thread to multi-plexing for data and command
@@ -34,23 +42,25 @@ so multi-plexed with OwnedMessage
  not to use too much cpu, it takes some time for waiting
  */
 
-const WAIT_PROCESS_TIME: u128 = 5000; // milli seconds
-const BLOCK_REQUEST_TIME: u128 = 10; // milli seconds
-const RECEIVE_TIMEOUT: u64 = 10; //  milli seconds
+/// finite state
 #[derive(Copy, Clone, Debug)]
-pub enum WebsocketState {
+enum WebsocketState {
+    /// initial state
     ReadyProcess,
+    /// getting status
     GetStatus,
+    /// getting blocks
     GetBlocks,
+    /// wait some time to prevent using 100% cpu
     WaitProcess,
 }
 
-pub struct WebsocketCore<S, C, H, T>
+/// automatic sync
+pub struct AutoSynchronizerCore<S, C, H>
 where
     S: Storage,
     C: Client,
     H: BlockHandler,
-    T: WalletClient,
 {
     sender: futures::sync::mpsc::Sender<OwnedMessage>,
     my_sender: Sender<OwnedMessage>,
@@ -65,23 +75,25 @@ where
     block_handler: H,
     wallets: Vec<WalletInfo>,
     current_wallet: usize,
-    wallet_client: T,
+
+    data: AutoSyncDataShared,
 }
 
-impl<S, C, H, T> WebsocketCore<S, C, H, T>
+/// auto-sync impl
+impl<S, C, H> AutoSynchronizerCore<S, C, H>
 where
     S: Storage,
     C: Client,
     H: BlockHandler,
-    T: WalletClient,
 {
+    /// create auto sync
     pub fn new(
         sender: futures::sync::mpsc::Sender<OwnedMessage>,
         storage: S,
         client: C,
         block_handler: H,
         wallets: WalletInfos,
-        wallet_client: T,
+        data: AutoSyncDataShared,
     ) -> Self {
         let gss = GlobalStateService::new(storage);
 
@@ -89,7 +101,7 @@ where
         // tx, rx
         let (my_sender, my_receiver) = channel;
 
-        WebsocketCore {
+        AutoSynchronizerCore {
             sender,
             my_sender,
             my_receiver,
@@ -103,8 +115,7 @@ where
             block_handler,
             wallets,
             current_wallet: 0,
-
-            wallet_client,
+            data,
         }
     }
 
@@ -139,11 +150,32 @@ where
             );
             return Ok(());
         }
-        log::info!("save block height={} kind={}", height, kind);
+
+        // update information
+        {
+            let mut data = self.data.lock().unwrap();
+            data.current_height = current;
+            data.max_height = self.max_height;
+            data.wallet = self.get_current_wallet().name;
+            if data.max_height > 0 {
+                data.progress = (data.current_height as f64) / (data.max_height as f64);
+            } else {
+                data.progress = 0.0;
+            }
+            log::info!(
+                "save block kind={} wallet={} height={}/{}  progress={:.4}%",
+                kind,
+                data.wallet,
+                data.current_height,
+                data.max_height,
+                data.progress * 100.0
+            );
+        }
+
         self.write_block(height, &block)
     }
 
-    // low level block processing
+    /// low level block processing
     pub fn write_block(&self, block_height: u64, block: &Block) -> Result<()> {
         let app_hash = block.app_hash();
         let block_results = self.client.block_results(block_height)?;
@@ -174,38 +206,29 @@ where
         Ok(())
     }
 
-    // now one session is complete
-    // let's wait some time to next blocks
+    /// now one session is complete
+    /// let's wait some time to next blocks
     pub fn change_to_wait(&mut self) {
         self.state = WebsocketState::WaitProcess;
         self.state_time = SystemTime::now();
     }
 
-    // tx channel for this thread
+    /// tx channel for this thread
     pub fn get_queue(&self) -> Sender<OwnedMessage> {
         self.my_sender.clone()
     }
 
-    // because everything is done via channel
-    // no mutex is necessary
-    // wallet can be added in runtime
-    pub fn add_wallet(&mut self, name: String, passphrase: SecUtf8) -> JsonResult<()> {
+    /// because everything is done via channel
+    /// no mutex is necessary
+    /// wallet can be added in runtime
+    pub fn add_wallet(
+        &mut self,
+        name: String,
+        staking_addresses: Vec<StakedStateAddress>,
+        view_key: PublicKey,
+        private_key: PrivateKey,
+    ) -> JsonResult<()> {
         log::info!("add_wallet ***** {}", name);
-        let view_key = self
-            .wallet_client
-            .view_key(&name, &passphrase)
-            .map_err(to_rpc_error)?;
-        let private_key = self
-            .wallet_client
-            .private_key(&passphrase, &view_key)
-            .map_err(to_rpc_error)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))
-            .map_err(to_rpc_error)?;
-
-        let staking_addresses = self
-            .wallet_client
-            .staking_addresses(&name, &passphrase)
-            .map_err(to_rpc_error)?;
 
         let info = WalletInfo {
             name: name.to_string(),
@@ -219,36 +242,58 @@ where
         Ok(())
     }
 
-    // Value is given from websocket_rpc
-    // received
+    /// Value is given from websocket_rpc
+    /// received
     fn do_parse(&mut self, value: Value) -> Result<()> {
-        let id = value["id"]
-            .as_str()
-            .ok_or_else(|| Error::from(ErrorKind::RpcError))?;
+        let id = value["id"].as_str().chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                format!("Unable to deserialize `id` from RPC data: {}", value),
+            )
+        })?;
         match id {
             // this is special, it's command
             "add_wallet" => {
-                let name = value["wallet"]["name"]
-                    .as_str()
-                    .ok_or_else(|| Error::from(ErrorKind::RpcError))?;
+                let info: AddWalletCommand = serde_json::from_value(value).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize add_wallet from json value",
+                    )
+                })?;
+                let private_key = PrivateKey::deserialize_from(&info.private_key)
+                    .expect("Unable to deserialize private key from byte array");
+
                 let _ = self.add_wallet(
-                    name.to_string(),
-                    value["wallet"]["passphrase"]
-                        .as_str()
-                        .ok_or_else(|| Error::from(ErrorKind::RpcError))?
-                        .into(),
+                    info.name,
+                    info.staking_addresses,
+                    info.view_key,
+                    private_key,
                 );
             }
             "subscribe_reply#event" => {
-                let newblock: Block =
-                    serde_json::from_value(value["result"]["data"]["value"].clone())
-                        .context(ErrorKind::RpcError)?;
-                self.do_save_block_to_chain(newblock, "event")?;
+                let new_block: Block = serde_json::from_value(
+                    value["result"]["data"]["value"].clone(),
+                )
+                .chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        format!("Unable to deserialize `block` from RPC data: {}", value),
+                    )
+                })?;
+                self.do_save_block_to_chain(new_block, "event")?;
             }
             "status_reply" => {
                 let height = value["result"]["sync_info"]["latest_block_height"]
                     .as_str()
-                    .ok_or_else(|| Error::from(ErrorKind::RpcError))?;
+                    .chain(|| {
+                        (
+                            ErrorKind::DeserializationError,
+                            format!(
+                                "Unable to deserialize `latest_block_height` from RPC data: {}",
+                                value
+                            ),
+                        )
+                    })?;
                 self.prepare_get_blocks(height.to_string());
             }
             "block_reply" => {
@@ -257,9 +302,14 @@ where
                     self.change_to_wait();
                 } else {
                     let wallet = self.get_current_wallet();
-                    let newblock: Block = serde_json::from_value(value["result"].clone())
-                        .context(ErrorKind::RpcError)?;
-                    self.do_save_block_to_chain(newblock, "get block")?;
+                    let new_block: Block =
+                        serde_json::from_value(value["result"].clone()).chain(|| {
+                            (
+                                ErrorKind::DeserializationError,
+                                format!("Unable to deserialize `block` from RPC data: {}", value),
+                            )
+                        })?;
+                    self.do_save_block_to_chain(new_block, "get block")?;
 
                     if self.get_current_height() >= self.max_height {
                         log::info!("all synced wallet {}.. wait", wallet.name);
@@ -271,7 +321,7 @@ where
         }
         Ok(())
     }
-    // proceed next wallet
+    /// proceed next wallet
     pub fn change_wallet(&mut self) {
         log::info!("change wallet");
         // increase
@@ -279,11 +329,16 @@ where
         assert!(!self.wallets.is_empty());
         self.current_wallet %= self.wallets.len();
     }
-    // only process text messages
-    // session is handled in websocket_rpc
+    /// only process text messages
+    /// session is handled in websocket_rpc
     pub fn parse(&mut self, message: OwnedMessage) -> Result<()> {
         if let OwnedMessage::Text(a) = message {
-            let b: Value = serde_json::from_str(a.as_str()).context(ErrorKind::RpcError)?;
+            let b: Value = serde_json::from_str(a.as_str()).chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    "Unable to parse websocket data into json value",
+                )
+            })?;
             return self.do_parse(b);
         }
         Ok(())
@@ -319,7 +374,12 @@ where
     pub fn check_status(&mut self) -> Result<()> {
         let mut sink = self.sender.clone().wait();
         sink.send(OwnedMessage::Text(CMD_STATUS.to_string()))
-            .context(ErrorKind::RpcError)?;
+            .chain(|| {
+                (
+                    ErrorKind::InternalError,
+                    "Unable to send message to futures::sink",
+                )
+            })?;
         self.state = WebsocketState::GetStatus;
         Ok(())
     }
@@ -369,12 +429,21 @@ where
     in one thread instead of dedicated thread
     */
     pub fn send_request_block(&mut self) -> Result<()> {
-        let mut json: Value = serde_json::from_str(CMD_BLOCK).context(ErrorKind::RpcError)?;
+        let mut json: Value = serde_json::from_str(CMD_BLOCK).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize `CMD_BLOCK` into json value",
+            )
+        })?;
         let request = self.get_current_height() + 1;
         json["params"] = json!([request.to_string()]);
         let mut sink = self.sender.clone().wait();
-        sink.send(OwnedMessage::Text(json.to_string()))
-            .context(ErrorKind::RpcError)?;
+        sink.send(OwnedMessage::Text(json.to_string())).chain(|| {
+            (
+                ErrorKind::InternalError,
+                "Unable to send message to futures::sink",
+            )
+        })?;
         Ok(())
     }
 
@@ -404,6 +473,139 @@ where
                     self.parse(a).expect("correct parsing");
                 });
             let _ = self.polling();
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::auto_sync_data::AutoSyncData;
+    use chain_core::init::address::RedeemAddress;
+    use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::*;
+    use std::sync::Arc;
+    use std::sync::Mutex;
+
+    struct MockClient;
+
+    impl Client for MockClient {
+        fn genesis(&self) -> Result<Genesis> {
+            unreachable!()
+        }
+
+        fn status(&self) -> Result<Status> {
+            unreachable!()
+        }
+
+        fn block(&self, _height: u64) -> Result<Block> {
+            unreachable!()
+        }
+
+        fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, _heights: T) -> Result<Vec<Block>> {
+            unreachable!()
+        }
+
+        fn block_results(&self, _height: u64) -> Result<BlockResults> {
+            unreachable!()
+        }
+
+        fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
+            &self,
+            _heights: T,
+        ) -> Result<Vec<BlockResults>> {
+            unreachable!()
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+            Ok(BroadcastTxResult {
+                code: 0,
+                data: String::from(""),
+                hash: String::from(""),
+                log: String::from(""),
+            })
+        }
+
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+            unreachable!()
+        }
+    }
+
+    struct MockBlockHandler {}
+    impl BlockHandler for MockBlockHandler {
+        fn on_next(
+            &self,
+            _block_header: BlockHeader,
+            _view_key: &PublicKey,
+            _private_key: &PrivateKey,
+        ) -> Result<()> {
+            unreachable!()
+        }
+    }
+
+    #[test]
+    fn check_sync_wallet() {
+        let storage = MemoryStorage::default();
+        let client = MockClient {};
+        let handler = MockBlockHandler {};
+        let data = Arc::new(Mutex::new(AutoSyncData::new()));
+        let channel = futures::sync::mpsc::channel(0);
+        let (channel_tx, _channel_rx) = channel;
+        let mut core =
+            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+
+        let private_key = PrivateKey::new().unwrap();
+        let view_key = PublicKey::from(&private_key);
+        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
+        core.add_wallet("a".into(), vec![staking_address], view_key, private_key)
+            .expect("auto sync add wallet");
+
+        core.change_wallet();
+        assert!(core.current_wallet == 0);
+        assert!(core.get_current_wallet().name == "a".to_string());
+    }
+
+    #[test]
+    fn check_change_to_wait() {
+        let storage = MemoryStorage::default();
+        let client = MockClient {};
+        let handler = MockBlockHandler {};
+        let data = Arc::new(Mutex::new(AutoSyncData::new()));
+        let channel = futures::sync::mpsc::channel(0);
+        let (channel_tx, _channel_rx) = channel;
+        let mut core =
+            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+        core.change_to_wait();
+
+        match core.state {
+            WebsocketState::WaitProcess => assert!(true),
+            _ => assert!(false),
+        }
+    }
+
+    #[test]
+    fn check_prepare_get_blocks() {
+        let storage = MemoryStorage::default();
+        let client = MockClient {};
+        let handler = MockBlockHandler {};
+        let data = Arc::new(Mutex::new(AutoSyncData::new()));
+        let channel = futures::sync::mpsc::channel(0);
+        let (channel_tx, _channel_rx) = channel;
+        let mut core =
+            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+
+        let private_key = PrivateKey::new().unwrap();
+        let view_key = PublicKey::from(&private_key);
+        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
+        core.add_wallet("a".into(), vec![staking_address], view_key, private_key)
+            .expect("auto sync add wallet");
+
+        core.prepare_get_blocks("1".into());
+
+        match core.state {
+            WebsocketState::GetBlocks => assert!(true),
+            _ => assert!(false),
         }
     }
 }

@@ -2,11 +2,10 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use failure::ResultExt;
 use sled::{ConfigBuilder, Db};
 
 use crate::storage::Storage;
-use crate::{ErrorKind, Result};
+use crate::{ErrorKind, Result, ResultExt};
 
 /// Storage backed by Sled
 #[derive(Clone)]
@@ -17,13 +16,29 @@ impl SledStorage {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         if cfg!(test) {
             Ok(Self(Arc::new(
-                Db::start(ConfigBuilder::new().path(path).temporary(true).build())
-                    .context(ErrorKind::StorageInitializationError)?,
+                Db::start(ConfigBuilder::new().path(&path).temporary(true).build()).chain(
+                    || {
+                        (
+                            ErrorKind::InitializationError,
+                            format!(
+                                "Unable to initialize sled storage at path: {}",
+                                path.as_ref().display()
+                            ),
+                        )
+                    },
+                )?,
             )))
         } else {
             Ok(Self(Arc::new(
-                Db::start(ConfigBuilder::new().path(path).build())
-                    .context(ErrorKind::StorageInitializationError)?,
+                Db::start(ConfigBuilder::new().path(&path).build()).chain(|| {
+                    (
+                        ErrorKind::InitializationError,
+                        format!(
+                            "Unable to initialize sled storage at path: {}",
+                            path.as_ref().display()
+                        ),
+                    )
+                })?,
             )))
         }
     }
@@ -31,22 +46,49 @@ impl SledStorage {
 
 impl Storage for SledStorage {
     fn clear<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<()> {
-        let tree = self
-            .0
-            .open_tree(keyspace.as_ref().to_vec())
-            .context(ErrorKind::StorageError)?;
+        let tree = self.0.open_tree(keyspace.as_ref().to_vec()).chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to open sled storage tree for keyspace: {}",
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?;
 
-        tree.clear().context(ErrorKind::StorageError)?;
+        tree.clear().chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to clear keyspace: {}",
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?;
         Ok(())
     }
 
     fn get<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<Option<Vec<u8>>> {
-        let tree = self
-            .0
-            .open_tree(keyspace.as_ref().to_vec())
-            .context(ErrorKind::StorageError)?;
+        let tree = self.0.open_tree(keyspace.as_ref().to_vec()).chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to open sled storage tree for keyspace: {}",
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?;
 
-        let value = tree.get(key).context(ErrorKind::StorageError)?;
+        let value = tree.get(&key).chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to find value for {} in keyspace: {}",
+                    String::from_utf8_lossy(key.as_ref()),
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?;
         let value = value.map(|inner| inner.to_vec());
 
         Ok(value)
@@ -58,12 +100,26 @@ impl Storage for SledStorage {
         key: K,
         value: Vec<u8>,
     ) -> Result<Option<Vec<u8>>> {
-        let tree = self
-            .0
-            .open_tree(keyspace.as_ref().to_vec())
-            .context(ErrorKind::StorageError)?;
+        let tree = self.0.open_tree(keyspace.as_ref().to_vec()).chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to open sled storage tree for keyspace: {}",
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?;
 
-        let value = tree.insert(key, value).context(ErrorKind::StorageError)?;
+        let value = tree.insert(&key, value).chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to insert value for {} in keyspace: {}",
+                    String::from_utf8_lossy(key.as_ref()),
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?;
         let value = value.map(|inner| inner.to_vec());
 
         Ok(value)
@@ -80,12 +136,26 @@ impl Storage for SledStorage {
         loop {
             let tmp = current.as_ref().map(AsRef::as_ref);
             let next = f(tmp)?;
-            let tree = self
-                .0
-                .open_tree(keyspace.as_ref().to_vec())
-                .context(ErrorKind::StorageError)?;
+            let tree = self.0.open_tree(keyspace.as_ref().to_vec()).chain(|| {
+                (
+                    ErrorKind::StorageError,
+                    format!(
+                        "Unable to open sled storage tree for keyspace: {}",
+                        String::from_utf8_lossy(keyspace.as_ref())
+                    ),
+                )
+            })?;
 
-            match tree.cas(&key, tmp, next).context(ErrorKind::StorageError)? {
+            match tree.cas(&key, tmp, next).chain(|| {
+                (
+                    ErrorKind::StorageError,
+                    format!(
+                        "Unable to compare-and-swap value for {} in keyspace: {}",
+                        String::from_utf8_lossy(key.as_ref()),
+                        String::from_utf8_lossy(keyspace.as_ref())
+                    ),
+                )
+            })? {
                 Ok(()) => return Ok(current),
                 Err(new_current) => current = new_current.map(|inner| inner.to_vec()),
             }
@@ -93,27 +163,54 @@ impl Storage for SledStorage {
     }
 
     fn keys<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<Vec<Vec<u8>>> {
-        let tree = self
-            .0
-            .open_tree(keyspace.as_ref().to_vec())
-            .context(ErrorKind::StorageError)?;
+        let tree = self.0.open_tree(keyspace.as_ref().to_vec()).chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to open sled storage tree for keyspace: {}",
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?;
 
         tree.iter()
             .keys()
             .map(|key| {
-                let key = key.context(ErrorKind::StorageError)?;
+                let key = key.chain(|| {
+                    (
+                        ErrorKind::StorageError,
+                        format!(
+                            "Unable to retrieve keys for keyspace: {}",
+                            String::from_utf8_lossy(keyspace.as_ref())
+                        ),
+                    )
+                })?;
                 Ok(key.as_ref().to_vec())
             })
             .collect()
     }
 
     fn contains_key<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<bool> {
-        let tree = self
-            .0
-            .open_tree(keyspace.as_ref().to_vec())
-            .context(ErrorKind::StorageError)?;
+        let tree = self.0.open_tree(keyspace.as_ref().to_vec()).chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to open sled storage tree for keyspace: {}",
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?;
 
-        Ok(tree.contains_key(key).context(ErrorKind::StorageError)?)
+        Ok(tree.contains_key(&key).chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to check if {} exists in keyspace: {}",
+                    String::from_utf8_lossy(key.as_ref()),
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?)
     }
 
     fn keyspaces(&self) -> Result<Vec<Vec<u8>>> {

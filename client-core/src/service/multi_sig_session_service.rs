@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
 
-use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode};
 use rand::rngs::OsRng;
 use secp256k1::key::PublicKeyHash;
@@ -11,7 +10,7 @@ use secstr::SecUtf8;
 
 use chain_core::common::H256;
 use client_common::{
-    Error, ErrorKind, PrivateKey, PublicKey, Result, SecureStorage, Storage, SECP,
+    Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecureStorage, Storage, SECP,
 };
 
 const KEYSPACE: &str = "core_multi_sig_address";
@@ -67,15 +66,25 @@ impl MultiSigSession {
         SECP.with(|secp| -> Result<H256> {
             let session = MuSigSession::new(
                 &secp,
-                MuSigSessionID::from_slice(&self.id).context(ErrorKind::DeserializationError)?,
-                &Message::from_slice(&self.message).context(ErrorKind::DeserializationError)?,
+                MuSigSessionID::from_slice(&self.id).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize multi-sig session ID from bytes",
+                    )
+                })?,
+                &Message::from_slice(&self.message).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize message to sign from bytes",
+                    )
+                })?,
                 &SecpPublicKey::from(&self.combined_public_key),
                 &PublicKeyHash::deserialize_from(self.combined_public_key_hash),
                 self.signers.len(),
                 self.signer_index(&self.public_key)?,
                 &SecretKey::from(&self.private_key),
             )
-            .context(ErrorKind::SessionCreationError)?;
+            .chain(|| (ErrorKind::MultiSigError, "Unable to create session"))?;
 
             Ok(session.get_my_nonce_commitment().serialize())
         })
@@ -89,15 +98,25 @@ impl MultiSigSession {
         SECP.with(|secp| -> Result<PublicKey> {
             let mut session = MuSigSession::new(
                 &secp,
-                MuSigSessionID::from_slice(&self.id).context(ErrorKind::DeserializationError)?,
-                &Message::from_slice(&self.message).context(ErrorKind::DeserializationError)?,
+                MuSigSessionID::from_slice(&self.id).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize multi-sig session ID from bytes",
+                    )
+                })?,
+                &Message::from_slice(&self.message).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize message to sign from bytes",
+                    )
+                })?,
                 &SecpPublicKey::from(&self.combined_public_key),
                 &PublicKeyHash::deserialize_from(self.combined_public_key_hash),
                 self.signers.len(),
                 self.signer_index(&self.public_key)?,
                 &SecretKey::from(&self.private_key),
             )
-            .context(ErrorKind::SessionCreationError)?;
+            .chain(|| (ErrorKind::MultiSigError, "Unable to create session"))?;
 
             nonce_commitments
                 .into_iter()
@@ -110,9 +129,12 @@ impl MultiSigSession {
                 })
                 .collect::<Result<Vec<()>>>()?;
 
-            let public_nonce = session
-                .get_public_nonce()
-                .context(ErrorKind::MissingNonceCommitment)?;
+            let public_nonce = session.get_public_nonce().chain(|| {
+                (
+                    ErrorKind::MultiSigError,
+                    "Missing nonce commitment of at least one signer",
+                )
+            })?;
 
             Ok(public_nonce.into())
         })
@@ -127,15 +149,25 @@ impl MultiSigSession {
         SECP.with(|secp| -> Result<H256> {
             let mut session = MuSigSession::new(
                 &secp,
-                MuSigSessionID::from_slice(&self.id).context(ErrorKind::DeserializationError)?,
-                &Message::from_slice(&self.message).context(ErrorKind::DeserializationError)?,
+                MuSigSessionID::from_slice(&self.id).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize multi-sig session ID from bytes",
+                    )
+                })?,
+                &Message::from_slice(&self.message).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize message to sign from bytes",
+                    )
+                })?,
                 &SecpPublicKey::from(&self.combined_public_key),
                 &PublicKeyHash::deserialize_from(self.combined_public_key_hash),
                 self.signers.len(),
                 self.signer_index(&self.public_key)?,
                 &SecretKey::from(&self.private_key),
             )
-            .context(ErrorKind::SessionCreationError)?;
+            .chain(|| (ErrorKind::MultiSigError, "Unable to create session"))?;
 
             nonce_commitments
                 .into_iter()
@@ -148,26 +180,39 @@ impl MultiSigSession {
                 })
                 .collect::<Result<Vec<()>>>()?;
 
-            session
-                .get_public_nonce()
-                .context(ErrorKind::MissingNonceCommitment)?;
+            session.get_public_nonce().chain(|| {
+                (
+                    ErrorKind::MultiSigError,
+                    "Missing nonce commitment of at least one signer",
+                )
+            })?;
 
             nonces
                 .into_iter()
                 .map(|(public_key, nonce)| {
-                    Ok(session
+                    session
                         .set_nonce(self.signer_index(&public_key)?, nonce.into())
-                        .context(ErrorKind::MissingNonce)?)
+                        .chain(|| {
+                            (
+                                ErrorKind::MultiSigError,
+                                format!("Missing nonce of signer with public key: {}", public_key),
+                            )
+                        })
                 })
                 .collect::<Result<Vec<()>>>()?;
 
             session
                 .combine_nonces()
-                .context(ErrorKind::NonceCombiningError)?;
+                .chain(|| (ErrorKind::MultiSigError, "Unable to combine nonces"))?;
 
             Ok(session
                 .partial_sign()
-                .context(ErrorKind::PartialSignError)?
+                .chain(|| {
+                    (
+                        ErrorKind::MultiSigError,
+                        "Unable to generate partial signature",
+                    )
+                })?
                 .serialize())
         })
     }
@@ -181,15 +226,25 @@ impl MultiSigSession {
         SECP.with(|secp| -> Result<SchnorrSignature> {
             let mut session = MuSigSession::new(
                 &secp,
-                MuSigSessionID::from_slice(&self.id).context(ErrorKind::DeserializationError)?,
-                &Message::from_slice(&self.message).context(ErrorKind::DeserializationError)?,
+                MuSigSessionID::from_slice(&self.id).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize multi-sig session ID from bytes",
+                    )
+                })?,
+                &Message::from_slice(&self.message).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize message to sign from bytes",
+                    )
+                })?,
                 &SecpPublicKey::from(&self.combined_public_key),
                 &PublicKeyHash::deserialize_from(self.combined_public_key_hash),
                 self.signers.len(),
                 self.signer_index(&self.public_key)?,
                 &SecretKey::from(&self.private_key),
             )
-            .context(ErrorKind::SessionCreationError)?;
+            .chain(|| (ErrorKind::MultiSigError, "Unable to create session"))?;
 
             nonce_commitments
                 .into_iter()
@@ -202,38 +257,58 @@ impl MultiSigSession {
                 })
                 .collect::<Result<Vec<()>>>()?;
 
-            session
-                .get_public_nonce()
-                .context(ErrorKind::MissingNonceCommitment)?;
+            session.get_public_nonce().chain(|| {
+                (
+                    ErrorKind::MultiSigError,
+                    "Missing nonce commitment of at least one signer",
+                )
+            })?;
 
             nonces
                 .into_iter()
                 .map(|(public_key, nonce)| {
-                    Ok(session
+                    session
                         .set_nonce(self.signer_index(&public_key)?, nonce.into())
-                        .context(ErrorKind::MissingNonce)?)
+                        .chain(|| {
+                            (
+                                ErrorKind::MultiSigError,
+                                format!("Missing nonce of signer with public key: {}", public_key),
+                            )
+                        })
                 })
                 .collect::<Result<Vec<()>>>()?;
 
             session
                 .combine_nonces()
-                .context(ErrorKind::NonceCombiningError)?;
+                .chain(|| (ErrorKind::MultiSigError, "Unable to combine nonces"))?;
 
-            session
-                .partial_sign()
-                .context(ErrorKind::PartialSignError)?;
+            session.partial_sign().chain(|| {
+                (
+                    ErrorKind::MultiSigError,
+                    "Unable to generate partial signature",
+                )
+            })?;
 
             Ok(session
                 .partial_sig_combine(
                     &partial_signatures
                         .into_iter()
                         .map(|sig| {
-                            Ok(MuSigPartialSignature::deserialize_from(sig)
-                                .context(ErrorKind::DeserializationError)?)
+                            MuSigPartialSignature::deserialize_from(sig).chain(|| {
+                                (
+                                    ErrorKind::DeserializationError,
+                                    "Unable to deserialize partial signature from bytes",
+                                )
+                            })
                         })
                         .collect::<Result<Vec<MuSigPartialSignature>>>()?,
                 )
-                .context(ErrorKind::SigningError)?)
+                .chain(|| {
+                    (
+                        ErrorKind::MultiSigError,
+                        "Unable to combine partial signatures",
+                    )
+                })?)
         })
     }
 
@@ -251,7 +326,13 @@ impl MultiSigSession {
         self.signers
             .iter()
             .map(|signer| match signer.partial_signature {
-                None => Err(ErrorKind::MissingPartialSignature.into()),
+                None => Err(Error::new(
+                    ErrorKind::MultiSigError,
+                    format!(
+                        "Missing partial signature for signer with public key: {}",
+                        signer.public_key
+                    ),
+                )),
                 Some(partial_signature) => Ok(partial_signature),
             })
             .collect()
@@ -262,7 +343,13 @@ impl MultiSigSession {
         self.signers
             .iter()
             .map(|signer| match signer.nonce {
-                None => Err(ErrorKind::MissingNonce.into()),
+                None => Err(Error::new(
+                    ErrorKind::MultiSigError,
+                    format!(
+                        "Missing nonce for signer with public key: {}",
+                        signer.public_key
+                    ),
+                )),
                 Some(ref nonce) => Ok((signer.public_key.clone(), nonce.clone())),
             })
             .collect()
@@ -274,7 +361,13 @@ impl MultiSigSession {
         self.signers
             .iter()
             .map(|signer| match signer.nonce_commitment {
-                None => Err(ErrorKind::MissingNonceCommitment.into()),
+                None => Err(Error::new(
+                    ErrorKind::MultiSigError,
+                    format!(
+                        "Missing nonce commitment for signer with public key: {}",
+                        signer.public_key
+                    ),
+                )),
                 Some(nonce_commitment) => Ok((signer.public_key.clone(), nonce_commitment)),
             })
             .collect()
@@ -284,7 +377,12 @@ impl MultiSigSession {
     fn signer_index(&self, public_key: &PublicKey) -> Result<usize> {
         self.signers
             .binary_search_by(|signer| signer.public_key.cmp(&public_key))
-            .map_err(|_| Error::from(ErrorKind::SignerNotFound))
+            .map_err(|_| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("Signer with public key ({}) not found", public_key),
+                )
+            })
     }
 
     /// Returns true if nonce commitment for given public key is already set, false otherwise
@@ -322,7 +420,10 @@ impl Signer {
     /// Adds nonce commitment to current signer if not already added.
     pub fn add_nonce_commitment(&mut self, nonce_commitment: H256) -> Result<()> {
         if self.nonce_commitment.is_some() {
-            return Err(Error::from(ErrorKind::InvalidInput));
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Cannot add nonce commitment twice for same signer",
+            ));
         }
 
         self.nonce_commitment = Some(nonce_commitment);
@@ -332,7 +433,10 @@ impl Signer {
     /// Adds nonce to current signer if not already added.
     pub fn add_nonce(&mut self, nonce: PublicKey) -> Result<()> {
         if self.nonce.is_some() {
-            return Err(Error::from(ErrorKind::InvalidInput));
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Cannot add nonce twice for same signer",
+            ));
         }
 
         self.nonce = Some(nonce);
@@ -342,7 +446,10 @@ impl Signer {
     /// Adds partial signature to current signer if not already added.
     pub fn add_partial_signature(&mut self, partial_signature: H256) -> Result<()> {
         if self.partial_signature.is_some() {
-            return Err(Error::from(ErrorKind::InvalidInput));
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Cannot add partial signature twice for same signer",
+            ));
         }
 
         self.partial_signature = Some(partial_signature);
@@ -382,14 +489,27 @@ where
         self_private_key: PrivateKey,
         passphrase: &SecUtf8,
     ) -> Result<H256> {
-        if PublicKey::from(&self_private_key) != self_public_key || signer_public_keys.len() <= 1 {
-            return Err(ErrorKind::InvalidInput.into());
+        if PublicKey::from(&self_private_key) != self_public_key {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Invalid self public/private keypair",
+            ));
+        }
+
+        if signer_public_keys.len() <= 1 {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Cannot create a session with less than 2 signers",
+            ));
         }
 
         signer_public_keys.sort();
 
         if signer_public_keys.binary_search(&self_public_key).is_err() {
-            return Err(ErrorKind::InvalidInput.into());
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Self public key is not present in list of signers",
+            ));
         }
 
         let (combined_public_key, combined_public_key_hash) =
@@ -406,8 +526,12 @@ where
             .collect::<Vec<Signer>>();
 
         let mut rng = OsRng;
-        let session_id = H256::try_from(&MuSigSessionID::new(&mut rng)[..])
-            .context(ErrorKind::DeserializationError)?;
+        let session_id = H256::try_from(&MuSigSessionID::new(&mut rng)[..]).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize session ID from bytes",
+            )
+        })?;
 
         let session = MultiSigSession {
             id: session_id,
@@ -449,10 +573,18 @@ where
     ) -> Result<()> {
         self.storage
             .fetch_and_update_secure(KEYSPACE, session_id, passphrase, |value| {
-                let mut session_bytes =
-                    value.ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
-                let mut session = MultiSigSession::decode(&mut session_bytes)
-                    .context(ErrorKind::DeserializationError)?;
+                let mut session_bytes = value.chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        format!("Session with ID ({}) not found", hex::encode(session_id)),
+                    )
+                })?;
+                let mut session = MultiSigSession::decode(&mut session_bytes).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize multi-sig session from bytes",
+                    )
+                })?;
                 session.add_nonce_commitment(public_key, nonce_commitment)?;
 
                 Ok(Some(session.encode()))
@@ -484,10 +616,18 @@ where
     ) -> Result<()> {
         self.storage
             .fetch_and_update_secure(KEYSPACE, session_id, passphrase, |value| {
-                let mut session_bytes =
-                    value.ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
-                let mut session = MultiSigSession::decode(&mut session_bytes)
-                    .context(ErrorKind::DeserializationError)?;
+                let mut session_bytes = value.chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        format!("Session with ID ({}) not found", hex::encode(session_id)),
+                    )
+                })?;
+                let mut session = MultiSigSession::decode(&mut session_bytes).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize multi-sig session from bytes",
+                    )
+                })?;
                 session.add_nonce(public_key, nonce.clone())?;
 
                 Ok(Some(session.encode()))
@@ -519,10 +659,18 @@ where
     ) -> Result<()> {
         self.storage
             .fetch_and_update_secure(KEYSPACE, session_id, passphrase, |value| {
-                let mut session_bytes =
-                    value.ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
-                let mut session = MultiSigSession::decode(&mut session_bytes)
-                    .context(ErrorKind::DeserializationError)?;
+                let mut session_bytes = value.chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        format!("Session with ID ({}) not found", hex::encode(session_id)),
+                    )
+                })?;
+                let mut session = MultiSigSession::decode(&mut session_bytes).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize multi-sig session from bytes",
+                    )
+                })?;
                 session.add_partial_signature(public_key, partial_signature)?;
 
                 Ok(Some(session.encode()))
@@ -547,10 +695,18 @@ where
         let session_bytes = self
             .storage
             .get_secure(KEYSPACE, session_id, passphrase)?
-            .ok_or_else(|| Error::from(ErrorKind::SessionNotFound))?;
-        MultiSigSession::decode(&mut session_bytes.as_slice())
-            .context(ErrorKind::DeserializationError)
-            .map_err(Into::into)
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    format!("Session with ID ({}) not found", hex::encode(session_id)),
+                )
+            })?;
+        MultiSigSession::decode(&mut session_bytes.as_slice()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize multi-sig session from bytes",
+            )
+        })
     }
 
     /// Persists a session in storage

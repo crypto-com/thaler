@@ -1,6 +1,5 @@
 #![cfg(feature = "rpc")]
 
-use failure::{format_err, ResultExt};
 use jsonrpc::client::Client as JsonRpcClient;
 use jsonrpc::Request;
 use serde::Deserialize;
@@ -8,7 +7,7 @@ use serde_json::{json, Value};
 
 use crate::tendermint::types::*;
 use crate::tendermint::Client;
-use crate::{Error, ErrorKind, Result};
+use crate::{Error, ErrorKind, Result, ResultExt};
 
 /// Tendermint RPC Client
 #[derive(Clone)]
@@ -33,9 +32,25 @@ impl RpcClient {
         // https://github.com/apoelstra/rust-jsonrpc/issues/26
         let client = JsonRpcClient::new(self.url.to_owned(), None, None);
         let request = client.build_request(name, params);
-        let response = client.send_request(&request).context(ErrorKind::RpcError)?;
-
-        let result = response.result::<T>().context(ErrorKind::RpcError)?;
+        let response = client.send_request(&request).chain(|| {
+            (
+                ErrorKind::TendermintRpcError,
+                format!(
+                    "Unable to make RPC call: Method: {}, Params: {}",
+                    name,
+                    Value::from(params)
+                ),
+            )
+        })?;
+        let result = response.result::<T>().chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                format!(
+                    "Unable to deserialize response from RPC method {}: {:?}",
+                    name, response
+                ),
+            )
+        })?;
         Ok(result)
     }
 
@@ -61,16 +76,26 @@ impl RpcClient {
                 .iter()
                 .map(|(name, params)| client.build_request(name, params))
                 .collect::<Vec<Request>>();
-            let responses = client.send_batch(&requests).context(ErrorKind::RpcError)?;
+            let responses = client.send_batch(&requests).chain(|| {
+                (
+                    ErrorKind::TendermintRpcError,
+                    "Unable to make batch RPC call",
+                )
+            })?;
             responses
                 .into_iter()
                 .map(|response| -> Result<Option<T>> {
                     response
                         .map(|inner| -> Result<T> {
-                            inner
-                                .result::<T>()
-                                .context(ErrorKind::RpcError)
-                                .map_err(Into::into)
+                            inner.result::<T>().chain(|| {
+                                (
+                                    ErrorKind::DeserializationError,
+                                    format!(
+                                        "Unable to deserialize response from batch RPC call: {:?}",
+                                        inner,
+                                    ),
+                                )
+                            })
                         })
                         .transpose()
                 })
@@ -101,13 +126,7 @@ impl Client for RpcClient {
 
         response
             .into_iter()
-            .map(|block| {
-                block.ok_or_else(|| -> Error {
-                    format_err!("Block information not found")
-                        .context(ErrorKind::RpcError)
-                        .into()
-                })
-            })
+            .map(|block| block.chain(|| (ErrorKind::InvalidInput, "Block information not found")))
             .collect::<Result<Vec<Block>>>()
     }
 
@@ -128,10 +147,11 @@ impl Client for RpcClient {
         response
             .into_iter()
             .map(|block_results| {
-                block_results.ok_or_else(|| -> Error {
-                    format_err!("Block information not found")
-                        .context(ErrorKind::RpcError)
-                        .into()
+                block_results.chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        "Block results information not found",
+                    )
                 })
             })
             .collect::<Result<Vec<BlockResults>>>()
@@ -142,9 +162,10 @@ impl Client for RpcClient {
         self.call::<BroadcastTxResult>("broadcast_tx_sync", &params)
             .and_then(|result| {
                 if result.code != 0 {
-                    return Err(Error::from(ErrorKind::TransactionValidationFailed));
+                    Err(Error::new(ErrorKind::TendermintRpcError, result.log))
+                } else {
+                    Ok(result)
                 }
-                Ok(result)
             })
     }
 
@@ -155,6 +176,12 @@ impl Client for RpcClient {
             json!(null),
             json!(null),
         ];
-        self.call("abci_query", &params)
+        let result = self.call::<QueryResult>("abci_query", &params)?;
+
+        if result.code() != 0 {
+            return Err(Error::new(ErrorKind::TendermintRpcError, result.log()));
+        }
+
+        Ok(result)
     }
 }

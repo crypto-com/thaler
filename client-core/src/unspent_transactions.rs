@@ -1,12 +1,10 @@
 //! Operations on unspent transactions
 use std::ops::{Deref, DerefMut};
 
-use failure::ResultExt;
-
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use client_common::{ErrorKind, Result};
+use client_common::{Error, ErrorKind, Result, ResultExt};
 
 /// An iterator over unspent transactions
 ///
@@ -95,20 +93,29 @@ impl UnspentTransactions {
         let mut selected_amount = Coin::zero();
 
         for (i, (_, unspent_transaction)) in self.inner.iter().enumerate() {
-            selected_amount = (selected_amount + unspent_transaction.value)
-                .context(ErrorKind::BalanceAdditionError)?;
+            selected_amount = (selected_amount + unspent_transaction.value).chain(|| {
+                (
+                    ErrorKind::IllegalInput,
+                    "Total amount of selected UTXOs exceeds maximum allowed value",
+                )
+            })?;
 
             if selected_amount >= amount {
                 return Ok((
                     SelectedUnspentTransactions {
                         inner: &self.inner[..=i],
                     },
-                    (selected_amount - amount).context(ErrorKind::BalanceAdditionError)?,
+                    (selected_amount - amount).chain(|| {
+                        (
+                            ErrorKind::IllegalInput,
+                            "Amount of selected UTXOs is negative",
+                        )
+                    })?,
                 ));
             }
         }
 
-        Err(ErrorKind::InsufficientBalance.into())
+        Err(Error::new(ErrorKind::InvalidInput, "Insufficient balance"))
     }
 
     /// Selects all unspent transactions

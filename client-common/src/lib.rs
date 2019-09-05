@@ -12,7 +12,7 @@ pub mod tendermint;
 #[doc(inline)]
 pub use block_header::BlockHeader;
 #[doc(inline)]
-pub use error::{Error, ErrorKind, Result};
+pub use error::{Error, ErrorKind, Result, ResultExt};
 #[doc(inline)]
 pub use key::{PrivateKey, PublicKey};
 #[doc(inline)]
