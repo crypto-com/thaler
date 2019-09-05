@@ -10,7 +10,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Error {
     kind: ErrorKind,
     message: String,
-    source: Option<Box<dyn std::error::Error + 'static>>,
+    origin: Option<Box<dyn std::error::Error + Sync + Send + 'static>>,
 }
 
 impl Error {
@@ -23,7 +23,7 @@ impl Error {
         Error {
             kind,
             message: String::from(message),
-            source: None,
+            origin: None,
         }
     }
 
@@ -32,7 +32,7 @@ impl Error {
     pub fn new_with_source<M>(
         kind: ErrorKind,
         message: M,
-        source: Box<dyn std::error::Error + 'static>,
+        origin: Box<dyn std::error::Error + Send + Sync + 'static>,
     ) -> Self
     where
         String: From<M>,
@@ -40,7 +40,7 @@ impl Error {
         Error {
             kind,
             message: String::from(message),
-            source: Some(source),
+            origin: Some(origin),
         }
     }
 
@@ -48,6 +48,12 @@ impl Error {
     #[inline]
     pub fn kind(&self) -> ErrorKind {
         self.kind
+    }
+
+    /// Returns origin of current error
+    #[inline]
+    pub fn origin(&self) -> Option<&(dyn std::error::Error + Send + Sync + 'static)> {
+        self.origin.as_ref().map(AsRef::as_ref)
     }
 }
 
@@ -62,21 +68,16 @@ impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {}", self.kind, self.message)?;
 
-        if let Some(ref source) = self.source {
+        if let Some(ref origin) = self.origin {
             writeln!(f)?;
-            write!(f, " => {}", source)?;
+            write!(f, " => {}", origin)?;
         }
 
         Ok(())
     }
 }
 
-impl std::error::Error for Error {
-    #[inline]
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        self.source.as_ref().map(AsRef::as_ref)
-    }
-}
+impl std::error::Error for Error {}
 
 /// Different variants of possible errors
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -164,7 +165,7 @@ impl<T> ResultExt<T> for Option<T> {
 
 impl<T, E> ResultExt<T> for std::result::Result<T, E>
 where
-    E: std::error::Error + 'static,
+    E: std::error::Error + Send + Sync + 'static,
 {
     #[inline]
     fn chain<F, M>(self, f: F) -> Result<T>
