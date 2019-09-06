@@ -60,7 +60,7 @@ impl BlockResults {
                         if event.event_type == TendermintEventType::ValidTransactions.to_string() {
                             let tx_id = find_tx_id_from_event_attributes(&event.attributes)?;
                             if let Some(id) = tx_id {
-                                transactions.push(tx_id);
+                                transactions.push(id);
                             }
                         }
                     }
