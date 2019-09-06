@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 use std::convert::TryFrom;
 
-use base64::decode;
+use base64;
 use serde::Deserialize;
 
 use chain_core::common::TendermintEventType;
@@ -58,23 +58,8 @@ impl BlockResults {
                 for transaction in deliver_tx.iter() {
                     for event in transaction.events.iter() {
                         if event.event_type == TendermintEventType::ValidTransactions.to_string() {
-                            for attribute in event.attributes.iter() {
-                                let decoded = decode(&attribute.value).chain(|| {
-                                    (
-                                        ErrorKind::DeserializationError,
-                                        "Unable to decode base64 bytes of transaction id in block results"
-                                    )
-                                })?;
-                                if 32 != decoded.len() {
-                                    return Err(Error::new(
-                                        ErrorKind::InvalidInput,
-                                        "Expected transaction id of 32 bytes",
-                                    ));
-                                }
-
-                                let mut id: [u8; 32] = [0; 32];
-                                id.copy_from_slice(&decoded);
-
+                            let tx_id = find_tx_id_from_event_attributes(&event.attributes)?;
+                            if let Some(id) = tx_id {
                                 transactions.push(id);
                             }
                         }
@@ -94,7 +79,7 @@ impl BlockResults {
                 for event in end_block.events.iter() {
                     if event.event_type == TendermintEventType::BlockFilter.to_string() {
                         let attribute = &event.attributes[0];
-                        let decoded = decode(&attribute.value).chain(|| {
+                        let decoded = base64::decode(&attribute.value).chain(|| {
                             (
                                 ErrorKind::DeserializationError,
                                 "Unable to decode base64 bytes of block filter in block results",
@@ -113,6 +98,44 @@ impl BlockResults {
     }
 }
 
+fn find_tx_id_from_event_attributes(attributes: &[Attribute]) -> Result<Option<[u8; 32]>> {
+    for attribute in attributes.iter() {
+        let key = base64::decode(&attribute.key).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode base64 bytes of attribute key in block results",
+            )
+        })?;
+        if key != b"txid" {
+            continue;
+        }
+
+        let tx_id = base64::decode(&attribute.value).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode base64 bytes of transaction id in block results",
+            )
+        })?;
+        let tx_id = hex::decode(&tx_id).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode hex bytes of transaction id in block results",
+            )
+        })?;
+        if 32 != tx_id.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Expected transaction id of 32 bytes",
+            ));
+        }
+        let mut id: [u8; 32] = [0; 32];
+        id.copy_from_slice(&tx_id);
+
+        return Ok(Some(id));
+    }
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,7 +152,7 @@ mod tests {
                         event_type: TendermintEventType::ValidTransactions.to_string(),
                         attributes: vec![Attribute {
                             key: "dHhpZA==".to_owned(),
-                            value: "kOzcmhZgAAaw5roBdqDNniwRjjKNe+foJEiDAOObTDQ=".to_owned(),
+                            value: "MDc2NmQ0ZTFjMDkxMjRhZjlhZWI0YTdlZDk5ZDgxNjU0YTg0NDczZjEzMzk0OGNlYTA1MGRhYTE3ZmYwZTdmZg==".to_owned(),
                         }],
                     }],
                 }]),

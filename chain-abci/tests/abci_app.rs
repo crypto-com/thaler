@@ -496,7 +496,10 @@ fn deliver_tx_should_add_valid_tx() {
     assert_eq!(1, app.delivered_txs.len());
     assert_eq!(1, cresp.events.len());
     assert_eq!(1, cresp.events[0].attributes.len());
-    assert_eq!(&tx.id()[..], &cresp.events[0].attributes[0].value[..]);
+    assert_eq!(
+        &hex::encode(&tx.id()).as_bytes().to_vec(),
+        &cresp.events[0].attributes[0].value
+    );
 }
 
 #[test]
