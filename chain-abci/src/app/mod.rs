@@ -201,8 +201,8 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             self.uncommitted_account_root_hash = next_account_root;
             let mut kvpair = KVPair::new();
             kvpair.key = Vec::from(&b"txid"[..]);
-            // TODO: "Keys and values in tags must be UTF-8 encoded strings" ?
-            kvpair.value = Vec::from(&txaux.tx_id()[..]);
+            kvpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
+
             let mut event = Event::new();
             event.field_type = TendermintEventType::ValidTransactions.to_string();
             event.attributes.push(kvpair);
