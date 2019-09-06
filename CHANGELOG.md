@@ -13,7 +13,7 @@ There are no guarantees on future API and binary compatibility at this stage.
 * initial configurable linear fee scheme
 * initial basic network operations related to bonded stake management
 * sketched out obfuscated transaction format
-* transaction binary payloads use SCALE
+* transaction binary payloads use [SCALE](https://github.com/paritytech/parity-scale-codec#parity-scale-codec) codec
 * transaction validation in enclaves isolated in a separate process reached via a 0MQ socket
 * threshold multi-signature support using Merkle trees of combined public keys and the Schnorr MuSig scheme
 * * (for the sample use case in the context of what was marketed as "Proof of Goods & Services Delivered", see https://github.com/crypto-com/multisig-demo ) 
