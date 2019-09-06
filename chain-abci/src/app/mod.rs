@@ -200,7 +200,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             // TODO: most of these intermediate uncommitted tree roots aren't useful (not exposed for querying) -- prune them / the account storage?
             self.uncommitted_account_root_hash = next_account_root;
             let mut kvpair = KVPair::new();
-            kvpair.key = Vec::from(&b"tx.id"[..]);
+            kvpair.key = Vec::from(&b"txid"[..]);
             kvpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
 
             let mut event = Event::new();

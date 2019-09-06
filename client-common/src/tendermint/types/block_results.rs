@@ -59,12 +59,9 @@ impl BlockResults {
                     for event in transaction.events.iter() {
                         if event.event_type == TendermintEventType::ValidTransactions.to_string() {
                             let tx_id = find_tx_id_from_event_attributes(&event.attributes)?;
-                            match tx_id {
-                                Some(tx_id) => {
-                                    transactions.push(tx_id);
-                                }
-                                None => (),
-                            };
+                            if let Some(id) = tx_id {
+                                transactions.push(tx_id);
+                            }
                         }
                     }
                 }
@@ -101,7 +98,7 @@ impl BlockResults {
     }
 }
 
-fn find_tx_id_from_event_attributes(attributes: &Vec<Attribute>) -> Result<Option<[u8; 32]>> {
+fn find_tx_id_from_event_attributes(attributes: &[Attribute]) -> Result<Option<[u8; 32]>> {
     for attribute in attributes.iter() {
         let key = base64::decode(&attribute.key).chain(|| {
             (
@@ -109,7 +106,7 @@ fn find_tx_id_from_event_attributes(attributes: &Vec<Attribute>) -> Result<Optio
                 "Unable to decode base64 bytes of attribute key in block results",
             )
         })?;
-        if key != b"tx.id" {
+        if key != b"txid" {
             continue;
         }
 
@@ -154,7 +151,7 @@ mod tests {
                     events: vec![Event {
                         event_type: TendermintEventType::ValidTransactions.to_string(),
                         attributes: vec![Attribute {
-                            key: "dHguaWQ=".to_owned(),
+                            key: "dHhpZA==".to_owned(),
                             value: "MDc2NmQ0ZTFjMDkxMjRhZjlhZWI0YTdlZDk5ZDgxNjU0YTg0NDczZjEzMzk0OGNlYTA1MGRhYTE3ZmYwZTdmZg==".to_owned(),
                         }],
                     }],
@@ -194,7 +191,7 @@ mod tests {
                     events: vec![Event {
                         event_type: TendermintEventType::ValidTransactions.to_string(),
                         attributes: vec![Attribute {
-                            key: "dHguaWQ=".to_owned(),
+                            key: "dHhpZA==".to_owned(),
                             value: "kOzcmhZgAAaw5riwRjjKNe+foJEiDAOObTDQ=".to_owned(),
                         }],
                     }],
