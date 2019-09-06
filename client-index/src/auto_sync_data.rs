@@ -6,7 +6,6 @@ use client_common::{PrivateKey, PublicKey};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use websocket::OwnedMessage;
-
 /// give add wallet command via this queue
 pub type AutoSyncQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
@@ -31,6 +30,24 @@ impl AutoSyncData {
         Default::default()
     }
 }
+
+#[derive(Debug, Default, Clone)]
+/// auto sync send queue arc
+pub struct AutoSyncSendQueue {
+    /// sending queue
+    pub queue: Option<futures::sync::mpsc::Sender<OwnedMessage>>,
+}
+
+/// make new send queue
+impl AutoSyncSendQueue {
+    /// make new data
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+/// auto sync send queue arc type
+pub type AutoSyncSendQueueShared = Arc<Mutex<AutoSyncSendQueue>>;
 
 /// auto sync data shared
 pub type AutoSyncDataShared = Arc<Mutex<AutoSyncData>>;

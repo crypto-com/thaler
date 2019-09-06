@@ -2,10 +2,12 @@
 //! (todo) make upper json rpc wrapper
 
 use crate::auto_sync_core::AutoSynchronizerCore;
-use crate::auto_sync_data::{AutoSyncDataShared, AutoSyncQueue, WalletInfos};
+use crate::auto_sync_data::{
+    AutoSyncDataShared, AutoSyncQueue, AutoSyncSendQueue, AutoSyncSendQueueShared, WalletInfos,
+};
 use crate::auto_sync_data::{MyQueue, CMD_SUBSCRIBE};
-
 use crate::BlockHandler;
+use std::sync::{Arc, Mutex};
 
 use client_common::tendermint::Client;
 use client_common::{Result, Storage};
@@ -25,10 +27,7 @@ pub struct AutoSynchronizer {
     pub core: Option<MyQueue>,
     /// websocket url
     websocket_url: String,
-    /// websocket sender
-    my_sender: Option<futures::sync::mpsc::Sender<OwnedMessage>>,
-    /// websocket receiver
-    my_receiver: Option<futures::sync::mpsc::Receiver<OwnedMessage>>,
+    send_queue: AutoSyncSendQueueShared,
 }
 
 /// handling web-socket
@@ -51,10 +50,7 @@ impl AutoSynchronizer {
             core: None,
             /// websocket url
             websocket_url,
-            /// websocket sender
-            my_sender: None,
-            /// websocket receiver
-            my_receiver: None,
+            send_queue: Arc::new(Mutex::new(AutoSyncSendQueue::new())),
         }
     }
 
@@ -66,14 +62,8 @@ impl AutoSynchronizer {
         block_handler: H,
         data: AutoSyncDataShared,
     ) {
-        let channel = futures::sync::mpsc::channel(0);
-        // tx, rx
-        let (channel_tx, channel_rx) = channel;
-        self.my_sender = Some(channel_tx.clone());
-        self.my_receiver = Some(channel_rx);
-
         let mut core = AutoSynchronizerCore::new(
-            channel_tx.clone(),
+            self.send_queue.clone(),
             storage,
             client,
             block_handler,
@@ -92,45 +82,55 @@ impl AutoSynchronizer {
 
     /// activate tokio websocket
     pub fn run_network(&mut self) -> Result<()> {
-        log::info!("Connecting to {}", self.websocket_url);
-        let mut runtime = tokio::runtime::current_thread::Builder::new()
-            .build()
-            .expect("get tokio builder");
-        // get synchronous sink
-        assert!(self.my_sender.is_some());
-        assert!(self.my_receiver.is_some());
-        let channel_tx = self.my_sender.as_ref().expect("get ref").clone();
-        let channel_rx = self.my_receiver.take().expect("take");
-        let mut channel_sink = channel_tx.clone().wait();
+        loop {
+            let channel = futures::sync::mpsc::channel(0);
+            // tx, rx
+            let (channel_tx, channel_rx) = channel;
+            {
+                let mut data = self.send_queue.lock().unwrap();
+                data.queue = Some(channel_tx.clone());
+            }
+            log::info!("Connecting to {}", self.websocket_url);
+            let mut runtime = tokio::runtime::current_thread::Builder::new()
+                .build()
+                .expect("get tokio builder");
+            // get synchronous sink
+            let mut channel_sink = channel_tx.clone().wait();
 
-        let runner = ClientBuilder::new(&self.websocket_url)
-            .expect("client-builder new")
-            .add_protocol("rust-websocket")
-            .async_connect_insecure()
-            .and_then(|(duplex, _)| {
-                channel_sink
-                    .send(OwnedMessage::Text(CMD_SUBSCRIBE.to_string()))
-                    .expect("send to channel sink");
-                let (sink, stream) = duplex.split();
+            let runner = ClientBuilder::new(&self.websocket_url)
+                .expect("client-builder new")
+                .add_protocol("rust-websocket")
+                .async_connect_insecure()
+                .and_then(|(duplex, _)| {
+                    channel_sink
+                        .send(OwnedMessage::Text(CMD_SUBSCRIBE.to_string()))
+                        .expect("send to channel sink");
+                    let (sink, stream) = duplex.split();
 
-                stream
-                    .filter_map(|message| match message {
-                        OwnedMessage::Text(a) => {
-                            if let Some(core) = self.core.as_ref() {
-                                core.send(OwnedMessage::Text(a.clone())).expect("core send");
+                    stream
+                        .filter_map(|message| match message {
+                            OwnedMessage::Text(a) => {
+                                if let Some(core) = self.core.as_ref() {
+                                    core.send(OwnedMessage::Text(a.clone())).expect("core send");
+                                }
+
+                                None
                             }
-
-                            None
-                        }
-                        OwnedMessage::Binary(_a) => None,
-                        OwnedMessage::Close(e) => Some(OwnedMessage::Close(e)),
-                        OwnedMessage::Ping(d) => Some(OwnedMessage::Pong(d)),
-                        _ => None,
-                    })
-                    .select(channel_rx.map_err(|_| WebSocketError::NoDataAvailable))
-                    .forward(sink)
-            });
-        let _ = runtime.block_on(runner).expect("tokio block_on");
-        Ok(())
+                            OwnedMessage::Binary(_a) => None,
+                            OwnedMessage::Close(e) => Some(OwnedMessage::Close(e)),
+                            OwnedMessage::Ping(d) => Some(OwnedMessage::Pong(d)),
+                            _ => None,
+                        })
+                        .select(channel_rx.map_err(|_| WebSocketError::NoDataAvailable))
+                        .forward(sink)
+                });
+            match runtime.block_on(runner) {
+                Ok(_a) => {}
+                Err(b) => {
+                    log::warn!("connection fail {}", b);
+                    std::thread::sleep(std::time::Duration::from_millis(1000));
+                }
+            }
+        }
     }
 }
