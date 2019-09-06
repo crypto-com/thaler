@@ -1,3 +1,31 @@
 # Changelog
 
-As the current codebase is a pre-alpha version with many moving parts, strict versioning did not start.
+*September 6, 2019*
+
+The release is an incomplete alpha version meant to be deployed on the first iteration of the public testnet.
+There are no guarantees on future API and binary compatibility at this stage.
+
+## v0.0.1
+
+### Features
+* initial genesis procedure based on one-off snapshotting the ERC20 contract state and several allocation mentioned in the original whitepaper
+* initial rewards pool
+* initial configurable linear fee scheme
+* initial basic network operations related to bonded stake management
+* sketched out obfuscated transaction format
+* transaction binary payloads use SCALE
+* transaction validation in enclaves isolated in a separate process reached via a 0MQ socket
+* threshold multi-signature support using Merkle trees of combined public keys and the Schnorr MuSig scheme
+* * (for the sample use case in the context of what was marketed as "Proof of Goods & Services Delivered", see https://github.com/crypto-com/multisig-demo ) 
+* client library "backend" support for transfers, multi-signatures and staking operations
+
+### Known Limitation
+Far too many to list them all (e.g. a validator set fixed at genesis or temporarily mocked transaction privacy) :)
+
+*Pre-alpha versions*
+
+While versioning was not strictly followed in the pre-alpha stages, there were a few tagged releases that signalled format changes that broke the client functionality:
+
+* `pre-alpha-feeless-client`: the change after this tag added the linear fee scheme; the client could have potentially construct invalid transactions due to not accounting for the fee
+* `pre-alpha-no-account-genesis`: before staking operations support, the initial "state" was constructed from transactions with no inputs; the change after this tag added the extra staking-related operations
+* `pre-alpha-pre-enc-tx`: the change after this tag sketched out the obfuscated transaction format
