@@ -102,6 +102,13 @@ $ yarn
 $ yarn test
 ```
 
+If you are running local mode, depending on which fee schema environment you are running:
+
+```bash
+$ yarn
+$ TEST_ONLY=<WITH_FEE|ZERO_FEE> yarn test
+```
+
 ## Appendix
 
 ### Initialized Wallet
