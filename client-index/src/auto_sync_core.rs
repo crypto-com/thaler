@@ -4,8 +4,8 @@
 
 use crate::auto_sync_data::WalletInfo;
 use crate::auto_sync_data::{
-    AddWalletCommand, AutoSyncDataShared, WalletInfos, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS,
-    RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
+    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueueShared, WalletInfos, BLOCK_REQUEST_TIME,
+    CMD_BLOCK, CMD_STATUS, RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
 };
 
 use crate::service::GlobalStateService;
@@ -62,7 +62,7 @@ where
     C: Client,
     H: BlockHandler,
 {
-    sender: futures::sync::mpsc::Sender<OwnedMessage>,
+    sender: AutoSyncSendQueueShared,
     my_sender: Sender<OwnedMessage>,
     my_receiver: Receiver<OwnedMessage>,
     old_blocktime: SystemTime,
@@ -73,7 +73,7 @@ where
     global_state_service: GlobalStateService<S>,
     client: C,
     block_handler: H,
-    wallets: Vec<WalletInfo>,
+    wallets: WalletInfos,
     current_wallet: usize,
 
     data: AutoSyncDataShared,
@@ -88,7 +88,7 @@ where
 {
     /// create auto sync
     pub fn new(
-        sender: futures::sync::mpsc::Sender<OwnedMessage>,
+        sender: AutoSyncSendQueueShared,
         storage: S,
         client: C,
         block_handler: H,
@@ -122,7 +122,9 @@ where
     /// to process multiple wallets
     fn get_current_wallet(&self) -> WalletInfo {
         assert!(self.current_wallet < self.wallets.len());
-        self.wallets[self.current_wallet].clone()
+        let keys: Vec<String> = self.wallets.keys().cloned().collect();
+        let key: String = keys[self.current_wallet].clone();
+        self.wallets[&key].clone()
     }
 
     /// get height from database
@@ -150,11 +152,20 @@ where
             );
             return Ok(());
         }
+        // now height ok, extend max height
+        if height > self.max_height {
+            self.max_height = height;
+        }
+
+        // now height ok, extend max height
+        if height > self.max_height {
+            self.max_height = height;
+        }
 
         // update information
         {
             let mut data = self.data.lock().unwrap();
-            data.current_height = current;
+            data.current_height = height;
             data.max_height = self.max_height;
             data.wallet = self.get_current_wallet().name;
             if data.max_height > 0 {
@@ -217,7 +228,6 @@ where
     pub fn get_queue(&self) -> Sender<OwnedMessage> {
         self.my_sender.clone()
     }
-
     /// because everything is done via channel
     /// no mutex is necessary
     /// wallet can be added in runtime
@@ -237,7 +247,8 @@ where
             private_key,
         };
 
-        self.wallets.push(info.clone());
+        // upsert
+        self.wallets.insert(info.name.clone(), info);
         log::info!("wallets length {}", self.wallets.len());
         Ok(())
     }
@@ -372,7 +383,15 @@ where
     }
     /// request status to fetch max height
     pub fn check_status(&mut self) -> Result<()> {
-        let mut sink = self.sender.clone().wait();
+        let sendqueue: Option<futures::sync::mpsc::Sender<OwnedMessage>>;
+        {
+            let data = self.sender.lock().unwrap();
+            sendqueue = data.queue.clone();
+        }
+        if sendqueue.is_none() {
+            return Ok(());
+        }
+        let mut sink = sendqueue.unwrap().wait();
         sink.send(OwnedMessage::Text(CMD_STATUS.to_string()))
             .chain(|| {
                 (
@@ -429,6 +448,15 @@ where
     in one thread instead of dedicated thread
     */
     pub fn send_request_block(&mut self) -> Result<()> {
+        let sendqueue: Option<futures::sync::mpsc::Sender<OwnedMessage>>;
+        {
+            let data = self.sender.lock().unwrap();
+            sendqueue = data.queue.clone();
+        }
+        if sendqueue.is_none() {
+            return Ok(());
+        }
+        let mut sink = sendqueue.unwrap().wait();
         let mut json: Value = serde_json::from_str(CMD_BLOCK).chain(|| {
             (
                 ErrorKind::DeserializationError,
@@ -437,7 +465,6 @@ where
         })?;
         let request = self.get_current_height() + 1;
         json["params"] = json!([request.to_string()]);
-        let mut sink = self.sender.clone().wait();
         sink.send(OwnedMessage::Text(json.to_string())).chain(|| {
             (
                 ErrorKind::InternalError,
@@ -469,8 +496,11 @@ where
             let _ = self
                 .my_receiver
                 .recv_timeout(time::Duration::from_millis(RECEIVE_TIMEOUT))
-                .map(|a| {
-                    self.parse(a).expect("correct parsing");
+                .map(|a| match self.parse(a) {
+                    Ok(_a) => {}
+                    Err(b) => {
+                        log::info!("Parsing Error {}", b);
+                    }
                 });
             let _ = self.polling();
         }
@@ -481,7 +511,7 @@ where
 mod tests {
     use super::*;
 
-    use crate::auto_sync_data::AutoSyncData;
+    use crate::auto_sync_data::{AutoSyncData, AutoSyncSendQueue};
     use chain_core::init::address::RedeemAddress;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
@@ -552,8 +582,19 @@ mod tests {
         let data = Arc::new(Mutex::new(AutoSyncData::new()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
-        let mut core =
-            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+        let mut send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
+        {
+            let mut data = send_queue.lock().unwrap();
+            data.queue = Some(channel_tx.clone());
+        }
+        let mut core = AutoSynchronizerCore::new(
+            send_queue,
+            storage,
+            client,
+            handler,
+            WalletInfos::new(),
+            data,
+        );
 
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);
@@ -574,8 +615,20 @@ mod tests {
         let data = Arc::new(Mutex::new(AutoSyncData::new()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
-        let mut core =
-            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+        let mut send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
+        {
+            let mut data = send_queue.lock().unwrap();
+            data.queue = Some(channel_tx.clone());
+        }
+
+        let mut core = AutoSynchronizerCore::new(
+            send_queue,
+            storage,
+            client,
+            handler,
+            WalletInfos::new(),
+            data,
+        );
         core.change_to_wait();
 
         match core.state {
@@ -592,8 +645,19 @@ mod tests {
         let data = Arc::new(Mutex::new(AutoSyncData::new()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
-        let mut core =
-            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+        let mut send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
+        {
+            let mut data = send_queue.lock().unwrap();
+            data.queue = Some(channel_tx.clone());
+        }
+        let mut core = AutoSynchronizerCore::new(
+            send_queue,
+            storage,
+            client,
+            handler,
+            WalletInfos::new(),
+            data,
+        );
 
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);

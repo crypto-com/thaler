@@ -410,7 +410,10 @@ mod tests {
                                 event_type: TendermintEventType::ValidTransactions.to_string(),
                                 attributes: vec![Attribute {
                                     key: "dHhpZA==".to_owned(),
-                                    value: encode(&unbond_transaction().tx_id()).to_owned(),
+                                    value: encode(
+                                        hex::encode(&unbond_transaction().tx_id()).as_bytes(),
+                                    )
+                                    .to_owned(),
                                 }],
                             }],
                         }]),
