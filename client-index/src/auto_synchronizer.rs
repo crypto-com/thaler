@@ -127,7 +127,7 @@ impl AutoSynchronizer {
             match runtime.block_on(runner) {
                 Ok(_a) => {}
                 Err(b) => {
-                    println!("connection fail {}", b);
+                    log::warn!("connection fail {}", b);
                     std::thread::sleep(std::time::Duration::from_millis(1000));
                 }
             }
