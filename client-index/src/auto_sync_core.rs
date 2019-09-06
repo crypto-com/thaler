@@ -73,7 +73,7 @@ where
     global_state_service: GlobalStateService<S>,
     client: C,
     block_handler: H,
-    wallets: Vec<WalletInfo>,
+    wallets: WalletInfos,
     current_wallet: usize,
 
     data: AutoSyncDataShared,
@@ -122,7 +122,9 @@ where
     /// to process multiple wallets
     fn get_current_wallet(&self) -> WalletInfo {
         assert!(self.current_wallet < self.wallets.len());
-        self.wallets[self.current_wallet].clone()
+        let keys: Vec<String> = self.wallets.keys().cloned().collect();
+        let key: String = keys[self.current_wallet].clone();
+        self.wallets[&key].clone()
     }
 
     /// get height from database
@@ -242,7 +244,8 @@ where
             private_key,
         };
 
-        self.wallets.push(info.clone());
+        // upsert
+        self.wallets.insert(info.name.clone(), info);
         log::info!("wallets length {}", self.wallets.len());
         Ok(())
     }
@@ -557,8 +560,14 @@ mod tests {
         let data = Arc::new(Mutex::new(AutoSyncData::new()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
-        let mut core =
-            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+        let mut core = AutoSynchronizerCore::new(
+            channel_tx.clone(),
+            storage,
+            client,
+            handler,
+            WalletInfos::new(),
+            data,
+        );
 
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);
@@ -579,8 +588,14 @@ mod tests {
         let data = Arc::new(Mutex::new(AutoSyncData::new()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
-        let mut core =
-            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+        let mut core = AutoSynchronizerCore::new(
+            channel_tx.clone(),
+            storage,
+            client,
+            handler,
+            WalletInfos::new(),
+            data,
+        );
         core.change_to_wait();
 
         match core.state {
@@ -597,8 +612,14 @@ mod tests {
         let data = Arc::new(Mutex::new(AutoSyncData::new()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
-        let mut core =
-            AutoSynchronizerCore::new(channel_tx.clone(), storage, client, handler, vec![], data);
+        let mut core = AutoSynchronizerCore::new(
+            channel_tx.clone(),
+            storage,
+            client,
+            handler,
+            WalletInfos::new(),
+            data,
+        );
 
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);
