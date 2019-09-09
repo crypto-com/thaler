@@ -81,6 +81,16 @@ pub struct AddWalletCommand {
     /// private key
     pub private_key: Vec<u8>,
 }
+
+/// Command to remove wallet from auto-sync
+#[derive(Serialize, Deserialize)]
+pub struct RemoveWalletCommand {
+    /// ID of this command
+    pub id: String,
+    /// Wallet name
+    pub name: String,
+}
+
 /// subscribe command
 pub const CMD_SUBSCRIBE: &str = r#"
     {

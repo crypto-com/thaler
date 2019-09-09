@@ -21,6 +21,9 @@ pub trait SyncRpc: Send + Sync {
     // sync continuously
     #[rpc(name = "sync_unlockWallet")]
     fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<()>;
+
+    #[rpc(name = "sync_stop")]
+    fn sync_stop(&self, request: WalletRequest) -> Result<()>;
 }
 
 pub struct SyncRpcImpl<T, S, C, H>
@@ -65,6 +68,18 @@ where
             self.prepare_synchronized_parameters(&request)?;
         self.auto_synchronizer
             .add_wallet(request.name, view_key, private_key, staking_addresses)
+            .map_err(to_rpc_error)
+    }
+
+    fn sync_stop(&self, request: WalletRequest) -> Result<()> {
+        // Just to check if passphrase is correct
+        let _ = self
+            .client
+            .view_key(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+
+        self.auto_synchronizer
+            .remove_wallet(request.name)
             .map_err(to_rpc_error)
     }
 }
