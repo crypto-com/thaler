@@ -4,8 +4,8 @@
 
 use crate::auto_sync_data::WalletInfo;
 use crate::auto_sync_data::{
-    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueueShared, WalletInfos, BLOCK_REQUEST_TIME,
-    CMD_BLOCK, CMD_STATUS, RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
+    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueueShared, RemoveWalletCommand,
+    WalletInfos, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS, RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
 };
 
 use crate::service::GlobalStateService;
@@ -253,6 +253,12 @@ where
         Ok(())
     }
 
+    /// Removes a wallet from auto-sync
+    #[inline]
+    pub fn remove_wallet(&mut self, name: &str) {
+        let _ = self.wallets.remove(name);
+    }
+
     /// Value is given from websocket_rpc
     /// received
     fn do_parse(&mut self, value: Value) -> Result<()> {
@@ -280,6 +286,16 @@ where
                     info.view_key,
                     private_key,
                 );
+            }
+            "remove_wallet" => {
+                let info: RemoveWalletCommand = serde_json::from_value(value).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to deserialize remove_wallet from json value",
+                    )
+                })?;
+
+                self.remove_wallet(&info.name);
             }
             "subscribe_reply#event" => {
                 let new_block: Block = serde_json::from_value(
@@ -582,7 +598,7 @@ mod tests {
         let data = Arc::new(Mutex::new(AutoSyncData::new()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
-        let mut send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
+        let send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
         {
             let mut data = send_queue.lock().unwrap();
             data.queue = Some(channel_tx.clone());
@@ -605,6 +621,9 @@ mod tests {
         core.change_wallet();
         assert!(core.current_wallet == 0);
         assert!(core.get_current_wallet().name == "a".to_string());
+
+        core.remove_wallet("a".into());
+        assert!(core.wallets.is_empty());
     }
 
     #[test]
@@ -615,7 +634,7 @@ mod tests {
         let data = Arc::new(Mutex::new(AutoSyncData::new()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
-        let mut send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
+        let send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
         {
             let mut data = send_queue.lock().unwrap();
             data.queue = Some(channel_tx.clone());
@@ -645,7 +664,7 @@ mod tests {
         let data = Arc::new(Mutex::new(AutoSyncData::new()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
-        let mut send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
+        let send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
         {
             let mut data = send_queue.lock().unwrap();
             data.queue = Some(channel_tx.clone());
