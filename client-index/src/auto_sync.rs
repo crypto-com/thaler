@@ -10,7 +10,7 @@
 //! autosync.add_wallet(request.name, view_key, private_key, staking_addresses);
 //!
 
-use crate::auto_sync_data::{AddWalletCommand, AutoSyncDataShared};
+use crate::auto_sync_data::{AddWalletCommand, AutoSyncDataShared, RemoveWalletCommand};
 use crate::auto_synchronizer::AutoSynchronizer;
 use crate::BlockHandler;
 use chain_core::state::account::StakedStateAddress;
@@ -76,6 +76,17 @@ impl AutoSync {
 
         self.send_json(data)
     }
+
+    /// Removes a wallet from auto-sync
+    pub fn remove_wallet(&self, name: String) -> Result<()> {
+        let data = json!(RemoveWalletCommand {
+            id: "remove_wallet".to_string(),
+            name
+        });
+
+        self.send_json(data)
+    }
+
     /// send json
     pub fn send_json(&self, json: serde_json::Value) -> Result<()> {
         let send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>;
