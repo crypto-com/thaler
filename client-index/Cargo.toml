@@ -29,7 +29,7 @@ serde = { version = "1.0", features = ["derive"] }
 tokio="0.1.22"
 
 [dev-dependencies]
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "ac9843a361114b42178acc119ab77d5a149985f5", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
 hex = "0.3.2"
 
 [features]
