@@ -5,6 +5,13 @@
 The release is an incomplete alpha version meant to be deployed on the first iteration of the public testnet.
 There are no guarantees on future API and binary compatibility at this stage.
 
+## v0.0.2 (Unreleased)
+
+### Features
+
+### Bug Fixes
+* Creating a transfer address also creates a staking address
+
 ## v0.0.1
 
 ### Features
