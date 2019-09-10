@@ -1,6 +1,8 @@
+use std::collections::BTreeSet;
+use std::str::FromStr;
+
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
-use std::str::FromStr;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
@@ -35,13 +37,13 @@ pub trait WalletRpc: Send + Sync {
     fn list(&self) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_listPublicKeys")]
-    fn list_public_keys(&self, request: WalletRequest) -> Result<Vec<PublicKey>>;
+    fn list_public_keys(&self, request: WalletRequest) -> Result<BTreeSet<PublicKey>>;
 
     #[rpc(name = "wallet_listStakingAddresses")]
-    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
+    fn list_staking_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>>;
 
     #[rpc(name = "wallet_listTransferAddresses")]
-    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
+    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>>;
 
     #[rpc(name = "wallet_sendToAddress")]
     fn send_to_address(
@@ -126,20 +128,20 @@ where
         self.client.wallets().map_err(to_rpc_error)
     }
 
-    fn list_public_keys(&self, request: WalletRequest) -> Result<Vec<PublicKey>> {
+    fn list_public_keys(&self, request: WalletRequest) -> Result<BTreeSet<PublicKey>> {
         self.client
             .public_keys(&request.name, &request.passphrase)
             .map_err(to_rpc_error)
     }
 
-    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
+    fn list_staking_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>> {
         self.client
             .staking_addresses(&request.name, &request.passphrase)
             .map(|addresses| addresses.iter().map(ToString::to_string).collect())
             .map_err(to_rpc_error)
     }
 
-    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
+    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>> {
         self.client
             .transfer_addresses(&request.name, &request.passphrase)
             .map(|addresses| addresses.iter().map(ToString::to_string).collect())
@@ -518,10 +520,8 @@ pub mod tests {
                     .unwrap()
                     .len()
             );
-            // FIXME: Create a transfer address also creates a staking address
-            // which is a known problem
             assert_eq!(
-                2,
+                1,
                 wallet_rpc
                     .list_staking_addresses(wallet_request.clone())
                     .unwrap()
@@ -536,10 +536,8 @@ pub mod tests {
         let wallet_request = create_wallet_request("Default", "123456");
 
         wallet_rpc.create(wallet_request.clone()).unwrap();
-        // FIXME: Create a transfer address also creates a staking address
-        // which is a known problem
         assert_eq!(
-            2,
+            1,
             wallet_rpc
                 .list_staking_addresses(wallet_request.clone())
                 .unwrap()
@@ -551,7 +549,7 @@ pub mod tests {
             .unwrap();
 
         assert_eq!(
-            3,
+            2,
             wallet_rpc
                 .list_staking_addresses(wallet_request.clone())
                 .unwrap()

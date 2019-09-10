@@ -1,4 +1,5 @@
 //! Utilities for synchronizing transaction index with Crypto.com Chain
+use std::collections::BTreeSet;
 use std::sync::mpsc::Sender;
 
 use itertools::Itertools;
@@ -62,7 +63,7 @@ where
     /// Synchronizes transaction index for given view key with Crypto.com Chain (from last known height)
     pub fn sync(
         &self,
-        staking_addresses: &[StakedStateAddress],
+        staking_addresses: &BTreeSet<StakedStateAddress>,
         view_key: &PublicKey,
         private_key: &PrivateKey,
         batch_size: Option<usize>,
@@ -146,7 +147,7 @@ where
     #[inline]
     pub fn sync_all(
         &self,
-        staking_addresses: &[StakedStateAddress],
+        staking_addresses: &BTreeSet<StakedStateAddress>,
         view_key: &PublicKey,
         private_key: &PrivateKey,
         batch_size: Option<usize>,
@@ -166,7 +167,7 @@ where
     /// Fast forwards state to given status if app hashes match
     fn fast_forward_status(
         &self,
-        staking_addresses: &[StakedStateAddress],
+        staking_addresses: &BTreeSet<StakedStateAddress>,
         view_key: &PublicKey,
         private_key: &PrivateKey,
         status: &Status,
@@ -200,7 +201,7 @@ where
     /// Fast forwards state to given block if app hashes match
     fn fast_forward_block(
         &self,
-        staking_addresses: &[StakedStateAddress],
+        staking_addresses: &BTreeSet<StakedStateAddress>,
         view_key: &PublicKey,
         private_key: &PrivateKey,
         block: &Block,
@@ -233,7 +234,7 @@ where
 
 fn check_unencrypted_transactions(
     block_filter: &BlockFilter,
-    staking_addresses: &[StakedStateAddress],
+    staking_addresses: &BTreeSet<StakedStateAddress>,
     block: &Block,
 ) -> Result<Vec<Transaction>> {
     for staking_address in staking_addresses {
@@ -246,7 +247,7 @@ fn check_unencrypted_transactions(
 }
 
 fn prepare_block_header(
-    staking_addresses: &[StakedStateAddress],
+    staking_addresses: &BTreeSet<StakedStateAddress>,
     block: &Block,
     block_result: &BlockResults,
 ) -> Result<BlockHeader> {
@@ -463,8 +464,11 @@ mod tests {
             MockBlockHandler,
         );
 
+        let mut staking_addresses = BTreeSet::new();
+        staking_addresses.insert(staking_address);
+
         synchronizer
-            .sync(&[staking_address], &view_key, &private_key, None, None)
+            .sync(&staking_addresses, &view_key, &private_key, None, None)
             .expect("Unable to synchronize");
     }
 }

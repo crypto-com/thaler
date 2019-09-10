@@ -23,6 +23,7 @@ use mpsc::Receiver;
 use mpsc::Sender;
 use serde_json::json;
 use serde_json::Value;
+use std::collections::BTreeSet;
 use std::sync::mpsc;
 use std::time;
 use std::time::SystemTime;
@@ -197,11 +198,8 @@ where
         let block_filter = block_results.block_filter()?;
 
         let wallet = self.get_current_wallet();
-        let unencrypted_transactions = self.check_unencrypted_transactions(
-            &block_filter,
-            wallet.staking_addresses.as_slice(),
-            block,
-        )?;
+        let unencrypted_transactions =
+            self.check_unencrypted_transactions(&block_filter, &wallet.staking_addresses, block)?;
 
         let block_header = BlockHeader {
             app_hash,
@@ -234,7 +232,7 @@ where
     pub fn add_wallet(
         &mut self,
         name: String,
-        staking_addresses: Vec<StakedStateAddress>,
+        staking_addresses: BTreeSet<StakedStateAddress>,
         view_key: PublicKey,
         private_key: PrivateKey,
     ) -> JsonResult<()> {
@@ -494,7 +492,7 @@ where
     fn check_unencrypted_transactions(
         &self,
         block_filter: &BlockFilter,
-        staking_addresses: &[StakedStateAddress],
+        staking_addresses: &BTreeSet<StakedStateAddress>,
         block: &Block,
     ) -> Result<Vec<Transaction>> {
         for staking_address in staking_addresses {
@@ -615,7 +613,9 @@ mod tests {
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);
         let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
-        core.add_wallet("a".into(), vec![staking_address], view_key, private_key)
+        let mut staking_addresses = BTreeSet::new();
+        staking_addresses.insert(staking_address);
+        core.add_wallet("a".into(), staking_addresses, view_key, private_key)
             .expect("auto sync add wallet");
 
         core.change_wallet();
@@ -681,7 +681,10 @@ mod tests {
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);
         let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
-        core.add_wallet("a".into(), vec![staking_address], view_key, private_key)
+        let mut staking_addresses = BTreeSet::new();
+        staking_addresses.insert(staking_address);
+
+        core.add_wallet("a".into(), staking_addresses, view_key, private_key)
             .expect("auto sync add wallet");
 
         core.prepare_get_blocks("1".into());

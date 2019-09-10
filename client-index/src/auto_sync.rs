@@ -19,6 +19,7 @@ use client_common::Result;
 use client_common::Storage;
 use client_common::{PrivateKey, PublicKey};
 use serde_json::json;
+use std::collections::BTreeSet;
 use std::thread;
 use websocket::OwnedMessage;
 #[derive(Clone, Debug, Default)]
@@ -64,7 +65,7 @@ impl AutoSync {
         name: String,
         view_key: PublicKey,
         private_key: PrivateKey,
-        staking_addresses: Vec<StakedStateAddress>,
+        staking_addresses: BTreeSet<StakedStateAddress>,
     ) -> Result<()> {
         let data = json!(AddWalletCommand {
             id: "add_wallet".to_string(),

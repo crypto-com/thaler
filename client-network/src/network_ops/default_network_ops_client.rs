@@ -149,7 +149,7 @@ where
         let public_key = match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
-                .find_public_key(name, passphrase, redeem_address)?
+                .find_staking_key(name, passphrase, redeem_address)?
                 .chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -190,7 +190,7 @@ where
         let public_key = match from_address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
-                .find_public_key(name, passphrase, redeem_address)?
+                .find_staking_key(name, passphrase, redeem_address)?
                 .chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -281,7 +281,7 @@ where
         match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => {
                 self.wallet_client
-                    .find_public_key(name, passphrase, redeem_address)?;
+                    .find_staking_key(name, passphrase, redeem_address)?;
             }
         }
 
@@ -490,9 +490,12 @@ mod tests {
             .unwrap();
         let attributes = StakedStateOpAttributes::new(0);
 
-        assert!(network_ops_client
-            .create_unbond_stake_transaction(name, passphrase, &address, value, attributes)
-            .is_ok());
+        let unbond_stake_transaction = network_ops_client
+            .create_unbond_stake_transaction(name, passphrase, &address, value, attributes);
+
+        println!("{:?}", unbond_stake_transaction);
+
+        assert!(unbond_stake_transaction.is_ok());
     }
 
     #[test]
