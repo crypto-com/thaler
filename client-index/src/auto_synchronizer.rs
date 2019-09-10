@@ -90,21 +90,16 @@ impl AutoSynchronizer {
             .send_queue
             .lock()
             .expect("autosync close connection send-queue lock");
-        match &data.queue {
-            Some(a) => {
-                drop(a);
-                data.queue = None;
-            }
-            None => {}
-        }
+
+        data.queue = None;
     }
 
-    fn process_text(&self, a: &String) -> std::result::Result<(), ()> {
+    fn process_text(&self, a: &str) -> std::result::Result<(), ()> {
         let j: serde_json::Value = serde_json::from_str(&a).map_err(|_e| {})?;
         if j["error"].is_null() {
             self.close_connection();
             if let Some(core) = self.core.as_ref() {
-                core.send(OwnedMessage::Text(a.clone())).map_err(|_e| {})?;
+                core.send(OwnedMessage::Text(a.into())).map_err(|_e| {})?;
             }
         }
         Ok(())
