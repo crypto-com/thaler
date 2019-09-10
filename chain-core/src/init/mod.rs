@@ -6,9 +6,10 @@ pub mod address;
 /// Fixed supply coin/amounts
 pub mod coin;
 /// Configuration in JSON passed to InitChain
+#[cfg(feature = "base64")]
 pub mod config;
 
-#[cfg(feature = "bech32")]
+#[cfg(all(feature = "bech32", feature = "hex"))]
 pub mod network;
 
 /// maximum total supply with a fixed decimal point

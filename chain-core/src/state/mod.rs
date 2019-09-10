@@ -37,7 +37,10 @@ impl RewardsPoolState {
 
 /// holds state about a node responsible for transaction validation / block signing and service node whitelist management
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Serialize, Deserialize)
+)]
 pub struct CouncilNode {
     // account with the required staked amount
     pub staking_account_address: StakedStateAddress,
