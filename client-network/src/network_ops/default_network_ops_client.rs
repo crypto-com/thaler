@@ -490,12 +490,9 @@ mod tests {
             .unwrap();
         let attributes = StakedStateOpAttributes::new(0);
 
-        let unbond_stake_transaction = network_ops_client
-            .create_unbond_stake_transaction(name, passphrase, &address, value, attributes);
-
-        println!("{:?}", unbond_stake_transaction);
-
-        assert!(unbond_stake_transaction.is_ok());
+        assert!(network_ops_client
+            .create_unbond_stake_transaction(name, passphrase, &address, value, attributes)
+            .is_ok());
     }
 
     #[test]
