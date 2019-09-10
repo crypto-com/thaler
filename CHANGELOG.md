@@ -10,7 +10,7 @@ There are no guarantees on future API and binary compatibility at this stage.
 ### Features
 
 ### Bug Fixes
-* Creating a transfer address also creates a staking address
+* [365](https://github.com/crypto-com/chain/pull/365) Creating a transfer address also creates a staking address
 
 ## v0.0.1
 
