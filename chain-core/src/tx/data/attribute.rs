@@ -13,9 +13,12 @@ use crate::tx::data::access::TxAccessPolicy;
 #[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TxAttributes {
-    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_chain_hex_id"))]
     #[cfg_attr(
-        feature = "serde",
+        all(feature = "serde", feature = "hex"),
+        serde(serialize_with = "serialize_chain_hex_id")
+    )]
+    #[cfg_attr(
+        all(feature = "serde", feature = "hex"),
         serde(deserialize_with = "deserialize_chain_hex_id")
     )]
     pub chain_hex_id: u8,
@@ -23,7 +26,7 @@ pub struct TxAttributes {
     // TODO: other attributes, e.g. versioning info
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn serialize_chain_hex_id<S>(
     chain_hex_id: &u8,
@@ -35,7 +38,7 @@ where
     serializer.serialize_str(&hex::encode_upper(vec![*chain_hex_id]))
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 fn deserialize_chain_hex_id<'de, D>(deserializer: D) -> std::result::Result<u8, D::Error>
 where
     D: Deserializer<'de>,
