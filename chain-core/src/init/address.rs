@@ -14,9 +14,10 @@
 #[cfg(feature = "bech32")]
 use bech32::{self, u5, FromBase32, ToBase32};
 use parity_scale_codec::{Decode, Encode};
-use std::prelude::v1::{String, ToString};
+use std::ops;
+use std::prelude::v1::String;
+#[cfg(feature = "hex")]
 use std::str::FromStr;
-use std::{fmt, ops};
 
 #[cfg(feature = "hex")]
 use hex;
@@ -25,6 +26,8 @@ use secp256k1::key::PublicKey;
 use serde::de::Error;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "hex")]
+use std::fmt;
 use tiny_keccak::Keccak;
 
 use crate::common::{H256, HASH_SIZE_256};

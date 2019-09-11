@@ -7,6 +7,7 @@ pub mod fee;
 /// Witness structures (e.g. signatures) for transactions
 pub mod witness;
 
+#[cfg(feature = "hex")]
 use std::fmt;
 
 use parity_scale_codec::{Decode, Encode, Error, Input};
@@ -166,6 +167,7 @@ impl TxAux {
     }
 }
 
+#[cfg(feature = "hex")]
 fn display_tx_witness<T: fmt::Display, W: fmt::Debug>(
     f: &mut fmt::Formatter<'_>,
     tx: T,
