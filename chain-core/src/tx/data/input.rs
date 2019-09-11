@@ -15,11 +15,17 @@ pub type TxoIndex = u16;
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
 /// transaction.
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Serialize, Deserialize)
+)]
 pub struct TxoPointer {
-    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_transaction_id"))]
     #[cfg_attr(
-        feature = "serde",
+        all(feature = "serde", feature = "hex"),
+        serde(serialize_with = "serialize_transaction_id")
+    )]
+    #[cfg_attr(
+        all(feature = "serde", feature = "hex"),
         serde(deserialize_with = "deserialize_transaction_id")
     )]
     pub id: TxId,
@@ -27,7 +33,7 @@ pub struct TxoPointer {
     pub index: TxoIndex,
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 fn serialize_transaction_id<S>(
     transaction_id: &TxId,
     serializer: S,
@@ -38,7 +44,7 @@ where
     serializer.serialize_str(&hex::encode(transaction_id))
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 fn deserialize_transaction_id<'de, D>(deserializer: D) -> std::result::Result<TxId, D::Error>
 where
     D: Deserializer<'de>,
