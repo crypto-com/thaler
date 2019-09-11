@@ -8,7 +8,7 @@ use structopt::StructOpt;
 
 use std::str::FromStr;
 
-use chain_core::init::coin::Coin;
+use chain_core::init::{coin::Coin, network::init_chain_id};
 use client_common::{Error, ErrorKind, Result, ResultExt};
 
 use crate::command::Command;
@@ -32,6 +32,13 @@ fn main() {
 
 #[inline]
 fn execute() -> Result<()> {
+    if let Some(chain_id) = chain_id() {
+        init_chain_id(&chain_id);
+    } else {
+        ask("Warning! `CRYPTO_CHAIN_ID` environment variable is not set. Setting network to devnet and network-id to 0");
+        println!();
+    }
+
     let command = Command::from_args();
     command.execute()
 }
@@ -45,6 +52,11 @@ pub(crate) fn storage_path() -> String {
 pub(crate) fn tendermint_url() -> String {
     std::env::var("CRYPTO_CLIENT_TENDERMINT")
         .unwrap_or_else(|_| "http://localhost:26657/".to_owned())
+}
+
+#[inline]
+pub(crate) fn chain_id() -> Option<String> {
+    std::env::var("CRYPTO_CHAIN_ID").map(Some).unwrap_or(None)
 }
 
 #[inline]
