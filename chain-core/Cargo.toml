@@ -17,7 +17,6 @@ hex = { version = "0.3", optional = true }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["recovery", "endomorphism", "serde"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 blake2 = "0.8"
-serde_json = "1.0"
 parity-scale-codec = { features = ["derive"], version = "1.0" }
 base64 = { version = "0.10", optional = true }
 static_assertions = "0.3.4"
@@ -25,3 +24,4 @@ bech32 = { version = "0.7.1", optional = true }
 
 [dev-dependencies]
 quickcheck = "0.9"
+serde_json = "1.0"

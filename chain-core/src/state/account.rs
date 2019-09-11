@@ -14,12 +14,16 @@ use serde::de;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::prelude::v1::Vec;
+#[cfg(feature = "hex")]
 use std::str::FromStr;
 // TODO: switch to normal signatures + explicit public key
 #[cfg(feature = "hex")]
 use crate::init::address::ErrorAddress;
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
-use std::convert::{From, TryFrom};
+use std::convert::From;
+#[cfg(feature = "hex")]
+use std::convert::TryFrom;
+#[cfg(feature = "hex")]
 use std::fmt;
 
 /// Each input is 34 bytes
@@ -322,6 +326,7 @@ impl UnbondTx {
     }
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for UnbondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "unbonded: {} (nonce: {})", self.value, self.nonce)?;

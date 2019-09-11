@@ -1,6 +1,7 @@
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "hex")]
 use std::fmt;
 #[cfg(feature = "bech32")]
 use std::str::FromStr;

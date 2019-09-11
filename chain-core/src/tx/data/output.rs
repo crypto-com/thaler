@@ -1,3 +1,4 @@
+#[cfg(feature = "hex")]
 use std::fmt;
 #[cfg(feature = "serde")]
 use std::str::FromStr;
