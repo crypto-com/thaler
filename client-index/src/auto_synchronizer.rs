@@ -100,8 +100,11 @@ impl AutoSynchronizer {
             if let Some(core) = self.core.as_ref() {
                 core.send(OwnedMessage::Text(a.into())).map_err(|_e| {})?;
             }
+            Ok(())
         }
-        Ok(())
+        else {
+            Err(())
+        }        
     }
 
     /// activate tokio websocket
