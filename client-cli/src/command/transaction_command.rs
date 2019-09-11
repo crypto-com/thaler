@@ -7,6 +7,7 @@ use structopt::StructOpt;
 use unicase::eq_ascii;
 
 use chain_core::common::{Timespec, HASH_SIZE_256};
+use chain_core::init::network::get_network_id;
 use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -50,13 +51,6 @@ impl FromStr for TransactionType {
 pub enum TransactionCommand {
     #[structopt(name = "new", about = "New transaction")]
     New {
-        #[structopt(
-            name = "chain-id",
-            short,
-            long,
-            help = "Chain ID for transaction (Last two hex digits of chain-id)"
-        )]
-        chain_id: String,
         #[structopt(name = "name", short, long, help = "Name of wallet")]
         name: String,
         #[structopt(name = "type", short, long, help = "Type of transaction to create")]
@@ -72,16 +66,9 @@ impl TransactionCommand {
     ) -> Result<()> {
         match self {
             TransactionCommand::New {
-                chain_id,
                 name,
                 transaction_type,
-            } => new_transaction(
-                wallet_client,
-                network_ops_client,
-                name,
-                chain_id,
-                transaction_type,
-            ),
+            } => new_transaction(wallet_client, network_ops_client, name, transaction_type),
         }
     }
 }
@@ -90,28 +77,17 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
     wallet_client: &T,
     network_ops_client: &N,
     name: &str,
-    chain_id: &str,
     transaction_type: &TransactionType,
 ) -> Result<()> {
     let passphrase = ask_passphrase(None)?;
 
     let transaction = match transaction_type {
-        TransactionType::Transfer => {
-            new_transfer_transaction(wallet_client, name, &passphrase, chain_id)
+        TransactionType::Transfer => new_transfer_transaction(wallet_client, name, &passphrase),
+        TransactionType::Deposit => new_deposit_transaction(network_ops_client, name, &passphrase),
+        TransactionType::Unbond => new_unbond_transaction(network_ops_client, name, &passphrase),
+        TransactionType::Withdraw => {
+            new_withdraw_transaction(wallet_client, network_ops_client, name, &passphrase)
         }
-        TransactionType::Deposit => {
-            new_deposit_transaction(network_ops_client, name, &passphrase, chain_id)
-        }
-        TransactionType::Unbond => {
-            new_unbond_transaction(network_ops_client, name, &passphrase, chain_id)
-        }
-        TransactionType::Withdraw => new_withdraw_transaction(
-            wallet_client,
-            network_ops_client,
-            name,
-            &passphrase,
-            chain_id,
-        ),
     }?;
 
     wallet_client.broadcast_transaction(&transaction)?;
@@ -124,7 +100,6 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
     passphrase: &SecUtf8,
-    chain_id: &str,
 ) -> Result<TxAux> {
     let from_address = ask_staking_address()?;
     let to_address = ask_transfer_address()?;
@@ -144,15 +119,7 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
         });
     }
 
-    let attributes = TxAttributes::new_with_access(
-        decode(chain_id).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                "Unable to deserialize chain ID",
-            )
-        })?[0],
-        access_policies,
-    );
+    let attributes = TxAttributes::new_with_access(get_network_id(), access_policies);
 
     network_ops_client.create_withdraw_all_unbonded_stake_transaction(
         name,
@@ -167,16 +134,8 @@ fn new_unbond_transaction<N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
     passphrase: &SecUtf8,
-    chain_id: &str,
 ) -> Result<TxAux> {
-    let attributes = StakedStateOpAttributes::new(
-        decode(chain_id).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                "Unable to deserialize chain ID",
-            )
-        })?[0],
-    );
+    let attributes = StakedStateOpAttributes::new(get_network_id());
     let address = ask_staking_address()?;
 
     ask("Enter amount (in CRO): ");
@@ -191,16 +150,8 @@ fn new_deposit_transaction<N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
     passphrase: &SecUtf8,
-    chain_id: &str,
 ) -> Result<TxAux> {
-    let attributes = StakedStateOpAttributes::new(
-        decode(chain_id).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                "Unable to deserialize chain ID",
-            )
-        })?[0],
-    );
+    let attributes = StakedStateOpAttributes::new(get_network_id());
     let inputs = ask_inputs()?;
     let to_address = ask_staking_address()?;
 
@@ -212,7 +163,6 @@ fn new_transfer_transaction<T: WalletClient>(
     wallet_client: &T,
     name: &str,
     passphrase: &SecUtf8,
-    chain_id: &str,
 ) -> Result<TxAux> {
     let outputs = ask_outputs()?;
     let view_keys = ask_view_keys()?;
@@ -231,15 +181,7 @@ fn new_transfer_transaction<T: WalletClient>(
         });
     }
 
-    let attributes = TxAttributes::new_with_access(
-        decode(chain_id).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                "Unable to deserialize chain ID",
-            )
-        })?[0],
-        access_policies,
-    );
+    let attributes = TxAttributes::new_with_access(get_network_id(), access_policies);
 
     let return_address = wallet_client.new_transfer_address(name, &passphrase)?;
 
