@@ -11,6 +11,7 @@ pub mod input;
 /// Transaction outputs (amount to an address)
 pub mod output;
 
+#[cfg(feature = "hex")]
 use std::fmt;
 
 use blake2::Blake2s;
