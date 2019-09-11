@@ -80,9 +80,35 @@ impl AutoSynchronizer {
         assert!(self.core.is_some());
     }
 
+    // to close channel, all senders of the channel should be dropped
+    // currently it has two senders
+    // 1. stream
+    // 2. sending queue
+
+    fn close_connection(&self) {
+        let mut data = self
+            .send_queue
+            .lock()
+            .expect("autosync close connection send-queue lock");
+
+        data.queue = None;
+    }
+
+    fn process_text(&self, a: &str) -> std::result::Result<(), ()> {
+        let j: serde_json::Value = serde_json::from_str(&a).map_err(|_e| {})?;
+        if j["error"].is_null() {
+            self.close_connection();
+            if let Some(core) = self.core.as_ref() {
+                core.send(OwnedMessage::Text(a.into())).map_err(|_e| {})?;
+            }
+        }
+        Ok(())
+    }
+
     /// activate tokio websocket
     pub fn run_network(&mut self) -> Result<()> {
         loop {
+            let mut connected = false;
             let channel = futures::sync::mpsc::channel(0);
             // tx, rx
             let (channel_tx, channel_rx) = channel;
@@ -90,30 +116,33 @@ impl AutoSynchronizer {
                 let mut data = self.send_queue.lock().unwrap();
                 data.queue = Some(channel_tx.clone());
             }
-            log::info!("Connecting to {}", self.websocket_url);
             let mut runtime = tokio::runtime::current_thread::Builder::new()
                 .build()
                 .expect("get tokio builder");
             // get synchronous sink
             let mut channel_sink = channel_tx.clone().wait();
+            drop(channel_tx);
 
             let runner = ClientBuilder::new(&self.websocket_url)
                 .expect("client-builder new")
                 .add_protocol("rust-websocket")
                 .async_connect_insecure()
                 .and_then(|(duplex, _)| {
+                    log::info!("successfully connected to {}", self.websocket_url);
+                    connected = true;
                     channel_sink
                         .send(OwnedMessage::Text(CMD_SUBSCRIBE.to_string()))
                         .expect("send to channel sink");
                     let (sink, stream) = duplex.split();
+                    drop(channel_sink);
 
                     stream
                         .filter_map(|message| match message {
                             OwnedMessage::Text(a) => {
-                                if let Some(core) = self.core.as_ref() {
-                                    core.send(OwnedMessage::Text(a.clone())).expect("core send");
+                                if self.process_text(&a).is_err() {
+                                    log::warn!("close connection in auto-sync");
+                                    self.close_connection();
                                 }
-
                                 None
                             }
                             OwnedMessage::Binary(_a) => None,
@@ -125,10 +154,15 @@ impl AutoSynchronizer {
                         .forward(sink)
                 });
             match runtime.block_on(runner) {
-                Ok(_a) => {}
+                Ok(_a) => {
+                    log::info!("connection gracefully closed");
+                }
                 Err(b) => {
-                    log::warn!("connection fail {}", b);
-                    std::thread::sleep(std::time::Duration::from_millis(1000));
+                    // write log only after connection is made
+                    if connected {
+                        log::warn!("connection closed error {}", b);
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(2000));
                 }
             }
         }
