@@ -66,6 +66,7 @@ impl PlainTxAux {
     }
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for PlainTxAux {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -174,6 +175,7 @@ fn display_tx_witness<T: fmt::Display, W: fmt::Debug>(
     writeln!(f, "witness: {:?}\n", witness)
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for TxAux {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

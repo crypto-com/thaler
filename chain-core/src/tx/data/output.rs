@@ -15,16 +15,25 @@ use crate::tx::data::address::ExtendedAddr;
 /// Tx Output composed of an address and a coin value
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Serialize, Deserialize)
+)]
 pub struct TxOut {
-    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_address"))]
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_address"))]
+    #[cfg_attr(
+        all(feature = "serde", feature = "hex"),
+        serde(serialize_with = "serialize_address")
+    )]
+    #[cfg_attr(
+        all(feature = "serde", feature = "hex"),
+        serde(deserialize_with = "deserialize_address")
+    )]
     pub address: ExtendedAddr,
     pub value: Coin,
     pub valid_from: Option<Timespec>,
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 fn serialize_address<S>(
     address: &ExtendedAddr,
     serializer: S,
@@ -35,7 +44,7 @@ where
     serializer.serialize_str(&address.to_string())
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 fn deserialize_address<'de, D>(deserializer: D) -> std::result::Result<ExtendedAddr, D::Error>
 where
     D: Deserializer<'de>,
@@ -61,6 +70,7 @@ where
     deserializer.deserialize_str(StrVisitor)
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for TxOut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} -> {}", self.address, self.value)
