@@ -30,6 +30,13 @@ A small patches (mainly dependency bumps) to the released version
 The release is an incomplete alpha version meant to be deployed on the first iteration of the public testnet.
 There are no guarantees on future API and binary compatibility at this stage.
 
+## v0.1.0 (Unreleased)
+
+### Features
+
+### Bug Fixes
+* [365](https://github.com/crypto-com/chain/pull/365) Creating a transfer address also creates a staking address
+
 ## v0.0.1
 
 ### Features

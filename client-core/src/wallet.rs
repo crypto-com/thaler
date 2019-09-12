@@ -3,6 +3,8 @@ mod default_wallet_client;
 
 pub use default_wallet_client::DefaultWalletClient;
 
+use std::collections::BTreeSet;
+
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 
@@ -35,23 +37,30 @@ pub trait WalletClient: Send + Sync {
     fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
 
     /// Retrieves all public keys corresponding to given wallet
-    fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>>;
+    fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>>;
+
+    /// Retrieves all public keys corresponding to staking addresses stored in given wallet
+    fn staking_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>>;
 
     /// Retrieves all root hashes corresponding to given wallet
-    fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<H256>>;
+    fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<H256>>;
 
     /// Returns all staking addresses in current wallet
     fn staking_addresses(
         &self,
         name: &str,
         passphrase: &SecUtf8,
-    ) -> Result<Vec<StakedStateAddress>>;
+    ) -> Result<BTreeSet<StakedStateAddress>>;
 
     /// Returns all the multi-sig transfer addresses in current wallet
-    fn transfer_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>>;
+    fn transfer_addresses(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+    ) -> Result<BTreeSet<ExtendedAddr>>;
 
-    /// Finds public key corresponding to given redeem address
-    fn find_public_key(
+    /// Finds staking key corresponding to given redeem address
+    fn find_staking_key(
         &self,
         name: &str,
         passphrase: &SecUtf8,
