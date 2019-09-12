@@ -1,5 +1,14 @@
 # Changelog
 
+*September 12, 2019*
+
+A quick bug fix on top of 0.0.2
+
+## v0.0.3
+
+### Bug fixes
+* [373](https://github.com/crypto-com/chain/pull/373) client-index auto-sync didn't work correctly
+
 *September 11, 2019*
 
 A small patches (mainly dependency bumps) to the released version
