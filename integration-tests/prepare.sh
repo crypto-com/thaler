@@ -58,6 +58,14 @@ function init_tendermint() {
     if [ ! -z "${CI}" ]; then
         sudo chmod -R 777 ./tendermint
     fi
+
+    index_all_tags "tendermint"
+}
+
+# @argument Tendermint directory
+function index_all_tags() {
+    print_step "Enable tag indexing for ${1}"
+    cat "${1}/config/config.toml" | sed "s/index_all_tags = false/index_all_tags = true/g" | tee "${1}/config/config.toml" > /dev/null
 }
 
 # @argument Tendermint directory
