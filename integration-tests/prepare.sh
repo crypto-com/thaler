@@ -64,7 +64,7 @@ function init_tendermint() {
 
 # @argument Tendermint directory
 function index_all_tags() {
-    print_step "Disabling empty blocks for ${1}"
+    print_step "Enable tag indexing for ${1}"
     cat "${1}/config/config.toml" | sed "s/index_all_tags = false/index_all_tags = true/g" | tee "${1}/config/config.toml" > /dev/null
 }
 
