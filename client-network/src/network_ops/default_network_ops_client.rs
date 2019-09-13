@@ -149,7 +149,7 @@ where
         let public_key = match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
-                .find_public_key(name, passphrase, redeem_address)?
+                .find_staking_key(name, passphrase, redeem_address)?
                 .chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -190,7 +190,7 @@ where
         let public_key = match from_address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
-                .find_public_key(name, passphrase, redeem_address)?
+                .find_staking_key(name, passphrase, redeem_address)?
                 .chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -281,7 +281,7 @@ where
         match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => {
                 self.wallet_client
-                    .find_public_key(name, passphrase, redeem_address)?;
+                    .find_staking_key(name, passphrase, redeem_address)?;
             }
         }
 

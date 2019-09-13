@@ -1,3 +1,5 @@
+use std::collections::BTreeSet;
+
 use parity_scale_codec::Encode;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
@@ -97,12 +99,17 @@ where
     }
 
     #[inline]
-    fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<PublicKey>> {
+    fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>> {
         self.wallet_service.public_keys(name, passphrase)
     }
 
     #[inline]
-    fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<H256>> {
+    fn staking_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>> {
+        self.wallet_service.staking_keys(name, passphrase)
+    }
+
+    #[inline]
+    fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<H256>> {
         self.wallet_service.root_hashes(name, passphrase)
     }
 
@@ -111,24 +118,28 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-    ) -> Result<Vec<StakedStateAddress>> {
+    ) -> Result<BTreeSet<StakedStateAddress>> {
         self.wallet_service.staking_addresses(name, passphrase)
     }
 
     #[inline]
-    fn transfer_addresses(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<ExtendedAddr>> {
+    fn transfer_addresses(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+    ) -> Result<BTreeSet<ExtendedAddr>> {
         self.wallet_service.transfer_addresses(name, passphrase)
     }
 
     #[inline]
-    fn find_public_key(
+    fn find_staking_key(
         &self,
         name: &str,
         passphrase: &SecUtf8,
         redeem_address: &RedeemAddress,
     ) -> Result<Option<PublicKey>> {
         self.wallet_service
-            .find_public_key(name, passphrase, redeem_address)
+            .find_staking_key(name, passphrase, redeem_address)
     }
 
     #[inline]
@@ -160,14 +171,17 @@ where
     }
 
     fn new_staking_address(&self, name: &str, passphrase: &SecUtf8) -> Result<StakedStateAddress> {
-        let public_key = self.new_public_key(name, passphrase)?;
+        let (staking_key, _) = self.key_service.generate_keypair(passphrase)?;
+        self.wallet_service
+            .add_staking_key(name, passphrase, &staking_key)?;
+
         Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from(
-            &public_key,
+            &staking_key,
         )))
     }
 
     fn new_transfer_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr> {
-        let public_key = self.new_public_key(name, passphrase)?;
+        let (public_key, _) = self.key_service.generate_keypair(passphrase)?;
         self.new_multisig_transfer_address(
             name,
             passphrase,
@@ -187,8 +201,15 @@ where
         m: usize,
         n: usize,
     ) -> Result<ExtendedAddr> {
-        let wallet_public_keys = self.public_keys(&name, &passphrase)?;
-        if !wallet_public_keys.contains(&self_public_key) {
+        // Check if self public key belongs to current wallet
+        let _ = self.private_key(passphrase, &self_public_key)?.chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                "Self public key does not belong to current wallet",
+            )
+        })?;
+
+        if !public_keys.contains(&self_public_key) {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
                 "Signer public keys does not contain self public key",
@@ -834,7 +855,11 @@ mod tests {
             .unwrap();
 
         assert_eq!(1, addresses.len());
-        assert_eq!(address, addresses[0], "Addresses don't match");
+        assert_eq!(
+            address,
+            addresses.into_iter().next().unwrap(),
+            "Addresses don't match"
+        );
 
         assert!(wallet
             .find_root_hash("name", &SecUtf8::from("passphrase"), &address)

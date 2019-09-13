@@ -4,6 +4,7 @@
 use chain_core::state::account::StakedStateAddress;
 use client_common::{PrivateKey, PublicKey};
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
 use websocket::OwnedMessage;
 /// give add wallet command via this queue
@@ -58,7 +59,7 @@ pub struct WalletInfo {
     /// name of wallet
     pub name: String,
     /// staking address                     
-    pub staking_addresses: Vec<StakedStateAddress>,
+    pub staking_addresses: BTreeSet<StakedStateAddress>,
     /// view-key
     pub view_key: PublicKey,
     /// private-key           
@@ -75,7 +76,7 @@ pub struct AddWalletCommand {
     /// wallet name
     pub name: String,
     /// staking addresses
-    pub staking_addresses: Vec<StakedStateAddress>,
+    pub staking_addresses: BTreeSet<StakedStateAddress>,
     /// view key
     pub view_key: PublicKey,
     /// private key
