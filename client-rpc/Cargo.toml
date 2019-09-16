@@ -15,7 +15,7 @@ serde_json = "1.0.40"
 jsonrpc-http-server = "13.1"
 jsonrpc-core = "13.1"
 jsonrpc-core-client = "13.1"
-jsonrpc-derive = "13.1"
+jsonrpc-derive = "13.2"
 serde = { version = "1.0", features = ["derive"] }
 structopt = "0.3"
 chrono = { version = "0.4", features = ["serde"] }
