@@ -8,9 +8,11 @@ use chain_core::tx::data::Tx;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::{ErrorKind, Result, ResultExt, SignedTransaction};
-use client_index::TransactionObfuscation;
 
-use crate::{SelectedUnspentTransactions, Signer, TransactionBuilder, UnspentTransactions};
+use crate::{
+    SelectedUnspentTransactions, Signer, TransactionBuilder, TransactionObfuscation,
+    UnspentTransactions,
+};
 
 /// Default implementation of `TransactionBuilder`
 ///

@@ -7,10 +7,9 @@ use crate::server::{to_rpc_error, WalletRequest};
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::Client;
 use client_common::{ErrorKind, PrivateKey, PublicKey, ResultExt, Storage};
-use client_core::{MultiSigWalletClient, WalletClient};
-use client_index::auto_sync::AutoSync;
-use client_index::synchronizer::ManualSynchronizer;
-use client_index::BlockHandler;
+use client_core::auto_sync::AutoSync;
+use client_core::synchronizer::ManualSynchronizer;
+use client_core::{BlockHandler, MultiSigWalletClient, WalletClient};
 
 #[rpc]
 pub trait SyncRpc: Send + Sync {

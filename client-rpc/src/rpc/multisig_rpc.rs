@@ -324,7 +324,7 @@ mod test {
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
-    use client_index::{AddressDetails, Index, TransactionObfuscation};
+    use client_core::{AddressDetails, Index, TransactionObfuscation};
 
     #[test]
     fn create_address_should_return_bech32_multisig_address() {

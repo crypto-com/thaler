@@ -14,8 +14,7 @@ use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::tendermint::Client;
 use client_common::{ErrorKind, Result, ResultExt, SignedTransaction};
-use client_core::{Signer, UnspentTransactions, WalletClient};
-use client_index::TransactionObfuscation;
+use client_core::{Signer, TransactionObfuscation, UnspentTransactions, WalletClient};
 
 use crate::NetworkOpsClient;
 

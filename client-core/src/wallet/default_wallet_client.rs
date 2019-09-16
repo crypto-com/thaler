@@ -22,8 +22,8 @@ use client_common::tendermint::types::BroadcastTxResult;
 use client_common::{
     Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SignedTransaction, Storage,
 };
-use client_index::index::{Index, UnauthorizedIndex};
 
+use crate::index::{Index, UnauthorizedIndex};
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedTransactionBuilder;
 use crate::{
@@ -610,10 +610,10 @@ mod tests {
     use client_common::balance::BalanceChange;
     use client_common::storage::MemoryStorage;
     use client_common::{PrivateKey, SignedTransaction, Transaction};
-    use client_index::{AddressDetails, TransactionObfuscation};
 
     use crate::signer::DefaultSigner;
     use crate::transaction_builder::DefaultTransactionBuilder;
+    use crate::{AddressDetails, TransactionObfuscation};
 
     #[derive(Debug)]
     struct MockTransactionCipher;
