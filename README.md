@@ -39,7 +39,6 @@ This repository contains the pre-alpha version prototype implementation of Crypt
 * *client-[common|index|core|rpc]*: Client backend implementation for transaction creation and wallet management. Follow
 these links for more details:
   - [client-common](./client-common/README.md)
-  - [client-index](./client-index/README.md)
   - [client-core](./client-core/README.md)
   - [client-rpc](./client-rpc/README.md)
 

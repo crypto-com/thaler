@@ -7,7 +7,6 @@ edition = "2018"
 
 [dependencies]
 client-common = { path = "../client-common" }
-client-index = { path = "../client-index" }
 client-core = { path = "../client-core" }
 client-network = { path = "../client-network" }
 chain-core = { path = "../chain-core/" }

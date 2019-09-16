@@ -248,7 +248,7 @@ pub mod tests {
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
-    use client_index::{AddressDetails, Index, TransactionObfuscation};
+    use client_core::{AddressDetails, Index, TransactionObfuscation};
 
     #[derive(Default)]
     pub struct MockIndex;
