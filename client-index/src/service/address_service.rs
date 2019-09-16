@@ -180,6 +180,11 @@ where
             .unwrap_or_else(|| Ok(Default::default()))
     }
 
+    /// Deletes details for given address
+    pub fn delete(&self, address: &ExtendedAddr) -> Result<()> {
+        self.storage.delete(KEYSPACE, address.encode()).map(|_| ())
+    }
+
     /// Applies and commits an address memento.
     ///
     /// # Transaction boundary

@@ -36,6 +36,13 @@ pub trait Storage: Send + Sync {
         value: Vec<u8>,
     ) -> Result<Option<Vec<u8>>>;
 
+    /// Delete a key from keyspace
+    fn delete<S: AsRef<[u8]>, K: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+    ) -> Result<Option<Vec<u8>>>;
+
     /// Fetches a value, applies a function and returns the previous value.
     fn fetch_and_update<S, K, F>(&self, keyspace: S, key: K, f: F) -> Result<Option<Vec<u8>>>
     where

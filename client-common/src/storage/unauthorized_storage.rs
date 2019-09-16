@@ -26,6 +26,14 @@ impl Storage for UnauthorizedStorage {
         Err(ErrorKind::PermissionDenied.into())
     }
 
+    fn delete<S: AsRef<[u8]>, K: AsRef<[u8]>>(
+        &self,
+        _keyspace: S,
+        _key: K,
+    ) -> Result<Option<Vec<u8>>> {
+        Err(ErrorKind::PermissionDenied.into())
+    }
+
     fn fetch_and_update<S, K, F>(&self, _: S, _: K, _: F) -> Result<Option<Vec<u8>>>
     where
         S: AsRef<[u8]>,

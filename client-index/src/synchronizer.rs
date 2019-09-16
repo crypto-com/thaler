@@ -5,12 +5,13 @@ use std::sync::mpsc::Sender;
 use itertools::Itertools;
 
 use chain_core::state::account::StakedStateAddress;
+use chain_core::tx::data::address::ExtendedAddr;
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::{Block, BlockResults, Status};
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
 
-use crate::service::GlobalStateService;
+use crate::service::{AddressService, GlobalStateService};
 use crate::BlockHandler;
 
 const DEFAULT_BATCH_SIZE: usize = 20;
@@ -39,9 +40,28 @@ where
     C: Client,
     H: BlockHandler,
 {
+    address_service: AddressService<S>,
     global_state_service: GlobalStateService<S>,
     client: C,
     block_handler: H,
+}
+
+impl<S, C, H> ManualSynchronizer<S, C, H>
+where
+    S: Storage + Clone,
+    C: Client,
+    H: BlockHandler,
+{
+    /// Creates a new instance of `ManualSynchronizer`
+    #[inline]
+    pub fn new(storage: S, client: C, block_handler: H) -> Self {
+        Self {
+            address_service: AddressService::new(storage.clone()),
+            global_state_service: GlobalStateService::new(storage),
+            client,
+            block_handler,
+        }
+    }
 }
 
 impl<S, C, H> ManualSynchronizer<S, C, H>
@@ -50,16 +70,6 @@ where
     C: Client,
     H: BlockHandler,
 {
-    /// Creates a new instance of `ManualSynchronizer`
-    #[inline]
-    pub fn new(storage: S, client: C, block_handler: H) -> Self {
-        Self {
-            global_state_service: GlobalStateService::new(storage),
-            client,
-            block_handler,
-        }
-    }
-
     /// Synchronizes transaction index for given view key with Crypto.com Chain (from last known height)
     pub fn sync(
         &self,
@@ -148,6 +158,7 @@ where
     pub fn sync_all(
         &self,
         staking_addresses: &BTreeSet<StakedStateAddress>,
+        transfer_addresses: &BTreeSet<ExtendedAddr>,
         view_key: &PublicKey,
         private_key: &PrivateKey,
         batch_size: Option<usize>,
@@ -155,6 +166,11 @@ where
     ) -> Result<()> {
         self.global_state_service
             .set_global_state(view_key, 0, "".to_string())?;
+
+        for transfer_address in transfer_addresses {
+            self.address_service.delete(transfer_address)?;
+        }
+
         self.sync(
             staking_addresses,
             view_key,
