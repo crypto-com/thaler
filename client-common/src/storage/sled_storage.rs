@@ -125,6 +125,35 @@ impl Storage for SledStorage {
         Ok(value)
     }
 
+    fn delete<S: AsRef<[u8]>, K: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+    ) -> Result<Option<Vec<u8>>> {
+        let tree = self.0.open_tree(keyspace.as_ref().to_vec()).chain(|| {
+            (
+                ErrorKind::StorageError,
+                format!(
+                    "Unable to open sled storage tree for keyspace: {}",
+                    String::from_utf8_lossy(keyspace.as_ref())
+                ),
+            )
+        })?;
+
+        tree.remove(&key)
+            .chain(|| {
+                (
+                    ErrorKind::StorageError,
+                    format!(
+                        "Unable to delete {} in keyspace: {}",
+                        String::from_utf8_lossy(key.as_ref()),
+                        String::from_utf8_lossy(keyspace.as_ref())
+                    ),
+                )
+            })
+            .map(|optional_value| optional_value.map(|value| value.to_vec()))
+    }
+
     fn fetch_and_update<S, K, F>(&self, keyspace: S, key: K, f: F) -> Result<Option<Vec<u8>>>
     where
         S: AsRef<[u8]>,

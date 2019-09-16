@@ -61,6 +61,23 @@ impl Storage for MemoryStorage {
         Ok(space.insert(key.as_ref().to_vec(), value))
     }
 
+    fn delete<S: AsRef<[u8]>, K: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+    ) -> Result<Option<Vec<u8>>> {
+        let mut memory = self.0.write().map_err(|_| {
+            Error::new(
+                ErrorKind::StorageError,
+                "Unable to acquire write lock on memory storage",
+            )
+        })?;
+
+        Ok(memory
+            .get_mut(keyspace.as_ref())
+            .and_then(|keyspace| keyspace.remove(key.as_ref())))
+    }
+
     fn fetch_and_update<S, K, F>(&self, keyspace: S, key: K, f: F) -> Result<Option<Vec<u8>>>
     where
         S: AsRef<[u8]>,

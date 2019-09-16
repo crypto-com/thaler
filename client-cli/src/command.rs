@@ -380,8 +380,11 @@ impl Command {
         });
 
         if force {
+            let transfer_addresses = wallet_client.transfer_addresses(name, &passphrase)?;
+
             synchronizer.sync_all(
                 &staking_addresses,
+                &transfer_addresses,
                 &view_key,
                 &private_key,
                 batch_size,
