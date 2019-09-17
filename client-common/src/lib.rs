@@ -3,7 +3,6 @@
 mod block_header;
 mod transaction;
 
-pub mod balance;
 pub mod error;
 pub mod key;
 pub mod storage;

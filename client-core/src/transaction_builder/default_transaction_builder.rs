@@ -208,10 +208,7 @@ mod tests {
         let passphrase = &SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage.clone())
-            .build()
-            .unwrap();
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         wallet_client.new_wallet(name, passphrase).unwrap();
 
@@ -351,10 +348,7 @@ mod tests {
         let passphrase = &SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage.clone())
-            .build()
-            .unwrap();
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         wallet_client.new_wallet(name, passphrase).unwrap();
 

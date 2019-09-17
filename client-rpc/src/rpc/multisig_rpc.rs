@@ -311,9 +311,6 @@ mod test {
     use secstr::SecUtf8;
 
     use chain_core::init::coin::CoinError;
-    use chain_core::tx::data::address::ExtendedAddr;
-    use chain_core::tx::data::input::TxoPointer;
-    use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
@@ -324,7 +321,7 @@ mod test {
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
-    use client_core::{AddressDetails, Index, TransactionObfuscation};
+    use client_core::TransactionObfuscation;
 
     #[test]
     fn create_address_should_return_bech32_multisig_address() {
@@ -366,16 +363,12 @@ mod test {
 
     fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
         let signer = DefaultSigner::new(storage.clone());
-        DefaultWalletClient::builder()
-            .with_wallet(storage)
-            .with_transaction_read(MockIndex::default())
-            .with_transaction_write(DefaultTransactionBuilder::new(
-                signer,
-                ZeroFeeAlgorithm::default(),
-                MockTransactionCipher,
-            ))
-            .build()
-            .unwrap()
+        let transaction_builder = DefaultTransactionBuilder::new(
+            signer,
+            ZeroFeeAlgorithm::default(),
+            MockTransactionCipher,
+        );
+        DefaultWalletClient::new(storage, MockRpcClient, transaction_builder)
     }
 
     fn setup_multisig_rpc() -> MultiSigRpcImpl<TestWalletClient> {
@@ -390,27 +383,6 @@ mod test {
         WalletRequest {
             name: name.to_owned(),
             passphrase: SecUtf8::from(passphrase),
-        }
-    }
-
-    #[derive(Default)]
-    pub struct MockIndex;
-
-    impl Index for MockIndex {
-        fn address_details(&self, _address: &ExtendedAddr) -> CommonResult<AddressDetails> {
-            unreachable!("address_details")
-        }
-
-        fn transaction(&self, _: &TxId) -> CommonResult<Option<Transaction>> {
-            unreachable!("transaction")
-        }
-
-        fn output(&self, _input: &TxoPointer) -> CommonResult<TxOut> {
-            unreachable!("output")
-        }
-
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
-            unreachable!("broadcast_transaction")
         }
     }
 
@@ -447,7 +419,7 @@ mod test {
     type TestTxBuilder =
         DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm, MockTransactionCipher>;
     type TestSigner = DefaultSigner<MemoryStorage>;
-    type TestWalletClient = DefaultWalletClient<MemoryStorage, MockIndex, TestTxBuilder>;
+    type TestWalletClient = DefaultWalletClient<MemoryStorage, MockRpcClient, TestTxBuilder>;
 
     #[derive(Default)]
     pub struct MockRpcClient;

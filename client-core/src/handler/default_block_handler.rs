@@ -1,59 +1,42 @@
-use chrono::{DateTime, Utc};
+use secstr::SecUtf8;
 
 use chain_core::tx::TransactionId;
-use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
+use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage};
 
-use crate::service::{GlobalStateService, TransactionService};
+use crate::service::{GlobalStateService, KeyService, WalletService};
 use crate::{BlockHandler, TransactionHandler, TransactionObfuscation};
 
 /// Default implementation of `BlockHandler`
-pub struct DefaultBlockHandler<C, H, S>
+pub struct DefaultBlockHandler<O, H, S>
 where
-    C: TransactionObfuscation,
+    O: TransactionObfuscation,
     H: TransactionHandler,
     S: Storage,
 {
-    transaction_cipher: C,
+    transaction_obfuscation: O,
     transaction_handler: H,
 
-    transaction_service: TransactionService<S>,
+    key_service: KeyService<S>,
+    wallet_service: WalletService<S>,
     global_state_service: GlobalStateService<S>,
 }
 
-impl<C, H, S> DefaultBlockHandler<C, H, S>
+impl<O, H, S> DefaultBlockHandler<O, H, S>
 where
-    C: TransactionObfuscation,
+    O: TransactionObfuscation,
     H: TransactionHandler,
     S: Storage + Clone,
 {
     /// Creates a new instance of `DefaultBlockHandler`
     #[inline]
-    pub fn new(transaction_cipher: C, transaction_handler: H, storage: S) -> Self {
+    pub fn new(transaction_obfuscation: O, transaction_handler: H, storage: S) -> Self {
         Self {
-            transaction_cipher,
+            transaction_obfuscation,
             transaction_handler,
-            transaction_service: TransactionService::new(storage.clone()),
+            key_service: KeyService::new(storage.clone()),
+            wallet_service: WalletService::new(storage.clone()),
             global_state_service: GlobalStateService::new(storage),
         }
-    }
-}
-
-impl<C, H, S> DefaultBlockHandler<C, H, S>
-where
-    C: TransactionObfuscation,
-    H: TransactionHandler,
-    S: Storage,
-{
-    fn on_transaction(
-        &self,
-        transaction: Transaction,
-        block_height: u64,
-        block_time: DateTime<Utc>,
-    ) -> Result<()> {
-        self.transaction_service.set(&transaction)?;
-
-        self.transaction_handler
-            .on_next(transaction, block_height, block_time)
     }
 }
 
@@ -63,15 +46,12 @@ where
     H: TransactionHandler,
     S: Storage,
 {
-    fn on_next(
-        &self,
-        block_header: BlockHeader,
-        view_key: &PublicKey,
-        private_key: &PrivateKey,
-    ) -> Result<()> {
+    fn on_next(&self, name: &str, passphrase: &SecUtf8, block_header: BlockHeader) -> Result<()> {
         for transaction in block_header.unencrypted_transactions {
             if block_header.transaction_ids.contains(&transaction.id()) {
-                self.on_transaction(
+                self.transaction_handler.on_next(
+                    name,
+                    passphrase,
                     transaction,
                     block_header.block_height,
                     block_header.block_time,
@@ -79,13 +59,33 @@ where
             }
         }
 
-        if block_header.block_filter.check_view_key(&view_key.into()) {
+        let view_key = self.wallet_service.view_key(name, passphrase)?;
+
+        if block_header
+            .block_filter
+            .check_view_key(&view_key.clone().into())
+        {
+            let private_key = self
+                .key_service
+                .private_key(&view_key, passphrase)?
+                .chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        format!(
+                            "Private key corresponding to wallet's ({}) view key not found",
+                            name
+                        ),
+                    )
+                })?;
+
             let transactions = self
-                .transaction_cipher
-                .decrypt(&block_header.transaction_ids, private_key)?;
+                .transaction_obfuscation
+                .decrypt(&block_header.transaction_ids, &private_key)?;
 
             for transaction in transactions {
-                self.on_transaction(
+                self.transaction_handler.on_next(
+                    name,
+                    passphrase,
                     transaction,
                     block_header.block_height,
                     block_header.block_time,
@@ -93,9 +93,9 @@ where
             }
         }
 
-        // TODO: Set current block's app hash
         self.global_state_service.set_global_state(
-            view_key,
+            name,
+            passphrase,
             block_header.block_height,
             block_header.app_hash,
         )
@@ -119,7 +119,9 @@ mod tests {
     use chain_core::tx::{TransactionId, TxAux};
     use chain_tx_filter::BlockFilter;
     use client_common::storage::MemoryStorage;
-    use client_common::{SignedTransaction, Transaction};
+    use client_common::{PrivateKey, PublicKey, SignedTransaction, Transaction};
+
+    use crate::wallet::{DefaultWalletClient, WalletClient};
 
     struct MockTransactionCipher;
 
@@ -145,6 +147,8 @@ mod tests {
     impl TransactionHandler for MockTransactionHandler {
         fn on_next(
             &self,
+            _name: &str,
+            _passphrase: &SecUtf8,
             transaction: Transaction,
             block_height: u64,
             block_time: DateTime<Utc>,
@@ -202,10 +206,14 @@ mod tests {
     fn check_block_flow() {
         let storage = MemoryStorage::default();
 
-        let private_key = PrivateKey::new().unwrap();
-        let view_key = PublicKey::from(&private_key);
+        let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
 
-        let block_header = block_header(&view_key);
+        let wallet = DefaultWalletClient::new_read_only(storage.clone());
+
+        assert!(wallet.new_wallet(name, passphrase).is_ok());
+
+        let block_header = block_header(&wallet.view_key(name, passphrase).unwrap());
 
         let block_handler = DefaultBlockHandler::new(
             MockTransactionCipher,
@@ -213,39 +221,24 @@ mod tests {
             storage.clone(),
         );
 
-        let transaction_service = TransactionService::new(storage.clone());
         let global_state_service = GlobalStateService::new(storage);
 
-        let transaction = transfer_transaction();
-        let unbond_transaction = unbond_transaction();
-
-        assert!(transaction_service
-            .get(&transaction.id())
-            .unwrap()
-            .is_none());
         assert_eq!(
             0,
-            global_state_service.last_block_height(&view_key).unwrap()
+            global_state_service
+                .last_block_height(name, passphrase)
+                .unwrap()
         );
 
         block_handler
-            .on_next(block_header, &view_key, &private_key)
+            .on_next(name, passphrase, block_header)
             .unwrap();
 
         assert_eq!(
-            transaction,
-            transaction_service.get(&transaction.id()).unwrap().unwrap()
-        );
-        assert_eq!(
-            unbond_transaction,
-            transaction_service
-                .get(&unbond_transaction.id())
-                .unwrap()
-                .unwrap()
-        );
-        assert_eq!(
             1,
-            global_state_service.last_block_height(&view_key).unwrap()
+            global_state_service
+                .last_block_height(name, passphrase)
+                .unwrap()
         );
     }
 }

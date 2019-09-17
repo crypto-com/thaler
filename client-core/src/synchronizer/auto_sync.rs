@@ -9,19 +9,20 @@
 //! 2. unlock wallet
 //! autosync.add_wallet(request.name, view_key, private_key, staking_addresses);
 //!
+use std::thread;
 
-use crate::auto_sync_data::{AddWalletCommand, AutoSyncDataShared, RemoveWalletCommand};
-use crate::auto_synchronizer::AutoSynchronizer;
-use crate::BlockHandler;
-use chain_core::state::account::StakedStateAddress;
+use secstr::SecUtf8;
+use serde_json::json;
+use websocket::OwnedMessage;
+
 use client_common::tendermint::Client;
 use client_common::Result;
 use client_common::Storage;
-use client_common::{PrivateKey, PublicKey};
-use serde_json::json;
-use std::collections::BTreeSet;
-use std::thread;
-use websocket::OwnedMessage;
+
+use super::auto_sync_data::{AddWalletCommand, AutoSyncDataShared, RemoveWalletCommand};
+use super::auto_synchronizer::AutoSynchronizer;
+use crate::BlockHandler;
+
 #[derive(Clone, Debug, Default)]
 /// facade for auto sync manager
 pub struct AutoSync {
@@ -34,7 +35,7 @@ impl AutoSync {
         Default::default()
     }
     /// activate auto sync
-    pub fn run<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
+    pub fn run<S: Storage + Clone + 'static, C: Client + 'static, H: BlockHandler + 'static>(
         &mut self,
         url: String,
         client: C,
@@ -60,19 +61,11 @@ impl AutoSync {
 
     /// add wallet
     /// PublicKey, PrivateKey, Vec<StakedStateAddress>
-    pub fn add_wallet(
-        &self,
-        name: String,
-        view_key: PublicKey,
-        private_key: PrivateKey,
-        staking_addresses: BTreeSet<StakedStateAddress>,
-    ) -> Result<()> {
+    pub fn add_wallet(&self, name: String, passphrase: SecUtf8) -> Result<()> {
         let data = json!(AddWalletCommand {
             id: "add_wallet".to_string(),
             name,
-            staking_addresses,
-            view_key,
-            private_key: private_key.serialize(),
+            passphrase
         });
 
         self.send_json(data)

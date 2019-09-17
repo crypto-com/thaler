@@ -13,12 +13,10 @@ use chain_core::tx::fee::LinearFee;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
 use client_common::{Error, ErrorKind, Result, ResultExt};
-use client_core::auto_sync::AutoSync;
 use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
-use client_core::index::DefaultIndex;
 use client_core::signer::DefaultSigner;
-use client_core::synchronizer::ManualSynchronizer;
+use client_core::synchronizer::{AutoSync, ManualSynchronizer};
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
@@ -29,10 +27,9 @@ use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 
 type AppSigner = DefaultSigner<SledStorage>;
-type AppIndex = DefaultIndex<SledStorage, RpcClient>;
 type AppTransactionCipher = MockAbciTransactionObfuscation<RpcClient>;
 type AppTxBuilder = DefaultTransactionBuilder<AppSigner, LinearFee, AppTransactionCipher>;
-type AppWalletClient = DefaultWalletClient<SledStorage, AppIndex, AppTxBuilder>;
+type AppWalletClient = DefaultWalletClient<SledStorage, RpcClient, AppTxBuilder>;
 type AppOpsClient =
     DefaultNetworkOpsClient<AppWalletClient, AppSigner, RpcClient, LinearFee, AppTransactionCipher>;
 type AppTransactionHandler = DefaultTransactionHandler<SledStorage>;
@@ -79,7 +76,6 @@ impl Server {
             storage_dir: options.storage_dir,
             tendermint_url: options.tendermint_url,
             websocket_url: options.websocket_url,
-
             autosync: AutoSync::new(),
         })
     }
@@ -93,13 +89,7 @@ impl Server {
             tendermint_client.genesis().unwrap().fee_policy(),
             transaction_cipher,
         );
-        let index = DefaultIndex::new(storage.clone(), tendermint_client);
-        DefaultWalletClient::builder()
-            .with_wallet(storage)
-            .with_transaction_read(index)
-            .with_transaction_write(transaction_builder)
-            .build()
-            .unwrap()
+        DefaultWalletClient::new(storage, tendermint_client, transaction_builder)
     }
 
     pub fn make_ops_client(&self, storage: SledStorage) -> AppOpsClient {
@@ -126,6 +116,7 @@ impl Server {
 
         ManualSynchronizer::new(storage, tendermint_client, block_handler)
     }
+
     pub fn start_websocket(&mut self, storage: SledStorage) -> Result<()> {
         log::info!("start_websocket");
         let url = self.websocket_url.clone();
@@ -153,11 +144,9 @@ impl Server {
         let staking_rpc =
             StakingRpcImpl::new(staking_rpc_wallet_client, ops_client, self.network_id);
 
-        let sync_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let synchronizer = self.make_synchronizer(storage.clone());
 
-        let sync_rpc =
-            SyncRpcImpl::new(sync_rpc_wallet_client, synchronizer, self.autosync.clone());
+        let sync_rpc = SyncRpcImpl::new(synchronizer, self.autosync.clone());
 
         let wallet_rpc_wallet_client = self.make_wallet_client(storage.clone());
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);

@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use chain_core::state::account::{
     DepositBondTx, StakedState, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
 };
+use chain_core::tx::data::input::TxoPointer;
+use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TransactionId;
@@ -20,6 +22,27 @@ pub enum Transaction {
     UnbondStakeTransaction(UnbondTx),
     /// Withdraw unbounded stake transaction
     WithdrawUnbondedStakeTransaction(WithdrawUnbondedTx),
+}
+
+impl Transaction {
+    /// Returns inputs of transaction
+    pub fn inputs(&self) -> &[TxoPointer] {
+        match self {
+            Transaction::TransferTransaction(ref transaction) => &transaction.inputs,
+            Transaction::DepositStakeTransaction(ref transaction) => &transaction.inputs,
+            Transaction::UnbondStakeTransaction(_)
+            | Transaction::WithdrawUnbondedStakeTransaction(_) => &[],
+        }
+    }
+
+    /// Returns outputs of transaction
+    pub fn outputs(&self) -> &[TxOut] {
+        match self {
+            Transaction::TransferTransaction(ref transaction) => &transaction.outputs,
+            Transaction::WithdrawUnbondedStakeTransaction(ref transaction) => &transaction.outputs,
+            Transaction::UnbondStakeTransaction(_) | Transaction::DepositStakeTransaction(_) => &[],
+        }
+    }
 }
 
 impl TransactionId for Transaction {
