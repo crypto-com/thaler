@@ -76,12 +76,6 @@ pub(crate) struct Options {
     websocket_url: String,
 }
 
-pub fn main() {
-    env_logger::init();
-    let options = Options::from_args();
-    Server::new(options).unwrap().start().unwrap();
-}
-
 pub fn find_string(args: &[String], target: &str) -> Option<usize> {
     for i in 0..args.len() {
         if args[i] == target && i < args.len() - 1 {
@@ -115,6 +109,11 @@ pub fn run() {
         options.websocket_url = args[a + 1].clone()
     }
 
+    let mut storage = dirs::data_dir().expect("get storage dir");
+    storage.push(".cro_storage");
+    options.storage_dir = storage.to_str().expect("get storage dir to_str").into();
+
     log::info!("Options={:?}", options);
+    log::info!("Storage={}", options.storage_dir);
     Server::new(options).unwrap().start().unwrap();
 }
