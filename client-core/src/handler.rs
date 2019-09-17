@@ -6,14 +6,17 @@ pub use default_block_handler::DefaultBlockHandler;
 pub use default_transaction_handler::DefaultTransactionHandler;
 
 use chrono::{DateTime, Utc};
+use secstr::SecUtf8;
 
-use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Transaction};
+use client_common::{BlockHeader, Result, Transaction};
 
 /// Interface for handling stream of transactions in Crypto.com Chain
 pub trait TransactionHandler: Send + Sync {
     /// Handles a transaction on Crypto.com Chain
     fn on_next(
         &self,
+        name: &str,
+        passphrase: &SecUtf8,
         transaction: Transaction,
         block_height: u64,
         block_time: DateTime<Utc>,
@@ -23,10 +26,5 @@ pub trait TransactionHandler: Send + Sync {
 /// Interface for handling stream of block headers in Crypto.com Chain
 pub trait BlockHandler: Send + Sync {
     /// Handles a block header in Crypto.com Chain
-    fn on_next(
-        &self,
-        block_header: BlockHeader,
-        view_key: &PublicKey,
-        private_key: &PrivateKey,
-    ) -> Result<()>;
+    fn on_next(&self, name: &str, passphrase: &SecUtf8, block_header: BlockHeader) -> Result<()>;
 }

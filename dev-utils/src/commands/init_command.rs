@@ -346,9 +346,7 @@ impl InitCommand {
 
     fn read_staking_address(&mut self) -> Result<()> {
         let storage = SledStorage::new(InitCommand::storage_path())?;
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage)
-            .build()?;
+        let wallet_client = DefaultWalletClient::new_read_only(storage);
 
         let name = self.ask_string("please enter wallet name=", "my");
 

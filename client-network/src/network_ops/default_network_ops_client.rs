@@ -114,7 +114,7 @@ where
         let transactions = inputs
             .into_iter()
             .map(|txo_pointer| {
-                let output = self.wallet_client.output(&txo_pointer)?;
+                let output = self.wallet_client.output(name, passphrase, &txo_pointer)?;
                 Ok((txo_pointer, output))
             })
             .collect::<Result<Vec<(TxoPointer, TxOut)>>>()?;
@@ -422,10 +422,7 @@ mod tests {
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage.clone())
-            .build()
-            .unwrap();
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         wallet_client.new_wallet(name, passphrase).unwrap();
 
@@ -466,10 +463,7 @@ mod tests {
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage.clone())
-            .build()
-            .unwrap();
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         wallet_client.new_wallet(name, passphrase).unwrap();
 
@@ -504,10 +498,7 @@ mod tests {
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage.clone())
-            .build()
-            .unwrap();
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let tendermint_client = MockClient::default();
         let network_ops_client = DefaultNetworkOpsClient::new(
@@ -561,10 +552,7 @@ mod tests {
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage.clone())
-            .build()
-            .unwrap();
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let tendermint_client = MockClient::default();
         let network_ops_client = DefaultNetworkOpsClient::new(
@@ -631,10 +619,7 @@ mod tests {
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage.clone())
-            .build()
-            .unwrap();
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let tendermint_client = MockClient::default();
         let network_ops_client = DefaultNetworkOpsClient::new(
@@ -677,10 +662,7 @@ mod tests {
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
-        let wallet_client = DefaultWalletClient::builder()
-            .with_wallet(storage)
-            .build()
-            .unwrap();
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
         let tendermint_client = MockClient::default();
 
         let network_ops_client = DefaultNetworkOpsClient::new(

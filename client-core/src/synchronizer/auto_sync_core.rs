@@ -1,36 +1,28 @@
 //! auto sync core
 //! polling the latest state
 //! change wallets and continue syncing
-
-use crate::auto_sync_data::WalletInfo;
-use crate::auto_sync_data::{
-    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueueShared, RemoveWalletCommand,
-    WalletInfos, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS, RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
-};
-
-use crate::service::GlobalStateService;
-use crate::BlockHandler;
-
-use chain_tx_filter::BlockFilter;
-use client_common::tendermint::types::Block;
-use client_common::tendermint::Client;
-use client_common::ErrorKind;
-use client_common::{BlockHeader, Result, Storage, Transaction};
-use client_common::{PrivateKey, PublicKey};
 use futures::sink::Sink;
 use jsonrpc_core::Result as JsonResult;
-use mpsc::Receiver;
-use mpsc::Sender;
-use serde_json::json;
-use serde_json::Value;
+use secstr::SecUtf8;
+use serde_json::{json, Value};
 use std::collections::BTreeSet;
-use std::sync::mpsc;
-use std::time;
-use std::time::SystemTime;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::time::{self, SystemTime};
 use websocket::OwnedMessage;
 
 use chain_core::state::account::StakedStateAddress;
-use client_common::ResultExt;
+use chain_tx_filter::BlockFilter;
+use client_common::tendermint::types::Block;
+use client_common::tendermint::Client;
+use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage, Transaction};
+
+use super::auto_sync_data::WalletInfo;
+use super::auto_sync_data::{
+    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueueShared, RemoveWalletCommand,
+    WalletInfos, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS, RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
+};
+use crate::service::{GlobalStateService, WalletService};
+use crate::BlockHandler;
 
 /**  finite state machine that manages blocks
 just use one thread to multi-plexing for data and command
@@ -71,6 +63,7 @@ where
 
     max_height: u64,
     state: WebsocketState,
+    wallet_service: WalletService<S>,
     global_state_service: GlobalStateService<S>,
     client: C,
     block_handler: H,
@@ -80,10 +73,9 @@ where
     data: AutoSyncDataShared,
 }
 
-/// auto-sync impl
 impl<S, C, H> AutoSynchronizerCore<S, C, H>
 where
-    S: Storage,
+    S: Storage + Clone,
     C: Client,
     H: BlockHandler,
 {
@@ -96,6 +88,7 @@ where
         wallets: WalletInfos,
         data: AutoSyncDataShared,
     ) -> Self {
+        let wallet_service = WalletService::new(storage.clone());
         let gss = GlobalStateService::new(storage);
 
         let channel = mpsc::channel();
@@ -111,6 +104,7 @@ where
 
             max_height: 0,
             state: WebsocketState::ReadyProcess,
+            wallet_service,
             global_state_service: gss,
             client,
             block_handler,
@@ -119,7 +113,15 @@ where
             data,
         }
     }
+}
 
+/// auto-sync impl
+impl<S, C, H> AutoSynchronizerCore<S, C, H>
+where
+    S: Storage,
+    C: Client,
+    H: BlockHandler,
+{
     /// to process multiple wallets
     fn get_current_wallet(&self) -> WalletInfo {
         assert!(self.current_wallet < self.wallets.len());
@@ -132,7 +134,7 @@ where
     fn get_current_height(&self) -> u64 {
         let wallet = self.get_current_wallet();
         self.global_state_service
-            .last_block_height(&wallet.view_key)
+            .last_block_height(&wallet.name, &wallet.passphrase)
             .expect("get current height")
     }
 
@@ -198,8 +200,13 @@ where
         let block_filter = block_results.block_filter()?;
 
         let wallet = self.get_current_wallet();
+
+        let staking_addresses = self
+            .wallet_service
+            .staking_addresses(&wallet.name, &wallet.passphrase)?;
+
         let unencrypted_transactions =
-            self.check_unencrypted_transactions(&block_filter, &wallet.staking_addresses, block)?;
+            self.check_unencrypted_transactions(&block_filter, &staking_addresses, block)?;
 
         let block_header = BlockHeader {
             app_hash,
@@ -211,7 +218,7 @@ where
         };
 
         self.block_handler
-            .on_next(block_header, &wallet.view_key, &wallet.private_key)?;
+            .on_next(&wallet.name, &wallet.passphrase, block_header)?;
         Ok(())
     }
 
@@ -229,21 +236,10 @@ where
     /// because everything is done via channel
     /// no mutex is necessary
     /// wallet can be added in runtime
-    pub fn add_wallet(
-        &mut self,
-        name: String,
-        staking_addresses: BTreeSet<StakedStateAddress>,
-        view_key: PublicKey,
-        private_key: PrivateKey,
-    ) -> JsonResult<()> {
+    pub fn add_wallet(&mut self, name: String, passphrase: SecUtf8) -> JsonResult<()> {
         log::info!("add_wallet ***** {}", name);
 
-        let info = WalletInfo {
-            name: name.to_string(),
-            staking_addresses,
-            view_key: view_key.clone(),
-            private_key,
-        };
+        let info = WalletInfo { name, passphrase };
 
         // upsert
         self.wallets.insert(info.name.clone(), info);
@@ -275,15 +271,8 @@ where
                         "Unable to deserialize add_wallet from json value",
                     )
                 })?;
-                let private_key = PrivateKey::deserialize_from(&info.private_key)
-                    .expect("Unable to deserialize private key from byte array");
 
-                let _ = self.add_wallet(
-                    info.name,
-                    info.staking_addresses,
-                    info.view_key,
-                    private_key,
-                );
+                let _ = self.add_wallet(info.name, info.passphrase);
             }
             "remove_wallet" => {
                 let info: RemoveWalletCommand = serde_json::from_value(value).chain(|| {
@@ -525,12 +514,13 @@ where
 mod tests {
     use super::*;
 
-    use crate::auto_sync_data::{AutoSyncData, AutoSyncSendQueue};
-    use chain_core::init::address::RedeemAddress;
-    use client_common::storage::MemoryStorage;
-    use client_common::tendermint::types::*;
     use std::sync::Arc;
     use std::sync::Mutex;
+
+    use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::*;
+
+    use super::super::auto_sync_data::{AutoSyncData, AutoSyncSendQueue};
 
     struct MockClient;
 
@@ -580,9 +570,9 @@ mod tests {
     impl BlockHandler for MockBlockHandler {
         fn on_next(
             &self,
+            _name: &str,
+            _passphrase: &SecUtf8,
             _block_header: BlockHeader,
-            _view_key: &PublicKey,
-            _private_key: &PrivateKey,
         ) -> Result<()> {
             unreachable!()
         }
@@ -593,7 +583,7 @@ mod tests {
         let storage = MemoryStorage::default();
         let client = MockClient {};
         let handler = MockBlockHandler {};
-        let data = Arc::new(Mutex::new(AutoSyncData::new()));
+        let data = Arc::new(Mutex::new(AutoSyncData::default()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
         let send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
@@ -610,19 +600,17 @@ mod tests {
             data,
         );
 
-        let private_key = PrivateKey::new().unwrap();
-        let view_key = PublicKey::from(&private_key);
-        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
-        let mut staking_addresses = BTreeSet::new();
-        staking_addresses.insert(staking_address);
-        core.add_wallet("a".into(), staking_addresses, view_key, private_key)
+        let name = "name".to_owned();
+        let passphrase = SecUtf8::from("passphrase");
+
+        core.add_wallet(name.clone(), passphrase)
             .expect("auto sync add wallet");
 
         core.change_wallet();
-        assert!(core.current_wallet == 0);
-        assert!(core.get_current_wallet().name == "a".to_string());
+        assert_eq!(0, core.current_wallet);
+        assert_eq!(name, core.get_current_wallet().name);
 
-        core.remove_wallet("a".into());
+        core.remove_wallet(&name);
         assert!(core.wallets.is_empty());
     }
 
@@ -631,7 +619,7 @@ mod tests {
         let storage = MemoryStorage::default();
         let client = MockClient {};
         let handler = MockBlockHandler {};
-        let data = Arc::new(Mutex::new(AutoSyncData::new()));
+        let data = Arc::new(Mutex::new(AutoSyncData::default()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
         let send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
@@ -661,7 +649,7 @@ mod tests {
         let storage = MemoryStorage::default();
         let client = MockClient {};
         let handler = MockBlockHandler {};
-        let data = Arc::new(Mutex::new(AutoSyncData::new()));
+        let data = Arc::new(Mutex::new(AutoSyncData::default()));
         let channel = futures::sync::mpsc::channel(0);
         let (channel_tx, _channel_rx) = channel;
         let send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
@@ -678,13 +666,10 @@ mod tests {
             data,
         );
 
-        let private_key = PrivateKey::new().unwrap();
-        let view_key = PublicKey::from(&private_key);
-        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
-        let mut staking_addresses = BTreeSet::new();
-        staking_addresses.insert(staking_address);
+        let name = "name".to_owned();
+        let passphrase = SecUtf8::from("passphrase");
 
-        core.add_wallet("a".into(), staking_addresses, view_key, private_key)
+        core.add_wallet(name, passphrase)
             .expect("auto sync add wallet");
 
         core.prepare_get_blocks("1".into());

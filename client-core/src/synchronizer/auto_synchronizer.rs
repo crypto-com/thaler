@@ -1,11 +1,11 @@
 //! auto sync network handler
 //! (todo) make upper json rpc wrapper
 
-use crate::auto_sync_core::AutoSynchronizerCore;
-use crate::auto_sync_data::{
+use super::auto_sync_core::AutoSynchronizerCore;
+use super::auto_sync_data::{
     AutoSyncDataShared, AutoSyncQueue, AutoSyncSendQueue, AutoSyncSendQueueShared, WalletInfos,
 };
-use crate::auto_sync_data::{MyQueue, CMD_SUBSCRIBE};
+use super::auto_sync_data::{MyQueue, CMD_SUBSCRIBE};
 use crate::BlockHandler;
 use std::sync::{Arc, Mutex};
 
@@ -55,7 +55,7 @@ impl AutoSynchronizer {
     }
 
     /// launch core thread
-    pub fn run<S: Storage + 'static, C: Client + 'static, H: BlockHandler + 'static>(
+    pub fn run<S: Storage + Clone + 'static, C: Client + 'static, H: BlockHandler + 'static>(
         &mut self,
         client: C,
         storage: S,

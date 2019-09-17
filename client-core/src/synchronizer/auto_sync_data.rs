@@ -1,12 +1,11 @@
 //! auto sync sharing state
 //! shared between network and core threads
-
-use chain_core::state::account::StakedStateAddress;
-use client_common::{PrivateKey, PublicKey};
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex};
+
+use secstr::SecUtf8;
+use serde::{Deserialize, Serialize};
 use websocket::OwnedMessage;
+
 /// give add wallet command via this queue
 pub type AutoSyncQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
@@ -23,13 +22,6 @@ pub struct AutoSyncData {
     pub wallet: String,
     /// send queue
     pub send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
-}
-
-impl AutoSyncData {
-    /// create auto sync data
-    pub fn new() -> Self {
-        Default::default()
-    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -58,12 +50,8 @@ pub type AutoSyncDataShared = Arc<Mutex<AutoSyncData>>;
 pub struct WalletInfo {
     /// name of wallet
     pub name: String,
-    /// staking address                     
-    pub staking_addresses: BTreeSet<StakedStateAddress>,
-    /// view-key
-    pub view_key: PublicKey,
-    /// private-key           
-    pub private_key: PrivateKey,
+    /// passphrase of wallet
+    pub passphrase: SecUtf8,
 }
 /// Wallet infos
 pub type WalletInfos = std::collections::BTreeMap<String, WalletInfo>;
@@ -75,12 +63,8 @@ pub struct AddWalletCommand {
     pub id: String,
     /// wallet name
     pub name: String,
-    /// staking addresses
-    pub staking_addresses: BTreeSet<StakedStateAddress>,
-    /// view key
-    pub view_key: PublicKey,
-    /// private key
-    pub private_key: Vec<u8>,
+    /// passphrase of wallet
+    pub passphrase: SecUtf8,
 }
 
 /// Command to remove wallet from auto-sync

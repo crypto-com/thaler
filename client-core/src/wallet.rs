@@ -19,10 +19,10 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
-use client_common::balance::TransactionChange;
 use client_common::tendermint::types::BroadcastTxResult;
 use client_common::{PrivateKey, PublicKey, Result};
 
+use crate::types::TransactionChange;
 use crate::{InputSelectionStrategy, UnspentTransactions};
 
 /// Interface for a generic wallet
@@ -139,7 +139,7 @@ pub trait WalletClient: Send + Sync {
         -> Result<UnspentTransactions>;
 
     /// Returns output of transaction with given input details
-    fn output(&self, id: &TxoPointer) -> Result<TxOut>;
+    fn output(&self, name: &str, passphrase: &SecUtf8, input: &TxoPointer) -> Result<TxOut>;
 
     /// Builds a transaction
     ///
