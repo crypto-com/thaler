@@ -72,9 +72,7 @@ describe("Wallet management", () => {
 			[walletRequest],
 		);
 		expect(walletStakingAddresses).to.be.an("array");
-		// FIXME: Create a transfer address also creates a staking address which
-		// is a known problem
-		expect(walletStakingAddresses.length).to.eq(2);
+		expect(walletStakingAddresses.length).to.eq(1);
 
 		const walletTransferAddresses = await client.request(
 			"wallet_listTransferAddresses",

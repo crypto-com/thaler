@@ -235,7 +235,7 @@ where
         public_keys: Vec<PublicKey>,
     ) -> Result<Proof<RawPubkey>> {
         // To verify if the passphrase is correct or not
-        self.transfer_addresses(name, passphrase)?;
+        self.wallet_service.view_key(name, passphrase)?;
 
         match address {
             ExtendedAddr::OrTree(ref address) => {
@@ -252,7 +252,7 @@ where
         root_hash: &H256,
     ) -> Result<usize> {
         // To verify if the passphrase is correct or not
-        self.transfer_addresses(name, passphrase)?;
+        self.wallet_service.view_key(name, passphrase)?;
 
         self.root_hash_service
             .required_signers(root_hash, passphrase)
@@ -260,10 +260,15 @@ where
 
     #[inline]
     fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin> {
+        // Check if wallet exists
+        self.wallet_service.view_key(name, passphrase)?;
         self.wallet_state_service.get_balance(name, passphrase)
     }
 
     fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>> {
+        // Check if wallet exists
+        self.wallet_service.view_key(name, passphrase)?;
+
         let history_map = self
             .wallet_state_service
             .get_transaction_history(name, passphrase)?;
@@ -284,6 +289,9 @@ where
         name: &str,
         passphrase: &SecUtf8,
     ) -> Result<UnspentTransactions> {
+        // Check if wallet exists
+        self.wallet_service.view_key(name, passphrase)?;
+
         let unspent_transactions = self
             .wallet_state_service
             .get_unspent_transactions(name, passphrase)?;
@@ -295,6 +303,9 @@ where
 
     #[inline]
     fn output(&self, name: &str, passphrase: &SecUtf8, input: &TxoPointer) -> Result<TxOut> {
+        // Check if wallet exists
+        self.wallet_service.view_key(name, passphrase)?;
+
         self.wallet_state_service
             .get_output(name, passphrase, input)
             .and_then(|optional| {
