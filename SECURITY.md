@@ -14,7 +14,7 @@ Once we receive a vulnerability report, Crypto.com will take these steps to addr
 4. Crypto.com will publicly release the security patch for the vulnerability, and acknowledge the security fix in the release notes once the issue has been resolved. Public release notes can reference to the person or people who reported the vulnerability, unless they wish to stay anonymous.
 
 ## Contact Us
-If you find a security issue, you can contact our team directly at [mailto:chain-security@crypto.com](chain-security@crypto.com).
+If you find a security issue, you can contact our team directly at [chain-security@crypto.com](mailto:chain-security@crypto.com).
 
 The following key can be used to communicate sensitive information to this email address:
 
@@ -34,7 +34,7 @@ lKMS+/mfuYvXWtrqOWN5AQ==
 -----END PGP PUBLIC KEY BLOCK-----
 ```
 
-You can also contact `cryptocom` account on [https://wire.com/](Wire), its key fingerprint is:
+You can also contact `cryptocom` account on [Wire](https://wire.com/), its key fingerprint is:
 
 ```
 2009df951d8880a4f319c6bafb2da6376d5e5aeb927a5ef10b8074af8b9df8c8
