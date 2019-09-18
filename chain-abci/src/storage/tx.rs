@@ -78,11 +78,11 @@ pub fn verify<T: EnclaveProxy>(
     let paid_fee = match txaux {
         TxAux::TransferTx { inputs, .. } => {
             check_spent_input_lookup(&inputs, db)?;
-            let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
-                tx: txaux.clone(),
-                account: None,
-                info: extra_info,
-            });
+            let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
+                txaux.clone(),
+                None,
+                extra_info,
+            ));
             match response {
                 EnclaveResponse::VerifyTx(Ok(r)) => r,
                 _ => {
@@ -100,11 +100,11 @@ pub fn verify<T: EnclaveProxy>(
                 }
             };
             check_spent_input_lookup(&tx.inputs, db)?;
-            let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
-                tx: txaux.clone(),
+            let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
+                txaux.clone(),
                 account,
-                info: extra_info,
-            });
+                extra_info,
+            ));
             match response {
                 EnclaveResponse::VerifyTx(Ok(r)) => r,
                 _ => {
@@ -126,11 +126,11 @@ pub fn verify<T: EnclaveProxy>(
                 return Err(Error::EcdsaCrypto); // FIXME: Err(Error::EcdsaCrypto(e));
             }
             let account = get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
-            let response = tx_validator.process_request(EnclaveRequest::VerifyTx {
-                tx: txaux.clone(),
-                account: Some(account),
-                info: extra_info,
-            });
+            let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
+                txaux.clone(),
+                Some(account),
+                extra_info,
+            ));
             match response {
                 EnclaveResponse::VerifyTx(Ok(r)) => r,
                 _ => {
