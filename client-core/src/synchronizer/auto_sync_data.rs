@@ -20,6 +20,10 @@ pub struct AutoSyncData {
     pub max_height: u64,
     /// current syncing wallet name
     pub wallet: String,
+    /// connected via websocket
+    pub connected: bool,
+    /// sync state : getting block, waiting, etc.
+    pub state: String,
     /// send queue
     pub send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
 }
@@ -74,6 +78,21 @@ pub struct RemoveWalletCommand {
     pub id: String,
     /// Wallet name
     pub name: String,
+}
+
+/// Auto Sync Info for rpc query
+#[derive(Serialize, Deserialize, Default)]
+pub struct AutoSyncInfo {
+    /// current
+    pub current_height: u64,
+    /// max height
+    pub max_height: u64,
+    /// current syncing wallet name
+    pub wallet: String,
+    /// connected via websocket
+    pub connected: bool,
+    /// sync state : getting block, waiting, etc.
+    pub state: String,
 }
 
 /// subscribe command

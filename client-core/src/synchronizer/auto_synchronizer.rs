@@ -28,6 +28,7 @@ pub struct AutoSynchronizer {
     /// websocket url
     websocket_url: String,
     send_queue: AutoSyncSendQueueShared,
+    data: AutoSyncDataShared,
 }
 
 /// handling web-socket
@@ -44,13 +45,14 @@ impl AutoSynchronizer {
         Some(self.core.as_mut().unwrap().clone())
     }
     /// create auto sync
-    pub fn new(websocket_url: String) -> Self {
+    pub fn new(websocket_url: String, data: AutoSyncDataShared) -> Self {
         Self {
             /// core
             core: None,
             /// websocket url
             websocket_url,
             send_queue: Arc::new(Mutex::new(AutoSyncSendQueue::new())),
+            data,
         }
     }
 
@@ -106,10 +108,23 @@ impl AutoSynchronizer {
         }
     }
 
+    fn reset_info(&mut self) {
+        let mut data = self.data.lock().unwrap();
+        data.current_height = 0;
+        data.max_height = 0;
+        data.wallet = "".to_string();
+        data.connected = false;
+        data.state = "".to_string();
+    }
+    fn update_info_connected(&mut self, connected: bool) {
+        let mut data = self.data.lock().unwrap();
+        data.connected = connected;
+    }
     /// activate tokio websocket
     pub fn run_network(&mut self) -> Result<()> {
         loop {
             let mut connected = false;
+            self.update_info_connected(connected);
             let channel = futures::sync::mpsc::channel(0);
             // tx, rx
             let (channel_tx, channel_rx) = channel;
@@ -131,6 +146,7 @@ impl AutoSynchronizer {
                 .and_then(|(duplex, _)| {
                     log::info!("successfully connected to {}", self.websocket_url);
                     connected = true;
+                    self.update_info_connected(connected);
                     channel_sink
                         .send(OwnedMessage::Text(CMD_SUBSCRIBE.to_string()))
                         .expect("send to channel sink");
@@ -166,6 +182,8 @@ impl AutoSynchronizer {
                     std::thread::sleep(std::time::Duration::from_millis(2000));
                 }
             }
+            // connection closed
+            self.reset_info();
         }
     }
 }

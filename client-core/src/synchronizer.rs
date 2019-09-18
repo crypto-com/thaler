@@ -6,4 +6,5 @@ mod auto_synchronizer;
 mod manual_synchronizer;
 
 pub use self::auto_sync::AutoSync;
+pub use self::auto_sync_data::AutoSyncInfo;
 pub use self::manual_synchronizer::{ManualSynchronizer, ProgressReport};

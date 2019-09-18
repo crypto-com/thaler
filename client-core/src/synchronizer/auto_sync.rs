@@ -19,7 +19,9 @@ use client_common::tendermint::Client;
 use client_common::Result;
 use client_common::Storage;
 
-use super::auto_sync_data::{AddWalletCommand, AutoSyncDataShared, RemoveWalletCommand};
+use super::auto_sync_data::{
+    AddWalletCommand, AutoSyncDataShared, AutoSyncInfo, RemoveWalletCommand,
+};
 use super::auto_synchronizer::AutoSynchronizer;
 use crate::BlockHandler;
 
@@ -42,7 +44,7 @@ impl AutoSync {
         storage: S,
         block_handler: H,
     ) {
-        let mut web = AutoSynchronizer::new(url);
+        let mut web = AutoSynchronizer::new(url, self.data.clone());
         web.run(client, storage, block_handler, self.data.clone());
         let websocket_queue = web.get_send_queue();
 
@@ -69,6 +71,21 @@ impl AutoSync {
         });
 
         self.send_json(data)
+    }
+
+    /// Get sync information
+    pub fn sync_info(&self) -> Result<AutoSyncInfo> {
+        let mut ret = AutoSyncInfo::default();
+
+        {
+            let data = self.data.lock().expect("get progress autosync lock");
+            ret.current_height = data.current_height;
+            ret.max_height = data.max_height;
+            ret.wallet = data.wallet.clone();
+            ret.connected = data.connected;
+            ret.state = data.state.clone();
+        }
+        Ok(ret)
     }
 
     /// Removes a wallet from auto-sync
