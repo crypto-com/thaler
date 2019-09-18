@@ -13,7 +13,7 @@ miscreant = "0.4"
 blake2 = "0.8"
 hex = "0.4"
 base64 = "0.10"
-secstr = "0.3.2"
+secstr = { version = "0.3.2", features = ["serde"] }
 zeroize = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
