@@ -44,7 +44,8 @@ impl EnclaveProxy for MockClient {
                 }
             }
             EnclaveRequest::CommitBlock { .. } => EnclaveResponse::CommitBlock(Ok(())),
-            EnclaveRequest::VerifyTx { tx, account, info } => {
+            EnclaveRequest::VerifyTx(txrequest) => {
+                let (tx, account, info) = (txrequest.tx, txrequest.account, txrequest.info);
                 let (txpayload, inputs) = match &tx {
                     TxAux::TransferTx {
                         inputs,

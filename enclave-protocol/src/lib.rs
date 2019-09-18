@@ -32,9 +32,56 @@ use secp256k1::{
 const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
 const TOKEN_LEN: usize = 1024;
 
+/// raw sgx_sealed_data_t
+type SealedLog = Vec<u8>;
+
+/// variable length request passed to the tx-validation enclave
+#[derive(Encode, Decode)]
+pub struct IntraEnclaveRequest {
+    pub request: VerifyTxRequest,
+    pub tx_inputs: Option<Vec<SealedLog>>,
+}
+
+impl IntraEnclaveRequest {
+    /// helper method to validate basic assumptions
+    pub fn is_basic_valid(&self, chain_hex_id: u8) -> Result<(), ()> {
+        if self.request.info.chain_hex_id != chain_hex_id {
+            return Err(());
+        }
+        match self.request.tx {
+            TxAux::DepositStakeTx { .. } => match self.tx_inputs {
+                Some(ref i) if !i.is_empty() => Ok(()),
+                _ => Err(()),
+            },
+            TxAux::TransferTx { .. } => match self.tx_inputs {
+                Some(ref i) if !i.is_empty() => Ok(()),
+                _ => Err(()),
+            },
+            TxAux::WithdrawUnbondedStakeTx { .. } => {
+                if self.request.account.is_some() {
+                    Ok(())
+                } else {
+                    Err(())
+                }
+            }
+            _ => Err(()),
+        }
+    }
+}
+
+// variable length response returned from the tx-validation enclave
+pub type IntraEnclaveResponse = Result<(Fee, Option<SealedLog>), chain_tx_validation::Error>;
+
+/// request passed from abci
+/// TODO: only certain Tx types should be sent -> create a more restrictive datatype instead of checking in `is_basic_valid`
+#[derive(Encode, Decode, Clone)]
+pub struct VerifyTxRequest {
+    pub tx: TxAux,
+    pub account: Option<StakedState>,
+    pub info: ChainInfo,
+}
+
 /// requests sent from chain-abci app to enclave wrapper server
-/// FIXME: box chain info or txaux?
-#[allow(clippy::large_enum_variant)]
 #[derive(Encode, Decode)]
 pub enum EnclaveRequest {
     /// a sanity check (sends the chain network ID -- last byte / two hex digits convention)
@@ -47,13 +94,7 @@ pub enum EnclaveRequest {
     },
     /// "stateless" transaction validation requests (sends transaction + all required information)
     /// double-spent / BitVec check done in chain-abci
-    /// FIXME: when sealing is done, sealed TX would probably be stored by enclave server, hence this should send TxPointers instead
-    /// FIXME: only certain Tx types should be sent -> create a datatype / enum for it (probably after encrypted Tx data types)
-    VerifyTx {
-        tx: TxAux,
-        account: Option<StakedState>,
-        info: ChainInfo,
-    },
+    VerifyTx(Box<VerifyTxRequest>),
     /// request to flush/persist storage + store the computed app hash
     /// FIXME: enclave should be able to compute a part of app hash, so send the other parts and check the same app hash was computed
     CommitBlock { app_hash: H256 },
@@ -66,6 +107,12 @@ pub enum EnclaveRequest {
     },
     /// request to get tx data sealed to "mrsigner" (requested by TDQE -- they should be on the same machine)
     GetSealedTxData { txids: Vec<TxId> },
+}
+
+impl EnclaveRequest {
+    pub fn new_tx_request(tx: TxAux, account: Option<StakedState>, info: ChainInfo) -> Self {
+        EnclaveRequest::VerifyTx(Box::new(VerifyTxRequest { tx, account, info }))
+    }
 }
 
 /// reponses sent from enclave wrapper server to chain-abci app
@@ -83,7 +130,7 @@ pub enum EnclaveResponse {
     /// indicates whether the update was successful
     UpdateCachedLaunchToken(Result<(), ()>),
     /// returns Some(sealed data payloads) or None (if any TXID was not found / invalid)
-    GetSealedTxData(Option<Vec<Vec<u8>>>),
+    GetSealedTxData(Option<Vec<SealedLog>>),
     /// response if unsupported tx type is sent (e.g. unbondtx) -- TODO: probably unnecessary if there is a data type with a subset of TxAux
     UnsupportedTxType,
     /// response if the enclave failed to parse the request
