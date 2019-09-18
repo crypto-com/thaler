@@ -75,7 +75,7 @@ pub enum EnclaveResponse {
     /// returns OK if chain_hex_id matches the one embedded in enclave and last_app_hash matches (returns the last app hash if any)
     CheckChain(Result<(), Option<H256>>),
     /// returns the affected (account) state (if any) and paid fee if the TX is valid
-    VerifyTx(Result<(Fee, Option<StakedState>), ()>),
+    VerifyTx(Result<(Fee, Option<StakedState>), chain_tx_validation::Error>),
     /// returns if the data was sucessfully persisted in the enclave's local storage
     CommitBlock(Result<(), ()>),
     /// returns a stored launch token if any

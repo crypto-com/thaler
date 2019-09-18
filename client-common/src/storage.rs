@@ -10,13 +10,12 @@ pub use sled_storage::SledStorage;
 pub use unauthorized_storage::UnauthorizedStorage;
 
 use blake2::{Blake2s, Digest};
-use failure::ResultExt;
 use miscreant::{Aead, Aes128PmacSivAead};
 use rand::rngs::OsRng;
 use rand::Rng;
 use secstr::SecUtf8;
 
-use crate::{ErrorKind, Result};
+use crate::{ErrorKind, Result, ResultExt};
 
 /// Nonce size in bytes
 const NONCE_SIZE: usize = 8;
@@ -35,6 +34,13 @@ pub trait Storage: Send + Sync {
         keyspace: S,
         key: K,
         value: Vec<u8>,
+    ) -> Result<Option<Vec<u8>>>;
+
+    /// Delete a key from keyspace
+    fn delete<S: AsRef<[u8]>, K: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
     ) -> Result<Option<Vec<u8>>>;
 
     /// Fetches a value, applies a function and returns the previous value.
@@ -104,7 +110,12 @@ where
 
                 Ok(algo
                     .open(&value[nonce_index..], key.as_ref(), &value[..nonce_index])
-                    .context(ErrorKind::DecryptionError)?)
+                    .chain(|| {
+                        (
+                            ErrorKind::DecryptionError,
+                            "Incorrect passphrase: Unable to unlock stored values",
+                        )
+                    })?)
             })
             .transpose()
     }
@@ -156,7 +167,12 @@ where
                     )
                 })
                 .transpose()
-                .context(ErrorKind::DecryptionError)?;
+                .chain(|| {
+                    (
+                        ErrorKind::DecryptionError,
+                        "Incorrect passphrase: Unable to unlock stored values",
+                    )
+                })?;
 
             let next = f(opened.as_ref().map(AsRef::as_ref))?;
 

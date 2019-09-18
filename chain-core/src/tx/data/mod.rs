@@ -11,6 +11,7 @@ pub mod input;
 /// Transaction outputs (amount to an address)
 pub mod output;
 
+#[cfg(feature = "hex")]
 use std::fmt;
 
 use blake2::Blake2s;
@@ -47,7 +48,10 @@ pub type TxId = H256;
 /// TODO: max input/output size?
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 #[derive(Debug, Default, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Serialize, Deserialize)
+)]
 pub struct Tx {
     pub inputs: Vec<TxoPointer>,
     pub outputs: Vec<TxOut>,
@@ -76,6 +80,7 @@ impl Decode for Tx {
     }
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for Tx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for input in self.inputs.iter() {

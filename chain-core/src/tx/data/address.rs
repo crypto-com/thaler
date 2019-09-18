@@ -1,6 +1,7 @@
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "hex")]
 use std::fmt;
 #[cfg(feature = "bech32")]
 use std::str::FromStr;
@@ -11,7 +12,7 @@ use crate::init::address::{CroAddress, CroAddressError};
 #[cfg(feature = "bech32")]
 use bech32::{self, u5, FromBase32, ToBase32};
 
-#[cfg(feature = "bech32")]
+#[cfg(all(feature = "bech32", feature = "hex"))]
 use crate::init::network::get_bech32_human_part;
 
 /// TODO: opaque types?
@@ -20,13 +21,13 @@ type TreeRoot = H256;
 /// Currently, only Ethereum-style redeem address + MAST of Or operations (records the root).
 /// TODO: HD-addresses?
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode, Hash)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Encode, Decode, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ExtendedAddr {
     OrTree(TreeRoot),
 }
 
-#[cfg(feature = "bech32")]
+#[cfg(all(feature = "bech32", feature = "hex"))]
 impl ExtendedAddr {
     fn get_string(&self, hash: TreeRoot) -> String {
         let checked_data: Vec<u5> = hash.to_vec().to_base32();
@@ -36,7 +37,7 @@ impl ExtendedAddr {
     }
 }
 
-#[cfg(feature = "bech32")]
+#[cfg(all(feature = "bech32", feature = "hex"))]
 impl CroAddress<ExtendedAddr> for ExtendedAddr {
     fn to_cro(&self) -> Result<String, CroAddressError> {
         match self {
@@ -59,23 +60,14 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
     }
 }
 
-#[cfg(feature = "bech32")]
+#[cfg(all(feature = "bech32", feature = "hex"))]
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_cro().unwrap())
     }
 }
 
-#[cfg(not(feature = "bech32"))]
-impl fmt::Display for ExtendedAddr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ExtendedAddr::OrTree(hash) => write!(f, "0x{}", hex::encode(hash)),
-        }
-    }
-}
-
-#[cfg(feature = "bech32")]
+#[cfg(all(feature = "bech32", feature = "hex"))]
 impl FromStr for ExtendedAddr {
     type Err = CroAddressError;
 

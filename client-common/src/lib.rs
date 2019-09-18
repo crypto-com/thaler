@@ -3,7 +3,6 @@
 mod block_header;
 mod transaction;
 
-pub mod balance;
 pub mod error;
 pub mod key;
 pub mod storage;
@@ -12,7 +11,7 @@ pub mod tendermint;
 #[doc(inline)]
 pub use block_header::BlockHeader;
 #[doc(inline)]
-pub use error::{Error, ErrorKind, Result};
+pub use error::{Error, ErrorKind, Result, ResultExt};
 #[doc(inline)]
 pub use key::{PrivateKey, PublicKey};
 #[doc(inline)]

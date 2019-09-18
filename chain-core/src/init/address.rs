@@ -14,16 +14,20 @@
 #[cfg(feature = "bech32")]
 use bech32::{self, u5, FromBase32, ToBase32};
 use parity_scale_codec::{Decode, Encode};
-use std::prelude::v1::{String, ToString};
+use std::ops;
+use std::prelude::v1::String;
+#[cfg(feature = "hex")]
 use std::str::FromStr;
-use std::{fmt, ops};
 
+#[cfg(feature = "hex")]
 use hex;
 use secp256k1::key::PublicKey;
 #[cfg(feature = "serde")]
 use serde::de::Error;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+#[cfg(feature = "hex")]
+use std::fmt;
 use tiny_keccak::Keccak;
 
 use crate::common::{H256, HASH_SIZE_256};
@@ -77,6 +81,7 @@ where
 
 /// Core domain logic errors
 #[derive(Debug)]
+#[cfg(feature = "hex")]
 pub enum ErrorAddress {
     /// An invalid length
     InvalidLength(usize),
@@ -94,18 +99,21 @@ pub enum ErrorAddress {
     InvalidCroAddress,
 }
 
+#[cfg(feature = "hex")]
 impl From<hex::FromHexError> for ErrorAddress {
     fn from(err: hex::FromHexError) -> Self {
         ErrorAddress::UnexpectedHexEncoding(err)
     }
 }
 
+#[cfg(feature = "hex")]
 impl From<secp256k1::Error> for ErrorAddress {
     fn from(err: secp256k1::Error) -> Self {
         ErrorAddress::EcdsaCrypto(err)
     }
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for ErrorAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
@@ -133,7 +141,7 @@ impl fmt::Display for CroAddressError {
     }
 }
 
-#[cfg(not(any(feature = "mesalock_sgx", target_env = "sgx")))]
+#[cfg(feature = "hex")]
 impl std::error::Error for ErrorAddress {
     fn description(&self) -> &str {
         "Core error"
@@ -157,6 +165,7 @@ pub type RedeemAddressRaw = [u8; REDEEM_ADDRESS_BYTES];
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 pub struct RedeemAddress(pub RedeemAddressRaw);
 
+#[cfg(feature = "hex")]
 impl RedeemAddress {
     /// Try to convert a byte vector to `RedeemAddress`.
     ///
@@ -173,7 +182,7 @@ impl RedeemAddress {
     }
 }
 
-#[cfg(feature = "bech32")]
+#[cfg(all(feature = "bech32", feature = "hex"))]
 impl CroAddress<RedeemAddress> for RedeemAddress {
     fn to_cro(&self) -> Result<String, CroAddressError> {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
@@ -217,6 +226,7 @@ impl From<[u8; REDEEM_ADDRESS_BYTES]> for RedeemAddress {
     }
 }
 
+#[cfg(feature = "hex")]
 impl FromStr for RedeemAddress {
     type Err = ErrorAddress;
 
@@ -235,13 +245,14 @@ impl FromStr for RedeemAddress {
     }
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for RedeemAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{}", hex::encode(self.0))
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 impl Serialize for RedeemAddress {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -251,7 +262,7 @@ impl Serialize for RedeemAddress {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 impl<'de> Deserialize<'de> for RedeemAddress {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -369,5 +380,4 @@ mod tests {
         let c = RedeemAddress::from_cro(&b).unwrap();
         assert_eq!(c, a);
     }
-
 }

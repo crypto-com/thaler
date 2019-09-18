@@ -16,7 +16,7 @@ extern crate sgx_tstd as std;
 
 use std::prelude::v1::Vec;
 
-use chain_core::init::coin::{Coin, CoinError};
+use chain_core::init::coin::Coin;
 use chain_core::state::account::{DepositBondTx, StakedState, UnbondTx, WithdrawUnbondedTx};
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
@@ -27,13 +27,14 @@ use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TransactionId;
 pub use chain_core::tx::TxWithOutputs;
 pub use chain_core::ChainInfo;
-use secp256k1;
+use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeSet;
-use std::{fmt, io};
+use std::convert::From;
+use std::fmt;
 use witness::verify_tx_address;
 
 /// All possible TX validation errors
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub enum Error {
     /// chain hex ID does not match
     WrongChainHexId,
@@ -46,7 +47,8 @@ pub enum Error {
     /// output with no credited value
     ZeroCoin,
     /// input or output summation error
-    InvalidSum(CoinError),
+    /// FIXME: InvalidSum(CoinError),
+    InvalidSum,
     /// transaction has more witnesses than inputs
     UnexpectedWitnesses,
     /// transaction has more inputs than witnesses
@@ -60,9 +62,11 @@ pub enum Error {
     /// output transaction is in timelock that hasn't passed
     OutputInTimelock,
     /// cryptographic library error
-    EcdsaCrypto(secp256k1::Error),
+    /// FIXME: EcdsaCrypto(secp256k1::Error),
+    EcdsaCrypto,
     /// DB read error
-    IoError(io::Error),
+    /// FIXME: IoError(io::Error),
+    IoError,
     /// enclave error or invalid TX,
     EnclaveRejected,
     /// staked state not found
@@ -73,6 +77,34 @@ pub enum Error {
     AccountWithdrawOutputNotLocked,
     /// incorrect nonce supplied in staked state operation
     AccountIncorrectNonce,
+}
+
+/// FIXME: this will go away with simplified intra-enclave FFI calls
+impl From<i32> for Error {
+    fn from(v: i32) -> Self {
+        match v {
+            x if x == Error::WrongChainHexId as i32 => Error::WrongChainHexId,
+            x if x == Error::NoInputs as i32 => Error::NoInputs,
+            x if x == Error::NoOutputs as i32 => Error::NoOutputs,
+            x if x == Error::DuplicateInputs as i32 => Error::DuplicateInputs,
+            x if x == Error::ZeroCoin as i32 => Error::ZeroCoin,
+            x if x == Error::UnexpectedWitnesses as i32 => Error::UnexpectedWitnesses,
+            x if x == Error::MissingWitnesses as i32 => Error::MissingWitnesses,
+            x if x == Error::InvalidInput as i32 => Error::InvalidInput,
+            x if x == Error::InputSpent as i32 => Error::InputSpent,
+            x if x == Error::InputOutputDoNotMatch as i32 => Error::InputOutputDoNotMatch,
+            x if x == Error::OutputInTimelock as i32 => Error::OutputInTimelock,
+            x if x == Error::EcdsaCrypto as i32 => Error::EcdsaCrypto,
+            x if x == Error::IoError as i32 => Error::IoError,
+            x if x == Error::AccountNotFound as i32 => Error::AccountNotFound,
+            x if x == Error::AccountNotUnbonded as i32 => Error::AccountNotUnbonded,
+            x if x == Error::AccountWithdrawOutputNotLocked as i32 => {
+                Error::AccountWithdrawOutputNotLocked
+            }
+            x if x == Error::AccountIncorrectNonce as i32 => Error::AccountIncorrectNonce,
+            _ => Error::EnclaveRejected,
+        }
+    }
 }
 
 impl fmt::Display for Error {
@@ -86,7 +118,11 @@ impl fmt::Display for Error {
             NoInputs => write!(f, "transaction has no inputs"),
             NoOutputs => write!(f, "transaction has no outputs"),
             ZeroCoin => write!(f, "output with no credited value"),
-            InvalidSum(ref err) => write!(f, "input or output sum error: {}", err),
+            // FIXME: InvalidSum(ref err) => write!(f, "input or output sum error: {}", err),
+            InvalidSum => write!(
+                f,
+                "input or output sum error (summation more than the total supply)"
+            ),
             InvalidInput => write!(f, "transaction spends an invalid input"),
             InputSpent => write!(f, "transaction spends an input that was already spent"),
             InputOutputDoNotMatch => write!(
@@ -94,8 +130,13 @@ impl fmt::Display for Error {
                 "transaction input output coin (plus fee) sums don't match"
             ),
             OutputInTimelock => write!(f, "output transaction is in timelock"),
-            EcdsaCrypto(ref err) => write!(f, "ECDSA crypto error: {}", err),
-            IoError(ref err) => write!(f, "IO error: {}", err),
+            // FIXME: EcdsaCrypto(ref err) => write!(f, "ECDSA crypto error: {}", err),
+            EcdsaCrypto => write!(
+                f,
+                "cryptographic error (signature verification or public key recovery failed)"
+            ),
+            // FIXME: IoError(ref err) => write!(f, "IO error: {}", err),
+            IoError => write!(f, "database lookup error"),
             EnclaveRejected => write!(f, "enclave error or invalid TX"),
             AccountNotFound => write!(f, "account not found"),
             AccountNotUnbonded => write!(f, "account not unbonded for withdrawal"),
@@ -171,12 +212,12 @@ fn check_inputs(
             }
         }
         let wv = verify_tx_address(&in_witness, main_txid, &txout.address);
-        if let Err(e) = wv {
-            return Err(Error::EcdsaCrypto(e));
+        if let Err(_e) = wv {
+            return Err(Error::EcdsaCrypto); // FIXME: Err(Error::EcdsaCrypto(e));
         }
         let sum = incoins + txout.value;
-        if let Err(e) = sum {
-            return Err(Error::InvalidSum(e));
+        if let Err(_e) = sum {
+            return Err(Error::InvalidSum); // FIXME: Err(Error::InvalidSum(e));
         } else {
             incoins = sum.unwrap();
         }
@@ -210,8 +251,8 @@ fn check_input_output_sums(
     // check sum(input amounts) >= sum(output amounts) + minimum fee
     let min_fee: Coin = extra_info.min_fee_computed.to_coin();
     let total_outsum = outcoins + min_fee;
-    if let Err(coin_err) = total_outsum {
-        return Err(Error::InvalidSum(coin_err));
+    if let Err(_coin_err) = total_outsum {
+        return Err(Error::InvalidSum); // FIXME: Err(Error::InvalidSum(coin_err));
     }
     if incoins < total_outsum.unwrap() {
         return Err(Error::InputOutputDoNotMatch);
@@ -239,8 +280,8 @@ pub fn verify_transfer(
         transaction_inputs,
     )?;
     let outcoins = maintx.get_output_total();
-    if let Err(coin_err) = outcoins {
-        return Err(Error::InvalidSum(coin_err));
+    if let Err(_coin_err) = outcoins {
+        return Err(Error::InvalidSum); // FIXME: Err(Error::InvalidSum(coin_err));
     }
     check_input_output_sums(incoins, outcoins.unwrap(), &extra_info)
 }
@@ -353,8 +394,8 @@ pub fn verify_unbonded_withdraw_core(
         return Err(Error::AccountWithdrawOutputNotLocked);
     }
     let outcoins = maintx.get_output_total();
-    if let Err(coin_err) = outcoins {
-        return Err(Error::InvalidSum(coin_err));
+    if let Err(_coin_err) = outcoins {
+        return Err(Error::InvalidSum); // FIXME: Err(Error::InvalidSum(coin_err));
     }
     check_input_output_sums(account.unbonded, outcoins.unwrap(), &extra_info)
 }

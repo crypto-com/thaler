@@ -8,7 +8,6 @@ members = [
     "client-cli",
     "client-common",
     "client-core",
-    "client-index",
     "client-network",
     "client-rpc",
     "dev-utils",

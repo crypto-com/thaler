@@ -1,4 +1,3 @@
-use failure::ResultExt;
 use hex::{decode, encode};
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
@@ -6,7 +5,7 @@ use secstr::SecUtf8;
 
 use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::tx::data::Tx;
-use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult};
+use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt};
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{to_rpc_error, WalletRequest};
@@ -265,10 +264,18 @@ fn serialize_hash_256(hash: H256) -> String {
 }
 
 fn parse_hash_256(hash: String) -> CommonResult<H256> {
-    let array = decode(hash).context(ErrorKind::DeserializationError)?;
+    let array = decode(&hash).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            format!("({}) is not a valid hex string", hash),
+        )
+    })?;
 
     if array.len() != HASH_SIZE_256 {
-        return Err(Error::from(ErrorKind::DeserializationError));
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            format!("({}) should be a hex string of 32 bytes", hash),
+        ));
     }
 
     let mut new_hash: H256 = [0; HASH_SIZE_256];
@@ -289,7 +296,12 @@ fn parse_public_keys(public_keys: Vec<String>) -> CommonResult<Vec<PublicKey>> {
 }
 
 fn parse_public_key(public_key: String) -> CommonResult<PublicKey> {
-    let array = decode(public_key).context(ErrorKind::DeserializationError)?;
+    let array = decode(&public_key).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            format!("Unable to deserialize public key ({})", public_key),
+        )
+    })?;
     PublicKey::deserialize_from(&array)
 }
 
@@ -299,9 +311,6 @@ mod test {
     use secstr::SecUtf8;
 
     use chain_core::init::coin::CoinError;
-    use chain_core::tx::data::address::ExtendedAddr;
-    use chain_core::tx::data::input::TxoPointer;
-    use chain_core::tx::data::output::TxOut;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
@@ -312,7 +321,7 @@ mod test {
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
-    use client_index::{AddressDetails, Index, TransactionObfuscation};
+    use client_core::TransactionObfuscation;
 
     #[test]
     fn create_address_should_return_bech32_multisig_address() {
@@ -354,16 +363,12 @@ mod test {
 
     fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
         let signer = DefaultSigner::new(storage.clone());
-        DefaultWalletClient::builder()
-            .with_wallet(storage)
-            .with_transaction_read(MockIndex::default())
-            .with_transaction_write(DefaultTransactionBuilder::new(
-                signer,
-                ZeroFeeAlgorithm::default(),
-                MockTransactionCipher,
-            ))
-            .build()
-            .unwrap()
+        let transaction_builder = DefaultTransactionBuilder::new(
+            signer,
+            ZeroFeeAlgorithm::default(),
+            MockTransactionCipher,
+        );
+        DefaultWalletClient::new(storage, MockRpcClient, transaction_builder)
     }
 
     fn setup_multisig_rpc() -> MultiSigRpcImpl<TestWalletClient> {
@@ -378,27 +383,6 @@ mod test {
         WalletRequest {
             name: name.to_owned(),
             passphrase: SecUtf8::from(passphrase),
-        }
-    }
-
-    #[derive(Default)]
-    pub struct MockIndex;
-
-    impl Index for MockIndex {
-        fn address_details(&self, _address: &ExtendedAddr) -> CommonResult<AddressDetails> {
-            unreachable!("address_details")
-        }
-
-        fn transaction(&self, _: &TxId) -> CommonResult<Option<Transaction>> {
-            unreachable!("transaction")
-        }
-
-        fn output(&self, _input: &TxoPointer) -> CommonResult<TxOut> {
-            unreachable!("output")
-        }
-
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
-            unreachable!("broadcast_transaction")
         }
     }
 
@@ -435,7 +419,7 @@ mod test {
     type TestTxBuilder =
         DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm, MockTransactionCipher>;
     type TestSigner = DefaultSigner<MemoryStorage>;
-    type TestWalletClient = DefaultWalletClient<MemoryStorage, MockIndex, TestTxBuilder>;
+    type TestWalletClient = DefaultWalletClient<MemoryStorage, MockRpcClient, TestTxBuilder>;
 
     #[derive(Default)]
     pub struct MockRpcClient;
@@ -479,5 +463,4 @@ mod test {
             unreachable!("query")
         }
     }
-
 }

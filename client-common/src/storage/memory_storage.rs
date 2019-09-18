@@ -10,10 +10,12 @@ pub struct MemoryStorage(Arc<RwLock<HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<u8>>>>
 
 impl Storage for MemoryStorage {
     fn clear<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<()> {
-        let mut memory = self
-            .0
-            .write()
-            .map_err(|_| Error::from(ErrorKind::StorageError))?;
+        let mut memory = self.0.write().map_err(|_| {
+            Error::new(
+                ErrorKind::StorageError,
+                "Unable to acquire write lock on memory storage",
+            )
+        })?;
 
         if let Some(ref mut space) = memory.get_mut(keyspace.as_ref()) {
             space.drain();
@@ -23,10 +25,12 @@ impl Storage for MemoryStorage {
     }
 
     fn get<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<Option<Vec<u8>>> {
-        let memory = self
-            .0
-            .read()
-            .map_err(|_| Error::from(ErrorKind::StorageError))?;
+        let memory = self.0.read().map_err(|_| {
+            Error::new(
+                ErrorKind::StorageError,
+                "Unable to acquire read lock on memory storage",
+            )
+        })?;
         let value = memory
             .get(keyspace.as_ref())
             .and_then(|space| space.get(key.as_ref()))
@@ -41,10 +45,12 @@ impl Storage for MemoryStorage {
         key: K,
         value: Vec<u8>,
     ) -> Result<Option<Vec<u8>>> {
-        let mut memory = self
-            .0
-            .write()
-            .map_err(|_| Error::from(ErrorKind::StorageError))?;
+        let mut memory = self.0.write().map_err(|_| {
+            Error::new(
+                ErrorKind::StorageError,
+                "Unable to acquire write lock on memory storage",
+            )
+        })?;
 
         if !memory.contains_key(keyspace.as_ref()) {
             memory.insert(keyspace.as_ref().to_vec(), Default::default());
@@ -55,16 +61,35 @@ impl Storage for MemoryStorage {
         Ok(space.insert(key.as_ref().to_vec(), value))
     }
 
+    fn delete<S: AsRef<[u8]>, K: AsRef<[u8]>>(
+        &self,
+        keyspace: S,
+        key: K,
+    ) -> Result<Option<Vec<u8>>> {
+        let mut memory = self.0.write().map_err(|_| {
+            Error::new(
+                ErrorKind::StorageError,
+                "Unable to acquire write lock on memory storage",
+            )
+        })?;
+
+        Ok(memory
+            .get_mut(keyspace.as_ref())
+            .and_then(|keyspace| keyspace.remove(key.as_ref())))
+    }
+
     fn fetch_and_update<S, K, F>(&self, keyspace: S, key: K, f: F) -> Result<Option<Vec<u8>>>
     where
         S: AsRef<[u8]>,
         K: AsRef<[u8]>,
         F: Fn(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
     {
-        let mut memory = self
-            .0
-            .write()
-            .map_err(|_| Error::from(ErrorKind::StorageError))?;
+        let mut memory = self.0.write().map_err(|_| {
+            Error::new(
+                ErrorKind::StorageError,
+                "Unable to acquire write lock on memory storage",
+            )
+        })?;
 
         if !memory.contains_key(keyspace.as_ref()) {
             memory.insert(keyspace.as_ref().to_vec(), Default::default());
@@ -83,10 +108,12 @@ impl Storage for MemoryStorage {
     }
 
     fn keys<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<Vec<Vec<u8>>> {
-        let memory = self
-            .0
-            .read()
-            .map_err(|_| Error::from(ErrorKind::StorageError))?;
+        let memory = self.0.read().map_err(|_| {
+            Error::new(
+                ErrorKind::StorageError,
+                "Unable to acquire read lock on memory storage",
+            )
+        })?;
 
         let keys = memory
             .get(keyspace.as_ref())
@@ -97,10 +124,12 @@ impl Storage for MemoryStorage {
     }
 
     fn contains_key<S: AsRef<[u8]>, K: AsRef<[u8]>>(&self, keyspace: S, key: K) -> Result<bool> {
-        let memory = self
-            .0
-            .read()
-            .map_err(|_| Error::from(ErrorKind::StorageError))?;
+        let memory = self.0.read().map_err(|_| {
+            Error::new(
+                ErrorKind::StorageError,
+                "Unable to acquire read lock on memory storage",
+            )
+        })?;
 
         let contains_key = memory
             .get(keyspace.as_ref())
@@ -110,10 +139,12 @@ impl Storage for MemoryStorage {
     }
 
     fn keyspaces(&self) -> Result<Vec<Vec<u8>>> {
-        let memory = self
-            .0
-            .read()
-            .map_err(|_| Error::from(ErrorKind::StorageError))?;
+        let memory = self.0.read().map_err(|_| {
+            Error::new(
+                ErrorKind::StorageError,
+                "Unable to acquire read lock on memory storage",
+            )
+        })?;
 
         let keyspaces = memory.keys().map(Clone::clone).collect::<Vec<Vec<u8>>>();
 

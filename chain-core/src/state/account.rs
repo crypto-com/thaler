@@ -14,11 +14,16 @@ use serde::de;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::prelude::v1::Vec;
+#[cfg(feature = "hex")]
 use std::str::FromStr;
 // TODO: switch to normal signatures + explicit public key
+#[cfg(feature = "hex")]
 use crate::init::address::ErrorAddress;
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
-use std::convert::{From, TryFrom};
+use std::convert::From;
+#[cfg(feature = "hex")]
+use std::convert::TryFrom;
+#[cfg(feature = "hex")]
 use std::fmt;
 
 /// Each input is 34 bytes
@@ -39,7 +44,7 @@ pub enum StakedStateAddress {
     BasicRedeem(RedeemAddress),
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 impl Serialize for StakedStateAddress {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -49,7 +54,7 @@ impl Serialize for StakedStateAddress {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "hex"))]
 impl<'de> Deserialize<'de> for StakedStateAddress {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -78,6 +83,7 @@ impl<'de> Deserialize<'de> for StakedStateAddress {
     }
 }
 
+#[cfg(feature = "hex")]
 impl TryFrom<&[u8]> for StakedStateAddress {
     type Error = ErrorAddress;
 
@@ -93,6 +99,7 @@ impl From<RedeemAddress> for StakedStateAddress {
     }
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for StakedStateAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -101,6 +108,7 @@ impl fmt::Display for StakedStateAddress {
     }
 }
 
+#[cfg(feature = "hex")]
 impl FromStr for StakedStateAddress {
     type Err = ErrorAddress;
 
@@ -111,7 +119,10 @@ impl FromStr for StakedStateAddress {
 
 /// represents the StakedState (account involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Deserialize, Serialize)
+)]
 pub struct StakedState {
     pub nonce: Nonce,
     pub bonded: Coin,
@@ -234,7 +245,10 @@ impl StakedStateOpAttributes {
 /// takes UTXOs inputs, deposits them in the specified StakedState's bonded amount - fee
 /// (updates StakedState's bonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Serialize, Deserialize)
+)]
 pub struct DepositBondTx {
     pub inputs: Vec<TxoPointer>,
     pub to_staked_account: StakedStateAddress,
@@ -279,6 +293,7 @@ impl DepositBondTx {
     }
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for DepositBondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for input in self.inputs.iter() {
@@ -311,6 +326,7 @@ impl UnbondTx {
     }
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for UnbondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "unbonded: {} (nonce: {})", self.value, self.nonce)?;
@@ -321,7 +337,10 @@ impl fmt::Display for UnbondTx {
 /// takes the StakedState (TODO: implicit from the witness?) and creates UTXOs
 /// (update's StakedState's unbonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Serialize, Deserialize)
+)]
 pub struct WithdrawUnbondedTx {
     pub nonce: Nonce,
     pub outputs: Vec<TxOut>,
@@ -347,6 +366,7 @@ impl WithdrawUnbondedTx {
     }
 }
 
+#[cfg(feature = "hex")]
 impl fmt::Display for WithdrawUnbondedTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "-> (unbonded) (nonce: {})", self.nonce)?;

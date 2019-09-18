@@ -12,19 +12,19 @@ use prettytable::{cell, format, row, Cell, Row, Table};
 use quest::success;
 use structopt::StructOpt;
 
+use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
-use client_common::balance::BalanceChange;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
-use client_common::{Error, ErrorKind, Result, Storage};
+use client_common::{Result, Storage};
+use client_core::cipher::MockAbciTransactionObfuscation;
+use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_core::signer::DefaultSigner;
+use client_core::synchronizer::{ManualSynchronizer, ProgressReport};
 use client_core::transaction_builder::DefaultTransactionBuilder;
+use client_core::types::BalanceChange;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
-use client_index::cipher::MockAbciTransactionObfuscation;
-use client_index::handler::{DefaultBlockHandler, DefaultTransactionHandler};
-use client_index::index::DefaultIndex;
-use client_index::synchronizer::{ManualSynchronizer, ProgressReport};
-use client_index::BlockHandler;
+use client_core::BlockHandler;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 
 use self::address_command::AddressCommand;
@@ -102,44 +102,28 @@ impl Command {
         match self {
             Command::Wallet { wallet_command } => {
                 let storage = SledStorage::new(storage_path())?;
-                let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage)
-                    .build()?;
+                let wallet_client = DefaultWalletClient::new_read_only(storage);
                 wallet_command.execute(wallet_client)
             }
             Command::Address { address_command } => {
                 let storage = SledStorage::new(storage_path())?;
-                let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage)
-                    .build()?;
+                let wallet_client = DefaultWalletClient::new_read_only(storage);
                 address_command.execute(wallet_client)
             }
             Command::ViewKey { name } => {
                 let storage = SledStorage::new(storage_path())?;
-                let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage)
-                    .build()?;
+                let wallet_client = DefaultWalletClient::new_read_only(storage);
 
                 Self::get_view_key(wallet_client, name)
             }
             Command::Balance { name } => {
                 let storage = SledStorage::new(storage_path())?;
-                let tendermint_client = RpcClient::new(&tendermint_url());
-                let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
-                let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage)
-                    .with_transaction_read(transaction_index)
-                    .build()?;
+                let wallet_client = DefaultWalletClient::new_read_only(storage);
                 Self::get_balance(wallet_client, name)
             }
             Command::History { name } => {
                 let storage = SledStorage::new(storage_path())?;
-                let tendermint_client = RpcClient::new(&tendermint_url());
-                let transaction_index = DefaultIndex::new(storage.clone(), tendermint_client);
-                let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage)
-                    .with_transaction_read(transaction_index)
-                    .build()?;
+                let wallet_client = DefaultWalletClient::new_read_only(storage);
                 Self::get_history(wallet_client, name)
             }
             Command::Transaction {
@@ -149,27 +133,25 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_cipher =
+                let transaction_obfuscation =
                     MockAbciTransactionObfuscation::new(tendermint_client.clone());
                 let transaction_builder = DefaultTransactionBuilder::new(
                     signer.clone(),
                     fee_algorithm,
-                    transaction_cipher.clone(),
+                    transaction_obfuscation.clone(),
                 );
-                let transaction_index =
-                    DefaultIndex::new(storage.clone(), tendermint_client.clone());
 
-                let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage.clone())
-                    .with_transaction_read(transaction_index)
-                    .with_transaction_write(transaction_builder)
-                    .build()?;
+                let wallet_client = DefaultWalletClient::new(
+                    storage,
+                    tendermint_client.clone(),
+                    transaction_builder,
+                );
                 let network_ops_client = DefaultNetworkOpsClient::new(
                     wallet_client,
                     signer,
                     tendermint_client,
                     fee_algorithm,
-                    transaction_cipher,
+                    transaction_obfuscation,
                 );
                 transaction_command.execute(network_ops_client.get_wallet(), &network_ops_client)
             }
@@ -178,27 +160,25 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_cipher =
+                let transaction_obfuscation =
                     MockAbciTransactionObfuscation::new(tendermint_client.clone());
                 let transaction_builder = DefaultTransactionBuilder::new(
                     signer.clone(),
                     fee_algorithm,
-                    transaction_cipher.clone(),
+                    transaction_obfuscation.clone(),
                 );
-                let transaction_index =
-                    DefaultIndex::new(storage.clone(), tendermint_client.clone());
-                let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage)
-                    .with_transaction_read(transaction_index)
-                    .with_transaction_write(transaction_builder)
-                    .build()?;
+                let wallet_client = DefaultWalletClient::new(
+                    storage,
+                    tendermint_client.clone(),
+                    transaction_builder,
+                );
 
                 let network_ops_client = DefaultNetworkOpsClient::new(
                     wallet_client,
                     signer,
                     tendermint_client,
                     fee_algorithm,
-                    transaction_cipher,
+                    transaction_obfuscation,
                 );
                 Self::get_staked_stake(&network_ops_client, name, address)
             }
@@ -211,21 +191,18 @@ impl Command {
                 let tendermint_client = RpcClient::new(&tendermint_url());
 
                 let transaction_handler = DefaultTransactionHandler::new(storage.clone());
-                let transaction_cipher =
+                let transaction_obfuscation =
                     MockAbciTransactionObfuscation::new(tendermint_client.clone());
                 let block_handler = DefaultBlockHandler::new(
-                    transaction_cipher,
+                    transaction_obfuscation,
                     transaction_handler,
                     storage.clone(),
                 );
 
-                let wallet_client = DefaultWalletClient::builder()
-                    .with_wallet(storage.clone())
-                    .build()?;
                 let synchronizer =
                     ManualSynchronizer::new(storage, tendermint_client, block_handler);
 
-                Self::resync(wallet_client, synchronizer, name, *batch_size, *force)
+                Self::resync(synchronizer, name, *batch_size, *force)
             }
         }
     }
@@ -291,24 +268,30 @@ impl Command {
             table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
             table.set_titles(row![
                 "Transaction ID",
-                "Address",
-                "Amount",
                 "In/Out",
+                "Amount",
+                "Fee",
                 "Block Height",
                 "Block Time",
             ]);
 
             for change in history {
-                let (amount, in_out, spec) = match change.balance_change {
-                    BalanceChange::Incoming(amount) => (amount, "IN", "Fg"),
-                    BalanceChange::Outgoing(amount) => (amount, "OUT", "FR"),
+                let (amount, fee, in_out, spec) = match change.balance_change {
+                    BalanceChange::Incoming { value } => (value, None, "IN", "Fg"),
+                    BalanceChange::Outgoing { value, fee } => (value, Some(fee), "OUT", "FR"),
+                    BalanceChange::NoChange => (Coin::zero(), None, "NO CHANGE", "FB"),
                 };
 
                 table.add_row(Row::new(vec![
                     Cell::new(&encode(&change.transaction_id)),
-                    Cell::from(&change.address),
-                    Cell::from(&amount).style_spec("r"),
                     Cell::new(in_out).style_spec(spec),
+                    Cell::from(&amount).style_spec("r"),
+                    Cell::new(
+                        &fee.as_ref()
+                            .map(ToString::to_string)
+                            .unwrap_or_else(|| "-".to_owned()),
+                    )
+                    .style_spec("r"),
                     Cell::from(&change.block_height).style_spec("r"),
                     Cell::from(&change.block_time),
                 ]));
@@ -322,21 +305,13 @@ impl Command {
         Ok(())
     }
 
-    fn resync<T: WalletClient, S: Storage, C: Client, H: BlockHandler>(
-        wallet_client: T,
+    fn resync<S: Storage, C: Client, H: BlockHandler>(
         synchronizer: ManualSynchronizer<S, C, H>,
         name: &str,
         batch_size: Option<usize>,
         force: bool,
     ) -> Result<()> {
         let passphrase = ask_passphrase(None)?;
-
-        let view_key = wallet_client.view_key(name, &passphrase)?;
-        let private_key = wallet_client
-            .private_key(&passphrase, &view_key)?
-            .ok_or_else(|| Error::from(ErrorKind::WalletNotFound))?;
-
-        let staking_addresses = wallet_client.staking_addresses(name, &passphrase)?;
 
         let (sender, receiver) = channel();
 
@@ -375,21 +350,9 @@ impl Command {
         });
 
         if force {
-            synchronizer.sync_all(
-                &staking_addresses,
-                &view_key,
-                &private_key,
-                batch_size,
-                Some(sender),
-            )?;
+            synchronizer.sync_all(name, &passphrase, batch_size, Some(sender))?;
         } else {
-            synchronizer.sync(
-                &staking_addresses,
-                &view_key,
-                &private_key,
-                batch_size,
-                Some(sender),
-            )?;
+            synchronizer.sync(name, &passphrase, batch_size, Some(sender))?;
         }
 
         let _ = handle.join();

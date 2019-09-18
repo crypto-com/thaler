@@ -75,12 +75,16 @@ describe("Wallet transaction", () => {
 				"wallet_balance",
 				[receiverWalletRequest],
 			);
+			const receiverViewKey = await zeroFeeClient.request(
+				"wallet_getViewKey",
+				[receiverWalletRequest]
+			);
 
 			const txId = await zeroFeeClient.request("wallet_sendToAddress", [
 				senderWalletRequest,
 				receiverWalletTransferAddress,
 				transferAmount,
-				[],
+				[receiverViewKey],
 			]);
 			expect(txId.length).to.eq(
 				64,
@@ -98,30 +102,20 @@ describe("Wallet transaction", () => {
 			);
 
 			expect(senderWalletTransactionListAfterSend.length).to.eq(
-				senderWalletTransactionListBeforeSend.length + 2,
-				"Sender should have two extra transaction records",
+				senderWalletTransactionListBeforeSend.length + 1,
+				"Sender should have one extra transaction record",
 			);
-			const senderWalletSecondLastTransaction = getSecondLastElementOfArray(
+			const senderWalletLastTransaction = getFirstElementOfArray(
 				senderWalletTransactionListAfterSend,
 			);
-			const senderWalletLastTransaction = getLastElementOfArray(
-				senderWalletTransactionListAfterSend,
-			);
-			expectTransactionShouldBe(
-				senderWalletSecondLastTransaction,
-				{
-					direction: TransactionDirection.OUTGOING,
-					amount: senderWalletBalanceBeforeSend,
-				},
-				"Sender should have one Outgoing transaction",
-			);
+
 			expectTransactionShouldBe(
 				senderWalletLastTransaction,
 				{
-					direction: TransactionDirection.INCOMING,
-					amount: new BigNumber(senderWalletBalanceBeforeSend).minus(transferAmount),
+					direction: TransactionDirection.OUTGOING,
+					amount: new BigNumber(transferAmount),
 				},
-				"Sender should have one Incoming transaction",
+				"Sender should have one Outgoing transaction",
 			);
 
 			const senderWalletBalanceAfterSend = await zeroFeeClient.request(
@@ -144,7 +138,7 @@ describe("Wallet transaction", () => {
 				"Receiver should have one extra transaction record",
 			);
 
-			const receiverWalletLastTransaction = getLastElementOfArray(
+			const receiverWalletLastTransaction = getFirstElementOfArray(
 				receiverWalletTransactionListAfterReceive,
 			);
 			expectTransactionShouldBe(
@@ -173,7 +167,7 @@ describe("Wallet transaction", () => {
 		if (!shouldTest(FEE_SCHEMA.WITH_FEE)) {
 			return;
 		}
-		it("can transfer funds between two wallets with fee included", async function() {
+		it("can transfer funds between two wallets with fee included", async function () {
 			const receiverWalletName = generateWalletName("Receive");
 			const senderWalletRequest = newWalletRequest("Default", "123456");
 			const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
@@ -202,12 +196,16 @@ describe("Wallet transaction", () => {
 				"wallet_balance",
 				[receiverWalletRequest],
 			);
+			const receiverViewKey = await withFeeClient.request(
+				"wallet_getViewKey",
+				[receiverWalletRequest]
+			);
 
 			const txId = await withFeeClient.request("wallet_sendToAddress", [
 				senderWalletRequest,
 				receiverWalletTransferAddress,
 				transferAmount,
-				[],
+				[receiverViewKey],
 			]);
 			expect(txId.length).to.eq(
 				64,
@@ -224,37 +222,26 @@ describe("Wallet transaction", () => {
 				[senderWalletRequest],
 			);
 			expect(senderWalletTransactionListAfterSend.length).to.eq(
-				senderWalletTransactionListBeforeSend.length + 2,
-				"Sender should have two extra transaction records",
+				senderWalletTransactionListBeforeSend.length + 1,
+				"Sender should have one extra transaction record1",
 			);
-			const senderWalletSecondLastTransaction = getSecondLastElementOfArray(
+			const senderWalletLastTransaction = getFirstElementOfArray(
 				senderWalletTransactionListAfterSend,
-			);
-			const senderWalletLastTransaction = getLastElementOfArray(
-				senderWalletTransactionListAfterSend,
-			);
-			expectTransactionShouldBe(
-				senderWalletSecondLastTransaction,
-				{
-					direction: TransactionDirection.OUTGOING,
-					amount: senderWalletBalanceBeforeSend,
-				},
-				"Sender should have one Outgoing transaction",
 			);
 			expectTransactionShouldBe(
 				senderWalletLastTransaction,
 				{
-					direction: TransactionDirection.INCOMING,
+					direction: TransactionDirection.OUTGOING,
+					amount: new BigNumber(transferAmount),
 				},
-				"Sender should have one Incoming transaction",
+				"Sender should have one Outgoing transaction",
 			);
 			expect(senderWalletLastTransaction.kind).to.eq(
-				TransactionDirection.INCOMING,
+				TransactionDirection.OUTGOING,
 			);
-			const senderWalletIncomingAmount = senderWalletLastTransaction.amount;
 			expect(
-				new BigNumber(senderWalletIncomingAmount).isLessThan(
-					new BigNumber(senderWalletBalanceBeforeSend).minus(transferAmount),
+				new BigNumber(0).isLessThan(
+					new BigNumber(senderWalletLastTransaction.fee),
 				),
 			).to.eq(true, "Sender should pay for transfer fee");
 
@@ -280,7 +267,7 @@ describe("Wallet transaction", () => {
 				"Receiver should have one extra transaction record",
 			);
 
-			const receiverWalletLastTransaction = getLastElementOfArray(
+			const receiverWalletLastTransaction = getFirstElementOfArray(
 				receiverWalletTransactionListAfterReceive,
 			);
 			expectTransactionShouldBe(
@@ -322,27 +309,38 @@ const expectTransactionShouldBe = (
 	expected: TransactionAssertion,
 	message?: string,
 ): boolean => {
-	expect(actual).to.contain.keys([
-		"address",
-		"amount",
-		"block_height",
-		"kind",
-		"transaction_id",
-		"block_time",
-	]);
+	expect(actual).to.contain.keys(["kind"]);
 
-	if (typeof expected.address !== "undefined") {
-		expect(actual.address).to.deep.eq(
-			{
-				BasicRedeem: expected.address,
-			},
-			message,
-		);
+	expect(actual.kind).to.eq(expected.direction);
+
+	if (expected.direction === TransactionDirection.INCOMING) {
+		expect(actual).to.contain.keys([
+			"value",
+			"inputs",
+			"outputs",
+			"block_height",
+			"kind",
+			"transaction_id",
+			"transaction_type",
+			"block_time",
+		]);
+	} else {
+		expect(actual).to.contain.keys([
+			"value",
+			"fee",
+			"inputs",
+			"outputs",
+			"block_height",
+			"kind",
+			"transaction_id",
+			"transaction_type",
+			"block_time",
+		]);
 	}
 
 	expect(actual.kind).to.eq(expected.direction);
 	if (typeof expected.amount !== "undefined") {
-		expect(actual.amount).to.eq(expected.amount.toString(10), message);
+		expect(actual.value).to.eq(expected.amount.toString(10), message);
 	}
 
 	if (typeof expected.height !== "undefined") {
@@ -356,10 +354,6 @@ const expectTransactionShouldBe = (
 	return true;
 };
 
-const getSecondLastElementOfArray = (arr: any[]) => {
-	return arr[arr.length - 2];
-};
-
-const getLastElementOfArray = (arr: any[]) => {
-	return arr[arr.length - 1];
+const getFirstElementOfArray = (arr: any[]) => {
+	return arr[0];
 };

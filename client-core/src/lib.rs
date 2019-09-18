@@ -9,20 +9,30 @@
 //! - Balance tracking
 //! - Transaction history
 //! - Transaction creation and signing (with automatic unspent transaction selection)
+pub mod cipher;
+pub mod handler;
 pub mod input_selection;
 pub mod service;
 pub mod signer;
+pub mod synchronizer;
 pub mod transaction_builder;
+pub mod types;
 pub mod unspent_transactions;
 pub mod wallet;
 
 #[doc(inline)]
-pub use input_selection::InputSelectionStrategy;
+pub use crate::cipher::TransactionObfuscation;
 #[doc(inline)]
-pub use signer::Signer;
+pub use crate::handler::{BlockHandler, TransactionHandler};
 #[doc(inline)]
-pub use transaction_builder::TransactionBuilder;
+pub use crate::input_selection::InputSelectionStrategy;
 #[doc(inline)]
-pub use unspent_transactions::{SelectedUnspentTransactions, UnspentTransactions};
+pub use crate::service::WalletStateMemento;
 #[doc(inline)]
-pub use wallet::{MultiSigWalletClient, WalletClient};
+pub use crate::signer::Signer;
+#[doc(inline)]
+pub use crate::transaction_builder::TransactionBuilder;
+#[doc(inline)]
+pub use crate::unspent_transactions::{SelectedUnspentTransactions, UnspentTransactions};
+#[doc(inline)]
+pub use crate::wallet::{MultiSigWalletClient, WalletClient};

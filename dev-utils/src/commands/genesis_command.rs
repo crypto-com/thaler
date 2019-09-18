@@ -1,7 +1,11 @@
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 
-use failure::{format_err, Error, ResultExt};
 use hex::encode_upper;
+use kvdb_memorydb::create;
 use structopt::StructOpt;
 
 use chain_abci::storage::account::{AccountStorage, AccountWrapper};
@@ -13,11 +17,7 @@ use chain_core::init::config::{AccountType, InitNetworkParameters};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::{LinearFee, Milli};
-use kvdb_memorydb::create;
-use std::collections::BTreeMap;
-use std::fs;
-use std::path::PathBuf;
-use std::sync::Arc;
+use client_common::{Error, ErrorKind, Result, ResultExt};
 
 use crate::commands::genesis_dev_config::GenesisDevConfig;
 
@@ -39,24 +39,24 @@ pub enum GenesisCommand {
 }
 
 impl GenesisCommand {
-    pub fn execute(&self) -> Result<(), Error> {
+    pub fn execute(&self) -> Result<()> {
         match self {
             GenesisCommand::Generate {
                 genesis_dev_config_path,
-            } => GenesisCommand::generate(&genesis_dev_config_path).map(|_e| ()),
+            } => GenesisCommand::generate(&genesis_dev_config_path).map(|_| ()),
         }
     }
 
-    pub fn do_generate(genesis_dev: &GenesisDevConfig) -> Result<(String, InitConfig), Error> {
+    pub fn do_generate(genesis_dev: &GenesisDevConfig) -> Result<(String, InitConfig)> {
         let mut dist: BTreeMap<RedeemAddress, (Coin, AccountType)> = BTreeMap::new();
 
         for (address, amount) in genesis_dev.distribution.iter() {
             dist.insert(*address, (*amount, AccountType::ExternallyOwnedAccount));
         }
         let constant_fee = Milli::from_str(&genesis_dev.initial_fee_policy.base_fee)
-            .context(format_err!("Invalid constant fee"))?;
+            .chain(|| (ErrorKind::InvalidInput, "Invalid constant fee"))?;
         let coefficient_fee = Milli::from_str(&genesis_dev.initial_fee_policy.per_byte_fee)
-            .context(format_err!("Invalid per byte fee"))?;
+            .chain(|| (ErrorKind::InvalidInput, "Invalid per byte fee"))?;
         let fee_policy = LinearFee::new(constant_fee, coefficient_fee);
         let params = InitNetworkParameters {
             initial_fee_policy: fee_policy,
@@ -71,39 +71,44 @@ impl GenesisCommand {
             params,
             genesis_dev.council_nodes.clone(),
         );
-        let result = config.validate_config_get_genesis(genesis_dev.genesis_time.timestamp());
-        if let Ok((accounts, rp, _nodes)) = result {
-            let tx_tree = MerkleTree::empty();
-            let mut account_tree =
-                AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db");
+        let (accounts, rp, _nodes) = config
+            .validate_config_get_genesis(genesis_dev.genesis_time.timestamp())
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("distribution validation error: {}", err),
+                )
+            })?;
 
-            let mut keys: Vec<StarlingFixedKey> = accounts.iter().map(StakedState::key).collect();
-            // TODO: get rid of the extra allocations
-            let wrapped: Vec<AccountWrapper> =
-                accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
-            let new_account_root = account_tree
-                .insert(None, &mut keys, &wrapped)
-                .expect("initial insert");
+        let tx_tree = MerkleTree::empty();
+        let mut account_tree =
+            AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db");
 
-            let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
-            println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
-            let config_str =
-                serde_json::to_string(&config).context(format_err!("Invalid config"))?;
-            println!("\"app_state\": {}", config_str);
-            println!();
+        let mut keys: Vec<StarlingFixedKey> = accounts.iter().map(StakedState::key).collect();
+        // TODO: get rid of the extra allocations
+        let wrapped: Vec<AccountWrapper> =
+            accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
+        let new_account_root = account_tree
+            .insert(None, &mut keys, &wrapped)
+            .expect("initial insert");
 
-            // app_hash, app_state
-            Ok((encode_upper(genesis_app_hash), config))
-        } else {
-            Err(format_err!(
-                "distribution validation error: {} ",
-                result.unwrap_err()
-            ))
-        }
+        let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
+        println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
+        let config_str =
+            serde_json::to_string(&config).chain(|| (ErrorKind::InvalidInput, "Invalid config"))?;
+        println!("\"app_state\": {}", config_str);
+        println!();
+
+        // app_hash, app_state
+        Ok((encode_upper(genesis_app_hash), config))
     }
-    pub fn generate(genesis_dev_config_path: &PathBuf) -> Result<(String, InitConfig), Error> {
-        let genesis_dev_config = fs::read_to_string(genesis_dev_config_path)
-            .context(format_err!("Something went wrong reading the file"))?;
+    pub fn generate(genesis_dev_config_path: &PathBuf) -> Result<(String, InitConfig)> {
+        let genesis_dev_config = fs::read_to_string(genesis_dev_config_path).chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                "Something went wrong reading the file",
+            )
+        })?;
         let genesis_dev: GenesisDevConfig =
             serde_json::from_str(&genesis_dev_config).expect("failed to parse genesis dev config");
 

@@ -1,15 +1,16 @@
-//! Utilities for synchronizing transaction index with Crypto.com Chain
+use std::collections::BTreeSet;
 use std::sync::mpsc::Sender;
 
 use itertools::Itertools;
+use secstr::SecUtf8;
 
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::{Block, BlockResults, Status};
 use client_common::tendermint::Client;
-use client_common::{BlockHeader, PrivateKey, PublicKey, Result, Storage, Transaction};
+use client_common::{BlockHeader, Result, Storage, Transaction};
 
-use crate::service::GlobalStateService;
+use crate::service::{GlobalStateService, WalletService, WalletStateService};
 use crate::BlockHandler;
 
 const DEFAULT_BATCH_SIZE: usize = 20;
@@ -38,9 +39,30 @@ where
     C: Client,
     H: BlockHandler,
 {
+    wallet_service: WalletService<S>,
+    wallet_state_service: WalletStateService<S>,
     global_state_service: GlobalStateService<S>,
     client: C,
     block_handler: H,
+}
+
+impl<S, C, H> ManualSynchronizer<S, C, H>
+where
+    S: Storage + Clone,
+    C: Client,
+    H: BlockHandler,
+{
+    /// Creates a new instance of `ManualSynchronizer`
+    #[inline]
+    pub fn new(storage: S, client: C, block_handler: H) -> Self {
+        Self {
+            wallet_service: WalletService::new(storage.clone()),
+            wallet_state_service: WalletStateService::new(storage.clone()),
+            global_state_service: GlobalStateService::new(storage),
+            client,
+            block_handler,
+        }
+    }
 }
 
 impl<S, C, H> ManualSynchronizer<S, C, H>
@@ -49,28 +71,19 @@ where
     C: Client,
     H: BlockHandler,
 {
-    /// Creates a new instance of `ManualSynchronizer`
-    #[inline]
-    pub fn new(storage: S, client: C, block_handler: H) -> Self {
-        Self {
-            global_state_service: GlobalStateService::new(storage),
-            client,
-            block_handler,
-        }
-    }
-
     /// Synchronizes transaction index for given view key with Crypto.com Chain (from last known height)
     pub fn sync(
         &self,
-        staking_addresses: &[StakedStateAddress],
-        view_key: &PublicKey,
-        private_key: &PrivateKey,
+        name: &str,
+        passphrase: &SecUtf8,
         batch_size: Option<usize>,
         progress_reporter: Option<Sender<ProgressReport>>,
     ) -> Result<()> {
         let status = self.client.status()?;
 
-        let last_block_height = self.global_state_service.last_block_height(view_key)?;
+        let last_block_height = self
+            .global_state_service
+            .last_block_height(name, passphrase)?;
         let current_block_height = status.last_block_height()?;
 
         if let Some(ref sender) = &progress_reporter {
@@ -80,15 +93,17 @@ where
             });
         }
 
+        let staking_addresses = self.wallet_service.staking_addresses(name, passphrase)?;
+
         // Send batch RPC requests to tendermint in chunks of `batch_size` requests per batch call
         for chunk in ((last_block_height + 1)..=current_block_height)
             .chunks(batch_size.unwrap_or(DEFAULT_BATCH_SIZE))
             .into_iter()
         {
             if self.fast_forward_status(
-                staking_addresses,
-                view_key,
-                private_key,
+                name,
+                passphrase,
+                &staking_addresses,
                 &status,
                 &progress_reporter,
             )? {
@@ -98,26 +113,28 @@ where
 
             let range = chunk.collect::<Vec<u64>>();
 
-            let blocks = self.client.block_batch(range.iter())?;
-
+            // Get the last block to check if there are any changes
+            let block = self.client.block(range[range.len() - 1])?;
             if self.fast_forward_block(
-                staking_addresses,
-                view_key,
-                private_key,
-                &blocks[blocks.len() - 1],
+                name,
+                passphrase,
+                &staking_addresses,
+                &block,
                 &progress_reporter,
             )? {
                 // Fast forward batch if possible
                 continue;
             }
 
+            // Fetch batch details if it cannot be fast forwarded
+            let blocks = self.client.block_batch(range.iter())?;
             let block_results = self.client.block_results_batch(range.iter())?;
 
             for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
                 if self.fast_forward_status(
-                    staking_addresses,
-                    view_key,
-                    private_key,
+                    name,
+                    passphrase,
+                    &staking_addresses,
                     &status,
                     &progress_reporter,
                 )? {
@@ -125,9 +142,8 @@ where
                     return Ok(());
                 }
 
-                let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
-                self.block_handler
-                    .on_next(block_header, view_key, private_key)?;
+                let block_header = prepare_block_header(&staking_addresses, &block, &block_result)?;
+                self.block_handler.on_next(name, passphrase, block_header)?;
 
                 if let Some(ref sender) = &progress_reporter {
                     let _ = sender.send(ProgressReport::Update {
@@ -144,33 +160,28 @@ where
     #[inline]
     pub fn sync_all(
         &self,
-        staking_addresses: &[StakedStateAddress],
-        view_key: &PublicKey,
-        private_key: &PrivateKey,
+        name: &str,
+        passphrase: &SecUtf8,
         batch_size: Option<usize>,
         progress_reporter: Option<Sender<ProgressReport>>,
     ) -> Result<()> {
         self.global_state_service
-            .set_global_state(view_key, 0, "".to_string())?;
-        self.sync(
-            staking_addresses,
-            view_key,
-            private_key,
-            batch_size,
-            progress_reporter,
-        )
+            .delete_global_state(name, passphrase)?;
+        self.wallet_state_service
+            .delete_wallet_state(name, passphrase)?;
+        self.sync(name, passphrase, batch_size, progress_reporter)
     }
 
     /// Fast forwards state to given status if app hashes match
     fn fast_forward_status(
         &self,
-        staking_addresses: &[StakedStateAddress],
-        view_key: &PublicKey,
-        private_key: &PrivateKey,
+        name: &str,
+        passphrase: &SecUtf8,
+        staking_addresses: &BTreeSet<StakedStateAddress>,
         status: &Status,
         progress_reporter: &Option<Sender<ProgressReport>>,
     ) -> Result<bool> {
-        let last_app_hash = self.global_state_service.last_app_hash(view_key)?;
+        let last_app_hash = self.global_state_service.last_app_hash(name, passphrase)?;
         let current_app_hash = status.last_app_hash();
 
         if current_app_hash == last_app_hash {
@@ -180,8 +191,7 @@ where
             let block_result = self.client.block_results(current_block_height)?;
 
             let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
-            self.block_handler
-                .on_next(block_header, view_key, private_key)?;
+            self.block_handler.on_next(name, passphrase, block_header)?;
 
             if let Some(ref sender) = progress_reporter {
                 let _ = sender.send(ProgressReport::Update {
@@ -198,13 +208,13 @@ where
     /// Fast forwards state to given block if app hashes match
     fn fast_forward_block(
         &self,
-        staking_addresses: &[StakedStateAddress],
-        view_key: &PublicKey,
-        private_key: &PrivateKey,
+        name: &str,
+        passphrase: &SecUtf8,
+        staking_addresses: &BTreeSet<StakedStateAddress>,
         block: &Block,
         progress_reporter: &Option<Sender<ProgressReport>>,
     ) -> Result<bool> {
-        let last_app_hash = self.global_state_service.last_app_hash(view_key)?;
+        let last_app_hash = self.global_state_service.last_app_hash(name, passphrase)?;
         let current_app_hash = block.app_hash();
 
         if current_app_hash == last_app_hash {
@@ -213,8 +223,7 @@ where
             let block_result = self.client.block_results(current_block_height)?;
 
             let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
-            self.block_handler
-                .on_next(block_header, view_key, private_key)?;
+            self.block_handler.on_next(name, passphrase, block_header)?;
 
             if let Some(ref sender) = progress_reporter {
                 let _ = sender.send(ProgressReport::Update {
@@ -231,7 +240,7 @@ where
 
 fn check_unencrypted_transactions(
     block_filter: &BlockFilter,
-    staking_addresses: &[StakedStateAddress],
+    staking_addresses: &BTreeSet<StakedStateAddress>,
     block: &Block,
 ) -> Result<Vec<Transaction>> {
     for staking_address in staking_addresses {
@@ -244,7 +253,7 @@ fn check_unencrypted_transactions(
 }
 
 fn prepare_block_header(
-    staking_addresses: &[StakedStateAddress],
+    staking_addresses: &BTreeSet<StakedStateAddress>,
     block: &Block,
     block_result: &BlockResults,
 ) -> Result<BlockHeader> {
@@ -280,13 +289,14 @@ mod tests {
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
     use chain_core::common::TendermintEventType;
-    use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::state::account::{StakedStateOpAttributes, StakedStateOpWitness, UnbondTx};
     use chain_core::tx::TxAux;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
     use client_common::ErrorKind;
+
+    use crate::wallet::{DefaultWalletClient, WalletClient};
 
     fn unbond_transaction() -> TxAux {
         TxAux::UnbondStakeTx(
@@ -313,9 +323,9 @@ mod tests {
     impl BlockHandler for MockBlockHandler {
         fn on_next(
             &self,
+            _name: &str,
+            _passphrase: &SecUtf8,
             _block_header: BlockHeader,
-            _view_key: &PublicKey,
-            _private_key: &PrivateKey,
         ) -> Result<()> {
             Ok(())
         }
@@ -408,7 +418,10 @@ mod tests {
                                 event_type: TendermintEventType::ValidTransactions.to_string(),
                                 attributes: vec![Attribute {
                                     key: "dHhpZA==".to_owned(),
-                                    value: encode(&unbond_transaction().tx_id()).to_owned(),
+                                    value: encode(
+                                        hex::encode(&unbond_transaction().tx_id()).as_bytes(),
+                                    )
+                                    .to_owned(),
                                 }],
                             }],
                         }]),
@@ -448,9 +461,14 @@ mod tests {
     fn check_manual_synchronization() {
         let storage = MemoryStorage::default();
 
-        let private_key = PrivateKey::new().unwrap();
-        let view_key = PublicKey::from(&private_key);
-        let staking_address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&view_key));
+        let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
+
+        let wallet = DefaultWalletClient::new_read_only(storage.clone());
+
+        assert!(wallet.new_wallet(name, passphrase).is_ok());
+
+        let staking_address = wallet.new_staking_address(name, passphrase).unwrap();
 
         let synchronizer = ManualSynchronizer::new(
             storage.clone(),
@@ -459,7 +477,7 @@ mod tests {
         );
 
         synchronizer
-            .sync(&[staking_address], &view_key, &private_key, None, None)
+            .sync(name, passphrase, None, None)
             .expect("Unable to synchronize");
     }
 }

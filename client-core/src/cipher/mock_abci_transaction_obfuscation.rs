@@ -1,11 +1,11 @@
-use failure::ResultExt;
 use parity_scale_codec::{Decode, Encode};
 
 use chain_core::tx::data::TxId;
 use chain_core::tx::{TxAux, TxWithOutputs};
 use client_common::tendermint::Client;
-use client_common::SECP;
-use client_common::{ErrorKind, PrivateKey, Result, SignedTransaction, Transaction};
+use client_common::{
+    ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction, SECP,
+};
 use enclave_protocol::{
     DecryptionRequest, DecryptionResponse, EncryptionRequest, EncryptionResponse,
 };
@@ -38,7 +38,12 @@ where
             .bytes()?;
 
         let encrypted_transaction = EncryptionResponse::decode(&mut response.as_slice())
-            .context(ErrorKind::DeserializationError)?
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    "Unable to deserialize response of mock-encrypt ABCI call",
+                )
+            })?
             .tx;
 
         Ok(encrypted_transaction)
@@ -69,7 +74,12 @@ where
             .bytes()?;
 
         let txs = DecryptionResponse::decode(&mut response.as_slice())
-            .context(ErrorKind::DeserializationError)?
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    "Unable to deserialize response of mock-decrypt ABCI call",
+                )
+            })?
             .txs;
 
         let transactions = txs
@@ -169,7 +179,9 @@ mod tests {
 
                     Ok(QueryResult {
                         response: Response {
+                            code: 0,
                             value: encode(&response),
+                            log: "".to_owned(),
                         },
                     })
                 }
@@ -181,7 +193,9 @@ mod tests {
 
                     Ok(QueryResult {
                         response: Response {
+                            code: 0,
                             value: encode(&response),
+                            log: "".to_owned(),
                         },
                     })
                 }

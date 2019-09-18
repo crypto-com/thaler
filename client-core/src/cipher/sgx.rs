@@ -16,8 +16,7 @@
 // Modifications Copyright (c) 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 // TODO: document the SGX stuff
 use chrono::DateTime;
-use client_common::error::{Error, ErrorKind, Result};
-use failure::ResultExt;
+use client_common::{Error, ErrorKind, Result, ResultExt};
 use rustls;
 use serde_json;
 use serde_json::Value;
@@ -218,16 +217,17 @@ fn extract_att_parts(payload: Vec<u8>) -> Result<(Vec<u8>, Vec<u8>, Vec<u8>)> {
     let mut iter = payload.split(|x| *x == 0x7C);
     let attn_report_raw = iter
         .next()
-        .ok_or_else(|| Error::from(ErrorKind::InvalidCertFormat))?;
+        .chain(|| (ErrorKind::InvalidInput, "Invalid SGX certificate format"))?;
     let sig_raw = iter
         .next()
-        .ok_or_else(|| Error::from(ErrorKind::InvalidCertFormat))?;
-    let sig = base64::decode(&sig_raw).context(ErrorKind::InvalidCertFormat)?;
+        .chain(|| (ErrorKind::InvalidInput, "Invalid SGX certificate format"))?;
+    let sig = base64::decode(&sig_raw)
+        .chain(|| (ErrorKind::InvalidInput, "Invalid SGX certificate format"))?;
     let sig_cert_raw = iter
         .next()
-        .ok_or_else(|| Error::from(ErrorKind::InvalidCertFormat))?;
+        .chain(|| (ErrorKind::InvalidInput, "Invalid SGX certificate format"))?;
     let sig_cert_dec = base64::decode_config(&sig_cert_raw, base64::STANDARD)
-        .context(ErrorKind::InvalidCertFormat)?;
+        .chain(|| (ErrorKind::InvalidInput, "Invalid SGX certificate format"))?;
     Ok((attn_report_raw.to_vec(), sig, sig_cert_dec))
 }
 
@@ -237,31 +237,63 @@ fn extract_quote_body(attn_report: Value) -> Result<(u64, SgxQuoteStatus, SgxQuo
     let time = attn_report
         .get("timestamp")
         .and_then(|value| value.as_str())
-        .ok_or_else(|| Error::from(ErrorKind::BadAttnReport))?;
+        .chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                "Unable to find timestamp in attestation report",
+            )
+        })?;
     let time_fixed = String::from(time) + "+0000";
-    let date_time = DateTime::parse_from_str(&time_fixed, "%Y-%m-%dT%H:%M:%S%.f%z")
-        .context(ErrorKind::BadAttnReport)?;
+    let date_time =
+        DateTime::parse_from_str(&time_fixed, "%Y-%m-%dT%H:%M:%S%.f%z").chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to parse time from attestation report",
+            )
+        })?;
     let ts = date_time.naive_utc();
     let now = DateTime::<chrono::offset::Utc>::from(SystemTime::now()).naive_utc();
-    let quote_freshness =
-        u64::try_from((now - ts).num_seconds()).context(ErrorKind::BadAttnReport)?;
+    let quote_freshness = u64::try_from((now - ts).num_seconds()).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            "Unable to parse quote freshness from attestation report",
+        )
+    })?;
 
     // 2. Get quote status
     let status_string = attn_report
         .get("isvEnclaveQuoteStatus")
         .and_then(|value| value.as_str())
-        .ok_or_else(|| Error::from(ErrorKind::BadAttnReport))?;
+        .chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                "Unable to get quote status from attestation report",
+            )
+        })?;
     let quote_status = SgxQuoteStatus::from(status_string);
 
     // 3. Get quote body
     let quote_encoded = attn_report
         .get("isvEnclaveQuoteBody")
         .and_then(|value| value.as_str())
-        .ok_or_else(|| Error::from(ErrorKind::BadAttnReport))?;
-    let quote_raw =
-        base64::decode(&(quote_encoded.as_bytes())).context(ErrorKind::BadAttnReport)?;
-    let quote_body = SgxQuoteBody::parse_from(quote_raw.as_slice())
-        .ok_or_else(|| Error::from(ErrorKind::BadAttnReport))?;
+        .chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                "Unable to get quote body from attestation report",
+            )
+        })?;
+    let quote_raw = base64::decode(&(quote_encoded.as_bytes())).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            "Unable to decode base64 bytes of quote body from attestation report",
+        )
+    })?;
+    let quote_body = SgxQuoteBody::parse_from(quote_raw.as_slice()).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            "Unable to parse SGX quote body from bytes",
+        )
+    })?;
 
     Ok((quote_freshness, quote_status, quote_body))
 }
@@ -279,7 +311,7 @@ fn get_ias_cert() -> Result<(&'static [u8], Vec<u8>)> {
     let full_len = ias_ca_stripped.len();
     let ias_ca_core: &[u8] = &ias_ca_stripped[head_len..full_len - tail_len];
     let ias_cert_dec = base64::decode_config(ias_ca_core, base64::STANDARD)
-        .context(ErrorKind::InvalidCertFormat)?;
+        .chain(|| (ErrorKind::InvalidInput, "Invalid SGX certificate format"))?;
     Ok((ias_report_ca, ias_cert_dec))
 }
 
@@ -290,7 +322,7 @@ fn extract_sgx_quote_from_mra_cert(cert_der: &[u8]) -> Result<SgxQuote> {
     use super::cert::*;
 
     let x509 = yasna::parse_der(cert_der, |reader| X509::load(reader))
-        .context(ErrorKind::InvalidCertFormat)?;
+        .chain(|| (ErrorKind::InvalidInput, "Invalid SGX certificate format"))?;
 
     let tbs_cert: <TbsCert as Asn1Ty>::ValueTy = x509.0;
 
@@ -303,8 +335,8 @@ fn extract_sgx_quote_from_mra_cert(cert_der: &[u8]) -> Result<SgxQuote> {
 
     let (attn_report_raw, sig, sig_cert_dec) = extract_att_parts(payload)?;
 
-    let sig_cert =
-        webpki::EndEntityCert::from(&sig_cert_dec).context(ErrorKind::InvalidCertFormat)?;
+    let sig_cert = webpki::EndEntityCert::from(&sig_cert_dec)
+        .chain(|| (ErrorKind::InvalidInput, "Invalid SGX certificate format"))?;
 
     // Verify if the signing cert is issued by Intel CA
     let (ias_report_ca, ias_cert_dec) = get_ias_cert()?;
@@ -323,8 +355,12 @@ fn extract_sgx_quote_from_mra_cert(cert_der: &[u8]) -> Result<SgxQuote> {
         .map(|cert| cert.to_trust_anchor())
         .collect();
 
-    let now_func = webpki::Time::try_from(SystemTime::now())
-        .map_err(|_| Error::from(ErrorKind::WebpkiFailure))?;
+    let now_func = webpki::Time::try_from(SystemTime::now()).map_err(|err| {
+        Error::new(
+            ErrorKind::DeserializationError,
+            format!("Unable to convert system time to webpki time: {}", err),
+        )
+    })?;
 
     let chain = vec![ias_cert_dec.as_slice()];
 
@@ -335,16 +371,30 @@ fn extract_sgx_quote_from_mra_cert(cert_der: &[u8]) -> Result<SgxQuote> {
             chain.as_slice(),
             now_func,
         )
-        .context(ErrorKind::WebpkiFailure)?;
+        .chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                "SGX certificate verification failed",
+            )
+        })?;
 
     // Verify the signature against the signing cert
     sig_cert
         .verify_signature(&webpki::RSA_PKCS1_2048_8192_SHA256, &attn_report_raw, &sig)
-        .context(ErrorKind::WebpkiFailure)?;
+        .chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                "SGX certificate signature verification failed",
+            )
+        })?;
 
     // Verify attestation report and extract quote body
-    let attn_report: Value =
-        serde_json::from_slice(&attn_report_raw).context(ErrorKind::BadAttnReport)?;
+    let attn_report: Value = serde_json::from_slice(&attn_report_raw).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            "Unable to parse raw attestation report json",
+        )
+    })?;
 
     let (quote_freshness, quote_status, quote_body) = extract_quote_body(attn_report)?;
     let raw_pub_k = pub_k.to_bytes();
@@ -361,7 +411,10 @@ fn extract_sgx_quote_from_mra_cert(cert_der: &[u8]) -> Result<SgxQuote> {
     let is_uncompressed = raw_pub_k[0] == 4;
     let pub_k = &raw_pub_k.as_slice()[1..];
     if !is_uncompressed || pub_k != &quote_body.report_body.report_data[..] {
-        return Err(ErrorKind::BadAttnReport.into());
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Bad attestation report",
+        ));
     }
 
     Ok(SgxQuote {
@@ -423,5 +476,4 @@ mod tests {
         // sanity check
         assert!(get_ias_cert().is_ok())
     }
-
 }
