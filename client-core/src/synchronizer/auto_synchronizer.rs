@@ -3,7 +3,8 @@
 
 use super::auto_sync_core::AutoSynchronizerCore;
 use super::auto_sync_data::{
-    AutoSyncDataShared, AutoSyncQueue, AutoSyncSendQueue, AutoSyncSendQueueShared, WalletInfos,
+    AutoSyncDataShared, AutoSyncQueue, AutoSyncSendQueue, AutoSyncSendQueueShared, ConnectionState,
+    WalletInfos, WebsocketState,
 };
 use super::auto_sync_data::{MyQueue, CMD_SUBSCRIBE};
 use crate::BlockHandler;
@@ -113,17 +114,16 @@ impl AutoSynchronizer {
         data.info.current_height = 0;
         data.info.max_height = 0;
         data.info.wallet = "".to_string();
-        data.info.connected = false;
-        data.info.state = "".to_string();
+        data.info.state = ConnectionState::Disconnected;
     }
-    fn update_info_connected(&mut self, connected: bool) {
+    fn update_info_connected(&mut self, connected: ConnectionState<WebsocketState>) {
         let mut data = self.data.lock().unwrap();
-        data.info.connected = connected;
+        data.info.state = connected;
     }
     /// activate tokio websocket
     pub fn run_network(&mut self) -> Result<()> {
         loop {
-            let mut connected = false;
+            let mut connected = ConnectionState::Disconnected;
             self.update_info_connected(connected);
             let channel = futures::sync::mpsc::channel(0);
             // tx, rx
@@ -145,7 +145,7 @@ impl AutoSynchronizer {
                 .async_connect_insecure()
                 .and_then(|(duplex, _)| {
                     log::info!("successfully connected to {}", self.websocket_url);
-                    connected = true;
+                    connected = ConnectionState::Connected(WebsocketState::ReadyProcess);
                     self.update_info_connected(connected);
                     channel_sink
                         .send(OwnedMessage::Text(CMD_SUBSCRIBE.to_string()))
@@ -176,7 +176,7 @@ impl AutoSynchronizer {
                 }
                 Err(b) => {
                     // write log only after connection is made
-                    if connected {
+                    if let ConnectionState::Connected(_c) = connected {
                         log::warn!("connection closed error {}", b);
                     }
                     std::thread::sleep(std::time::Duration::from_millis(2000));

@@ -20,10 +20,8 @@ pub struct AutoSyncInfo {
     pub max_height: u64,
     /// current syncing wallet name
     pub wallet: String,
-    /// connected via websocket
-    pub connected: bool,
     /// sync state : getting block, waiting, etc.
-    pub state: String,
+    pub state: ConnectionState<WebsocketState>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -124,3 +122,34 @@ pub const WAIT_PROCESS_TIME: u128 = 5000; // milli seconds
 pub const BLOCK_REQUEST_TIME: u128 = 10; // milli seconds
 /// receive polling interval
 pub const RECEIVE_TIMEOUT: u64 = 10; //  milli seconds
+
+/// finite state
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub enum WebsocketState {
+    /// initial state
+    ReadyProcess,
+    /// getting status
+    GetStatus,
+    /// getting blocks
+    GetBlocks,
+    /// wait some time to prevent using 100% cpu
+    WaitProcess,
+}
+
+impl Default for WebsocketState {
+    fn default() -> Self {
+        WebsocketState::ReadyProcess
+    }
+}
+
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub enum ConnectionState<T> {
+    Connecting,
+    Connected(T),
+    Disconnected,
+}
+impl Default for ConnectionState<WebsocketState> {
+    fn default() -> Self {
+        ConnectionState::Disconnected
+    }
+}
