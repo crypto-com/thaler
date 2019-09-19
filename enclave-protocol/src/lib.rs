@@ -15,6 +15,7 @@ use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use std::prelude::v1::{Box, Vec};
 
 use chain_core::common::{H256, H264, H512};
+use chain_core::init::coin::Coin;
 use chain_core::state::account::DepositBondTx;
 use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateOpWitness;
@@ -28,7 +29,6 @@ use secp256k1::{
     key::{PublicKey, SecretKey},
     Message, Secp256k1, Signature, Signing, Verification,
 };
-use chain_core::init::coin::Coin;
 
 const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
 const TOKEN_LEN: usize = 1024;
