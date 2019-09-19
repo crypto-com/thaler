@@ -74,7 +74,7 @@ impl AutoSync {
     }
 
     /// Get sync information
-    pub fn sync_info(&self) -> Result<AutoSyncInfo> {
+    pub fn sync_info(&self) -> AutoSyncInfo {
         let mut ret = AutoSyncInfo::default();
 
         {
@@ -85,7 +85,7 @@ impl AutoSync {
             ret.connected = data.connected;
             ret.state = data.state.clone();
         }
-        Ok(ret)
+        ret
     }
 
     /// Removes a wallet from auto-sync

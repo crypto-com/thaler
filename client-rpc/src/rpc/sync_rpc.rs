@@ -65,7 +65,7 @@ where
 
     #[inline]
     fn sync_info(&self) -> Result<AutoSyncInfo> {
-        self.auto_synchronizer.sync_info().map_err(to_rpc_error)
+        Ok(self.auto_synchronizer.sync_info())
     }
 
     #[inline]
