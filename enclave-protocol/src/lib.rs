@@ -15,6 +15,7 @@ use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use std::prelude::v1::{Box, Vec};
 
 use chain_core::common::{H256, H264, H512};
+use chain_core::init::coin::Coin;
 use chain_core::state::account::DepositBondTx;
 use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateOpWitness;
@@ -69,8 +70,17 @@ impl IntraEnclaveRequest {
     }
 }
 
-// variable length response returned from the tx-validation enclave
-pub type IntraEnclaveResponse = Result<(Fee, Option<SealedLog>), chain_tx_validation::Error>;
+/// positive response from the enclave
+#[derive(Encode, Decode)]
+pub enum IntraEnclaveResponseOk {
+    /// returns the actual paid fee + transaction data sealed for the local machine for later lookups
+    TxWithOutputs { paid_fee: Fee, sealed_tx: SealedLog },
+    /// deposit stake pays minimal fee, so this returns the sum of input amounts -- staked stake's bonded balance is added `input_coins-min_fee`
+    DepositStakeTx { input_coins: Coin },
+}
+
+/// variable length response returned from the tx-validation enclave
+pub type IntraEnclaveResponse = Result<IntraEnclaveResponseOk, chain_tx_validation::Error>;
 
 /// request passed from abci
 /// TODO: only certain Tx types should be sent -> create a more restrictive datatype instead of checking in `is_basic_valid`
