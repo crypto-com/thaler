@@ -110,15 +110,15 @@ impl AutoSynchronizer {
 
     fn reset_info(&mut self) {
         let mut data = self.data.lock().unwrap();
-        data.current_height = 0;
-        data.max_height = 0;
-        data.wallet = "".to_string();
-        data.connected = false;
-        data.state = "".to_string();
+        data.info.current_height = 0;
+        data.info.max_height = 0;
+        data.info.wallet = "".to_string();
+        data.info.connected = false;
+        data.info.state = "".to_string();
     }
     fn update_info_connected(&mut self, connected: bool) {
         let mut data = self.data.lock().unwrap();
-        data.connected = connected;
+        data.info.connected = connected;
     }
     /// activate tokio websocket
     pub fn run_network(&mut self) -> Result<()> {

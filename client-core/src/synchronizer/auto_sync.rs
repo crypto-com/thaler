@@ -75,17 +75,8 @@ impl AutoSync {
 
     /// Get sync information
     pub fn sync_info(&self) -> AutoSyncInfo {
-        let mut ret = AutoSyncInfo::default();
-
-        {
-            let data = self.data.lock().expect("get progress autosync lock");
-            ret.current_height = data.current_height;
-            ret.max_height = data.max_height;
-            ret.wallet = data.wallet.clone();
-            ret.connected = data.connected;
-            ret.state = data.state.clone();
-        }
-        ret
+        let data = self.data.lock().expect("get progress autosync lock");
+        data.info.clone()
     }
 
     /// Removes a wallet from auto-sync
@@ -114,7 +105,7 @@ impl AutoSync {
     /// (progress:0.0~1.0, current_wallet_name)
     pub fn get_progress(&self) -> (f64, String) {
         let data = self.data.lock().expect("get progress autosync lock");
-        (data.progress, data.wallet.clone())
+        (data.info.progress, data.info.wallet.clone())
     }
 }
 

@@ -9,9 +9,9 @@ use websocket::OwnedMessage;
 /// give add wallet command via this queue
 pub type AutoSyncQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
-#[derive(Clone, Debug, Default)]
-/// auto sync internal data
-pub struct AutoSyncData {
+/// Auto Sync Info for rpc query
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct AutoSyncInfo {
     /// normalized: 0.0 ~ 1.0
     pub progress: f64,
     /// current
@@ -24,6 +24,13 @@ pub struct AutoSyncData {
     pub connected: bool,
     /// sync state : getting block, waiting, etc.
     pub state: String,
+}
+
+#[derive(Clone, Debug, Default)]
+/// auto sync internal data
+pub struct AutoSyncData {
+    /// auto-sync info
+    pub info: AutoSyncInfo,
     /// send queue
     pub send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
 }
@@ -78,21 +85,6 @@ pub struct RemoveWalletCommand {
     pub id: String,
     /// Wallet name
     pub name: String,
-}
-
-/// Auto Sync Info for rpc query
-#[derive(Serialize, Deserialize, Default)]
-pub struct AutoSyncInfo {
-    /// current
-    pub current_height: u64,
-    /// max height
-    pub max_height: u64,
-    /// current syncing wallet name
-    pub wallet: String,
-    /// connected via websocket
-    pub connected: bool,
-    /// sync state : getting block, waiting, etc.
-    pub state: String,
 }
 
 /// subscribe command

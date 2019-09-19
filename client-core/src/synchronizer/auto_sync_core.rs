@@ -169,22 +169,23 @@ where
         let state = self.state;
         {
             let mut data = self.data.lock().unwrap();
-            data.current_height = height;
-            data.max_height = self.max_height;
-            data.wallet = self.get_current_wallet().name;
-            data.state = format!("{:?}", state);
-            if data.max_height > 0 {
-                data.progress = (data.current_height as f64) / (data.max_height as f64);
+            data.info.current_height = height;
+            data.info.max_height = self.max_height;
+            data.info.wallet = self.get_current_wallet().name;
+            data.info.state = format!("{:?}", state);
+            if data.info.max_height > 0 {
+                data.info.progress =
+                    (data.info.current_height as f64) / (data.info.max_height as f64);
             } else {
-                data.progress = 0.0;
+                data.info.progress = 0.0;
             }
             log::info!(
                 "save block kind={} wallet={} height={}/{}  progress={:.4}%",
                 kind,
-                data.wallet,
-                data.current_height,
-                data.max_height,
-                data.progress * 100.0
+                data.info.wallet,
+                data.info.current_height,
+                data.info.max_height,
+                data.info.progress * 100.0
             );
         }
 
