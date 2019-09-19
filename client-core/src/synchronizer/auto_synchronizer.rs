@@ -3,7 +3,8 @@
 
 use super::auto_sync_core::AutoSynchronizerCore;
 use super::auto_sync_data::{
-    AutoSyncDataShared, AutoSyncQueue, AutoSyncSendQueue, AutoSyncSendQueueShared, WalletInfos,
+    AutoSyncDataShared, AutoSyncInfo, AutoSyncQueue, AutoSyncSendQueue, AutoSyncSendQueueShared,
+    NetworkState, WalletInfos, WebsocketState,
 };
 use super::auto_sync_data::{MyQueue, CMD_SUBSCRIBE};
 use crate::BlockHandler;
@@ -28,6 +29,7 @@ pub struct AutoSynchronizer {
     /// websocket url
     websocket_url: String,
     send_queue: AutoSyncSendQueueShared,
+    data: AutoSyncDataShared,
 }
 
 /// handling web-socket
@@ -44,14 +46,26 @@ impl AutoSynchronizer {
         Some(self.core.as_mut().unwrap().clone())
     }
     /// create auto sync
-    pub fn new(websocket_url: String) -> Self {
+    pub fn new(websocket_url: String, data: AutoSyncDataShared) -> Self {
         Self {
             /// core
             core: None,
             /// websocket url
             websocket_url,
             send_queue: Arc::new(Mutex::new(AutoSyncSendQueue::new())),
+            data,
         }
+    }
+
+    /// set connected
+    pub fn set_state(&self, state: NetworkState<WebsocketState>) {
+        let mut data = self.data.lock().unwrap();
+        data.info.state = state;
+    }
+
+    pub fn clear_info(&self) {
+        let mut data = self.data.lock().unwrap();
+        data.info = AutoSyncInfo::default();
     }
 
     /// launch core thread
@@ -110,6 +124,7 @@ impl AutoSynchronizer {
     pub fn run_network(&mut self) -> Result<()> {
         loop {
             let mut connected = false;
+            self.set_state(NetworkState::Disconnected);
             let channel = futures::sync::mpsc::channel(0);
             // tx, rx
             let (channel_tx, channel_rx) = channel;
@@ -131,6 +146,7 @@ impl AutoSynchronizer {
                 .and_then(|(duplex, _)| {
                     log::info!("successfully connected to {}", self.websocket_url);
                     connected = true;
+                    self.set_state(NetworkState::Connected(WebsocketState::ReadyProcess));
                     channel_sink
                         .send(OwnedMessage::Text(CMD_SUBSCRIBE.to_string()))
                         .expect("send to channel sink");
@@ -162,10 +178,12 @@ impl AutoSynchronizer {
                     // write log only after connection is made
                     if connected {
                         log::warn!("connection closed error {}", b);
+                        self.set_state(NetworkState::Disconnected);
                     }
                     std::thread::sleep(std::time::Duration::from_millis(2000));
                 }
             }
+            self.clear_info();
         }
     }
 }

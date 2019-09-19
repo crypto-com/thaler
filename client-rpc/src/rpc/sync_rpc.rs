@@ -4,7 +4,7 @@ use jsonrpc_derive::rpc;
 use crate::server::{to_rpc_error, WalletRequest};
 use client_common::tendermint::Client;
 use client_common::Storage;
-use client_core::synchronizer::{AutoSync, ManualSynchronizer};
+use client_core::synchronizer::{AutoSync, AutoSyncInfo, ManualSynchronizer};
 use client_core::BlockHandler;
 
 #[rpc]
@@ -17,6 +17,9 @@ pub trait SyncRpc: Send + Sync {
 
     #[rpc(name = "sync_unlockWallet")]
     fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<()>;
+
+    #[rpc(name = "sync_info")]
+    fn sync_info(&self) -> Result<AutoSyncInfo>;
 
     #[rpc(name = "sync_stop")]
     fn sync_stop(&self, request: WalletRequest) -> Result<()>;
@@ -57,6 +60,11 @@ where
         self.auto_synchronizer
             .add_wallet(request.name, request.passphrase)
             .map_err(to_rpc_error)
+    }
+
+    #[inline]
+    fn sync_info(&self) -> Result<AutoSyncInfo> {
+        Ok(self.auto_synchronizer.sync_info())
     }
 
     #[inline]
