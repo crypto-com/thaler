@@ -9,9 +9,42 @@ use websocket::OwnedMessage;
 /// give add wallet command via this queue
 pub type AutoSyncQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
-#[derive(Clone, Debug, Default)]
-/// auto sync internal data
-pub struct AutoSyncData {
+/// finite state
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+/// websocket state
+pub enum WebsocketState {
+    /// initial state
+    ReadyProcess,
+    /// getting status
+    GetStatus,
+    /// getting blocks
+    GetBlocks,
+    /// wait some time to prevent using 100% cpu
+    WaitProcess,
+}
+impl Default for WebsocketState {
+    fn default() -> Self {
+        WebsocketState::ReadyProcess
+    }
+}
+
+/// connecting state
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub enum NetworkState<T> {
+    Disconnected,
+    Connected(T),
+    Connecting,
+}
+
+impl Default for NetworkState<WebsocketState> {
+    fn default() -> Self {
+        NetworkState::Disconnected
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+/// Auto Sync Information
+pub struct AutoSyncInfo {
     /// normalized: 0.0 ~ 1.0
     pub progress: f64,
     /// current
@@ -20,6 +53,16 @@ pub struct AutoSyncData {
     pub max_height: u64,
     /// current syncing wallet name
     pub wallet: String,
+    /// all wallets
+    pub wallets_all: Vec<String>,
+    /// State
+    pub state: NetworkState<WebsocketState>,
+}
+#[derive(Clone, Debug, Default)]
+/// auto sync internal data
+pub struct AutoSyncData {
+    /// sync info
+    pub info: AutoSyncInfo,
     /// send queue
     pub send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
 }

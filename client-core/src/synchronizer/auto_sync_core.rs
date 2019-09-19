@@ -18,8 +18,9 @@ use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage, Transact
 
 use super::auto_sync_data::WalletInfo;
 use super::auto_sync_data::{
-    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueueShared, RemoveWalletCommand,
-    WalletInfos, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS, RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
+    AddWalletCommand, AutoSyncDataShared, AutoSyncSendQueueShared, NetworkState,
+    RemoveWalletCommand, WalletInfos, WebsocketState, BLOCK_REQUEST_TIME, CMD_BLOCK, CMD_STATUS,
+    RECEIVE_TIMEOUT, WAIT_PROCESS_TIME,
 };
 use crate::service::{GlobalStateService, WalletService};
 use crate::BlockHandler;
@@ -34,19 +35,6 @@ so multi-plexed with OwnedMessage
 
  not to use too much cpu, it takes some time for waiting
  */
-
-/// finite state
-#[derive(Copy, Clone, Debug)]
-enum WebsocketState {
-    /// initial state
-    ReadyProcess,
-    /// getting status
-    GetStatus,
-    /// getting blocks
-    GetBlocks,
-    /// wait some time to prevent using 100% cpu
-    WaitProcess,
-}
 
 /// automatic sync
 pub struct AutoSynchronizerCore<S, C, H>
@@ -168,21 +156,28 @@ where
         // update information
         {
             let mut data = self.data.lock().unwrap();
-            data.current_height = height;
-            data.max_height = self.max_height;
-            data.wallet = self.get_current_wallet().name;
-            if data.max_height > 0 {
-                data.progress = (data.current_height as f64) / (data.max_height as f64);
+            data.info.current_height = height;
+            data.info.max_height = self.max_height;
+            data.info.wallet = self.get_current_wallet().name;
+            if data.info.max_height > 0 {
+                data.info.progress =
+                    (data.info.current_height as f64) / (data.info.max_height as f64);
             } else {
-                data.progress = 0.0;
+                data.info.progress = 0.0;
             }
+            data.info.state = NetworkState::Connected(self.state);
+            data.info.wallets_all = self
+                .wallets
+                .iter()
+                .map(|(key, _value)| key.to_string())
+                .collect();
             log::info!(
                 "save block kind={} wallet={} height={}/{}  progress={:.4}%",
                 kind,
-                data.wallet,
-                data.current_height,
-                data.max_height,
-                data.progress * 100.0
+                data.info.wallet,
+                data.info.current_height,
+                data.info.max_height,
+                data.info.progress * 100.0
             );
         }
 
