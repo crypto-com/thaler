@@ -105,7 +105,7 @@ impl AutoSync {
     /// (progress:0.0~1.0, current_wallet_name)
     pub fn get_progress(&self) -> (f64, String) {
         let data = self.data.lock().expect("get progress autosync lock");
-        (data.info.progress, data.info.wallet.clone())
+        (data.info.progress, data.info.current_wallet.clone())
     }
 }
 

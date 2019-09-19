@@ -52,9 +52,9 @@ pub struct AutoSyncInfo {
     /// max height
     pub max_height: u64,
     /// current syncing wallet name
-    pub wallet: String,
+    pub current_wallet: String,
     /// all wallets
-    pub wallets_all: Vec<String>,
+    pub unlocked_wallets: Vec<String>,
     /// State
     pub state: NetworkState<WebsocketState>,
 }

@@ -158,7 +158,7 @@ where
             let mut data = self.data.lock().unwrap();
             data.info.current_height = height;
             data.info.max_height = self.max_height;
-            data.info.wallet = self.get_current_wallet().name;
+            data.info.current_wallet = self.get_current_wallet().name;
             if data.info.max_height > 0 {
                 data.info.progress =
                     (data.info.current_height as f64) / (data.info.max_height as f64);
@@ -166,7 +166,7 @@ where
                 data.info.progress = 0.0;
             }
             data.info.state = NetworkState::Connected(self.state);
-            data.info.wallets_all = self
+            data.info.unlocked_wallets = self
                 .wallets
                 .iter()
                 .map(|(key, _value)| key.to_string())
@@ -174,7 +174,7 @@ where
             log::info!(
                 "save block kind={} wallet={} height={}/{}  progress={:.4}%",
                 kind,
-                data.info.wallet,
+                data.info.current_wallet,
                 data.info.current_height,
                 data.info.max_height,
                 data.info.progress * 100.0
