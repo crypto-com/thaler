@@ -174,6 +174,11 @@ where
                 data.info.max_height,
                 data.info.progress * 100.0
             );
+            data.info.wallets_all = self
+                .wallets
+                .iter()
+                .map(|(key, _value)| key.to_string())
+                .collect();
         }
 
         self.write_block(height, &block)

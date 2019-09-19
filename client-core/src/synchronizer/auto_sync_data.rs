@@ -20,6 +20,8 @@ pub struct AutoSyncInfo {
     pub max_height: u64,
     /// current syncing wallet name
     pub wallet: String,
+    /// all unlocked wallets
+    pub wallets_all: Vec<String>,
     /// sync state : getting block, waiting, etc.
     pub state: ConnectionState<WebsocketState>,
 }
