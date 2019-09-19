@@ -27,12 +27,7 @@ pub struct Options {
     )]
     pub port: u16,
 
-    #[structopt(
-        name = "chain-id",
-        short,
-        long,
-        help = "Full chain ID"
-    )]
+    #[structopt(name = "chain-id", short, long, help = "Full chain ID")]
     pub chain_id: String,
 
     #[structopt(

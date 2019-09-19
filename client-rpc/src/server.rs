@@ -6,9 +6,7 @@ use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
 use std::net::SocketAddr;
 
-use chain_core::init::network::{
-    get_network, get_network_id, init_chain_id
-};
+use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_core::tx::fee::LinearFee;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
@@ -51,11 +49,7 @@ impl Server {
         init_chain_id(&options.chain_id);
         let network_id = get_network_id();
 
-        println!(
-            "Network type {:?} id {:02X}",
-            get_network(),
-            network_id
-        );
+        println!("Network type {:?} id {:02X}", get_network(), network_id);
         Ok(Server {
             host: options.host,
             port: options.port,
