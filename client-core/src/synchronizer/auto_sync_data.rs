@@ -64,7 +64,7 @@ pub struct AutoSyncData {
     /// sync info
     pub info: AutoSyncInfo,
     /// send queue
-    pub send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>,
+    pub send_queue_to_core: Option<std::sync::mpsc::Sender<OwnedMessage>>,
 }
 
 #[derive(Debug, Default, Clone)]

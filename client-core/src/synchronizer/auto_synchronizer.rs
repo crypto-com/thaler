@@ -129,7 +129,7 @@ impl AutoSynchronizer {
             // tx, rx
             let (channel_tx, channel_rx) = channel;
             {
-                let mut data = self.send_queue.lock().unwrap();
+                let data = &mut self.send_queue.lock().unwrap();
                 data.queue = Some(channel_tx.clone());
             }
             let mut runtime = tokio::runtime::current_thread::Builder::new()
