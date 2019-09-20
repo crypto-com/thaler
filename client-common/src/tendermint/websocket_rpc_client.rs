@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use std::iter;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
+use std::thread;
 use std::time::Duration;
 
 use rand::distributions::Alphanumeric;
@@ -27,12 +27,11 @@ use crate::{Error, ErrorKind, Result, ResultExt};
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
 
 const WAIT_FOR_CONNECTION_SLEEP_INTERVAL: Duration = Duration::from_millis(200);
-const WAIT_FOR_CONNECTION_COUNT: u16 = 50;
+const WAIT_FOR_CONNECTION_COUNT: usize = 50;
 
 /// Tendermint RPC Client (uses websocket in transport layer)
 #[derive(Clone)]
 pub struct WebsocketRpcClient {
-    handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     connection_state: Arc<Mutex<ConnectionState>>,
     websocket_writer: Arc<Mutex<Writer<TcpStream>>>,
     channel_map: Arc<Mutex<HashMap<String, SyncSender<JsonRpcResponse>>>>,
@@ -58,7 +57,7 @@ impl WebsocketRpcClient {
             websocket_writer.clone(),
         );
 
-        let (handle, connection_state) = websocket_rpc_loop::monitor(
+        let connection_state = websocket_rpc_loop::monitor(
             url.to_owned(),
             channel_map.clone(),
             loop_handle,
@@ -66,7 +65,6 @@ impl WebsocketRpcClient {
         );
 
         Ok(Self {
-            handle: Arc::new(Mutex::new(Some(handle))),
             connection_state,
             websocket_writer,
             channel_map,
@@ -195,32 +193,23 @@ impl WebsocketRpcClient {
 
     /// Ensures that the websocket is connected.
     fn ensure_connected(&self) -> Result<()> {
-        let mut wait_count = 0;
+        for _ in 0..WAIT_FOR_CONNECTION_COUNT {
+            if ConnectionState::Connected
+                == *self
+                    .connection_state
+                    .lock()
+                    .expect("Unable to acquire lock on connection state")
+            {
+                return Ok(());
+            }
 
-        while ConnectionState::Disconnected
-            == *self
-                .connection_state
-                .lock()
-                .expect("Unable to acquire lock on connection state")
-            && wait_count < WAIT_FOR_CONNECTION_COUNT
-        {
-            wait_count += 1;
             thread::sleep(WAIT_FOR_CONNECTION_SLEEP_INTERVAL);
         }
 
-        if ConnectionState::Disconnected
-            == *self
-                .connection_state
-                .lock()
-                .expect("Unable to acquire lock on connection state")
-        {
-            Err(Error::new(
-                ErrorKind::InternalError,
-                "Websocket connection disconnected",
-            ))
-        } else {
-            Ok(())
-        }
+        Err(Error::new(
+            ErrorKind::InternalError,
+            "Websocket connection disconnected",
+        ))
     }
 
     /// Makes an RPC call and deserializes response

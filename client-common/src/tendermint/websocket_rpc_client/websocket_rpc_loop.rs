@@ -38,12 +38,6 @@ pub fn new_connection(url: &str) -> Result<(Reader<TcpStream>, Writer<TcpStream>
 
 /// Spawns websocket rpc loop in a new thread
 ///
-/// # Arguments
-///
-/// - `url`: URL of websocket server to connect
-/// - `channel_map`: A hashmap of JSON-RPC `request_id` to response channel. Whenever user makes a JSON-RPC request, the
-///   requestor should add a response channel to this map before sending websocket message.
-///
 /// # How it works
 ///
 /// - Connects to websocket server at given `url` and splits the connection in `reader` and `writer`.
@@ -93,11 +87,11 @@ pub fn monitor(
     channel_map: Arc<Mutex<HashMap<String, SyncSender<JsonRpcResponse>>>>,
     loop_handle: JoinHandle<()>,
     websocket_writer: Arc<Mutex<Writer<TcpStream>>>,
-) -> (JoinHandle<()>, Arc<Mutex<ConnectionState>>) {
+) -> Arc<Mutex<ConnectionState>> {
     let connection_state = Arc::new(Mutex::new(ConnectionState::Connected));
     let connection_state_clone = connection_state.clone();
 
-    let monitor_handle = thread::spawn(move || {
+    thread::spawn(move || {
         let mut connection_handle = Some(loop_handle);
 
         loop {
@@ -146,7 +140,7 @@ pub fn monitor(
         }
     });
 
-    (monitor_handle, connection_state)
+    connection_state
 }
 
 /// Deserializes message from websocket into `JsonRpcResponse`
