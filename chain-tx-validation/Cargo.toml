@@ -6,7 +6,12 @@ description = "Library with functions that verify, given current chain state's d
 readme = "../README.md"
 edition = "2018"
 
+[features]
+default = []
+mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx", "chain-core/mesalock_sgx"]
+
 [dependencies]
-chain-core = { path = "../chain-core" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["recovery", "endomorphism"] }
-parity-scale-codec = { version = "1.0", features = ["derive"] }
+chain-core = { path = "../chain-core", default-features = false }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["recovery", "endomorphism"] }
+parity-scale-codec = { features = ["derive"], default-features = false, version = "1.0" }
+sgx_tstd = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk.git", optional = true }
