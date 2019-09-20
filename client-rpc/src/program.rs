@@ -78,7 +78,7 @@ pub fn find_string(args: &[String], target: &str) -> Option<usize> {
 #[allow(dead_code)]
 pub fn run_electron() {
     env_logger::init();
-    // "~/Electron", ".", "--chain-id", "ab", "--network-type", "test"]
+    // "~/Electron", ".", "--chain-id", "ab"]
     let args: Vec<String> = env::args().collect();
     log::info!("args={:?}", args);
     let mut options = Options::from_iter(vec![""].iter());
