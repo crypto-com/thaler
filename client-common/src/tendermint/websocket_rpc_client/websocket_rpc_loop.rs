@@ -46,7 +46,6 @@ pub fn new_connection(url: &str) -> Result<(Reader<TcpStream>, Writer<TcpStream>
 ///   - Parse the message into JSON-RPC response.
 ///   - Pop the response channel from `channel_map` corresponding to response's `request_id`.
 ///   - Send the response to the channel.
-#[allow(clippy::type_complexity)]
 pub fn spawn(
     channel_map: Arc<Mutex<HashMap<String, SyncSender<JsonRpcResponse>>>>,
     mut websocket_reader: Reader<TcpStream>,
