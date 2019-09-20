@@ -57,7 +57,7 @@ impl AutoSync {
         // set send queue
         {
             let mut data = self.data.lock().expect("auto sync lock");
-            data.send_queue = websocket_queue;
+            data.send_queue_to_core = websocket_queue;
         }
     }
 
@@ -94,7 +94,7 @@ impl AutoSync {
         let send_queue: Option<std::sync::mpsc::Sender<OwnedMessage>>;
         {
             let data = self.data.lock().expect("auto sync lock");
-            send_queue = data.send_queue.clone();
+            send_queue = data.send_queue_to_core.clone();
         }
         let tmp_queue = send_queue.expect("auto sync send queue");
         AutoSynchronizer::send_json(&tmp_queue, json);
