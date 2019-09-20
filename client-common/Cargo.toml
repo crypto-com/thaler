@@ -9,6 +9,7 @@ chain-core = { path = "../chain-core" }
 chain-tx-filter = { path = "../chain-tx-filter" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
 rand = "0.7"
+log = "0.4"
 miscreant = "0.4"
 blake2 = "0.8"
 hex = "0.4"
@@ -21,7 +22,9 @@ sled = { version = "0.28", optional = true }
 jsonrpc = { version = "0.11", optional = true }
 serde_json = { version = "1.0", optional = true }
 parity-scale-codec = { features = ["derive"], version = "1.0" }
+websocket = { version = "0.23", default-features = false, features = ["sync"], optional = true }
 
 [features]
-default = ["sled", "rpc"]
-rpc = ["jsonrpc", "serde_json"]
+default = ["sled", "websocket-rpc"]
+http-rpc = ["jsonrpc", "serde_json"]
+websocket-rpc = ["websocket", "serde_json"]
