@@ -23,7 +23,7 @@ There are several ways to identify an area where you can contribute to Chain:
 * Occassionally, some issues on Github may be labelled with `help wanted` or `good first issue` tags.
 
 We use the variation of the "fork and pull" model where contributors push changes to their personal fork and create pull requests to bring those changes into the source repository.
-Changes in pull requests should satify "Patch Requirements" described in [The Collective Code Construction Contract (C4)](https://rfc.zeromq.org/spec:42/C4/#23-patch-requirements). The code should follow [Rust Style Guide](https://github.com/rust-lang/rfcs/tree/master/style-guide). Many of the code style rules are captured by [rustfmt](https://github.com/rust-lang/rustfmt), so please make sure to use `cargo fmt` before every commit (e.g. by configuring your editor to do it for you upon saving a file). The code comments should follow [Rust API Documentation guidelines and conventions](https://rust-lang-nursery.github.io/api-guidelines/documentation.html).
+Changes in pull requests should satisfy "Patch Requirements" described in [The Collective Code Construction Contract (C4)](https://rfc.zeromq.org/spec:42/C4/#23-patch-requirements). The code should follow [Rust Style Guide](https://github.com/rust-lang/rfcs/tree/master/style-guide). Many of the code style rules are captured by [rustfmt](https://github.com/rust-lang/rustfmt), so please make sure to use `cargo fmt` before every commit (e.g. by configuring your editor to do it for you upon saving a file). The code comments should follow [Rust API Documentation guidelines and conventions](https://rust-lang-nursery.github.io/api-guidelines/documentation.html).
 
 Once you identified an issue to work on, this is the summary of your basic steps:
 
