@@ -136,7 +136,6 @@ function start_client_rpc() {
             --port "${1}" \
             --network-id "${CHAIN_HEX_ID}" \
             --storage-dir "${STORAGE}" \
-            --tendermint-url "http://127.0.0.1:${2}" \
             --websocket-url "ws://127.0.0.1:${2}/websocket"
 }
 
