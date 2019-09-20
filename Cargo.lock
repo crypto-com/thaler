@@ -279,7 +279,7 @@ dependencies = [
  "serde_derive 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.40 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "starling 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "starling 3.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "zmq 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2387,7 +2387,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "starling"
-version = "3.1.0"
+version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -3371,7 +3371,7 @@ dependencies = [
 "checksum sourcefile 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "4bf77cb82ba8453b42b6ae1d692e4cdc92f9a47beaf89a847c8be83f4e328ad3"
 "checksum spin 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 "checksum stable_deref_trait 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
-"checksum starling 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0120b90d7ec0380bcd15de94540bc96ac58726371d8d6e8af2178d3de554c677"
+"checksum starling 3.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8023c1cc199d7f8d04d994a1e28535fbc4eeee48d4b137c8692915a42ecfd994"
 "checksum static_assertions 0.2.5 (registry+https://github.com/rust-lang/crates.io-index)" = "c19be23126415861cb3a23e501d34a708f7f9b2183c5252d690941c2e69199d5"
 "checksum static_assertions 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "7f3eb36b47e512f8f1c9e3d10c2c1965bc992bd9cdb024fa581e2194501c83d3"
 "checksum stream-cipher 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "8131256a5896cabcf5eb04f4d6dacbe1aefda854b0d9896e09cb58829ec5638c"
