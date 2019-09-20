@@ -4,10 +4,10 @@
 //! Modifications Copyright (c) 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 //!
 //! ## Ethereum Bloom filter for Logs as described in the yellow paper
+//! "a specialised Bloom filter that sets three bits out of 2048,
+//! given an arbitrary byte sequence. It does this through taking the low-order 11 bits of each of
+//! the first three pairs of bytes in a Keccak-256 hash of the byte sequence."
 use bit_vec::BitVec;
-///! "a specialised Bloom filter that sets three bits out of 2048,
-///! given an arbitrary byte sequence. It does this through taking the low-order 11 bits of each of
-///! the first three pairs of bytes in a Keccak-256 hash of the byte sequence."
 use chain_core::init::address::keccak256;
 
 type H2048 = [u8; 256];
