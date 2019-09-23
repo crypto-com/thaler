@@ -13,8 +13,8 @@ COPY . .
 COPY integration-tests/docker/chain/wallet-storage ./wallet-storage
 COPY integration-tests/docker/wait-for-it.sh /usr/bin/wait-for-it.sh
 
-RUN cargo build --release
-RUN mv target/release/chain-abci /usr/bin/chain-abci
-RUN mv target/release/client-rpc /usr/bin/client-rpc
+RUN cargo build
+RUN mv target/debug/chain-abci /usr/bin/chain-abci
+RUN mv target/debug/client-rpc /usr/bin/client-rpc
 
 STOPSIGNAL SIGTERM

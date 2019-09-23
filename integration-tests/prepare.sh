@@ -48,10 +48,12 @@ function git_clone_chain_tx_enclave() {
 }
 
 function build_chain_tx_enclave_docker_image() {
+    CWD=$(pwd)
     cd "${CHAIN_TX_ENCLAVE_DIRECTORY}" && docker build -t "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE}" \
         -f ./tx-validation/Dockerfile . \
         --build-arg SGX_MODE=SW \
         --build-arg NETWORK_ID="${CHAIN_HEX_ID}"
+    cd "${CWD}"
 }
 
 function init_tendermint() {
