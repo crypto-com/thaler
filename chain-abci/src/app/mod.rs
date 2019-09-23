@@ -4,7 +4,6 @@ mod query;
 mod validate_tx;
 
 use abci::*;
-use chain_tx_filter::BlockFilter;
 use log::info;
 
 pub use self::app_init::{ChainNodeApp, ChainNodeState};
@@ -265,7 +264,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             event.attributes.push(kvpair);
             resp.events.push(event);
         }
-        self.filter = BlockFilter::default();
+        self.filter.reset();
         // TODO: skipchain-based validator changes?
         if !self.power_changed_in_block.is_empty() {
             let mut validators = Vec::with_capacity(self.power_changed_in_block.len());

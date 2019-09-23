@@ -25,7 +25,13 @@ pub struct BlockFilter {
 }
 
 impl BlockFilter {
-    /// adds a view key to the filter
+    /// resets the filter
+    pub fn reset(&mut self) {
+        self.modified = false;
+        self.bloom.reset();
+    }
+
+    /// joins with another filter
     pub fn add_filter(&mut self, other: &BlockFilter) {
         self.modified = true;
         self.bloom.add(&other.bloom);
