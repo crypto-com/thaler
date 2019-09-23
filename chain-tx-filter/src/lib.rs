@@ -10,6 +10,7 @@ extern crate sgx_tstd as std;
 mod filter;
 use chain_core::state::account::StakedStateAddress;
 use filter::Bloom;
+use filter::H2048;
 use parity_scale_codec::Encode;
 use secp256k1::key::PublicKey;
 use std::convert::TryFrom;
@@ -23,6 +24,12 @@ pub struct BlockFilter {
 }
 
 impl BlockFilter {
+    /// adds a view key to the filter
+    pub fn add_filter(&mut self, other: &BlockFilter) {
+        self.modified = true;
+        self.bloom.add(&other.bloom);
+    }
+
     /// adds a view key to the filter
     pub fn add_view_key(&mut self, view_key: &PublicKey) {
         self.modified = true;
@@ -70,16 +77,20 @@ impl TryFrom<&[u8]> for BlockFilter {
     type Error = &'static str;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() != 256 {
-            Err("Invalid length, ethbloom is expected to be 256-bytes")
-        } else {
-            let mut bloom_array = [0u8; 256];
-            bloom_array.copy_from_slice(&value);
-            let bloom = Bloom::from(&bloom_array);
-            Ok(BlockFilter {
-                bloom,
-                modified: false,
-            })
+        let bloom = Bloom::try_from(value)?;
+        Ok(BlockFilter {
+            bloom,
+            modified: false,
+        })
+    }
+}
+
+impl From<&H2048> for BlockFilter {
+    fn from(val: &H2048) -> BlockFilter {
+        let bloom = Bloom::from(val);
+        BlockFilter {
+            bloom,
+            modified: false,
         }
     }
 }
