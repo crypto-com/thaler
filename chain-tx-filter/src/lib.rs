@@ -78,6 +78,11 @@ impl BlockFilter {
     pub fn is_modified(&self) -> bool {
         self.modified
     }
+
+    /// gets raw filter data
+    pub fn get_raw(&self) -> H2048 {
+        self.bloom.raw_data()
+    }
 }
 
 impl TryFrom<&[u8]> for BlockFilter {
@@ -99,11 +104,5 @@ impl From<&H2048> for BlockFilter {
             bloom,
             modified: false,
         }
-    }
-}
-
-impl Into<H2048> for BlockFilter {
-    fn into(self) -> H2048 {
-        self.bloom.into()
     }
 }
