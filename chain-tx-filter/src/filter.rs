@@ -10,6 +10,7 @@
 use bit_vec::BitVec;
 use chain_core::init::address::keccak256;
 use std::convert::TryFrom;
+use std::prelude::v1::Vec;
 
 pub type H2048 = [u8; 256];
 

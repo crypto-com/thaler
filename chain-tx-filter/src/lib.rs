@@ -14,6 +14,7 @@ use filter::H2048;
 use parity_scale_codec::Encode;
 use secp256k1::key::PublicKey;
 use std::convert::TryFrom;
+use std::prelude::v1::Vec;
 
 /// Probabilistic fixed-size filter wrapper
 #[derive(Default, Debug)]
