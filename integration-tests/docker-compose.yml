@@ -64,7 +64,7 @@ services:
     image: integration-tests-chain
     depends_on:
       - chain-abci
-    command: /usr/bin/wait-for-it.sh tendermint:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --network-id ${CHAIN_HEX_ID} --storage-dir wallet-storage --websocket-url ws://tendermint:26657/websocket
+    command: /usr/bin/wait-for-it.sh tendermint:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id ${CHAIN_ID} --storage-dir wallet-storage --websocket-url ws://tendermint:26657/websocket
     environment:
       RUST_BACKTRACE: 1
     ports:
@@ -73,7 +73,7 @@ services:
     image: integration-tests-chain
     depends_on:
       - chain-abci
-    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --network-id ${CHAIN_HEX_ID} --storage-dir wallet-storage --websocket-url ws://tendermint-zerofee:26657/websocket
+    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id ${CHAIN_ID} --storage-dir wallet-storage --websocket-url ws://tendermint-zerofee:26657/websocket
     environment:
       RUST_BACKTRACE: 1
     ports:

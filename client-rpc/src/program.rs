@@ -27,23 +27,8 @@ pub struct Options {
     )]
     pub port: u16,
 
-    #[structopt(
-        name = "network-id",
-        short,
-        long,
-        default_value = "00",
-        help = "Network ID (Last two hex digits of chain-id)"
-    )]
-    pub network_id: String,
-
-    #[structopt(
-        name = "network-type",
-        short = "i",
-        long,
-        default_value = "dev",
-        help = "Network Type (main, test, dev)"
-    )]
-    pub network_type: String,
+    #[structopt(name = "chain-id", short, long, help = "Full chain ID")]
+    pub chain_id: String,
 
     #[structopt(
         name = "storage-dir",
@@ -84,18 +69,13 @@ pub fn find_string(args: &[String], target: &str) -> Option<usize> {
 #[allow(dead_code)]
 pub fn run_electron() {
     env_logger::init();
-    // "~/Electron", ".", "--network-id", "ab", "--network-type", "test"]
+    // "~/Electron", ".", "--chain-id", "ab"]
     let args: Vec<String> = env::args().collect();
     log::info!("args={:?}", args);
     let mut options = Options::from_iter(vec![""].iter());
-    if let Some(a) = find_string(&args, "--network-id") {
-        options.network_id = args[a + 1].clone()
+    if let Some(a) = find_string(&args, "--chain-id") {
+        options.chain_id = args[a + 1].clone()
     }
-
-    if let Some(a) = find_string(&args, "--network-type") {
-        options.network_type = args[a + 1].clone()
-    }
-
     if let Some(a) = find_string(&args, "--storage-dir") {
         options.storage_dir = args[a + 1].clone()
     }

@@ -122,7 +122,7 @@ function start_chain_abci() {
 # @argument ClientRPC Port
 # @argument Tendermint Port
 function start_client_rpc() {
-    print_config "CHAIN_HEX_ID" "${CHAIN_HEX_ID}"
+    print_config "CHAIN_ID" "${CHAIN_ID}"
     print_config "WALLET_STORAGE_DIRECTORY" "${WALLET_STORAGE_DIRECTORY}"
     print_config "PORT" "${1}"
     print_config "TENDERMINT_PORT" "${2}"
@@ -134,7 +134,7 @@ function start_client_rpc() {
     RUST_BACKTRACE=1 && RUST_LOG=info cargo run \
         --bin client-rpc -- \
             --port "${1}" \
-            --network-id "${CHAIN_HEX_ID}" \
+            --chain-id "${CHAIN_ID}" \
             --storage-dir "${STORAGE}" \
             --websocket-url "ws://127.0.0.1:${2}/websocket"
 }
