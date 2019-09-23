@@ -104,7 +104,9 @@ function start_chain_abci() {
     STORAGE=$(mktemp -d)    
     print_config "STORAGE" "${STORAGE}"
 
-    RUST_BACKTRACE=1 && RUST_LOG=info cargo run \
+    export RUST_BACKTRACE=1
+    export RUST_LOG=info
+    cargo run \
         --bin chain-abci -- \
             --data "${STORAGE}" \
             --port "${2}" \
