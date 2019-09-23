@@ -54,13 +54,13 @@ describe("Staking", () => {
 			[viewKey],
 		]);
 		console.info(`[Info] Transaction ID: "${txId}"`);
-		await sleep(1000);
+		await sleep(2000);
 
 		await client.request("sync", [walletRequest]);
 
 		await expect(
 			client.request("wallet_balance", [walletRequest]),
-		).to.eventually.deep.eq(stakingAmount);
+		).to.eventually.deep.eq(stakingAmount, "Wallet should be funded with staking amount for staking deposit");
 
 		console.log(`[Log] Deposit ${stakingAmount} base unit stake to staking address "${stakingAddress}"`);
 		await expect(

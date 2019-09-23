@@ -6,13 +6,11 @@ use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
 use std::net::SocketAddr;
 
-use chain_core::init::network::{
-    get_network, get_network_id, init_chain_id, MAINNET_CHAIN_ID, TESTNET_CHAIN_ID,
-};
+use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_core::tx::fee::LinearFee;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, RpcClient};
-use client_common::{Error, ErrorKind, Result, ResultExt};
+use client_common::{Error, Result};
 use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_core::signer::DefaultSigner;
@@ -48,27 +46,10 @@ pub(crate) struct Server {
 
 impl Server {
     pub(crate) fn new(options: Options) -> Result<Server> {
-        let network_id = hex::decode(&options.network_id).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                "Unable to deserialize Network ID: Network ID is last two hex digits of chain ID",
-            )
-        })?[0];
-        let network_type = options.network_type;
-        if network_type.len() < 4 {
-            init_chain_id(&format!("dev-{}", options.network_id))
-        } else {
-            match &network_type[..4] {
-                "main" => init_chain_id(MAINNET_CHAIN_ID),
-                "test" => init_chain_id(TESTNET_CHAIN_ID),
-                _ => init_chain_id(&format!("dev-{}", options.network_id)),
-            }
-        }
-        println!(
-            "Network type {:?} id {:02X}",
-            get_network(),
-            get_network_id()
-        );
+        init_chain_id(&options.chain_id);
+        let network_id = get_network_id();
+
+        println!("Network type {:?} id {:02X}", get_network(), network_id);
         Ok(Server {
             host: options.host,
             port: options.port,
