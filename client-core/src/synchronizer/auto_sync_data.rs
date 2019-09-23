@@ -10,7 +10,7 @@ use websocket::OwnedMessage;
 pub type AutoSyncQueue = std::sync::mpsc::Sender<OwnedMessage>;
 
 /// finite state
-#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 /// websocket state
 pub enum WebsocketState {
     /// initial state
@@ -29,8 +29,9 @@ impl Default for WebsocketState {
 }
 
 /// connecting state
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub enum NetworkState<T> {
+    Ready,
     Disconnected,
     Connected(T),
     Connecting,
@@ -38,7 +39,7 @@ pub enum NetworkState<T> {
 
 impl Default for NetworkState<WebsocketState> {
     fn default() -> Self {
-        NetworkState::Disconnected
+        NetworkState::Ready
     }
 }
 
@@ -117,6 +118,13 @@ pub struct RemoveWalletCommand {
     pub id: String,
     /// Wallet name
     pub name: String,
+}
+
+/// Command to remove wallet from auto-sync
+#[derive(Serialize, Deserialize)]
+pub struct RestartCommand {
+    /// ID of this command
+    pub id: String,
 }
 
 /// subscribe command
