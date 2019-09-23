@@ -101,3 +101,9 @@ impl From<&H2048> for BlockFilter {
         }
     }
 }
+
+impl Into<H2048> for BlockFilter {
+    fn into(self) -> H2048 {
+        self.bloom.into()
+    }
+}
