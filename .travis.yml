@@ -116,6 +116,9 @@ jobs:
           cd client-rpc
           yarn
           yarn test
+        - |
+          docker-compose ps
+          docker-compose logs -t --tail="all"
 
     # - name: Integration Tests
     #   language: node_js
