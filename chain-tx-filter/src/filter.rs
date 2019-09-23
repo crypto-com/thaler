@@ -50,10 +50,7 @@ impl From<&H2048> for Bloom {
 
 impl Into<H2048> for Bloom {
     fn into(self) -> H2048 {
-        let mut result = [0u8; 256];
-        let bytes = self.0.to_bytes();
-        result.copy_from_slice(&bytes);
-        result
+        self.raw_data()
     }
 }
 
@@ -90,6 +87,14 @@ impl Bloom {
         s2.intersect(&self.0);
 
         s2 == s1
+    }
+
+    /// Gets the bytes from the underlying bitvector as fixed size byte array
+    pub fn raw_data(&self) -> H2048 {
+        let mut result = [0u8; 256];
+        let bytes = self.0.to_bytes();
+        result.copy_from_slice(&bytes);
+        result
     }
 
     /// Gets the bytes from the underlying bitvector
