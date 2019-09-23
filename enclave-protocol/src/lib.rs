@@ -145,8 +145,8 @@ pub enum EnclaveResponse {
     CheckChain(Result<(), Option<H256>>),
     /// returns the affected (account) state (if any) and paid fee if the TX is valid
     VerifyTx(Result<(Fee, Option<StakedState>), chain_tx_validation::Error>),
-    /// returns if the transaction filter for the current block
-    EndBlock(Box<TxFilter>),
+    /// returns the transaction filter for the current block
+    EndBlock(Result<Box<TxFilter>, ()>),
     /// returns if the data was sucessfully persisted in the enclave's local storage
     CommitBlock(Result<(), ()>),
     /// returns a stored launch token if any
