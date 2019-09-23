@@ -49,35 +49,32 @@ pub enum IntraEnclaveRequest {
     EndBlock,
 }
 
-impl IntraEnclaveRequest {
-    /// helper method to validate basic assumptions
-    pub fn is_basic_valid(&self, chain_hex_id: u8) -> Result<(), ()> {
-        match self {
-            IntraEnclaveRequest::ValidateTx { request, tx_inputs } => {
-                if request.info.chain_hex_id != chain_hex_id {
-                    return Err(());
-                }
-                match request.tx {
-                    TxAux::DepositStakeTx { .. } => match tx_inputs {
-                        Some(ref i) if !i.is_empty() => Ok(()),
-                        _ => Err(()),
-                    },
-                    TxAux::TransferTx { .. } => match tx_inputs {
-                        Some(ref i) if !i.is_empty() => Ok(()),
-                        _ => Err(()),
-                    },
-                    TxAux::WithdrawUnbondedStakeTx { .. } => {
-                        if request.account.is_some() {
-                            Ok(())
-                        } else {
-                            Err(())
-                        }
-                    }
-                    _ => Err(()),
-                }
-            }
+/// helper method to validate basic assumptions
+pub fn is_basic_valid_tx_request(
+    request: &VerifyTxRequest,
+    tx_inputs: &Option<Vec<SealedLog>>,
+    chain_hex_id: u8,
+) -> Result<(), ()> {
+    if request.info.chain_hex_id != chain_hex_id {
+        return Err(());
+    }
+    match request.tx {
+        TxAux::DepositStakeTx { .. } => match tx_inputs {
+            Some(ref i) if !i.is_empty() => Ok(()),
             _ => Err(()),
+        },
+        TxAux::TransferTx { .. } => match tx_inputs {
+            Some(ref i) if !i.is_empty() => Ok(()),
+            _ => Err(()),
+        },
+        TxAux::WithdrawUnbondedStakeTx { .. } => {
+            if request.account.is_some() {
+                Ok(())
+            } else {
+                Err(())
+            }
         }
+        _ => Err(()),
     }
 }
 

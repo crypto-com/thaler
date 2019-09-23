@@ -68,6 +68,11 @@ fn single_set(arr: &[u8]) -> BitVec {
 }
 
 impl Bloom {
+    /// Starts a fresh filter
+    pub fn reset(&mut self) {
+        self.0.clear();
+    }
+
     /// Adds the other bloom filter to the current one
     pub fn add(&mut self, other: &Bloom) {
         self.0.union(&other.0);
