@@ -44,11 +44,6 @@ function start_chain_tx_enclave() {
     print_config "CHAIN_HEX_ID" "${CHAIN_HEX_ID}"
     print_config "PORT" "${1}"
 
-    cd "${CHAIN_TX_ENCLAVE_DIRECTORY}" && docker build -t chain-tx-validation \
-        -f ./tx-validation/Dockerfile . \
-        --build-arg SGX_MODE=SW \
-        --build-arg NETWORK_ID="${CHAIN_HEX_ID}"
-
     print_step "Trying to kill previous docker instance ${4}"
     set +e
     docker kill "${2}"
@@ -59,7 +54,7 @@ function start_chain_tx_enclave() {
         --name "${2}" \
         --env RUST_BACKTRACE=1 \
         --env RUST_LOG=debug \
-        chain-tx-validation
+        "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE}"
 }
 
 # @argument Tendermint folder path
