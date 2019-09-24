@@ -166,8 +166,20 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     &mut self.accounts,
                 ),
             };
+            let mut event = Event::new();
+            event.field_type = TendermintEventType::ValidTransactions.to_string();
+            let mut kvpair_fee = KVPair::new();
+            kvpair_fee.key = Vec::from(&b"fee"[..]);
+            kvpair_fee.value = Vec::from(format!("{}", fee_acc.0.to_coin()));
+            event.attributes.push(kvpair_fee);
+
             if let Some(ref account) = maccount {
+                // FIXME: no need to add to the filter / maintain this filter in abci
                 self.filter.add_staked_state_address(&account.address);
+                let mut kvpair = KVPair::new();
+                kvpair.key = Vec::from(&b"account"[..]);
+                kvpair.value = Vec::from(format!("{}", &account.address));
+                event.attributes.push(kvpair);
             }
             match maccount {
                 Some(ref account) if self.validator_voting_power.contains_key(&account.address) => {
@@ -201,9 +213,6 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             let mut kvpair = KVPair::new();
             kvpair.key = Vec::from(&b"txid"[..]);
             kvpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
-
-            let mut event = Event::new();
-            event.field_type = TendermintEventType::ValidTransactions.to_string();
             event.attributes.push(kvpair);
             resp.events.push(event);
             self.delivered_txs.push(txaux);

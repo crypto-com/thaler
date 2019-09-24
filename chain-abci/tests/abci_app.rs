@@ -495,10 +495,19 @@ fn deliver_tx_should_add_valid_tx() {
     assert_eq!(0, cresp.code);
     assert_eq!(1, app.delivered_txs.len());
     assert_eq!(1, cresp.events.len());
-    assert_eq!(1, cresp.events[0].attributes.len());
+    assert_eq!(3, cresp.events[0].attributes.len());
+    // the unit test transaction just has two outputs: 1 CRO + 1 carson / base unit, the rest goes to a fee
+    assert_eq!(
+        &b"99999999998.99999998".to_vec(),
+        &cresp.events[0].attributes[0].value
+    );
+    assert_eq!(
+        &b"0x89aef553a06ab0c3173e79de1ce241a9ed3b992c".to_vec(),
+        &cresp.events[0].attributes[1].value
+    );
     assert_eq!(
         &hex::encode(&tx.id()).as_bytes().to_vec(),
-        &cresp.events[0].attributes[0].value
+        &cresp.events[0].attributes[2].value
     );
 }
 
