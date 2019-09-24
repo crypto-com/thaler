@@ -47,6 +47,15 @@ function git_clone_chain_tx_enclave() {
     fi
 }
 
+function build_chain_tx_enclave_docker_image() {
+    CWD=$(pwd)
+    cd "${CHAIN_TX_ENCLAVE_DIRECTORY}" && docker build -t "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE}" \
+        -f ./tx-validation/Dockerfile . \
+        --build-arg SGX_MODE=SW \
+        --build-arg NETWORK_ID="${CHAIN_HEX_ID}"
+    cd "${CWD}"
+}
+
 function init_tendermint() {
     print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
     rm -rf ./tendermint
@@ -212,6 +221,10 @@ cargo build
 
 print_step "git update Chain Transaction Enclave"
 git_clone_chain_tx_enclave
+if [ -z "${CI}" ]; then
+    print_step "Build Chain Transaction Enclave image"
+    build_chain_tx_enclave_docker_image
+fi
 
 print_step "Initialize Tendermint"
 init_tendermint
