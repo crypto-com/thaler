@@ -17,10 +17,10 @@ use chain_core::common::TendermintEventType;
 use chain_core::state::account::StakedState;
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::data::input::TxoPointer;
-use chain_core::tx::TxObfuscated;
-use chain_core::tx::{PlainTxAux, TxAux};
+use chain_core::tx::TxAux;
+use chain_tx_filter::BlockFilter;
+use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::{DBTransaction, KeyValueDB};
-use parity_scale_codec::Decode;
 use protobuf::RepeatedField;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -226,34 +226,14 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     fn end_block(&mut self, _req: &RequestEndBlock) -> ResponseEndBlock {
         info!("received endblock request");
         let mut resp = ResponseEndBlock::new();
-        for txaux in self.delivered_txs.iter() {
-            match txaux {
-                TxAux::TransferTx {
-                    payload: TxObfuscated { txpayload, .. },
-                    ..
-                } => {
-                    // FIXME: temporary hack / this shouldn't be here
-                    let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
-                    if let Ok(PlainTxAux::TransferTx(tx, _)) = plain_tx {
-                        for view in tx.attributes.allowed_view.iter() {
-                            self.filter.add_view_key(&view.view_key);
-                        }
-                    }
-                }
-                TxAux::WithdrawUnbondedStakeTx {
-                    payload: TxObfuscated { txpayload, .. },
-                    ..
-                } => {
-                    // FIXME: temporary hack / this shouldn't be here
-                    let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
-                    if let Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx)) = plain_tx {
-                        for view in tx.attributes.allowed_view.iter() {
-                            self.filter.add_view_key(&view.view_key);
-                        }
-                    }
-                }
-                _ => {}
-            };
+        if !self.delivered_txs.is_empty() {
+            let end_block_resp = self.tx_validator.process_request(EnclaveRequest::EndBlock);
+            if let EnclaveResponse::EndBlock(Ok(raw_filter)) = end_block_resp {
+                let filter = BlockFilter::from(&*raw_filter);
+                self.filter.add_filter(&filter);
+            } else {
+                panic!("end block request to obtain the block filter failed");
+            }
         }
         if let Some((key, value)) = self.filter.get_tendermint_kv() {
             let mut kvpair = KVPair::new();
