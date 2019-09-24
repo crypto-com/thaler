@@ -1,6 +1,11 @@
 //! auto sync core
 //! polling the latest state
 //! change wallets and continue syncing
+use chain_core::state::account::StakedStateAddress;
+use chain_tx_filter::BlockFilter;
+use client_common::tendermint::types::Block;
+use client_common::tendermint::Client;
+use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage, Transaction};
 use futures::sink::Sink;
 use jsonrpc_core::Result as JsonResult;
 use secstr::SecUtf8;
@@ -9,12 +14,6 @@ use std::collections::BTreeSet;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{self, SystemTime};
 use websocket::OwnedMessage;
-
-use chain_core::state::account::StakedStateAddress;
-use chain_tx_filter::BlockFilter;
-use client_common::tendermint::types::Block;
-use client_common::tendermint::Client;
-use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage, Transaction};
 
 use super::auto_sync_data::WalletInfo;
 use super::auto_sync_data::{
@@ -248,6 +247,11 @@ where
         let _ = self.wallets.remove(name);
     }
 
+    fn restart_sync(&mut self) {
+        self.state = WebsocketState::ReadyProcess;
+        self.state_time = SystemTime::now();
+    }
+
     /// Value is given from websocket_rpc
     /// received
     fn do_parse(&mut self, value: Value) -> Result<()> {
@@ -258,6 +262,10 @@ where
             )
         })?;
         match id {
+            // restart
+            "restart" => {
+                self.restart_sync();
+            }
             // this is special, it's command
             "add_wallet" => {
                 let info: AddWalletCommand = serde_json::from_value(value).chain(|| {

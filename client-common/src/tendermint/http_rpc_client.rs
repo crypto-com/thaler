@@ -1,4 +1,4 @@
-#![cfg(feature = "rpc")]
+#![cfg(feature = "http-rpc")]
 
 use jsonrpc::client::Client as JsonRpcClient;
 use jsonrpc::Request;

@@ -40,15 +40,6 @@ pub struct Options {
     pub storage_dir: String,
 
     #[structopt(
-        name = "tendermint-url",
-        short,
-        long,
-        default_value = "http://localhost:26657/",
-        help = "Url for connecting with tendermint RPC"
-    )]
-    pub tendermint_url: String,
-
-    #[structopt(
         name = "websocket-url",
         short,
         long,
@@ -87,9 +78,6 @@ pub fn run_electron() {
     }
     if let Some(a) = find_string(&args, "--storage-dir") {
         options.storage_dir = args[a + 1].clone()
-    }
-    if let Some(a) = find_string(&args, "--tendermint-url") {
-        options.tendermint_url = args[a + 1].clone()
     }
 
     if let Some(a) = find_string(&args, "--websocket-url") {

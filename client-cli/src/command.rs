@@ -15,7 +15,7 @@ use structopt::StructOpt;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use client_common::storage::SledStorage;
-use client_common::tendermint::{Client, RpcClient};
+use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{Result, Storage};
 use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
@@ -130,7 +130,7 @@ impl Command {
                 transaction_command,
             } => {
                 let storage = SledStorage::new(storage_path())?;
-                let tendermint_client = RpcClient::new(&tendermint_url());
+                let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
                 let transaction_obfuscation =
@@ -157,7 +157,7 @@ impl Command {
             }
             Command::StakedState { name, address } => {
                 let storage = SledStorage::new(storage_path())?;
-                let tendermint_client = RpcClient::new(&tendermint_url());
+                let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
                 let transaction_obfuscation =
@@ -188,7 +188,7 @@ impl Command {
                 force,
             } => {
                 let storage = SledStorage::new(storage_path())?;
-                let tendermint_client = RpcClient::new(&tendermint_url());
+                let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
 
                 let transaction_handler = DefaultTransactionHandler::new(storage.clone());
                 let transaction_obfuscation =
