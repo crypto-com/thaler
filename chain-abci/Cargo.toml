@@ -17,7 +17,7 @@ chain-tx-filter = { path = "../chain-tx-filter" }
 chain-tx-validation = { path = "../chain-tx-validation" }
 enclave-protocol = { path = "../enclave-protocol" }
 log = "0.4.8"
-env_logger = "0.6.2"
+env_logger = "0.7.0"
 bit-vec = "0.6.1"
 kvdb = "0.1"
 kvdb-rocksdb = "0.1.4"
