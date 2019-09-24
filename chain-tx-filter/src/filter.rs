@@ -9,8 +9,10 @@
 //! the first three pairs of bytes in a Keccak-256 hash of the byte sequence."
 use bit_vec::BitVec;
 use chain_core::init::address::keccak256;
+use std::convert::TryFrom;
+use std::prelude::v1::Vec;
 
-type H2048 = [u8; 256];
+pub type H2048 = [u8; 256];
 
 /// A Bloom filter
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,6 +30,18 @@ impl Into<BitVec> for Bloom {
     }
 }
 
+impl TryFrom<&[u8]> for Bloom {
+    type Error = &'static str;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if value.len() != 256 {
+            Err("Invalid length, ethbloom is expected to be 256-bytes")
+        } else {
+            Ok(Bloom(BitVec::from_bytes(value)))
+        }
+    }
+}
+
 impl From<&H2048> for Bloom {
     fn from(val: &H2048) -> Bloom {
         Bloom(BitVec::from_bytes(&val[..]))
@@ -36,10 +50,7 @@ impl From<&H2048> for Bloom {
 
 impl Into<H2048> for Bloom {
     fn into(self) -> H2048 {
-        let mut result = [0u8; 256];
-        let bytes = self.0.to_bytes();
-        result.copy_from_slice(&bytes);
-        result
+        self.raw_data()
     }
 }
 
@@ -54,6 +65,16 @@ fn single_set(arr: &[u8]) -> BitVec {
 }
 
 impl Bloom {
+    /// Starts a fresh filter
+    pub fn reset(&mut self) {
+        self.0.clear();
+    }
+
+    /// Adds the other bloom filter to the current one
+    pub fn add(&mut self, other: &Bloom) {
+        self.0.union(&other.0);
+    }
+
     /// Set respective bits in the bloom with the array
     pub fn set(&mut self, arr: &[u8]) {
         self.0.union(&single_set(arr));
@@ -66,6 +87,14 @@ impl Bloom {
         s2.intersect(&self.0);
 
         s2 == s1
+    }
+
+    /// Gets the bytes from the underlying bitvector as fixed size byte array
+    pub fn raw_data(&self) -> H2048 {
+        let mut result = [0u8; 256];
+        let bytes = self.0.to_bytes();
+        result.copy_from_slice(&bytes);
+        result
     }
 
     /// Gets the bytes from the underlying bitvector

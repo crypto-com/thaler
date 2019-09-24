@@ -36,37 +36,45 @@ const TOKEN_LEN: usize = 1024;
 /// raw sgx_sealed_data_t
 type SealedLog = Vec<u8>;
 
+/// tx filter
+type TxFilter = [u8; 256];
+
 /// variable length request passed to the tx-validation enclave
 #[derive(Encode, Decode)]
-pub struct IntraEnclaveRequest {
-    pub request: VerifyTxRequest,
-    pub tx_inputs: Option<Vec<SealedLog>>,
+pub enum IntraEnclaveRequest {
+    ValidateTx {
+        request: Box<VerifyTxRequest>,
+        tx_inputs: Option<Vec<SealedLog>>,
+    },
+    EndBlock,
 }
 
-impl IntraEnclaveRequest {
-    /// helper method to validate basic assumptions
-    pub fn is_basic_valid(&self, chain_hex_id: u8) -> Result<(), ()> {
-        if self.request.info.chain_hex_id != chain_hex_id {
-            return Err(());
-        }
-        match self.request.tx {
-            TxAux::DepositStakeTx { .. } => match self.tx_inputs {
-                Some(ref i) if !i.is_empty() => Ok(()),
-                _ => Err(()),
-            },
-            TxAux::TransferTx { .. } => match self.tx_inputs {
-                Some(ref i) if !i.is_empty() => Ok(()),
-                _ => Err(()),
-            },
-            TxAux::WithdrawUnbondedStakeTx { .. } => {
-                if self.request.account.is_some() {
-                    Ok(())
-                } else {
-                    Err(())
-                }
-            }
+/// helper method to validate basic assumptions
+pub fn is_basic_valid_tx_request(
+    request: &VerifyTxRequest,
+    tx_inputs: &Option<Vec<SealedLog>>,
+    chain_hex_id: u8,
+) -> Result<(), ()> {
+    if request.info.chain_hex_id != chain_hex_id {
+        return Err(());
+    }
+    match request.tx {
+        TxAux::DepositStakeTx { .. } => match tx_inputs {
+            Some(ref i) if !i.is_empty() => Ok(()),
             _ => Err(()),
+        },
+        TxAux::TransferTx { .. } => match tx_inputs {
+            Some(ref i) if !i.is_empty() => Ok(()),
+            _ => Err(()),
+        },
+        TxAux::WithdrawUnbondedStakeTx { .. } => {
+            if request.account.is_some() {
+                Ok(())
+            } else {
+                Err(())
+            }
         }
+        _ => Err(()),
     }
 }
 
@@ -77,6 +85,8 @@ pub enum IntraEnclaveResponseOk {
     TxWithOutputs { paid_fee: Fee, sealed_tx: SealedLog },
     /// deposit stake pays minimal fee, so this returns the sum of input amounts -- staked stake's bonded balance is added `input_coins-min_fee`
     DepositStakeTx { input_coins: Coin },
+    /// transaction filter
+    EndBlock(Box<TxFilter>),
 }
 
 /// variable length response returned from the tx-validation enclave
@@ -105,6 +115,8 @@ pub enum EnclaveRequest {
     /// "stateless" transaction validation requests (sends transaction + all required information)
     /// double-spent / BitVec check done in chain-abci
     VerifyTx(Box<VerifyTxRequest>),
+    /// request to get the block's transaction filter and reset the existing one
+    EndBlock,
     /// request to flush/persist storage + store the computed app hash
     /// FIXME: enclave should be able to compute a part of app hash, so send the other parts and check the same app hash was computed
     CommitBlock { app_hash: H256 },
@@ -133,6 +145,8 @@ pub enum EnclaveResponse {
     CheckChain(Result<(), Option<H256>>),
     /// returns the affected (account) state (if any) and paid fee if the TX is valid
     VerifyTx(Result<(Fee, Option<StakedState>), chain_tx_validation::Error>),
+    /// returns the transaction filter for the current block
+    EndBlock(Result<Box<TxFilter>, ()>),
     /// returns if the data was sucessfully persisted in the enclave's local storage
     CommitBlock(Result<(), ()>),
     /// returns a stored launch token if any
