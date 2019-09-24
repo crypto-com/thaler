@@ -51,7 +51,7 @@ pub(crate) fn storage_path() -> String {
 #[inline]
 pub(crate) fn tendermint_url() -> String {
     std::env::var("CRYPTO_CLIENT_TENDERMINT")
-        .unwrap_or_else(|_| "http://localhost:26657/".to_owned())
+        .unwrap_or_else(|_| "ws://localhost:26657/websocket".to_owned())
 }
 
 #[inline]

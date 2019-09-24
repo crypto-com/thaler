@@ -38,6 +38,7 @@ tokio="0.1.22"
 chain-tx-validation = { path = "../chain-tx-validation" }
 
 [features]
-default = ["sled", "rpc"]
+default = ["sled"]
 sled = ["client-common/sled"]
-rpc = ["client-common/rpc"]
+http-rpc = ["client-common/http-rpc"]
+websocket-rpc = ["client-common/websocket-rpc"]
