@@ -7,7 +7,7 @@ WALLET_PASSPHRASE=${WALLET_PASSPHRASE:-123456}
 TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.32.0}
 
 # Constants (No not modify unless you are absolutely sure what you are doing)
-CHAIN_TX_ENCLAVE_DIRECTORY="docker/chain-tx-enclave"
+CHAIN_TX_ENCLAVE_DIRECTORY="../chain-tx-enclave"
 CHAIN_TX_ENCLAVE_DOCKER_IMAGE="local-integration-tests-chain-tx-enclave"
 WALLET_STORAGE_DIRECTORY="docker/chain/wallet-storage"
 ADDRESS_STATE_PATH="address-state.json"

@@ -44,7 +44,7 @@ services:
   chain-tx-enclave:
     image: integration-tests-tx-enclave
     build:
-      context: ./docker/chain-tx-enclave
+      context: ../chain-tx-enclave
       dockerfile: ./tx-validation/Dockerfile
       args:
         SGX_MODE: SW
