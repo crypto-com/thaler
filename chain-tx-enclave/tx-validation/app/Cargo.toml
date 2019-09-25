@@ -1,0 +1,26 @@
+[package]
+name = "tx-validation-app"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Application server wrapper around the transaction validation enclave."
+readme = "../../README.md"
+edition = "2018"
+
+[features]
+sgx-test = []
+
+[dependencies]
+sled = "0.28"
+hex = "0.4"
+dirs = "1.0.2"
+zmq = "0.9"
+log = "0.4.0"
+env_logger = "0.7.0"
+enclave-u-common = { path = "../../enclave-u-common" }
+sgx_types = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_urts = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
+chain-core   = { path = "../../../chain-core" }
+chain-tx-validation   = { path = "../../../chain-tx-validation" }
+enclave-protocol   = { path = "../../../enclave-protocol" }
+parity-scale-codec = { version = "1.0" }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["recovery", "endomorphism"] }

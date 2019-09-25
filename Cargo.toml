@@ -13,3 +13,11 @@ members = [
     "dev-utils",
     "enclave-protocol",
 ]
+
+exclude = [
+    # currently only work on nightly + have a different build process
+    "chain-tx-enclave/tx-validation/app",
+    "chain-tx-enclave/tx-validation/enclave",
+    "chain-tx-enclave/tx-query/app",
+    "chain-tx-enclave/tx-query/enclave"
+]
