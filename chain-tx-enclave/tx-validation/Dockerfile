@@ -18,7 +18,7 @@ RUN apt-get update && \
 
 COPY . .
 
-RUN ./tx-validation/make.sh
+RUN ./chain-tx-enclave/tx-validation/make.sh
 
 WORKDIR /root/tx-validation/bin
 
