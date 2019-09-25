@@ -2262,7 +2262,7 @@ dependencies = [
 [[package]]
 name = "sgx_alloc"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 dependencies = [
  "sgx_trts 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
 ]
@@ -2270,7 +2270,7 @@ dependencies = [
 [[package]]
 name = "sgx_backtrace_sys"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 dependencies = [
  "cc 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "sgx_build_helper 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -2280,17 +2280,17 @@ dependencies = [
 [[package]]
 name = "sgx_build_helper"
 version = "0.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 
 [[package]]
 name = "sgx_demangle"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 
 [[package]]
 name = "sgx_libc"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 dependencies = [
  "sgx_types 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
 ]
@@ -2298,7 +2298,7 @@ dependencies = [
 [[package]]
 name = "sgx_tprotected_fs"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 dependencies = [
  "sgx_trts 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
  "sgx_types 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -2307,7 +2307,7 @@ dependencies = [
 [[package]]
 name = "sgx_trts"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 dependencies = [
  "sgx_libc 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
  "sgx_types 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -2316,7 +2316,7 @@ dependencies = [
 [[package]]
 name = "sgx_tstd"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 dependencies = [
  "sgx_alloc 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
  "sgx_backtrace_sys 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -2331,12 +2331,12 @@ dependencies = [
 [[package]]
 name = "sgx_types"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 
 [[package]]
 name = "sgx_unwind"
 version = "0.0.1"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#f8b353a4f7305b33239d064ea27f7ccea1ad8ef5"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
 dependencies = [
  "sgx_build_helper 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
  "sgx_trts 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
