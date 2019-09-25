@@ -1,0 +1,25 @@
+[package]
+name = "tx-query-app"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Application server wrapper around the transaction query enclave (optional)."
+readme = "../../README.md"
+edition = "2018"
+
+[features]
+default = []
+sgx-test = ["client-core", "client-common"]
+
+[dependencies]
+log = "0.4.0"
+env_logger = "0.7.0"
+enclave-u-common = { path = "../../enclave-u-common" }
+sgx_types = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_urts = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
+parity-scale-codec = { features = ["derive"], version = "1.0" }
+chain-core   = { path = "../../../chain-core" }
+enclave-protocol   = { path = "../../../enclave-protocol" }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["recovery", "endomorphism"] }
+zmq = "0.9"
+client-core   = { path = "../../../client-core", optional = true }
+client-common   = { path = "../../../client-common", optional = true }
