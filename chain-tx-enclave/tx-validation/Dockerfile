@@ -20,6 +20,6 @@ COPY . .
 
 RUN ./chain-tx-enclave/tx-validation/make.sh
 
-WORKDIR /root/tx-validation/bin
+WORKDIR /root/chain-tx-enclave/tx-validation/bin
 
 CMD ["../entrypoint.sh"]
