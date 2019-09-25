@@ -96,7 +96,7 @@ App_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
 
 App_Rust_Path := ./app/target/$(OUTPUT_PATH)
 App_Enclave_u_Object := app/libEnclave_u.a
-App_Name := bin/app
+App_Name := bin/tx-validation-app
 App_Binary := tx-validation-app
 
 ######## Enclave Settings ########

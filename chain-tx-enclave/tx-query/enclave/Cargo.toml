@@ -23,7 +23,7 @@ sgx_tseal     = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" 
 parity-scale-codec = { default-features = false, features = ["derive"], version = "1.0" }
 chain-core   = { path = "../../../chain-core", default-features = false, features = ["mesalock_sgx"] }
 enclave-protocol  = {  path = "../../../enclave-protocol", default-features = false, features = ["mesalock_sgx"] }
-
+enclave-t-common = { path = "../../enclave-t-common" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["recovery", "endomorphism", "sgx"] }
 
 [dependencies]

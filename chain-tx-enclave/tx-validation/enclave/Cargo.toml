@@ -29,3 +29,4 @@ parity-scale-codec = { default-features = false, version = "1.0" }
 enclave-protocol   = { path = "../../../enclave-protocol", default-features = false, features = ["mesalock_sgx"] }
 chain-tx-filter   = { path = "../../../chain-tx-filter", default-features = false, features = ["mesalock_sgx"] }
 lazy_static  = { version = "1.4", features = ["spin_no_std"] }
+enclave-t-common = { path = "../../enclave-t-common" }

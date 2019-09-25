@@ -23,6 +23,7 @@ use enclave_protocol::{
     is_basic_valid_tx_request, IntraEnclaveRequest, IntraEnclaveResponse, IntraEnclaveResponseOk,
     VerifyTxRequest,
 };
+use enclave_t_common::check_unseal;
 use lazy_static::lazy_static;
 use parity_scale_codec::{Decode, Encode};
 use sgx_tseal::SgxSealedData;
@@ -45,51 +46,6 @@ pub extern "C" fn ecall_initchain(chain_hex_id: u8) -> sgx_status_t {
     } else {
         sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     }
-}
-
-#[inline]
-fn unseal(sealed_log: &mut [u8]) -> Option<TxWithOutputs> {
-    if sealed_log.len() >= (std::u32::MAX as usize) {
-        return None;
-    }
-    let opt = unsafe {
-        SgxSealedData::<[u8]>::from_raw_sealed_data_t(
-            sealed_log.as_mut_ptr() as *mut sgx_sealed_data_t,
-            sealed_log.len() as u32,
-        )
-    };
-    let sealed_data = match opt {
-        Some(x) => x,
-        None => {
-            return None;
-        }
-    };
-    let result = sealed_data.unseal_data();
-    let unsealed_data = match result {
-        Ok(x) => x,
-        Err(_) => {
-            return None;
-        }
-    };
-    let otx = TxWithOutputs::decode(&mut unsealed_data.get_decrypt_txt());
-    // TODO: check decoded txid against unsealed_data.get_additional_txt?
-    match otx {
-        Ok(tx) => Some(tx),
-        _ => None,
-    }
-}
-
-#[inline]
-fn unseal_all(mut sealed_logs: Vec<Vec<u8>>) -> Option<Vec<TxWithOutputs>> {
-    let mut result = Vec::with_capacity(sealed_logs.len());
-    for sealed_log in sealed_logs.iter_mut() {
-        if let Some(tx) = unseal(sealed_log) {
-            result.push(tx);
-        } else {
-            return None;
-        }
-    }
-    Some(result)
 }
 
 #[inline]
@@ -202,12 +158,13 @@ fn handle_validate_tx(
                 txid,
                 payload: TxObfuscated { txpayload, .. },
                 no_of_outputs,
-                ..
+                inputs,
             },
         ) => {
             // FIXME: decrypting
             let plaintx = PlainTxAux::decode(&mut txpayload.as_slice());
-            let unsealed_inputs = unseal_all(sealed_inputs);
+            let unsealed_inputs =
+                check_unseal(None, false, inputs.iter().map(|x| x.id), sealed_inputs);
             match (plaintx, unsealed_inputs) {
                 (Ok(PlainTxAux::TransferTx(tx, witness)), Some(inputs)) => {
                     if tx.id() != txid || tx.outputs.len() as TxoIndex != no_of_outputs {
@@ -232,7 +189,7 @@ fn handle_validate_tx(
         ) => {
             // FIXME: decrypting
             let plaintx = PlainTxAux::decode(&mut txpayload.as_slice());
-            let inputs = unseal_all(sealed_inputs);
+            let inputs = check_unseal(None, false, tx.inputs.iter().map(|x| x.id), sealed_inputs);
             match (plaintx, inputs) {
                 (Ok(PlainTxAux::DepositStakeTx(witness)), Some(inputs)) => {
                     let result = verify_bonded_deposit_core(&tx, &witness, request.info, inputs);
