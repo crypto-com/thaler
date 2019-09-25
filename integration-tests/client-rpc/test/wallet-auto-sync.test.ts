@@ -40,8 +40,8 @@ describe("Wallet: Auto-sync", () => {
 
 		await zeroFeeClient.request("wallet_create", [receiverWalletRequest]);
 
-		//		await zeroFeeClient.request("sync", [senderWalletRequest]);
-		//		await zeroFeeClient.request("sync", [receiverWalletRequest]);
+		await zeroFeeClient.request("sync", [senderWalletRequest]);
+		await zeroFeeClient.request("sync", [receiverWalletRequest]);
 
 		const senderWalletTransactionListBeforeSend = await zeroFeeClient.request(
 			"wallet_transactions",
@@ -84,7 +84,7 @@ describe("Wallet: Auto-sync", () => {
 		await zeroFeeClient.request("sync_unlockWallet", [senderWalletRequest]);
 		await zeroFeeClient.request("sync_unlockWallet", [receiverWalletRequest]);
 		console.info(
-			`[Log] Enabled auto-sync for wallets and "${senderWalletRequest.name}" "${receiverWalletName}"`,
+			`[Log] Enabled auto-sync for wallets "${senderWalletRequest.name}" and "${receiverWalletName}"`,
 		);
 
 		await sleep(1000);
