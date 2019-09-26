@@ -37,14 +37,13 @@ function check_command_exist() {
     set -e
 }
 
-function git_clone_chain_tx_enclave() {
-    if [ -d "${CHAIN_TX_ENCLAVE_DIRECTORY}" ]; then
-        CWD=$(pwd)
-        cd "${CHAIN_TX_ENCLAVE_DIRECTORY}" && git pull
-        cd "${CWD}"
-    else
-        git clone https://github.com/crypto-com/chain-tx-enclave.git "${CHAIN_TX_ENCLAVE_DIRECTORY}"
-    fi
+function build_chain_tx_enclave_docker_image() {
+    CWD=$(pwd)
+    cd "../" && docker build -t "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE}" \
+        -f ./chain-tx-enclave/tx-validation/Dockerfile . \
+        --build-arg SGX_MODE=SW \
+        --build-arg NETWORK_ID="${CHAIN_HEX_ID}"
+    cd "${CWD}"
 }
 
 function init_tendermint() {
@@ -210,8 +209,10 @@ check_command_exist "cargo"
 print_step "cargo build"
 cargo build
 
-print_step "git update Chain Transaction Enclave"
-git_clone_chain_tx_enclave
+if [ -z "${CI}" ]; then
+    print_step "Build Chain Transaction Enclave image"
+    build_chain_tx_enclave_docker_image
+fi
 
 print_step "Initialize Tendermint"
 init_tendermint

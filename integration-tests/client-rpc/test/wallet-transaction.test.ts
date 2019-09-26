@@ -46,7 +46,9 @@ describe("Wallet transaction", () => {
 			).to.eventually.rejectedWith("Insufficient balance");
 		});
 
-		it("can transfer funds between two wallets", async () => {
+		it("can transfer funds between two wallets", async function() {
+			this.timeout(30000);
+
 			const receiverWalletName = generateWalletName("Receive");
 			const senderWalletRequest = newWalletRequest("Default", "123456");
 			const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
@@ -91,7 +93,7 @@ describe("Wallet transaction", () => {
 				"wallet_sendToAddress should return transaction id",
 			);
 
-			await sleep(2000);
+			await sleep(5000);
 
 			await zeroFeeClient.request("sync", [senderWalletRequest]);
 			await zeroFeeClient.request("sync", [receiverWalletRequest]);
@@ -168,6 +170,8 @@ describe("Wallet transaction", () => {
 			return;
 		}
 		it("can transfer funds between two wallets with fee included", async function () {
+			this.timeout(30000);
+
 			const receiverWalletName = generateWalletName("Receive");
 			const senderWalletRequest = newWalletRequest("Default", "123456");
 			const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
@@ -212,7 +216,7 @@ describe("Wallet transaction", () => {
 				"wallet_sendToAddress should return transaction id",
 			);
 
-			await sleep(2000);
+			await sleep(5000);
 
 			await withFeeClient.request("sync", [senderWalletRequest]);
 			await withFeeClient.request("sync", [receiverWalletRequest]);

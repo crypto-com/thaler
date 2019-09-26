@@ -8,12 +8,14 @@ use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::TxWithOutputs;
+use chain_tx_filter::BlockFilter;
 use chain_tx_validation::{verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw};
 use std::collections::HashMap;
 
 pub struct MockClient {
     chain_hex_id: u8,
     pub local_tx_store: HashMap<TxId, TxWithOutputs>,
+    filter: BlockFilter,
 }
 
 impl MockClient {
@@ -21,6 +23,7 @@ impl MockClient {
         MockClient {
             chain_hex_id,
             local_tx_store: HashMap::new(),
+            filter: BlockFilter::default(),
         }
     }
 
@@ -30,6 +33,21 @@ impl MockClient {
             .get(txid)
             .expect("mock is expected to be fed valid/existing TX");
         (*tx).clone()
+    }
+
+    fn add_view_keys(&mut self, plain_tx: &TxWithOutputs) {
+        match plain_tx {
+            TxWithOutputs::StakeWithdraw(tx) => {
+                for view in tx.attributes.allowed_view.iter() {
+                    self.filter.add_view_key(&view.view_key);
+                }
+            }
+            TxWithOutputs::Transfer(tx) => {
+                for view in tx.attributes.allowed_view.iter() {
+                    self.filter.add_view_key(&view.view_key);
+                }
+            }
+        }
     }
 }
 
@@ -42,6 +60,11 @@ impl EnclaveProxy for MockClient {
                 } else {
                     EnclaveResponse::CheckChain(Err(None))
                 }
+            }
+            EnclaveRequest::EndBlock => {
+                let raw = self.filter.get_raw();
+                self.filter.reset();
+                EnclaveResponse::EndBlock(Ok(Box::new(raw)))
             }
             EnclaveRequest::CommitBlock { .. } => EnclaveResponse::CommitBlock(Ok(())),
             EnclaveRequest::VerifyTx(txrequest) => {
@@ -73,14 +96,14 @@ impl EnclaveProxy for MockClient {
                 };
                 // FIXME
                 let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
-                // verify_bonded_deposit(maintx, witness, extra_info, input_transactions, account)?
-                // verify_unbonded_withdraw(maintx, extra_info, account)?
                 match (tx, plain_tx) {
                     (_, Ok(PlainTxAux::TransferTx(maintx, witness))) => {
                         let result = verify_transfer(&maintx, &witness, info, inputs);
                         if result.is_ok() {
-                            self.local_tx_store
-                                .insert(maintx.id(), TxWithOutputs::Transfer(maintx));
+                            let txid = maintx.id();
+                            let txwo = TxWithOutputs::Transfer(maintx);
+                            self.add_view_keys(&txwo);
+                            self.local_tx_store.insert(txid, txwo);
                         }
                         EnclaveResponse::VerifyTx(result.map(|x| (x, None)))
                     }
@@ -95,8 +118,10 @@ impl EnclaveProxy for MockClient {
                             account.expect("account exists in withdraw"),
                         );
                         if result.is_ok() {
-                            self.local_tx_store
-                                .insert(tx.id(), TxWithOutputs::StakeWithdraw(tx));
+                            let txid = tx.id();
+                            let txwo = TxWithOutputs::StakeWithdraw(tx);
+                            self.add_view_keys(&txwo);
+                            self.local_tx_store.insert(txid, txwo);
                         }
                         EnclaveResponse::VerifyTx(result)
                     }

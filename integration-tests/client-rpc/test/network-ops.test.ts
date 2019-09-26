@@ -25,7 +25,8 @@ describe("Staking", () => {
 	});
 
 	it("should support staking, unbonding and withdrawing", async function () {
-		this.timeout(30000);
+		this.timeout(60000);
+
 		const defaultWalletRequest = newWalletRequest("Default", "123456");
 
 		const walletName = generateWalletName();
@@ -54,7 +55,7 @@ describe("Staking", () => {
 			[viewKey],
 		]);
 		console.info(`[Info] Transaction ID: "${txId}"`);
-		await sleep(2000);
+		await sleep(5000);
 
 		await client.request("sync", [walletRequest]);
 
@@ -75,7 +76,7 @@ describe("Staking", () => {
 				],
 			]),
 		).to.eventually.eq(null, "Deposit stake should work");
-		await sleep(1000);
+		await sleep(5000);
 		const stakingStateAfterDeposit = await client.request("staking_state", [
 			walletRequest,
 			stakingAddress,
@@ -109,7 +110,7 @@ describe("Staking", () => {
 				unbondAmount,
 			]),
 		).to.eventually.eq(null, "Unbond stake should work");
-		await sleep(1000);
+		await sleep(5000);
 		const stakingStateAfterUnbond = await client.request("staking_state", [
 			walletRequest,
 			stakingAddress,
@@ -150,7 +151,7 @@ describe("Staking", () => {
 				[],
 			]),
 		).to.eventually.eq(null, "Withdraw unbonded stake should work");
-		await sleep(1000);
+		await sleep(5000);
 		await client.request("sync", [walletRequest]);
 		const stakingStateAfterWithdraw = await client.request("staking_state", [
 			walletRequest,
