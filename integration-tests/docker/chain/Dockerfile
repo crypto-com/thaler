@@ -4,8 +4,8 @@ ENV RUSTFLAGS "-Ctarget-feature=+aes,+ssse3"
 
 WORKDIR /usr/src/chain
 
-RUN echo "deb http://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/Debian_9.0/ ./" >> /etc/apt/sources.list
-RUN wget https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/Debian_9.0/Release.key -O- | apt-key add
+# RUN echo "deb http://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/Debian_9.0/ ./" >> /etc/apt/sources.list
+# RUN wget https://download.opensuse.org/repositories/network:/messaging:/zeromq:/release-stable/Debian_9.0/Release.key -O- | apt-key add
 RUN apt-get update -y
 RUN apt-get install cmake libgflags-dev libzmq3-dev pkg-config -y
 
