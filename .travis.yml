@@ -15,6 +15,7 @@ rust: &rust
               - libc6-dev
   cache: cargo
   env:
+    - RUST_BACKTRACE=1
     - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
     - PATH=$HOME/.local/bin:$PATH
     - LD_LIBRARY_PATH=$HOME/lib
