@@ -70,20 +70,14 @@ jobs:
       rust: stable
     - <<: *rust
       rust: beta
-      branches:
-        only:
-          - staging
-          - trying
+      if: branch = staging || branch = staging
     - <<: *rust
       rust: nightly
     - name: Integration Test
       language: rust
       sudo: required
       dist: trusty
-      branches:
-        only:
-          - staging
-          - trying
+      if: branch = staging || branch = staging
       addons:
           apt:
               packages:
