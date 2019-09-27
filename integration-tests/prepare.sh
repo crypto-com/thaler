@@ -140,7 +140,7 @@ DEV_CONF=$(cat << EOF
         "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": "1250000000000000000",
         "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07": "1250000000000000000"
     },
-    "unbonding_period": 5,
+    "unbonding_period": 15,
     "required_council_node_stake": "1250000000000000000",
     "initial_fee_policy": {
         "base_fee": "{BASE_FEE}",

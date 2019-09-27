@@ -23,7 +23,7 @@ pub trait StakingRpc: Send + Sync {
         request: WalletRequest,
         to_address: String,
         inputs: Vec<TxoPointer>,
-    ) -> Result<()>;
+    ) -> Result<String>;
 
     #[rpc(name = "staking_state")]
     fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState>;
@@ -34,7 +34,7 @@ pub trait StakingRpc: Send + Sync {
         request: WalletRequest,
         staking_address: String,
         amount: Coin,
-    ) -> Result<()>;
+    ) -> Result<String>;
 
     #[rpc(name = "staking_withdrawAllUnbondedStake")]
     fn withdraw_all_unbonded_stake(
@@ -43,7 +43,7 @@ pub trait StakingRpc: Send + Sync {
         from_address: String,
         to_address: String,
         view_keys: Vec<String>,
-    ) -> Result<()>;
+    ) -> Result<String>;
 }
 
 pub struct StakingRpcImpl<T, N>
@@ -80,7 +80,7 @@ where
         request: WalletRequest,
         to_address: String,
         inputs: Vec<TxoPointer>,
-    ) -> Result<()> {
+    ) -> Result<String> {
         let addr = StakedStateAddress::from_str(&to_address)
             .chain(|| {
                 (
@@ -105,7 +105,7 @@ where
             .broadcast_transaction(&transaction)
             .map_err(to_rpc_error)?;
 
-        Ok(())
+        Ok(hex::encode(transaction.tx_id()))
     }
 
     fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState> {
@@ -119,7 +119,7 @@ where
         request: WalletRequest,
         staking_address: String,
         amount: Coin,
-    ) -> Result<()> {
+    ) -> Result<String> {
         let attr = StakedStateOpAttributes::new(self.network_id);
         let addr = StakedStateAddress::from_str(&staking_address)
             .chain(|| {
@@ -148,7 +148,7 @@ where
             .broadcast_transaction(&transaction)
             .map_err(to_rpc_error)?;
 
-        Ok(())
+        Ok(hex::encode(transaction.tx_id()))
     }
 
     fn withdraw_all_unbonded_stake(
@@ -157,7 +157,7 @@ where
         from_address: String,
         to_address: String,
         view_keys: Vec<String>,
-    ) -> Result<()> {
+    ) -> Result<String> {
         let from_address = StakedStateAddress::from_str(&from_address)
             .chain(|| {
                 (
@@ -214,6 +214,6 @@ where
             .broadcast_transaction(&transaction)
             .map_err(to_rpc_error)?;
 
-        Ok(())
+        Ok(hex::encode(transaction.tx_id()))
     }
 }

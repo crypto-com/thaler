@@ -8,6 +8,8 @@ import {
 	newRpcClient,
 	newWalletRequest,
 	sleep,
+	newZeroFeeRpcClient,
+	newWithFeeRpcClient,
 } from "./utils";
 
 export const WALLET_STAKING_ADDRESS = (<any>addressState).staking;
@@ -16,12 +18,12 @@ export const WALLET_TRANSFER_ADDRESS_2 = (<any>addressState).transfer[1];
 
 export const unbondAndWithdrawStake = async () => {
 	if (shouldTest(FEE_SCHEMA.ZERO_FEE)) {
-		const zeroFeeClient: RpcClient = newRpcClient();
+		const zeroFeeClient: RpcClient = newZeroFeeRpcClient();
 		await unbondAndWithdrawStakeFromClient(zeroFeeClient);
 	}
 
 	if (shouldTest(FEE_SCHEMA.WITH_FEE)) {
-		const withFeeClient: RpcClient = newRpcClient("localhost", 26659);
+		const withFeeClient: RpcClient = newWithFeeRpcClient();
 		await unbondAndWithdrawStakeFromClient(withFeeClient);
 	}
 };

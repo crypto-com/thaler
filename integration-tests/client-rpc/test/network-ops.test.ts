@@ -10,35 +10,46 @@ import {
 	sleep,
 	shouldTest,
 	FEE_SCHEMA,
+	asyncMiddleman,
+	newZeroFeeTendermintClient,
 } from "./core/utils";
 import BigNumber from "bignumber.js";
+import { waitTxIdConfirmed, syncWallet } from "./core/rpc";
+import { TendermintClient } from "./core/tendermint-client";
 chaiUse(chaiAsPromised);
 
 describe("Staking", () => {
-	let client: RpcClient;
+	let rpcClient: RpcClient;
+	let tendermintClient: TendermintClient;
 	if (!shouldTest(FEE_SCHEMA.ZERO_FEE)) {
 		return;
 	}
 	before(async () => {
 		await unbondAndWithdrawStake();
-		client = newZeroFeeRpcClient();
+		rpcClient = newZeroFeeRpcClient();
+		tendermintClient = newZeroFeeTendermintClient();
 	});
 
-	it("should support staking, unbonding and withdrawing", async function () {
-		this.timeout(60000);
+	it("should support staking, unbonding and withdrawing", async function() {
+		this.timeout(90000);
 
 		const defaultWalletRequest = newWalletRequest("Default", "123456");
 
 		const walletName = generateWalletName();
 		const walletRequest = newWalletRequest(walletName, "123456");
-		await client.request("wallet_create", [walletRequest]);
-		const stakingAddress = await client.request("wallet_createStakingAddress", [
-			walletRequest,
-		]);
-		const transferAddress = await client.request("wallet_createTransferAddress", [
-			walletRequest,
-		]);
-		const viewKey = await client.request("wallet_getViewKey", [walletRequest]);
+		await rpcClient.request("wallet_create", [walletRequest]);
+		const stakingAddress = await asyncMiddleman(
+			rpcClient.request("wallet_createStakingAddress", [walletRequest]),
+			"Error when creating staking address",
+		);
+		const transferAddress = await asyncMiddleman(
+			rpcClient.request("wallet_createTransferAddress", [walletRequest]),
+			"Error when creating transfer address",
+		);
+		const viewKey = await asyncMiddleman(
+			rpcClient.request("wallet_getViewKey", [walletRequest]),
+			"Error when retrieving wallet view key",
+		);
 
 		console.info(`[Info] Wallet name: "${walletName}"`);
 		console.info(`[Info] Staking Address: "${stakingAddress}"`);
@@ -48,24 +59,39 @@ describe("Staking", () => {
 		console.log(
 			`[Log] Transfer ${stakingAmount} base unit from Default wallet to new wallet ${walletName}`,
 		);
-		let txId = await client.request("wallet_sendToAddress", [
-			defaultWalletRequest,
-			transferAddress,
-			stakingAmount,
-			[viewKey],
-		]);
+		let txId = await asyncMiddleman(
+			rpcClient.request("wallet_sendToAddress", [
+				defaultWalletRequest,
+				transferAddress,
+				stakingAmount,
+				[viewKey],
+			]),
+			"Error when funding wallet with staking amount",
+		);
 		console.info(`[Info] Transaction ID: "${txId}"`);
-		await sleep(5000);
 
-		await client.request("sync", [walletRequest]);
+		await asyncMiddleman(
+			waitTxIdConfirmed(tendermintClient, txId),
+			"Error when retrieving transaction confirmation",
+		);
+
+		await asyncMiddleman(
+			syncWallet(rpcClient, walletRequest),
+			"Error when synchronizing wallet",
+		);
 
 		await expect(
-			client.request("wallet_balance", [walletRequest]),
-		).to.eventually.deep.eq(stakingAmount, "Wallet should be funded with staking amount for staking deposit");
+			rpcClient.request("wallet_balance", [walletRequest]),
+		).to.eventually.deep.eq(
+			stakingAmount,
+			"Wallet should be funded with staking amount for staking deposit",
+		);
 
-		console.log(`[Log] Deposit ${stakingAmount} base unit stake to staking address "${stakingAddress}"`);
-		await expect(
-			client.request("staking_depositStake", [
+		console.log(
+			`[Log] Deposit ${stakingAmount} base unit stake to staking address "${stakingAddress}"`,
+		);
+		const depositStakeTxId = await asyncMiddleman(
+			rpcClient.request("staking_depositStake", [
 				walletRequest,
 				stakingAddress,
 				[
@@ -75,12 +101,18 @@ describe("Staking", () => {
 					},
 				],
 			]),
-		).to.eventually.eq(null, "Deposit stake should work");
-		await sleep(5000);
-		const stakingStateAfterDeposit = await client.request("staking_state", [
-			walletRequest,
-			stakingAddress,
-		]);
+			"Deposit stake should work",
+		);
+
+		await asyncMiddleman(
+			waitTxIdConfirmed(tendermintClient, depositStakeTxId),
+			"Error when retrieving deposit stake transaction confirmation",
+		);
+
+		const stakingStateAfterDeposit = await asyncMiddleman(
+			rpcClient.request("staking_state", [walletRequest, stakingAddress]),
+			"Error when query staking state after deposit",
+		);
 		assertStakingState(
 			stakingStateAfterDeposit,
 			{
@@ -90,31 +122,42 @@ describe("Staking", () => {
 			},
 			"Staking state is incorrect after deposit stake",
 		);
-		await client.request("sync", [walletRequest]);
+
+		await asyncMiddleman(
+			syncWallet(rpcClient, walletRequest),
+			"Error when synchronizing wallet",
+		);
 		await expect(
-			client.request("wallet_balance", [walletRequest]),
+			rpcClient.request("wallet_balance", [walletRequest]),
 		).to.eventually.deep.eq(
 			"0",
 			"Wallet balance should be deducted after deposit stake",
 		);
 
 		const unbondAmount = "5000";
-		console.log(`[Log] Unbond ${unbondAmount} base unit stake from staking address "${stakingAddress}"`);
+		console.log(
+			`[Log] Unbond ${unbondAmount} base unit stake from staking address "${stakingAddress}"`,
+		);
 		const remainingBondedAmount = new BigNumber(stakingAmount)
 			.minus(unbondAmount)
 			.toString(10);
-		await expect(
-			client.request("staking_unbondStake", [
+		const unbondStakeTxId = await asyncMiddleman(
+			rpcClient.request("staking_unbondStake", [
 				walletRequest,
 				stakingAddress,
 				unbondAmount,
 			]),
-		).to.eventually.eq(null, "Unbond stake should work");
-		await sleep(5000);
-		const stakingStateAfterUnbond = await client.request("staking_state", [
-			walletRequest,
-			stakingAddress,
-		]);
+			"Unbond stake should work",
+		);
+		await asyncMiddleman(
+			waitTxIdConfirmed(tendermintClient, unbondStakeTxId),
+			"Error when retrieving unbond stake transaction confirmation",
+		);
+
+		const stakingStateAfterUnbond = await asyncMiddleman(
+			rpcClient.request("staking_state", [walletRequest, stakingAddress]),
+			"Error when query staking state after unbond",
+		);
 		assertStakingState(
 			stakingStateAfterUnbond,
 			{
@@ -129,7 +172,7 @@ describe("Staking", () => {
 			`[Log] Withdraw all unbonded stake from staking address "${stakingAddress}" to address "${transferAddress}"`,
 		);
 		await expect(
-			client.request("staking_withdrawAllUnbondedStake", [
+			rpcClient.request("staking_withdrawAllUnbondedStake", [
 				walletRequest,
 				stakingAddress,
 				transferAddress,
@@ -141,22 +184,30 @@ describe("Staking", () => {
 		);
 
 		console.log("[Log] Waiting for unbond period to exceed");
-		await sleep(10000);
+		await sleep(20000);
 
-		await expect(
-			client.request("staking_withdrawAllUnbondedStake", [
+		const withdrawTxId = await asyncMiddleman(
+			rpcClient.request("staking_withdrawAllUnbondedStake", [
 				walletRequest,
 				stakingAddress,
 				transferAddress,
 				[],
 			]),
-		).to.eventually.eq(null, "Withdraw unbonded stake should work");
-		await sleep(5000);
-		await client.request("sync", [walletRequest]);
-		const stakingStateAfterWithdraw = await client.request("staking_state", [
-			walletRequest,
-			stakingAddress,
-		]);
+			"Withdraw unbonded stake should work"
+		);
+		await asyncMiddleman(
+			waitTxIdConfirmed(tendermintClient, withdrawTxId),
+			"Error when retrieving withdraw transaction confirmation",
+		);
+
+		await asyncMiddleman(
+			syncWallet(rpcClient, walletRequest),
+			"Error when synchronizing wallet after withdraw",
+		);
+		const stakingStateAfterWithdraw = await asyncMiddleman(
+			rpcClient.request("staking_state", [walletRequest, stakingAddress]),
+			"Error when querying staking state after withdraw",
+		);
 		assertStakingState(
 			stakingStateAfterWithdraw,
 			{
@@ -166,9 +217,13 @@ describe("Staking", () => {
 			},
 			"Staking state is incorrect after withdraw stake",
 		);
-		await client.request("sync", [walletRequest]);
+		await asyncMiddleman(
+			syncWallet(rpcClient, walletRequest),
+			"Error when synchronizing wallet",
+		);
+
 		return expect(
-			client.request("wallet_balance", [walletRequest]),
+			rpcClient.request("wallet_balance", [walletRequest]),
 		).to.eventually.deep.eq(
 			unbondAmount,
 			"Wallet balance should be credited after withdraw stake",
