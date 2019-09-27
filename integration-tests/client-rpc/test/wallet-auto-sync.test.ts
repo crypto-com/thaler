@@ -4,116 +4,142 @@ import { use as chaiUse, expect } from "chai";
 import BigNumber from "bignumber.js";
 
 import { RpcClient } from "./core/rpc-client";
-import {
-	WALLET_TRANSFER_ADDRESS_2,
-	unbondAndWithdrawStake,
-} from "./core/setup";
+import { unbondAndWithdrawStake } from "./core/setup";
 import {
 	newWalletRequest,
 	generateWalletName,
 	newZeroFeeRpcClient,
-	newWithFeeRpcClient,
 	sleep,
 	shouldTest,
 	FEE_SCHEMA,
+	asyncMiddleman,
+	newZeroFeeTendermintClient,
 } from "./core/utils";
+import { syncWallet, waitTxIdConfirmed } from "./core/rpc";
+import { TendermintClient } from "./core/tendermint-client";
+import {
+	getFirstElementOfArray,
+	expectTransactionShouldBe,
+	TransactionDirection,
+} from "./core/transaction-utils";
 chaiUse(chaiAsPromised);
 
-describe("Wallet: Auto-sync", () => {
-	let zeroFeeClient: RpcClient;
+describe("Wallet Auto-sync", () => {
+	let zeroFeeRpcClient: RpcClient;
+	let zeroFeeTendermintClient: TendermintClient;
 	before(async () => {
 		await unbondAndWithdrawStake();
-		zeroFeeClient = newZeroFeeRpcClient();
+		zeroFeeRpcClient = newZeroFeeRpcClient();
+		zeroFeeTendermintClient = newZeroFeeTendermintClient();
 	});
 
 	if (!shouldTest(FEE_SCHEMA.ZERO_FEE)) {
 		return;
 	}
 
-	it("Able to auto-sync", async function() {
-		this.timeout(1000000);
+	it("can auto-sync unlocked wallets", async function() {
+		this.timeout(90000);
 
 		const receiverWalletName = generateWalletName("Receive");
 		const senderWalletRequest = newWalletRequest("Default", "123456");
 		const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
 		const transferAmount = "1000";
 
-		await zeroFeeClient.request("wallet_create", [receiverWalletRequest]);
-
-		await zeroFeeClient.request("sync", [senderWalletRequest]);
-		await zeroFeeClient.request("sync", [receiverWalletRequest]);
-
-		const senderWalletTransactionListBeforeSend = await zeroFeeClient.request(
-			"wallet_transactions",
-			[senderWalletRequest],
-		);
-		const senderWalletBalanceBeforeSend = await zeroFeeClient.request(
-			"wallet_balance",
-			[senderWalletRequest],
+		await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_create", [receiverWalletRequest]),
+			"Error when creating receiver wallet",
 		);
 
-		const receiverWalletTransferAddress = await zeroFeeClient.request(
-			"wallet_createTransferAddress",
-			[receiverWalletRequest],
+		await asyncMiddleman(
+			syncWallet(zeroFeeRpcClient, senderWalletRequest),
+			"Error when synchronizing sender wallet",
 		);
-		const receiverWalletTransactionListBeforeReceive = await zeroFeeClient.request(
-			"wallet_transactions",
-			[receiverWalletRequest],
+		await asyncMiddleman(
+			syncWallet(zeroFeeRpcClient, receiverWalletRequest),
+			"Error when synchronizing receiver wallet",
 		);
-		const receiverWalletBalanceBeforeReceive = await zeroFeeClient.request(
-			"wallet_balance",
-			[receiverWalletRequest],
-		);
-		const receiverViewKey = await zeroFeeClient.request("wallet_getViewKey", [
-			receiverWalletRequest,
-		]);
 
-		const txId = await zeroFeeClient.request("wallet_sendToAddress", [
-			senderWalletRequest,
-			receiverWalletTransferAddress,
-			transferAmount,
-			[receiverViewKey],
-		]);
+		const senderWalletTransactionListBeforeSend = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest]),
+			"Error when retrieving sender wallet transactions before send",
+		);
+		const senderWalletBalanceBeforeSend = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_balance", [senderWalletRequest]),
+			"Error when retrieving sender wallet balance before send",
+		);
+
+		const receiverWalletTransferAddress = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_createTransferAddress", [
+				receiverWalletRequest,
+			]),
+			"Error when creating receiver wallet transfer address",
+		);
+		const receiverWalletTransactionListBeforeReceive = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_transactions", [receiverWalletRequest]),
+			"Error when retrieving receiver wallet transactions before receive",
+		);
+		const receiverWalletBalanceBeforeReceive = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_balance", [receiverWalletRequest]),
+			"Error when retrieving receiver wallet balance before receive",
+		);
+		const receiverViewKey = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_getViewKey", [receiverWalletRequest]),
+			"Error when retrieving receiver view key",
+		);
+
+		const txId = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_sendToAddress", [
+				senderWalletRequest,
+				receiverWalletTransferAddress,
+				transferAmount,
+				[receiverViewKey],
+			]),
+			"Error when sending funds from sender to receiver",
+		);
 		expect(txId.length).to.eq(
 			64,
 			"wallet_sendToAddress should return transaction id",
 		);
 
-		await sleep(5000);
+		await asyncMiddleman(
+			waitTxIdConfirmed(zeroFeeTendermintClient, txId),
+			"Error when waiting transfer transaction confirmation",
+		);
 
-		await zeroFeeClient.request("sync_unlockWallet", [senderWalletRequest]);
-		await zeroFeeClient.request("sync_unlockWallet", [receiverWalletRequest]);
+		await zeroFeeRpcClient.request("sync_unlockWallet", [senderWalletRequest]);
+		await zeroFeeRpcClient.request("sync_unlockWallet", [receiverWalletRequest]);
 		console.info(
 			`[Log] Enabled auto-sync for wallets "${senderWalletRequest.name}" and "${receiverWalletName}"`,
 		);
 
 		await sleep(1000);
-
 		while (true) {
-			const senderWalletTransactionListAfterSend = await zeroFeeClient.request(
-				"wallet_transactions",
-				[senderWalletRequest],
+			console.log(`[Log] Checking for wallet sync status`);
+			const senderWalletTransactionListAfterSend = await asyncMiddleman(
+				zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest]),
+				"Error when retrieving sender wallet transactions after send",
 			);
 
-			const receiverWalletTransactionListAfterReceive = await zeroFeeClient.request(
-				"wallet_transactions",
-				[receiverWalletRequest],
+			const receiverWalletTransactionListAfterReceive = await asyncMiddleman(
+				zeroFeeRpcClient.request("wallet_transactions", [receiverWalletRequest]),
+				"Error when retrieving receiver wallet transactions after send",
 			);
+
 			if (
 				senderWalletTransactionListAfterSend.length ===
 					senderWalletTransactionListBeforeSend.length + 1 &&
 				receiverWalletTransactionListAfterReceive.length ===
 					receiverWalletTransactionListBeforeReceive.length + 1
 			) {
-				console.log("Sync comepleted");
+				console.log(`[Log] Auto-sync caught up with latest transactions`);
 				break;
 			}
-			await sleep(500);
+			await sleep(1000);
 		}
 
-		const senderWalletTransactionListAfterSend = await zeroFeeClient.request(
-			"wallet_transactions",
-			[senderWalletRequest],
+		const senderWalletTransactionListAfterSend = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest]),
+			"Error when retrieving sender wallet transactions after send",
 		);
 
 		expect(senderWalletTransactionListAfterSend.length).to.eq(
@@ -133,9 +159,9 @@ describe("Wallet: Auto-sync", () => {
 			"Sender should have one Outgoing transaction",
 		);
 
-		const senderWalletBalanceAfterSend = await zeroFeeClient.request(
-			"wallet_balance",
-			[senderWalletRequest],
+		const senderWalletBalanceAfterSend = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_balance", [senderWalletRequest]),
+			"Error when retrieving sender wallet balance after send",
 		);
 		expect(senderWalletBalanceAfterSend).to.eq(
 			new BigNumber(senderWalletBalanceBeforeSend)
@@ -144,9 +170,9 @@ describe("Wallet: Auto-sync", () => {
 			"Sender balance should be deducted by transfer amount",
 		);
 
-		const receiverWalletTransactionListAfterReceive = await zeroFeeClient.request(
-			"wallet_transactions",
-			[receiverWalletRequest],
+		const receiverWalletTransactionListAfterReceive = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_transactions", [receiverWalletRequest]),
+			"Error when retrieving receiver wallet transactions after receive",
 		);
 		expect(receiverWalletTransactionListAfterReceive.length).to.eq(
 			receiverWalletTransactionListBeforeReceive.length + 1,
@@ -165,9 +191,9 @@ describe("Wallet: Auto-sync", () => {
 			"Receiver should have one Incoming transaction of the received amount",
 		);
 
-		const receiverWalletBalanceAfterReceive = await zeroFeeClient.request(
-			"wallet_balance",
-			[receiverWalletRequest],
+		const receiverWalletBalanceAfterReceive = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_balance", [receiverWalletRequest]),
+			"Error when retrieving receiver wallet balance after receive",
 		);
 		expect(receiverWalletBalanceAfterReceive).to.eq(
 			new BigNumber(receiverWalletBalanceBeforeReceive)
@@ -177,68 +203,3 @@ describe("Wallet: Auto-sync", () => {
 		);
 	});
 });
-
-enum TransactionDirection {
-	INCOMING = "Incoming",
-	OUTGOING = "Outgoing",
-}
-interface TransactionAssertion {
-	address?: string;
-	direction: TransactionDirection;
-	amount?: BigNumber;
-	height?: number;
-}
-
-const expectTransactionShouldBe = (
-	actual: any,
-	expected: TransactionAssertion,
-	message?: string,
-): boolean => {
-	expect(actual).to.contain.keys(["kind"]);
-
-	expect(actual.kind).to.eq(expected.direction);
-
-	if (expected.direction === TransactionDirection.INCOMING) {
-		expect(actual).to.contain.keys([
-			"value",
-			"inputs",
-			"outputs",
-			"block_height",
-			"kind",
-			"transaction_id",
-			"transaction_type",
-			"block_time",
-		]);
-	} else {
-		expect(actual).to.contain.keys([
-			"value",
-			"fee",
-			"inputs",
-			"outputs",
-			"block_height",
-			"kind",
-			"transaction_id",
-			"transaction_type",
-			"block_time",
-		]);
-	}
-
-	expect(actual.kind).to.eq(expected.direction);
-	if (typeof expected.amount !== "undefined") {
-		expect(actual.value).to.eq(expected.amount.toString(10), message);
-	}
-
-	if (typeof expected.height !== "undefined") {
-		expect(actual.block_height).to.eq(expected.height.toString(), message);
-	} else {
-		expect(new BigNumber(actual.block_height).isGreaterThan(0)).to.eq(
-			true,
-			message,
-		);
-	}
-	return true;
-};
-
-const getFirstElementOfArray = (arr: any[]) => {
-	return arr[0];
-};
