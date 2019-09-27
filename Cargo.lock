@@ -260,7 +260,7 @@ dependencies = [
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "integer-encoding 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "kvdb-memorydb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kvdb-memorydb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-rocksdb 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -625,7 +625,7 @@ dependencies = [
  "client-network 0.1.0",
  "dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "kvdb-memorydb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kvdb-memorydb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quest 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1203,11 +1203,11 @@ dependencies = [
 
 [[package]]
 name = "kvdb-memorydb"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "kvdb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parking_lot 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -1590,15 +1590,6 @@ dependencies = [
 
 [[package]]
 name = "parking_lot"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "lock_api 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "parking_lot_core 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "parking_lot"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
@@ -1614,18 +1605,6 @@ dependencies = [
  "lock_api 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot_core 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "parking_lot_core"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "libc 0.2.62 (registry+https://github.com/rust-lang/crates.io-index)",
- "rand 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "smallvec 0.6.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "winapi 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2234,7 +2213,7 @@ dependencies = [
 [[package]]
 name = "sgx_alloc"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 dependencies = [
  "sgx_trts 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
 ]
@@ -2242,7 +2221,7 @@ dependencies = [
 [[package]]
 name = "sgx_backtrace_sys"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 dependencies = [
  "cc 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "sgx_build_helper 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -2252,17 +2231,17 @@ dependencies = [
 [[package]]
 name = "sgx_build_helper"
 version = "0.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 
 [[package]]
 name = "sgx_demangle"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 
 [[package]]
 name = "sgx_libc"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 dependencies = [
  "sgx_types 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
 ]
@@ -2270,7 +2249,7 @@ dependencies = [
 [[package]]
 name = "sgx_tprotected_fs"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 dependencies = [
  "sgx_trts 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
  "sgx_types 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -2279,7 +2258,7 @@ dependencies = [
 [[package]]
 name = "sgx_trts"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 dependencies = [
  "sgx_libc 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
  "sgx_types 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -2288,7 +2267,7 @@ dependencies = [
 [[package]]
 name = "sgx_tstd"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 dependencies = [
  "sgx_alloc 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
  "sgx_backtrace_sys 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -2303,12 +2282,12 @@ dependencies = [
 [[package]]
 name = "sgx_types"
 version = "1.0.9"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 
 [[package]]
 name = "sgx_unwind"
 version = "0.0.1"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#5c20ac32fa8ac1ebcf292f9687b97ea93811d7a1"
+source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9#bcb3c7a1a10c7222839ee19b0720115ac8a1103e"
 dependencies = [
  "sgx_build_helper 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
  "sgx_trts 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -3218,7 +3197,7 @@ dependencies = [
 "checksum keccak 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "67c21572b4949434e4fc1e1978b99c5f77064153c59d998bf13ecd96fb5ecba7"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
 "checksum kvdb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "72ae89206cea31c32014b39d5a454b96135894221610dbfd19cf4d2d044fa546"
-"checksum kvdb-memorydb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "45bcdf5eb083602cff61a6f8438dce2a7900d714e893fc48781c39fb119d37aa"
+"checksum kvdb-memorydb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "296c12309ed36cb74d59206406adbf1971c3baa56d5410efdb508d8f1c60a351"
 "checksum kvdb-rocksdb 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "96eb0e0112bb66fe5401294ca0f43c9cb771456af9270443545026e55fd00912"
 "checksum language-tags 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a91d884b6667cd606bb5a69aa0c99ba811a115fc68915e7056ec08a46e93199a"
 "checksum lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
@@ -3259,10 +3238,8 @@ dependencies = [
 "checksum parity-scale-codec 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)" = "65582b5c02128a4b0fa60fb3e070216e9c84be3e4a8f1b74bc37e15a25e58daf"
 "checksum parity-scale-codec-derive 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a81f3cd93ed368a8e41c4e79538e99ca6e8f536096de23e3a0bc3e782093ce28"
 "checksum parity-snappy-sys 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "1a413d51e5e1927320c9de992998e4a279dffb8c8a7363570198bd8383e66f1b"
-"checksum parking_lot 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "f0802bff09003b291ba756dc7e79313e51cc31667e94afbe847def490424cde5"
 "checksum parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ab41b4aed082705d1056416ae4468b6ea99d52599ecf3169b00088d43113e337"
 "checksum parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f842b1982eb6c2fe34036a4fbfb06dd185a3f5c8edfaacdf7d1ea10b07de6252"
-"checksum parking_lot_core 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ad7f7e6ebdc79edff6fdcb87a55b620174f7a989e3eb31b65231f4af57f00b8c"
 "checksum parking_lot_core 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "94c8c7923936b28d546dfd14d4472eaf34c99b14e1c973a32b3e6d4eb04298c9"
 "checksum parking_lot_core 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b876b1b9e7ac6e1a74a6da34d25c42e17e8862aa409cbbbdcfc8d86c6f3bc62b"
 "checksum pbr 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "4403eb718d70c03ee279e51737782902c68cca01e870a33b6a2f9dfb50b9cd83"

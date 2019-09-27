@@ -99,7 +99,7 @@ App_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
 
 App_Rust_Path := ./app/target/$(OUTPUT_PATH)
 App_Enclave_u_Object := app/libEnclave_u.a
-App_Name := bin/app
+App_Name := bin/tx-query-app
 App_Binary := tx-query-app
 
 ######## Enclave Settings ########

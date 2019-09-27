@@ -11,21 +11,15 @@ extern crate sgx_tstd as std;
 use sgx_rand::*;
 use sgx_types::*;
 
-use chain_core::state::account::WithdrawUnbondedTx;
-use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::Tx;
-use chain_core::tx::data::TxId;
-use chain_core::tx::TxWithOutputs;
 use enclave_protocol::{DecryptionRequest, DecryptionRequestBody, DecryptionResponse};
+use enclave_t_common::check_unseal;
 use parity_scale_codec::{Decode, Encode};
-use secp256k1::{key::PublicKey, Secp256k1};
-use sgx_tseal::SgxSealedData;
+use secp256k1::Secp256k1;
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::prelude::v1::*;
 use std::time::Duration;
 use std::vec::Vec;
-use zeroize::Zeroize;
 
 /// functionality related to remote attestation (RA)
 mod attest;
@@ -42,70 +36,6 @@ extern "C" {
         txs: *mut u8,
         txs_len: u32,
     ) -> sgx_status_t;
-}
-
-#[inline]
-fn check_unseal(
-    view_key: PublicKey,
-    txids: &[TxId],
-    mut sealed_logs: Vec<Vec<u8>>,
-) -> Option<Vec<TxWithOutputs>> {
-    let mut return_result = Vec::with_capacity(sealed_logs.len());
-    for (txid, sealed_log) in txids.iter().zip(sealed_logs.iter_mut()) {
-        if sealed_log.len() >= (std::u32::MAX as usize) {
-            return None;
-        }
-        let opt = unsafe {
-            SgxSealedData::<[u8]>::from_raw_sealed_data_t(
-                sealed_log.as_mut_ptr() as *mut sgx_sealed_data_t,
-                sealed_log.len() as u32,
-            )
-        };
-        let sealed_data = match opt {
-            Some(x) => x,
-            None => {
-                return None;
-            }
-        };
-        let result = sealed_data.unseal_data();
-        let mut unsealed_data = match result {
-            Ok(x) => x,
-            Err(_) => {
-                return None;
-            }
-        };
-        if unsealed_data.get_additional_txt() != txid {
-            unsealed_data.decrypt.zeroize();
-            return None;
-        }
-        let otx = TxWithOutputs::decode(&mut unsealed_data.get_decrypt_txt());
-        let push: bool;
-        match &otx {
-            Ok(TxWithOutputs::Transfer(Tx {
-                attributes: TxAttributes { allowed_view, .. },
-                ..
-            })) => {
-                // TODO: policy != alldata + const eq?
-                push = allowed_view.iter().any(|x| x.view_key == view_key);
-            }
-            Ok(TxWithOutputs::StakeWithdraw(WithdrawUnbondedTx {
-                attributes: TxAttributes { allowed_view, .. },
-                ..
-            })) => {
-                // TODO: policy != alldata + const eq?
-                push = allowed_view.iter().any(|x| x.view_key == view_key);
-            }
-            _ => {
-                unsealed_data.decrypt.zeroize();
-                return None;
-            }
-        }
-        if push {
-            return_result.push(otx.unwrap());
-        }
-        unsealed_data.decrypt.zeroize();
-    }
-    Some(return_result)
 }
 
 fn process_request(body: &DecryptionRequestBody) -> Option<DecryptionResponse> {
@@ -128,7 +58,13 @@ fn process_request(body: &DecryptionRequestBody) -> Option<DecryptionResponse> {
     let inputs_enc: Result<Vec<Vec<u8>>, parity_scale_codec::Error> =
         Decode::decode(&mut inputs_buf.as_slice());
     if let Ok(inputs) = inputs_enc {
-        check_unseal(body.view_key, &body.txs, inputs).map(|txs| DecryptionResponse { txs })
+        check_unseal(
+            Some(body.view_key),
+            true,
+            body.txs.iter().map(|x| *x),
+            inputs,
+        )
+        .map(|txs| DecryptionResponse { txs })
     } else {
         None
     }
