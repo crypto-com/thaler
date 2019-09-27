@@ -87,14 +87,61 @@ impl Database<H256> for Storage {
 mod test {
 
     use super::*;
+    use chain_core::common::Timespec;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
+    use chain_core::state::account::Nonce;
     use chain_core::state::account::StakedState;
+    use chain_core::state::account::StakedStateAddress;
     use kvdb_memorydb::create;
+    use quickcheck::quickcheck;
+    use quickcheck::Arbitrary;
+    use quickcheck::Gen;
     use std::sync::Arc;
+
+    impl Arbitrary for AccountWrapper {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let nonce: Nonce = g.next_u64();
+            let bonded: u32 = g.next_u64() as u32;
+            let unbonded: u32 = g.next_u64() as u32;
+            let unbonded_from: Timespec = g.next_u64() as i64;
+            let mut raw_address = [0u8; 20];
+            g.fill_bytes(&mut raw_address);
+            let address: StakedStateAddress =
+                StakedStateAddress::from(RedeemAddress::from(raw_address));
+            AccountWrapper(StakedState {
+                nonce,
+                bonded: Coin::from(bonded),
+                unbonded: Coin::from(unbonded),
+                unbonded_from,
+                address,
+            })
+        }
+    }
 
     fn create_db() -> Storage {
         Storage::new_db(Arc::new(create(1)))
+    }
+
+    quickcheck! {
+        // test whether insertions in different order leads to the same root hash
+        fn staked_state_insert_order(accounts: Vec<AccountWrapper>) -> bool {
+            let mut tree1 = AccountStorage::new(create_db(), 20).expect("account db");
+            let mut tree2 = AccountStorage::new(create_db(), 20).expect("account db");
+            let mut root1 = None;
+            let mut root2 = None;
+            for account in accounts.iter() {
+                let key = account.0.key();
+                let new_root = tree1.insert_one(root1.as_ref(), &key, &account).expect("insert");
+                root1 = Some(new_root);
+            }
+            for account in accounts.iter().rev() {
+                let key = account.0.key();
+                let new_root = tree2.insert_one(root2.as_ref(), &key, &account).expect("insert");
+                root2 = Some(new_root);
+            }
+            root1 == root2
+        }
     }
 
     #[test]
