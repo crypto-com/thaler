@@ -150,6 +150,11 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         council_nodes: vec![],
         required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
+        jailing_config: JailingParameters {
+            jail_duration: 86400,
+            block_signing_window: 100,
+            missed_block_threshold: 50,
+        },
     }
 }
 

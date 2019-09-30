@@ -13,7 +13,7 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::AccountType;
 use chain_core::init::config::InitConfig;
-use chain_core::init::config::InitNetworkParameters;
+use chain_core::init::config::{InitNetworkParameters, JailingParameters};
 use chain_core::state::account::{StakedState, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintVotePower};
 use chain_core::state::CouncilNode;
@@ -47,6 +47,8 @@ pub struct ChainNodeState {
     pub unbonding_period: u32,
     /// (minimal?) amount required to be bonded in validator-associated accounts
     pub required_council_node_stake: Coin,
+    /// Jailing configuration
+    pub jailing_config: JailingParameters,
     /// council nodes metadata
     pub council_nodes: Vec<CouncilNode>,
 }
@@ -69,6 +71,7 @@ impl ChainNodeState {
             fee_policy: network_params.initial_fee_policy,
             unbonding_period: network_params.unbonding_period,
             required_council_node_stake: network_params.required_council_node_stake,
+            jailing_config: network_params.jailing_config,
             council_nodes,
         }
     }

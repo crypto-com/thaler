@@ -1,3 +1,4 @@
+use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -29,7 +30,7 @@ pub struct InitNetworkParameters {
     pub jailing_config: JailingParameters,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct JailingParameters {
     /// Minimum jailing time for punished accounts (in seconds)
