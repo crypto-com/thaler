@@ -8,6 +8,8 @@
     },
     "unbonding_period": 60,
     "required_council_node_stake": "1250000000000000000",
+    "jail_duration": 86400,
+    "max_allowed_faulty_blocks": 50,
     "initial_fee_policy": {
         "base_fee": "1.1",
         "per_byte_fee": "1.25"
