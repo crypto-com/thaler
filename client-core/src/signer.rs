@@ -1,5 +1,6 @@
 //! Transaction signing
 mod default_signer;
+mod hdwallet_signer;
 mod unauthorized_signer;
 
 pub use default_signer::DefaultSigner;

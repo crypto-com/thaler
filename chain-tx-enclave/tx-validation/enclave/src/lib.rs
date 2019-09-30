@@ -155,7 +155,8 @@ fn handle_validate_tx(
         (
             Some(sealed_inputs),
             TxAux::TransferTx {
-                payload: TxObfuscated { txid, txpayload, .. },
+                txid,
+                payload: TxObfuscated { txpayload, .. },
                 no_of_outputs,
                 inputs,
             },
@@ -203,8 +204,9 @@ fn handle_validate_tx(
         (
             None,
             TxAux::WithdrawUnbondedStakeTx {
+                txid,
                 no_of_outputs,
-                payload: TxObfuscated { txid, txpayload, .. },
+                payload: TxObfuscated { txpayload, .. },
                 witness,
             },
         ) => {

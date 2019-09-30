@@ -127,12 +127,12 @@ pub fn test_sealing() {
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
     let withdrawtx = TxAux::WithdrawUnbondedStakeTx {
+        txid: tx0.id(),
         no_of_outputs: tx0.outputs.len() as TxoIndex,
         witness: witness0,
         payload: TxObfuscated {
-            txid: tx0.id(),
             key_from: 0,
-            init_vector: [0u8; 12],
+            nonce: [0u8; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),
         },
     };
@@ -204,12 +204,12 @@ pub fn test_sealing() {
     .into();
     let plain_txaux = PlainTxAux::TransferTx(tx1.clone(), witness1);
     let transfertx = TxAux::TransferTx {
+        txid: tx1.id(),
         inputs: tx1.inputs.clone(),
         no_of_outputs: tx1.outputs.len() as TxoIndex,
         payload: TxObfuscated {
-            txid: tx1.id(),
             key_from: 0,
-            init_vector: [0u8; 12],
+            nonce: [0u8; 12],
             txpayload: plain_txaux.encode(),
         },
     };
@@ -260,12 +260,12 @@ pub fn test_sealing() {
     .into();
     let plain_txaux2 = PlainTxAux::TransferTx(tx2.clone(), witness2);
     let transfertx2 = TxAux::TransferTx {
+        txid: tx2.id(),
         inputs: tx2.inputs.clone(),
         no_of_outputs: tx2.outputs.len() as TxoIndex,
         payload: TxObfuscated {
-            txid: tx2.id(),
             key_from: 0,
-            init_vector: [0u8; 12],
+            nonce: [0u8; 12],
             txpayload: plain_txaux2.encode(),
         },
     };

@@ -124,12 +124,12 @@ mod tests {
 
     fn transfer_transaction() -> TxAux {
         TxAux::TransferTx {
+            txid: [0; 32],
             inputs: Vec::new(),
             no_of_outputs: 2,
             payload: TxObfuscated {
-                txid: [0; 32],
                 key_from: 0,
-                init_vector: [0; 12],
+                nonce: [0; 12],
                 txpayload: Vec::new(),
             },
         }

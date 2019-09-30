@@ -1,5 +1,3 @@
-// FIXME: type bounds + more efficient binary repr.
-#![allow(clippy::type_repetition_in_bounds)]
 use std::prelude::v1::{Box, Vec};
 use std::vec::IntoIter;
 

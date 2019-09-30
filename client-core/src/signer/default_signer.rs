@@ -5,7 +5,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use client_common::{Error, ErrorKind, Result, ResultExt, Storage};
 
-use crate::service::{KeyService, RootHashService, WalletService};
+use crate::service::{KeyService, KeyServiceInterface, RootHashService, WalletService};
 use crate::{SelectedUnspentTransactions, Signer};
 
 /// Default implementation of `Signer`
