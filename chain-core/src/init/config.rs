@@ -27,8 +27,8 @@ pub struct InitNetworkParameters {
     pub unbonding_period: u32,
     /// Minimum jailing time for accounts with faulty validations (in seconds)
     pub jail_duration: u32,
-    /// Maximum number of faulty blocks allowed for an account before it gets jailed
-    pub max_allowed_faulty_blocks: u16,
+    /// Maximum number of blocks with faulty/missed validations allowed for an account before it gets jailed
+    pub missed_block_threshold: u16,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

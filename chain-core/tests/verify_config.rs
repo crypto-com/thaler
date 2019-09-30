@@ -44,7 +44,7 @@ fn test_verify_test_example_snapshot() {
         required_council_node_stake: Coin::new(50_000_000_0000_0000).unwrap(),
         unbonding_period: 86400,
         jail_duration: 86400,
-        max_allowed_faulty_blocks: 50,
+        missed_block_threshold: 50,
     };
     let launch_incentive_from = "0x35f517cab9a37bc31091c2f155d965af84e0bc85"
         .parse::<RedeemAddress>()

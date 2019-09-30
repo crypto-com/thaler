@@ -11,7 +11,7 @@ pub struct GenesisDevConfig {
     pub unbonding_period: u32,
     pub required_council_node_stake: Coin,
     pub jail_duration: u32,
-    pub max_allowed_faulty_blocks: u16,
+    pub missed_block_threshold: u16,
     pub initial_fee_policy: InitialFeePolicy,
     pub council_nodes: Vec<InitialValidator>,
     pub launch_incentive_from: RedeemAddress,
@@ -28,7 +28,7 @@ impl GenesisDevConfig {
             unbonding_period: 60,
             required_council_node_stake: Coin::new(1_250_000_000_000_000_000).unwrap(),
             jail_duration: 86400,
-            max_allowed_faulty_blocks: 50,
+            missed_block_threshold: 50,
             initial_fee_policy: InitialFeePolicy {
                 base_fee: "1.1".to_string(),
                 per_byte_fee: "1.25".to_string(),

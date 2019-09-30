@@ -205,7 +205,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
         required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
         jail_duration: 86400,
-        max_allowed_faulty_blocks: 50,
+        missed_block_threshold: 50,
     };
     let c = InitConfig::new(
         distribution,
@@ -309,7 +309,7 @@ fn init_chain_panics_with_different_app_hash() {
         required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
         jail_duration: 86400,
-        max_allowed_faulty_blocks: 50,
+        missed_block_threshold: 50,
     };
     let c = InitConfig::new(
         distribution,
