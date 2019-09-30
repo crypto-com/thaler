@@ -142,6 +142,11 @@ DEV_CONF=$(cat << EOF
     },
     "unbonding_period": 5,
     "required_council_node_stake": "1250000000000000000",
+    "jailing_config": {
+        "jail_duration": 86400,
+        "block_signing_window": 100,
+        "missed_block_threshold": 50
+    },
     "initial_fee_policy": {
         "base_fee": "{BASE_FEE}",
         "per_byte_fee": "{PER_BYTE_FEE}"

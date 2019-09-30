@@ -17,14 +17,28 @@ use std::collections::{BTreeMap, HashSet};
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct InitNetworkParameters {
-    // Initial fee setting
-    // -- TODO: perhaps change to be against T: FeeAlgorithm
-    // TBD here, the intention would be to "freeze" the genesis config, so not sure generic field is worth it
+    /// Initial fee setting
+    /// -- TODO: perhaps change to be against T: FeeAlgorithm
+    /// TBD here, the intention would be to "freeze" the genesis config, so not sure generic field is worth it
     pub initial_fee_policy: LinearFee,
-    // minimal? council node stake
+    /// minimal? council node stake
     pub required_council_node_stake: Coin,
-    // stake unbonding time (in seconds)
+    /// stake unbonding time (in seconds)
     pub unbonding_period: u32,
+    /// Jailing configuration
+    pub jailing_config: JailingParameters,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct JailingParameters {
+    /// Minimum jailing time for punished accounts (in seconds)
+    pub jail_duration: u32,
+    /// Number of blocks for which the moving average is calculated for uptime tracking
+    pub block_signing_window: u16,
+    /// Maximum number of blocks with faulty/missed validations allowed for an account in last `block_signing_window`
+    /// blocks before it gets jailed
+    pub missed_block_threshold: u16,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

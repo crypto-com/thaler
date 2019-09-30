@@ -8,6 +8,11 @@
     },
     "unbonding_period": 60,
     "required_council_node_stake": "1250000000000000000",
+    "jailing_config": {
+        "jail_duration": 86400,
+        "block_signing_window": 100,
+        "missed_block_threshold": 50
+    },
     "initial_fee_policy": {
         "base_fee": "1.1",
         "per_byte_fee": "1.25"
