@@ -33,8 +33,6 @@ jsonrpc-core = "13.2"
 log ="0.4.8"
 serde = { version = "1.0", features = ["derive"] }
 tokio="0.1.22"
-tiny-hderive = "0.2.1"
-tiny-bip39 = "0.6"
 
 [dev-dependencies]
 chain-tx-validation = { path = "../chain-tx-validation" }

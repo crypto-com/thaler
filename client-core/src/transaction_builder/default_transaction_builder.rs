@@ -188,12 +188,12 @@ mod tests {
 
             match transaction {
                 SignedTransaction::TransferTransaction(tx, _) => Ok(TxAux::TransferTx {
-                    txid: tx.id(),
                     inputs: tx.inputs.clone(),
                     no_of_outputs: tx.outputs.len() as TxoIndex,
                     payload: TxObfuscated {
+                        txid: [0; 32],
                         key_from: 0,
-                        nonce: [0u8; 12],
+                        init_vector: [0u8; 12],
                         txpayload,
                     },
                 }),

@@ -86,13 +86,16 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     self.storage.db.clone(),
                     &self.accounts,
                 );
-                if fee_paid.is_ok() {
-                    resp.set_code(0);
-                    Some((txaux, fee_paid.unwrap()))
-                } else {
-                    resp.set_code(1);
-                    resp.add_log(&format!("verification failed: {}", fee_paid.unwrap_err()));
-                    None
+                match fee_paid {
+                    Ok(fee) => {
+                        resp.set_code(0);
+                        Some((txaux, fee))
+                    }
+                    Err(fee_err) => {
+                        resp.set_code(1);
+                        resp.add_log(&format!("verification failed: {}", fee_err));
+                        None
+                    }
                 }
             }
         }
