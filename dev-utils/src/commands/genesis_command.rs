@@ -62,6 +62,8 @@ impl GenesisCommand {
             initial_fee_policy: fee_policy,
             required_council_node_stake: genesis_dev.required_council_node_stake,
             unbonding_period: genesis_dev.unbonding_period,
+            jail_duration: genesis_dev.jail_duration,
+            max_allowed_faulty_blocks: genesis_dev.max_allowed_faulty_blocks,
         };
         let config = InitConfig::new(
             dist,

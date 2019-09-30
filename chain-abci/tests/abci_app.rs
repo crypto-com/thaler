@@ -204,6 +204,8 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
         initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
         required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
+        jail_duration: 86400,
+        max_allowed_faulty_blocks: 50,
     };
     let c = InitConfig::new(
         distribution,
@@ -306,6 +308,8 @@ fn init_chain_panics_with_different_app_hash() {
         initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
         required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
+        jail_duration: 86400,
+        max_allowed_faulty_blocks: 50,
     };
     let c = InitConfig::new(
         distribution,
