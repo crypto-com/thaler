@@ -1,7 +1,8 @@
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::{
-    AccountType, InitConfig, InitNetworkParameters, InitialValidator, ValidatorKeyType,
+    AccountType, InitConfig, InitNetworkParameters, InitialValidator, JailingParameters,
+    ValidatorKeyType,
 };
 use chain_core::tx::fee::{LinearFee, Milli};
 use serde::Deserialize;
@@ -43,6 +44,11 @@ fn test_verify_test_example_snapshot() {
         initial_fee_policy: fee_policy,
         required_council_node_stake: Coin::new(50_000_000_0000_0000).unwrap(),
         unbonding_period: 86400,
+        jailing_config: JailingParameters {
+            jail_duration: 86400,
+            block_signing_window: 100,
+            missed_block_threshold: 50,
+        },
     };
     let launch_incentive_from = "0x35f517cab9a37bc31091c2f155d965af84e0bc85"
         .parse::<RedeemAddress>()

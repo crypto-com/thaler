@@ -3,13 +3,18 @@ use std::{collections::BTreeMap, str::FromStr};
 use chrono::{offset::Utc, DateTime};
 use serde::{Deserialize, Serialize};
 
-use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitialValidator};
+use chain_core::init::{
+    address::RedeemAddress,
+    coin::Coin,
+    config::{InitialValidator, JailingParameters},
+};
 
 #[derive(Deserialize, Debug)]
 pub struct GenesisDevConfig {
     pub distribution: BTreeMap<RedeemAddress, Coin>,
     pub unbonding_period: u32,
     pub required_council_node_stake: Coin,
+    pub jailing_config: JailingParameters,
     pub initial_fee_policy: InitialFeePolicy,
     pub council_nodes: Vec<InitialValidator>,
     pub launch_incentive_from: RedeemAddress,
@@ -25,6 +30,11 @@ impl GenesisDevConfig {
             distribution: BTreeMap::new(),
             unbonding_period: 60,
             required_council_node_stake: Coin::new(1_250_000_000_000_000_000).unwrap(),
+            jailing_config: JailingParameters {
+                jail_duration: 86400,
+                block_signing_window: 100,
+                missed_block_threshold: 50,
+            },
             initial_fee_policy: InitialFeePolicy {
                 base_fee: "1.1".to_string(),
                 per_byte_fee: "1.25".to_string(),

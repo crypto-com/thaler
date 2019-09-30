@@ -14,7 +14,7 @@ use chain_core::init::coin::Coin;
 use chain_core::init::config::AccountType;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
-use chain_core::init::config::{InitialValidator, ValidatorKeyType};
+use chain_core::init::config::{InitialValidator, JailingParameters, ValidatorKeyType};
 use chain_core::state::account::{
     to_stake_key, DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes,
     StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
@@ -204,6 +204,11 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
         initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
         required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
+        jailing_config: JailingParameters {
+            jail_duration: 86400,
+            block_signing_window: 100,
+            missed_block_threshold: 50,
+        },
     };
     let c = InitConfig::new(
         distribution,
@@ -306,6 +311,11 @@ fn init_chain_panics_with_different_app_hash() {
         initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
         required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
+        jailing_config: JailingParameters {
+            jail_duration: 86400,
+            block_signing_window: 100,
+            missed_block_threshold: 50,
+        },
     };
     let c = InitConfig::new(
         distribution,
