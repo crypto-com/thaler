@@ -76,7 +76,7 @@ describe("Staking", () => {
 				],
 			]),
 		).to.eventually.eq(null, "Deposit stake should work");
-		await sleep(5000);
+		await sleep(1000);
 		const stakingStateAfterDeposit = await client.request("staking_state", [
 			walletRequest,
 			stakingAddress,
@@ -110,7 +110,7 @@ describe("Staking", () => {
 				unbondAmount,
 			]),
 		).to.eventually.eq(null, "Unbond stake should work");
-		await sleep(5000);
+		await sleep(1000);
 		const stakingStateAfterUnbond = await client.request("staking_state", [
 			walletRequest,
 			stakingAddress,

@@ -49,12 +49,12 @@ fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Stora
                     let plain = PlainTxAux::TransferTx(tx.clone(), witness);
                     let mock = EncryptionResponse {
                         tx: TxAux::TransferTx {
+                            txid: tx.id(),
                             inputs: tx.inputs.clone(),
                             no_of_outputs: tx.outputs.len() as TxoIndex,
                             payload: TxObfuscated {
                                 key_from: 0,
-                                txid: tx.id(),
-                                init_vector: [0u8; 12],
+                                nonce: [0u8; 12],
                                 txpayload: plain.encode(),
                             },
                         },
@@ -65,11 +65,10 @@ fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Stora
                     let plain = PlainTxAux::DepositStakeTx(witness);
                     let mock = EncryptionResponse {
                         tx: TxAux::DepositStakeTx {
-                            tx: maintx.clone(),
+                            tx: maintx,
                             payload: TxObfuscated {
                                 key_from: 0,
-                                txid: maintx.id(),
-                                init_vector: [0u8; 12],
+                                nonce: [0u8; 12],
                                 txpayload: plain.encode(),
                             },
                         },
@@ -80,12 +79,12 @@ fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Stora
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                     let mock = EncryptionResponse {
                         tx: TxAux::WithdrawUnbondedStakeTx {
+                            txid: tx.id(),
                             no_of_outputs: tx.outputs.len() as TxoIndex,
                             witness,
                             payload: TxObfuscated {
                                 key_from: 0,
-                                txid: tx.id(),
-                                init_vector: [0u8; 12],
+                                nonce: [0u8; 12],
                                 txpayload: plain.encode(),
                             },
                         },

@@ -142,7 +142,7 @@ pub fn test_integration() {
         witness: witness0,
         payload: TxObfuscated {
             key_from: 0,
-            init_vector: [0u8; 12],
+            nonce: [0u8; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),
         },
     };

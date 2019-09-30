@@ -3,7 +3,7 @@ use secstr::SecUtf8;
 use chain_core::tx::TransactionId;
 use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage};
 
-use crate::service::{GlobalStateService, KeyService, WalletService};
+use crate::service::{GlobalStateService, KeyService, KeyServiceInterface, WalletService};
 use crate::{BlockHandler, TransactionHandler, TransactionObfuscation};
 
 /// Default implementation of `BlockHandler`
