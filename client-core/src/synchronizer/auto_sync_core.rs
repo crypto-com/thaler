@@ -58,6 +58,9 @@ where
     current_wallet: usize,
 
     data: AutoSyncDataShared,
+
+    #[cfg(test)]
+    test_get_current_height: Option<u64>,
 }
 
 impl<S, C, H> AutoSynchronizerCore<S, C, H>
@@ -98,6 +101,9 @@ where
             wallets,
             current_wallet: 0,
             data,
+
+            #[cfg(test)]
+            test_get_current_height: None,
         }
     }
 }
@@ -118,6 +124,17 @@ where
     }
 
     /// get height from database
+    #[cfg(test)]
+    fn get_current_height(&self) -> u64 {
+        if self.test_get_current_height.is_some() {
+            return self.test_get_current_height.unwrap();
+        }
+        let wallet = self.get_current_wallet();
+        self.global_state_service
+            .last_block_height(&wallet.name, &wallet.passphrase)
+            .expect("get current height")
+    }
+    #[cfg(not(test))]
     fn get_current_height(&self) -> u64 {
         let wallet = self.get_current_wallet();
         self.global_state_service
@@ -447,7 +464,15 @@ where
             return Ok(());
         }
         self.old_blocktime = now;
-        self.send_request_block()
+
+        if self.get_current_height() < self.max_height {
+            self.send_request_block()
+        } else {
+            log::info!("polling_get_blocks, sync is complete, go to next wallet");
+            self.change_to_wait();
+            self.change_wallet();
+            Ok(())
+        }
     }
 
     /** fetching blocks is handled indivisually
@@ -681,5 +706,48 @@ mod tests {
             WebsocketState::GetBlocks => assert!(true),
             _ => assert!(false),
         }
+    }
+
+    #[test]
+    fn check_chaning_wallets() {
+        let storage = MemoryStorage::default();
+        let client = MockClient {};
+        let handler = MockBlockHandler {};
+        let data = Arc::new(Mutex::new(AutoSyncData::default()));
+        let channel = futures::sync::mpsc::channel(0);
+        let (channel_tx, _channel_rx) = channel;
+        let send_queue = Arc::new(Mutex::new(AutoSyncSendQueue::new()));
+        {
+            let mut data = send_queue.lock().unwrap();
+            data.queue = Some(channel_tx.clone());
+        }
+        let mut core = AutoSynchronizerCore::new(
+            send_queue,
+            storage,
+            client,
+            handler,
+            WalletInfos::new(),
+            data,
+        );
+
+        core.add_wallet("name1".to_owned(), SecUtf8::from("passphrase1"))
+            .expect("auto sync add wallet");
+
+        core.add_wallet("name2".to_owned(), SecUtf8::from("passphrase2"))
+            .expect("auto sync add wallet");
+
+        core.test_get_current_height = Some(0);
+        core.max_height = 1000;
+        core.old_blocktime = SystemTime::now() - std::time::Duration::from_secs(60);
+        core.polling_get_blocks()
+            .expect("polling_get_blocks returns value");
+        assert!(core.state != WebsocketState::WaitProcess);
+
+        core.old_blocktime = SystemTime::now() - std::time::Duration::from_secs(60);
+        core.test_get_current_height = Some(1000);
+        core.max_height = 1000;
+        core.polling_get_blocks()
+            .expect("polling_get_blocks returns value");
+        assert!(core.state == WebsocketState::WaitProcess);
     }
 }
