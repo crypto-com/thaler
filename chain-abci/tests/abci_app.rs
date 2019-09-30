@@ -392,12 +392,12 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
     // TODO: mock enc
     let txaux = TxAux::WithdrawUnbondedStakeTx {
-        txid: tx.id(),
         no_of_outputs: tx.outputs.len() as TxoIndex,
         witness: witness.clone(),
         payload: TxObfuscated {
+            txid: tx.id(),
             key_from: 0,
-            nonce: [0; 12],
+            init_vector: [0; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
         },
     };
@@ -811,12 +811,12 @@ fn all_valid_tx_types_should_commit() {
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
     let withdrawtx = TxAux::WithdrawUnbondedStakeTx {
-        txid: tx0.id(),
         no_of_outputs: tx0.outputs.len() as TxoIndex,
         witness: witness0,
         payload: TxObfuscated {
+            txid: tx0.id(),
             key_from: 0,
-            nonce: [0u8; 12],
+            init_vector: [0u8; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),
         },
     };
@@ -849,12 +849,12 @@ fn all_valid_tx_types_should_commit() {
     .into();
     let plain_txaux = PlainTxAux::TransferTx(tx1.clone(), witness1);
     let transfertx = TxAux::TransferTx {
-        txid: tx1.id(),
         inputs: tx1.inputs.clone(),
         no_of_outputs: tx1.outputs.len() as TxoIndex,
         payload: TxObfuscated {
+            txid: tx1.id(),
             key_from: 0,
-            nonce: [0u8; 12],
+            init_vector: [0u8; 12],
             txpayload: plain_txaux.encode(),
         },
     };
@@ -879,10 +879,11 @@ fn all_valid_tx_types_should_commit() {
     )]
     .into();
     let depositx = TxAux::DepositStakeTx {
-        tx: tx2,
+        tx: tx2.clone(),
         payload: TxObfuscated {
+            txid: tx2.id(),
             key_from: 0,
-            nonce: [0u8; 12],
+            init_vector: [0u8; 12],
             txpayload: PlainTxAux::DepositStakeTx(witness2).encode(),
         },
     };

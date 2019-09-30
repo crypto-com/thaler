@@ -325,10 +325,11 @@ mod tests {
                 SignedTransaction::DepositStakeTransaction(tx, witness) => {
                     let plain = PlainTxAux::DepositStakeTx(witness);
                     Ok(TxAux::DepositStakeTx {
-                        tx,
+                        tx: tx.clone(),
                         payload: TxObfuscated {
+                            txid: tx.id(),
                             key_from: 0,
-                            nonce: [0u8; 12],
+                            init_vector: [0u8; 12],
                             txpayload: plain.encode(),
                         },
                     })
@@ -336,12 +337,12 @@ mod tests {
                 SignedTransaction::WithdrawUnbondedStakeTransaction(tx, _, witness) => {
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                     Ok(TxAux::WithdrawUnbondedStakeTx {
-                        txid: tx.id(),
                         no_of_outputs: tx.outputs.len() as TxoIndex,
                         witness,
                         payload: TxObfuscated {
+                            txid: tx.id(),
                             key_from: 0,
-                            nonce: [0u8; 12],
+                            init_vector: [0u8; 12],
                             txpayload: plain.encode(),
                         },
                     })
@@ -530,7 +531,11 @@ mod tests {
             .unwrap();
 
         match transaction {
-            TxAux::WithdrawUnbondedStakeTx { txid, witness, .. } => {
+            TxAux::WithdrawUnbondedStakeTx {
+                payload: TxObfuscated { txid, .. },
+                witness,
+                ..
+            } => {
                 let account_address = verify_tx_recover_address(&witness, &txid)
                     .expect("Unable to verify transaction");
 
@@ -586,9 +591,10 @@ mod tests {
 
         match transaction {
             TxAux::WithdrawUnbondedStakeTx {
-                txid,
                 witness,
-                payload: TxObfuscated { txpayload, .. },
+                payload: TxObfuscated {
+                    txid, txpayload, ..
+                },
                 ..
             } => {
                 let account_address = verify_tx_recover_address(&witness, &txid)
