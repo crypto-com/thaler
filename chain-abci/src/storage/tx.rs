@@ -327,7 +327,7 @@ pub mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
         let addr = RedeemAddress::from(&public_key);
-        let account = StakedState::new(1, Coin::one(), Coin::zero(), 0, addr.into());
+        let account = StakedState::new(1, Coin::one(), Coin::zero(), 0, addr.into(), None);
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
@@ -478,7 +478,14 @@ pub mod tests {
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
         let addr = RedeemAddress::from(&public_key);
-        let account = StakedState::new(1, Coin::zero(), Coin::one(), unbonded_from, addr.into());
+        let account = StakedState::new(
+            1,
+            Coin::zero(),
+            Coin::one(),
+            unbonded_from,
+            addr.into(),
+            None,
+        );
         let key = account.key();
         let wrapped = AccountWrapper(account.clone());
         let new_root = tree

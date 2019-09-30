@@ -115,6 +115,7 @@ mod test {
                 unbonded: Coin::from(unbonded),
                 unbonded_from,
                 address,
+                jailed_until: None,
             })
         }
     }
@@ -172,6 +173,7 @@ mod test {
             Coin::unit(),
             1,
             RedeemAddress::default().into(),
+            None,
         );
         let wrapped_updated = AccountWrapper(updated_account);
         assert_ne!(wrapped, wrapped_updated);
@@ -204,6 +206,7 @@ mod test {
             Coin::unit(),
             1,
             RedeemAddress::default().into(),
+            None,
         );
         let wrapped_updated = AccountWrapper(updated_account);
         let new_root = tree
