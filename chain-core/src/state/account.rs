@@ -129,7 +129,8 @@ pub struct StakedState {
     pub unbonded: Coin,
     pub unbonded_from: Timespec,
     pub address: StakedStateAddress,
-    // TODO: slashing + jailing
+    pub jailed_until: Option<Timespec>,
+    // TODO: slashing
 }
 
 /// the tree used in StakedState storage db has a hardcoded 32-byte keys,
@@ -150,6 +151,7 @@ impl Default for StakedState {
             Coin::zero(),
             0,
             StakedStateAddress::BasicRedeem(RedeemAddress::default()),
+            None,
         )
     }
 }
@@ -162,6 +164,7 @@ impl StakedState {
         unbonded: Coin,
         unbonded_from: Timespec,
         address: StakedStateAddress,
+        jailed_until: Option<Timespec>,
     ) -> Self {
         StakedState {
             nonce,
@@ -169,6 +172,7 @@ impl StakedState {
             unbonded,
             unbonded_from,
             address,
+            jailed_until,
         }
     }
 
@@ -186,6 +190,7 @@ impl StakedState {
                 unbonded: Coin::zero(),
                 unbonded_from: genesis_time,
                 address,
+                jailed_until: None,
             }
         } else {
             StakedState {
@@ -194,6 +199,7 @@ impl StakedState {
                 unbonded: amount,
                 unbonded_from: genesis_time,
                 address,
+                jailed_until: None,
             }
         }
     }
@@ -225,6 +231,30 @@ impl StakedState {
     /// the StakedState address itself is ETH-style address (20 bytes from keccak hash of public key)
     pub fn key(&self) -> [u8; HASH_SIZE_256] {
         to_stake_key(&self.address)
+    }
+
+    /// Checks if current account is jailed
+    #[inline]
+    pub fn is_jailed(&self) -> bool {
+        self.jailed_until.is_some()
+    }
+
+    /// Returns `jailed_until` for current account, `None` if current account is not jailed
+    #[inline]
+    pub fn jailed_until(&self) -> Option<Timespec> {
+        self.jailed_until
+    }
+
+    /// Jails current account until given time
+    pub fn jail_until(&mut self, jail_until: Timespec) {
+        self.nonce += 1;
+        self.jailed_until = Some(jail_until)
+    }
+
+    /// Unjails current account
+    pub fn unjail(&mut self) {
+        self.nonce += 1;
+        self.jailed_until = None;
     }
 }
 

@@ -296,6 +296,7 @@ mod tests {
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::CoinError;
+    use chain_core::state::account::StakedState;
     use chain_core::tx::data::input::TxoIndex;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::Fee;
@@ -401,12 +402,19 @@ mod tests {
         }
 
         fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+            let staked_state = StakedState::new(
+                0,
+                Coin::zero(),
+                Coin::new(2499999999999999999 + 1).unwrap(),
+                0,
+                StakedStateAddress::BasicRedeem(RedeemAddress::default()),
+                None,
+            );
+
             Ok(QueryResult {
                 response: Response {
                     code: 0,
-                    value:
-                        "AAAAAAAAAAAAAAAAAAAAAAAAeiLByLEia/aSXAAAAAAADbIhxPV9XTi5aBOcBukTKq+E6N8="
-                            .to_string(),
+                    value: base64::encode(&staked_state.encode()),
                     log: "".to_owned(),
                 },
             })
