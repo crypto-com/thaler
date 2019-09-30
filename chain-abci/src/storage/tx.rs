@@ -334,8 +334,9 @@ pub mod tests {
             .insert(None, &mut [key], &mut vec![wrapped])
             .expect("insert");
         let tx = UnbondTx::new(
-            Coin::new(9).unwrap(),
+            addr.into(),
             1,
+            Coin::new(9).unwrap(),
             StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
         );
         let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
