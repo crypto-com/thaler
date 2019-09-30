@@ -13,7 +13,11 @@ rust: &rust
               - gcc
               - binutils-dev
               - libc6-dev
-  cache: cargo
+  cache:
+    directories:
+      - /home/travis/.cargo
+  before_cache:
+    - rm -rf /home/travis/.cargo/registry
   env:
     - RUST_BACKTRACE=1
     - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
@@ -88,7 +92,11 @@ jobs:
                   - gcc
                   - binutils-dev
                   - libc6-dev
-      cache: cargo
+      cache:
+        directories:
+          - /home/travis/.cargo
+      before_cache:
+        - rm -rf /home/travis/.cargo/registry
       env:
         - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
         - PATH=$HOME/.local/bin:$PATH
