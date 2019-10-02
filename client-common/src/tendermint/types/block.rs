@@ -102,9 +102,7 @@ mod tests {
 
     use base64::encode;
     use parity_scale_codec::Encode;
-    use secp256k1::key::{PublicKey, SecretKey};
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
-    use secp256k1::Secp256k1;
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
