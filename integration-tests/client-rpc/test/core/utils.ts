@@ -16,18 +16,18 @@ export const newWithFeeRpcClient = (): RpcClient => {
 
 export const newRpcClient = (
 	host: string = "localhost",
-	port: number = 26659
+	port: number = 26659,
 ): RpcClient => {
 	return new RpcClient(`http://${host}:${port}`);
 };
 
 export const newZeroFeeTendermintClient = (): TendermintClient => {
 	return newTendermintClient("localhost", 16657);
-}
+};
 
 export const newWithFeeTendermintClient = (): TendermintClient => {
 	return newTendermintClient("localhost", 26657);
-}
+};
 
 export const newTendermintClient = (
 	host: string = "localhost",
@@ -71,10 +71,13 @@ export enum FEE_SCHEMA {
 	WITH_FEE = "WITH_FEE",
 }
 
-export const asyncMiddleman = async (promise: Promise<any>, errorMessage: String): Promise<any> => {
+export const asyncMiddleman = async (
+	promise: Promise<any>,
+	errorMessage: String,
+): Promise<any> => {
 	try {
 		return await promise;
-	} catch(err) {
+	} catch (err) {
 		throw Error(`${errorMessage}: ${err.message}`);
 	}
-}
+};

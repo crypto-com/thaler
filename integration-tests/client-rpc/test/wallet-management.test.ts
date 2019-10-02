@@ -33,16 +33,24 @@ describe("Wallet management", () => {
 
 		await expect(
 			client.request("wallet_listStakingAddresses", [nonExistingWalletRequest]),
-		).to.eventually.rejectedWith(`Invalid input: Wallet with name (${nonExistingWalletName}) not found`);
+		).to.eventually.rejectedWith(
+			`Invalid input: Wallet with name (${nonExistingWalletName}) not found`,
+		);
 		await expect(
 			client.request("wallet_listTransferAddresses", [nonExistingWalletRequest]),
-		).to.eventually.rejectedWith(`Invalid input: Wallet with name (${nonExistingWalletName}) not found`);
+		).to.eventually.rejectedWith(
+			`Invalid input: Wallet with name (${nonExistingWalletName}) not found`,
+		);
 		await expect(
 			client.request("wallet_balance", [nonExistingWalletRequest]),
-		).to.eventually.rejectedWith(`Invalid input: Wallet with name (${nonExistingWalletName}) not found`);
+		).to.eventually.rejectedWith(
+			`Invalid input: Wallet with name (${nonExistingWalletName}) not found`,
+		);
 		await expect(
 			client.request("wallet_transactions", [nonExistingWalletRequest]),
-		).to.eventually.rejectedWith(`Invalid input: Wallet with name (${nonExistingWalletName}) not found`);
+		).to.eventually.rejectedWith(
+			`Invalid input: Wallet with name (${nonExistingWalletName}) not found`,
+		);
 	});
 
 	it("can create wallet with specified name", async () => {
@@ -93,7 +101,9 @@ describe("Wallet management", () => {
 
 		return expect(
 			client.request("wallet_create", [walletRequest]),
-		).to.eventually.rejectedWith(`Invalid input: Wallet with name (${walletName}) already exists`);
+		).to.eventually.rejectedWith(
+			`Invalid input: Wallet with name (${walletName}) already exists`,
+		);
 	});
 
 	it("User cannot access wallet with incorrect passphrase", async () => {

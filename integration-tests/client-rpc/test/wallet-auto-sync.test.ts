@@ -103,7 +103,7 @@ describe("Wallet Auto-sync", () => {
 
 		await asyncMiddleman(
 			waitTxIdConfirmed(zeroFeeTendermintClient, txId),
-			"Error when retrieving transaction confirmation",
+			"Error when waiting transfer transaction confirmation",
 		);
 
 		await zeroFeeRpcClient.request("sync_unlockWallet", [senderWalletRequest]);
@@ -113,7 +113,6 @@ describe("Wallet Auto-sync", () => {
 		);
 
 		await sleep(1000);
-
 		while (true) {
 			console.log(`[Log] Checking for wallet sync status`);
 			const senderWalletTransactionListAfterSend = await asyncMiddleman(
