@@ -79,6 +79,8 @@ pub enum Error {
     MismatchAccountAddress,
     /// incorrect nonce supplied in staked state operation
     AccountIncorrectNonce,
+    /// Account is jailed
+    AccountJailed,
 }
 
 /// FIXME: this will go away with simplified intra-enclave FFI calls
@@ -148,6 +150,7 @@ impl fmt::Display for Error {
             ),
             AccountIncorrectNonce => write!(f, "incorrect transaction count for account operation"),
             MismatchAccountAddress => write!(f, "mismatch account address"),
+            AccountJailed => write!(f, "account is jailed"),
         }
     }
 }
@@ -322,6 +325,10 @@ pub fn verify_bonded_deposit(
     transaction_inputs: Vec<TxWithOutputs>,
     maccount: Option<StakedState>,
 ) -> Result<(Fee, Option<StakedState>), Error> {
+    if let Some(ref account) = maccount {
+        verify_unjailed(account)?;
+    }
+
     let incoins = verify_bonded_deposit_core(maintx, witness, extra_info, transaction_inputs)?;
     // TODO: checking account not jailed etc.?
     let deposit_amount = (incoins - extra_info.min_fee_computed.to_coin()).expect("init");
@@ -377,6 +384,8 @@ pub fn verify_unbonded_withdraw_core(
     extra_info: ChainInfo,
     account: &StakedState,
 ) -> Result<Fee, Error> {
+    verify_unjailed(account)?;
+
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
     check_outputs_basic(&maintx.outputs)?;
     // checks that account transaction count matches to the one in transaction
@@ -417,4 +426,13 @@ pub fn verify_unbonded_withdraw(
     let fee = verify_unbonded_withdraw_core(maintx, extra_info, &account)?;
     account.withdraw();
     Ok((fee, Some(account)))
+}
+
+/// Verifies if the account is unjailed
+pub fn verify_unjailed(account: &StakedState) -> Result<(), Error> {
+    if account.is_jailed() {
+        Err(Error::AccountJailed)
+    } else {
+        Ok(())
+    }
 }
