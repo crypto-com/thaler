@@ -9,7 +9,9 @@ use chain_core::tx::fee::Fee;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use chain_core::tx::TxObfuscated;
-use chain_tx_validation::{verify_unbonding, witness::verify_tx_recover_address, ChainInfo, Error};
+use chain_tx_validation::{
+    verify_unbonding, verify_unjailed, witness::verify_tx_recover_address, ChainInfo, Error,
+};
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::KeyValueDB;
 use starling::constants::KEY_LEN;
@@ -100,7 +102,12 @@ pub fn verify<T: EnclaveProxy>(
                     return Err(e);
                 }
             };
+            if let Some(ref account) = account {
+                verify_unjailed(account)?;
+            }
+
             check_spent_input_lookup(&tx.inputs, db)?;
+
             let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
                 txaux.clone(),
                 account,
@@ -119,6 +126,7 @@ pub fn verify<T: EnclaveProxy>(
                 return Err(Error::EcdsaCrypto); // FIXME: Err(Error::EcdsaCrypto(e));
             }
             let account = get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
+            verify_unjailed(&account)?;
             verify_unbonding(maintx, extra_info, account)?
         }
         TxAux::WithdrawUnbondedStakeTx {
@@ -131,6 +139,7 @@ pub fn verify<T: EnclaveProxy>(
                 return Err(Error::EcdsaCrypto); // FIXME: Err(Error::EcdsaCrypto(e));
             }
             let account = get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
+            verify_unjailed(&account)?;
             let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
                 txaux.clone(),
                 Some(account),
@@ -1461,5 +1470,170 @@ pub mod tests {
             );
             assert!(result.is_err());
         }
+    }
+
+    fn prepare_jailed_accounts() -> (
+        Arc<dyn KeyValueDB>,
+        AccountStorage,
+        SecretKey,
+        RedeemAddress,
+        MerkleTree<RawPubkey>,
+        StarlingFixedKey,
+    ) {
+        let db = create_db();
+        let mut accounts =
+            AccountStorage::new(Storage::new_db(db.clone()), 20).expect("account db");
+
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+        let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
+
+        let addr = RedeemAddress::from(&public_key);
+        let account = StakedState::new(1, Coin::zero(), Coin::one(), 0, addr.into(), Some(100));
+
+        let key = account.key();
+        let wrapped = AccountWrapper(account.clone());
+        let root = accounts
+            .insert(None, &mut [key], &mut vec![wrapped])
+            .expect("insert");
+
+        (db, accounts, secret_key, addr, merkle_tree, root)
+    }
+
+    fn prepare_withdraw_transaction(secret_key: &SecretKey) -> TxAux {
+        let secp = Secp256k1::new();
+
+        let tx = WithdrawUnbondedTx::new(1, vec![], TxAttributes::new(DEFAULT_CHAIN_ID));
+        let witness = get_account_op_witness(secp, &tx.id(), secret_key);
+
+        TxAux::WithdrawUnbondedStakeTx {
+            no_of_outputs: tx.outputs.len() as TxoIndex,
+            witness: witness.clone(),
+            payload: TxObfuscated {
+                txid: tx.id(),
+                key_from: 0,
+                init_vector: [0; 12],
+                txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
+            },
+        }
+    }
+
+    fn prepare_deposit_transaction(
+        secret_key: &SecretKey,
+        address: RedeemAddress,
+        merkle_tree: &MerkleTree<RawPubkey>,
+    ) -> TxAux {
+        let secp = Secp256k1::new();
+
+        let tx = DepositBondTx::new(
+            vec![],
+            address.into(),
+            StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
+        );
+
+        let witness: Vec<TxInWitness> =
+            vec![get_tx_witness(secp, &tx.id(), secret_key, merkle_tree)];
+
+        TxAux::DepositStakeTx {
+            tx: tx.clone(),
+            payload: TxObfuscated {
+                txid: tx.id(),
+                key_from: 0,
+                init_vector: [0u8; 12],
+                txpayload: PlainTxAux::DepositStakeTx(witness.into()).encode(),
+            },
+        }
+    }
+
+    fn prepare_unbond_transaction(secret_key: &SecretKey) -> TxAux {
+        let secp = Secp256k1::new();
+
+        let tx = UnbondTx::new(
+            Coin::new(9).unwrap(),
+            1,
+            StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
+        );
+        let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
+
+        TxAux::UnbondStakeTx(tx, witness)
+    }
+
+    #[test]
+    fn check_verify_fail_for_jailed_account() {
+        let mut mock_bridge = get_enclave_bridge_mock();
+        let (db, accounts, secret_key, address, merkle_tree, root) = prepare_jailed_accounts();
+
+        // Withdraw transaction
+
+        let txaux = prepare_withdraw_transaction(&secret_key);
+        let extra_info = ChainInfo {
+            min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
+                .calculate_for_txaux(&txaux)
+                .expect("invalid fee policy"),
+            chain_hex_id: DEFAULT_CHAIN_ID,
+            previous_block_time: 0,
+            unbonding_period: 1,
+        };
+
+        expect_error(
+            &verify(
+                &mut mock_bridge,
+                &txaux,
+                extra_info,
+                &root,
+                db.clone(),
+                &accounts,
+            ),
+            Error::AccountJailed,
+        );
+
+        // Deposit transaction
+
+        let txaux = prepare_deposit_transaction(&secret_key, address.clone(), &merkle_tree);
+        let extra_info = ChainInfo {
+            min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
+                .calculate_for_txaux(&txaux)
+                .expect("invalid fee policy"),
+            chain_hex_id: DEFAULT_CHAIN_ID,
+            previous_block_time: 0,
+            unbonding_period: 1,
+        };
+
+        expect_error(
+            &verify(
+                &mut mock_bridge,
+                &txaux,
+                extra_info,
+                &root,
+                db.clone(),
+                &accounts,
+            ),
+            Error::AccountJailed,
+        );
+
+        // Unbond transaction
+
+        let txaux = prepare_unbond_transaction(&secret_key);
+        let extra_info = ChainInfo {
+            min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
+                .calculate_for_txaux(&txaux)
+                .expect("invalid fee policy"),
+            chain_hex_id: DEFAULT_CHAIN_ID,
+            previous_block_time: 0,
+            unbonding_period: 1,
+        };
+
+        expect_error(
+            &verify(
+                &mut mock_bridge,
+                &txaux,
+                extra_info,
+                &root,
+                db.clone(),
+                &accounts,
+            ),
+            Error::AccountJailed,
+        );
     }
 }
