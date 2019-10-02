@@ -30,3 +30,6 @@ enclave-protocol   = { path = "../../../enclave-protocol", default-features = fa
 chain-tx-filter   = { path = "../../../chain-tx-filter", default-features = false, features = ["mesalock_sgx"] }
 lazy_static  = { version = "1.4", features = ["spin_no_std"] }
 enclave-t-common = { path = "../../enclave-t-common" }
+aes-gcm-siv = "0.1"
+aead = "0.1"
+zeroize = { version = "0.10", default-features = false }

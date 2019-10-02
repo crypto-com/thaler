@@ -81,8 +81,8 @@ impl fmt::Display for PlainTxAux {
 
 /// plqin TX payload to be obfuscated
 pub struct TxToObfuscate {
-    txpayload: Vec<u8>,
-    txid: TxId,
+    pub txpayload: Vec<u8>,
+    pub txid: TxId,
 }
 
 impl TxToObfuscate {

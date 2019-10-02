@@ -22,6 +22,7 @@ use chain_core::state::account::StakedStateOpWitness;
 use chain_core::state::account::WithdrawUnbondedTx;
 use chain_core::tx::data::{txid_hash, Tx, TxId};
 use chain_core::tx::witness::TxWitness;
+use chain_core::tx::TxObfuscated;
 use chain_core::tx::{fee::Fee, TxAux};
 use chain_core::ChainInfo;
 use chain_tx_validation::TxWithOutputs;
@@ -39,6 +40,19 @@ type SealedLog = Vec<u8>;
 /// tx filter
 type TxFilter = [u8; 256];
 
+/// Internal encryption request
+#[derive(Encode, Decode)]
+pub struct IntraEncryptRequest {
+    /// transaction ID
+    pub txid: TxId,
+    /// EncryptionRequest
+    pub sealed_enc_request: SealedLog,
+    /// transaction inputs (if any)
+    pub tx_inputs: Option<Vec<SealedLog>>,
+    /// last chain info
+    pub info: ChainInfo,
+}
+
 /// variable length request passed to the tx-validation enclave
 #[derive(Encode, Decode)]
 pub enum IntraEnclaveRequest {
@@ -47,6 +61,7 @@ pub enum IntraEnclaveRequest {
         tx_inputs: Option<Vec<SealedLog>>,
     },
     EndBlock,
+    Encrypt(Box<IntraEncryptRequest>),
 }
 
 /// helper method to validate basic assumptions
@@ -87,6 +102,8 @@ pub enum IntraEnclaveResponseOk {
     DepositStakeTx { input_coins: Coin },
     /// transaction filter
     EndBlock(Box<TxFilter>),
+    /// encryption response
+    Encrypt(Box<TxObfuscated>),
 }
 
 /// variable length response returned from the tx-validation enclave

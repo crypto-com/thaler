@@ -1,11 +1,10 @@
 import { RpcClient } from "./rpc-client";
 import * as addressState from "../../../address-state.json";
+import { TendermintClient } from "./tendermint-client";
 
 export const WALLET_STAKING_ADDRESS = (<any>addressState).staking;
 export const WALLET_TRANSFER_ADDRESS_1 = (<any>addressState).transfer[0];
 export const WALLET_TRANSFER_ADDRESS_2 = (<any>addressState).transfer[1];
-
-const clientRpcPort = Number(process.env.CLIENT_RPC_ZERO_FEE_PORT) || 16659;
 
 export const newZeroFeeRpcClient = (): RpcClient => {
 	return newRpcClient("localhost", 16659);
@@ -17,9 +16,24 @@ export const newWithFeeRpcClient = (): RpcClient => {
 
 export const newRpcClient = (
 	host: string = "localhost",
-	port: number = clientRpcPort,
+	port: number = 26659,
 ): RpcClient => {
 	return new RpcClient(`http://${host}:${port}`);
+};
+
+export const newZeroFeeTendermintClient = (): TendermintClient => {
+	return newTendermintClient("localhost", 16657);
+};
+
+export const newWithFeeTendermintClient = (): TendermintClient => {
+	return newTendermintClient("localhost", 26657);
+};
+
+export const newTendermintClient = (
+	host: string = "localhost",
+	port: number = 26657,
+): TendermintClient => {
+	return new TendermintClient(`http://${host}:${port}`);
 };
 
 export const sleep = (ms: number = 1000) => {
@@ -56,3 +70,14 @@ export enum FEE_SCHEMA {
 	ZERO_FEE = "ZERO_FEE",
 	WITH_FEE = "WITH_FEE",
 }
+
+export const asyncMiddleman = async (
+	promise: Promise<any>,
+	errorMessage: String,
+): Promise<any> => {
+	try {
+		return await promise;
+	} catch (err) {
+		throw Error(`${errorMessage}: ${err.message}`);
+	}
+};
