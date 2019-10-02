@@ -135,13 +135,7 @@ where
 
         let transaction = self
             .ops_client
-            .create_unbond_stake_transaction(
-                &request.name,
-                &request.passphrase,
-                &addr,
-                amount,
-                attr,
-            )
+            .create_unbond_stake_transaction(&request.name, &request.passphrase, addr, amount, attr)
             .map_err(to_rpc_error)?;
 
         self.client
