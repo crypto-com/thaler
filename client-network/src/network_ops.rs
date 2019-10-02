@@ -31,7 +31,7 @@ pub trait NetworkOpsClient: Send + Sync {
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        address: &StakedStateAddress,
+        address: StakedStateAddress,
         value: Coin,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux>;

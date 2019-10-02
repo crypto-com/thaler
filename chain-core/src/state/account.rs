@@ -339,18 +339,25 @@ impl fmt::Display for DepositBondTx {
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct UnbondTx {
-    pub value: Coin,
+    pub from_staked_account: StakedStateAddress,
     pub nonce: Nonce,
+    pub value: Coin,
     pub attributes: StakedStateOpAttributes,
 }
 
 impl TransactionId for UnbondTx {}
 
 impl UnbondTx {
-    pub fn new(value: Coin, nonce: Nonce, attributes: StakedStateOpAttributes) -> Self {
+    pub fn new(
+        from_staked_account: StakedStateAddress,
+        nonce: Nonce,
+        value: Coin,
+        attributes: StakedStateOpAttributes,
+    ) -> Self {
         UnbondTx {
-            value,
+            from_staked_account,
             nonce,
+            value,
             attributes,
         }
     }
@@ -359,7 +366,11 @@ impl UnbondTx {
 #[cfg(feature = "hex")]
 impl fmt::Display for UnbondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "unbonded: {} (nonce: {})", self.value, self.nonce)?;
+        writeln!(
+            f,
+            "{} unbonded: {} (nonce: {})",
+            self.from_staked_account, self.value, self.nonce
+        )?;
         write!(f, "")
     }
 }

@@ -136,14 +136,14 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        address: &StakedStateAddress,
+        address: StakedStateAddress,
         value: Coin,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(name, passphrase, address)?;
+        let staked_state = self.get_staked_state(name, passphrase, &address)?;
         let nonce = staked_state.nonce;
 
-        let transaction = UnbondTx::new(value, nonce, attributes);
+        let transaction = UnbondTx::new(address, nonce, value, attributes);
 
         let public_key = match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
@@ -493,7 +493,7 @@ mod tests {
         let attributes = StakedStateOpAttributes::new(0);
 
         assert!(network_ops_client
-            .create_unbond_stake_transaction(name, passphrase, &address, value, attributes)
+            .create_unbond_stake_transaction(name, passphrase, address, value, attributes)
             .is_ok());
     }
 

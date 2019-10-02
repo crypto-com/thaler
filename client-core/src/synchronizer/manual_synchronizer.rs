@@ -289,8 +289,11 @@ mod tests {
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
     use chain_core::common::TendermintEventType;
+    use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::state::account::{StakedStateOpAttributes, StakedStateOpWitness, UnbondTx};
+    use chain_core::state::account::{
+        StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness, UnbondTx,
+    };
     use chain_core::tx::TxAux;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
@@ -299,8 +302,16 @@ mod tests {
     use crate::wallet::{DefaultWalletClient, WalletClient};
 
     fn unbond_transaction() -> TxAux {
+        let addr = StakedStateAddress::from(
+            RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
+        );
         TxAux::UnbondStakeTx(
-            UnbondTx::new(Coin::new(100).unwrap(), 0, StakedStateOpAttributes::new(0)),
+            UnbondTx::new(
+                addr,
+                0,
+                Coin::new(100).unwrap(),
+                StakedStateOpAttributes::new(0),
+            ),
             StakedStateOpWitness::BasicRedeem(
                 RecoverableSignature::from_compact(
                     &[

@@ -75,6 +75,8 @@ pub enum Error {
     AccountNotUnbonded,
     /// outputs created out of a staked state are not time-locked to unbonding period
     AccountWithdrawOutputNotLocked,
+    /// mismatch staked address from witness
+    MismatchAccountAddress,
     /// incorrect nonce supplied in staked state operation
     AccountIncorrectNonce,
 }
@@ -145,6 +147,7 @@ impl fmt::Display for Error {
                 "account withdrawal outputs not time-locked to unbonded_from"
             ),
             AccountIncorrectNonce => write!(f, "incorrect transaction count for account operation"),
+            MismatchAccountAddress => write!(f, "mismatch account address"),
         }
     }
 }
@@ -346,6 +349,9 @@ pub fn verify_unbonding(
 ) -> Result<(Fee, Option<StakedState>), Error> {
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
 
+    if maintx.from_staked_account != account.address {
+        return Err(Error::MismatchAccountAddress);
+    }
     // checks that account transaction count matches to the one in transaction
     if maintx.nonce != account.nonce {
         return Err(Error::AccountIncorrectNonce);

@@ -919,7 +919,7 @@ fn all_valid_tx_types_should_commit() {
         assert_eq!(account.nonce, 2);
     }
 
-    let tx3 = UnbondTx::new(halfcoin, 2, StakedStateOpAttributes::new(0));
+    let tx3 = UnbondTx::new(addr.into(), 2, halfcoin, StakedStateOpAttributes::new(0));
     let witness3 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx3.id(), &secret_key));
     let unbondtx = TxAux::UnbondStakeTx(tx3, witness3);
     {

@@ -142,8 +142,7 @@ fn new_unbond_transaction<N: NetworkOpsClient>(
     let value_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
     let value = coin_from_str(&value_str)?;
 
-    network_ops_client
-        .create_unbond_stake_transaction(name, passphrase, &address, value, attributes)
+    network_ops_client.create_unbond_stake_transaction(name, passphrase, address, value, attributes)
 }
 
 fn new_deposit_transaction<N: NetworkOpsClient>(

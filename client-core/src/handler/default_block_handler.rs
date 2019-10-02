@@ -110,8 +110,9 @@ mod tests {
 
     use chrono::{DateTime, Utc};
 
+    use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::state::account::{StakedStateOpAttributes, UnbondTx};
+    use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes, UnbondTx};
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::attribute::TxAttributes;
     use chain_core::tx::data::output::TxOut;
@@ -177,9 +178,13 @@ mod tests {
     }
 
     fn unbond_transaction() -> Transaction {
+        let addr = StakedStateAddress::from(
+            RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
+        );
         Transaction::UnbondStakeTransaction(UnbondTx::new(
-            Coin::new(100).unwrap(),
+            addr,
             0,
+            Coin::new(100).unwrap(),
             StakedStateOpAttributes::new(0),
         ))
     }
