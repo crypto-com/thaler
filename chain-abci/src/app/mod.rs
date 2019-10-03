@@ -165,6 +165,11 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     &self.uncommitted_account_root_hash,
                     &mut self.accounts,
                 ),
+                TxAux::UnjailTx(_, _) => update_account(
+                    fee_acc.1.expect("account returned in unjail verification"),
+                    &self.uncommitted_account_root_hash,
+                    &mut self.accounts,
+                ),
             };
             let mut event = Event::new();
             event.field_type = TendermintEventType::ValidTransactions.to_string();

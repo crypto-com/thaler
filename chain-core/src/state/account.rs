@@ -418,6 +418,40 @@ impl fmt::Display for WithdrawUnbondedTx {
     }
 }
 
+/// Unjails an account
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct UnjailTx {
+    pub nonce: Nonce,
+    pub address: StakedStateAddress,
+    pub attributes: StakedStateOpAttributes,
+}
+
+impl TransactionId for UnjailTx {}
+
+impl UnjailTx {
+    #[inline]
+    pub fn new(
+        nonce: Nonce,
+        address: StakedStateAddress,
+        attributes: StakedStateOpAttributes,
+    ) -> Self {
+        Self {
+            nonce,
+            address,
+            attributes,
+        }
+    }
+}
+
+#[cfg(feature = "hex")]
+impl fmt::Display for UnjailTx {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(f, "unjailed: {} (nonce: {})", self.address, self.nonce)?;
+        write!(f, "")
+    }
+}
+
 /// A witness for StakedState operations
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

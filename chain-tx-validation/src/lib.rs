@@ -17,7 +17,9 @@ extern crate sgx_tstd as std;
 use std::prelude::v1::Vec;
 
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{DepositBondTx, StakedState, UnbondTx, WithdrawUnbondedTx};
+use chain_core::state::account::{
+    DepositBondTx, StakedState, UnbondTx, UnjailTx, WithdrawUnbondedTx,
+};
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
@@ -81,6 +83,8 @@ pub enum Error {
     AccountIncorrectNonce,
     /// Account is jailed
     AccountJailed,
+    /// Account is not jailed
+    AccountNotJailed,
 }
 
 /// FIXME: this will go away with simplified intra-enclave FFI calls
@@ -105,7 +109,10 @@ impl From<i32> for Error {
             x if x == Error::AccountWithdrawOutputNotLocked as i32 => {
                 Error::AccountWithdrawOutputNotLocked
             }
+            x if x == Error::MismatchAccountAddress as i32 => Error::MismatchAccountAddress,
             x if x == Error::AccountIncorrectNonce as i32 => Error::AccountIncorrectNonce,
+            x if x == Error::AccountJailed as i32 => Error::AccountJailed,
+            x if x == Error::AccountNotJailed as i32 => Error::AccountNotJailed,
             _ => Error::EnclaveRejected,
         }
     }
@@ -151,6 +158,7 @@ impl fmt::Display for Error {
             AccountIncorrectNonce => write!(f, "incorrect transaction count for account operation"),
             MismatchAccountAddress => write!(f, "mismatch account address"),
             AccountJailed => write!(f, "account is jailed"),
+            AccountNotJailed => write!(f, "account is not jailed"),
         }
     }
 }
@@ -426,6 +434,37 @@ pub fn verify_unbonded_withdraw(
     let fee = verify_unbonded_withdraw_core(maintx, extra_info, &account)?;
     account.withdraw();
     Ok((fee, Some(account)))
+}
+
+/// Verifies if an account can be unjailed
+pub fn verify_unjailing(
+    maintx: &UnjailTx,
+    extra_info: ChainInfo,
+    mut account: StakedState,
+) -> Result<(Fee, Option<StakedState>), Error> {
+    check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
+
+    // checks that account transaction count matches to the one in transaction
+    if maintx.nonce != account.nonce {
+        return Err(Error::AccountIncorrectNonce);
+    }
+
+    // checks that the address in unjail transaction is same as that of account recovered from witness
+    if maintx.address != account.address {
+        return Err(Error::MismatchAccountAddress);
+    }
+
+    match account.jailed_until() {
+        None => Err(Error::AccountNotJailed),
+        Some(jailed_until) => {
+            if jailed_until > extra_info.previous_block_time {
+                Err(Error::AccountJailed)
+            } else {
+                account.unjail();
+                Ok((Fee::new(Coin::zero()), Some(account))) // Zero fee for unjail transaction
+            }
+        }
+    }
 }
 
 /// Verifies if the account is unjailed
