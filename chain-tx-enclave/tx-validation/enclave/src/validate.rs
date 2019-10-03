@@ -131,11 +131,18 @@ pub(crate) fn write_back_response(
     }
 }
 
+#[cfg(not(feature = "sgx-test"))]
 #[inline]
 fn decrypt(payload: &TxObfuscated) -> Result<PlainTxAux, ()> {
-    // FIXME: decrypting
+    // FIXME: decrypting -- currently it's done in tests, but should be the default once the client can work with it
     let _ = crate::obfuscate::decrypt(payload);
     PlainTxAux::decode(&mut payload.txpayload.as_slice()).map_err(|_| ())
+}
+
+#[cfg(feature = "sgx-test")]
+#[inline]
+fn decrypt(payload: &TxObfuscated) -> Result<PlainTxAux, ()> {
+    crate::obfuscate::decrypt(payload)
 }
 
 /// takes a request to verify transaction and writes back the result

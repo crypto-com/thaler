@@ -11,6 +11,11 @@ enclave {
         public sgx_status_t ecall_check_tx(
                 [in, size=tx_request_len] const uint8_t* tx_request, size_t tx_request_len,
                 [out, size=response_len] uint8_t* response_buf, uint32_t response_len);
+
+        public sgx_status_t ecall_test_encrypt(
+                [in, size=enc_request_len] const uint8_t* enc_request, size_t enc_request_len,
+                [out, size=response_len] uint8_t* response_buf, uint32_t response_len);
+
     };
 
     untrusted {

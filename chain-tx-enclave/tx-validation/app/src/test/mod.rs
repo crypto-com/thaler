@@ -26,18 +26,53 @@ use chain_core::tx::{
 };
 use chain_core::ChainInfo;
 use chain_tx_validation::Error;
-use enclave_protocol::{IntraEnclaveRequest, VerifyTxRequest};
+use enclave_protocol::{EncryptionRequest, IntraEnclaveRequest, VerifyTxRequest};
 use enclave_u_common::enclave_u::{init_enclave, VALIDATION_TOKEN_KEY};
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
 use log::{debug, error, info};
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use secp256k1::{
     key::PublicKey, key::SecretKey, schnorrsig::schnorr_sign, Message, Secp256k1, Signing,
 };
+use sgx_types::{sgx_enclave_id_t, sgx_status_t};
 use sled::Db;
 
-pub fn get_ecdsa_witness<C: Signing>(
+extern "C" {
+    fn ecall_test_encrypt(
+        eid: sgx_enclave_id_t,
+        retval: *mut sgx_status_t,
+        enc_request: *const u8,
+        enc_request_len: usize,
+        response_buf: *mut u8,
+        response_len: u32,
+    ) -> sgx_status_t;
+}
+
+pub fn encrypt(eid: sgx_enclave_id_t, request: EncryptionRequest) -> TxObfuscated {
+    let request_buf: Vec<u8> = request.encode();
+    let response_len = 2 * request_buf.len();
+    let mut response_buf: Vec<u8> = vec![0u8; response_len];
+    let mut retval: sgx_status_t = sgx_status_t::SGX_SUCCESS;
+    let response_slice = &mut response_buf[..];
+    let result = unsafe {
+        ecall_test_encrypt(
+            eid,
+            &mut retval,
+            request_buf.as_ptr(),
+            request_buf.len(),
+            response_slice.as_mut_ptr(),
+            response_buf.len() as u32,
+        )
+    };
+    if retval == sgx_status_t::SGX_SUCCESS && result == retval {
+        TxObfuscated::decode(&mut response_buf.as_slice()).expect("test response")
+    } else {
+        panic!("test enclave call failed: {} {}", retval, result);
+    }
+}
+
+fn get_ecdsa_witness<C: Signing>(
     secp: &Secp256k1<C>,
     txid: &TxId,
     secret_key: &SecretKey,
@@ -126,17 +161,16 @@ pub fn test_sealing() {
     );
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
+    let account = get_account(&addr);
     let withdrawtx = TxAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx0.outputs.len() as TxoIndex,
-        witness: witness0,
-        payload: TxObfuscated {
-            txid: tx0.id(),
-            key_from: 0,
-            init_vector: [0u8; 12],
-            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),
-        },
+        witness: witness0.clone(),
+        payload: encrypt(
+            enclave.geteid(),
+            EncryptionRequest::WithdrawStake(tx0, account.clone(), witness0),
+        ),
     };
-    let account = get_account(&addr);
+
     let info = ChainInfo {
         min_fee_computed: Fee::new(Coin::zero()),
         chain_hex_id: TEST_NETWORK_ID,
@@ -153,7 +187,7 @@ pub fn test_sealing() {
             assert!(false, "new tx already in db");
         }
     };
-    let mut request0 = IntraEnclaveRequest::ValidateTx {
+    let request0 = IntraEnclaveRequest::ValidateTx {
         request: Box::new(VerifyTxRequest {
             tx: withdrawtx,
             account: Some(account),
@@ -202,16 +236,13 @@ pub fn test_sealing() {
             .unwrap(),
     )]
     .into();
-    let plain_txaux = PlainTxAux::TransferTx(tx1.clone(), witness1);
     let transfertx = TxAux::TransferTx {
         inputs: tx1.inputs.clone(),
         no_of_outputs: tx1.outputs.len() as TxoIndex,
-        payload: TxObfuscated {
-            txid: tx1.id(),
-            key_from: 0,
-            init_vector: [0u8; 12],
-            txpayload: plain_txaux.encode(),
-        },
+        payload: encrypt(
+            enclave.geteid(),
+            EncryptionRequest::TransferTx(tx1, witness1),
+        ),
     };
 
     let tc = txdb.get(&txid1);
@@ -224,7 +255,7 @@ pub fn test_sealing() {
         }
     };
 
-    let mut request1 = IntraEnclaveRequest::ValidateTx {
+    let request1 = IntraEnclaveRequest::ValidateTx {
         request: Box::new(VerifyTxRequest {
             tx: transfertx,
             account: None,
@@ -237,7 +268,7 @@ pub fn test_sealing() {
     assert!(r2.is_ok());
     let td = txdb.get(&txid1);
     match td {
-        Ok(Some(tx)) => {
+        Ok(Some(_tx)) => {
             debug!("new 2nd tx in DB!");
         }
         _ => {
@@ -258,18 +289,15 @@ pub fn test_sealing() {
             .unwrap(),
     )]
     .into();
-    let plain_txaux2 = PlainTxAux::TransferTx(tx2.clone(), witness2);
     let transfertx2 = TxAux::TransferTx {
         inputs: tx2.inputs.clone(),
         no_of_outputs: tx2.outputs.len() as TxoIndex,
-        payload: TxObfuscated {
-            txid: tx2.id(),
-            key_from: 0,
-            init_vector: [0u8; 12],
-            txpayload: plain_txaux2.encode(),
-        },
+        payload: encrypt(
+            enclave.geteid(),
+            EncryptionRequest::TransferTx(tx2, witness2),
+        ),
     };
-    let mut request2 = IntraEnclaveRequest::ValidateTx {
+    let request2 = IntraEnclaveRequest::ValidateTx {
         request: Box::new(VerifyTxRequest {
             tx: transfertx2,
             account: None,
