@@ -14,7 +14,9 @@ use parity_scale_codec::{Decode, Encode, Error, Input};
 
 use self::data::Tx;
 use self::witness::TxWitness;
-use crate::state::account::{DepositBondTx, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx};
+use crate::state::account::{
+    DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
+};
 use crate::state::tendermint::BlockHeight;
 use crate::tx::data::{txid_hash, TxId};
 use aead::Payload;
@@ -165,6 +167,8 @@ pub enum TxAux {
         witness: StakedStateOpWitness,
         payload: TxObfuscated,
     },
+    /// Tx that unjails an account
+    UnjailTx(UnjailTx, StakedStateOpWitness),
 }
 
 impl Decode for TxAux {
@@ -201,6 +205,10 @@ impl Decode for TxAux {
                 witness: StakedStateOpWitness::decode(input)?,
                 payload: TxObfuscated::decode(input)?,
             }),
+            4 => Ok(TxAux::UnjailTx(
+                UnjailTx::decode(input)?,
+                StakedStateOpWitness::decode(input)?,
+            )),
             _ => Err("No such variant in enum TxAux".into()),
         }
     }
@@ -227,6 +235,7 @@ impl TxAux {
                 payload: TxObfuscated { txid, .. },
                 ..
             } => *txid,
+            TxAux::UnjailTx(tx, _) => tx.id(),
         }
     }
 }
@@ -267,6 +276,7 @@ impl fmt::Display for TxAux {
                 )?;
                 writeln!(f, "witness: {:?}\n", witness)
             }
+            TxAux::UnjailTx(tx, witness) => display_tx_witness(f, tx, witness),
         }
     }
 }

@@ -10,7 +10,8 @@ use chain_core::tx::TransactionId;
 use chain_core::tx::TxAux;
 use chain_core::tx::TxObfuscated;
 use chain_tx_validation::{
-    verify_unbonding, verify_unjailed, witness::verify_tx_recover_address, ChainInfo, Error,
+    verify_unbonding, verify_unjailed, verify_unjailing, witness::verify_tx_recover_address,
+    ChainInfo, Error,
 };
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::KeyValueDB;
@@ -152,6 +153,17 @@ pub fn verify<T: EnclaveProxy>(
                 }
             }
         }
+        TxAux::UnjailTx(maintx, witness) => {
+            match verify_tx_recover_address(&witness, &maintx.id()) {
+                Ok(account_address) => {
+                    let account = get_account(&account_address, last_account_root_hash, accounts)?;
+                    verify_unjailing(maintx, extra_info, account)?
+                }
+                Err(_) => {
+                    return Err(Error::EcdsaCrypto); // FIXME: Err(Error::EcdsaCrypto(e))
+                }
+            }
+        }
     };
     Ok(paid_fee)
 }
@@ -167,7 +179,7 @@ pub mod tests {
     use chain_core::init::coin::Coin;
     use chain_core::state::account::StakedStateOpAttributes;
     use chain_core::state::account::{
-        DepositBondTx, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
+        DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
     };
     use chain_core::tx::data::{
         address::ExtendedAddr,
@@ -1561,6 +1573,23 @@ pub mod tests {
         TxAux::UnbondStakeTx(tx, witness)
     }
 
+    fn prepare_unjail_transaction(
+        secret_key: &SecretKey,
+        address: StakedStateAddress,
+        nonce: u64,
+    ) -> TxAux {
+        let secp = Secp256k1::new();
+
+        let tx = UnjailTx {
+            nonce,
+            address,
+            attributes: StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
+        };
+        let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
+
+        TxAux::UnjailTx(tx, witness)
+    }
+
     #[test]
     fn check_verify_fail_for_jailed_account() {
         let mut mock_bridge = get_enclave_bridge_mock();
@@ -1640,5 +1669,96 @@ pub mod tests {
             ),
             Error::AccountJailed,
         );
+    }
+
+    #[test]
+    fn check_unjail_transaction() {
+        let mut mock_bridge = get_enclave_bridge_mock();
+        let (db, accounts, secret_key, address, _merkle_tree, root) = prepare_jailed_accounts();
+
+        // Incorrect nonce
+
+        let txaux = prepare_unjail_transaction(
+            &secret_key,
+            StakedStateAddress::BasicRedeem(address.clone()),
+            0,
+        );
+        let extra_info = ChainInfo {
+            min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
+                .calculate_for_txaux(&txaux)
+                .expect("invalid fee policy"),
+            chain_hex_id: DEFAULT_CHAIN_ID,
+            previous_block_time: 0,
+            unbonding_period: 1,
+        };
+
+        expect_error(
+            &verify(
+                &mut mock_bridge,
+                &txaux,
+                extra_info,
+                &root,
+                db.clone(),
+                &accounts,
+            ),
+            Error::AccountIncorrectNonce,
+        );
+
+        // Before `jailed_until`
+
+        let txaux = prepare_unjail_transaction(
+            &secret_key,
+            StakedStateAddress::BasicRedeem(address.clone()),
+            1,
+        );
+        let extra_info = ChainInfo {
+            min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
+                .calculate_for_txaux(&txaux)
+                .expect("invalid fee policy"),
+            chain_hex_id: DEFAULT_CHAIN_ID,
+            previous_block_time: 0,
+            unbonding_period: 1,
+        };
+
+        expect_error(
+            &verify(
+                &mut mock_bridge,
+                &txaux,
+                extra_info,
+                &root,
+                db.clone(),
+                &accounts,
+            ),
+            Error::AccountJailed,
+        );
+
+        // After `jailed_until`
+
+        let txaux = prepare_unjail_transaction(
+            &secret_key,
+            StakedStateAddress::BasicRedeem(address.clone()),
+            1,
+        );
+        let extra_info = ChainInfo {
+            min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
+                .calculate_for_txaux(&txaux)
+                .expect("invalid fee policy"),
+            chain_hex_id: DEFAULT_CHAIN_ID,
+            previous_block_time: 101,
+            unbonding_period: 1,
+        };
+
+        let (fee, new_account) = verify(
+            &mut mock_bridge,
+            &txaux,
+            extra_info,
+            &root,
+            db.clone(),
+            &accounts,
+        )
+        .expect("Verification of unjail transaction failed");
+
+        assert_eq!(Fee::new(Coin::zero()), fee);
+        assert!(!new_account.unwrap().is_jailed());
     }
 }

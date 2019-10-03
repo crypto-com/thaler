@@ -113,6 +113,11 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                             &BitVec::from_elem(*no_of_outputs as usize, false).to_bytes(),
                         );
                     }
+                    TxAux::UnjailTx(tx, witness) => {
+                        inittx.put(COL_BODIES, &txid[..], &tx.encode());
+                        inittx.put(COL_WITNESS, &txid[..], &witness.encode());
+                        // account should be already unjailed in deliver_tx
+                    }
                 }
             }
             new_state.rewards_pool.last_block_height = new_state.last_block_height;
