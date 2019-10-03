@@ -188,20 +188,25 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             }
             match maccount {
                 Some(ref account) if self.validator_voting_power.contains_key(&account.address) => {
-                    let min_power = TendermintVotePower::from(
-                        self.last_state
-                            .as_ref()
-                            .expect("delivertx should have app state")
-                            .required_council_node_stake,
-                    );
-                    let new_power = TendermintVotePower::from(account.bonded);
-                    let old_power = self.validator_voting_power[&account.address];
-                    if new_power > old_power && new_power >= min_power {
-                        self.power_changed_in_block
-                            .insert(account.address, new_power);
-                    } else if old_power >= min_power && new_power < old_power {
-                        self.power_changed_in_block
-                            .insert(account.address, TendermintVotePower::zero());
+                    if account.is_jailed() {
+                        log::error!("Validation should not be successful for jailed accounts");
+                        unreachable!("Validation should not be successful for jailed accounts");
+                    } else {
+                        let min_power = TendermintVotePower::from(
+                            self.last_state
+                                .as_ref()
+                                .expect("delivertx should have app state")
+                                .required_council_node_stake,
+                        );
+                        let new_power = TendermintVotePower::from(account.bonded);
+                        let old_power = self.validator_voting_power[&account.address];
+                        if new_power > old_power && new_power >= min_power {
+                            self.power_changed_in_block
+                                .insert(account.address, new_power);
+                        } else if old_power >= min_power && new_power < old_power {
+                            self.power_changed_in_block
+                                .insert(account.address, TendermintVotePower::zero());
+                        }
                     }
                 }
                 _ => {}
