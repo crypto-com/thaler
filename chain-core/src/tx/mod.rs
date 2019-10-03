@@ -89,9 +89,9 @@ pub struct TxToObfuscate {
 
 impl TxToObfuscate {
     pub fn from(tx: PlainTxAux, txid: TxId) -> Option<Self> {
-        match tx {
-            PlainTxAux::TransferTx(tx, _) => {
-                if tx.id() == txid {
+        match &tx {
+            PlainTxAux::TransferTx(itx, _) => {
+                if itx.id() == txid {
                     Some(TxToObfuscate {
                         txpayload: tx.encode(),
                         txid,
@@ -104,8 +104,8 @@ impl TxToObfuscate {
                 txpayload: tx.encode(),
                 txid,
             }),
-            PlainTxAux::WithdrawUnbondedStakeTx(tx) => {
-                if tx.id() == txid {
+            PlainTxAux::WithdrawUnbondedStakeTx(itx) => {
+                if itx.id() == txid {
                     Some(TxToObfuscate {
                         txpayload: tx.encode(),
                         txid,

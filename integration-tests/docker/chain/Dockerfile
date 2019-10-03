@@ -1,4 +1,4 @@
-FROM rust:1.36.0
+FROM rust:1.38.0
 
 ENV RUSTFLAGS "-Ctarget-feature=+aes,+ssse3"
 

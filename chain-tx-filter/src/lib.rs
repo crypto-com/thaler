@@ -5,7 +5,6 @@
 )]
 
 #[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
-#[macro_use]
 extern crate sgx_tstd as std;
 mod filter;
 use chain_core::state::account::StakedStateAddress;
