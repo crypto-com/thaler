@@ -19,6 +19,7 @@ use chain_core::state::account::DepositBondTx;
 use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateOpWitness;
 use chain_core::state::account::WithdrawUnbondedTx;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::{txid_hash, Tx, TxId};
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TxObfuscated;
@@ -102,7 +103,7 @@ pub enum IntraEnclaveResponseOk {
     /// transaction filter
     EndBlock(Box<TxFilter>),
     /// encryption response
-    Encrypt(Box<TxObfuscated>),
+    Encrypt(TxObfuscated),
 }
 
 /// variable length response returned from the tx-validation enclave
@@ -115,6 +116,17 @@ pub struct VerifyTxRequest {
     pub tx: TxAux,
     pub account: Option<StakedState>,
     pub info: ChainInfo,
+}
+
+/// TQE's encryption request
+#[derive(Encode, Decode)]
+pub struct QueryEncryptRequest {
+    /// transaction ID
+    pub txid: TxId,
+    /// EncryptionRequest sealed by TQE to "mrsigner"
+    pub sealed_enc_request: SealedLog,
+    /// transaction inputs (if any)
+    pub tx_inputs: Option<Vec<TxoPointer>>,
 }
 
 /// requests sent from chain-abci app to enclave wrapper server
@@ -136,15 +148,17 @@ pub enum EnclaveRequest {
     /// request to flush/persist storage + store the computed app hash
     /// FIXME: enclave should be able to compute a part of app hash, so send the other parts and check the same app hash was computed
     CommitBlock { app_hash: H256 },
-    /// request to get a stored launch token (requested by TDQE -- they should be on the same machine)
+    /// request to get a stored launch token (requested by TQE -- they should be on the same machine)
     GetCachedLaunchToken { enclave_metaname: Vec<u8> },
-    /// request to update the stored launch token (requested by TDQE -- they should be on the same machine)
+    /// request to update the stored launch token (requested by TQE -- they should be on the same machine)
     UpdateCachedLaunchToken {
         enclave_metaname: Vec<u8>,
         token: Box<[u8; TOKEN_LEN]>,
     },
-    /// request to get tx data sealed to "mrsigner" (requested by TDQE -- they should be on the same machine)
+    /// request to get tx data sealed to "mrsigner" (requested by TQE -- they should be on the same machine)
     GetSealedTxData { txids: Vec<TxId> },
+    /// request to encrypt tx by the current key (requested by TQE -- they should be on the same machine)
+    EncryptTx(Box<QueryEncryptRequest>),
 }
 
 impl EnclaveRequest {
@@ -171,6 +185,8 @@ pub enum EnclaveResponse {
     UpdateCachedLaunchToken(Result<(), ()>),
     /// returns Some(sealed data payloads) or None (if any TXID was not found / invalid)
     GetSealedTxData(Option<Vec<SealedLog>>),
+    /// returns Ok(encrypted tx payload) if Tx was valid
+    EncryptTx(Result<TxObfuscated, chain_tx_validation::Error>),
     /// response if unsupported tx type is sent (e.g. unbondtx) -- TODO: probably unnecessary if there is a data type with a subset of TxAux
     UnsupportedTxType,
     /// response if the enclave failed to parse the request
@@ -223,13 +239,13 @@ pub struct EncryptionResponse {
     pub tx: TxAux,
 }
 
-/// Request in direct communication (over one-side attested TLS) to TDQE
+/// Request in direct communication (over one-side attested TLS) to TQE
 pub struct DecryptionRequestBody {
     /// transactions to check
     pub txs: Vec<TxId>,
     /// requester's public view key
     pub view_key: PublicKey,
-    /// 32-byte challenge obtained from TDQE after establishing TLS connection
+    /// 32-byte challenge obtained from TQE after establishing TLS connection
     pub challenge: H256,
 }
 
@@ -262,7 +278,7 @@ impl Decode for DecryptionRequestBody {
     }
 }
 
-/// Signed request in direct communication (over one-side attested TLS) to TDQE
+/// Signed request in direct communication (over one-side attested TLS) to TQE
 pub struct DecryptionRequest {
     pub body: DecryptionRequestBody,
     pub view_key_sig: Signature,
@@ -318,7 +334,7 @@ impl Decode for DecryptionRequest {
     }
 }
 
-/// Response in direct communication (over one-side attested TLS) from TDQE
+/// Response in direct communication (over one-side attested TLS) from TQE
 #[derive(Encode, Decode)]
 pub struct DecryptionResponse {
     pub txs: Vec<TxWithOutputs>,
