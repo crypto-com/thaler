@@ -15,7 +15,7 @@ use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
 use chain_core::common::TendermintEventType;
 use chain_core::state::account::StakedState;
-use chain_core::state::tendermint::TendermintVotePower;
+use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::TxAux;
 use chain_tx_filter::BlockFilter;
@@ -23,6 +23,7 @@ use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::{DBTransaction, KeyValueDB};
 use protobuf::RepeatedField;
 use std::collections::BTreeMap;
+use std::convert::TryInto;
 use std::sync::Arc;
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
@@ -113,16 +114,37 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         info!("received beginblock request");
         // TODO: process RequestBeginBlock -- e.g. rewards for validators? + punishment for malicious ByzantineValidators
         // TODO: Check security implications once https://github.com/tendermint/tendermint/issues/2653 is closed
-        let block_time = req
-            .header
-            .as_ref()
-            .expect("Begin block request does not have header")
-            .time
-            .as_ref()
-            .expect("Header does not have a timestamp")
-            .seconds;
-        self.last_state.as_mut().map(|mut x| x.block_time = block_time)
+        let (block_height, block_time) = match req.header.as_ref() {
+            None => panic!("No block header in begin block request from tendermint"),
+            Some(header) => (
+                header.height,
+                header
+                    .time
+                    .as_ref()
+                    .expect("No timestamp in begin block request from tendermint")
+                    .seconds,
+            ),
+        };
+
+        let last_state = self
+            .last_state
+            .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
+
+        last_state.block_time = block_time;
+
+        if block_height > 1 {
+            if let Some(last_commit_info) = req.last_commit_info.as_ref() {
+                // liveness will always be updated for previous block, i.e., `block_height - 1`
+                update_validator_liveness(last_state, block_height - 1, last_commit_info);
+            } else {
+                panic!(
+                    "No last commit info in begin block request for height: {}",
+                    block_height
+                );
+            }
+        }
+
         ResponseBeginBlock::new()
     }
 
@@ -290,5 +312,37 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     fn commit(&mut self, _req: &RequestCommit) -> ResponseCommit {
         info!("received commit request");
         ChainNodeApp::commit_handler(self, _req)
+    }
+}
+
+fn update_validator_liveness(
+    state: &mut ChainNodeState,
+    block_height: BlockHeight,
+    last_commit_info: &LastCommitInfo,
+) {
+    log::debug!("Updating validator liveness for block: {}", block_height);
+
+    for vote_info in last_commit_info.votes.iter() {
+        let address: TendermintValidatorAddress = vote_info
+            .validator
+            .as_ref()
+            .expect("No validator address in vote_info")
+            .address
+            .as_slice()
+            .try_into()
+            .expect("Invalid address in vote_info");
+        let signed = vote_info.signed_last_block;
+
+        log::trace!(
+            "Updating validator liveness for {} with {}",
+            address,
+            signed
+        );
+
+        state
+            .validator_liveness
+            .get_mut(&address)
+            .expect("Validator not found in liveness tracker")
+            .update(block_height, signed);
     }
 }

@@ -18,7 +18,7 @@ chain-tx-validation = { path = "../chain-tx-validation" }
 enclave-protocol = { path = "../enclave-protocol" }
 log = "0.4.8"
 env_logger = "0.7.0"
-bit-vec = "0.6.1"
+bit-vec = { version = "0.6.1", features = ["serde_no_std"] }
 kvdb = "0.1"
 kvdb-rocksdb = "0.1.5"
 kvdb-memorydb = "0.1"

@@ -1,5 +1,6 @@
 mod app;
 mod enclave_bridge;
+mod liveness;
 mod storage;
 
 use log::info;

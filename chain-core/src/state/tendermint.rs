@@ -1,6 +1,11 @@
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
+use sha2::{Digest, Sha256};
+use std::convert::TryFrom;
 use std::fmt;
 use std::prelude::v1::{String, ToString, Vec};
 
@@ -30,6 +35,115 @@ impl TendermintValidatorPubKey {
                 v.extend_from_slice(&key[..]);
                 ("ed25519".to_string(), v)
             }
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Encode, Decode)]
+pub struct TendermintValidatorAddress([u8; 20]);
+
+#[cfg(all(feature = "serde", feature = "hex"))]
+impl Serialize for TendermintValidatorAddress {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&hex::encode(&self.0))
+    }
+}
+
+#[cfg(all(feature = "serde", feature = "hex"))]
+impl<'de> Deserialize<'de> for TendermintValidatorAddress {
+    fn deserialize<D>(deserializer: D) -> Result<TendermintValidatorAddress, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TendermintAddressVisitor;
+
+        impl<'de> Visitor<'de> for TendermintAddressVisitor {
+            type Value = TendermintValidatorAddress;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("hex encoded tendermint validator address")
+            }
+
+            fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let address_bytes = hex::decode(s).map_err(de::Error::custom)?;
+                TendermintValidatorAddress::try_from(address_bytes.as_slice())
+                    .map_err(de::Error::custom)
+            }
+        }
+
+        deserializer.deserialize_str(TendermintAddressVisitor)
+    }
+}
+
+#[cfg(feature = "hex")]
+impl fmt::Display for TendermintValidatorAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", hex::encode(&self.0))
+    }
+}
+
+impl From<&TendermintValidatorPubKey> for TendermintValidatorAddress {
+    fn from(pub_key: &TendermintValidatorPubKey) -> TendermintValidatorAddress {
+        let mut hasher = Sha256::new();
+
+        match pub_key {
+            TendermintValidatorPubKey::Ed25519(ref pub_key) => hasher.input(pub_key),
+        }
+
+        let mut hash = hasher.result().to_vec();
+        hash.truncate(20);
+
+        let mut address_bytes = [0; 20];
+        address_bytes.copy_from_slice(&hash);
+
+        TendermintValidatorAddress(address_bytes)
+    }
+}
+
+/// Error while converting bytes to tendermint address
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub enum TendermintValidatorAddressError {
+    /// Provided address is longer than 20 bytes
+    Long,
+    /// Provided address is shorter than 20 bytes
+    Short,
+}
+
+impl fmt::Display for TendermintValidatorAddressError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            TendermintValidatorAddressError::Long => {
+                write!(f, "Provided address is longer than 20 bytes")
+            }
+            TendermintValidatorAddressError::Short => {
+                write!(f, "Provided address is shorter than 20 bytes")
+            }
+        }
+    }
+}
+
+impl ::std::error::Error for TendermintValidatorAddressError {}
+
+impl TryFrom<&[u8]> for TendermintValidatorAddress {
+    type Error = TendermintValidatorAddressError;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let length = bytes.len();
+
+        if length == 20 {
+            let mut address_bytes = [0; 20];
+            address_bytes.copy_from_slice(bytes);
+            Ok(Self(address_bytes))
+        } else if length < 20 {
+            Err(TendermintValidatorAddressError::Short)
+        } else {
+            Err(TendermintValidatorAddressError::Long)
         }
     }
 }

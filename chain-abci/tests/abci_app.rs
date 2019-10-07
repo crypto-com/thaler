@@ -155,6 +155,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
             block_signing_window: 100,
             missed_block_threshold: 50,
         },
+        validator_liveness: BTreeMap::new(),
     }
 }
 

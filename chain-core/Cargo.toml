@@ -14,6 +14,7 @@ mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx"]
 [dependencies]
 digest = { version = "0.8", default-features = false}
 tiny-keccak = { version = "1.5.0", default-features = false, features = ["keccak"] }
+sha2 = { version = "0.8", default-features = false }
 hex = { version = "0.4", optional = true }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["recovery", "endomorphism"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
