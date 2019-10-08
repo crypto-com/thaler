@@ -137,10 +137,10 @@ pub fn test_integration() {
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
     let withdrawtx = TxAux::WithdrawUnbondedStakeTx {
-        txid: tx0.id(),
         no_of_outputs: tx0.outputs.len() as TxoIndex,
         witness: witness0,
         payload: TxObfuscated {
+            txid: tx0.id(),
             key_from: 0,
             init_vector: [0u8; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),

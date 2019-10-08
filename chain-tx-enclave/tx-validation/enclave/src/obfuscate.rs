@@ -147,7 +147,7 @@ fn construct_response(
         Err(e) => Ok(Err(e)),
         Ok(_) => {
             let otx = encrypt(to_obfuscate_tx);
-            Ok(Ok(IntraEnclaveResponseOk::Encrypt(Box::new(otx))))
+            Ok(Ok(IntraEnclaveResponseOk::Encrypt(otx)))
         }
     }
 }

@@ -1,9 +1,14 @@
-use crate::enclave_u::{check_initchain, check_tx, end_block, get_token_arr, store_token};
+use crate::enclave_u::{
+    check_initchain, check_tx, encrypt_tx, end_block, get_token_arr, store_token,
+};
 use chain_core::state::account::DepositBondTx;
 use chain_core::tx::data::TxId;
 use chain_core::tx::TxAux;
+use chain_core::ChainInfo;
 use enclave_protocol::IntraEnclaveRequest;
-use enclave_protocol::{is_basic_valid_tx_request, EnclaveRequest, EnclaveResponse, FLAGS};
+use enclave_protocol::{
+    is_basic_valid_tx_request, EnclaveRequest, EnclaveResponse, IntraEncryptRequest, FLAGS,
+};
 use log::{debug, info};
 use parity_scale_codec::{Decode, Encode};
 use sgx_urts::SgxEnclave;
@@ -15,7 +20,11 @@ pub struct TxValidationServer {
     enclave: SgxEnclave,
     txdb: Tree,
     metadb: Tree,
+    info: Option<ChainInfo>,
 }
+
+const LAST_APP_HASH_KEY: &[u8] = b"last_apphash";
+const LAST_CHAIN_INFO_KEY: &[u8] = b"chain_info";
 
 impl TxValidationServer {
     pub fn new(
@@ -24,15 +33,25 @@ impl TxValidationServer {
         txdb: Tree,
         metadb: Tree,
     ) -> Result<TxValidationServer, Error> {
-        let ctx = Context::new();
-        let socket = ctx.socket(REP)?;
-        socket.bind(connection_str)?;
-        Ok(TxValidationServer {
-            socket,
-            enclave,
-            txdb,
-            metadb,
-        })
+        match txdb.get(LAST_CHAIN_INFO_KEY) {
+            Err(_) => Err(Error::EFAULT),
+            Ok(s) => {
+                let info = s.map(|stored| {
+                    ChainInfo::decode(&mut stored.as_ref()).expect("stored chain info corrupted")
+                });
+                let ctx = Context::new();
+                let socket = ctx.socket(REP)?;
+                socket.bind(connection_str)?;
+
+                Ok(TxValidationServer {
+                    socket,
+                    enclave,
+                    txdb,
+                    metadb,
+                    info,
+                })
+            }
+        }
     }
 
     fn lookup_txids<I>(&self, inputs: I) -> Option<Vec<Vec<u8>>>
@@ -73,7 +92,7 @@ impl TxValidationServer {
                         last_app_hash,
                     }) => {
                         debug!("check chain");
-                        match self.txdb.get(b"last_apphash") {
+                        match self.txdb.get(LAST_APP_HASH_KEY) {
                             Err(_) => EnclaveResponse::CheckChain(Err(None)),
                             Ok(s) => {
                                 let ss = s.map(|stored| {
@@ -98,7 +117,13 @@ impl TxValidationServer {
                         IntraEnclaveRequest::EndBlock,
                     )),
                     Ok(EnclaveRequest::CommitBlock { app_hash }) => {
-                        let _ = self.txdb.insert(b"last_apphash", &app_hash);
+                        let _ = self.txdb.insert(LAST_APP_HASH_KEY, &app_hash);
+                        match self.info {
+                            Some(info) => {
+                                let _ = self.txdb.insert(LAST_CHAIN_INFO_KEY, &info.encode()[..]);
+                            }
+                            _ => {}
+                        };
                         if let Ok(_) = self.txdb.flush() {
                             EnclaveResponse::CommitBlock(Ok(()))
                         } else {
@@ -111,6 +136,7 @@ impl TxValidationServer {
                         if is_basic_valid_tx_request(&req, &mtxins, chid).is_err() {
                             EnclaveResponse::UnsupportedTxType
                         } else {
+                            self.info = Some(req.info);
                             EnclaveResponse::VerifyTx(check_tx(
                                 self.enclave.geteid(),
                                 IntraEnclaveRequest::ValidateTx {
@@ -139,6 +165,28 @@ impl TxValidationServer {
                         EnclaveResponse::GetSealedTxData(
                             self.lookup_txids(txids.iter().map(|x| *x)),
                         )
+                    }
+                    Ok(EnclaveRequest::EncryptTx(req)) => {
+                        let result = match self.info {
+                            Some(info) => {
+                                let tx_inputs = match req.tx_inputs {
+                                    Some(inputs) => self.lookup_txids(inputs.iter().map(|x| x.id)),
+                                    _ => None,
+                                };
+                                let request = IntraEncryptRequest {
+                                    txid: req.txid,
+                                    sealed_enc_request: req.sealed_enc_request,
+                                    tx_inputs,
+                                    info,
+                                };
+                                encrypt_tx(
+                                    self.enclave.geteid(),
+                                    IntraEnclaveRequest::Encrypt(Box::new(request)),
+                                )
+                            }
+                            _ => Err(chain_tx_validation::Error::EnclaveRejected),
+                        };
+                        EnclaveResponse::EncryptTx(result)
                     }
                     Err(e) => {
                         debug!("unknown request / failed to decode: {}", e);

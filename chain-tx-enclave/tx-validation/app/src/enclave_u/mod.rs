@@ -5,6 +5,7 @@ use chain_core::state::account::DepositBondTx;
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::TxAux;
+use chain_core::tx::TxObfuscated;
 use chain_tx_validation::Error;
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponse, IntraEnclaveResponseOk};
 use enclave_u_common::enclave_u::TOKEN_LEN;
@@ -102,6 +103,36 @@ pub fn end_block(
         }
     } else {
         Err(())
+    }
+}
+
+pub fn encrypt_tx(
+    eid: sgx_enclave_id_t,
+    request: IntraEnclaveRequest,
+) -> Result<TxObfuscated, chain_tx_validation::Error> {
+    let request_buf: Vec<u8> = request.encode();
+    let mut response_buf: Vec<u8> = vec![0u8; request_buf.len()];
+    let mut retval: sgx_status_t = sgx_status_t::SGX_SUCCESS;
+    let response_slice = &mut response_buf[..];
+    let result = unsafe {
+        ecall_check_tx(
+            eid,
+            &mut retval,
+            request_buf.as_ptr(),
+            request_buf.len(),
+            response_slice.as_mut_ptr(),
+            response_buf.len() as u32,
+        )
+    };
+    if retval == sgx_status_t::SGX_SUCCESS && result == retval {
+        let response = IntraEnclaveResponse::decode(&mut response_buf.as_slice());
+        match response {
+            Ok(Ok(IntraEnclaveResponseOk::Encrypt(obftx))) => Ok(obftx),
+            Ok(Err(e)) => Err(e),
+            _ => Err(Error::EnclaveRejected),
+        }
+    } else {
+        Err(Error::EnclaveRejected)
     }
 }
 
