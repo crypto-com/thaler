@@ -339,10 +339,13 @@ fn update_validator_liveness(
             signed
         );
 
-        state
-            .validator_liveness
-            .get_mut(&address)
-            .expect("Validator not found in liveness tracker")
-            .update(block_height, signed);
+        match state.validator_liveness.get_mut(&address) {
+            Some(liveness_tracker) => {
+                liveness_tracker.update(block_height, signed);
+            }
+            None => {
+                log::warn!("Validator in `last_commit_info` not found in liveness tracker");
+            }
+        }
     }
 }

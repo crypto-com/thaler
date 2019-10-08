@@ -11,6 +11,12 @@ pub struct LivenessTracker {
     /// Address of staking account
     address: StakedStateAddress,
     /// Holds data to measure liveness
+    ///
+    /// # Note
+    ///
+    /// - Size of this `BitVec` should be equal to `block_signing_window` in jailing parameters in genesis.
+    /// - Stores `true` at `index = height % block_signing_window`, if validator has signed that block, `false`
+    ///   otherwise.
     liveness: BitVec,
 }
 
