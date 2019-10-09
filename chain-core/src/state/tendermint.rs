@@ -106,6 +106,13 @@ impl From<&TendermintValidatorPubKey> for TendermintValidatorAddress {
     }
 }
 
+impl From<TendermintValidatorPubKey> for TendermintValidatorAddress {
+    #[inline]
+    fn from(pub_key: TendermintValidatorPubKey) -> TendermintValidatorAddress {
+        TendermintValidatorAddress::from(&pub_key)
+    }
+}
+
 /// Error while converting bytes to tendermint address
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum TendermintValidatorAddressError {

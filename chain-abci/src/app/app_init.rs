@@ -441,6 +441,8 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             for node in nodes.iter() {
                 let mut validator = ValidatorUpdate::default();
                 let power = get_voting_power(&conf.distribution, &node.staking_account_address);
+                self.validator_voting_power
+                    .insert(node.staking_account_address, power);
                 validator.set_power(power.into());
                 let pk = get_validator_key(&node);
                 self.validator_pubkeys
