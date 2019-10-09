@@ -87,6 +87,7 @@ pub struct InitConfig {
     pub council_nodes: Vec<InitialValidator>,
 }
 
+#[derive(Debug)]
 pub enum DistributionError {
     DistributionCoinError(CoinError),
     DoesNotMatchMaxSupply(Coin),

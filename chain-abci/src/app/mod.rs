@@ -8,6 +8,7 @@ use log::info;
 
 pub use self::app_init::{ChainNodeApp, ChainNodeState};
 use crate::enclave_bridge::EnclaveProxy;
+use crate::liveness::LivenessTracker;
 use crate::storage::account::AccountStorage;
 use crate::storage::account::AccountWrapper;
 use crate::storage::tx::StarlingFixedKey;
@@ -15,7 +16,9 @@ use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
 use chain_core::common::TendermintEventType;
 use chain_core::state::account::StakedState;
-use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
+use chain_core::state::tendermint::{
+    BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
+};
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::TxAux;
 use chain_tx_filter::BlockFilter;
@@ -297,6 +300,32 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     validator.set_power(i64::from(*new_power));
                     validator.set_pub_key(self.validator_pubkeys[&address].clone());
                     validators.push(validator);
+
+                    let last_state = self
+                        .last_state
+                        .as_mut()
+                        .expect("Last app state not found, init chain was not called");
+
+                    let validator_liveness = &mut last_state.validator_liveness;
+
+                    let validator_address: TendermintValidatorAddress =
+                        into_tendermint_validator_pub_key(&self.validator_pubkeys[&address]).into();
+
+                    let new_vote_power: i64 = (*new_power).into();
+
+                    if new_vote_power == 0 && validator_liveness.contains_key(&validator_address) {
+                        validator_liveness.remove(&validator_address);
+                    } else if new_vote_power != 0
+                        && !validator_liveness.contains_key(&validator_address)
+                    {
+                        validator_liveness.insert(
+                            validator_address,
+                            LivenessTracker::new(
+                                *address,
+                                last_state.jailing_config.block_signing_window,
+                            ),
+                        );
+                    }
                 }
                 self.validator_voting_power.insert(*address, *new_power);
             }
@@ -348,4 +377,20 @@ fn update_validator_liveness(
             }
         }
     }
+}
+
+/// Converts `abci::PubKey` into `TendermintValidatorPubKey`
+pub fn into_tendermint_validator_pub_key(pubkey: &PubKey) -> TendermintValidatorPubKey {
+    if pubkey.field_type != "ed25519" {
+        panic!("Received invalid pubkey type");
+    }
+
+    if pubkey.data.len() != 32 {
+        panic!("Reviced pubkey of invalid length");
+    }
+
+    let mut bytes = [0; 32];
+    bytes.copy_from_slice(&pubkey.data);
+
+    TendermintValidatorPubKey::Ed25519(bytes)
 }
