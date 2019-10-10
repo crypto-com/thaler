@@ -25,6 +25,7 @@ use client_common::{PrivateKey, PublicKey, Result};
 use crate::types::TransactionChange;
 use crate::{InputSelectionStrategy, UnspentTransactions};
 
+use bip39::Mnemonic;
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {
     /// Retrieves names of all wallets stored
@@ -32,6 +33,17 @@ pub trait WalletClient: Send + Sync {
 
     /// Creates a new wallet with given name and passphrase
     fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()>;
+
+    /// Creates mnemonics
+    fn new_mnemonics(&self) -> Result<Mnemonic>;
+
+    /// Creates a new hd-wallet with given name and passphrase
+    fn new_hdwallet(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        mnemonics_phrase: &SecUtf8,
+    ) -> Result<()>;
 
     /// Retrieves view key corresponding to a given wallet
     fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
