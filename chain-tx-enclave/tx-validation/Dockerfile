@@ -12,6 +12,10 @@ ENV TX_ENCLAVE_STORAGE=/enclave-storage
 RUN echo 'source /opt/sgxsdk/environment' >> /root/.docker_bashrc && \
     echo 'source /root/.cargo/env' >> /root/.docker_bashrc
 
+
+RUN sudo sed -i 's/archive.ubuntu.com/ftp.daum.net/g' /etc/apt/sources.list
+RUN sudo sed -i 's/security.ubuntu.com/ftp.daum.net/g' /etc/apt/sources.list
+
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libzmq3-dev rsync && \
     rm -rf /var/lib/apt/lists/*
