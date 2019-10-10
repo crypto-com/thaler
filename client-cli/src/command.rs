@@ -12,6 +12,9 @@ use prettytable::{cell, format, row, Cell, Row, Table};
 use quest::success;
 use structopt::StructOpt;
 
+use self::address_command::AddressCommand;
+use self::transaction_command::TransactionCommand;
+use self::wallet_command::WalletCommand;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use client_common::storage::SledStorage;
@@ -26,10 +29,6 @@ use client_core::types::BalanceChange;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_core::BlockHandler;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
-
-use self::address_command::AddressCommand;
-use self::transaction_command::TransactionCommand;
-use self::wallet_command::WalletCommand;
 
 use crate::{ask_passphrase, storage_path, tendermint_url};
 

@@ -80,7 +80,7 @@ function clone_tendermint_config() {
 function create_wallet() {
     rm -rf "${WALLET_STORAGE_DIRECTORY}"
     print_step "Creating wallet \"${1}\""
-    RET_VALUE=$(printf "${2}\n${2}\n" | CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli wallet new --name ${1})
+    RET_VALUE=$(printf "${2}\n${2}\n" | CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli wallet new --name ${1} --type basic)
 }
 
 # Create wallet staking address

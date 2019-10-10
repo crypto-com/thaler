@@ -44,6 +44,12 @@ impl LivenessTracker {
         let zero_count = self.liveness.iter().filter(|x| !x).count();
         zero_count < missed_block_threshold as usize
     }
+
+    /// Returns staking address of current tracker
+    #[inline]
+    pub fn address(&self) -> StakedStateAddress {
+        self.address
+    }
 }
 
 impl Encode for LivenessTracker {

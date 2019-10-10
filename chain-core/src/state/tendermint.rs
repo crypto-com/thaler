@@ -42,6 +42,13 @@ impl TendermintValidatorPubKey {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Encode, Decode)]
 pub struct TendermintValidatorAddress([u8; 20]);
 
+impl From<&TendermintValidatorAddress> for [u8; 20] {
+    #[inline]
+    fn from(address: &TendermintValidatorAddress) -> [u8; 20] {
+        address.0
+    }
+}
+
 #[cfg(all(feature = "serde", feature = "hex"))]
 impl Serialize for TendermintValidatorAddress {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>

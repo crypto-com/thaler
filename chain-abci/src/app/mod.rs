@@ -1,5 +1,6 @@
 mod app_init;
 mod commit;
+mod jail_account;
 mod query;
 mod validate_tx;
 
@@ -26,7 +27,7 @@ use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::{DBTransaction, KeyValueDB};
 use protobuf::RepeatedField;
 use std::collections::BTreeMap;
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use std::sync::Arc;
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
@@ -129,22 +130,42 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             ),
         };
 
-        let last_state = self
+        {
+            let last_state = self
             .last_state
             .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
 
-        last_state.block_time = block_time;
+            last_state.block_time = block_time;
 
-        if block_height > 1 {
-            if let Some(last_commit_info) = req.last_commit_info.as_ref() {
-                // liveness will always be updated for previous block, i.e., `block_height - 1`
-                update_validator_liveness(last_state, block_height - 1, last_commit_info);
-            } else {
-                panic!(
-                    "No last commit info in begin block request for height: {}",
-                    block_height
-                );
+            if block_height > 1 {
+                if let Some(last_commit_info) = req.last_commit_info.as_ref() {
+                    // liveness will always be updated for previous block, i.e., `block_height - 1`
+                    update_validator_liveness(last_state, block_height - 1, last_commit_info);
+                } else {
+                    panic!(
+                        "No last commit info in begin block request for height: {}",
+                        block_height
+                    );
+                }
+            }
+        }
+
+        for evidence in req.byzantine_validators.iter() {
+            if let Some(validator) = evidence.validator.as_ref() {
+                let validator_address =
+                    TendermintValidatorAddress::try_from(validator.address.as_slice())
+                        .expect("Invalid validator address in begin block request");
+                let account_address = self
+                    .last_state
+                    .as_ref()
+                    .unwrap()
+                    .validator_liveness
+                    .get(&validator_address)
+                    .expect("Validator not found in liveness tracker")
+                    .address();
+                self.jail_account(account_address)
+                    .expect("Unable to jail account in begin block");
             }
         }
 

@@ -24,6 +24,7 @@ pub fn init_chain_id(chain_id_src: &str) {
     let hexvalue = hex::decode(hexstring).expect("last two characters should be hex digits");
     assert!(1 == hexvalue.len());
     init_network_id(hexvalue[0]);
+    assert!(get_network_id() == hexvalue[0]);
 
     match chain_id_src {
         MAINNET_CHAIN_ID => init_network(Network::Mainnet),
@@ -65,6 +66,19 @@ pub fn get_bech32_human_part() -> &'static str {
             Network::Mainnet => "cro",
             Network::Testnet => "tcro",
             Network::Devnet => "dcro",
+        }
+    }
+}
+
+/// Given the chosen network, it returns bip44 cointype
+/// 1     	0x80000001 	    	Testnet (all coins)
+/// 394 	0x8000018a 	CRO 	Crypto.com Chain
+pub fn get_bip44_coin_type() -> u32 {
+    unsafe {
+        match chosen_network::NETWORK {
+            Network::Mainnet => 394,
+            Network::Testnet => 1,
+            Network::Devnet => 1,
         }
     }
 }
