@@ -130,26 +130,26 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             ),
         };
 
-        {
-            let last_state = self
+        let last_state = self
             .last_state
             .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
 
-            last_state.block_time = block_time;
+        last_state.block_time = block_time;
 
-            if block_height > 1 {
-                if let Some(last_commit_info) = req.last_commit_info.as_ref() {
-                    // liveness will always be updated for previous block, i.e., `block_height - 1`
-                    update_validator_liveness(last_state, block_height - 1, last_commit_info);
-                } else {
-                    panic!(
-                        "No last commit info in begin block request for height: {}",
-                        block_height
-                    );
-                }
+        if block_height > 1 {
+            if let Some(last_commit_info) = req.last_commit_info.as_ref() {
+                // liveness will always be updated for previous block, i.e., `block_height - 1`
+                update_validator_liveness(last_state, block_height - 1, last_commit_info);
+            } else {
+                panic!(
+                    "No last commit info in begin block request for height: {}",
+                    block_height
+                );
             }
         }
+
+        let mut accounts_to_jail = Vec::new();
 
         for evidence in req.byzantine_validators.iter() {
             if let Some(validator) = evidence.validator.as_ref() {
@@ -164,9 +164,31 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     .get(&validator_address)
                     .expect("Validator not found in liveness tracker")
                     .address();
-                self.jail_account(account_address)
-                    .expect("Unable to jail account in begin block");
+
+                accounts_to_jail.push(account_address);
             }
+        }
+
+        let missed_block_threshold = self
+            .last_state
+            .as_ref()
+            .unwrap()
+            .jailing_config
+            .missed_block_threshold;
+
+        accounts_to_jail.extend(
+            self.last_state
+                .as_ref()
+                .unwrap()
+                .validator_liveness
+                .values()
+                .filter(|tracker| !tracker.is_live(missed_block_threshold))
+                .map(LivenessTracker::address),
+        );
+
+        for account_address in accounts_to_jail {
+            self.jail_account(account_address)
+                .expect("Unable to jail account in begin block");
         }
 
         ResponseBeginBlock::new()
