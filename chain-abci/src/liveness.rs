@@ -39,7 +39,6 @@ impl LivenessTracker {
 
     /// Checks if validator is live or not
     #[inline]
-    #[allow(dead_code)]
     pub fn is_live(&self, missed_block_threshold: u16) -> bool {
         let zero_count = self.liveness.iter().filter(|x| !x).count();
         zero_count < missed_block_threshold as usize

@@ -15,6 +15,11 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             &self.accounts,
         )?;
 
+        if account.is_jailed() {
+            // Return early if account is already jailed
+            return Ok(());
+        }
+
         let last_state = self
             .last_state
             .as_ref()
