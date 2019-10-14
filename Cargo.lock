@@ -297,7 +297,7 @@ dependencies = [
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d)",
  "serde 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -319,7 +319,7 @@ dependencies = [
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d)",
  "serde 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "sgx_tstd 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -338,7 +338,7 @@ dependencies = [
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d)",
  "sgx_tstd 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
 ]
 
@@ -348,7 +348,7 @@ version = "0.1.0"
 dependencies = [
  "chain-core 0.1.0",
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d)",
  "sgx_tstd 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
 ]
 
@@ -413,13 +413,13 @@ dependencies = [
  "miscreant 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
  "sled 0.28.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "websocket 0.23.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "zeroize 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zeroize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -444,7 +444,7 @@ dependencies = [
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustls 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -456,7 +456,7 @@ dependencies = [
  "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "websocket 0.23.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "yasna 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "zeroize 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zeroize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -471,7 +471,7 @@ dependencies = [
  "client-core 0.1.0",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -746,7 +746,7 @@ dependencies = [
  "chain-core 0.1.0",
  "chain-tx-validation 0.1.0",
  "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d)",
  "sgx_tstd 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
 ]
 
@@ -2263,13 +2263,13 @@ dependencies = [
 [[package]]
 name = "secp256k1zkp"
 version = "0.13.0"
-source = "git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223#d78ae81a598a5ceead03aa1ddf04067f6340f223"
+source = "git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d#c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d"
 dependencies = [
  "cc 1.0.45 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.101 (registry+https://github.com/rust-lang/crates.io-index)",
  "sgx_tstd 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
- "zeroize 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zeroize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3250,7 +3250,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "zeroize"
-version = "0.10.1"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -3503,7 +3503,7 @@ dependencies = [
 "checksum scopeguard 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "94258f53601af11e6a49f722422f6e3425c52b06245a5cf9bc09908b174f5e27"
 "checksum scopeguard 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b42e15e59b18a828bbf5c58ea01debb36b9b096346de35d941dcb89009f24a0d"
 "checksum sct 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e3042af939fca8c3453b7af0f1c66e533a15a86169e39de2657310ade8f98d3c"
-"checksum secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=d78ae81a598a5ceead03aa1ddf04067f6340f223)" = "<none>"
+"checksum secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d)" = "<none>"
 "checksum secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "fb003d53cef244a97516226b01155057c7fa6eb52914933c32f6c98a84182188"
 "checksum security-framework 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "eee63d0f4a9ec776eeb30e220f0bc1e092c3ad744b2a379e3993070364d3adc2"
 "checksum security-framework-sys 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "9636f8989cbf61385ae4824b98c1aaa54c994d7d8b41f11c601ed799f0549a56"
@@ -3615,7 +3615,7 @@ dependencies = [
 "checksum wincolor 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "96f5016b18804d24db43cebf3c77269e7569b8954a8464501c216cc5e070eaa9"
 "checksum ws2_32-sys 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "d59cefebd0c892fa2dd6de581e937301d8552cb44489cdff035c6187cb63fa5e"
 "checksum yasna 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a563d10ead87e2d798e357d44f40f495ad70bcee4d5c0d3f77a5b1b7376645d9"
-"checksum zeroize 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)" = "4090487fa66630f7b166fba2bbb525e247a5449f41c468cc1d98f8ae6ac03120"
 "checksum zeroize 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "8ddfeb6eee2fb3b262ef6e0898a52b7563bb8e0d5955a313b3cf2f808246ea14"
+"checksum zeroize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cdc979d9b5ead18184c357c4d8a3f81b579aae264e32507223032e64715462d3"
 "checksum zmq 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)" = "aad98a7a617d608cd9e1127147f630d24af07c7cd95ba1533246d96cbdd76c66"
 "checksum zmq-sys 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d33a2c51dde24d5b451a2ed4b488266df221a5eaee2ee519933dc46b9a9b3648"

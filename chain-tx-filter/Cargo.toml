@@ -13,7 +13,7 @@ mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx", "chain-core/mesalock_sgx"]
 [dependencies]
 chain-core = { default-features = false, path = "../chain-core" }
 parity-scale-codec = { default-features = false, version = "1.0" }
-secp256k1zkp = { default-features = false, git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["endomorphism"] }
+secp256k1zkp = { default-features = false, git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d", features = ["endomorphism"] }
 bit-vec = { default-features = false, version = "0.6" }
 sgx_tstd = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk.git", optional = true }
 

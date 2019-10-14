@@ -19,7 +19,7 @@ sgx_urts = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
 parity-scale-codec = { features = ["derive"], version = "1.0" }
 chain-core   = { path = "../../../chain-core" }
 enclave-protocol   = { path = "../../../enclave-protocol" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d78ae81a598a5ceead03aa1ddf04067f6340f223", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d", features = ["recovery", "endomorphism"] }
 zmq = "0.9"
 client-core   = { path = "../../../client-core", optional = true }
 client-common   = { path = "../../../client-common", optional = true }
