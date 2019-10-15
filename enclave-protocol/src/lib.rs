@@ -31,7 +31,7 @@ use secp256k1::{
     Message, Secp256k1, Signature, Signing, Verification,
 };
 
-const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
+pub const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
 const TOKEN_LEN: usize = 1024;
 
 /// raw sgx_sealed_data_t
@@ -130,6 +130,7 @@ pub struct QueryEncryptRequest {
 }
 
 /// requests sent from chain-abci app to enclave wrapper server
+/// FIXME: remove launch token stuff (deprecated in SGX SDK 2.6)
 #[derive(Encode, Decode)]
 pub enum EnclaveRequest {
     /// a sanity check (sends the chain network ID -- last byte / two hex digits convention)
@@ -169,6 +170,7 @@ impl EnclaveRequest {
 
 /// reponses sent from enclave wrapper server to chain-abci app
 /// TODO: better error responses?
+/// FIXME: remove launch token stuff (deprecated in SGX SDK 2.6)
 #[derive(Encode, Decode)]
 pub enum EnclaveResponse {
     /// returns OK if chain_hex_id matches the one embedded in enclave and last_app_hash matches (returns the last app hash if any)
@@ -196,7 +198,22 @@ pub enum EnclaveResponse {
 /// ZMQ flags to be used in the socket connection
 pub const FLAGS: i32 = 0;
 
-/// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
+/// initial request sent by client to TQE
+#[derive(Encode, Decode)]
+pub enum TxQueryInitRequest {
+    Encrypt(Box<EncryptionRequest>),
+    DecryptChallenge,
+}
+
+/// initial response by TQE
+#[derive(Encode, Decode)]
+pub enum TxQueryInitResponse {
+    Encrypt(EncryptionResponse),
+    DecryptChallenge(H256),
+}
+
+/// Sent initially in TxQueryInitRequest
+/// TODO: remove/deprecate the abci mock
 #[derive(Encode)]
 pub enum EncryptionRequest {
     TransferTx(Tx, TxWitness),
@@ -233,7 +250,8 @@ impl Decode for EncryptionRequest {
     }
 }
 
-/// TODO: rethink / should be direct communication with the enclave (rather than via abci+zmq)
+/// Response from TQE
+/// TODO: validation error?
 #[derive(Encode, Decode)]
 pub struct EncryptionResponse {
     pub tx: TxAux,

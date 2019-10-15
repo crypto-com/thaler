@@ -94,6 +94,39 @@ pub extern "C" fn ocall_get_txs(
     }
 }
 
+/// Untrusted function called from the enclave -- sends a ZMQ message to
+/// the transaction validation enclave that encrypt the sealed payload
+#[no_mangle]
+pub extern "C" fn ocall_encrypt_request(
+    request: *const u8,
+    request_len: u32,
+    result: *mut u8,
+    result_len: u32,
+) -> sgx_status_t {
+    let request_slice = unsafe { std::slice::from_raw_parts(request, request_len as usize) };
+    ZMQ_SOCKET.with(|socket| {
+        let send_r = socket.send(request_slice, FLAGS);
+        if send_r.is_err() {
+            error!("failed to send a request for obtaining obfuscated tx");
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
+        if let Ok(msg) = socket.recv_bytes(FLAGS) {
+            if msg.len() > (result_len as usize) {
+                error!("Not enough allocated space to return the sealed tx data");
+                return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            } else {
+                unsafe {
+                    std::ptr::copy(msg.as_ptr(), result, msg.len());
+                }
+                return sgx_status_t::SGX_SUCCESS;
+            }
+        } else {
+            error!("failed to send a request for obtaining obfuscated tx");
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
+    })
+}
+
 extern "C" {
     /// the enclave main function / routine (just gets raw file descriptor of the connection client TCP socket)
     pub fn run_server(
