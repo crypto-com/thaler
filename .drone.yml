@@ -1,0 +1,17 @@
+kind: pipeline
+name: default
+
+steps:
+- name: test
+  image: chain
+  pull: never
+  commands:
+  - export RUST_BACKTRACE=1
+  - export RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
+  - export LD_LIBRARY_PATH=$HOME/lib
+  - export LIBRARY_PATH=$HOME/lib
+  - export PATH=$HOME/.cargo/bin:$HOME/.local/bin:$PATH
+  - export PKG_CONFIG_PATH=$HOME/lib/pkgconfig
+  - cargo build
+  - cargo test
+  - echo "HOME FOLDER = " $HOME
