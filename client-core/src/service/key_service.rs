@@ -1,6 +1,8 @@
 use secstr::SecUtf8;
 use zeroize::Zeroize;
 
+use crate::hdwallet::traits::Serialize;
+use crate::hdwallet::{ChainPath, DefaultKeyChain, ExtendedPrivKey, KeyChain};
 use bip39::{Language, Mnemonic, MnemonicType, Seed};
 use client_common::{Error, ErrorKind, Result};
 
@@ -10,7 +12,6 @@ const KEYSPACE_HD: &str = "hd_key";
 use crate::types::WalletKind;
 use chain_core::init::network::get_bip44_coin_type;
 use log::debug;
-use tiny_hderive::bip32::ExtendedPrivKey;
 
 /// get random mnemonic
 pub fn get_random_mnemonic() -> Mnemonic {
@@ -132,51 +133,6 @@ where
         Ok(())
     }
 
-    /// auto-matically generate staking, transfer addresses
-    /// with just one api call
-    pub fn auto_restore(
-        &self,
-        mnemonic: &Mnemonic,
-        name: &str,
-        passphrase: &SecUtf8,
-        count: i32,
-    ) -> Result<()> {
-        self.generate_seed(mnemonic, name, passphrase)?;
-        let cointype = get_bip44_coin_type();
-        log::debug!("coin type={}", cointype);
-        let seed_bytes = self.storage.get_secure(KEYSPACE_HD, name, passphrase)?;
-        for index in 0..count {
-            for account in 0..2 {
-                let extended = ExtendedPrivKey::derive(
-                    &seed_bytes.as_ref().expect("hdwallet get extended")[..],
-                    format!("m/44'/{}'/{}'/0/{}", cointype, account, index).as_str(),
-                )
-                .map_err(|_e| {
-                    Error::new(
-                        ErrorKind::InvalidInput,
-                        "hdwallet cannot derive new address",
-                    )
-                })?;
-                let mut secret_key_bytes = extended.secret();
-
-                let private_key =
-                    PrivateKey::deserialize_from(&secret_key_bytes).map_err(|_e| {
-                        Error::new(ErrorKind::InvalidInput, "hdwallet load private_key")
-                    })?;
-                secret_key_bytes.zeroize();
-                let public_key = PublicKey::from(&private_key);
-
-                self.storage.set_secure(
-                    KEYSPACE,
-                    public_key.serialize(),
-                    private_key.serialize(),
-                    passphrase,
-                )?;
-            }
-        }
-        Ok(())
-    }
-
     /// read value from db, if it's None, there value doesn't exist
     pub fn read_value(&self, passphrase: &SecUtf8, key: &[u8]) -> Result<Option<Vec<u8>>> {
         Ok(self
@@ -239,12 +195,18 @@ where
         let cointype = get_bip44_coin_type();
         log::debug!("coin type={}", cointype);
         let account = if is_staking { 1 } else { 0 };
-        let extended = ExtendedPrivKey::derive(
-            &seed_bytes.expect("generate_keypair_hd get seed bytes"),
-            format!("m/44'/{}'/{}'/0/{}", cointype, account, index).as_str(),
-        )
-        .map_err(|_e| Error::new(ErrorKind::InvalidInput, "hdwallet derive new address"))?;
-        let mut secret_key_bytes = extended.secret();
+
+        let chain_path = format!("m/44'/{}'/{}'/0/{}", cointype, account, index);
+        let key_chain = DefaultKeyChain::new(
+            ExtendedPrivKey::with_seed(&seed_bytes.as_ref().expect("hdwallet get extended")[..])
+                .map_err(|_e| Error::new(ErrorKind::InvalidInput, "invalid seed bytes"))?,
+        );
+        let (key, _derivation) = key_chain
+            .derive_private_key(ChainPath::from(chain_path.to_string()))
+            .map_err(|_e| Error::new(ErrorKind::InvalidInput, "hdwallet derive private key"))?;
+        let mut secret = key.serialize();
+
+        let secret_key_bytes = &mut secret[0..32];
         debug!("hdwallet save index={}", index);
         let private_key = PrivateKey::deserialize_from(&secret_key_bytes)
             .map_err(|_e| Error::new(ErrorKind::InvalidInput, "hdwallet privatekey deserialize"))?;
@@ -339,6 +301,21 @@ mod tests {
             String::from("66b0a362da2332cb7fdc0c940acf9638f824fe7112d79d7ac7baf341033f8abf")
                 == hex::encode(&private_key.serialize())
         );
+        {
+            let (public_key, private_key) = key_service
+                .generate_keypair_hd(name, &passphrase, true)
+                .expect("Unable to generate private key");
+
+            // check deterministic of hdwallet
+            assert!(
+                String::from("02f030e0ae3cec955edb750891f8819b37a7df6a41a1e5d59f93187d0c3d6dcf06")
+                    == public_key.to_string()
+            );
+            assert!(
+                String::from("72e1ac47503ec1b814fafda9df402b313a0b7f8d9cca0e30d92e686ca2ed02dd")
+                    == hex::encode(&private_key.serialize())
+            );
+        }
         let retrieved_private_key = key_service
             .private_key(&public_key, &passphrase)
             .expect("hdwallet check_flow retrieve privatekey")

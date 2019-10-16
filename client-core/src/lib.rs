@@ -11,6 +11,7 @@
 //! - Transaction creation and signing (with automatic unspent transaction selection)
 pub mod cipher;
 pub mod handler;
+pub mod hdwallet;
 pub mod input_selection;
 pub mod service;
 pub mod signer;
@@ -36,3 +37,6 @@ pub use crate::transaction_builder::TransactionBuilder;
 pub use crate::unspent_transactions::{SelectedUnspentTransactions, UnspentTransactions};
 #[doc(inline)]
 pub use crate::wallet::{MultiSigWalletClient, WalletClient};
+
+#[macro_use]
+extern crate lazy_static;
