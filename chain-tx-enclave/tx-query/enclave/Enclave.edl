@@ -12,11 +12,18 @@ enclave {
         public sgx_status_t run_server(int fd);
     };
     untrusted {
+        sgx_status_t ocall_encrypt_request(
+                [in, size = request_len] uint8_t * request,
+                uint32_t request_len,
+                [out, size = result_len] uint8_t * result,
+                uint32_t result_len);
+
         sgx_status_t ocall_get_txs(
                 [in, size = txids_len] uint8_t * txids,
                 uint32_t txids_len,
                 [out, size = txs_len] uint8_t * txs,
                 uint32_t txs_len);
+    
         sgx_status_t ocall_get_ias_key([out, size = ias_key_len] uint8_t * ias_key,
                 uint32_t ias_key_len);
         sgx_status_t ocall_sgx_init_quote([out] sgx_target_info_t *ret_ti,

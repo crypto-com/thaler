@@ -21,7 +21,7 @@ use zeroize::Zeroize;
 
 const CERTEXPIRYDAYS: i64 = 90i64;
 const ISSUER: &str = "Crypto.com Chain";
-const SUBJECT: &str = "TX Decryption Query";
+const SUBJECT: &str = "TX Query";
 
 /// Wrapper around the DER private key payload
 /// TODO: pinning ? use secrecy crate?
@@ -113,7 +113,7 @@ pub fn gen_ecc_cert(
                         .next()
                         .write_utctime(&yasna::models::UTCTime::from_datetime(&expire_ts));
                 });
-                // Subject: CN="TX Decryption Query" (unused but required)
+                // Subject: CN="TX Query" (unused but required)
                 writer.next().write_sequence(|writer| {
                     writer.next().write_set(|writer| {
                         writer.next().write_sequence(|writer| {

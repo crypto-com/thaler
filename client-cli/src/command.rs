@@ -6,20 +6,17 @@ use std::sync::mpsc::channel;
 use std::thread;
 
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use cli_table::{Cell, CellFormat, Color, Justify, Row, Table};
 use hex::encode;
 use pbr::ProgressBar;
-use prettytable::{cell, format, row, Cell, Row, Table};
 use quest::success;
 use structopt::StructOpt;
 
-use self::address_command::AddressCommand;
-use self::transaction_command::TransactionCommand;
-use self::wallet_command::WalletCommand;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, WebsocketRpcClient};
-use client_common::{Result, Storage};
+use client_common::{ErrorKind, Result, ResultExt, Storage};
 use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_core::signer::DefaultSigner;
@@ -30,6 +27,9 @@ use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_core::BlockHandler;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 
+use self::address_command::AddressCommand;
+use self::transaction_command::TransactionCommand;
+use self::wallet_command::WalletCommand;
 use crate::{ask_passphrase, storage_path, tendermint_url};
 
 #[derive(Debug, StructOpt)]
@@ -214,30 +214,37 @@ impl Command {
         let passphrase = ask_passphrase(None)?;
         let staked_state = network_ops_client.get_staked_state(name, &passphrase, address)?;
 
-        let mut table = Table::new();
-        table.set_format(*format::consts::FORMAT_NO_LINESEP);
+        let bold = CellFormat::builder().bold(true).build();
+        let justify_right = CellFormat::builder().justify(Justify::Right).build();
 
-        table.set_titles(row!["Nonce", format!("{}", staked_state.nonce)]);
-        table.add_row(Row::new(vec![
-            Cell::from(&"Bonded".to_string()),
-            Cell::from(&format!("{}", staked_state.bonded)),
-        ]));
-        table.add_row(Row::new(vec![
-            Cell::from(&"Unbonded".to_string()),
-            Cell::from(&format!("{}", staked_state.unbonded)),
-        ]));
-        table.add_row(Row::new(vec![
-            Cell::from(&"Unbonded From".to_string()),
-            Cell::from(&format!(
-                "{}",
-                <DateTime<Local>>::from(DateTime::<Utc>::from_utc(
-                    NaiveDateTime::from_timestamp(staked_state.unbonded_from, 0),
-                    Utc
-                ))
-            )),
-        ]));
+        let table = Table::new(vec![
+            Row::new(vec![
+                Cell::new("Nonce", bold),
+                Cell::new(&staked_state.nonce, justify_right),
+            ]),
+            Row::new(vec![
+                Cell::new("Bonded", bold),
+                Cell::new(&staked_state.bonded, justify_right),
+            ]),
+            Row::new(vec![
+                Cell::new("Unbonded", bold),
+                Cell::new(&staked_state.unbonded, justify_right),
+            ]),
+            Row::new(vec![
+                Cell::new("Unbonded From", bold),
+                Cell::new(
+                    &<DateTime<Local>>::from(DateTime::<Utc>::from_utc(
+                        NaiveDateTime::from_timestamp(staked_state.unbonded_from, 0),
+                        Utc,
+                    )),
+                    Default::default(),
+                ),
+            ]),
+        ]);
 
-        table.printstd();
+        table
+            .print_std()
+            .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
 
         Ok(())
     }
@@ -263,40 +270,58 @@ impl Command {
         let history = wallet_client.history(name, &passphrase)?;
 
         if !history.is_empty() {
-            let mut table = Table::new();
-            table.set_format(*format::consts::FORMAT_NO_LINESEP_WITH_TITLE);
-            table.set_titles(row![
-                "Transaction ID",
-                "In/Out",
-                "Amount",
-                "Fee",
-                "Block Height",
-                "Block Time",
-            ]);
+            let bold = CellFormat::builder().bold(true).build();
+
+            let mut rows = Vec::new();
+
+            rows.push(Row::new(vec![
+                Cell::new("Transaction ID", bold),
+                Cell::new("In/Out", bold),
+                Cell::new("Amount", bold),
+                Cell::new("Fee", bold),
+                Cell::new("Block Height", bold),
+                Cell::new("Block Time", bold),
+            ]));
 
             for change in history {
-                let (amount, fee, in_out, spec) = match change.balance_change {
-                    BalanceChange::Incoming { value } => (value, None, "IN", "Fg"),
-                    BalanceChange::Outgoing { value, fee } => (value, Some(fee), "OUT", "FR"),
-                    BalanceChange::NoChange => (Coin::zero(), None, "NO CHANGE", "FB"),
+                let green = CellFormat::builder()
+                    .foreground_color(Some(Color::Green))
+                    .build();
+                let red = CellFormat::builder()
+                    .foreground_color(Some(Color::Red))
+                    .build();
+                let blue = CellFormat::builder()
+                    .foreground_color(Some(Color::Blue))
+                    .build();
+
+                let right_justify = CellFormat::builder().justify(Justify::Right).build();
+
+                let (amount, fee, in_out, format) = match change.balance_change {
+                    BalanceChange::Incoming { value } => (value, None, "IN", green),
+                    BalanceChange::Outgoing { value, fee } => (value, Some(fee), "OUT", red),
+                    BalanceChange::NoChange => (Coin::zero(), None, "NO CHANGE", blue),
                 };
 
-                table.add_row(Row::new(vec![
-                    Cell::new(&encode(&change.transaction_id)),
-                    Cell::new(in_out).style_spec(spec),
-                    Cell::from(&amount).style_spec("r"),
+                rows.push(Row::new(vec![
+                    Cell::new(&encode(&change.transaction_id), Default::default()),
+                    Cell::new(in_out, format),
+                    Cell::new(&amount, right_justify),
                     Cell::new(
                         &fee.as_ref()
                             .map(ToString::to_string)
                             .unwrap_or_else(|| "-".to_owned()),
-                    )
-                    .style_spec("r"),
-                    Cell::from(&change.block_height).style_spec("r"),
-                    Cell::from(&change.block_time),
+                        right_justify,
+                    ),
+                    Cell::new(&change.block_height, right_justify),
+                    Cell::new(&change.block_time, Default::default()),
                 ]));
             }
 
-            table.printstd();
+            let table = Table::new(rows);
+
+            table
+                .print_std()
+                .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
         } else {
             success("No history found!")
         }
