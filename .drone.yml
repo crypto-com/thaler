@@ -14,4 +14,4 @@ steps:
   - export PKG_CONFIG_PATH=$HOME/lib/pkgconfig
   - cargo build
   - cargo test
-  - echo "HOME FOLDER2= " $HOME
+  - echo "HOME FOLDER= " $HOME
