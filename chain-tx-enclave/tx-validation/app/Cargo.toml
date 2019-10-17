@@ -10,7 +10,7 @@ edition = "2018"
 sgx-test = []
 
 [dependencies]
-sled = "0.28"
+sled = "0.29"
 hex = "0.4"
 dirs = "1.0.2"
 zmq = "0.9"
