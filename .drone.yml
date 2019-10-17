@@ -1,3 +1,4 @@
+---
 kind: pipeline
 name: default
 
@@ -15,3 +16,31 @@ steps:
   - cargo build
   - cargo test
   - echo "HOME FOLDER = " $HOME
+
+---
+
+kind: pipeline
+type: exec
+name: sgx-cargo-1804-hw
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: hw-test-tx-validation
+  commands:
+  - export SGX_MODE=HW
+  - export NETWORK_ID=ab
+  - . /opt/intel/sgxsdk/sgxsdk/environment
+  - rustup default nightly-2019-08-01-x86_64-unknown-linux-gnu
+  - ls -l /dev/sgx
+  - ls -l /var/run/aesmd/aesm.socket
+  - cd chain-tx-enclave/tx-validation && make clean && SGX_TEST=1 make
+  - cd bin && ./tx-validation-app
+  
+---
+kind: signature
+hmac: 27c92e7f0928537ffb7809fd8b964d3cd84c4c5f2625115a7ac8d1906e79cd36
+
+...
