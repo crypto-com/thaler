@@ -233,8 +233,9 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         if stored_genesis != genesis_app_hash {
             panic!(
-                "stored genesis app hash: {:?} does not match the provided genesis app hash: {:?}",
-                stored_genesis, genesis_app_hash
+                "stored genesis app hash: {} does not match the provided genesis app hash: {}",
+                hex::encode(stored_genesis),
+                hex::encode(genesis_app_hash)
             );
         }
         let stored_chain_id = storage
@@ -311,8 +312,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     info!("enclave connection OK");
                 }
                 EnclaveResponse::CheckChain(Err(enc_app)) => {
-                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process),
-                    enclave app hash: {:?} (chain-abci app hash: {:?})", enc_app, last_state.last_apphash);
+                    let enc_app_str = match enc_app {
+                        None => "None".to_string(),
+                        Some(data) => hex::encode(data),
+                    };
+                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process), \
+                    enclave app hash: {} (chain-abci app hash: {})", enc_app_str, hex::encode(last_state.last_apphash));
                 }
                 _ => unreachable!("unexpected enclave response"),
             }
@@ -337,8 +342,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     info!("enclave connection OK");
                 }
                 EnclaveResponse::CheckChain(Err(enc_app)) => {
-                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process),
-                    enclave app hash: {:?}", enc_app);
+                    let enc_app_str = match enc_app {
+                        None => "None".to_string(),
+                        Some(data) => hex::encode(data),
+                    };
+                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process), \
+                    enclave app hash: {}", enc_app_str);
                 }
                 _ => unreachable!("unexpected enclave response"),
             }
@@ -425,7 +434,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
             let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
             if self.genesis_app_hash != genesis_app_hash {
-                panic!("initchain resulting genesis app hash: {:?} does not match the expected genesis app hash: {:?}", genesis_app_hash, self.genesis_app_hash);
+                panic!("initchain resulting genesis app hash: {} does not match the expected genesis app hash: {}", hex::encode(genesis_app_hash), hex::encode(self.genesis_app_hash));
             }
 
             let mut inittx = db.transaction();
