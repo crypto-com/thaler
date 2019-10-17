@@ -2,7 +2,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use sled::{ConfigBuilder, Db};
+use sled::{Config, Db};
 
 use crate::storage::Storage;
 use crate::{ErrorKind, Result, ResultExt};
@@ -16,8 +16,11 @@ impl SledStorage {
     pub fn new<P: AsRef<Path>>(path: P) -> Result<Self> {
         if cfg!(test) {
             Ok(Self(Arc::new(
-                Db::start(ConfigBuilder::new().path(&path).temporary(true).build()).chain(
-                    || {
+                Config::default()
+                    .path(&path)
+                    .temporary(true)
+                    .open()
+                    .chain(|| {
                         (
                             ErrorKind::InitializationError,
                             format!(
@@ -25,21 +28,18 @@ impl SledStorage {
                                 path.as_ref().display()
                             ),
                         )
-                    },
-                )?,
+                    })?,
             )))
         } else {
-            Ok(Self(Arc::new(
-                Db::start(ConfigBuilder::new().path(&path).build()).chain(|| {
-                    (
-                        ErrorKind::InitializationError,
-                        format!(
-                            "Unable to initialize sled storage at path: {}",
-                            path.as_ref().display()
-                        ),
-                    )
-                })?,
-            )))
+            Ok(Self(Arc::new(Db::open(&path).chain(|| {
+                (
+                    ErrorKind::InitializationError,
+                    format!(
+                        "Unable to initialize sled storage at path: {}",
+                        path.as_ref().display()
+                    ),
+                )
+            })?)))
         }
     }
 }
@@ -175,7 +175,7 @@ impl Storage for SledStorage {
                 )
             })?;
 
-            match tree.cas(&key, tmp, next).chain(|| {
+            match tree.compare_and_swap(&key, tmp, next).chain(|| {
                 (
                     ErrorKind::StorageError,
                     format!(
@@ -186,7 +186,7 @@ impl Storage for SledStorage {
                 )
             })? {
                 Ok(()) => return Ok(current),
-                Err(new_current) => current = new_current.map(|inner| inner.to_vec()),
+                Err(new_current) => current = new_current.current.map(|inner| inner.to_vec()),
             }
         }
     }
