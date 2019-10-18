@@ -21,7 +21,7 @@ steps:
 
 kind: pipeline
 type: exec
-name: sgx-cargo-1804-hw
+name: sgx-cargo-1804-hw1
 
 platform:
   os: linux
@@ -38,9 +38,48 @@ steps:
   - ls -l /var/run/aesmd/aesm.socket
   - cd chain-tx-enclave/tx-validation && make clean && SGX_TEST=1 make
   - cd bin && ./tx-validation-app
+
+---
+
+kind: pipeline
+type: exec
+name: sgx-cargo-1804-hw2
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: hw-test-tx-query
+  environment:
+    SPID:
+      from_secret: dev_spid
+    IAS_API_KEY:
+      from_secret: dev_ias_key
+  commands:
+  - export RUST_BACKTRACE=1
+  - export RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
+  - export SGX_MODE=HW
+  - export NETWORK_ID=ab
+  - export RUST_LOG=info
+  - export TX_VALIDATION_BIN_DIR=`pwd`/chain-tx-enclave/tx-validation/bin/
+  - . /opt/intel/sgxsdk/sgxsdk/environment
+  - rustup default nightly-2019-08-01-x86_64-unknown-linux-gnu
+  - ls -l /dev/sgx
+  - ls -l /var/run/aesmd/aesm.socket
+  - cd chain-tx-enclave/tx-validation && make clean && make
+  - cd ../tx-query && make clean && SGX_TEST=1 make
+  - cd bin && ./tx-query-app
   
+trigger:
+  branch:
+  - master
+  - staging
+  - trying
+  event:
+  - push
 ---
 kind: signature
-hmac: 27c92e7f0928537ffb7809fd8b964d3cd84c4c5f2625115a7ac8d1906e79cd36
+hmac: 21e4a81d9785eeaa92154bda9daa8cc6cda13169e459849e919b473e0e2be725
 
 ...
