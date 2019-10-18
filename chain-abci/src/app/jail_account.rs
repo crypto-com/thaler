@@ -48,6 +48,7 @@ mod tests {
     use super::*;
 
     use std::collections::BTreeMap;
+    use std::str::FromStr;
     use std::sync::Arc;
 
     use abci::{Application, PubKey, RequestInitChain};
@@ -61,7 +62,7 @@ mod tests {
     use chain_core::init::coin::Coin;
     use chain_core::init::config::{
         AccountType, InitConfig, InitNetworkParameters, InitialValidator, JailingParameters,
-        ValidatorKeyType,
+        SlashRatio, SlashingParameters, ValidatorKeyType,
     };
     use chain_core::tx::fee::{LinearFee, Milli};
 
@@ -107,6 +108,11 @@ mod tests {
                 jail_duration: 60,
                 block_signing_window: 5,
                 missed_block_threshold: 1,
+            },
+            slashing_config: SlashingParameters {
+                liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+                byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+                slash_wait_period: 10800,
             },
         };
 

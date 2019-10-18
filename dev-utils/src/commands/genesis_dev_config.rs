@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use chain_core::init::{
     address::RedeemAddress,
     coin::Coin,
-    config::{InitialValidator, JailingParameters},
+    config::{InitialValidator, JailingParameters, SlashRatio, SlashingParameters},
 };
 
 #[derive(Deserialize, Debug)]
@@ -15,6 +15,7 @@ pub struct GenesisDevConfig {
     pub unbonding_period: u32,
     pub required_council_node_stake: Coin,
     pub jailing_config: JailingParameters,
+    pub slashing_config: SlashingParameters,
     pub initial_fee_policy: InitialFeePolicy,
     pub council_nodes: Vec<InitialValidator>,
     pub launch_incentive_from: RedeemAddress,
@@ -34,6 +35,11 @@ impl GenesisDevConfig {
                 jail_duration: 86400,
                 block_signing_window: 100,
                 missed_block_threshold: 50,
+            },
+            slashing_config: SlashingParameters {
+                liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+                byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+                slash_wait_period: 10800,
             },
             initial_fee_policy: InitialFeePolicy {
                 base_fee: "1.1".to_string(),
