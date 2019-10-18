@@ -28,7 +28,7 @@ impl Fee {
     }
 }
 
-/// Represents a 4 digit fixed decimal
+/// Represents a 3 digit fixed decimal
 /// TODO: overflow checks in Cargo?
 /// [profile.release]
 /// overflow-checks = true
@@ -38,7 +38,7 @@ impl Fee {
 pub struct Milli(u64);
 impl Milli {
     /// takes the integer part and 4-digit fractional part
-    /// and returns the 4-digit fixed decimal number (i.ffff)
+    /// and returns the 3-digit fixed decimal number (i.fff)
     pub const fn new(i: u64, f: u64) -> Self {
         Milli(i * 1000 + f % 1000)
     }
@@ -98,11 +98,13 @@ impl FromStr for Milli {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let parts = s.split('.').collect::<Vec<&str>>();
         let len = parts.len();
-        if len != 2 {
-            return Err(MilliError::InvalidPartsLength(len));
-        }
-        let integral: u64 = parts[0].parse()?;
-        let fractional: u64 = parts[1].parse()?;
+
+        let (integral, fractional) = match len {
+            1 => (parts[0].parse()?, 0),
+            2 => (parts[0].parse()?, format!("{:0<3}", parts[1]).parse()?),
+            _ => return Err(MilliError::InvalidPartsLength(len)),
+        };
+
         Ok(Milli::new(integral, fractional))
     }
 }
@@ -221,5 +223,13 @@ mod test {
         test_milli_mul_eq(1124128_192, 124802_192);
         test_milli_mul_eq(241, 900001_900);
         test_milli_mul_eq(241, 400);
+    }
+
+    #[test]
+    fn check_milli_from_str() {
+        assert_eq!(1000, Milli::from_str("1").unwrap().as_millis());
+        assert_eq!(1000, Milli::from_str("1.0").unwrap().as_millis());
+        assert_eq!(1100, Milli::from_str("1.1").unwrap().as_millis());
+        assert_eq!(1150, Milli::from_str("1.15").unwrap().as_millis());
     }
 }
