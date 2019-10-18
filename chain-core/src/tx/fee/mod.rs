@@ -32,14 +32,14 @@ impl Fee {
 /// TODO: overflow checks in Cargo?
 /// [profile.release]
 /// overflow-checks = true
-#[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Encode, Decode)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Encode, Decode)]
 #[cfg_attr(feature = "serde", serde(transparent))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Milli(u64);
 impl Milli {
     /// takes the integer part and 4-digit fractional part
     /// and returns the 4-digit fixed decimal number (i.ffff)
-    pub fn new(i: u64, f: u64) -> Self {
+    pub const fn new(i: u64, f: u64) -> Self {
         Milli(i * 1000 + f % 1000)
     }
 
@@ -104,6 +104,14 @@ impl FromStr for Milli {
         let integral: u64 = parts[0].parse()?;
         let fractional: u64 = parts[1].parse()?;
         Ok(Milli::new(integral, fractional))
+    }
+}
+
+impl fmt::Display for Milli {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let integral = self.0 / 1000;
+        let fractional = self.0 % 1000;
+        write!(f, "{}.{}", integral, fractional)
     }
 }
 

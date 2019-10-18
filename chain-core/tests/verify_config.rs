@@ -2,11 +2,12 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::{
     AccountType, InitConfig, InitNetworkParameters, InitialValidator, JailingParameters,
-    ValidatorKeyType,
+    SlashRatio, SlashingParameters, ValidatorKeyType,
 };
 use chain_core::tx::fee::{LinearFee, Milli};
 use serde::Deserialize;
 use std::collections::BTreeMap;
+use std::str::FromStr;
 
 #[derive(Deserialize)]
 pub struct Distribution {
@@ -48,6 +49,11 @@ fn test_verify_test_example_snapshot() {
             jail_duration: 86400,
             block_signing_window: 100,
             missed_block_threshold: 50,
+        },
+        slashing_config: SlashingParameters {
+            liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+            byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            slash_wait_period: 10800,
         },
     };
     let launch_incentive_from = "0x35f517cab9a37bc31091c2f155d965af84e0bc85"

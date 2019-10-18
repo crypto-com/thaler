@@ -14,7 +14,9 @@ use chain_core::init::coin::Coin;
 use chain_core::init::config::AccountType;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
-use chain_core::init::config::{InitialValidator, JailingParameters, ValidatorKeyType};
+use chain_core::init::config::{
+    InitialValidator, JailingParameters, SlashRatio, SlashingParameters, ValidatorKeyType,
+};
 use chain_core::state::account::{
     to_stake_key, DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes,
     StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
@@ -49,6 +51,7 @@ use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::str::FromStr;
 use std::sync::Arc;
 
 fn get_enclave_bridge_mock() -> MockClient {
@@ -156,6 +159,11 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
             block_signing_window: 100,
             missed_block_threshold: 50,
         },
+        slashing_config: SlashingParameters {
+            liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+            byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            slash_wait_period: 10800,
+        },
         validator_liveness: BTreeMap::new(),
     }
 }
@@ -215,6 +223,11 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
             jail_duration: 86400,
             block_signing_window: 100,
             missed_block_threshold: 50,
+        },
+        slashing_config: SlashingParameters {
+            liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+            byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            slash_wait_period: 10800,
         },
     };
     let c = InitConfig::new(
@@ -322,6 +335,11 @@ fn init_chain_panics_with_different_app_hash() {
             jail_duration: 86400,
             block_signing_window: 100,
             missed_block_threshold: 50,
+        },
+        slashing_config: SlashingParameters {
+            liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+            byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            slash_wait_period: 10800,
         },
     };
     let c = InitConfig::new(
@@ -977,6 +995,11 @@ fn end_block_should_update_liveness_tracker() {
             block_signing_window: 5,
             missed_block_threshold: 1,
         },
+        slashing_config: SlashingParameters {
+            liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+            byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            slash_wait_period: 10800,
+        },
     };
 
     let init_config = InitConfig::new(
@@ -1151,6 +1174,11 @@ fn begin_block_should_jail_byzantine_validators() {
             block_signing_window: 5,
             missed_block_threshold: 1,
         },
+        slashing_config: SlashingParameters {
+            liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+            byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            slash_wait_period: 10800,
+        },
     };
 
     let init_config = InitConfig::new(
@@ -1286,6 +1314,11 @@ fn begin_block_should_jail_non_live_validators() {
             jail_duration: 60,
             block_signing_window: 5,
             missed_block_threshold: 1,
+        },
+        slashing_config: SlashingParameters {
+            liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+            byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            slash_wait_period: 10800,
         },
     };
 

@@ -1,8 +1,9 @@
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
 use std::prelude::v1::{String, Vec};
+use std::str::FromStr;
 
 use crate::common::Timespec;
 use crate::init::address::RedeemAddress;
@@ -12,8 +13,10 @@ use crate::state::account::{StakedState, StakedStateAddress};
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::CouncilNode;
 use crate::state::RewardsPoolState;
-use crate::tx::fee::LinearFee;
+use crate::tx::fee::{LinearFee, Milli, MilliError};
 use std::collections::{BTreeMap, HashSet};
+
+const MAX_SLASH_RATIO: Milli = Milli::new(1, 0); // 1.0
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -28,6 +31,8 @@ pub struct InitNetworkParameters {
     pub unbonding_period: u32,
     /// Jailing configuration
     pub jailing_config: JailingParameters,
+    /// Slashing configuration
+    pub slashing_config: SlashingParameters,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
@@ -40,6 +45,107 @@ pub struct JailingParameters {
     /// Maximum number of blocks with faulty/missed validations allowed for an account in last `block_signing_window`
     /// blocks before it gets jailed
     pub missed_block_threshold: u16,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct SlashingParameters {
+    /// Percentage of funds (bonded + unbonded) slashed when validator is not live (liveness is calculated by jailing
+    /// parameters)
+    pub liveness_slash_percent: SlashRatio,
+    /// Percentage of funds (bonded + unbonded) slashed when validator makes a byzantine fault
+    pub byzantine_slash_percent: SlashRatio,
+    /// Time (in seconds) to wait before slashing funds from an account
+    pub slash_wait_period: u32,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Encode, Decode)]
+pub struct SlashRatio(Milli);
+
+impl SlashRatio {
+    /// Creates a new instance of `SlashRatio`
+    pub fn new(milli: Milli) -> Result<Self, SlashRatioError> {
+        if milli > MAX_SLASH_RATIO {
+            Err(SlashRatioError::GreaterThanMax)
+        } else {
+            Ok(Self(milli))
+        }
+    }
+}
+
+impl FromStr for SlashRatio {
+    type Err = SlashRatioError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let milli = Milli::from_str(s).map_err(SlashRatioError::MilliError)?;
+        SlashRatio::new(milli)
+    }
+}
+
+impl fmt::Display for SlashRatio {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+#[cfg(feature = "serde")]
+impl Serialize for SlashRatio {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for SlashRatio {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SlashRatioVisitor;
+
+        impl<'de> de::Visitor<'de> for SlashRatioVisitor {
+            type Value = SlashRatio;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("Slash ratio between 0.0 to 1.0")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<SlashRatio, E>
+            where
+                E: de::Error,
+            {
+                SlashRatio::from_str(value).map_err(|e| de::Error::custom(e.to_string()))
+            }
+        }
+
+        deserializer.deserialize_str(SlashRatioVisitor)
+    }
+}
+
+#[derive(Debug)]
+pub enum SlashRatioError {
+    /// Slashing ratio is greater than maximum allowed (i.e., 1.0)
+    GreaterThanMax,
+    /// Error while parsing decimal numnber
+    MilliError(MilliError),
+}
+
+impl fmt::Display for SlashRatioError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SlashRatioError::GreaterThanMax => {
+                write!(f, "Slashing ratio is greater than maximum allowed")
+            }
+            SlashRatioError::MilliError(e) => {
+                write!(f, "Error while parsing decimal number: {}", e)
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

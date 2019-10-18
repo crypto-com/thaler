@@ -63,6 +63,7 @@ impl GenesisCommand {
             required_council_node_stake: genesis_dev.required_council_node_stake,
             unbonding_period: genesis_dev.unbonding_period,
             jailing_config: genesis_dev.jailing_config,
+            slashing_config: genesis_dev.slashing_config,
         };
         let config = InitConfig::new(
             dist,
