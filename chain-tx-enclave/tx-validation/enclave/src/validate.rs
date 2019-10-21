@@ -2,7 +2,7 @@ use chain_core::init::coin::Coin;
 use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::TransactionId;
-use chain_core::tx::{data::input::TxoIndex, PlainTxAux, TxAux, TxObfuscated};
+use chain_core::tx::{data::input::TxoIndex, PlainTxAux, TxEnclaveAux, TxObfuscated};
 use chain_tx_filter::BlockFilter;
 use chain_tx_validation::witness::verify_tx_recover_address;
 use chain_tx_validation::{
@@ -159,7 +159,7 @@ pub(crate) fn handle_validate_tx(
     match (tx_inputs, request.tx) {
         (
             Some(sealed_inputs),
-            TxAux::TransferTx {
+            TxEnclaveAux::TransferTx {
                 payload,
                 no_of_outputs,
                 inputs,
@@ -186,7 +186,7 @@ pub(crate) fn handle_validate_tx(
                 }
             }
         }
-        (Some(sealed_inputs), TxAux::DepositStakeTx { tx, payload }) => {
+        (Some(sealed_inputs), TxEnclaveAux::DepositStakeTx { tx, payload }) => {
             let plaintx = decrypt(&payload);
             let inputs = check_unseal(None, false, tx.inputs.iter().map(|x| x.id), sealed_inputs);
             match (plaintx, inputs) {
@@ -202,7 +202,7 @@ pub(crate) fn handle_validate_tx(
         }
         (
             None,
-            TxAux::WithdrawUnbondedStakeTx {
+            TxEnclaveAux::WithdrawUnbondedStakeTx {
                 no_of_outputs,
                 payload,
                 witness,

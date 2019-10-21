@@ -23,7 +23,7 @@ use chain_core::state::tendermint::{
     BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
 use chain_core::tx::data::input::TxoPointer;
-use chain_core::tx::TxAux;
+use chain_core::tx::{TxAux, TxEnclaveAux};
 use chain_tx_filter::BlockFilter;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::{DBTransaction, KeyValueDB};
@@ -241,13 +241,13 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         if let (0, Some((txaux, fee_acc))) = (resp.code, mtxaux) {
             let mut inittx = self.storage.db.transaction();
             let (next_account_root, maccount) = match &txaux {
-                TxAux::TransferTx { inputs, .. } => {
+                TxAux::EnclaveTx(TxEnclaveAux::TransferTx { inputs, .. }) => {
                     // here the original idea was "conservative" that it "spent" utxos here
                     // but it didn't create utxos for this TX (they are created in commit)
                     spend_utxos(&inputs, self.storage.db.clone(), &mut inittx);
                     (self.uncommitted_account_root_hash, None)
                 }
-                TxAux::DepositStakeTx { tx, .. } => {
+                TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx { tx, .. }) => {
                     spend_utxos(&tx.inputs, self.storage.db.clone(), &mut inittx);
                     update_account(
                         fee_acc
@@ -264,7 +264,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     &self.uncommitted_account_root_hash,
                     &mut self.accounts,
                 ),
-                TxAux::WithdrawUnbondedStakeTx { .. } => update_account(
+                TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx { .. }) => update_account(
                     fee_acc
                         .1
                         .expect("account returned in withdraw unbonded stake verification"),

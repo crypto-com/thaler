@@ -187,7 +187,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
                         )
                     })?
                     .tx;
-                Ok(tx)
+                Ok(TxAux::EnclaveTx(tx))
             }
             Err(_) => Err(Error::new(
                 ErrorKind::IoError,

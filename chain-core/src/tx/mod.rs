@@ -145,9 +145,9 @@ impl<'tx> Into<Payload<'tx, 'tx>> for &'tx TxObfuscated {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode)]
-/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-pub enum TxAux {
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+/// transactions with parts that are only viewable inside TEE
+pub enum TxEnclaveAux {
     /// normal value transfer Tx with the vector of witnesses
     TransferTx {
         inputs: Vec<TxoPointer>,
@@ -159,14 +159,38 @@ pub enum TxAux {
         tx: DepositBondTx,
         payload: TxObfuscated,
     },
-    /// Tx that modifies account state -- moves some bonded stake into unbonded (witness for account)
-    UnbondStakeTx(UnbondTx, StakedStateOpWitness),
     /// Tx that "creates" utxos out of account state; withdraws unbonded stake (witness for account)
     WithdrawUnbondedStakeTx {
         no_of_outputs: TxoIndex,
         witness: StakedStateOpWitness,
         payload: TxObfuscated,
     },
+}
+
+impl TxEnclaveAux {
+    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
+    pub fn tx_id(&self) -> TxId {
+        match self {
+            TxEnclaveAux::TransferTx {
+                payload: TxObfuscated { txid, .. },
+                ..
+            } => *txid,
+            TxEnclaveAux::DepositStakeTx { tx, .. } => tx.id(),
+            TxEnclaveAux::WithdrawUnbondedStakeTx {
+                payload: TxObfuscated { txid, .. },
+                ..
+            } => *txid,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Encode)]
+/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
+pub enum TxAux {
+    /// transactions that need to be processed inside TEE
+    EnclaveTx(TxEnclaveAux),
+    /// Tx that modifies account state -- moves some bonded stake into unbonded (witness for account)
+    UnbondStakeTx(UnbondTx, StakedStateOpWitness),
     /// Tx that unjails an account
     UnjailTx(UnjailTx, StakedStateOpWitness),
 }
@@ -182,30 +206,12 @@ impl Decode for TxAux {
         }
 
         match input.read_byte()? {
-            0 => Ok(TxAux::TransferTx {
-                inputs: <Vec<TxoPointer>>::decode(input)?,
-                no_of_outputs: TxoIndex::decode(input)?,
-                payload: TxObfuscated::decode(input)?,
-            }),
-            1 => {
-                let tx = DepositBondTx::decode(input)?;
-                let payload = TxObfuscated::decode(input)?;
-                if tx.id() != payload.txid {
-                    Err("Deposit tx id doesn't match".into())
-                } else {
-                    Ok(TxAux::DepositStakeTx { tx, payload })
-                }
-            }
-            2 => Ok(TxAux::UnbondStakeTx(
+            0 => Ok(TxAux::EnclaveTx(TxEnclaveAux::decode(input)?)),
+            1 => Ok(TxAux::UnbondStakeTx(
                 UnbondTx::decode(input)?,
                 StakedStateOpWitness::decode(input)?,
             )),
-            3 => Ok(TxAux::WithdrawUnbondedStakeTx {
-                no_of_outputs: TxoIndex::decode(input)?,
-                witness: StakedStateOpWitness::decode(input)?,
-                payload: TxObfuscated::decode(input)?,
-            }),
-            4 => Ok(TxAux::UnjailTx(
+            2 => Ok(TxAux::UnjailTx(
                 UnjailTx::decode(input)?,
                 StakedStateOpWitness::decode(input)?,
             )),
@@ -225,16 +231,8 @@ impl TxAux {
     /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
     pub fn tx_id(&self) -> TxId {
         match self {
-            TxAux::TransferTx {
-                payload: TxObfuscated { txid, .. },
-                ..
-            } => *txid,
-            TxAux::DepositStakeTx { tx, .. } => tx.id(),
+            TxAux::EnclaveTx(tx) => tx.tx_id(),
             TxAux::UnbondStakeTx(tx, _) => tx.id(),
-            TxAux::WithdrawUnbondedStakeTx {
-                payload: TxObfuscated { txid, .. },
-                ..
-            } => *txid,
             TxAux::UnjailTx(tx, _) => tx.id(),
         }
     }
@@ -254,21 +252,21 @@ fn display_tx_witness<T: fmt::Display, W: fmt::Debug>(
 impl fmt::Display for TxAux {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TxAux::TransferTx {
+            TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                 payload: TxObfuscated { txid, .. },
                 inputs,
                 ..
-            } => {
+            }) => {
                 writeln!(f, "Transfer Tx id:\n{}", hex::encode(&txid[..]))?;
                 writeln!(f, "tx inputs: {:?}\n", inputs)
             }
-            TxAux::DepositStakeTx { tx, .. } => writeln!(f, "Tx:\n{}", tx),
+            TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx { tx, .. }) => writeln!(f, "Tx:\n{}", tx),
             TxAux::UnbondStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
-            TxAux::WithdrawUnbondedStakeTx {
+            TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                 payload: TxObfuscated { txid, .. },
                 witness,
                 ..
-            } => {
+            }) => {
                 writeln!(
                     f,
                     "Withdraw Unbonded Stake Tx id:\n{}",

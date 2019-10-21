@@ -39,7 +39,7 @@ use chain_core::tx::{
         txid_hash, Tx, TxId,
     },
     witness::{TxInWitness, TxWitness},
-    TxAux,
+    TxAux, TxEnclaveAux,
 };
 use chain_tx_filter::BlockFilter;
 use chain_tx_validation::TxWithOutputs;
@@ -426,7 +426,7 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
 
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
     // TODO: mock enc
-    let txaux = TxAux::WithdrawUnbondedStakeTx {
+    let txaux = TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx.outputs.len() as TxoIndex,
         witness: witness.clone(),
         payload: TxObfuscated {
@@ -435,7 +435,7 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
             init_vector: [0; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
         },
-    };
+    });
     (app, txaux, tx)
 }
 
@@ -519,7 +519,9 @@ fn deliver_valid_tx() -> (
     let rewards_pool_remaining_new = app.last_state.as_ref().unwrap().rewards_pool.remaining;
     assert!(rewards_pool_remaining_new > rewards_pool_remaining_old);
     match txaux {
-        TxAux::WithdrawUnbondedStakeTx { witness, .. } => (app, tx, witness, cresp),
+        TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx { witness, .. }) => {
+            (app, tx, witness, cresp)
+        }
         _ => unreachable!("prepare_app_valid_tx should prepare stake withdrawal tx"),
     }
 }
@@ -845,7 +847,7 @@ fn all_valid_tx_types_should_commit() {
     );
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
-    let withdrawtx = TxAux::WithdrawUnbondedStakeTx {
+    let withdrawtx = TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx0.outputs.len() as TxoIndex,
         witness: witness0,
         payload: TxObfuscated {
@@ -854,7 +856,7 @@ fn all_valid_tx_types_should_commit() {
             init_vector: [0u8; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),
         },
-    };
+    });
     {
         let account = get_account(&addr, &app);
         // TODO: more precise amount assertions
@@ -883,7 +885,7 @@ fn all_valid_tx_types_should_commit() {
     )]
     .into();
     let plain_txaux = PlainTxAux::TransferTx(tx1.clone(), witness1);
-    let transfertx = TxAux::TransferTx {
+    let transfertx = TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
         inputs: tx1.inputs.clone(),
         no_of_outputs: tx1.outputs.len() as TxoIndex,
         payload: TxObfuscated {
@@ -892,7 +894,7 @@ fn all_valid_tx_types_should_commit() {
             init_vector: [0u8; 12],
             txpayload: plain_txaux.encode(),
         },
-    };
+    });
     {
         let spent_utxos = get_tx_meta(&txid, &app);
         assert!(!spent_utxos.any());
@@ -913,7 +915,7 @@ fn all_valid_tx_types_should_commit() {
             .unwrap(),
     )]
     .into();
-    let depositx = TxAux::DepositStakeTx {
+    let depositx = TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
         tx: tx2.clone(),
         payload: TxObfuscated {
             txid: tx2.id(),
@@ -921,7 +923,7 @@ fn all_valid_tx_types_should_commit() {
             init_vector: [0u8; 12],
             txpayload: PlainTxAux::DepositStakeTx(witness2).encode(),
         },
-    };
+    });
     {
         let spent_utxos0 = get_tx_meta(&txid, &app);
         assert!(spent_utxos0[0] && !spent_utxos0[1]);

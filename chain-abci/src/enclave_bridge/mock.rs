@@ -5,7 +5,7 @@ use chain_core::state::account::DepositBondTx;
 use chain_core::tx::data::TxId;
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TransactionId;
-use chain_core::tx::TxAux;
+use chain_core::tx::TxEnclaveAux;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::TxWithOutputs;
 use chain_tx_filter::BlockFilter;
@@ -70,7 +70,7 @@ impl EnclaveProxy for MockClient {
             EnclaveRequest::VerifyTx(txrequest) => {
                 let (tx, account, info) = (txrequest.tx, txrequest.account, txrequest.info);
                 let (txpayload, inputs) = match &tx {
-                    TxAux::TransferTx {
+                    TxEnclaveAux::TransferTx {
                         inputs,
                         payload: TxObfuscated { txpayload, .. },
                         ..
@@ -78,7 +78,7 @@ impl EnclaveProxy for MockClient {
                         txpayload,
                         inputs.iter().map(|x| self.lookup(&x.id)).collect(),
                     ),
-                    TxAux::DepositStakeTx {
+                    TxEnclaveAux::DepositStakeTx {
                         tx: DepositBondTx { inputs, .. },
                         payload: TxObfuscated { txpayload, .. },
                         ..
@@ -86,13 +86,10 @@ impl EnclaveProxy for MockClient {
                         txpayload,
                         inputs.iter().map(|x| self.lookup(&x.id)).collect(),
                     ),
-                    TxAux::WithdrawUnbondedStakeTx {
+                    TxEnclaveAux::WithdrawUnbondedStakeTx {
                         payload: TxObfuscated { txpayload, .. },
                         ..
                     } => (txpayload, vec![]),
-                    _ => {
-                        return EnclaveResponse::UnsupportedTxType;
-                    }
                 };
                 // FIXME
                 let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
@@ -107,7 +104,10 @@ impl EnclaveProxy for MockClient {
                         }
                         EnclaveResponse::VerifyTx(result.map(|x| (x, None)))
                     }
-                    (TxAux::DepositStakeTx { tx, .. }, Ok(PlainTxAux::DepositStakeTx(witness))) => {
+                    (
+                        TxEnclaveAux::DepositStakeTx { tx, .. },
+                        Ok(PlainTxAux::DepositStakeTx(witness)),
+                    ) => {
                         let result = verify_bonded_deposit(&tx, &witness, info, inputs, account);
                         EnclaveResponse::VerifyTx(result)
                     }

@@ -9,7 +9,7 @@ use chain_core::tx::data::input::TxoIndex;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxObfuscated;
-use chain_core::tx::{PlainTxAux, TxAux};
+use chain_core::tx::{PlainTxAux, TxEnclaveAux};
 use chain_tx_validation::TxWithOutputs;
 use enclave_protocol::{
     DecryptionRequest, DecryptionRequestBody, DecryptionResponse, EncryptionRequest,
@@ -48,7 +48,7 @@ fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Stora
                 Ok(EncryptionRequest::TransferTx(tx, witness)) => {
                     let plain = PlainTxAux::TransferTx(tx.clone(), witness);
                     let mock = EncryptionResponse {
-                        tx: TxAux::TransferTx {
+                        tx: TxEnclaveAux::TransferTx {
                             inputs: tx.inputs.clone(),
                             no_of_outputs: tx.outputs.len() as TxoIndex,
                             payload: TxObfuscated {
@@ -64,7 +64,7 @@ fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Stora
                 Ok(EncryptionRequest::DepositStake(maintx, witness)) => {
                     let plain = PlainTxAux::DepositStakeTx(witness);
                     let mock = EncryptionResponse {
-                        tx: TxAux::DepositStakeTx {
+                        tx: TxEnclaveAux::DepositStakeTx {
                             tx: maintx.clone(),
                             payload: TxObfuscated {
                                 key_from: 0,
@@ -79,7 +79,7 @@ fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Stora
                 Ok(EncryptionRequest::WithdrawStake(tx, _, witness)) => {
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                     let mock = EncryptionResponse {
-                        tx: TxAux::WithdrawUnbondedStakeTx {
+                        tx: TxEnclaveAux::WithdrawUnbondedStakeTx {
                             no_of_outputs: tx.outputs.len() as TxoIndex,
                             witness,
                             payload: TxObfuscated {

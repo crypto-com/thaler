@@ -1,7 +1,7 @@
 use crate::enclave_u::{check_initchain, check_tx, encrypt_tx, end_block};
 use chain_core::state::account::DepositBondTx;
 use chain_core::tx::data::TxId;
-use chain_core::tx::TxAux;
+use chain_core::tx::TxEnclaveAux;
 use chain_core::ChainInfo;
 use enclave_protocol::IntraEnclaveRequest;
 use enclave_protocol::{
@@ -67,10 +67,12 @@ impl TxValidationServer {
         Some(result)
     }
 
-    fn lookup(&self, tx: &TxAux) -> Option<Vec<Vec<u8>>> {
+    fn lookup(&self, tx: &TxEnclaveAux) -> Option<Vec<Vec<u8>>> {
         match tx {
-            TxAux::TransferTx { inputs, .. } => self.lookup_txids(inputs.iter().map(|x| x.id)),
-            TxAux::DepositStakeTx {
+            TxEnclaveAux::TransferTx { inputs, .. } => {
+                self.lookup_txids(inputs.iter().map(|x| x.id))
+            }
+            TxEnclaveAux::DepositStakeTx {
                 tx: DepositBondTx { inputs, .. },
                 ..
             } => self.lookup_txids(inputs.iter().map(|x| x.id)),
@@ -137,7 +139,7 @@ impl TxValidationServer {
                         let chid = req.info.chain_hex_id;
                         let mtxins = self.lookup(&req.tx);
                         if is_basic_valid_tx_request(&req, &mtxins, chid).is_err() {
-                            EnclaveResponse::UnsupportedTxType
+                            EnclaveResponse::UnknownRequest
                         } else {
                             self.info = Some(req.info);
                             EnclaveResponse::VerifyTx(check_tx(

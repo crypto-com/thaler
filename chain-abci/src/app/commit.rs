@@ -9,8 +9,8 @@ use chain_core::compute_app_hash;
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::TxId;
 use chain_core::tx::PlainTxAux;
-use chain_core::tx::TxAux;
 use chain_core::tx::TxObfuscated;
+use chain_core::tx::{TxAux, TxEnclaveAux};
 use chain_tx_validation::TxWithOutputs;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use integer_encoding::VarInt;
@@ -53,12 +53,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             for txaux in self.delivered_txs.iter() {
                 let txid: TxId = txaux.tx_id();
                 match &txaux {
-                    TxAux::TransferTx {
+                    TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                         inputs,
                         no_of_outputs,
                         payload: TxObfuscated { txpayload, .. },
                         ..
-                    } => {
+                    }) => {
                         // FIXME: temporary hack / this shouldn't be here
                         let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
                         if let Ok(PlainTxAux::TransferTx(tx, witness)) = plain_tx {
@@ -77,7 +77,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                             &mut inittx,
                         );
                     }
-                    TxAux::DepositStakeTx { tx, .. } => {
+                    TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx { tx, .. }) => {
                         inittx.put(COL_BODIES, &txid[..], &tx.encode());
                         // witness is obfuscated -- TODO: could be stored on the enclave side or thrown away?
                         // this is not necessary (as they are spent in deliver_tx) and more of a sanity check (as update_utxos_commit does it)
@@ -89,12 +89,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                         inittx.put(COL_WITNESS, &txid[..], &witness.encode());
                         // account should be already updated in deliver_tx
                     }
-                    TxAux::WithdrawUnbondedStakeTx {
+                    TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                         witness,
                         no_of_outputs,
                         payload: TxObfuscated { txpayload, .. },
                         ..
-                    } => {
+                    }) => {
                         // FIXME: temporary hack / this shouldn't be here
                         let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
                         if let Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx)) = plain_tx {
