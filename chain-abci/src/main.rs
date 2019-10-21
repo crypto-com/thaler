@@ -1,6 +1,8 @@
 mod app;
 mod enclave_bridge;
 mod liveness;
+mod punishment;
+mod slashing;
 mod storage;
 
 use log::info;

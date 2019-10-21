@@ -71,6 +71,11 @@ impl SlashRatio {
             Ok(Self(milli))
         }
     }
+
+    #[inline]
+    pub(crate) fn as_millis(self) -> u64 {
+        self.0.as_millis()
+    }
 }
 
 impl FromStr for SlashRatio {

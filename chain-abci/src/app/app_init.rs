@@ -1,5 +1,6 @@
 use crate::enclave_bridge::EnclaveProxy;
 use crate::liveness::LivenessTracker;
+use crate::punishment::ValidatorPunishment;
 use crate::storage::account::AccountStorage;
 use crate::storage::account::AccountWrapper;
 use crate::storage::tx::get_account;
@@ -54,8 +55,8 @@ pub struct ChainNodeState {
     pub slashing_config: SlashingParameters,
     /// council nodes metadata
     pub council_nodes: Vec<CouncilNode>,
-    /// Liveness trackers for staking accounts
-    pub validator_liveness: BTreeMap<TendermintValidatorAddress, LivenessTracker>,
+    /// Runtime state for computing and executing validator punishment
+    pub punishment: ValidatorPunishment,
 }
 
 impl ChainNodeState {
@@ -66,7 +67,7 @@ impl ChainNodeState {
         rewards_pool: RewardsPoolState,
         network_params: InitNetworkParameters,
         council_nodes: Vec<CouncilNode>,
-        validator_liveness: BTreeMap<TendermintValidatorAddress, LivenessTracker>,
+        punishment: ValidatorPunishment,
     ) -> Self {
         ChainNodeState {
             last_block_height: 0,
@@ -80,7 +81,7 @@ impl ChainNodeState {
             jailing_config: network_params.jailing_config,
             slashing_config: network_params.slashing_config,
             council_nodes,
-            validator_liveness,
+            punishment,
         }
     }
 }
@@ -199,7 +200,7 @@ fn store_valid_genesis_state(
     network_params: InitNetworkParameters,
     last_account_root_hash: StarlingFixedKey,
     council_nodes: Vec<CouncilNode>,
-    validator_liveness: BTreeMap<TendermintValidatorAddress, LivenessTracker>,
+    punishment: ValidatorPunishment,
     inittx: &mut DBTransaction,
 ) -> ChainNodeState {
     let last_state = ChainNodeState::genesis(
@@ -209,7 +210,7 @@ fn store_valid_genesis_state(
         rewards_pool,
         network_params,
         council_nodes,
-        validator_liveness,
+        punishment,
     );
     let encoded = last_state.encode();
     inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &encoded);
@@ -479,7 +480,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 conf.network_params,
                 new_account_root,
                 nodes,
-                validator_liveness,
+                ValidatorPunishment {
+                    validator_liveness,
+                    slashing_schedule: Default::default(),
+                },
                 &mut inittx,
             );
 

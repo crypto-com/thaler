@@ -3,6 +3,8 @@
 //! Copyright (c) 2018, Input Output HK (licensed under the MIT License)
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
+#[cfg(feature = "base64")]
+use crate::init::config::SlashRatio;
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS, MAX_COIN_UNITS};
 use crate::state::tendermint::TendermintVotePower;
 use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
@@ -201,6 +203,21 @@ impl ops::Sub<Coin> for CoinResult {
     }
 }
 
+#[cfg(feature = "base64")]
+impl ops::Mul<SlashRatio> for Coin {
+    type Output = Self;
+
+    fn mul(self, rhs: SlashRatio) -> Self::Output {
+        let value = u128::from(u64::from(self));
+        let ratio = u128::from(rhs.as_millis());
+
+        assert!(ratio <= 1000, "Slash ratio is greater than 1.0");
+        let result = ((value * ratio) / 1000) as u64; // This won't overflow because `ratio` is guaranteed to be less than 1000
+
+        Coin(result)
+    }
+}
+
 impl From<Coin> for u64 {
     fn from(c: Coin) -> u64 {
         c.0
@@ -248,6 +265,7 @@ where
 mod test {
     use super::*;
     use quickcheck::quickcheck;
+    use std::str::FromStr;
 
     #[test]
     // test whether oveflow error occur
@@ -283,6 +301,14 @@ mod test {
         let b = Coin::new(0).unwrap();
         let sub = (a - b).unwrap();
         assert!(sub == a);
+    }
+
+    #[test]
+    fn coin_slash_ratio_mul() {
+        let max = Coin::max();
+        let ratio = SlashRatio::from_str("0.1").unwrap();
+
+        assert_eq!(Coin::new(100_000_000_000__0000_000).unwrap(), max * ratio);
     }
 
     quickcheck! {
