@@ -32,7 +32,6 @@ use secp256k1::{
 };
 
 pub const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
-const TOKEN_LEN: usize = 1024;
 
 /// raw sgx_sealed_data_t
 type SealedLog = Vec<u8>;
@@ -130,7 +129,6 @@ pub struct QueryEncryptRequest {
 }
 
 /// requests sent from chain-abci app to enclave wrapper server
-/// FIXME: remove launch token stuff (deprecated in SGX SDK 2.6)
 #[derive(Encode, Decode)]
 pub enum EnclaveRequest {
     /// a sanity check (sends the chain network ID -- last byte / two hex digits convention)
@@ -149,13 +147,6 @@ pub enum EnclaveRequest {
     /// request to flush/persist storage + store the computed app hash
     /// FIXME: enclave should be able to compute a part of app hash, so send the other parts and check the same app hash was computed
     CommitBlock { app_hash: H256 },
-    /// request to get a stored launch token (requested by TQE -- they should be on the same machine)
-    GetCachedLaunchToken { enclave_metaname: Vec<u8> },
-    /// request to update the stored launch token (requested by TQE -- they should be on the same machine)
-    UpdateCachedLaunchToken {
-        enclave_metaname: Vec<u8>,
-        token: Box<[u8; TOKEN_LEN]>,
-    },
     /// request to get tx data sealed to "mrsigner" (requested by TQE -- they should be on the same machine)
     GetSealedTxData { txids: Vec<TxId> },
     /// request to encrypt tx by the current key (requested by TQE -- they should be on the same machine)
@@ -170,7 +161,6 @@ impl EnclaveRequest {
 
 /// reponses sent from enclave wrapper server to chain-abci app
 /// TODO: better error responses?
-/// FIXME: remove launch token stuff (deprecated in SGX SDK 2.6)
 #[derive(Encode, Decode)]
 pub enum EnclaveResponse {
     /// returns OK if chain_hex_id matches the one embedded in enclave and last_app_hash matches (returns the last app hash if any)
@@ -181,10 +171,6 @@ pub enum EnclaveResponse {
     EndBlock(Result<Box<TxFilter>, ()>),
     /// returns if the data was sucessfully persisted in the enclave's local storage
     CommitBlock(Result<(), ()>),
-    /// returns a stored launch token if any
-    GetCachedLaunchToken(Result<Option<Box<[u8; TOKEN_LEN]>>, ()>),
-    /// indicates whether the update was successful
-    UpdateCachedLaunchToken(Result<(), ()>),
     /// returns Some(sealed data payloads) or None (if any TXID was not found / invalid)
     GetSealedTxData(Option<Vec<SealedLog>>),
     /// returns Ok(encrypted tx payload) if Tx was valid

@@ -33,7 +33,7 @@ use client_core::cipher::DefaultTransactionObfuscation;
 use client_core::cipher::TransactionObfuscation;
 use enclave_protocol::FLAGS;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
-use enclave_u_common::enclave_u::{init_enclave, VALIDATION_TOKEN_KEY};
+use enclave_u_common::enclave_u::init_enclave;
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
 use log::{debug, error, info, warn};

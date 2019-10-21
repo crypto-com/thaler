@@ -5,12 +5,10 @@ mod enclave_u;
 #[cfg(feature = "sgx-test")]
 mod test;
 
-use crate::enclave_u::{init_connection, ZMQ_SOCKET};
-use enclave_protocol::{EnclaveRequest, EnclaveResponse, FLAGS};
+use crate::enclave_u::init_connection;
 use enclave_u::run_server;
-use enclave_u_common::enclave_u::{init_enclave, QUERY_TOKEN_KEY};
+use enclave_u_common::enclave_u::init_enclave;
 use log::{error, info, warn};
-use parity_scale_codec::{Decode, Encode};
 use sgx_types::sgx_status_t;
 use sgx_urts::SgxEnclave;
 use std::env;
@@ -21,45 +19,15 @@ use std::time::Duration;
 const TIMEOUT_SEC: u64 = 5;
 
 pub fn start_enclave() -> SgxEnclave {
-    ZMQ_SOCKET.with(|socket| {
-        let q_token = QUERY_TOKEN_KEY.to_vec();
-        let request = EnclaveRequest::GetCachedLaunchToken {
-            enclave_metaname: q_token.clone(),
-        };
-        let req = request.encode();
-        socket.send(req, FLAGS).expect("request sending failed");
-        let msg = socket
-            .recv_bytes(FLAGS)
-            .expect("failed to receive a response");
-        match EnclaveResponse::decode(&mut msg.as_slice()) {
-            Ok(EnclaveResponse::GetCachedLaunchToken(Ok(token))) => {
-                let launch_token = token.map(|x| x.to_vec());
-                match init_enclave(true, launch_token) {
-                    (Ok(r), new_token) => {
-                        info!("[+] Init Enclave Successful {}!", r.geteid());
-                        if let Some(launch_token) = new_token {
-                            let request = EnclaveRequest::UpdateCachedLaunchToken {
-                                enclave_metaname: q_token,
-                                token: Box::new(launch_token),
-                            };
-                            let req = request.encode();
-                            socket.send(req, FLAGS).expect("request sending failed");
-                            socket
-                                .recv_bytes(FLAGS)
-                                .expect("failed to receive a response");
-                        }
-                        return r;
-                    }
-                    (Err(x), _) => {
-                        panic!("[-] Init Enclave Failed {}!", x.as_str());
-                    }
-                };
-            }
-            _ => {
-                panic!("error in launch zmq response");
-            }
+    match init_enclave(true) {
+        Ok(r) => {
+            info!("[+] Init Query Enclave Successful {}!", r.geteid());
+            r
         }
-    })
+        Err(e) => {
+            panic!("[-] Init Query Enclave Failed {}!", e.as_str());
+        }
+    }
 }
 
 #[cfg(feature = "sgx-test")]

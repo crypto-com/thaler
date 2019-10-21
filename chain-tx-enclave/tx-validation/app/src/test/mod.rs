@@ -1,5 +1,4 @@
 use crate::enclave_u::{check_initchain, check_tx, end_block};
-use crate::enclave_u::{get_token, store_token};
 use chain_core::common::MerkleTree;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
@@ -27,7 +26,7 @@ use chain_core::tx::{
 use chain_core::ChainInfo;
 use chain_tx_validation::Error;
 use enclave_protocol::{EncryptionRequest, IntraEnclaveRequest, VerifyTxRequest};
-use enclave_u_common::enclave_u::{init_enclave, VALIDATION_TOKEN_KEY};
+use enclave_u_common::enclave_u::init_enclave;
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
 use log::{debug, error, info};
@@ -115,16 +114,12 @@ pub fn test_sealing() {
         .open_tree(crate::TX_KEYSPACE)
         .expect("failed to open a tx keyspace");
 
-    let token = get_token(&metadb, VALIDATION_TOKEN_KEY);
-    let enclave = match init_enclave(true, token) {
-        (Ok(r), new_token) => {
+    let enclave = match init_enclave(true) {
+        Ok(r) => {
             info!("[+] Init Enclave Successful {}!", r.geteid());
-            if let Some(launch_token) = new_token {
-                store_token(&mut metadb, VALIDATION_TOKEN_KEY, launch_token.to_vec());
-            }
             r
         }
-        (Err(x), _) => {
+        Err(x) => {
             error!("[-] Init Enclave Failed {}!", x.as_str());
             return;
         }

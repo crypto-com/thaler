@@ -31,65 +31,23 @@
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
-use log::{info, warn};
-
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 
-pub const VALIDATION_TOKEN_KEY: &[u8] = b"tx-validation-enclave.token";
-pub const QUERY_TOKEN_KEY: &[u8] = b"tx-query-enclave.token";
-
-pub const TOKEN_LEN: usize = 1024;
-
-/// returns the initialized enclave and the launch token (if it was created or updated)
-pub fn init_enclave(debug: bool, previous_token: Option<Vec<u8>>) -> (SgxResult<SgxEnclave>, Option<sgx_launch_token_t>) {
-    let mut launch_token: sgx_launch_token_t = [0; TOKEN_LEN];
-    let mut launch_token_updated: i32 = 0;
-    // Step 1: try to retrieve the launch token saved by last transaction
-    //         if there is no token, then create a new one.
-    //
-    // try to get the token saved in the key-value db */
-    let stored_token = match previous_token {
-        Some(token) => {
-            info!("[+] Open token file success! ");
-            if token.len() != TOKEN_LEN {
-                warn!(
-                    "[+] Token file invalid, will create new token file -- size: {} (expected {})",
-                    token.len(),
-                    TOKEN_LEN
-                );
-                false
-            } else {
-                launch_token.copy_from_slice(&token);
-                true
-            }
-        }
-        _ => {
-            warn!("[-] Open token file error or not found! Will create one.");
-            false
-        }
-    };
-
-    // Step 2: call sgx_create_enclave to initialize an enclave instance
+/// returns the initialized enclave
+pub fn init_enclave(debug: bool) -> SgxResult<SgxEnclave> {
+    // call sgx_create_enclave to initialize an enclave instance
     // Debug Support: set 2nd parameter to 1
     let debug = if debug { 1 } else { 0 };
     let mut misc_attr = sgx_misc_attribute_t {
         secs_attr: sgx_attributes_t { flags: 0, xfrm: 0 },
         misc_select: 0,
     };
-    let enclave = SgxEnclave::create(
+    // TODO: remove the launch token-related args when they are removed from SDK
+    SgxEnclave::create(
         ENCLAVE_FILE,
         debug,
-        &mut launch_token,
-        &mut launch_token_updated,
+        &mut [0; 1024],
+        &mut 0,
         &mut misc_attr,
-    );
-
-    // Step 3: save the launch token if it is updated
-    if (stored_token && launch_token_updated != 0) || !stored_token {
-        (enclave, Some(launch_token))
-    } else {
-        (enclave, None)
-    }
-
-    
+    )
 }
