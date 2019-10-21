@@ -2,6 +2,7 @@ mod app_init;
 mod commit;
 mod jail_account;
 mod query;
+mod slash_accounts;
 mod validate_tx;
 
 use abci::*;
@@ -10,6 +11,7 @@ use log::info;
 pub use self::app_init::{ChainNodeApp, ChainNodeState};
 use crate::enclave_bridge::EnclaveProxy;
 use crate::liveness::LivenessTracker;
+use crate::slashing::SlashingSchedule;
 use crate::storage::account::AccountStorage;
 use crate::storage::account::AccountWrapper;
 use crate::storage::tx::StarlingFixedKey;
@@ -156,16 +158,34 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 let validator_address =
                     TendermintValidatorAddress::try_from(validator.address.as_slice())
                         .expect("Invalid validator address in begin block request");
-                let account_address = self
-                    .last_state
-                    .as_ref()
-                    .unwrap()
+                let account_address = last_state
+                    .punishment
                     .validator_liveness
                     .get(&validator_address)
                     .expect("Validator not found in liveness tracker")
                     .address();
 
                 accounts_to_jail.push(account_address);
+
+                let slashing_ratio = last_state.slashing_config.byzantine_slash_percent;
+                let slashing_time =
+                    last_state.block_time + i64::from(last_state.slashing_config.slash_wait_period);
+
+                match last_state
+                    .punishment
+                    .slashing_schedule
+                    .get_mut(&account_address)
+                {
+                    Some(account_slashing_schedule) => {
+                        account_slashing_schedule.update_slash_ratio(slashing_ratio);
+                    }
+                    None => {
+                        last_state.punishment.slashing_schedule.insert(
+                            account_address,
+                            SlashingSchedule::new(slashing_ratio, slashing_time),
+                        );
+                    }
+                }
             }
         }
 
@@ -180,6 +200,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             self.last_state
                 .as_ref()
                 .unwrap()
+                .punishment
                 .validator_liveness
                 .values()
                 .filter(|tracker| !tracker.is_live(missed_block_threshold))
@@ -190,6 +211,9 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             self.jail_account(account_address)
                 .expect("Unable to jail account in begin block");
         }
+
+        self.slash_eligible_accounts()
+            .expect("Unable to slash accounts in slashing queue");
 
         ResponseBeginBlock::new()
     }
@@ -349,7 +373,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                         .as_mut()
                         .expect("Last app state not found, init chain was not called");
 
-                    let validator_liveness = &mut last_state.validator_liveness;
+                    let validator_liveness = &mut last_state.punishment.validator_liveness;
 
                     let validator_address: TendermintValidatorAddress =
                         into_tendermint_validator_pub_key(&self.validator_pubkeys[&address]).into();
@@ -411,7 +435,7 @@ fn update_validator_liveness(
             signed
         );
 
-        match state.validator_liveness.get_mut(&address) {
+        match state.punishment.validator_liveness.get_mut(&address) {
             Some(liveness_tracker) => {
                 liveness_tracker.update(block_height, signed);
             }

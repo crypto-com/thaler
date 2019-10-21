@@ -1,7 +1,8 @@
 use crate::common::{hash256, Timespec, HASH_SIZE_256};
 use crate::init::address::RedeemAddress;
-use crate::init::coin::Coin;
-use crate::init::coin::{sum_coins, CoinError};
+use crate::init::coin::{sum_coins, Coin, CoinError};
+#[cfg(feature = "base64")]
+use crate::init::config::SlashRatio;
 use crate::tx::data::attribute::TxAttributes;
 use crate::tx::data::input::TxoPointer;
 use crate::tx::data::output::TxOut;
@@ -255,6 +256,20 @@ impl StakedState {
     pub fn unjail(&mut self) {
         self.nonce += 1;
         self.jailed_until = None;
+    }
+
+    /// Slashes current account with given ratio and returns slashed amount
+    #[cfg(feature = "base64")]
+    pub fn slash(&mut self, slash_ratio: SlashRatio) -> Result<Coin, CoinError> {
+        self.nonce += 1;
+
+        let bonded_slash_value = self.bonded * slash_ratio;
+        let unbonded_slash_value = self.unbonded * slash_ratio;
+
+        self.bonded = (self.bonded - bonded_slash_value)?;
+        self.unbonded = (self.unbonded - unbonded_slash_value)?;
+
+        bonded_slash_value + unbonded_slash_value
     }
 }
 
