@@ -6,7 +6,8 @@ use std::sync::mpsc::channel;
 use std::thread;
 
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
-use cli_table::{Cell, CellFormat, Color, Justify, Row, Table};
+use cli_table::format::{CellFormat, Color, Justify};
+use cli_table::{Cell, Row, Table};
 use hex::encode;
 use pbr::ProgressBar;
 use quest::success;
@@ -217,33 +218,36 @@ impl Command {
         let bold = CellFormat::builder().bold(true).build();
         let justify_right = CellFormat::builder().justify(Justify::Right).build();
 
-        let table = Table::new(vec![
-            Row::new(vec![
-                Cell::new("Nonce", bold),
-                Cell::new(&staked_state.nonce, justify_right),
-            ]),
-            Row::new(vec![
-                Cell::new("Bonded", bold),
-                Cell::new(&staked_state.bonded, justify_right),
-            ]),
-            Row::new(vec![
-                Cell::new("Unbonded", bold),
-                Cell::new(&staked_state.unbonded, justify_right),
-            ]),
-            Row::new(vec![
-                Cell::new("Unbonded From", bold),
-                Cell::new(
-                    &<DateTime<Local>>::from(DateTime::<Utc>::from_utc(
-                        NaiveDateTime::from_timestamp(staked_state.unbonded_from, 0),
-                        Utc,
-                    )),
-                    Default::default(),
-                ),
-            ]),
-        ]);
+        let table = Table::new(
+            vec![
+                Row::new(vec![
+                    Cell::new("Nonce", bold),
+                    Cell::new(&staked_state.nonce, justify_right),
+                ]),
+                Row::new(vec![
+                    Cell::new("Bonded", bold),
+                    Cell::new(&staked_state.bonded, justify_right),
+                ]),
+                Row::new(vec![
+                    Cell::new("Unbonded", bold),
+                    Cell::new(&staked_state.unbonded, justify_right),
+                ]),
+                Row::new(vec![
+                    Cell::new("Unbonded From", bold),
+                    Cell::new(
+                        &<DateTime<Local>>::from(DateTime::<Utc>::from_utc(
+                            NaiveDateTime::from_timestamp(staked_state.unbonded_from, 0),
+                            Utc,
+                        )),
+                        Default::default(),
+                    ),
+                ]),
+            ],
+            Default::default(),
+        );
 
         table
-            .print_std()
+            .print_stdout()
             .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
 
         Ok(())
@@ -317,10 +321,10 @@ impl Command {
                 ]));
             }
 
-            let table = Table::new(rows);
+            let table = Table::new(rows, Default::default());
 
             table
-                .print_std()
+                .print_stdout()
                 .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
         } else {
             success("No history found!")
