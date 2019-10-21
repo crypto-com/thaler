@@ -151,6 +151,9 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             }
         }
 
+        let slashing_time =
+            last_state.block_time + i64::from(last_state.slashing_config.slash_wait_period);
+
         let mut accounts_to_jail = Vec::new();
 
         for evidence in req.byzantine_validators.iter() {
@@ -168,8 +171,6 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 accounts_to_jail.push(account_address);
 
                 let slashing_ratio = last_state.slashing_config.byzantine_slash_percent;
-                let slashing_time =
-                    last_state.block_time + i64::from(last_state.slashing_config.slash_wait_period);
 
                 match last_state
                     .punishment
@@ -189,23 +190,36 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             }
         }
 
-        let missed_block_threshold = self
-            .last_state
-            .as_ref()
-            .unwrap()
-            .jailing_config
-            .missed_block_threshold;
+        let missed_block_threshold = last_state.jailing_config.missed_block_threshold;
 
-        accounts_to_jail.extend(
-            self.last_state
-                .as_ref()
-                .unwrap()
+        let non_live_addresses = last_state
+            .punishment
+            .validator_liveness
+            .values()
+            .filter(|tracker| !tracker.is_live(missed_block_threshold))
+            .map(LivenessTracker::address);
+
+        let slashing_ratio = last_state.slashing_config.liveness_slash_percent;
+
+        for non_live_address in non_live_addresses {
+            match last_state
                 .punishment
-                .validator_liveness
-                .values()
-                .filter(|tracker| !tracker.is_live(missed_block_threshold))
-                .map(LivenessTracker::address),
-        );
+                .slashing_schedule
+                .get_mut(&non_live_address)
+            {
+                Some(account_slashing_schedule) => {
+                    account_slashing_schedule.update_slash_ratio(slashing_ratio);
+                }
+                None => {
+                    last_state.punishment.slashing_schedule.insert(
+                        non_live_address,
+                        SlashingSchedule::new(slashing_ratio, slashing_time),
+                    );
+                }
+            }
+
+            accounts_to_jail.push(non_live_address)
+        }
 
         for account_address in accounts_to_jail {
             self.jail_account(account_address)
