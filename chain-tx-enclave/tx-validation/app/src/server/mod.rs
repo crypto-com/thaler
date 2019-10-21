@@ -1,6 +1,4 @@
-use crate::enclave_u::{
-    check_initchain, check_tx, encrypt_tx, end_block, get_token_arr, store_token,
-};
+use crate::enclave_u::{check_initchain, check_tx, encrypt_tx, end_block};
 use chain_core::state::account::DepositBondTx;
 use chain_core::tx::data::TxId;
 use chain_core::tx::TxAux;
@@ -33,7 +31,7 @@ impl TxValidationServer {
         txdb: Tree,
         metadb: Tree,
     ) -> Result<TxValidationServer, Error> {
-        match txdb.get(LAST_CHAIN_INFO_KEY) {
+        match metadb.get(LAST_CHAIN_INFO_KEY) {
             Err(_) => Err(Error::EFAULT),
             Ok(s) => {
                 let info = s.map(|stored| {
@@ -80,6 +78,11 @@ impl TxValidationServer {
         }
     }
 
+    pub fn flush_all(&mut self) -> Result<usize, sled::Error> {
+        let _ = self.txdb.flush()?;
+        self.metadb.flush()
+    }
+
     pub fn execute(&mut self) {
         info!("running zmq server");
         loop {
@@ -92,7 +95,7 @@ impl TxValidationServer {
                         last_app_hash,
                     }) => {
                         debug!("check chain");
-                        match self.txdb.get(LAST_APP_HASH_KEY) {
+                        match self.metadb.get(LAST_APP_HASH_KEY) {
                             Err(_) => EnclaveResponse::CheckChain(Err(None)),
                             Ok(s) => {
                                 let ss = s.map(|stored| {
@@ -117,14 +120,14 @@ impl TxValidationServer {
                         IntraEnclaveRequest::EndBlock,
                     )),
                     Ok(EnclaveRequest::CommitBlock { app_hash }) => {
-                        let _ = self.txdb.insert(LAST_APP_HASH_KEY, &app_hash);
+                        let _ = self.metadb.insert(LAST_APP_HASH_KEY, &app_hash);
                         match self.info {
                             Some(info) => {
-                                let _ = self.txdb.insert(LAST_CHAIN_INFO_KEY, &info.encode()[..]);
+                                let _ = self.metadb.insert(LAST_CHAIN_INFO_KEY, &info.encode()[..]);
                             }
                             _ => {}
                         };
-                        if let Ok(_) = self.txdb.flush() {
+                        if let Ok(_) = self.flush_all() {
                             EnclaveResponse::CommitBlock(Ok(()))
                         } else {
                             EnclaveResponse::CommitBlock(Err(()))
@@ -147,20 +150,6 @@ impl TxValidationServer {
                             ))
                         }
                     }
-                    Ok(EnclaveRequest::GetCachedLaunchToken { enclave_metaname }) => {
-                        EnclaveResponse::GetCachedLaunchToken(get_token_arr(
-                            &self.metadb,
-                            &enclave_metaname,
-                        ))
-                    }
-                    Ok(EnclaveRequest::UpdateCachedLaunchToken {
-                        enclave_metaname,
-                        token,
-                    }) => EnclaveResponse::UpdateCachedLaunchToken(store_token(
-                        &mut self.metadb,
-                        &enclave_metaname,
-                        token.to_vec(),
-                    )),
                     Ok(EnclaveRequest::GetSealedTxData { txids }) => {
                         EnclaveResponse::GetSealedTxData(
                             self.lookup_txids(txids.iter().map(|x| *x)),

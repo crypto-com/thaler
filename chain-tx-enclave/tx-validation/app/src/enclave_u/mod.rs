@@ -8,8 +8,6 @@ use chain_core::tx::TxAux;
 use chain_core::tx::TxObfuscated;
 use chain_tx_validation::Error;
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponse, IntraEnclaveResponseOk};
-use enclave_u_common::enclave_u::TOKEN_LEN;
-use log::{info, warn};
 use parity_scale_codec::{Decode, Encode};
 use sled::Tree;
 use std::mem::size_of;
@@ -30,37 +28,6 @@ extern "C" {
         response_len: u32,
     ) -> sgx_status_t;
 
-}
-
-pub fn get_token(metadb: &Tree, token_key: &[u8]) -> Option<Vec<u8>> {
-    match metadb.get(token_key) {
-        Ok(x) => x.map(|tok| tok.to_vec()),
-        _ => None,
-    }
-}
-
-pub fn get_token_arr(metadb: &Tree, token_key: &[u8]) -> Result<Option<Box<[u8; TOKEN_LEN]>>, ()> {
-    match metadb.get(token_key) {
-        Ok(x) => Ok(x.map(|tok| {
-            let mut token = [0; TOKEN_LEN];
-            token.copy_from_slice(&tok);
-            Box::new(token)
-        })),
-        _ => Err(()),
-    }
-}
-
-pub fn store_token(metadb: &mut Tree, token_key: &[u8], launch_token: Vec<u8>) -> Result<(), ()> {
-    match metadb.insert(token_key, launch_token) {
-        Ok(_) => {
-            info!("[+] Saved updated launch token!");
-            Ok(())
-        }
-        Err(_) => {
-            warn!("[-] Failed to save updated launch token!");
-            Err(())
-        }
-    }
 }
 
 pub fn check_initchain(
