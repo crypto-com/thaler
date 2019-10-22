@@ -11,8 +11,6 @@ sgx-test = []
 
 [dependencies]
 sled = "0.29"
-hex = "0.4"
-dirs = "1.0.2"
 zmq = "0.9"
 log = "0.4.0"
 env_logger = "0.7.0"
