@@ -1,3 +1,6 @@
+use abci::{Event, KVPair};
+
+use chain_core::common::TendermintEventType;
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_validation::Error;
 
@@ -7,7 +10,7 @@ use crate::storage::tx::get_account;
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Slashes all the eligible accounts currently in slashing queue
-    pub fn slash_eligible_accounts(&mut self) -> Result<(), Error> {
+    pub fn slash_eligible_accounts(&mut self) -> Result<Event, Error> {
         let last_state = self
             .last_state
             .as_mut()
@@ -28,7 +31,16 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             })
             .collect();
 
+        let mut slashing_event = Event::new();
+        slashing_event.field_type = TendermintEventType::SlashValidators.to_string();
+
         for staking_address in accounts_to_slash {
+            let mut kvpair = KVPair::new();
+            kvpair.key = b"account".to_vec();
+            kvpair.value = staking_address.to_string().into_bytes();
+
+            slashing_event.attributes.push(kvpair);
+
             let mut account = get_account(
                 &staking_address,
                 &self.uncommitted_account_root_hash,
@@ -61,6 +73,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             self.uncommitted_account_root_hash = new_root;
         }
 
-        Ok(())
+        Ok(slashing_event)
     }
 }

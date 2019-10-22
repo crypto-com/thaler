@@ -221,15 +221,35 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             accounts_to_jail.push(non_live_address)
         }
 
+        let mut jailing_event = Event::new();
+        jailing_event.field_type = TendermintEventType::JailValidators.to_string();
+
         for account_address in accounts_to_jail {
+            let mut kvpair = KVPair::new();
+            kvpair.key = b"account".to_vec();
+            kvpair.value = account_address.to_string().into_bytes();
+
+            jailing_event.attributes.push(kvpair);
+
             self.jail_account(account_address)
                 .expect("Unable to jail account in begin block");
         }
 
-        self.slash_eligible_accounts()
+        let slashing_event = self
+            .slash_eligible_accounts()
             .expect("Unable to slash accounts in slashing queue");
 
-        ResponseBeginBlock::new()
+        let mut response = ResponseBeginBlock::new();
+
+        if !jailing_event.attributes.is_empty() {
+            response.events.push(jailing_event);
+        }
+
+        if !slashing_event.attributes.is_empty() {
+            response.events.push(slashing_event);
+        }
+
+        response
     }
 
     /// Consensus Connection: Actually processing the transaction, performing some form of a
