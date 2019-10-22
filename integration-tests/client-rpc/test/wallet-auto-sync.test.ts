@@ -46,7 +46,7 @@ describe("Wallet Auto-sync", () => {
 		const transferAmount = "1000";
 
 		await asyncMiddleman(
-			zeroFeeRpcClient.request("wallet_create", [receiverWalletRequest]),
+			zeroFeeRpcClient.request("wallet_create", [receiverWalletRequest, "Basic"]),
 			"Error when creating receiver wallet",
 		);
 
