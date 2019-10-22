@@ -31,6 +31,8 @@ pub type H512 = [u8; HASH_SIZE_256 * 2];
 pub enum TendermintEventType {
     ValidTransactions,
     BlockFilter,
+    JailValidators,
+    SlashValidators,
 }
 
 impl fmt::Display for TendermintEventType {
@@ -38,6 +40,8 @@ impl fmt::Display for TendermintEventType {
         match self {
             TendermintEventType::ValidTransactions => write!(f, "valid_txs"),
             TendermintEventType::BlockFilter => write!(f, "block_filter"),
+            TendermintEventType::JailValidators => write!(f, "jail_validators"),
+            TendermintEventType::SlashValidators => write!(f, "slash_validators"),
         }
     }
 }
