@@ -58,7 +58,8 @@ describe("Wallet management", () => {
 		const walletRequest = newWalletRequest(walletName, "123456");
 
 		const walletCreateResult = await client.request("wallet_create", [
-			walletRequest,
+			walletRequest
+			, "Basic"
 		]);
 		expect(walletCreateResult).to.deep.eq(walletName);
 
@@ -71,7 +72,7 @@ describe("Wallet management", () => {
 		const walletRequest = newWalletRequest(walletName, "123456");
 
 		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest,
+			walletRequest, "Basic"
 		]);
 		expect(walletCreateResponse).to.deep.eq(walletName);
 
@@ -95,12 +96,12 @@ describe("Wallet management", () => {
 		const walletRequest = newWalletRequest(walletName, "123456");
 
 		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest,
+			walletRequest,"Basic"
 		]);
 		expect(walletCreateResponse).to.deep.eq(walletName);
 
 		return expect(
-			client.request("wallet_create", [walletRequest]),
+			client.request("wallet_create", [walletRequest,"Basic"]),
 		).to.eventually.rejectedWith(
 			`Invalid input: Wallet with name (${walletName}) already exists`,
 		);
@@ -112,7 +113,7 @@ describe("Wallet management", () => {
 		const walletRequest = newWalletRequest(walletName, walletPassphrase);
 
 		await expect(
-			client.request("wallet_create", [walletRequest]),
+			client.request("wallet_create", [walletRequest,"Basic"]),
 		).to.eventually.deep.eq(walletName);
 
 		const incorrectWalletPassphrase = "different_passphrase";
@@ -140,7 +141,7 @@ describe("Wallet management", () => {
 		const walletPassphrase = "passphrase";
 		const walletRequest = newWalletRequest(walletName, walletPassphrase);
 
-		await client.request("wallet_create", [walletRequest]);
+		await client.request("wallet_create", [walletRequest, "Basic"]);
 
 		const transferAddress = await client.request("wallet_createTransferAddress", [
 			walletRequest,
@@ -159,7 +160,7 @@ describe("Wallet management", () => {
 		const walletPassphrase = "passphrase";
 		const walletRequest = newWalletRequest(walletName, walletPassphrase);
 
-		await client.request("wallet_create", [walletRequest]);
+		await client.request("wallet_create", [walletRequest,"Basic"]);
 
 		const stakingAddress = await client.request("wallet_createStakingAddress", [
 			walletRequest,

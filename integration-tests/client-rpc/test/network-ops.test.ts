@@ -134,7 +134,7 @@ describe("Staking", () => {
 
 		const walletName = generateWalletName();
 		const walletRequest = newWalletRequest(walletName, "123456");
-		await rpcClient.request("wallet_create", [walletRequest]);
+		await rpcClient.request("wallet_create", [walletRequest, "Basic"]);
 		const stakingAddress = await asyncMiddleman(
 			rpcClient.request("wallet_createStakingAddress", [walletRequest]),
 			"Error when creating staking address",

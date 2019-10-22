@@ -69,7 +69,7 @@ describe("Wallet transaction", () => {
 			const transferAmount = "1000";
 
 			await asyncMiddleman(
-				zeroFeeRpcClient.request("wallet_create", [receiverWalletRequest]),
+				zeroFeeRpcClient.request("wallet_create", [receiverWalletRequest,"Basic"]),
 				"Error when creating receiver wallet",
 			);
 
@@ -209,7 +209,7 @@ describe("Wallet transaction", () => {
 			const transferAmount = "1000";
 
 			await asyncMiddleman(
-				withFeeRpcClient.request("wallet_create", [receiverWalletRequest]),
+				withFeeRpcClient.request("wallet_create", [receiverWalletRequest,"Basic"]),
 				"Error when creating receive wallet",
 			);
 
