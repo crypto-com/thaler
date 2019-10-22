@@ -5,7 +5,7 @@ use chrono::DateTime;
 use parity_scale_codec::Decode;
 use serde::Deserialize;
 
-use chain_core::tx::TxAux;
+use chain_core::tx::{TxAux, TxEnclaveAux};
 
 use crate::{ErrorKind, Result, ResultExt, Transaction};
 
@@ -58,7 +58,7 @@ impl Block {
                 .filter_map(|tx_aux_result| match tx_aux_result {
                     Err(e) => Some(Err(e)),
                     Ok(tx_aux) => match tx_aux {
-                        TxAux::DepositStakeTx { tx, .. } => {
+                        TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx { tx, .. }) => {
                             Some(Ok(Transaction::DepositStakeTransaction(tx)))
                         }
                         TxAux::UnbondStakeTx(tx, _) => {
@@ -140,7 +140,7 @@ mod tests {
     }
 
     fn transfer_transaction() -> TxAux {
-        TxAux::TransferTx {
+        TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
             inputs: Vec::new(),
             no_of_outputs: 0,
             payload: TxObfuscated {
@@ -149,7 +149,7 @@ mod tests {
                 init_vector: [0; 12],
                 txpayload: Vec::new(),
             },
-        }
+        })
     }
 
     #[test]

@@ -4,7 +4,7 @@ use chain_core::common::H256;
 use chain_core::state::account::DepositBondTx;
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::Fee;
-use chain_core::tx::TxAux;
+use chain_core::tx::TxEnclaveAux;
 use chain_core::tx::TxObfuscated;
 use chain_tx_validation::Error;
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponse, IntraEnclaveResponseOk};
@@ -156,7 +156,7 @@ pub fn check_tx(
                     }
                     (
                         None,
-                        TxAux::DepositStakeTx {
+                        TxEnclaveAux::DepositStakeTx {
                             tx:
                                 DepositBondTx {
                                     to_staked_account, ..

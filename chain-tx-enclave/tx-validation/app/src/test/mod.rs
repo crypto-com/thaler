@@ -21,7 +21,7 @@ use chain_core::tx::{
         Tx, TxId,
     },
     witness::TxInWitness,
-    TxAux,
+    TxEnclaveAux,
 };
 use chain_core::ChainInfo;
 use chain_tx_validation::Error;
@@ -157,7 +157,7 @@ pub fn test_sealing() {
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
     let account = get_account(&addr);
-    let withdrawtx = TxAux::WithdrawUnbondedStakeTx {
+    let withdrawtx = TxEnclaveAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx0.outputs.len() as TxoIndex,
         witness: witness0.clone(),
         payload: encrypt(
@@ -231,7 +231,7 @@ pub fn test_sealing() {
             .unwrap(),
     )]
     .into();
-    let transfertx = TxAux::TransferTx {
+    let transfertx = TxEnclaveAux::TransferTx {
         inputs: tx1.inputs.clone(),
         no_of_outputs: tx1.outputs.len() as TxoIndex,
         payload: encrypt(
@@ -284,7 +284,7 @@ pub fn test_sealing() {
             .unwrap(),
     )]
     .into();
-    let transfertx2 = TxAux::TransferTx {
+    let transfertx2 = TxEnclaveAux::TransferTx {
         inputs: tx2.inputs.clone(),
         no_of_outputs: tx2.outputs.len() as TxoIndex,
         payload: encrypt(

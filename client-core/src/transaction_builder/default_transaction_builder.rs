@@ -162,7 +162,7 @@ mod tests {
     use chain_core::tx::data::input::{TxoIndex, TxoPointer};
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{LinearFee, Milli};
-    use chain_core::tx::{PlainTxAux, TxAux, TxObfuscated};
+    use chain_core::tx::{PlainTxAux, TxAux, TxEnclaveAux, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_address;
     use client_common::storage::MemoryStorage;
     use client_common::{PrivateKey, Transaction};
@@ -187,16 +187,18 @@ mod tests {
             let txpayload = transaction.encode();
 
             match transaction {
-                SignedTransaction::TransferTransaction(tx, _) => Ok(TxAux::TransferTx {
-                    inputs: tx.inputs.clone(),
-                    no_of_outputs: tx.outputs.len() as TxoIndex,
-                    payload: TxObfuscated {
-                        txid: [0; 32],
-                        key_from: 0,
-                        init_vector: [0u8; 12],
-                        txpayload,
-                    },
-                }),
+                SignedTransaction::TransferTransaction(tx, _) => {
+                    Ok(TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
+                        inputs: tx.inputs.clone(),
+                        no_of_outputs: tx.outputs.len() as TxoIndex,
+                        payload: TxObfuscated {
+                            txid: [0; 32],
+                            key_from: 0,
+                            init_vector: [0u8; 12],
+                            txpayload,
+                        },
+                    }))
+                }
                 _ => unreachable!(),
             }
         }
@@ -295,10 +297,10 @@ mod tests {
             .to_coin();
 
         match tx_aux {
-            TxAux::TransferTx {
+            TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                 payload: TxObfuscated { txpayload, .. },
                 ..
-            } => {
+            }) => {
                 if let Ok(PlainTxAux::TransferTx(transaction, witness)) =
                     PlainTxAux::decode(&mut txpayload.as_slice())
                 {

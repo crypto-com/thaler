@@ -9,8 +9,8 @@ use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::TxAux;
 use chain_core::tx::TxObfuscated;
+use chain_core::tx::{TxAux, TxEnclaveAux};
 use client_common::{PublicKey, Result as CommonResult};
 use client_core::types::TransactionChange;
 use client_core::{MultiSigWalletClient, WalletClient};
@@ -207,10 +207,10 @@ where
             .broadcast_transaction(&transaction)
             .map_err(to_rpc_error)?;
 
-        if let TxAux::TransferTx {
+        if let TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
             payload: TxObfuscated { txid, .. },
             ..
-        } = transaction
+        }) = transaction
         {
             Ok(hex::encode(txid))
         } else {
@@ -281,19 +281,21 @@ pub mod tests {
             let txpayload = transaction.encode();
 
             match transaction {
-                SignedTransaction::TransferTransaction(tx, _) => Ok(TxAux::TransferTx {
-                    inputs: tx.inputs.clone(),
-                    no_of_outputs: tx.outputs.len() as TxoIndex,
-                    payload: TxObfuscated {
-                        txid: tx.id(),
-                        key_from: 0,
-                        init_vector: [0u8; 12],
-                        txpayload,
-                    },
-                }),
+                SignedTransaction::TransferTransaction(tx, _) => {
+                    Ok(TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
+                        inputs: tx.inputs.clone(),
+                        no_of_outputs: tx.outputs.len() as TxoIndex,
+                        payload: TxObfuscated {
+                            txid: tx.id(),
+                            key_from: 0,
+                            init_vector: [0u8; 12],
+                            txpayload,
+                        },
+                    }))
+                }
                 SignedTransaction::DepositStakeTransaction(tx, witness) => {
                     let plain = PlainTxAux::DepositStakeTx(witness);
-                    Ok(TxAux::DepositStakeTx {
+                    Ok(TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
                         tx: tx.clone(),
                         payload: TxObfuscated {
                             txid: tx.id(),
@@ -301,11 +303,11 @@ pub mod tests {
                             init_vector: [0u8; 12],
                             txpayload: plain.encode(),
                         },
-                    })
+                    }))
                 }
                 SignedTransaction::WithdrawUnbondedStakeTransaction(tx, _, witness) => {
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
-                    Ok(TxAux::WithdrawUnbondedStakeTx {
+                    Ok(TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                         no_of_outputs: tx.outputs.len() as TxoIndex,
                         witness,
                         payload: TxObfuscated {
@@ -314,7 +316,7 @@ pub mod tests {
                             init_vector: [0u8; 12],
                             txpayload: plain.encode(),
                         },
-                    })
+                    }))
                 }
                 SignedTransaction::UnbondStakeTransaction(_, _) => unreachable!(),
             }

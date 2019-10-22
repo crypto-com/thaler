@@ -7,8 +7,8 @@ use chain_core::state::account::{to_stake_key, StakedState, StakedStateAddress};
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::TransactionId;
-use chain_core::tx::TxAux;
 use chain_core::tx::TxObfuscated;
+use chain_core::tx::{TxAux, TxEnclaveAux};
 use chain_tx_validation::{
     verify_unbonding, verify_unjailed, verify_unjailing, witness::verify_tx_recover_address,
     ChainInfo, Error,
@@ -80,10 +80,18 @@ pub fn verify<T: EnclaveProxy>(
     accounts: &AccountStorage,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     let paid_fee = match txaux {
-        TxAux::TransferTx { inputs, .. } => {
+        TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
+            inputs,
+            no_of_outputs,
+            payload,
+        }) => {
             check_spent_input_lookup(&inputs, db)?;
             let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
-                txaux.clone(),
+                TxEnclaveAux::TransferTx {
+                    inputs: inputs.clone(),
+                    no_of_outputs: *no_of_outputs,
+                    payload: payload.clone(),
+                },
                 None,
                 extra_info,
             ));
@@ -94,7 +102,7 @@ pub fn verify<T: EnclaveProxy>(
                 }
             }
         }
-        TxAux::DepositStakeTx { tx, .. } => {
+        TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx { tx, payload }) => {
             let maccount = get_account(&tx.to_staked_account, last_account_root_hash, accounts);
             let account = match maccount {
                 Ok(a) => Some(a),
@@ -110,7 +118,10 @@ pub fn verify<T: EnclaveProxy>(
             check_spent_input_lookup(&tx.inputs, db)?;
 
             let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
-                txaux.clone(),
+                TxEnclaveAux::DepositStakeTx {
+                    tx: tx.clone(),
+                    payload: payload.clone(),
+                },
                 account,
                 extra_info,
             ));
@@ -130,11 +141,17 @@ pub fn verify<T: EnclaveProxy>(
             verify_unjailed(&account)?;
             verify_unbonding(maintx, extra_info, account)?
         }
-        TxAux::WithdrawUnbondedStakeTx {
-            payload: TxObfuscated { txid, .. },
+        TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
+            payload:
+                TxObfuscated {
+                    key_from,
+                    init_vector,
+                    txpayload,
+                    txid,
+                },
             witness,
-            ..
-        } => {
+            no_of_outputs,
+        }) => {
             let account_address = verify_tx_recover_address(&witness, &txid);
             if let Err(_e) = account_address {
                 return Err(Error::EcdsaCrypto); // FIXME: Err(Error::EcdsaCrypto(e));
@@ -142,7 +159,16 @@ pub fn verify<T: EnclaveProxy>(
             let account = get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
             verify_unjailed(&account)?;
             let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
-                txaux.clone(),
+                TxEnclaveAux::WithdrawUnbondedStakeTx {
+                    payload: TxObfuscated {
+                        key_from: *key_from,
+                        init_vector: *init_vector,
+                        txpayload: txpayload.clone(),
+                        txid: *txid,
+                    },
+                    witness: witness.clone(),
+                    no_of_outputs: *no_of_outputs,
+                },
                 Some(account),
                 extra_info,
             ));
@@ -319,7 +345,7 @@ pub mod tests {
             vec![get_tx_witness(secp, &tx.id(), &secret_key, &merkle_tree)];
         let plain_txaux = PlainTxAux::new(tx.clone(), witness.clone().into());
         // TODO: mock enc
-        let txaux = TxAux::TransferTx {
+        let txaux = TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
             inputs: tx.inputs.clone(),
             no_of_outputs: tx.outputs.len() as TxoIndex,
             payload: TxObfuscated {
@@ -328,7 +354,7 @@ pub mod tests {
                 init_vector: [0; 12],
                 txpayload: plain_txaux.encode(),
             },
-        };
+        });
         (
             db,
             txaux,
@@ -527,7 +553,7 @@ pub mod tests {
         let tx = WithdrawUnbondedTx::new(1, outputs, TxAttributes::new(DEFAULT_CHAIN_ID));
         let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
         // TODO: mock enc
-        let txaux = TxAux::WithdrawUnbondedStakeTx {
+        let txaux = TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
             no_of_outputs: tx.outputs.len() as TxoIndex,
             witness: witness.clone(),
             payload: TxObfuscated {
@@ -536,7 +562,7 @@ pub mod tests {
                 init_vector: [0; 12],
                 txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
             },
-        };
+        });
         (
             txaux,
             tx.clone(),
@@ -798,7 +824,7 @@ pub mod tests {
         let witness: Vec<TxInWitness> =
             vec![get_tx_witness(secp, &tx.id(), &secret_key, &merkle_tree)];
         // TODO: mock enc
-        let txaux = TxAux::DepositStakeTx {
+        let txaux = TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
             tx: tx.clone(),
             payload: TxObfuscated {
                 txid: tx.id(),
@@ -806,7 +832,7 @@ pub mod tests {
                 init_vector: [0u8; 12],
                 txpayload: PlainTxAux::DepositStakeTx(witness.clone().into()).encode(),
             },
-        };
+        });
         (
             db,
             txaux,
@@ -1095,7 +1121,7 @@ pub mod tests {
     ) -> TxAux {
         match (txaux, plain_tx.clone()) {
             (
-                TxAux::TransferTx {
+                TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                     payload:
                         TxObfuscated {
                             key_from,
@@ -1103,9 +1129,9 @@ pub mod tests {
                             ..
                         },
                     ..
-                },
+                }),
                 PlainTxAux::TransferTx(tx, _),
-            ) => TxAux::TransferTx {
+            ) => TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                 inputs: tx.inputs.clone(),
                 no_of_outputs: tx.outputs.len() as TxoIndex,
                 payload: TxObfuscated {
@@ -1114,9 +1140,9 @@ pub mod tests {
                     init_vector,
                     txpayload: plain_tx.encode(),
                 },
-            },
+            }),
             (
-                TxAux::DepositStakeTx {
+                TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
                     tx,
                     payload:
                         TxObfuscated {
@@ -1124,9 +1150,9 @@ pub mod tests {
                             init_vector,
                             ..
                         },
-                },
+                }),
                 PlainTxAux::DepositStakeTx(_),
-            ) => TxAux::DepositStakeTx {
+            ) => TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
                 tx: if let Some(t) = mtx { t } else { tx.clone() },
                 payload: TxObfuscated {
                     txid: tx.id(),
@@ -1134,9 +1160,9 @@ pub mod tests {
                     init_vector,
                     txpayload: plain_tx.encode(),
                 },
-            },
+            }),
             (
-                TxAux::WithdrawUnbondedStakeTx {
+                TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                     witness,
                     payload:
                         TxObfuscated {
@@ -1145,9 +1171,9 @@ pub mod tests {
                             ..
                         },
                     ..
-                },
+                }),
                 PlainTxAux::WithdrawUnbondedStakeTx(tx),
-            ) => TxAux::WithdrawUnbondedStakeTx {
+            ) => TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                 no_of_outputs: tx.outputs.len() as TxoIndex,
                 witness: if let Some(w) = mwitness { w } else { witness },
                 payload: TxObfuscated {
@@ -1156,7 +1182,7 @@ pub mod tests {
                     init_vector,
                     txpayload: plain_tx.encode(),
                 },
-            },
+            }),
             _ => unreachable!(),
         }
     }
@@ -1520,7 +1546,7 @@ pub mod tests {
         let tx = WithdrawUnbondedTx::new(1, vec![], TxAttributes::new(DEFAULT_CHAIN_ID));
         let witness = get_account_op_witness(secp, &tx.id(), secret_key);
 
-        TxAux::WithdrawUnbondedStakeTx {
+        TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
             no_of_outputs: tx.outputs.len() as TxoIndex,
             witness: witness.clone(),
             payload: TxObfuscated {
@@ -1529,7 +1555,7 @@ pub mod tests {
                 init_vector: [0; 12],
                 txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
             },
-        }
+        })
     }
 
     fn prepare_deposit_transaction(
@@ -1548,7 +1574,7 @@ pub mod tests {
         let witness: Vec<TxInWitness> =
             vec![get_tx_witness(secp, &tx.id(), secret_key, merkle_tree)];
 
-        TxAux::DepositStakeTx {
+        TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
             tx: tx.clone(),
             payload: TxObfuscated {
                 txid: tx.id(),
@@ -1556,7 +1582,7 @@ pub mod tests {
                 init_vector: [0u8; 12],
                 txpayload: PlainTxAux::DepositStakeTx(witness.into()).encode(),
             },
-        }
+        })
     }
 
     fn prepare_unbond_transaction(secret_key: &SecretKey, address: StakedStateAddress) -> TxAux {

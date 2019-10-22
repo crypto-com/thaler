@@ -23,7 +23,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::{txid_hash, Tx, TxId};
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TxObfuscated;
-use chain_core::tx::{fee::Fee, TxAux};
+use chain_core::tx::{fee::Fee, TxEnclaveAux};
 use chain_core::ChainInfo;
 use chain_tx_validation::TxWithOutputs;
 use secp256k1::{
@@ -73,22 +73,21 @@ pub fn is_basic_valid_tx_request(
         return Err(());
     }
     match request.tx {
-        TxAux::DepositStakeTx { .. } => match tx_inputs {
+        TxEnclaveAux::DepositStakeTx { .. } => match tx_inputs {
             Some(ref i) if !i.is_empty() => Ok(()),
             _ => Err(()),
         },
-        TxAux::TransferTx { .. } => match tx_inputs {
+        TxEnclaveAux::TransferTx { .. } => match tx_inputs {
             Some(ref i) if !i.is_empty() => Ok(()),
             _ => Err(()),
         },
-        TxAux::WithdrawUnbondedStakeTx { .. } => {
+        TxEnclaveAux::WithdrawUnbondedStakeTx { .. } => {
             if request.account.is_some() {
                 Ok(())
             } else {
                 Err(())
             }
         }
-        _ => Err(()),
     }
 }
 
@@ -112,7 +111,7 @@ pub type IntraEnclaveResponse = Result<IntraEnclaveResponseOk, chain_tx_validati
 /// TODO: only certain Tx types should be sent -> create a more restrictive datatype instead of checking in `is_basic_valid`
 #[derive(Encode, Decode, Clone)]
 pub struct VerifyTxRequest {
-    pub tx: TxAux,
+    pub tx: TxEnclaveAux,
     pub account: Option<StakedState>,
     pub info: ChainInfo,
 }
@@ -154,7 +153,7 @@ pub enum EnclaveRequest {
 }
 
 impl EnclaveRequest {
-    pub fn new_tx_request(tx: TxAux, account: Option<StakedState>, info: ChainInfo) -> Self {
+    pub fn new_tx_request(tx: TxEnclaveAux, account: Option<StakedState>, info: ChainInfo) -> Self {
         EnclaveRequest::VerifyTx(Box::new(VerifyTxRequest { tx, account, info }))
     }
 }
@@ -175,8 +174,6 @@ pub enum EnclaveResponse {
     GetSealedTxData(Option<Vec<SealedLog>>),
     /// returns Ok(encrypted tx payload) if Tx was valid
     EncryptTx(Result<TxObfuscated, chain_tx_validation::Error>),
-    /// response if unsupported tx type is sent (e.g. unbondtx) -- TODO: probably unnecessary if there is a data type with a subset of TxAux
-    UnsupportedTxType,
     /// response if the enclave failed to parse the request
     UnknownRequest,
 }
@@ -240,7 +237,7 @@ impl Decode for EncryptionRequest {
 /// TODO: validation error?
 #[derive(Encode, Decode)]
 pub struct EncryptionResponse {
-    pub tx: TxAux,
+    pub tx: TxEnclaveAux,
 }
 
 /// Request in direct communication (over one-side attested TLS) to TQE

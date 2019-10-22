@@ -13,7 +13,7 @@ use sgx_types::*;
 
 use chain_core::tx::{
     data::{input::TxoIndex, TxId},
-    TransactionId, TxAux,
+    TransactionId, TxEnclaveAux,
 };
 use enclave_protocol::{
     DecryptionRequest, DecryptionRequestBody, DecryptionResponse, EnclaveRequest, EnclaveResponse,
@@ -218,18 +218,18 @@ fn handle_encryption_request(
                         EncryptionRequest::TransferTx(tx, _) => {
                             let inputs = tx.inputs;
                             let no_of_outputs = tx.outputs.len() as TxoIndex;
-                            TxAux::TransferTx {
+                            TxEnclaveAux::TransferTx {
                                 inputs,
                                 no_of_outputs,
                                 payload,
                             }
                         }
                         EncryptionRequest::DepositStake(tx, _) => {
-                            TxAux::DepositStakeTx { tx, payload }
+                            TxEnclaveAux::DepositStakeTx { tx, payload }
                         }
                         EncryptionRequest::WithdrawStake(tx, _, witness) => {
                             let no_of_outputs = tx.outputs.len() as TxoIndex;
-                            TxAux::WithdrawUnbondedStakeTx {
+                            TxEnclaveAux::WithdrawUnbondedStakeTx {
                                 no_of_outputs,
                                 witness,
                                 payload,

@@ -25,7 +25,7 @@ use chain_core::tx::{
         Tx, TxId,
     },
     witness::TxInWitness,
-    TxAux,
+    TxEnclaveAux,
 };
 use chain_core::ChainInfo;
 use client_common::PrivateKey;
@@ -136,7 +136,7 @@ pub fn test_integration() {
     );
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
-    let withdrawtx = TxAux::WithdrawUnbondedStakeTx {
+    let withdrawtx = TxEnclaveAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx0.outputs.len() as TxoIndex,
         witness: witness0,
         payload: TxObfuscated {

@@ -46,7 +46,7 @@ where
             })?
             .tx;
 
-        Ok(encrypted_transaction)
+        Ok(TxAux::EnclaveTx(encrypted_transaction))
     }
 }
 
@@ -119,11 +119,11 @@ mod tests {
 
     use chain_core::tx::data::Tx;
     use chain_core::tx::witness::TxWitness;
-    use chain_core::tx::TxObfuscated;
+    use chain_core::tx::{TxEnclaveAux, TxObfuscated};
     use client_common::tendermint::types::*;
 
-    fn transfer_transaction() -> TxAux {
-        TxAux::TransferTx {
+    fn transfer_transaction() -> TxEnclaveAux {
+        TxEnclaveAux::TransferTx {
             inputs: Vec::new(),
             no_of_outputs: 2,
             payload: TxObfuscated {
@@ -229,7 +229,9 @@ mod tests {
             .unwrap();
 
         match encrypted_transaction {
-            TxAux::TransferTx { no_of_outputs, .. } => assert_eq!(2, no_of_outputs),
+            TxAux::EnclaveTx(TxEnclaveAux::TransferTx { no_of_outputs, .. }) => {
+                assert_eq!(2, no_of_outputs)
+            }
             _ => unreachable!(),
         }
     }

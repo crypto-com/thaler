@@ -300,7 +300,7 @@ mod tests {
     use chain_core::tx::data::input::TxoIndex;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::Fee;
-    use chain_core::tx::{PlainTxAux, TxObfuscated};
+    use chain_core::tx::{PlainTxAux, TxEnclaveAux, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_recover_address;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
@@ -325,7 +325,7 @@ mod tests {
                 SignedTransaction::TransferTransaction(_, _) => unreachable!(),
                 SignedTransaction::DepositStakeTransaction(tx, witness) => {
                     let plain = PlainTxAux::DepositStakeTx(witness);
-                    Ok(TxAux::DepositStakeTx {
+                    Ok(TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
                         tx: tx.clone(),
                         payload: TxObfuscated {
                             txid: tx.id(),
@@ -333,11 +333,11 @@ mod tests {
                             init_vector: [0u8; 12],
                             txpayload: plain.encode(),
                         },
-                    })
+                    }))
                 }
                 SignedTransaction::WithdrawUnbondedStakeTransaction(tx, _, witness) => {
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
-                    Ok(TxAux::WithdrawUnbondedStakeTx {
+                    Ok(TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                         no_of_outputs: tx.outputs.len() as TxoIndex,
                         witness,
                         payload: TxObfuscated {
@@ -346,7 +346,7 @@ mod tests {
                             init_vector: [0u8; 12],
                             txpayload: plain.encode(),
                         },
-                    })
+                    }))
                 }
                 SignedTransaction::UnbondStakeTransaction(_, _) => unreachable!(),
             }
@@ -539,11 +539,11 @@ mod tests {
             .unwrap();
 
         match transaction {
-            TxAux::WithdrawUnbondedStakeTx {
+            TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                 payload: TxObfuscated { txid, .. },
                 witness,
                 ..
-            } => {
+            }) => {
                 let account_address = verify_tx_recover_address(&witness, &txid)
                     .expect("Unable to verify transaction");
 
@@ -598,13 +598,13 @@ mod tests {
             .unwrap();
 
         match transaction {
-            TxAux::WithdrawUnbondedStakeTx {
+            TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                 witness,
                 payload: TxObfuscated {
                     txid, txpayload, ..
                 },
                 ..
-            } => {
+            }) => {
                 let account_address = verify_tx_recover_address(&witness, &txid)
                     .expect("Unable to verify transaction");
 
