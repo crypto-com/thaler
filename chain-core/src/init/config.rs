@@ -2,6 +2,7 @@ use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
+use std::ops::Mul;
 use std::prelude::v1::{String, Vec};
 use std::str::FromStr;
 
@@ -72,9 +73,29 @@ impl SlashRatio {
         }
     }
 
+    pub fn get_proportional(
+        self,
+        failing_validators: usize,
+        total_validators: usize,
+    ) -> SlashRatio {
+        let millis =
+            (((3.0 * failing_validators as f64) / total_validators as f64).powi(2) * 1000.0) as u64;
+        SlashRatio::new(Milli::from_millis(std::cmp::min(millis, 1000))).unwrap() * self
+    }
+
     #[inline]
     pub(crate) fn as_millis(self) -> u64 {
         self.0.as_millis()
+    }
+}
+
+impl Mul for SlashRatio {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: SlashRatio) -> Self::Output {
+        SlashRatio::new(self.0 * rhs.0)
+            .expect("Slash ratio is greater than 1.0 after multiplication") // This will never fail because both slash ratios are below 1.0
     }
 }
 

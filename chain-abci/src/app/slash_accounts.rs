@@ -34,6 +34,9 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let mut slashing_event = Event::new();
         slashing_event.field_type = TendermintEventType::SlashValidators.to_string();
 
+        let failing_validators = last_state.punishment.slashing_schedule.len();
+        let total_validators = last_state.council_nodes.len();
+
         for staking_address in accounts_to_slash {
             let mut kvpair = KVPair::new();
             kvpair.key = b"account".to_vec();
@@ -58,7 +61,11 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 .unwrap();
 
             let slashed_amount = account
-                .slash(schedule.slash_ratio)
+                .slash(
+                    schedule
+                        .slash_ratio
+                        .get_proportional(failing_validators, total_validators),
+                )
                 .map_err(|_| Error::InvalidSum)?;
 
             last_state.rewards_pool.remaining = (last_state.rewards_pool.remaining
