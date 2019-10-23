@@ -63,8 +63,6 @@ pub enum SignedTransaction {
     TransferTransaction(Tx, TxWitness),
     /// Deposit stake transaction
     DepositStakeTransaction(DepositBondTx, TxWitness),
-    /// Unbound stake transaction
-    UnbondStakeTransaction(UnbondTx, StakedStateOpWitness),
     /// Withdraw unbounded stake transaction
     ///
     /// NOTE: `StakedState` is needed because this type is primarily for encryption of transaction where we need
@@ -77,7 +75,6 @@ impl TransactionId for SignedTransaction {
         match self {
             SignedTransaction::TransferTransaction(ref transaction, _) => transaction.id(),
             SignedTransaction::DepositStakeTransaction(ref transaction, _) => transaction.id(),
-            SignedTransaction::UnbondStakeTransaction(ref transaction, _) => transaction.id(),
             SignedTransaction::WithdrawUnbondedStakeTransaction(ref transaction, _, _) => {
                 transaction.id()
             }

@@ -161,9 +161,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
             SignedTransaction::DepositStakeTransaction(tx, witness) => {
                 TxQueryInitRequest::Encrypt(Box::new(EncryptionRequest::DepositStake(tx, witness)))
             }
-            SignedTransaction::UnbondStakeTransaction(tx, witness) => {
-                return Ok(TxAux::UnbondStakeTx(tx, witness));
-            }
+
             SignedTransaction::WithdrawUnbondedStakeTransaction(tx, state, witness) => {
                 TxQueryInitRequest::Encrypt(Box::new(EncryptionRequest::WithdrawStake(
                     tx, state, witness,

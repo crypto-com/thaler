@@ -101,9 +101,7 @@ where
             SignedTransaction::DepositStakeTransaction(tx, witness) => {
                 self.encrypt_request(EncryptionRequest::DepositStake(tx, witness))
             }
-            SignedTransaction::UnbondStakeTransaction(tx, witness) => {
-                Ok(TxAux::UnbondStakeTx(tx, witness))
-            }
+
             SignedTransaction::WithdrawUnbondedStakeTransaction(tx, state, witness) => {
                 self.encrypt_request(EncryptionRequest::WithdrawStake(tx, state, witness))
             }
