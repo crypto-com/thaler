@@ -381,7 +381,6 @@ pub mod tests {
                         },
                     }))
                 }
-                SignedTransaction::UnbondStakeTransaction(_, _) => unreachable!(),
             }
         }
     }

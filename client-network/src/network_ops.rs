@@ -56,6 +56,15 @@ pub trait NetworkOpsClient: Send + Sync {
         attributes: TxAttributes,
     ) -> Result<TxAux>;
 
+    /// Creates a unjail transaction for unjailing
+    fn create_unjail_transaction(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        from_address: &StakedStateAddress,
+        attributes: StakedStateOpAttributes,
+    ) -> Result<TxAux>;
+
     /// Returns staked stake corresponding to given address
     fn get_staked_state(
         &self,

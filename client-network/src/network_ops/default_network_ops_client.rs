@@ -4,7 +4,7 @@ use secstr::SecUtf8;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
     DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
-    UnbondTx, WithdrawUnbondedTx,
+    UnbondTx, UnjailTx, WithdrawUnbondedTx,
 };
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
@@ -221,6 +221,50 @@ where
         Ok(tx_aux)
     }
 
+    fn create_unjail_transaction(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        from_address: &StakedStateAddress,
+        attributes: StakedStateOpAttributes,
+    ) -> Result<TxAux> {
+        let staked_state = self.get_staked_state(name, passphrase, from_address)?;
+        let nonce = staked_state.nonce;
+
+        let transaction = UnjailTx {
+            nonce,
+            address: *from_address,
+            attributes,
+        };
+
+        let public_key = match from_address {
+            StakedStateAddress::BasicRedeem(ref redeem_address) => self
+                .wallet_client
+                .find_staking_key(name, passphrase, redeem_address)?
+                .chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        "Address not found in current wallet",
+                    )
+                })?,
+        };
+        let private_key = self
+            .wallet_client
+            .private_key(passphrase, &public_key)?
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Not able to find private key for given address in current wallet",
+                )
+            })?;
+
+        let signature = private_key
+            .sign(transaction.id())
+            .map(StakedStateOpWitness::new)?;
+
+        Ok(TxAux::UnjailTx(transaction, signature))
+    }
+
     fn create_withdraw_all_unbonded_stake_transaction(
         &self,
         name: &str,
@@ -297,6 +341,7 @@ mod tests {
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::CoinError;
     use chain_core::state::account::StakedState;
+    use chain_core::state::account::StakedStateOpAttributes;
     use chain_core::tx::data::input::TxoIndex;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::Fee;
@@ -307,7 +352,6 @@ mod tests {
     use client_common::{PrivateKey, PublicKey, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::wallet::DefaultWalletClient;
-
     #[derive(Debug)]
     struct MockTransactionCipher;
 
@@ -348,7 +392,6 @@ mod tests {
                         },
                     }))
                 }
-                SignedTransaction::UnbondStakeTransaction(_, _) => unreachable!(),
             }
         }
     }
@@ -702,5 +745,92 @@ mod tests {
                 .unwrap_err()
                 .kind()
         );
+    }
+
+    #[test]
+    fn check_unjail_transaction_wallet_not_found() {
+        let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
+
+        let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
+        let fee_algorithm = UnitFeeAlgorithm::default();
+
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
+        let tendermint_client = MockClient::default();
+
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
+
+        assert_eq!(
+            ErrorKind::InvalidInput,
+            network_ops_client
+                .create_unjail_transaction(
+                    name,
+                    passphrase,
+                    &StakedStateAddress::BasicRedeem(RedeemAddress::from(&PublicKey::from(
+                        &PrivateKey::new().unwrap()
+                    ))),
+                    StakedStateOpAttributes::new(0),
+                )
+                .unwrap_err()
+                .kind()
+        );
+    }
+
+    #[test]
+    fn check_unjail_transaction() {
+        let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
+
+        let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
+        let fee_algorithm = UnitFeeAlgorithm::default();
+
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
+
+        let tendermint_client = MockClient::default();
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
+
+        network_ops_client
+            .get_wallet()
+            .new_wallet(name, passphrase)
+            .unwrap();
+
+        let from_address = network_ops_client
+            .get_wallet()
+            .new_staking_address(name, passphrase)
+            .unwrap();
+
+        let transaction = network_ops_client
+            .create_unjail_transaction(
+                name,
+                passphrase,
+                &from_address,
+                StakedStateOpAttributes::new(171),
+            )
+            .unwrap();
+        match transaction {
+            TxAux::UnjailTx(tx, witness) => {
+                let txid = tx.id();
+                let account_address = verify_tx_recover_address(&witness, &txid)
+                    .expect("Unable to verify transaction");
+                assert_eq!(account_address, from_address);
+            }
+            _ => unreachable!("`unjail_tx()` created invalid transaction"),
+        }
     }
 }
