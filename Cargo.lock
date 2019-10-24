@@ -273,7 +273,7 @@ dependencies = [
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "integer-encoding 1.0.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "kvdb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kvdb 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-rocksdb 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1211,7 +1211,7 @@ dependencies = [
 
 [[package]]
 name = "kvdb"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "elastic-array 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1223,7 +1223,7 @@ name = "kvdb-memorydb"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "kvdb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kvdb 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -1235,7 +1235,7 @@ dependencies = [
  "elastic-array 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "fs-swap 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "interleaved-ordered 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "kvdb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "kvdb 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-rocksdb 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3210,7 +3210,7 @@ dependencies = [
 "checksum jsonrpc-server-utils 14.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "56ca64eeb4463722c49dd526e0a87dfc0cdecda9348a4b6f5720f25abc4fcc89"
 "checksum keccak 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "67c21572b4949434e4fc1e1978b99c5f77064153c59d998bf13ecd96fb5ecba7"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
-"checksum kvdb 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "72ae89206cea31c32014b39d5a454b96135894221610dbfd19cf4d2d044fa546"
+"checksum kvdb 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "c1b2f251f01a7224426abdb2563707d856f7de995d821744fd8fa8e2874f69e3"
 "checksum kvdb-memorydb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "296c12309ed36cb74d59206406adbf1971c3baa56d5410efdb508d8f1c60a351"
 "checksum kvdb-rocksdb 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "96eb0e0112bb66fe5401294ca0f43c9cb771456af9270443545026e55fd00912"
 "checksum language-tags 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a91d884b6667cd606bb5a69aa0c99ba811a115fc68915e7056ec08a46e93199a"
