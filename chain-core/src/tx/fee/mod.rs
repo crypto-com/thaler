@@ -9,7 +9,7 @@ use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
-use std::ops::{Add, Mul};
+use std::ops::{Add, Div, Mul};
 use std::prelude::v1::Vec;
 use std::str::FromStr;
 use std::{error, fmt};
@@ -65,6 +65,35 @@ impl Milli {
     pub fn as_millis(self) -> u64 {
         self.0
     }
+
+    pub fn sqrt(self) -> Milli {
+        let mut sqrt = Milli(1000); // Initial estimate of sqrt = 1.0
+        let mut improved_sqrt = self.improve_sqrt(sqrt);
+
+        let mut difference = sqrt.diff(improved_sqrt);
+
+        while difference > Milli(1) {
+            sqrt = improved_sqrt;
+            improved_sqrt = self.improve_sqrt(sqrt);
+
+            difference = sqrt.diff(improved_sqrt);
+        }
+
+        improved_sqrt
+    }
+
+    fn improve_sqrt(self, estimate: Milli) -> Milli {
+        let result = estimate + (self / estimate);
+        Milli(result.0 >> 1)
+    }
+
+    fn diff(self, rhs: Milli) -> Milli {
+        if self > rhs {
+            Milli(self.0 - rhs.0)
+        } else {
+            Milli(rhs.0 - self.0)
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -113,7 +142,7 @@ impl fmt::Display for Milli {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let integral = self.0 / 1000;
         let fractional = self.0 % 1000;
-        write!(f, "{}.{}", integral, fractional)
+        write!(f, "{}.{:0>3}", integral, fractional)
     }
 }
 
@@ -144,6 +173,20 @@ impl Mul for Milli {
     fn mul(self, other: Self) -> Self {
         let v = u128::from(self.0) * u128::from(other.0);
         Milli((v / 1000) as u64)
+    }
+}
+
+#[allow(clippy::suspicious_arithmetic_impl)]
+impl Div for Milli {
+    type Output = Milli;
+
+    fn div(self, rhs: Milli) -> Self::Output {
+        let numerator: u128 = u128::from(self.0) * 1000;
+        let denominator = u128::from(rhs.0);
+
+        let result = numerator / denominator;
+
+        Milli(result as u64)
     }
 }
 
@@ -209,6 +252,16 @@ mod test {
         assert_eq!((v / 1000000) as u64, n.to_integral_trunc());
     }
 
+    fn test_milli_div_eq(v1: u64, v2: u64) {
+        let v = (v1 as u128 * 1000) / v2 as u128;
+
+        let n1 = Milli::new(v1 / 1000, v1 % 1000);
+        let n2 = Milli::new(v2 / 1000, v2 % 1000);
+        let n = n1 / n2;
+
+        assert_eq!(v as u64, n.as_millis());
+    }
+
     #[test]
     fn check_fee_add() {
         test_milli_add_eq(10124128_192, 802_504);
@@ -226,10 +279,26 @@ mod test {
     }
 
     #[test]
+    fn check_fee_div() {
+        test_milli_div_eq(10124128_192, 802_192);
+        test_milli_div_eq(1124128_192, 124802_192);
+        test_milli_div_eq(241, 900001_900);
+        test_milli_div_eq(241, 400);
+    }
+
+    #[test]
     fn check_milli_from_str() {
         assert_eq!(1000, Milli::from_str("1").unwrap().as_millis());
         assert_eq!(1000, Milli::from_str("1.0").unwrap().as_millis());
         assert_eq!(1100, Milli::from_str("1.1").unwrap().as_millis());
         assert_eq!(1150, Milli::from_str("1.15").unwrap().as_millis());
+    }
+
+    #[test]
+    fn check_milli_sqrt() {
+        assert_eq!(Milli::new(0, 100), Milli::new(0, 10).sqrt());
+        assert_eq!(Milli::new(1, 414), Milli::new(2, 0).sqrt());
+        assert_eq!(Milli::new(1, 732), Milli::new(3, 0).sqrt());
+        assert_eq!(Milli::new(2, 0), Milli::new(4, 0).sqrt());
     }
 }
