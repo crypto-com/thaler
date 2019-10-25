@@ -1,7 +1,11 @@
+use std::convert::TryInto;
+
 use abci::{Event, KVPair};
 
 use chain_core::common::TendermintEventType;
+use chain_core::init::config::SlashRatio;
 use chain_core::state::account::StakedStateAddress;
+use chain_core::tx::fee::Milli;
 use chain_tx_validation::Error;
 
 use crate::app::{update_account, ChainNodeApp};
@@ -74,5 +78,47 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         }
 
         Ok(slashing_event)
+    }
+
+    fn get_total_vote_power(&self) -> Milli {
+        Milli::new(
+            self.validator_voting_power
+                .values()
+                .map(|x| i64::from(*x))
+                .sum::<i64>() as u64,
+            0,
+        )
+    }
+
+    // This is based on: https://github.com/cosmos/cosmos-sdk/blob/sunny/prop-slashing-adr/docs/architecture/adt-014-proportional-slashing.md
+    pub fn get_slashing_proportion<I: Iterator<Item = StakedStateAddress>>(
+        &self,
+        accounts_to_slash: I,
+    ) -> SlashRatio {
+        let total_vote_power = self.get_total_vote_power();
+
+        let slashing_proportion = Milli::from_millis(
+            accounts_to_slash
+                .map(|address| {
+                    let validator_voting_power = Milli::new(
+                        i64::from(
+                            *self
+                                .validator_voting_power
+                                .get(&address)
+                                .expect("Voting power for a validator not found"),
+                        ) as u64,
+                        0,
+                    );
+
+                    let validator_voting_percent = validator_voting_power / total_vote_power;
+
+                    validator_voting_percent.sqrt().as_millis()
+                })
+                .sum(),
+        );
+
+        std::cmp::min(Milli::new(1, 0), slashing_proportion * slashing_proportion)
+            .try_into()
+            .unwrap() // This will never panic because input is always lower than 1.0
     }
 }
