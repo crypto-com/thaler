@@ -20,7 +20,7 @@ secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", d
 serde = { version = "1.0", features = ["derive"], optional = true }
 blake2 = { version = "0.8", default-features = false }
 parity-scale-codec = { features = ["derive"], default-features = false, version = "1.0" }
-base64 = { version = "0.10", optional = true }
+base64 = { version = "0.11", optional = true }
 sgx_tstd = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk.git", optional = true }
 static_assertions = { version = "1.0.0", default-features = false}
 bech32 = { version = "0.7.1", optional = true }
