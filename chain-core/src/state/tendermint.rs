@@ -162,9 +162,10 @@ impl TryFrom<&[u8]> for TendermintValidatorAddress {
     }
 }
 
-/// "Note that the maximum total power of the validator set is bounded by MaxTotalVotingPower = MaxInt64 / 8.
+/// "Note that the maximum total power of the validator set is bounded by MaxTotalVotingPower = MaxInt64 / 1000.
+/// 1000 is chosen because we want to be able to do fixed point arithmetic operations on `TendermintVotePower` using `Milli`.
 /// Applications are responsible for ensuring they do not make changes to the validator set that cause it to exceed this limit."
-pub const TENDERMINT_MAX_VOTE_POWER: i64 = std::i64::MAX / 8;
+pub const TENDERMINT_MAX_VOTE_POWER: i64 = std::i64::MAX / 1000;
 
 /// Tendermint consensus voting power
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
