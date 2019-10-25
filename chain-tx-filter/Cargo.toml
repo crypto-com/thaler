@@ -20,4 +20,4 @@ sgx_tstd = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk.git", 
 [dev-dependencies]
 quickcheck = "0.9"
 hex = "0.4"
-ethbloom = "0.8.0"
+ethbloom = "0.8.1"
