@@ -974,13 +974,6 @@ fn end_block_should_update_liveness_tracker() {
     let address = RedeemAddress::from(&public_key);
     let staking_account_address = StakedStateAddress::BasicRedeem(address);
 
-    let mut validator_pubkey = PubKey::new();
-    validator_pubkey.field_type = "Ed25519".to_string();
-    validator_pubkey.data = base64::decode("EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=").unwrap();
-
-    let mut validator_voting_power = BTreeMap::new();
-    validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
-
     let mut distribution = BTreeMap::new();
     distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
     distribution.insert(
@@ -1155,13 +1148,6 @@ fn begin_block_should_jail_byzantine_validators() {
     let address = RedeemAddress::from(&public_key);
     let staking_account_address = StakedStateAddress::BasicRedeem(address);
 
-    let mut validator_pubkey = PubKey::new();
-    validator_pubkey.field_type = "Ed25519".to_string();
-    validator_pubkey.data = base64::decode("EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=").unwrap();
-
-    let mut validator_voting_power = BTreeMap::new();
-    validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
-
     let mut distribution = BTreeMap::new();
     distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
     distribution.insert(
@@ -1295,13 +1281,6 @@ fn begin_block_should_jail_non_live_validators() {
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     let address = RedeemAddress::from(&public_key);
     let staking_account_address = StakedStateAddress::BasicRedeem(address);
-
-    let mut validator_pubkey = PubKey::new();
-    validator_pubkey.field_type = "Ed25519".to_string();
-    validator_pubkey.data = base64::decode("EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=").unwrap();
-
-    let mut validator_voting_power = BTreeMap::new();
-    validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
 
     let mut distribution = BTreeMap::new();
     distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
@@ -1440,13 +1419,6 @@ fn begin_block_should_slash_byzantine_validators() {
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     let address = RedeemAddress::from(&public_key);
     let staking_account_address = StakedStateAddress::BasicRedeem(address);
-
-    let mut validator_pubkey = PubKey::new();
-    validator_pubkey.field_type = "Ed25519".to_string();
-    validator_pubkey.data = base64::decode("EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=").unwrap();
-
-    let mut validator_voting_power = BTreeMap::new();
-    validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
 
     let mut distribution = BTreeMap::new();
     distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
@@ -1628,13 +1600,6 @@ fn begin_block_should_slash_non_live_validators() {
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     let address = RedeemAddress::from(&public_key);
     let staking_account_address = StakedStateAddress::BasicRedeem(address);
-
-    let mut validator_pubkey = PubKey::new();
-    validator_pubkey.field_type = "Ed25519".to_string();
-    validator_pubkey.data = base64::decode("EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=").unwrap();
-
-    let mut validator_voting_power = BTreeMap::new();
-    validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
 
     let mut distribution = BTreeMap::new();
     distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));

@@ -36,15 +36,18 @@ impl Fee {
 #[cfg_attr(feature = "serde", serde(transparent))]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Milli(u64);
+
 impl Milli {
-    /// takes the integer part and 4-digit fractional part
+    /// takes the integer part and 3-digit fractional part
     /// and returns the 3-digit fixed decimal number (i.fff)
+    #[inline]
     pub const fn new(i: u64, f: u64) -> Self {
         Milli(i * 1000 + f % 1000)
     }
 
     /// takes the integer part
-    /// and returns the 4-digit fixed decimal number (i.0000)
+    /// and returns the 3-digit fixed decimal number (i.000)
+    #[inline]
     pub fn integral(i: u64) -> Self {
         Milli(i * 1000)
     }
@@ -58,12 +61,19 @@ impl Milli {
         }
     }
 
+    #[inline]
     pub fn to_integral_trunc(self) -> u64 {
         self.0 / 1000
     }
 
+    #[inline]
     pub fn as_millis(self) -> u64 {
         self.0
+    }
+
+    #[inline]
+    pub fn from_millis(millis: u64) -> Milli {
+        Milli(millis)
     }
 
     pub fn sqrt(self) -> Milli {
@@ -98,7 +108,7 @@ impl Milli {
 
 #[derive(Debug)]
 pub enum MilliError {
-    /// An invalid length of parts (should be 2)
+    /// An invalid length of parts (should be either 1 or 2)
     InvalidPartsLength(usize),
     /// Number parsing error
     InvalidInteger(ParseIntError),

@@ -1,7 +1,9 @@
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use std::convert::TryFrom;
 use std::fmt;
+use std::ops::Mul;
 use std::prelude::v1::{String, Vec};
 use std::str::FromStr;
 
@@ -63,18 +65,31 @@ pub struct SlashingParameters {
 pub struct SlashRatio(Milli);
 
 impl SlashRatio {
-    /// Creates a new instance of `SlashRatio`
-    pub fn new(milli: Milli) -> Result<Self, SlashRatioError> {
+    #[inline]
+    pub(crate) fn as_millis(self) -> u64 {
+        self.0.as_millis()
+    }
+}
+
+impl Mul for SlashRatio {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: SlashRatio) -> Self::Output {
+        SlashRatio::try_from(self.0 * rhs.0)
+            .expect("Slash ratio is greater than 1.0 after multiplication") // This will never fail because both slash ratios are below 1.0
+    }
+}
+
+impl TryFrom<Milli> for SlashRatio {
+    type Error = SlashRatioError;
+
+    fn try_from(milli: Milli) -> Result<Self, Self::Error> {
         if milli > MAX_SLASH_RATIO {
             Err(SlashRatioError::GreaterThanMax)
         } else {
             Ok(Self(milli))
         }
-    }
-
-    #[inline]
-    pub(crate) fn as_millis(self) -> u64 {
-        self.0.as_millis()
     }
 }
 
@@ -84,7 +99,7 @@ impl FromStr for SlashRatio {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let milli = Milli::from_str(s).map_err(SlashRatioError::MilliError)?;
-        SlashRatio::new(milli)
+        SlashRatio::try_from(milli)
     }
 }
 
