@@ -16,7 +16,7 @@ digest = { version = "0.8", default-features = false}
 tiny-keccak = { version = "1.5.0", default-features = false, features = ["keccak"] }
 sha2 = { version = "0.8", default-features = false }
 hex = { version = "0.4", optional = true }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "8b9a38b870a7759fcdbd4a5d435b5ba873c70afd", features = ["recovery", "endomorphism"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 blake2 = { version = "0.8", default-features = false }
 parity-scale-codec = { features = ["derive"], default-features = false, version = "1.0" }
