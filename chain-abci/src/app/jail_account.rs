@@ -61,8 +61,8 @@ mod tests {
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::init::config::{
-        AccountType, InitConfig, InitNetworkParameters, InitialValidator, JailingParameters,
-        SlashRatio, SlashingParameters, ValidatorKeyType,
+        InitConfig, InitNetworkParameters, JailingParameters, SlashRatio, SlashingParameters,
+        StakedStateDestination, ValidatorKeyType, ValidatorPubkey,
     };
     use chain_core::tx::fee::{LinearFee, Milli};
 
@@ -94,11 +94,7 @@ mod tests {
         validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
 
         let mut distribution = BTreeMap::new();
-        distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
-        distribution.insert(
-            RedeemAddress::default(),
-            (Coin::zero(), AccountType::Contract),
-        );
+        distribution.insert(address, (StakedStateDestination::Bonded, Coin::max()));
 
         let init_network_params = InitNetworkParameters {
             initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
@@ -116,18 +112,14 @@ mod tests {
             },
         };
 
-        let init_config = InitConfig::new(
-            distribution,
-            RedeemAddress::default(),
-            RedeemAddress::default(),
-            RedeemAddress::default(),
-            init_network_params,
-            vec![InitialValidator {
-                staking_account_address: address,
-                consensus_pubkey_type: ValidatorKeyType::Ed25519,
-                consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-            }],
-        );
+        let mut nodes = BTreeMap::new();
+        let node_key = ValidatorPubkey {
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+        };
+        nodes.insert(address, node_key);
+        let rewards_pool = Coin::new(0).unwrap();
+        let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
 
         let timestamp = Timestamp::new();
 

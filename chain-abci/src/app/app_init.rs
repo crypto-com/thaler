@@ -13,8 +13,8 @@ use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
-use chain_core::init::config::AccountType;
 use chain_core::init::config::InitConfig;
+use chain_core::init::config::StakedStateDestination;
 use chain_core::init::config::{InitNetworkParameters, JailingParameters, SlashingParameters};
 use chain_core::state::account::{StakedState, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
@@ -184,11 +184,11 @@ fn check_and_store_consensus_params(
 }
 
 fn get_voting_power(
-    distribution: &BTreeMap<RedeemAddress, (Coin, AccountType)>,
+    distribution: &BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
     node_address: &StakedStateAddress,
 ) -> TendermintVotePower {
     match node_address {
-        StakedStateAddress::BasicRedeem(a) => TendermintVotePower::from(distribution[a].0),
+        StakedStateAddress::BasicRedeem(a) => TendermintVotePower::from(distribution[a].1),
     }
 }
 
@@ -407,21 +407,22 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Handles InitChain requests:
     /// should validate initial genesis distribution, initialize everything in the key-value DB and check it matches the expected values
     /// provided as arguments.
-    pub fn init_chain_handler(&mut self, _req: &RequestInitChain) -> ResponseInitChain {
+    pub fn init_chain_handler(&mut self, req: &RequestInitChain) -> ResponseInitChain {
         let db = &self.storage.db;
-        let genesis_time = _req.time.as_ref().expect("genesis time").get_seconds();
+        let genesis_time = req.time.as_ref().expect("genesis time").get_seconds();
         let conf: InitConfig =
-            serde_json::from_slice(&_req.app_state_bytes).expect("failed to parse initial config");
+            serde_json::from_slice(&req.app_state_bytes).expect("failed to parse initial config");
         let dist_result = conf.validate_config_get_genesis(genesis_time);
         if let Ok((accounts, rp, nodes)) = dist_result {
             let stored_chain_id = db
                 .get(COL_EXTRA, CHAIN_ID_KEY)
                 .unwrap()
                 .expect("last app hash found, no but chain id stored");
-            if stored_chain_id != _req.chain_id.as_bytes() {
+            if stored_chain_id != req.chain_id.as_bytes() {
                 panic!(
-                    "stored chain id: {:?} does not match the provided chain id: {:?}",
-                    stored_chain_id, _req.chain_id
+                    "stored chain id: {} does not match the provided chain id: {}",
+                    String::from_utf8(stored_chain_id.to_vec()).unwrap(),
+                    req.chain_id
                 );
             }
 
@@ -443,12 +444,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
             let mut inittx = db.transaction();
             check_and_store_consensus_params(
-                _req.consensus_params.as_ref(),
+                req.consensus_params.as_ref(),
                 &nodes,
                 &conf.network_params,
                 &mut inittx,
             );
-            // NOTE: &_req.validators are ignored / replaced by init config
+            // NOTE: &req.validators are ignored / replaced by init config
             let mut validators = Vec::with_capacity(nodes.len());
             let mut validator_liveness = BTreeMap::new();
             for node in nodes.iter() {
