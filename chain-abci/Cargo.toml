@@ -42,7 +42,7 @@ quickcheck = "0.9"
 # criterion = "0.3"
 digest = "0.8"
 sha3 = "0.8"
-base64 = "0.10"
+base64 = "0.11"
 
 # TODO: currently not maintained benchmarks
 # [[bench]]

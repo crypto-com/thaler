@@ -12,7 +12,7 @@ chain-tx-validation = { path = "../chain-tx-validation" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 secstr = { version = "0.3.2", features = ["serde"] }
-base64 = "0.10"
+base64 = "0.11"
 chrono = { version = "0.4", features = ["serde"] }
 parity-scale-codec = { features = ["derive"], version = "1.0" }
 hex = "0.4.0"
