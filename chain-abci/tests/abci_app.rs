@@ -11,11 +11,11 @@ use chain_core::common::{MerkleTree, Proof, H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
-use chain_core::init::config::AccountType;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
+use chain_core::init::config::StakedStateDestination;
 use chain_core::init::config::{
-    InitialValidator, JailingParameters, SlashRatio, SlashingParameters, ValidatorKeyType,
+    JailingParameters, SlashRatio, SlashingParameters, ValidatorKeyType, ValidatorPubkey,
 };
 use chain_core::state::account::{
     to_stake_key, DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes,
@@ -196,20 +196,20 @@ fn previously_stored_hash_should_match() {
 
 fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     let db = create_db();
+    let rewards_pool = Coin::zero();
     let total = (Coin::max() - Coin::unit()).unwrap();
     let validator_addr = "0x0e7c045110b8dbf29765047380898919c5cb56f4"
         .parse::<RedeemAddress>()
         .unwrap();
 
-    let distribution: BTreeMap<RedeemAddress, (Coin, AccountType)> = [
-        (address, (total, AccountType::ExternallyOwnedAccount)),
+    let distribution = [
         (
-            validator_addr,
-            (Coin::unit(), AccountType::ExternallyOwnedAccount),
+            address,
+            (StakedStateDestination::UnbondedFromGenesis, total),
         ),
         (
-            RedeemAddress::default(),
-            (Coin::zero(), AccountType::Contract),
+            validator_addr,
+            (StakedStateDestination::Bonded, Coin::unit()),
         ),
     ]
     .iter()
@@ -230,18 +230,13 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
             slash_wait_period: 10800,
         },
     };
-    let c = InitConfig::new(
-        distribution,
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        params,
-        vec![InitialValidator {
-            staking_account_address: validator_addr,
-            consensus_pubkey_type: ValidatorKeyType::Ed25519,
-            consensus_pubkey_b64: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=".to_string(),
-        }],
-    );
+    let mut nodes = BTreeMap::new();
+    let node_pubkey = ValidatorPubkey {
+        consensus_pubkey_type: ValidatorKeyType::Ed25519,
+        consensus_pubkey_b64: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=".to_string(),
+    };
+    nodes.insert(validator_addr, node_pubkey);
+    let c = InitConfig::new(rewards_pool, distribution, params, nodes);
     let t = ::protobuf::well_known_types::Timestamp::new();
     let result = c.validate_config_get_genesis(t.get_seconds());
     if let Ok((accounts, rp, _nodes)) = result {
@@ -312,18 +307,13 @@ fn init_chain_should_create_db_items() {
 #[should_panic]
 fn init_chain_panics_with_different_app_hash() {
     let db = create_db();
-    let distribution: BTreeMap<RedeemAddress, (Coin, AccountType)> = [
-        (
-            "0x0e7c045110b8dbf29765047380898919c5cb56f4"
-                .parse()
-                .unwrap(),
-            (Coin::max(), AccountType::ExternallyOwnedAccount),
-        ),
-        (
-            RedeemAddress::default(),
-            (Coin::zero(), AccountType::Contract),
-        ),
-    ]
+    let rewards_pool = Coin::zero();
+    let distribution = [(
+        "0x0e7c045110b8dbf29765047380898919c5cb56f4"
+            .parse()
+            .unwrap(),
+        (StakedStateDestination::Bonded, Coin::max()),
+    )]
     .iter()
     .cloned()
     .collect();
@@ -342,14 +332,7 @@ fn init_chain_panics_with_different_app_hash() {
             slash_wait_period: 10800,
         },
     };
-    let c = InitConfig::new(
-        distribution,
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        params,
-        vec![],
-    );
+    let c = InitConfig::new(rewards_pool, distribution, params, BTreeMap::new());
 
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
     let mut app = ChainNodeApp::new_with_storage(
@@ -707,7 +690,8 @@ fn valid_commit_should_persist() {
             .db
             .get(COL_TX_META, &tx.id()[..])
             .unwrap()
-            .unwrap(),
+            .unwrap()
+            .to_vec(),
     );
     assert!(!new_utxos.any());
 }
@@ -802,12 +786,15 @@ fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64
 
 fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp<MockClient>) -> StakedState {
     println!(
-        "uncommitted root hash: {:?}",
-        app.uncommitted_account_root_hash
+        "uncommitted root hash: {}",
+        hex::encode(app.uncommitted_account_root_hash)
     );
     let account_key = to_stake_key(&StakedStateAddress::from(*account_address));
     let state = app.last_state.clone().expect("app state");
-    println!("committed root hash: {:?}", &state.last_account_root_hash);
+    println!(
+        "committed root hash: {}",
+        hex::encode(&state.last_account_root_hash)
+    );
     let account = app
         .accounts
         .get_one(&app.uncommitted_account_root_hash, &account_key)
@@ -981,12 +968,16 @@ fn end_block_should_update_liveness_tracker() {
     let mut validator_voting_power = BTreeMap::new();
     validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
 
+    let rewards_pool = Coin::zero();
     let mut distribution = BTreeMap::new();
-    distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
-    distribution.insert(
-        RedeemAddress::default(),
-        (Coin::zero(), AccountType::Contract),
-    );
+    distribution.insert(address, (StakedStateDestination::Bonded, Coin::max()));
+
+    let mut nodes = BTreeMap::new();
+    let node_pubkey = ValidatorPubkey {
+        consensus_pubkey_type: ValidatorKeyType::Ed25519,
+        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+    };
+    nodes.insert(address, node_pubkey);
 
     let init_network_params = InitNetworkParameters {
         initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
@@ -1004,18 +995,7 @@ fn end_block_should_update_liveness_tracker() {
         },
     };
 
-    let init_config = InitConfig::new(
-        distribution,
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        init_network_params,
-        vec![InitialValidator {
-            staking_account_address: address,
-            consensus_pubkey_type: ValidatorKeyType::Ed25519,
-            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-        }],
-    );
+    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
 
     let timestamp = Timestamp::new();
 
@@ -1155,19 +1135,9 @@ fn begin_block_should_jail_byzantine_validators() {
     let address = RedeemAddress::from(&public_key);
     let staking_account_address = StakedStateAddress::BasicRedeem(address);
 
-    let mut validator_pubkey = PubKey::new();
-    validator_pubkey.field_type = "Ed25519".to_string();
-    validator_pubkey.data = base64::decode("EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=").unwrap();
-
-    let mut validator_voting_power = BTreeMap::new();
-    validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
-
     let mut distribution = BTreeMap::new();
-    distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
-    distribution.insert(
-        RedeemAddress::default(),
-        (Coin::zero(), AccountType::Contract),
-    );
+    let rewards_pool = Coin::zero();
+    distribution.insert(address, (StakedStateDestination::Bonded, Coin::max()));
 
     let init_network_params = InitNetworkParameters {
         initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
@@ -1185,18 +1155,14 @@ fn begin_block_should_jail_byzantine_validators() {
         },
     };
 
-    let init_config = InitConfig::new(
-        distribution,
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        init_network_params,
-        vec![InitialValidator {
-            staking_account_address: address,
-            consensus_pubkey_type: ValidatorKeyType::Ed25519,
-            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-        }],
-    );
+    let mut nodes = BTreeMap::new();
+    let node_pubkey = ValidatorPubkey {
+        consensus_pubkey_type: ValidatorKeyType::Ed25519,
+        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+    };
+    nodes.insert(address, node_pubkey);
+
+    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
 
     let timestamp = Timestamp::new();
 
@@ -1303,12 +1269,9 @@ fn begin_block_should_jail_non_live_validators() {
     let mut validator_voting_power = BTreeMap::new();
     validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
 
+    let rewards_pool = Coin::zero();
     let mut distribution = BTreeMap::new();
-    distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
-    distribution.insert(
-        RedeemAddress::default(),
-        (Coin::zero(), AccountType::Contract),
-    );
+    distribution.insert(address, (StakedStateDestination::Bonded, Coin::max()));
 
     let init_network_params = InitNetworkParameters {
         initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
@@ -1325,19 +1288,13 @@ fn begin_block_should_jail_non_live_validators() {
             slash_wait_period: 10800,
         },
     };
-
-    let init_config = InitConfig::new(
-        distribution,
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        init_network_params,
-        vec![InitialValidator {
-            staking_account_address: address,
-            consensus_pubkey_type: ValidatorKeyType::Ed25519,
-            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-        }],
-    );
+    let mut nodes = BTreeMap::new();
+    let node_pubkey = ValidatorPubkey {
+        consensus_pubkey_type: ValidatorKeyType::Ed25519,
+        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+    };
+    nodes.insert(address, node_pubkey);
+    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
 
     let timestamp = Timestamp::new();
 
@@ -1448,12 +1405,9 @@ fn begin_block_should_slash_byzantine_validators() {
     let mut validator_voting_power = BTreeMap::new();
     validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
 
+    let rewards_pool = Coin::zero();
     let mut distribution = BTreeMap::new();
-    distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
-    distribution.insert(
-        RedeemAddress::default(),
-        (Coin::zero(), AccountType::Contract),
-    );
+    distribution.insert(address, (StakedStateDestination::Bonded, Coin::max()));
 
     let init_network_params = InitNetworkParameters {
         initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
@@ -1471,18 +1425,13 @@ fn begin_block_should_slash_byzantine_validators() {
         },
     };
 
-    let init_config = InitConfig::new(
-        distribution,
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        init_network_params,
-        vec![InitialValidator {
-            staking_account_address: address,
-            consensus_pubkey_type: ValidatorKeyType::Ed25519,
-            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-        }],
-    );
+    let mut nodes = BTreeMap::new();
+    let node_pubkey = ValidatorPubkey {
+        consensus_pubkey_type: ValidatorKeyType::Ed25519,
+        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+    };
+    nodes.insert(address, node_pubkey);
+    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
 
     let timestamp = Timestamp::new();
 
@@ -1636,12 +1585,9 @@ fn begin_block_should_slash_non_live_validators() {
     let mut validator_voting_power = BTreeMap::new();
     validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
 
+    let rewards_pool = Coin::zero();
     let mut distribution = BTreeMap::new();
-    distribution.insert(address, (Coin::max(), AccountType::ExternallyOwnedAccount));
-    distribution.insert(
-        RedeemAddress::default(),
-        (Coin::zero(), AccountType::Contract),
-    );
+    distribution.insert(address, (StakedStateDestination::Bonded, Coin::max()));
 
     let init_network_params = InitNetworkParameters {
         initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
@@ -1658,19 +1604,14 @@ fn begin_block_should_slash_non_live_validators() {
             slash_wait_period: 5,
         },
     };
+    let mut nodes = BTreeMap::new();
+    let node_pubkey = ValidatorPubkey {
+        consensus_pubkey_type: ValidatorKeyType::Ed25519,
+        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+    };
+    nodes.insert(address, node_pubkey);
 
-    let init_config = InitConfig::new(
-        distribution,
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        RedeemAddress::default(),
-        init_network_params,
-        vec![InitialValidator {
-            staking_account_address: address,
-            consensus_pubkey_type: ValidatorKeyType::Ed25519,
-            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-        }],
-    );
+    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
 
     let timestamp = Timestamp::new();
 

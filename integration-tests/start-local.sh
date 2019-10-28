@@ -40,7 +40,6 @@ function check_command_exist() {
 # @argument Port
 # @argument Docker name
 function start_chain_tx_enclave() {
-    print_config "CHAIN_TX_ENCLAVE_DIRECTORY" "${CHAIN_TX_ENCLAVE_DIRECTORY}"
     print_config "CHAIN_HEX_ID" "${CHAIN_HEX_ID}"
     print_config "PORT" "${1}"
 
@@ -120,28 +119,28 @@ function start_chain_abci() {
 # @argument Tendermint Port
 function start_client_rpc() {
     print_config "CHAIN_ID" "${CHAIN_ID}"
-    print_config "WALLET_STORAGE_DIRECTORY" "${WALLET_STORAGE_DIRECTORY}"
-    print_config "PORT" "${1}"
-    print_config "TENDERMINT_PORT" "${2}"
+    print_config "WALLET_STORAGE_DIRECTORY" "${1}"
+    print_config "PORT" "${2}"
+    print_config "TENDERMINT_PORT" "${3}"
 
     STORAGE=$(mktemp -d)    
-    cp -r "${WALLET_STORAGE_DIRECTORY}/." "${STORAGE}"
+    cp -r "${1}/." "${STORAGE}"
     print_config "STORAGE" "${STORAGE}"
 
     RUST_BACKTRACE=1 && RUST_LOG=info cargo run \
         --bin client-rpc -- \
-            --port "${1}" \
+            --port "${2}" \
             --chain-id "${CHAIN_ID}" \
             --storage-dir "${STORAGE}" \
-            --websocket-url "ws://127.0.0.1:${2}/websocket"
+            --websocket-url "ws://127.0.0.1:${3}/websocket"
 }
 
 # @argument Wallet Storage directory
 # @argument Tendermint Port
 function start_client_cli() {
     print_config "CHAIN_ID" "${CHAIN_ID}"
-    print_config "WALLET_STORAGE_DIRECTORY" "${WALLET_STORAGE_DIRECTORY}"
-    print_config "TENDERMINT_PORT" "${1}"
+    print_config "WALLET_STORAGE_DIRECTORY" "${1}"
+    print_config "TENDERMINT_PORT" "${2}"
 
     STAKING_ADDRESS=$(cat ./address-state.json | jq -r '.staking')
     TRANSFER_ADDRESSES=$(cat ./address-state.json | jq -r '.transfer')
@@ -149,7 +148,7 @@ function start_client_cli() {
     print_config "TRANSFER_ADDRESSES" "${TRANSFER_ADDRESSES}"
 
     STORAGE=$(mktemp -d)    
-    cp -r "${WALLET_STORAGE_DIRECTORY}/." "${STORAGE}"
+    cp -r "${1}/." "${STORAGE}"
     print_config "STORAGE" "${STORAGE}"
 
     echo
@@ -165,7 +164,6 @@ function start_client_cli() {
 cd "$(dirname "${0}")"
 
 # Source constants
-. ./constant-env.sh
 . ./env.sh
 
 check_command_exist "tendermint"
@@ -185,13 +183,13 @@ elif [ x"${1}" == "xchain-abci-zerofee" ]; then
 elif [ x"${1}" == "xchain-abci" ]; then
     start_chain_abci "${WITHFEE_APP_HASH}" 26658 25933
 elif [ x"${1}" == "xclient-rpc-zerofee" ]; then
-    start_client_rpc 16659 16657
+    start_client_rpc "${WALLET_STORAGE_ZEROFEE_DIRECTORY}" 16659 16657
 elif [ x"${1}" == "xclient-rpc" ]; then
-    start_client_rpc 26659 26657
+    start_client_rpc "${WALLET_STORAGE_WITHFEE_DIRECTORY}" 26659 26657
 elif [ x"${1}" == "xclient-cli-zerofee" ]; then
-    start_client_cli 16657
+    start_client_cli "${WALLET_STORAGE_ZEROFEE_DIRECTORY}" 16657
 elif [ x"${1}" == "xclient-cli" ]; then
-    start_client_cli 26657
+    start_client_cli "${WALLET_STORAGE_WITHFEE_DIRECTORY}" 26657
 else
     print_error "Unknown command ${1}"
 fi

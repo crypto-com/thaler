@@ -9,7 +9,7 @@ use quest::{password, success};
 use secstr::SecUtf8;
 use serde_json::json;
 
-use chain_core::init::config::{InitialValidator, ValidatorKeyType};
+use chain_core::init::config::{ValidatorKeyType, ValidatorPubkey};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use client_common::storage::SledStorage;
 use client_common::{Error, ErrorKind, Result, ResultExt};
@@ -34,11 +34,12 @@ pub struct InitCommand {
 
 impl InitCommand {
     pub fn new() -> Self {
+        let rewards_pool = Coin::new(2_500_000_000_000_000_000).unwrap();
         InitCommand {
             chain_id: "".to_string(),
             app_hash: "".to_string(),
             app_state: None,
-            genesis_dev: GenesisDevConfig::new(),
+            genesis_dev: GenesisDevConfig::new(rewards_pool),
             tendermint_pubkey: "".to_string(),
             staking_account_address: "".to_string(),
             other_staking_accounts: vec![],
@@ -133,17 +134,17 @@ impl InitCommand {
 
         loop {
             let i = self.distribution_addresses.len();
-            if self.remain_coin == Coin::zero() && i >= 4 {
+            if self.remain_coin == self.genesis_dev.rewards_pool {
                 break;
             }
             let j = i - 1;
             let mut this_address = default_address.clone();
             let mut this_coin = self.remain_coin.to_string();
             if j < default_addresses.len() {
-                this_address = default_addresses[j].to_string().clone();
+                this_address = default_addresses[j].to_string();
             }
             if j < default_coins.len() {
-                this_coin = default_coins[j].to_string().clone();
+                this_coin = default_coins[j].to_string();
             }
             self.read_wallet(
                 format!("{}", i).as_str(),
@@ -172,48 +173,19 @@ impl InitCommand {
     }
 
     fn read_councils(&mut self) -> Result<()> {
-        let councils = &mut self.genesis_dev.council_nodes;
         println!(
             "{} {}",
             self.staking_account_address, self.tendermint_pubkey
         );
-        let staking_validator = InitialValidator {
-            staking_account_address: self
-                .staking_account_address
-                .parse::<RedeemAddress>()
-                .unwrap(),
+        let pubkey = ValidatorPubkey {
             consensus_pubkey_type: ValidatorKeyType::Ed25519,
             consensus_pubkey_b64: self.tendermint_pubkey.clone(),
         };
-
-        councils.push(staking_validator);
-        Ok(())
-    }
-
-    fn read_incentives(&mut self) -> Result<()> {
-        assert!(self.distribution_addresses.len() >= 4);
-
-        InitCommand::ask("** CAUTION **\n");
-        self.ask_string("validator staking addresse is special, cannot be withdrawn in single node mode (anykey)","");
-        self.ask_string(
-            "these incentive wallets are special, cannot be withdrawn (anykey)",
-            "",
-        );
-        self.genesis_dev.launch_incentive_from = RedeemAddress::from_str(&self.ask_string(
-            format!("launch_incentive_from({})=", self.distribution_addresses[1]).as_str(),
-            self.distribution_addresses[1].as_str(),
-        ))
-        .unwrap();
-        self.genesis_dev.launch_incentive_to = RedeemAddress::from_str(&self.ask_string(
-            format!("launch_incentive_to({})=", self.distribution_addresses[2]).as_str(),
-            self.distribution_addresses[2].as_str(),
-        ))
-        .unwrap();
-        self.genesis_dev.long_term_incentive = RedeemAddress::from_str(&self.ask_string(
-            format!("long_term_incentive({})=", self.distribution_addresses[3]).as_str(),
-            self.distribution_addresses[3].as_str(),
-        ))
-        .unwrap();
+        let address = self
+            .staking_account_address
+            .parse::<RedeemAddress>()
+            .unwrap();
+        self.genesis_dev.council_nodes.insert(address, pubkey);
         Ok(())
     }
 
@@ -224,7 +196,6 @@ impl InitCommand {
             .and_then(|_| self.read_wallets())
             .and_then(|_| self.read_genesis_time())
             .and_then(|_| self.read_councils())
-            .and_then(|_| self.read_incentives())
     }
 
     fn generate_app_info(&mut self) -> Result<()> {
@@ -301,7 +272,7 @@ impl InitCommand {
                 obj["app_state"] = json!(&app_state.unwrap());
                 obj["genesis_time"] = json!(gt);
                 obj["chain_id"] = json!(self.chain_id.clone());
-                json_string = serde_json::to_string(&json).unwrap();
+                json_string = serde_json::to_string_pretty(&json).unwrap();
                 println!("{}", json_string);
 
                 File::create(&InitCommand::get_tendermint_filename())

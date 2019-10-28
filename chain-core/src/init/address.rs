@@ -162,7 +162,8 @@ pub const REDEEM_ADDRESS_BYTES: usize = 20;
 pub type RedeemAddressRaw = [u8; REDEEM_ADDRESS_BYTES];
 
 /// Eth-style Account address (20 bytes)
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[cfg_attr(not(feature = "hex"), derive(Debug))]
 pub struct RedeemAddress(pub RedeemAddressRaw);
 
 #[cfg(feature = "hex")]
@@ -249,6 +250,13 @@ impl FromStr for RedeemAddress {
 impl fmt::Display for RedeemAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{}", hex::encode(self.0))
+    }
+}
+
+#[cfg(feature = "hex")]
+impl fmt::Debug for RedeemAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(0x{}", hex::encode(self.0))
     }
 }
 

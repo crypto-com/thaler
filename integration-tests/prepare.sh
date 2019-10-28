@@ -2,6 +2,9 @@
 set -e
 IFS=
 
+if [ ! -z "${CI}" ]; then
+    USE_DOCKER_COMPOSE=1
+fi
 # Global function return value
 RET_VALUE=0
 
@@ -37,28 +40,29 @@ function check_command_exist() {
     set -e
 }
 
+function build_chain_docker_image() {
+    CWD=$(pwd)
+    cd ../ && docker build -t "${CHAIN_DOCKER_IMAGE}" -f ./docker/Dockerfile .
+    cd "${CWD}"
+}
+
 function build_chain_tx_enclave_docker_image() {
     CWD=$(pwd)
-    cd "../" && docker build -t "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE}" \
+    cd ../ && docker build -t "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE}" \
         -f ./chain-tx-enclave/tx-validation/Dockerfile . \
         --build-arg SGX_MODE=SW \
         --build-arg NETWORK_ID="${CHAIN_HEX_ID}"
     cd "${CWD}"
 }
 
+# @argument Tendermint directory
 function init_tendermint() {
-    print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
-    rm -rf ./tendermint
-    mkdir -p ./tendermint
-    if [ ! -z "${CI}" ]; then
-        chmod 777 ./tendermint
-    fi
-    docker run -v "$(pwd)/tendermint:/tendermint" --env TMHOME=/tendermint "tendermint/tendermint:v${TENDERMINT_VERSION}" init
-    if [ ! -z "${CI}" ]; then
-        sudo chmod -R 777 ./tendermint
-    fi
+    mkdir -p "${1}"
 
-    index_all_tags "tendermint"
+    print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
+    docker run --rm -v "$(pwd)/${1}:/tendermint" --env TMHOME=/tendermint --user "$(id -u):$(id -g)" "tendermint/tendermint:v${TENDERMINT_VERSION}" init
+
+    index_all_tags "${1}"
 }
 
 # @argument Tendermint directory
@@ -67,51 +71,76 @@ function index_all_tags() {
     cat "${1}/config/config.toml" | sed "s/index_all_tags = false/index_all_tags = true/g" | tee "${1}/config/config.toml" > /dev/null
 }
 
-# @argument Tendermint directory
+# @argument original Tendermint directory
+# @argument Cloned Tendermint directory
 function clone_tendermint_config() {
-    rm -rf "${1}"
-    mkdir -p "${1}"
-    cp -r ./tendermint/. "${1}"
+    print_step "Cloning Tendermint config from \"${1}\" to \"${2}\""
+
+    rm -rf "${2}"
+    mkdir -p "${2}"
+    cp -r "${1}/." "${2}"
 }
 
 # Create wallet
 # @argument Wallet Name
 # @argument Wallet Passphrase
+# @argument Wallet storage directory
 function create_wallet() {
-    rm -rf "${WALLET_STORAGE_DIRECTORY}"
+    mkdir -p "${3}"
+
     print_step "Creating wallet \"${1}\""
-    RET_VALUE=$(printf "${2}\n${2}\n" | CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli wallet new --name ${1} --type basic)
+    if [ -z "${USE_DOCKER_COMPOSE}" ]; then
+        RET_VALUE=$(printf "${2}\n${2}\n" | CRYPTO_CLIENT_STORAGE="${3}" ../target/debug/client-cli wallet new --name "${1}" --type basic)
+    else
+        RET_VALUE=$(printf "${2}\n${2}\n" | docker run -i --rm -v "$(pwd)/${3}:/.storage" --env CRYPTO_CLIENT_STORAGE=/.storage --user "$(id -u):$(id -g)" "${CHAIN_DOCKER_IMAGE}" client-cli wallet new --name "${1}" --type basic)
+    fi
 }
 
 # Create wallet staking address
 # @argument Wallet Name
 # @argument Wallet Passphrase
+# @argument Wallet storage directory
 function create_wallet_staking_address() {
     print_step "Creating staking address for wallet \"${1}\""
-    printf "${2}\n" | CRYPTO_CHAIN_ID=${CHAIN_ID} CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli address new --name ${1} --type Staking
-
-    print_step "Retrieving last staking address for wallet \"${1}\""
-    ADDRESS_LIST=$(printf "${2}\n" | CRYPTO_CHAIN_ID=${CHAIN_ID} CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli address list --name ${1} --type Staking)
-    RET_VALUE=$(echo $ADDRESS_LIST | tail -n1 | sed -En "s/^.*(0x[0-9a-zA-Z]+).*$/\1/p")
+    if [ -z "${USE_DOCKER_COMPOSE}" ]; then
+        RESULT=$(printf "${2}\n" | CRYPTO_CHAIN_ID=${CHAIN_ID} CRYPTO_CLIENT_STORAGE=${3} ../target/debug/client-cli address new --name ${1} --type Staking)
+    else
+        RESULT=$(printf "${2}\n" | docker run -i --rm -v "$(pwd)/${3}:/.storage" --env CRYPTO_CHAIN_ID=${CHAIN_ID} --env CRYPTO_CLIENT_STORAGE=/.storage --user "$(id -u):$(id -g)" "${CHAIN_DOCKER_IMAGE}" client-cli address new --name ${1} --type Staking)
+    fi
+    echo "${RESULT}"
+    RET_VALUE=$(echo "${RESULT}" | sed -En "s/^.*(0x[0-9a-zA-Z]+).*$/\1/p")
 }
 
 # Create wallet staking address
 # @argument Wallet Name
 # @argument Wallet Passphrase
+# @argument Wallet storage directory
 function create_wallet_transfer_address() {
     print_step "Creating transfer address for wallet \"${1}\""
-    printf "${2}\n" | CRYPTO_CHAIN_ID=${CHAIN_ID} CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli address new --name ${1} --type Transfer
+    if [ -z "${USE_DOCKER_COMPOSE}" ]; then
+        RESULT=$(printf "${2}\n" | CRYPTO_CHAIN_ID=${CHAIN_ID} CRYPTO_CLIENT_STORAGE=${3} ../target/debug/client-cli address new --name ${1} --type Transfer)
+    else
+        RESULT=$(printf "${2}\n" | docker run -i --rm -v "$(pwd)/${3}:/.storage" --env CRYPTO_CHAIN_ID=${CHAIN_ID} --env CRYPTO_CLIENT_STORAGE=/.storage --user "$(id -u):$(id -g)" "${CHAIN_DOCKER_IMAGE}" client-cli address new --name ${1} --type Transfer)
+    fi
+    echo "${RESULT}"
+    RET_VALUE=$(echo "${RESULT}" | tail -n1 | sed -En "s/^.*(dcro[0-9a-zA-Z]+).*$/\1/p")
+}
 
-    print_step "Retrieving last transfer address for wallet \"${1}\""
-    ADDRESS_LIST=$(printf "${2}\n" | CRYPTO_CHAIN_ID=${CHAIN_ID} CRYPTO_CLIENT_STORAGE=${WALLET_STORAGE_DIRECTORY} ../target/debug/client-cli address list --name ${1} --type Transfer)
-    echo "${ADDRESS_LIST}"
-    RET_VALUE=$(echo $ADDRESS_LIST | tail -n1 | sed -En "s/^.*(dcro[0-9a-zA-Z]+).*$/\1/p")
+# Clone wallet storage to specified location
+# @argument Original wallet directory
+# @argument Cloned wallet directory
+function clone_wallet() {
+    print_step "Cloning wallet from \"${1}\" to \"${2}\""
+
+    rm -rf "${2}"
+    mkdir -p "${2}"
+    cp -r "${1}/." "${2}/"
 }
 
 # Save wallet addresses into JSON file
 # @argument Staking address
 # @argument Transfer address 1
-# @argument Transfer address 1
+# @argument Transfer address 2
 function save_wallet_addresses() {
     echo "${ADDRESS_STATE_TEMPLATE}" | \
         jq --arg ADDRESS "${1}" '.staking=($ADDRESS)' | \
@@ -133,12 +162,10 @@ EOF
 
 DEV_CONF=$(cat << EOF
 {
+    "rewards_pool": "6250000000000000000",
     "distribution": {
         "{STAKING_ADDRESS}": "2500000000000000000",
-        "0x20a0bee429d6907e556205ef9d48ab6fe6a55531": "2500000000000000000",
-        "0x35f517cab9a37bc31091c2f155d965af84e0bc85": "2500000000000000000",
-        "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": "1250000000000000000",
-        "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07": "1250000000000000000"
+        "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": "1250000000000000000"
     },
     "unbonding_period": 15,
     "required_council_node_stake": "1250000000000000000",
@@ -156,16 +183,12 @@ DEV_CONF=$(cat << EOF
         "base_fee": "{BASE_FEE}",
         "per_byte_fee": "{PER_BYTE_FEE}"
     },
-    "council_nodes": [
-        {
-            "staking_account_address": "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de",
+    "council_nodes": {
+        "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": {
             "consensus_pubkey_type": "Ed25519",
             "consensus_pubkey_b64": "{PUB_KEY}"
         }
-    ],
-    "launch_incentive_from": "0x35f517cab9a37bc31091c2f155d965af84e0bc85",
-    "launch_incentive_to": "0x20a0bee429d6907e556205ef9d48ab6fe6a55531",
-    "long_term_incentive": "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07",
+    },
     "genesis_time": "{GENESIS_TIME}"
 }
 EOF
@@ -187,7 +210,11 @@ function generate_tendermint_genesis() {
 
 # @argument Dev uilts config path
 function _generate_genesis() {
-    RET_VALUE=$(../target/debug/dev-utils genesis generate -g "${1}")
+    if [ -z "${USE_DOCKER_COMPOSE}" ]; then
+        RET_VALUE=$(../target/debug/dev-utils genesis generate -g "${1}")
+    else
+        RET_VALUE=$(docker run -i --rm -v "$(pwd):/.genesis" "${CHAIN_DOCKER_IMAGE}" dev-utils genesis generate -g "/.genesis/${1}")
+    fi
 }
 
 # @argument Tendermint genesis JSON
@@ -210,40 +237,49 @@ function _change_tenermint_chain_id() {
 cd "$(dirname "${0}")"
 
 # Source constants
-. ./constant-env.sh
+. ./const-env.sh
 
 check_command_exist "jq"
 check_command_exist "git"
-check_command_exist "cargo"
 
-print_step "cargo build"
-cargo build
-
-if [ -z "${CI}" ]; then
-    print_step "Build Chain Transaction Enclave image"
-    build_chain_tx_enclave_docker_image
+if [ -z "${USE_DOCKER_COMPOSE}" ]; then
+    check_command_exist "cargo"
 fi
 
+print_step "Build Chain image"
+if [ ! -z "${USE_DOCKER_COMPOSE}" ]; then
+    build_chain_docker_image
+else
+    cargo build
+fi
+
+print_step "Build Chain Transaction Enclave image"
+build_chain_tx_enclave_docker_image
+
 print_step "Initialize Tendermint"
-init_tendermint
+rm -rf "${TENDERMINT_TEMP_DIRECTORY}"
+init_tendermint "${TENDERMINT_TEMP_DIRECTORY}"
 
 print_step "Clone Tendermint configuration"
-clone_tendermint_config "${TENDERMINT_WITHFEE_DIRECTORY}"
-clone_tendermint_config "${TENDERMINT_ZEROFEE_DIRECTORY}"
+clone_tendermint_config "${TENDERMINT_TEMP_DIRECTORY}" "${TENDERMINT_WITHFEE_DIRECTORY}"
+clone_tendermint_config "${TENDERMINT_TEMP_DIRECTORY}" "${TENDERMINT_ZEROFEE_DIRECTORY}"
 
 print_step "Generate wallet and addresses"
-create_wallet "Default" "${WALLET_PASSPHRASE}"
-create_wallet_staking_address "Default" "${WALLET_PASSPHRASE}"; STAKING_ADDRESS="${RET_VALUE}"
-create_wallet_transfer_address "Default" "${WALLET_PASSPHRASE}"; TRANSFER_ADDRESS_1="${RET_VALUE}"
-create_wallet_transfer_address "Default" "${WALLET_PASSPHRASE}"; TRANSFER_ADDRESS_2="${RET_VALUE}"
+rm -rf "${WALLET_STORAGE_TEMP_DIRECTORY}"
+create_wallet "Default" "${WALLET_PASSPHRASE}" "${WALLET_STORAGE_TEMP_DIRECTORY}"
+create_wallet_staking_address "Default" "${WALLET_PASSPHRASE}" "${WALLET_STORAGE_TEMP_DIRECTORY}"; STAKING_ADDRESS="${RET_VALUE}"
+create_wallet_transfer_address "Default" "${WALLET_PASSPHRASE}" "${WALLET_STORAGE_TEMP_DIRECTORY}"; TRANSFER_ADDRESS_1="${RET_VALUE}"
+create_wallet_transfer_address "Default" "${WALLET_PASSPHRASE}" "${WALLET_STORAGE_TEMP_DIRECTORY}"; TRANSFER_ADDRESS_2="${RET_VALUE}"
 print_config "STAKING_ADDRESS" "${STAKING_ADDRESS}"
 print_config "TRANSFER_ADDRESS_1" "${TRANSFER_ADDRESS_1}"
 print_config "TRANSFER_ADDRESS_2" "${TRANSFER_ADDRESS_2}"
+clone_wallet "${WALLET_STORAGE_TEMP_DIRECTORY}" "${WALLET_STORAGE_WITHFEE_DIRECTORY}"
+clone_wallet "${WALLET_STORAGE_TEMP_DIRECTORY}" "${WALLET_STORAGE_ZEROFEE_DIRECTORY}"
 save_wallet_addresses "${STAKING_ADDRESS}" "${TRANSFER_ADDRESS_1}" "${TRANSFER_ADDRESS_2}"
 
 print_step "Generate Tendermint genesis"
-VALIDATOR_PUB_KEY=$(cat ./tendermint/config/genesis.json | jq -r .validators[0].pub_key.value)
-GENESIS_TIME=$(cat ./tendermint/config/genesis.json | jq -r .genesis_time)
+VALIDATOR_PUB_KEY=$(cat "${TENDERMINT_TEMP_DIRECTORY}/config/genesis.json" | jq -r .validators[0].pub_key.value)
+GENESIS_TIME=$(cat "${TENDERMINT_TEMP_DIRECTORY}/config/genesis.json" | jq -r .genesis_time)
 print_config "VALIDATOR_PUR_KEY" "${VALIDATOR_PUB_KEY}"
 print_config "GENESIS_TIME" "${GENESIS_TIME}"
 
@@ -260,10 +296,10 @@ function generate_dev_conf() {
 		sed "s/{GENESIS_TIME}/${GENESIS_TIME}/g" | tee ${3} > /dev/null
 }
 
-generate_dev_conf "1.1" "1.25" "${DEV_CONF_WITHFEE_PATH}"
-generate_dev_conf "0.0" "0.0" "${DEV_CONF_ZEROFEE_PATH}"
+generate_dev_conf "1.1" "1.25" "${DEVCONF_WITHFEE_PATH}"
+generate_dev_conf "0.0" "0.0" "${DEVCONF_ZEROFEE_PATH}"
 
-generate_tendermint_genesis "${DEV_CONF_WITHFEE_PATH}" "${TENDERMINT_WITHFEE_DIRECTORY}" "${CHAIN_ID}"
-generate_tendermint_genesis "${DEV_CONF_ZEROFEE_PATH}" "${TENDERMINT_ZEROFEE_DIRECTORY}" "${CHAIN_ID}"
+generate_tendermint_genesis "${DEVCONF_WITHFEE_PATH}" "${TENDERMINT_WITHFEE_DIRECTORY}" "${CHAIN_ID}"
+generate_tendermint_genesis "${DEVCONF_ZEROFEE_PATH}" "${TENDERMINT_ZEROFEE_DIRECTORY}" "${CHAIN_ID}"
 
 sleep 5

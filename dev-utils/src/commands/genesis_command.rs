@@ -13,7 +13,7 @@ use chain_abci::storage::tx::StarlingFixedKey;
 use chain_abci::storage::Storage;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
-use chain_core::init::config::{AccountType, InitNetworkParameters};
+use chain_core::init::config::{InitNetworkParameters, StakedStateDestination};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::{LinearFee, Milli};
@@ -48,17 +48,22 @@ impl GenesisCommand {
     }
 
     pub fn do_generate(genesis_dev: &GenesisDevConfig) -> Result<(String, InitConfig)> {
-        let mut dist: BTreeMap<RedeemAddress, (Coin, AccountType)> = BTreeMap::new();
+        let mut dist: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)> = BTreeMap::new();
 
         for (address, amount) in genesis_dev.distribution.iter() {
-            dist.insert(*address, (*amount, AccountType::ExternallyOwnedAccount));
+            let dest = if genesis_dev.council_nodes.contains_key(&address) {
+                StakedStateDestination::Bonded
+            } else {
+                StakedStateDestination::UnbondedFromGenesis
+            };
+            dist.insert(*address, (dest, *amount));
         }
         let constant_fee = Milli::from_str(&genesis_dev.initial_fee_policy.base_fee)
             .chain(|| (ErrorKind::InvalidInput, "Invalid constant fee"))?;
         let coefficient_fee = Milli::from_str(&genesis_dev.initial_fee_policy.per_byte_fee)
             .chain(|| (ErrorKind::InvalidInput, "Invalid per byte fee"))?;
         let fee_policy = LinearFee::new(constant_fee, coefficient_fee);
-        let params = InitNetworkParameters {
+        let network_params = InitNetworkParameters {
             initial_fee_policy: fee_policy,
             required_council_node_stake: genesis_dev.required_council_node_stake,
             unbonding_period: genesis_dev.unbonding_period,
@@ -66,11 +71,9 @@ impl GenesisCommand {
             slashing_config: genesis_dev.slashing_config,
         };
         let config = InitConfig::new(
+            genesis_dev.rewards_pool,
             dist,
-            genesis_dev.launch_incentive_from,
-            genesis_dev.launch_incentive_to,
-            genesis_dev.long_term_incentive,
-            params,
+            network_params,
             genesis_dev.council_nodes.clone(),
         );
         let (accounts, rp, _nodes) = config
@@ -96,8 +99,8 @@ impl GenesisCommand {
 
         let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
         println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
-        let config_str =
-            serde_json::to_string(&config).chain(|| (ErrorKind::InvalidInput, "Invalid config"))?;
+        let config_str = serde_json::to_string_pretty(&config)
+            .chain(|| (ErrorKind::InvalidInput, "Invalid config"))?;
         println!("\"app_state\": {}", config_str);
         println!();
 

@@ -16,10 +16,10 @@ rust: &rust
   cache:
     directories:
       - /home/travis/.cargo
-      - /usr/local/bin/
       - /home/travis/lib
       - /home/travis/include
       - /home/travis/bin
+      - /usr/local/bin/
   before_cache:
     - rm -rf /home/travis/.cargo/registry
   env:
@@ -67,50 +67,24 @@ jobs:
       rust: nightly
       if: (branch != staging.tmp) AND (branch != trying.tmp)
     - name: Integration Test
-      language: rust
+      language: node_js
+      node_js: 10
       sudo: required
       dist: trusty
       if: (branch = staging) OR (branch = trying)
-      addons:
-        apt:
-          packages:
-            - libssl-dev
-            - libcurl4-openssl-dev
-            - libelf-dev
-            - libdw-dev
-            - cmake
-            - gcc
-            - binutils-dev
-            - libc6-dev
       cache:
         directories:
-          - /home/travis/.cargo
-          - /usr/local/bin/
           - /home/travis/lib
           - /home/travis/include
           - /home/travis/bin
-      before_cache:
-        - rm -rf /home/travis/.cargo/registry
-      env:
-        - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
-        - PATH=$HOME/.local/bin:$PATH
-        - LD_LIBRARY_PATH=$HOME/lib
-        - PKG_CONFIG_PATH=$HOME/lib/pkgconfig
-      before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
-        - |
-          ./install_zeromq.sh
-          cargo clean
-        - nvm install 10
-        - |
-          sudo cp integration-tests/docker/wait-for-it.sh /usr/local/bin
-          sudo chmod +x /usr/local/bin/wait-for-it.sh
+          - /usr/local/bin/
       script:
         - cd integration-tests
         - ./prepare.sh || travis_terminate 1;
         - . ./env.sh
         - docker-compose up -d || travis_terminate 1;
         - |
-          sleep 25
+          sleep 30
           docker-compose ps
           docker-compose logs -t --tail="all"
         - ./run-test.sh || travis_terminate 1;
@@ -118,6 +92,4 @@ jobs:
           cd client-rpc
           yarn
           yarn test
-        - |
-          docker-compose ps
-          docker-compose logs -t --tail="all" || travis_terminate 0;
+        - docker-compose ps

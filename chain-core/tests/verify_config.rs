@@ -1,8 +1,8 @@
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::{
-    AccountType, InitConfig, InitNetworkParameters, InitialValidator, JailingParameters,
-    SlashRatio, SlashingParameters, ValidatorKeyType,
+    InitConfig, InitNetworkParameters, JailingParameters, SlashRatio, SlashingParameters,
+    StakedStateDestination, ValidatorKeyType, ValidatorPubkey,
 };
 use chain_core::tx::fee::{LinearFee, Milli};
 use serde::Deserialize;
@@ -11,7 +11,6 @@ use std::str::FromStr;
 
 #[derive(Deserialize)]
 pub struct Distribution {
-    contract: Vec<ERC20Holder>,
     #[serde(rename = "EOA")]
     eoa: Vec<ERC20Holder>,
 }
@@ -26,17 +25,26 @@ pub struct ERC20Holder {
 fn test_verify_test_example_snapshot() {
     let distribution_txt = include_str!("distribution.json");
     let distribution: Distribution = serde_json::from_str(&distribution_txt).unwrap();
-    let mut dist: BTreeMap<RedeemAddress, (Coin, AccountType)> = BTreeMap::new();
-    for contract_account in distribution.contract.iter() {
-        let amount = Coin::new(contract_account.balance.parse::<u64>().expect("amount")).unwrap();
-        dist.insert(contract_account.address, (amount, AccountType::Contract));
-    }
+    let node_address = "0x2440ad2533c66d91eb97807a339be13556d04990"
+        .parse::<RedeemAddress>()
+        .unwrap();
+    let node_pubkey = ValidatorPubkey {
+        consensus_pubkey_type: ValidatorKeyType::Ed25519,
+        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+    };
+    let mut nodes = BTreeMap::new();
+    nodes.insert(node_address, node_pubkey);
+
+    let mut dist: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)> = BTreeMap::new();
+
     for account in distribution.eoa.iter() {
         let amount = Coin::new(account.balance.parse::<u64>().expect("amount")).unwrap();
-        dist.insert(
-            account.address,
-            (amount, AccountType::ExternallyOwnedAccount),
-        );
+        let dest = if nodes.contains_key(&account.address) {
+            StakedStateDestination::Bonded
+        } else {
+            StakedStateDestination::UnbondedFromGenesis
+        };
+        dist.insert(account.address, (dest, amount));
     }
     let constant_fee = Milli::new(1, 25);
     let coefficient_fee = Milli::new(1, 1);
@@ -56,30 +64,15 @@ fn test_verify_test_example_snapshot() {
             slash_wait_period: 10800,
         },
     };
-    let launch_incentive_from = "0x35f517cab9a37bc31091c2f155d965af84e0bc85"
-        .parse::<RedeemAddress>()
-        .unwrap();
-    let launch_incentive_to = "0x20a0bee429d6907e556205ef9d48ab6fe6a55531"
-        .parse::<RedeemAddress>()
-        .unwrap();
-    let long_term_incentive = "0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07"
-        .parse::<RedeemAddress>()
-        .unwrap();
-    let example_validator = InitialValidator {
-        staking_account_address: "0x2440ad2533c66d91eb97807a339be13556d04990"
-            .parse::<RedeemAddress>()
-            .unwrap(),
-        consensus_pubkey_type: ValidatorKeyType::Ed25519,
-        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-    };
-    let config = InitConfig::new(
-        dist,
-        launch_incentive_from,
-        launch_incentive_to,
-        long_term_incentive,
-        params,
-        vec![example_validator],
-    );
+
+    let rewards_pool = Coin::new(9516484570597337034).unwrap();
+    let config = InitConfig::new(rewards_pool, dist.clone(), params.clone(), nodes.clone());
     let result = config.validate_config_get_genesis(0);
     assert!(result.is_ok());
+
+    // add 1 into rewards_pool
+    let rewards_pool = Coin::new(9516484570597337035).unwrap();
+    let config = InitConfig::new(rewards_pool, dist, params, nodes);
+    let result = config.validate_config_get_genesis(0);
+    assert!(result.is_err());
 }

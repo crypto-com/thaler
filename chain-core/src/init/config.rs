@@ -1,7 +1,9 @@
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use std::convert::TryFrom;
 use std::fmt;
+use std::ops::Mul;
 use std::prelude::v1::{String, Vec};
 use std::str::FromStr;
 
@@ -63,18 +65,31 @@ pub struct SlashingParameters {
 pub struct SlashRatio(Milli);
 
 impl SlashRatio {
-    /// Creates a new instance of `SlashRatio`
-    pub fn new(milli: Milli) -> Result<Self, SlashRatioError> {
+    #[inline]
+    pub(crate) fn as_millis(self) -> u64 {
+        self.0.as_millis()
+    }
+}
+
+impl Mul for SlashRatio {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: SlashRatio) -> Self::Output {
+        SlashRatio::try_from(self.0 * rhs.0)
+            .expect("Slash ratio is greater than 1.0 after multiplication") // This will never fail because both slash ratios are below 1.0
+    }
+}
+
+impl TryFrom<Milli> for SlashRatio {
+    type Error = SlashRatioError;
+
+    fn try_from(milli: Milli) -> Result<Self, Self::Error> {
         if milli > MAX_SLASH_RATIO {
             Err(SlashRatioError::GreaterThanMax)
         } else {
             Ok(Self(milli))
         }
-    }
-
-    #[inline]
-    pub(crate) fn as_millis(self) -> u64 {
-        self.0.as_millis()
     }
 }
 
@@ -84,7 +99,7 @@ impl FromStr for SlashRatio {
     #[inline]
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let milli = Milli::from_str(s).map_err(SlashRatioError::MilliError)?;
-        SlashRatio::new(milli)
+        SlashRatio::try_from(milli)
     }
 }
 
@@ -164,15 +179,21 @@ pub enum AccountType {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum StakedStateDestination {
+    Bonded,
+    UnbondedFromGenesis,
+    UnbondedFromCustomTime(Timespec),
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ValidatorKeyType {
     Ed25519,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct InitialValidator {
-    // account with the required staked amount
-    pub staking_account_address: RedeemAddress,
+pub struct ValidatorPubkey {
     // Tendermint consensus public key type
     pub consensus_pubkey_type: ValidatorKeyType,
     // Tendermint consensus public key encoded in base64
@@ -184,18 +205,15 @@ pub struct InitialValidator {
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct InitConfig {
-    // Redeem mapping of ERC20 snapshot: Eth address => (CRO tokens, AccountType)
-    pub distribution: BTreeMap<RedeemAddress, (Coin, AccountType)>,
-    // 0x35f517cab9a37bc31091c2f155d965af84e0bc85 on Eth mainnet ERC20
-    pub launch_incentive_from: RedeemAddress,
-    // 0x20a0bee429d6907e556205ef9d48ab6fe6a55531 on Eth mainnet ERC20
-    pub launch_incentive_to: RedeemAddress,
-    // 0x71507ee19cbc0c87ff2b5e05d161efe2aac4ee07 on Eth mainnet ERC20
-    pub long_term_incentive: RedeemAddress,
+    // initial rewards pool of CRO tokens
+    pub rewards_pool: Coin,
+    // Redeem mapping of ERC20 snapshot: Eth address => (StakedStateDestination,CRO tokens)
+    // (doesn't include the rewards pool amount)
+    pub distribution: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
     // initial network parameters
     pub network_params: InitNetworkParameters,
     // initial validators
-    pub council_nodes: Vec<InitialValidator>,
+    pub council_nodes: BTreeMap<RedeemAddress, ValidatorPubkey>,
 }
 
 #[derive(Debug)]
@@ -207,7 +225,6 @@ pub enum DistributionError {
     InvalidValidatorKey,
     DuplicateValidatorKey,
     InvalidValidatorAccount,
-    DuplicateValidatorAccount,
     NoValidators,
     InvalidVotingPower,
 }
@@ -237,9 +254,6 @@ impl fmt::Display for DistributionError {
             DistributionError::DuplicateValidatorKey => {
                 write!(f, "Duplicate validator key")
             },
-            DistributionError::DuplicateValidatorAccount => {
-                write!(f, "Duplicate validator account")
-            },
             DistributionError::NoValidators => {
                 write!(f, "No validators / council nodes specified")
             },
@@ -253,50 +267,35 @@ impl fmt::Display for DistributionError {
 impl InitConfig {
     /// creates a new config (mainly for testing / tools)
     pub fn new(
-        owners: BTreeMap<RedeemAddress, (Coin, AccountType)>,
-        launch_incentive_from: RedeemAddress,
-        launch_incentive_to: RedeemAddress,
-        long_term_incentive: RedeemAddress,
+        rewards_pool: Coin,
+        owners: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
         network_params: InitNetworkParameters,
-        council_nodes: Vec<InitialValidator>,
+        council_nodes: BTreeMap<RedeemAddress, ValidatorPubkey>,
     ) -> Self {
         InitConfig {
+            rewards_pool,
             distribution: owners,
-            launch_incentive_from,
-            launch_incentive_to,
-            long_term_incentive,
             network_params,
             council_nodes,
         }
     }
 
-    fn check_address(&self, address: &RedeemAddress) -> Result<(), DistributionError> {
-        if self.distribution.contains_key(address) {
-            Ok(())
-        } else {
-            Err(DistributionError::AddressNotInDistribution(*address))
-        }
-    }
-
-    fn check_address_expected_amount(
-        &self,
-        address: &RedeemAddress,
-        expected: Coin,
-    ) -> Result<(), DistributionError> {
+    fn check_validator_address(&self, address: &RedeemAddress) -> Result<(), DistributionError> {
+        let expected = self.network_params.required_council_node_stake;
         match self.distribution.get(address) {
-            Some((c, t)) if *c == expected && *t == AccountType::ExternallyOwnedAccount => Ok(()),
-            Some((c, _)) => Err(DistributionError::DoesNotMatchRequiredAmount(*address, *c)),
+            Some((d, c)) if *d == StakedStateDestination::Bonded && *c == expected => Ok(()),
+            Some((_, c)) => Err(DistributionError::DoesNotMatchRequiredAmount(*address, *c)),
             None => Err(DistributionError::AddressNotInDistribution(*address)),
         }
     }
 
     fn check_validator_key(
-        t: &ValidatorKeyType,
-        encoded: &str,
+        &self,
+        pubkey: &ValidatorPubkey,
     ) -> Result<TendermintValidatorPubKey, DistributionError> {
-        if let Ok(key) = base64::decode(encoded) {
+        if let Ok(key) = base64::decode(&pubkey.consensus_pubkey_b64) {
             let key_len = key.len();
-            match (key_len, t) {
+            match (key_len, &pubkey.consensus_pubkey_type) {
                 (32, ValidatorKeyType::Ed25519) => {
                     let mut out = [0u8; 32];
                     out.copy_from_slice(&key);
@@ -309,44 +308,29 @@ impl InitConfig {
         }
     }
 
-    fn is_rewards_pool_address(&self, address: &RedeemAddress) -> bool {
-        *address == self.launch_incentive_from
-            || *address == self.launch_incentive_to
-            || *address == self.long_term_incentive
-    }
-
-    /// returns the initial accounts and rewards pool state
+    /// returns the initial accounts
     /// assumes one called [validate_config_get_genesis], otherwise it may panic
-    fn get_genesis_state(
-        &self,
-        genesis_time: Timespec,
-        validator_addresses: HashSet<RedeemAddress>,
-    ) -> (Vec<StakedState>, RewardsPoolState) {
-        let mut rewards_pool_amount: u64 = 0;
-        let mut accounts = Vec::with_capacity(self.distribution.len());
-        for (address, (amount, address_type)) in self.distribution.iter() {
-            if self.is_rewards_pool_address(address) || *address_type == AccountType::Contract {
-                rewards_pool_amount += u64::from(*amount);
-            } else {
-                accounts.push(StakedState::new_init(
+    fn get_account(&self, genesis_time: Timespec) -> Vec<StakedState> {
+        self.distribution
+            .iter()
+            .map(|(address, (destination, amount))| {
+                let bonded = match destination {
+                    StakedStateDestination::Bonded => true,
+                    StakedStateDestination::UnbondedFromGenesis => false,
+                    StakedStateDestination::UnbondedFromCustomTime(_time) => false,
+                };
+                // TODO: change the define of `new_init` and use StakedStateDestination directly
+                StakedState::new_init(
                     *amount,
                     genesis_time,
                     StakedStateAddress::BasicRedeem(*address),
-                    validator_addresses.contains(address),
-                ));
-            }
-        }
-        (
-            accounts,
-            RewardsPoolState::new(
-                Coin::new(rewards_pool_amount).expect("rewards pool amount"),
-                0,
-            ),
-        )
+                    bonded,
+                )
+            })
+            .collect()
     }
 
     /// checks if the config is valid:
-    /// - required addresses are present in the distribution
     /// - initial validator configuration is correct
     /// - the total amount doesn't go over the maximum supply
     /// - ...
@@ -355,67 +339,60 @@ impl InitConfig {
         &self,
         genesis_time: Timespec,
     ) -> Result<(Vec<StakedState>, RewardsPoolState, Vec<CouncilNode>), DistributionError> {
-        self.check_address(&self.launch_incentive_from)?;
-        self.check_address(&self.launch_incentive_to)?;
-        self.check_address(&self.long_term_incentive)?;
         if self.council_nodes.is_empty() {
             return Err(DistributionError::NoValidators);
         }
-        let mut validators = Vec::with_capacity(self.council_nodes.len());
-        let mut validator_addresses = HashSet::new();
-        let mut validator_pubkeys = HashSet::new();
-        for node in self.council_nodes.iter() {
-            if self.is_rewards_pool_address(&node.staking_account_address) {
-                return Err(DistributionError::InvalidValidatorAccount);
-            }
-            if validator_addresses.contains(&node.staking_account_address) {
-                return Err(DistributionError::DuplicateValidatorAccount);
-            }
-
-            self.check_address_expected_amount(
-                &node.staking_account_address,
-                self.network_params.required_council_node_stake,
-            )?;
-            let validator_key = InitConfig::check_validator_key(
-                &node.consensus_pubkey_type,
-                &node.consensus_pubkey_b64,
-            )?;
-            if validator_pubkeys.contains(&validator_key) {
-                return Err(DistributionError::DuplicateValidatorKey);
-            }
-            validator_addresses.insert(node.staking_account_address);
-            validator_pubkeys.insert(validator_key.clone());
-
-            validator_addresses.insert(node.staking_account_address);
-            validators.push(CouncilNode::new(
-                StakedStateAddress::BasicRedeem(node.staking_account_address),
-                validator_key,
-            ));
+        // check validator pubkey is duplicated or not
+        let pub_keys: HashSet<String> = self
+            .council_nodes
+            .iter()
+            .map(|(_, pubkey)| pubkey.consensus_pubkey_b64.clone())
+            .collect();
+        if pub_keys.len() != self.council_nodes.len() {
+            return Err(DistributionError::DuplicateValidatorKey);
         }
-        let total_validator_stake = Coin::new(
+
+        let validators: Result<Vec<CouncilNode>, DistributionError> = self
+            .council_nodes
+            .iter()
+            .map(|(address, pubkey)| {
+                self.check_validator_address(address)?;
+                let validator_key = self.check_validator_key(pubkey)?;
+                Ok(CouncilNode::new(
+                    StakedStateAddress::BasicRedeem(*address),
+                    validator_key,
+                ))
+            })
+            .collect();
+        Coin::new(
             u64::from(self.network_params.required_council_node_stake)
                 * self.council_nodes.len() as u64,
-        );
-        // sanity check
-        match total_validator_stake {
-            Ok(tvs) => TendermintVotePower::from(tvs),
-            _ => {
-                return Err(DistributionError::InvalidVotingPower);
-            }
-        };
+        )
+        .map(TendermintVotePower::from) // sanity check
+        .map_err(|_| DistributionError::InvalidVotingPower)?;
 
-        let sumr = sum_coins(self.distribution.iter().map(|(_, (amount, _))| *amount));
-        match sumr {
-            Ok(sum) => {
-                if sum != Coin::max() {
-                    Err(DistributionError::DoesNotMatchMaxSupply(sum))
-                } else {
-                    let (accounts, rewards_pool) =
-                        self.get_genesis_state(genesis_time, validator_addresses);
-                    Ok((accounts, rewards_pool, validators))
+        // check the total amount
+        match sum_coins(self.distribution.iter().map(|(_, (_, amount))| *amount)) {
+            Ok(s) => {
+                let sum_result = s + self.rewards_pool;
+                match sum_result {
+                    Ok(sum) => {
+                        if sum != Coin::max() {
+                            return Err(DistributionError::DoesNotMatchMaxSupply(sum));
+                        }
+                    }
+                    Err(e) => {
+                        return Err(DistributionError::DistributionCoinError(e));
+                    }
                 }
             }
-            Err(e) => Err(DistributionError::DistributionCoinError(e)),
+            Err(e) => {
+                return Err(DistributionError::DistributionCoinError(e));
+            }
         }
+
+        let accounts = self.get_account(genesis_time);
+        let rewards_pool = RewardsPoolState::new(self.rewards_pool, 0);
+        Ok((accounts, rewards_pool, validators?))
     }
 }

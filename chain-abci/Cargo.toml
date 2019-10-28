@@ -31,7 +31,7 @@ hex = "0.4"
 protobuf = "2.7.0"
 integer-encoding = "1.0.7"
 structopt = "0.3"
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "c5ef4fad2d439d58f1d5deab4de0fc88ce0c8b7d", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "8b9a38b870a7759fcdbd4a5d435b5ba873c70afd", features = ["recovery", "endomorphism"] }
 blake2 = "0.8"
 parity-scale-codec = { features = ["derive"], version = "1.0" }
 zmq = "0.9"
@@ -42,7 +42,7 @@ quickcheck = "0.9"
 # criterion = "0.3"
 digest = "0.8"
 sha3 = "0.8"
-base64 = "0.10"
+base64 = "0.11"
 
 # TODO: currently not maintained benchmarks
 # [[bench]]
