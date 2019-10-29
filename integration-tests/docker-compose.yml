@@ -2,79 +2,75 @@ version: "3"
 
 services:
   tendermint:
-    image: integration-tests-tendermint
-    build:
-      context: ../
-      dockerfile: ./integration-tests/docker/tendermint/Dockerfile
-      args:
-        VERSION: ${TENDERMINT_VERSION:-0.32.0}
-    environment:
-      FEE_SCHEMA: WITHFEE
-      PROXY_APP: tcp://chain-abci:26658
+    image: "tendermint/tendermint:v${TENDERMINT_VERSION:-0.32.0}"
+    command: node --proxy_app=chain-abci:26658 --rpc.laddr=tcp://0.0.0.0:26657 --consensus.create_empty_blocks=true
+    user: root
+    volumes:
+      - "./${TENDERMINT_WITHFEE_DIRECTORY}:/tendermint"
     ports:
       - ${TENDERMINT_PORT_RPC:-26657}:26657
-  tendermint-zerofee:
-    image: integration-tests-tendermint
-    depends_on:
-      - tendermint
+  chain-abci:
+    image: "${CHAIN_DOCKER_IMAGE:-integration-tests-chain}"
+    command: "/usr/bin/chain-abci --host=0.0.0.0 --port=26658 --chain_id=${CHAIN_ID} --genesis_app_hash=${WITHFEE_APP_HASH} --enclave_server=tcp://chain-tx-enclave:25933 --data=/.storage"
+    volumes:
+      - "./${CHAIN_ABCI_WITHFEE_DIRECTORY}:/.storage"
     environment:
-      FEE_SCHEMA: ZEROFEE
-      PROXY_APP: tcp://chain-abci-zerofee:26658
+      RUST_BACKTRACE: 1
+      RUST_LOG: debug
+  chain-tx-enclave:
+    image: "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE:-integration-tests-chain-tx-enclave}"
+    volumes:
+      - "./${ENCLAVE_WITHFEE_DIRECTORY}:/.storage"
+    # devices:
+    #   - /dev/sgx:/dev/sgx
+    environment:
+      RUST_BACKTRACE: 1
+      RUST_LOG: debug
+      TX_ENCLAVE_STORAGE: /.storage
+  client-rpc:
+    image: "${CHAIN_DOCKER_IMAGE:-integration-tests-chain}"
+    command: /usr/bin/wait-for-it.sh tendermint:26657 --strict -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint:26657/websocket
+    volumes:
+      - "./${WALLET_STORAGE_WITHFEE_DIRECTORY}:/.storage"
+    environment:
+      RUST_BACKTRACE: 1
+      RUST_LOG: debug
+    ports:
+      - ${CLIENT_RPC_PORT:-26659}:26659
+
+  tendermint-zerofee:
+    image: "tendermint/tendermint:v${TENDERMINT_VERSION:-0.32.0}"
+    command: node --proxy_app=chain-abci-zerofee:26658 --rpc.laddr=tcp://0.0.0.0:26657 --consensus.create_empty_blocks=true
+    user: root
+    volumes:
+      - "./${TENDERMINT_ZEROFEE_DIRECTORY}:/tendermint"
     ports:
       - ${TENDERMINT_ZEROFEE_PORT_RPC:-16657}:26657
-
-  chain-abci:
-    image: integration-tests-chain
-    build:
-      context: ../
-      dockerfile: ./integration-tests/docker/chain/Dockerfile
-    command: /usr/bin/chain-abci --host 0.0.0.0 --port 26658 --chain_id ${CHAIN_ID} --genesis_app_hash ${WITHFEE_APP_HASH} --enclave_server tcp://chain-tx-enclave:25933
-    environment:
-      RUST_BACKTRACE: 1
-      RUST_LOG: info
   chain-abci-zerofee:
-    image: integration-tests-chain
-    depends_on:
-      - chain-abci
-    command: /usr/bin/chain-abci --host 0.0.0.0 --port 26658 --chain_id ${CHAIN_ID} --genesis_app_hash ${ZEROFEE_APP_HASH} --enclave_server tcp://chain-tx-enclave-zerofee:25933
-    environment:
-      RUST_BACKTRACE: 1
-      RUST_LOG: info
-
-  chain-tx-enclave:
-    image: integration-tests-tx-enclave
-    build:
-      context: ../
-      dockerfile: ./chain-tx-enclave/tx-validation/Dockerfile
-      args:
-        SGX_MODE: SW
-        NETWORK_ID: ${CHAIN_HEX_ID:-AB}
+    image: "${CHAIN_DOCKER_IMAGE:-integration-tests-chain}"
+    command: "/usr/bin/chain-abci --host=0.0.0.0 --port=26658 --chain_id=${CHAIN_ID} --genesis_app_hash=${ZEROFEE_APP_HASH} --enclave_server=tcp://chain-tx-enclave-zerofee:25933 --data=/.storage"
+    volumes:
+      - "./${CHAIN_ABCI_ZEROFEE_DIRECTORY}:/.storage"
     environment:
       RUST_BACKTRACE: 1
       RUST_LOG: debug
   chain-tx-enclave-zerofee:
-    image: integration-tests-tx-enclave
-    depends_on:
-      - chain-tx-enclave
+    image: "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE:-integration-tests-chain-tx-enclave}"
+    volumes:
+      - "./${ENCLAVE_ZEROFEE_DIRECTORY}:/.storage"
+    # devices:
+    #   - /dev/sgx:/dev/sgx
     environment:
       RUST_BACKTRACE: 1
       RUST_LOG: debug
-
-  client-rpc:
-    image: integration-tests-chain
-    depends_on:
-      - chain-abci
-    command: /usr/bin/wait-for-it.sh tendermint:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id ${CHAIN_ID} --storage-dir wallet-storage --websocket-url ws://tendermint:26657/websocket
-    environment:
-      RUST_BACKTRACE: 1
-    ports:
-      - ${CLIENT_RPC_PORT:-26659}:26659
+      TX_ENCLAVE_STORAGE: /.storage
   client-rpc-zerofee:
-    image: integration-tests-chain
-    depends_on:
-      - chain-abci
-    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --strict -- /usr/bin/client-rpc --host 0.0.0.0 --port 26659 --chain-id ${CHAIN_ID} --storage-dir wallet-storage --websocket-url ws://tendermint-zerofee:26657/websocket
+    image: "${CHAIN_DOCKER_IMAGE:-integration-tests-chain}"
+    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --strict -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint-zerofee:26657/websocket
+    volumes:
+      - "./${WALLET_STORAGE_ZEROFEE_DIRECTORY}:/.storage"
     environment:
       RUST_BACKTRACE: 1
+      RUST_LOG: debug
     ports:
       - ${CLIENT_RPC_ZEROFEE_PORT:-16659}:26659

@@ -1,6 +1,13 @@
 FROM baiduxlab/sgx-rust:1804-1.0.9
 LABEL maintainer="Crypto.com"
 
+RUN echo 'source /opt/sgxsdk/environment' >> /root/.docker_bashrc && \
+    echo 'source /root/.cargo/env' >> /root/.docker_bashrc
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libzmq3-dev rsync && \
+    rm -rf /var/lib/apt/lists/*
+
 ARG SGX_MODE=SW
 ARG NETWORK_ID
 
@@ -8,17 +15,6 @@ ENV SGX_MODE=${SGX_MODE}
 ENV NETWORK_ID=${NETWORK_ID}
 ENV APP_PORT=25933
 ENV TX_ENCLAVE_STORAGE=/enclave-storage
-
-RUN echo 'source /opt/sgxsdk/environment' >> /root/.docker_bashrc && \
-    echo 'source /root/.cargo/env' >> /root/.docker_bashrc
-
-
-RUN sudo sed -i 's/archive.ubuntu.com/ftp.daum.net/g' /etc/apt/sources.list
-RUN sudo sed -i 's/security.ubuntu.com/ftp.daum.net/g' /etc/apt/sources.list
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends libzmq3-dev rsync && \
-    rm -rf /var/lib/apt/lists/*
 
 COPY . .
 

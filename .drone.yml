@@ -18,7 +18,38 @@ steps:
   - echo "HOME FOLDER = " $HOME
 
 ---
+kind: pipeline
+type: exec
+name: integration-tests
 
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: integration-tests
+  commands:
+  - mkdir bin
+  - export PATH="$PATH:$PWD/bin"
+  - curl -sSL "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o bin/docker-compose
+  - chmod +x bin/docker-compose
+  - export NIX_REMOTE=daemon
+  - export PATH="$PATH:/nix/var/nix/profiles/default/bin/"
+  - . /usr/local/etc/profile.d/nix.sh
+  - . /opt/intel/sgxsdk/sgxsdk/environment
+  - nix-channel --add https://nixos.org/channels/nixpkgs-unstable
+  - nix-channel --update
+  - nix-shell drone.nix --run "./run-integration-tests.sh"
+  
+trigger:
+  branch:
+  - master
+  - staging
+  - trying
+  event:
+  - push
+
+---
 kind: pipeline
 type: exec
 name: sgx-cargo-1804-hw1
@@ -48,7 +79,6 @@ trigger:
   - push
 
 ---
-
 kind: pipeline
 type: exec
 name: sgx-cargo-1804-hw2
@@ -86,6 +116,7 @@ trigger:
   - trying
   event:
   - push
+
 ---
 kind: signature
 hmac: bdc2684e182cf00ebf7a8a2e7971884e5ff9ee193d16398aec745bcd1260cf6f
