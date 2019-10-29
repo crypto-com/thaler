@@ -1,11 +1,16 @@
 use secstr::SecUtf8;
+use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 use chain_core::tx::TransactionId;
-use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage};
+use client_common::{BlockHeader, ErrorKind, PublicKey, Result, ResultExt, Storage};
 
 use crate::service::{GlobalStateService, KeyService, WalletService};
 use crate::{BlockHandler, TransactionHandler, TransactionObfuscation};
 
+thread_local! {
+    static VIEWKEY_CACHE: RefCell<BTreeMap<String, PublicKey>> = RefCell::new(BTreeMap::new());
+}
 /// Default implementation of `BlockHandler`
 pub struct DefaultBlockHandler<O, H, S>
 where
@@ -59,7 +64,17 @@ where
             }
         }
 
-        let view_key = self.wallet_service.view_key(name, passphrase)?;
+        let vk: Result<PublicKey> = VIEWKEY_CACHE.with(|cache| {
+            let mut viewkey_cache = cache.borrow_mut();
+            if let Some(w) = viewkey_cache.get(name) {
+                Ok(w.clone())
+            } else {
+                let w = self.wallet_service.view_key(name, passphrase)?;
+                viewkey_cache.insert(name.to_string(), w.clone());
+                Ok(w)
+            }
+        });
+        let view_key = vk?;
 
         if block_header
             .block_filter
