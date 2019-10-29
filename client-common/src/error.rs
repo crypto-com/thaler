@@ -10,7 +10,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 pub struct Error {
     kind: ErrorKind,
     message: String,
-    origin: Option<Box<dyn std::error::Error + Sync + Send + 'static>>,
+    origin: Option<Box<dyn std::error::Error + 'static>>,
 }
 
 impl Error {
@@ -32,7 +32,7 @@ impl Error {
     pub fn new_with_source<M>(
         kind: ErrorKind,
         message: M,
-        origin: Box<dyn std::error::Error + Send + Sync + 'static>,
+        origin: Box<dyn std::error::Error + 'static>,
     ) -> Self
     where
         String: From<M>,
@@ -48,12 +48,6 @@ impl Error {
     #[inline]
     pub fn kind(&self) -> ErrorKind {
         self.kind
-    }
-
-    /// Returns origin of current error
-    #[inline]
-    pub fn origin(&self) -> Option<&(dyn std::error::Error + Send + Sync + 'static)> {
-        self.origin.as_ref().map(AsRef::as_ref)
     }
 }
 
@@ -77,7 +71,12 @@ impl fmt::Debug for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    #[inline]
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.origin.as_ref().map(AsRef::as_ref)
+    }
+}
 
 /// Different variants of possible errors
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -165,7 +164,7 @@ impl<T> ResultExt<T> for Option<T> {
 
 impl<T, E> ResultExt<T> for std::result::Result<T, E>
 where
-    E: std::error::Error + Send + Sync + 'static,
+    E: Into<Box<dyn std::error::Error + 'static>>,
 {
     #[inline]
     fn chain<F, M>(self, f: F) -> Result<T>

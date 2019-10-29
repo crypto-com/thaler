@@ -351,6 +351,7 @@ mod tests {
     use client_common::tendermint::types::*;
     use client_common::{PrivateKey, PublicKey, Transaction};
     use client_core::signer::DefaultSigner;
+    use client_core::types::WalletKind;
     use client_core::wallet::DefaultWalletClient;
     #[derive(Debug)]
     struct MockTransactionCipher;
@@ -476,7 +477,9 @@ mod tests {
 
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client.new_wallet(name, passphrase).unwrap();
+        wallet_client
+            .new_wallet(name, passphrase, WalletKind::Basic)
+            .unwrap();
 
         let tendermint_client = MockClient::default();
         let network_ops_client = DefaultNetworkOpsClient::new(
@@ -517,7 +520,9 @@ mod tests {
 
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client.new_wallet(name, passphrase).unwrap();
+        wallet_client
+            .new_wallet(name, passphrase, WalletKind::Basic)
+            .unwrap();
 
         let tendermint_client = MockClient::default();
         let network_ops_client = DefaultNetworkOpsClient::new(
@@ -563,7 +568,7 @@ mod tests {
 
         network_ops_client
             .get_wallet()
-            .new_wallet(name, passphrase)
+            .new_wallet(name, passphrase, WalletKind::Basic)
             .unwrap();
 
         let from_address = network_ops_client
@@ -621,7 +626,7 @@ mod tests {
 
         network_ops_client
             .get_wallet()
-            .new_wallet(name, passphrase)
+            .new_wallet(name, passphrase, WalletKind::Basic)
             .unwrap();
 
         let from_address = network_ops_client
@@ -689,7 +694,7 @@ mod tests {
 
         network_ops_client
             .get_wallet()
-            .new_wallet(name, passphrase)
+            .new_wallet(name, passphrase, WalletKind::Basic)
             .unwrap();
 
         assert_eq!(
@@ -807,7 +812,7 @@ mod tests {
 
         network_ops_client
             .get_wallet()
-            .new_wallet(name, passphrase)
+            .new_wallet(name, passphrase, WalletKind::Basic)
             .unwrap();
 
         let from_address = network_ops_client

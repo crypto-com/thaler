@@ -5,6 +5,7 @@ pub use default_wallet_client::DefaultWalletClient;
 
 use std::collections::BTreeSet;
 
+use bip39::Mnemonic;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 
@@ -22,28 +23,24 @@ use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResult;
 use client_common::{PrivateKey, PublicKey, Result};
 
-use crate::types::TransactionChange;
+use crate::types::{AddressType, TransactionChange, WalletKind};
 use crate::{InputSelectionStrategy, UnspentTransactions};
 
-use bip39::Mnemonic;
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {
     /// Retrieves names of all wallets stored
     fn wallets(&self) -> Result<Vec<String>>;
 
-    /// Creates a new wallet with given name and passphrase
-    fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()>;
-
-    /// Creates mnemonics
-    fn new_mnemonics(&self) -> Result<Mnemonic>;
-
-    /// Creates a new hd-wallet with given name and passphrase
-    fn new_hdwallet(
+    /// Creates a new wallet with given name, passphrase and kind. Returns mnemonics if `wallet_kind` was `HD`.
+    fn new_wallet(
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        mnemonics_phrase: &SecUtf8,
-    ) -> Result<()>;
+        wallet_kind: WalletKind,
+    ) -> Result<Option<Mnemonic>>;
+
+    /// Restores a HD wallet from given mnemonic
+    fn restore_wallet(&self, name: &str, passphrase: &SecUtf8, mnemonic: &Mnemonic) -> Result<()>;
 
     /// Retrieves view key corresponding to a given wallet
     fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
@@ -95,7 +92,12 @@ pub trait WalletClient: Send + Sync {
     ) -> Result<Option<PrivateKey>>;
 
     /// Generates a new public key for given wallet
-    fn new_public_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
+    fn new_public_key(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        address_type: Option<AddressType>,
+    ) -> Result<PublicKey>;
 
     /// Generates a new redeem address for given wallet
     fn new_staking_address(&self, name: &str, passphrase: &SecUtf8) -> Result<StakedStateAddress>;

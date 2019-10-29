@@ -7,7 +7,7 @@
 /// chain path
 pub mod chain_path;
 
-use crate::hdwallet::{
+use crate::hd_wallet::{
     error::Error, ChainPath, ChainPathError, ExtendedPrivKey, KeyIndex, SubPath,
 };
 
@@ -101,7 +101,7 @@ impl KeyChain for DefaultKeyChain {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::hdwallet::{traits::Serialize, ExtendedPubKey};
+    use crate::hd_wallet::{traits::Serialize, ExtendedPubKey};
     use base58::ToBase58;
     use ring::digest;
     use ripemd160::{Digest, Ripemd160};

@@ -19,3 +19,5 @@ pbr = "1.0"
 log = "0.4.8"
 env_logger = "0.7.1"
 cli-table = "0.2"
+zeroize = "1.0"
+tiny-bip39 = { version = "0.6", default-features = false }

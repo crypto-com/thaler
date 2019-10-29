@@ -7,7 +7,7 @@
 /// Key-index for hdwallet
 pub mod key_index;
 
-use crate::hdwallet::{
+use crate::hd_wallet::{
     error::Error,
     traits::{Deserialize, Serialize},
 };
@@ -206,7 +206,7 @@ impl Deserialize<&[u8], Error> for ExtendedPubKey {
 #[cfg(test)]
 mod tests {
     use super::{ExtendedPrivKey, ExtendedPubKey, KeyIndex};
-    use crate::hdwallet::traits::{Deserialize, Serialize};
+    use crate::hd_wallet::traits::{Deserialize, Serialize};
 
     fn fetch_random_key() -> ExtendedPrivKey {
         loop {

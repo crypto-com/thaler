@@ -1,6 +1,7 @@
 //! Management services
 mod global_state_service;
 
+mod hd_key_service;
 mod key_service;
 mod multi_sig_session_service;
 mod root_hash_service;
@@ -11,7 +12,7 @@ mod wallet_state_service;
 pub use self::wallet_state_service::WalletStateMemento;
 
 pub use self::global_state_service::GlobalStateService;
-pub use self::key_service::get_random_mnemonic;
+pub use self::hd_key_service::HdKeyService;
 pub use self::key_service::KeyService;
 pub use self::multi_sig_session_service::MultiSigSessionService;
 pub use self::root_hash_service::RootHashService;

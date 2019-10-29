@@ -13,6 +13,7 @@ use chain_core::init::config::{ValidatorKeyType, ValidatorPubkey};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use client_common::storage::SledStorage;
 use client_common::{Error, ErrorKind, Result, ResultExt};
+use client_core::types::WalletKind;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 
 use super::genesis_command::GenesisCommand;
@@ -322,7 +323,7 @@ impl InitCommand {
         let name = self.ask_string("please enter wallet name=", "my");
 
         let passphrase = InitCommand::ask_passphrase()?;
-        match wallet_client.new_wallet(&name.as_str(), &passphrase) {
+        match wallet_client.new_wallet(&name.as_str(), &passphrase, WalletKind::Basic) {
             Ok(_a) => {}
             Err(b) => {
                 println!("new wallet fail={}", b.to_string());

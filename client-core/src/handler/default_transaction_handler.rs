@@ -285,6 +285,7 @@ mod tests {
     use chain_core::tx::data::Tx;
     use client_common::storage::MemoryStorage;
 
+    use crate::types::WalletKind;
     use crate::wallet::{DefaultWalletClient, WalletClient};
 
     fn transfer_transactions(addresses: [ExtendedAddr; 2]) -> [Transaction; 2] {
@@ -315,8 +316,12 @@ mod tests {
         let name2 = "name2";
         let passphrase2 = &SecUtf8::from("passphrase2");
 
-        assert!(wallet.new_wallet(name1, passphrase1).is_ok());
-        assert!(wallet.new_wallet(name2, passphrase2).is_ok());
+        assert!(wallet
+            .new_wallet(name1, passphrase1, WalletKind::Basic)
+            .is_ok());
+        assert!(wallet
+            .new_wallet(name2, passphrase2, WalletKind::Basic)
+            .is_ok());
 
         let address1 = wallet.new_transfer_address(name1, passphrase1).unwrap();
         let address2 = wallet.new_transfer_address(name2, passphrase2).unwrap();

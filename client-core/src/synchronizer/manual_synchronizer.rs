@@ -299,6 +299,7 @@ mod tests {
     use client_common::tendermint::types::*;
     use client_common::ErrorKind;
 
+    use crate::types::WalletKind;
     use crate::wallet::{DefaultWalletClient, WalletClient};
 
     fn unbond_transaction() -> TxAux {
@@ -477,7 +478,9 @@ mod tests {
 
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
 
-        assert!(wallet.new_wallet(name, passphrase).is_ok());
+        assert!(wallet
+            .new_wallet(name, passphrase, WalletKind::Basic)
+            .is_ok());
 
         let staking_address = wallet.new_staking_address(name, passphrase).unwrap();
 

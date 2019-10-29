@@ -1,14 +1,10 @@
 use std::collections::BTreeSet;
 
-use crate::service::*;
-use crate::transaction_builder::UnauthorizedTransactionBuilder;
-use crate::types::WalletKind;
-use crate::types::{BalanceChange, TransactionChange};
-use crate::{
-    InputSelectionStrategy, MultiSigWalletClient, TransactionBuilder, UnspentTransactions,
-    WalletClient,
-};
-use bip39::{Language, Mnemonic};
+use bip39::{Language, Mnemonic, MnemonicType};
+use parity_scale_codec::Encode;
+use secp256k1::schnorrsig::SchnorrSignature;
+use secstr::SecUtf8;
+
 use chain_core::common::{Proof, H256};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
@@ -26,9 +22,15 @@ use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
     Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SignedTransaction, Storage,
 };
-use parity_scale_codec::Encode;
-use secp256k1::schnorrsig::SchnorrSignature;
-use secstr::SecUtf8;
+
+use crate::service::*;
+use crate::transaction_builder::UnauthorizedTransactionBuilder;
+use crate::types::WalletKind;
+use crate::types::{AddressType, BalanceChange, TransactionChange};
+use crate::{
+    InputSelectionStrategy, MultiSigWalletClient, TransactionBuilder, UnspentTransactions,
+    WalletClient,
+};
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Debug, Default, Clone)]
@@ -39,6 +41,7 @@ where
     T: TransactionBuilder,
 {
     key_service: KeyService<S>,
+    hd_key_service: HdKeyService<S>,
     wallet_service: WalletService<S>,
     wallet_state_service: WalletStateService<S>,
     root_hash_service: RootHashService<S>,
@@ -58,6 +61,7 @@ where
     pub fn new(storage: S, tendermint_client: C, transaction_builder: T) -> Self {
         Self {
             key_service: KeyService::new(storage.clone()),
+            hd_key_service: HdKeyService::new(storage.clone()),
             wallet_service: WalletService::new(storage.clone()),
             wallet_state_service: WalletStateService::new(storage.clone()),
             root_hash_service: RootHashService::new(storage.clone()),
@@ -89,37 +93,50 @@ where
         self.wallet_service.names()
     }
 
-    fn new_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
-        log::debug!("DefaultWalletClient New Wallet");
-        log::debug!(
-            "is hd wallet={}",
-            self.key_service.get_wallet_type(name, passphrase)? == WalletKind::HD
-        );
-        let view_key = self
-            .key_service
-            .generate_keypair_auto(name, passphrase, false)?
-            .0;
-
-        self.wallet_service.create(name, passphrase, view_key)
-    }
-
-    /// Creates mnemonics
-    fn new_mnemonics(&self) -> Result<Mnemonic> {
-        Ok(get_random_mnemonic())
-    }
-
-    /// Creates a new hd-wallet with given name and passphrase
-    fn new_hdwallet(
+    fn new_wallet(
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        mnemonics_phrase: &SecUtf8,
-    ) -> Result<()> {
-        let mnemonic =
-            Mnemonic::from_phrase(mnemonics_phrase.unsecure(), Language::English).unwrap();
+        wallet_kind: WalletKind,
+    ) -> Result<Option<Mnemonic>> {
+        match wallet_kind {
+            WalletKind::Basic => {
+                let private_key = PrivateKey::new()?;
+                let view_key = PublicKey::from(&private_key);
 
-        // load seed
-        self.key_service.generate_seed(&mnemonic, name, passphrase)
+                self.key_service
+                    .add_keypair(&private_key, &view_key, passphrase)?;
+
+                self.wallet_service
+                    .create(name, passphrase, view_key)
+                    .map(|_| None)
+            }
+            WalletKind::HD => {
+                let mnemonic = Mnemonic::new(MnemonicType::Words24, Language::English);
+
+                self.hd_key_service
+                    .add_mnemonic(name, &mnemonic, passphrase)?;
+
+                let (view_key, _) =
+                    self.hd_key_service
+                        .generate_keypair(name, passphrase, AddressType::Staking)?;
+
+                self.wallet_service
+                    .create(name, passphrase, view_key)
+                    .map(|_| Some(mnemonic))
+            }
+        }
+    }
+
+    fn restore_wallet(&self, name: &str, passphrase: &SecUtf8, mnemonic: &Mnemonic) -> Result<()> {
+        self.hd_key_service
+            .add_mnemonic(name, mnemonic, passphrase)?;
+
+        let (view_key, _) =
+            self.hd_key_service
+                .generate_keypair(name, passphrase, AddressType::Staking)?;
+
+        self.wallet_service.create(name, passphrase, view_key)
     }
 
     #[inline]
@@ -191,10 +208,33 @@ where
         self.key_service.private_key(public_key, passphrase)
     }
 
-    fn new_public_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
-        let (public_key, _) = self
-            .key_service
-            .generate_keypair_auto(name, passphrase, false)?;
+    fn new_public_key(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        address_type: Option<AddressType>,
+    ) -> Result<PublicKey> {
+        let (public_key, private_key) = if self.hd_key_service.has_wallet(name)? {
+            self.hd_key_service.generate_keypair(
+                name,
+                passphrase,
+                address_type.chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        "Address type is needed when creating address for HD wallet",
+                    )
+                })?,
+            )?
+        } else {
+            let private_key = PrivateKey::new()?;
+            let public_key = PublicKey::from(&private_key);
+
+            (public_key, private_key)
+        };
+
+        self.key_service
+            .add_keypair(&private_key, &public_key, passphrase)?;
+
         self.wallet_service
             .add_public_key(name, passphrase, &public_key)?;
 
@@ -202,9 +242,19 @@ where
     }
 
     fn new_staking_address(&self, name: &str, passphrase: &SecUtf8) -> Result<StakedStateAddress> {
-        let (staking_key, _) = self
-            .key_service
-            .generate_keypair_auto(name, passphrase, true)?;
+        let (staking_key, private_key) = if self.hd_key_service.has_wallet(name)? {
+            self.hd_key_service
+                .generate_keypair(name, passphrase, AddressType::Staking)?
+        } else {
+            let private_key = PrivateKey::new()?;
+            let public_key = PublicKey::from(&private_key);
+
+            (public_key, private_key)
+        };
+
+        self.key_service
+            .add_keypair(&private_key, &staking_key, passphrase)?;
+
         self.wallet_service
             .add_staking_key(name, passphrase, &staking_key)?;
 
@@ -214,9 +264,19 @@ where
     }
 
     fn new_transfer_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr> {
-        let (public_key, _) = self
-            .key_service
-            .generate_keypair_auto(name, passphrase, false)?;
+        let (public_key, private_key) = if self.hd_key_service.has_wallet(name)? {
+            self.hd_key_service
+                .generate_keypair(name, passphrase, AddressType::Transfer)?
+        } else {
+            let private_key = PrivateKey::new()?;
+            let public_key = PublicKey::from(&private_key);
+
+            (public_key, private_key)
+        };
+
+        self.key_service
+            .add_keypair(&private_key, &public_key, passphrase)?;
+
         self.new_multisig_transfer_address(
             name,
             passphrase,

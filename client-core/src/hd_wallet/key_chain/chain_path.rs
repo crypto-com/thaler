@@ -4,7 +4,7 @@
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 //!
 
-use crate::hdwallet::KeyIndex;
+use crate::hd_wallet::KeyIndex;
 use std::fmt;
 
 const MASTER_SYMBOL: &str = "m";

@@ -1,11 +1,12 @@
-use client_common::{Error, ErrorKind, Result};
-use serde::{Deserialize, Serialize};
+//! Type for specifying different wallet types
 use std::str::FromStr;
+
+use serde::{Deserialize, Serialize};
 use unicase::eq_ascii;
-/// Wallet kinds
-/// Basic: default wallet
-/// HD: HD wallet
-/// Hardware: hardware based wallets
+
+use client_common::{Error, ErrorKind, Result};
+
+/// Enum for specifying the kind of wallet (e.g., `Basic`, `HD`)
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum WalletKind {
     /// Basic Wallet

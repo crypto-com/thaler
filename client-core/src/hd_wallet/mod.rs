@@ -12,10 +12,10 @@ pub mod key_chain;
 /// traits for hdwallet
 pub mod traits;
 
-pub use crate::hdwallet::extended_key::{
+pub use crate::hd_wallet::extended_key::{
     key_index::KeyIndex, ExtendedPrivKey, ExtendedPubKey, KeySeed,
 };
-pub use crate::hdwallet::key_chain::{
+pub use crate::hd_wallet::key_chain::{
     chain_path::{ChainPath, Error as ChainPathError, SubPath},
     DefaultKeyChain, Derivation, KeyChain,
 };
