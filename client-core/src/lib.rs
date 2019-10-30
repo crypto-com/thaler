@@ -11,7 +11,7 @@
 //! - Transaction creation and signing (with automatic unspent transaction selection)
 pub mod cipher;
 pub mod handler;
-pub mod hdwallet;
+pub mod hd_wallet;
 pub mod input_selection;
 pub mod service;
 pub mod signer;

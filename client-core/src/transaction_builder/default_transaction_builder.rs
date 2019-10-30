@@ -168,6 +168,7 @@ mod tests {
     use client_common::{PrivateKey, Transaction};
 
     use crate::signer::DefaultSigner;
+    use crate::types::WalletKind;
     use crate::unspent_transactions::{Operation, Sorter};
     use crate::wallet::{DefaultWalletClient, WalletClient};
 
@@ -212,12 +213,20 @@ mod tests {
         let storage = MemoryStorage::default();
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client.new_wallet(name, passphrase).unwrap();
+        wallet_client
+            .new_wallet(name, passphrase, WalletKind::Basic)
+            .unwrap();
 
         let public_keys = vec![
-            wallet_client.new_public_key(name, passphrase).unwrap(),
-            wallet_client.new_public_key(name, passphrase).unwrap(),
-            wallet_client.new_public_key(name, passphrase).unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
         ];
 
         let addresses = vec![
@@ -352,12 +361,20 @@ mod tests {
         let storage = MemoryStorage::default();
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client.new_wallet(name, passphrase).unwrap();
+        wallet_client
+            .new_wallet(name, passphrase, WalletKind::Basic)
+            .unwrap();
 
         let public_keys = vec![
-            wallet_client.new_public_key(name, passphrase).unwrap(),
-            wallet_client.new_public_key(name, passphrase).unwrap(),
-            wallet_client.new_public_key(name, passphrase).unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
         ];
 
         let addresses = vec![

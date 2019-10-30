@@ -95,6 +95,12 @@ impl From<&PrivateKey> for SecretKey {
     }
 }
 
+impl From<SecretKey> for PrivateKey {
+    fn from(secret_key: SecretKey) -> Self {
+        Self(secret_key)
+    }
+}
+
 impl Zeroize for PrivateKey {
     fn zeroize(&mut self) {
         self.0.zeroize()

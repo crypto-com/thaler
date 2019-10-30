@@ -4,7 +4,7 @@
 //! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 //!
 
-use crate::hdwallet::error::Error;
+use crate::hd_wallet::error::Error;
 
 const HARDENED_KEY_START_INDEX: u32 = 2_147_483_648; // 2 ** 31
 

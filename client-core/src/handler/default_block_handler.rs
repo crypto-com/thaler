@@ -122,6 +122,7 @@ mod tests {
     use client_common::storage::MemoryStorage;
     use client_common::{PrivateKey, PublicKey, SignedTransaction, Transaction};
 
+    use crate::types::WalletKind;
     use crate::wallet::{DefaultWalletClient, WalletClient};
 
     struct MockTransactionCipher;
@@ -216,7 +217,9 @@ mod tests {
 
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
 
-        assert!(wallet.new_wallet(name, passphrase).is_ok());
+        assert!(wallet
+            .new_wallet(name, passphrase, WalletKind::Basic)
+            .is_ok());
 
         let block_header = block_header(&wallet.view_key(name, passphrase).unwrap());
 

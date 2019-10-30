@@ -1,8 +1,11 @@
 use std::collections::BTreeSet;
 use std::str::FromStr;
 
+use bip39::{Language, Mnemonic};
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
+use secstr::*;
+use zeroize::Zeroize;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
@@ -11,13 +14,13 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{TxAux, TxEnclaveAux};
-use client_common::{PublicKey, Result as CommonResult};
+use client_common::{ErrorKind, PublicKey, Result as CommonResult, ResultExt};
 use client_core::types::TransactionChange;
 use client_core::types::WalletKind;
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
-use secstr::*;
+
 #[rpc]
 pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_balance")]
@@ -25,10 +28,6 @@ pub trait WalletRpc: Send + Sync {
 
     #[rpc(name = "wallet_create")]
     fn create(&self, request: WalletRequest, walletkind: WalletKind) -> Result<String>;
-
-    fn create_basic(&self, request: WalletRequest) -> Result<String>;
-
-    fn create_hd(&self, request: WalletRequest) -> Result<String>;
 
     #[rpc(name = "wallet_restore")]
     fn restore(&self, request: WalletRequest, mnemonics: SecUtf8) -> Result<String>;
@@ -96,64 +95,42 @@ where
     }
 
     fn create(&self, request: WalletRequest, kind: WalletKind) -> Result<String> {
-        match kind {
-            WalletKind::Basic => self.create_basic(request),
-            WalletKind::HD => self.create_hd(request),
-        }
-    }
-
-    fn create_basic(&self, request: WalletRequest) -> Result<String> {
-        if let Err(err) = self.client.new_wallet(&request.name, &request.passphrase) {
-            return Err(to_rpc_error(err));
-        }
-
-        self.client
-            .new_staking_address(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)?;
-        self.client
-            .new_transfer_address(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)?;
-        Ok(request.name)
-    }
-
-    fn create_hd(&self, request: WalletRequest) -> Result<String> {
-        let mnemonics = self.client.new_mnemonics().map_err(to_rpc_error)?;
-        let mnemonics_phrase = SecUtf8::from(mnemonics.to_string());
-
-        // make seed for hd-wallet
-        if let Err(err) =
-            self.client
-                .new_hdwallet(&request.name, &request.passphrase, &mnemonics_phrase)
-        {
-            return Err(to_rpc_error(err));
-        }
-        // make basic wallet
-        // only generation is different with basic wallet
-        if let Err(err) = self.client.new_wallet(&request.name, &request.passphrase) {
-            return Err(to_rpc_error(err));
-        }
-
-        self.client
-            .new_staking_address(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)?;
-        self.client
-            .new_transfer_address(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)?;
-        Ok(mnemonics.to_string())
-    }
-
-    fn restore(&self, request: WalletRequest, mnemonics: SecUtf8) -> Result<String> {
-        if let Err(err) = self
+        let mnemonic = self
             .client
-            .new_hdwallet(&request.name, &request.passphrase, &mnemonics)
-        {
-            return Err(to_rpc_error(err));
+            .new_wallet(&request.name, &request.passphrase, kind)
+            .map_err(to_rpc_error)?;
+
+        self.client
+            .new_staking_address(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+        self.client
+            .new_transfer_address(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)?;
+
+        match (kind, mnemonic) {
+            (WalletKind::Basic, None) => Ok(request.name),
+            (WalletKind::HD, Some(mnemonic)) => Ok(mnemonic.to_string()),
+            _ => Err(rpc_error_from_string(
+                "Internal Error: Invalid mnemonic for given wallet kind".to_owned(),
+            )),
         }
-        // make basic wallet
-        // only generation is different with basic wallet
-        if let Err(err) = self.client.new_wallet(&request.name, &request.passphrase) {
-            return Err(to_rpc_error(err));
-        }
+    }
+
+    fn restore(&self, request: WalletRequest, mnemonic: SecUtf8) -> Result<String> {
+        let mnemonic = Mnemonic::from_phrase(mnemonic.unsecure(), Language::English)
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    "Unable to deserialize mnemonic",
+                )
+            })
+            .map_err(to_rpc_error)?;
+
+        self.client
+            .restore_wallet(&request.name, &request.passphrase, &mnemonic)
+            .map_err(to_rpc_error)?;
+
+        mnemonic.into_phrase().zeroize();
 
         self.client
             .new_staking_address(&request.name, &request.passphrase)
@@ -737,29 +714,30 @@ pub mod tests {
     fn wallet_can_send_amount_should_fail_with_insufficient_amount() {
         let wallet_rpc = setup_wallet_rpc();
 
-        let result=wallet_rpc
+        let result = wallet_rpc
             .restore(
                 create_wallet_request("Default", "123456"),
                 SecUtf8::from("online hire print other clock like betray vote hollow bus insect meadow replace two tape worry quality disease cabin girl tree pudding issue radar")
             )
             .unwrap();
-        assert!("Default" == result);
+        assert_eq!("Default", result);
 
         let wallet_request = create_wallet_request("Default", "123456");
 
         let result = wallet_rpc
             .create_transfer_address(wallet_request.clone())
             .unwrap();
-        assert!(
-            "dcro1cxsz9ayc9a93j98l2dqjc8nxnr3hgjt2an9s79w2mpnusap353gqdswd75" == result.to_string()
+        assert_eq!(
+            "dcro1ed02367j6wh8mvhjqah4pfxk7y49hlxzsmf7ykt6q5mdlv65lfdsktx0xd",
+            result.to_string()
         );
 
         let to_result = wallet_rpc
             .create_transfer_address(wallet_request.clone())
             .unwrap();
-        assert!(
-            "dcro1kgdm0vg9sfymdln44vmlteyly3v4gglusfkmjpr7j6vc33jcl9dsgjqmef"
-                == to_result.to_string()
+        assert_eq!(
+            "dcro1g7ld56zlc4vx8mkrww6vhjth38vcjud5ys6wcgwckucnrjvmz0nsvvhvpf",
+            to_result.to_string()
         );
 
         let viewkey = wallet_rpc.get_view_key(wallet_request.clone()).unwrap();

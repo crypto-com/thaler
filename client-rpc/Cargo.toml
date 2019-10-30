@@ -23,6 +23,8 @@ hex = "0.4.0"
 secstr = { version = "0.3.2", features = ["serde"] }
 env_logger="0.7.1"
 log ="0.4.8"
+zeroize = "1.0"
+tiny-bip39 = { version = "0.6", default-features = false }
 
 [dev-dependencies]
 parity-scale-codec = "1.0"

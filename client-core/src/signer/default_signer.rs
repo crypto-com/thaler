@@ -132,6 +132,7 @@ mod tests {
     use chain_tx_validation::witness::verify_tx_address;
     use client_common::storage::MemoryStorage;
 
+    use crate::types::WalletKind;
     use crate::wallet::DefaultWalletClient;
     use crate::{UnspentTransactions, WalletClient};
 
@@ -145,12 +146,20 @@ mod tests {
 
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client.new_wallet(name, passphrase).unwrap();
+        wallet_client
+            .new_wallet(name, passphrase, WalletKind::Basic)
+            .unwrap();
 
         let public_keys = vec![
-            wallet_client.new_public_key(name, passphrase).unwrap(),
-            wallet_client.new_public_key(name, passphrase).unwrap(),
-            wallet_client.new_public_key(name, passphrase).unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
         ];
 
         let tree_address = wallet_client
@@ -189,12 +198,20 @@ mod tests {
 
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client.new_wallet(name, passphrase).unwrap();
+        wallet_client
+            .new_wallet(name, passphrase, WalletKind::Basic)
+            .unwrap();
 
         let public_keys = vec![
-            wallet_client.new_public_key(name, passphrase).unwrap(),
-            wallet_client.new_public_key(name, passphrase).unwrap(),
-            wallet_client.new_public_key(name, passphrase).unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
+            wallet_client
+                .new_public_key(name, passphrase, None)
+                .unwrap(),
         ];
 
         let tree_address = wallet_client

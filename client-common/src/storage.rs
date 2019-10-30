@@ -190,6 +190,23 @@ where
     }
 }
 
+/// Decrypts bytes with given key and passphrase
+pub fn decrypt_bytes<K>(key: K, passphrase: &SecUtf8, bytes: &[u8]) -> Result<Vec<u8>>
+where
+    K: AsRef<[u8]>,
+{
+    let mut algo = get_algo(passphrase);
+    let nonce_index = bytes.len() - NONCE_SIZE;
+
+    algo.open(&bytes[nonce_index..], key.as_ref(), &bytes[..nonce_index])
+        .chain(|| {
+            (
+                ErrorKind::DecryptionError,
+                "Incorrect passphrase: Unable to unlock stored values",
+            )
+        })
+}
+
 fn get_algo(passphrase: &SecUtf8) -> Aes128PmacSivAead {
     let mut hasher = Blake2s::new();
     hasher.input(passphrase.unsecure());

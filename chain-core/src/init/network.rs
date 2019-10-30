@@ -74,12 +74,10 @@ pub fn get_bech32_human_part() -> &'static str {
 /// 1     	0x80000001 	    	Testnet (all coins)
 /// 394 	0x8000018a 	CRO 	Crypto.com Chain
 pub fn get_bip44_coin_type() -> u32 {
-    unsafe {
-        match chosen_network::NETWORK {
-            Network::Mainnet => 394,
-            Network::Testnet => 1,
-            Network::Devnet => 1,
-        }
+    match get_network() {
+        Network::Mainnet => 394,
+        Network::Testnet => 1,
+        Network::Devnet => 1,
     }
 }
 

@@ -320,6 +320,7 @@ mod test {
     use client_common::{PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
     use client_core::signer::DefaultSigner;
     use client_core::transaction_builder::DefaultTransactionBuilder;
+    use client_core::types::WalletKind;
     use client_core::wallet::DefaultWalletClient;
     use client_core::TransactionObfuscation;
 
@@ -330,11 +331,14 @@ mod test {
         let name = "Default";
         let passphrase = SecUtf8::from("123456");
 
-        multisig_rpc.client.new_wallet(name, &passphrase).unwrap();
+        multisig_rpc
+            .client
+            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .unwrap();
 
         let wallet_public_key = multisig_rpc
             .client
-            .new_public_key(name, &passphrase)
+            .new_public_key(name, &passphrase, None)
             .unwrap();
         let public_keys = vec![
             wallet_public_key.clone(),
