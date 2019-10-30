@@ -56,12 +56,12 @@ pub trait NetworkOpsClient: Send + Sync {
         attributes: TxAttributes,
     ) -> Result<TxAux>;
 
-    /// Creates a unjail transaction for unjailing
+    /// Creates a new transaction for un-jailing a previously jailed account
     fn create_unjail_transaction(
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        from_address: &StakedStateAddress,
+        address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux>;
 

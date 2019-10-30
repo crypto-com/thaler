@@ -1,7 +1,7 @@
 use parity_scale_codec::Decode;
 use secstr::SecUtf8;
 
-use chain_core::init::coin::Coin;
+use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::state::account::{
     DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
     UnbondTx, UnjailTx, WithdrawUnbondedTx,
@@ -13,7 +13,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::tendermint::Client;
-use client_common::{ErrorKind, Result, ResultExt, SignedTransaction};
+use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction};
 use client_core::{Signer, TransactionObfuscation, UnspentTransactions, WalletClient};
 
 use crate::NetworkOpsClient;
@@ -27,7 +27,6 @@ where
     F: FeeAlgorithm,
     E: TransactionObfuscation,
 {
-    /// WalletClient
     wallet_client: W,
     signer: S,
     client: C,
@@ -43,10 +42,6 @@ where
     F: FeeAlgorithm,
     E: TransactionObfuscation,
 {
-    /// use WalletClient
-    pub fn get_wallet(&self) -> &W {
-        &self.wallet_client
-    }
     /// Creates a new instance of `DefaultNetworkOpsClient`
     pub fn new(
         wallet_client: W,
@@ -62,6 +57,11 @@ where
             fee_algorithm,
             transaction_cipher,
         }
+    }
+
+    /// Returns current underlying wallet client
+    pub fn get_wallet_client(&self) -> &W {
+        &self.wallet_client
     }
 
     /// Get account info
@@ -109,6 +109,16 @@ where
         to_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
+        if !self
+            .wallet_client
+            .has_unspent_transactions(name, passphrase, &inputs)?
+        {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Given transaction inputs are not present in unspent transactions (synchronizing your wallet may help)",
+            ));
+        }
+
         let transaction = DepositBondTx::new(inputs.clone(), to_address, attributes);
 
         let transactions = inputs
@@ -141,6 +151,14 @@ where
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
         let staked_state = self.get_staked_state(name, passphrase, &address)?;
+
+        if staked_state.bonded < value {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Staking account does not have enough coins to unbond (synchronizing your wallet may help)",
+            ));
+        }
+
         let nonce = staked_state.nonce;
 
         let transaction = UnbondTx::new(address, nonce, value, attributes);
@@ -182,6 +200,17 @@ where
         attributes: TxAttributes,
     ) -> Result<TxAux> {
         let staked_state = self.get_staked_state(name, passphrase, from_address)?;
+
+        let output_value = sum_coins(outputs.iter().map(|output| output.value))
+            .chain(|| (ErrorKind::InvalidInput, "Error while adding output values"))?;
+
+        if staked_state.unbonded < output_value {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Staking account does not have enough unbonded coins to withdraw (synchronizing your wallet may help)",
+            ));
+        }
+
         let nonce = staked_state.nonce;
 
         let transaction = WithdrawUnbondedTx::new(nonce, outputs, attributes);
@@ -225,19 +254,27 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        from_address: &StakedStateAddress,
+        address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(name, passphrase, from_address)?;
+        let staked_state = self.get_staked_state(name, passphrase, &address)?;
+
+        if !staked_state.is_jailed() {
+            return Err(Error::new(
+                ErrorKind::IllegalInput,
+                "You can only unjail an already jailed account (synchronizing your wallet may help)",
+            ));
+        }
+
         let nonce = staked_state.nonce;
 
         let transaction = UnjailTx {
             nonce,
-            address: *from_address,
+            address,
             attributes,
         };
 
-        let public_key = match from_address {
+        let public_key = match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
                 .find_staking_key(name, passphrase, redeem_address)?
@@ -452,7 +489,7 @@ mod tests {
                 Coin::new(2499999999999999999 + 1).unwrap(),
                 0,
                 StakedStateAddress::BasicRedeem(RedeemAddress::default()),
-                None,
+                Some(1),
             );
 
             Ok(QueryResult {
@@ -492,7 +529,7 @@ mod tests {
 
         let inputs: Vec<TxoPointer> = vec![];
         let to_staked_account = network_ops_client
-            .get_wallet()
+            .get_wallet_client()
             .new_staking_address(name, passphrase)
             .unwrap();;
 
@@ -535,7 +572,7 @@ mod tests {
 
         let value = Coin::new(0).unwrap();
         let address = network_ops_client
-            .get_wallet()
+            .get_wallet_client()
             .new_staking_address(name, passphrase)
             .unwrap();
         let attributes = StakedStateOpAttributes::new(0);
@@ -567,12 +604,12 @@ mod tests {
         );
 
         network_ops_client
-            .get_wallet()
+            .get_wallet_client()
             .new_wallet(name, passphrase, WalletKind::Basic)
             .unwrap();
 
         let from_address = network_ops_client
-            .get_wallet()
+            .get_wallet_client()
             .new_staking_address(name, passphrase)
             .unwrap();
 
@@ -625,12 +662,12 @@ mod tests {
         );
 
         network_ops_client
-            .get_wallet()
+            .get_wallet_client()
             .new_wallet(name, passphrase, WalletKind::Basic)
             .unwrap();
 
         let from_address = network_ops_client
-            .get_wallet()
+            .get_wallet_client()
             .new_staking_address(name, passphrase)
             .unwrap();
         let to_address = ExtendedAddr::OrTree([0; 32]);
@@ -693,7 +730,7 @@ mod tests {
         );
 
         network_ops_client
-            .get_wallet()
+            .get_wallet_client()
             .new_wallet(name, passphrase, WalletKind::Basic)
             .unwrap();
 
@@ -779,7 +816,7 @@ mod tests {
                 .create_unjail_transaction(
                     name,
                     passphrase,
-                    &StakedStateAddress::BasicRedeem(RedeemAddress::from(&PublicKey::from(
+                    StakedStateAddress::BasicRedeem(RedeemAddress::from(&PublicKey::from(
                         &PrivateKey::new().unwrap()
                     ))),
                     StakedStateOpAttributes::new(0),
@@ -811,12 +848,12 @@ mod tests {
         );
 
         network_ops_client
-            .get_wallet()
+            .get_wallet_client()
             .new_wallet(name, passphrase, WalletKind::Basic)
             .unwrap();
 
         let from_address = network_ops_client
-            .get_wallet()
+            .get_wallet_client()
             .new_staking_address(name, passphrase)
             .unwrap();
 
@@ -824,7 +861,7 @@ mod tests {
             .create_unjail_transaction(
                 name,
                 passphrase,
-                &from_address,
+                from_address,
                 StakedStateOpAttributes::new(171),
             )
             .unwrap();

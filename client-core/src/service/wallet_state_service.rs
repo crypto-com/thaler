@@ -38,6 +38,20 @@ where
         self.storage.clear(KEYSPACE)
     }
 
+    /// Returns `true` if given transaction inputs are present in the list of unspent transactions, `false` otherwise
+    pub fn has_unspent_transactions(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        inputs: &[TxoPointer],
+    ) -> Result<bool> {
+        let unspent_transactions = self.get_unspent_transactions(name, passphrase)?;
+
+        Ok(inputs
+            .iter()
+            .all(|input| unspent_transactions.contains_key(input)))
+    }
+
     /// Returns currently stored unspent transactions for given wallet
     #[inline]
     pub fn get_unspent_transactions(

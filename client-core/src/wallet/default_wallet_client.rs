@@ -395,6 +395,19 @@ where
         ))
     }
 
+    fn has_unspent_transactions(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        inputs: &[TxoPointer],
+    ) -> Result<bool> {
+        // Check if wallet exists
+        self.wallet_service.view_key(name, passphrase)?;
+
+        self.wallet_state_service
+            .has_unspent_transactions(name, passphrase, inputs)
+    }
+
     #[inline]
     fn output(&self, name: &str, passphrase: &SecUtf8, input: &TxoPointer) -> Result<TxOut> {
         // Check if wallet exists
