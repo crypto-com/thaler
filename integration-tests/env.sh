@@ -2,8 +2,10 @@
 set -e
 IFS=
 
-TENDERMINT_WITHFEE_GENESIS_PATH="./docker/tendermint/tendermint-withfee/config/genesis.json"
-TENDERMINT_ZEROFEE_GENESIS_PATH="./docker/tendermint/tendermint-zerofee/config/genesis.json"
+. ./const-env.sh
+
+TENDERMINT_WITHFEE_GENESIS_PATH="${TENDERMINT_WITHFEE_DIRECTORY}/config/genesis.json"
+TENDERMINT_ZEROFEE_GENESIS_PATH="${TENDERMINT_ZEROFEE_DIRECTORY}/config/genesis.json"
 
 # Global function return value
 RET_VALUE=0

@@ -1,17 +1,21 @@
-# Git
-/.git
-
-# Rust
-/target
-/chain-abci/target
-**/*.rs.bk
-
-# Storage
-/.storage
-/.cro-storage
-
-# OS
-.DS_Store
-
-# IDE
-.vscode
+*
+!/chain-abci
+!/chain-core
+!/chain-tx-enclave
+/chain-tx-enclave/tx-validation/bin
+!/chain-tx-enclave/tx-validation/bin/.gitignore
+/chain-tx-enclave/tx-validation/lib
+!/chain-tx-enclave/tx-validation/lib/.gitignore
+!/chain-tx-filter
+!/chain-tx-validation
+!/client-cli
+!/client-common
+!/client-core
+!/client-network
+!/client-rpc
+!/dev-utils
+!/enclave-protocol
+!Carog.lock
+!Cargo.toml
+!/docker
+/docker/Dockerfile
