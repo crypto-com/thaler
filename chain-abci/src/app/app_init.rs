@@ -15,7 +15,7 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::NetworkParameters;
-use chain_core::init::config::StakedStateDestination;
+use chain_core::state::account::StakedStateDestination;
 use chain_core::state::account::{StakedState, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::state::CouncilNode;

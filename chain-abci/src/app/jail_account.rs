@@ -62,8 +62,9 @@ mod tests {
     use chain_core::init::coin::Coin;
     use chain_core::init::config::{
         InitConfig, InitNetworkParameters, JailingParameters, NetworkParameters, SlashRatio,
-        SlashingParameters, StakedStateDestination, ValidatorKeyType, ValidatorPubkey,
+        SlashingParameters, ValidatorKeyType, ValidatorPubkey,
     };
+    use chain_core::state::account::StakedStateDestination;
     use chain_core::tx::fee::{LinearFee, Milli};
 
     use crate::enclave_bridge::mock::MockClient;

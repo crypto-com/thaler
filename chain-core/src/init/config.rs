@@ -3,7 +3,7 @@ use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 pub use crate::init::params::*;
 use crate::init::MAX_COIN;
-use crate::state::account::{StakedState, StakedStateAddress};
+use crate::state::account::{StakedState, StakedStateAddress, StakedStateDestination};
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::CouncilNode;
 use crate::state::RewardsPoolState;
@@ -108,17 +108,11 @@ impl InitConfig {
         self.distribution
             .iter()
             .map(|(address, (destination, amount))| {
-                let bonded = match destination {
-                    StakedStateDestination::Bonded => true,
-                    StakedStateDestination::UnbondedFromGenesis => false,
-                    StakedStateDestination::UnbondedFromCustomTime(_time) => false,
-                };
-                // TODO: change the define of `new_init` and use StakedStateDestination directly
                 StakedState::new_init(
                     *amount,
-                    genesis_time,
+                    Some(genesis_time),
                     StakedStateAddress::BasicRedeem(*address),
-                    bonded,
+                    destination,
                 )
             })
             .collect()

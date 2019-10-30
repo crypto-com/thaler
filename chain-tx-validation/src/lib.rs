@@ -18,7 +18,7 @@ use std::prelude::v1::Vec;
 
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
-    DepositBondTx, StakedState, UnbondTx, UnjailTx, WithdrawUnbondedTx,
+    DepositBondTx, StakedState, StakedStateDestination, UnbondTx, UnjailTx, WithdrawUnbondedTx,
 };
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
@@ -316,9 +316,9 @@ pub fn verify_bonded_deposit(
         }
         None => Some(StakedState::new_init(
             deposit_amount,
-            extra_info.previous_block_time,
+            Some(extra_info.previous_block_time),
             maintx.to_staked_account,
-            true,
+            &StakedStateDestination::Bonded,
         )),
     };
     Ok((extra_info.min_fee_computed, account))

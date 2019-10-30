@@ -14,13 +14,12 @@ use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
 use chain_core::init::config::NetworkParameters;
-use chain_core::init::config::StakedStateDestination;
 use chain_core::init::config::{
     JailingParameters, SlashRatio, SlashingParameters, ValidatorKeyType, ValidatorPubkey,
 };
 use chain_core::state::account::{
-    to_stake_key, DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes,
-    StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
+    to_stake_key, DepositBondTx, StakedState, StakedStateAddress, StakedStateDestination,
+    StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::state::RewardsPoolState;

@@ -177,31 +177,28 @@ impl StakedState {
         }
     }
 
-    /// creates a StakedState at "genesis" (amount is either all bonded or unbonded depending on `bonded` argument)
+    /// creates a StakedState at "genesis" (amount is either all bonded or unbonded depending on `destination` argument)
     pub fn new_init(
         amount: Coin,
-        genesis_time: Timespec,
+        genesis_time: Option<Timespec>,
         address: StakedStateAddress,
-        bonded: bool,
+        destination: &StakedStateDestination,
     ) -> Self {
-        if bonded {
-            StakedState {
-                nonce: 0,
-                bonded: amount,
-                unbonded: Coin::zero(),
-                unbonded_from: genesis_time,
-                address,
-                jailed_until: None,
+        let (bonded, unbonded, unbonded_from) = match *destination {
+            StakedStateDestination::Bonded => (amount, Coin::zero(), genesis_time.unwrap_or(0)),
+            StakedStateDestination::UnbondedFromGenesis => {
+                (Coin::zero(), amount, genesis_time.unwrap_or(0))
             }
-        } else {
-            StakedState {
-                nonce: 0,
-                bonded: Coin::zero(),
-                unbonded: amount,
-                unbonded_from: genesis_time,
-                address,
-                jailed_until: None,
-            }
+            StakedStateDestination::UnbondedFromCustomTime(t) => (Coin::zero(), amount, t),
+        };
+
+        StakedState {
+            nonce: 0,
+            bonded,
+            unbonded,
+            unbonded_from,
+            address,
+            jailed_until: None,
         }
     }
 
@@ -285,6 +282,15 @@ impl StakedStateOpAttributes {
     pub fn new(chain_hex_id: u8) -> Self {
         StakedStateOpAttributes { chain_hex_id }
     }
+}
+
+/// bond status for StakedState initialize
+#[derive(Debug, PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum StakedStateDestination {
+    Bonded,
+    UnbondedFromGenesis,
+    UnbondedFromCustomTime(Timespec),
 }
 
 /// takes UTXOs inputs, deposits them in the specified StakedState's bonded amount - fee
