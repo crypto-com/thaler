@@ -4,6 +4,12 @@ IFS=
 
 export WALLET_PASSPHRASE=${WALLET_PASSPHRASE:-123456}
 export TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.32.0}
+export SGX_MODE=${SGX_MODE:-SW}
+export DOCKER_SGX_DEVICE_BINDING="/dev/zero:/dev/dummy"
+if [ ! -z "${DRONE}" ]; then
+    export SGX_MODE=HW
+    export DOCKER_SGX_DEVICE_BINDING="${SGX_DEVICE:-"/dev/sgx"}:/dev/sgx"
+fi
 
 # Constants (No not modify unless you are absolutely sure what you are doing)
 export CHAIN_DOCKER_IMAGE="integration-tests-chain"

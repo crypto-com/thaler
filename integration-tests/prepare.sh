@@ -2,9 +2,6 @@
 set -e
 IFS=
 
-if [ ! -z "${CI}" ]; then
-    USE_DOCKER_COMPOSE=1
-fi
 # Global function return value
 RET_VALUE=0
 
@@ -47,10 +44,11 @@ function build_chain_docker_image() {
 }
 
 function build_chain_tx_enclave_docker_image() {
+    print_config "SGX_MODE" "${SGX_MODE}"
     CWD=$(pwd)
     cd ../ && docker build -t "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE}" \
         -f ./chain-tx-enclave/tx-validation/Dockerfile . \
-        --build-arg SGX_MODE=SW \
+        --build-arg SGX_MODE="${SGX_MODE}" \
         --build-arg NETWORK_ID="${CHAIN_HEX_ID}"
     cd "${CWD}"
 }
@@ -241,6 +239,10 @@ cd "$(dirname "${0}")"
 
 check_command_exist "jq"
 check_command_exist "git"
+
+if [ ! -z "${CI}" ]; then
+    USE_DOCKER_COMPOSE=1
+fi
 
 if [ -z "${USE_DOCKER_COMPOSE}" ]; then
     check_command_exist "cargo"

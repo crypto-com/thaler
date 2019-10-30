@@ -21,13 +21,15 @@ services:
     image: "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE:-integration-tests-chain-tx-enclave}"
     volumes:
       - "./${ENCLAVE_WITHFEE_DIRECTORY}:/.storage"
+    devices:
+      - "${DOCKER_SGX_DEVICE_BINDING}"
     environment:
       RUST_BACKTRACE: 1
       RUST_LOG: debug
       TX_ENCLAVE_STORAGE: /.storage
   client-rpc:
     image: "${CHAIN_DOCKER_IMAGE:-integration-tests-chain}"
-    command: /usr/bin/wait-for-it.sh tendermint:26657 --strict -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint:26657/websocket
+    command: /usr/bin/wait-for-it.sh tendermint:26657 --timeout=60 --strict -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint:26657/websocket
     volumes:
       - "./${WALLET_STORAGE_WITHFEE_DIRECTORY}:/.storage"
     environment:
@@ -56,13 +58,15 @@ services:
     image: "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE:-integration-tests-chain-tx-enclave}"
     volumes:
       - "./${ENCLAVE_ZEROFEE_DIRECTORY}:/.storage"
+    devices:
+      - "${DOCKER_SGX_DEVICE_BINDING}"
     environment:
       RUST_BACKTRACE: 1
       RUST_LOG: debug
       TX_ENCLAVE_STORAGE: /.storage
   client-rpc-zerofee:
     image: "${CHAIN_DOCKER_IMAGE:-integration-tests-chain}"
-    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --strict -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint-zerofee:26657/websocket
+    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --timeout=60 --strict -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint-zerofee:26657/websocket
     volumes:
       - "./${WALLET_STORAGE_ZEROFEE_DIRECTORY}:/.storage"
     environment:
