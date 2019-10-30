@@ -12,6 +12,7 @@
 
 # IDE
 .vscode
+.idea
 
 # TODOR
 .todor
