@@ -245,24 +245,27 @@ impl FeeAlgorithm for LinearFee {
 #[cfg(test)]
 mod test {
     use super::*;
+    use quickcheck::quickcheck;
 
-    fn test_milli_add_eq(v1: u64, v2: u64) {
+    fn test_milli_add_eq(v1: u64, v2: u64) -> bool {
         let v = v1 + v2;
         let n1 = Milli::new(v1 / 1000, v1 % 1000);
         let n2 = Milli::new(v2 / 1000, v2 % 1000);
         let n = n1 + n2;
         assert_eq!(v / 1000, n.to_integral_trunc());
+        v / 1000 == n.to_integral_trunc()
     }
 
-    fn test_milli_mul_eq(v1: u64, v2: u64) {
+    fn test_milli_mul_eq(v1: u64, v2: u64) -> bool {
         let v = v1 as u128 * v2 as u128;
         let n1 = Milli::new(v1 / 1000, v1 % 1000);
         let n2 = Milli::new(v2 / 1000, v2 % 1000);
         let n = n1 * n2;
         assert_eq!((v / 1000000) as u64, n.to_integral_trunc());
+        (v / 1000000) as u64 == n.to_integral_trunc()
     }
 
-    fn test_milli_div_eq(v1: u64, v2: u64) {
+    fn test_milli_div_eq(v1: u64, v2: u64) -> bool {
         let v = (v1 as u128 * 1000) / v2 as u128;
 
         let n1 = Milli::new(v1 / 1000, v1 % 1000);
@@ -270,6 +273,7 @@ mod test {
         let n = n1 / n2;
 
         assert_eq!(v as u64, n.as_millis());
+        v as u64 == n.as_millis()
     }
 
     #[test]
@@ -310,5 +314,74 @@ mod test {
         assert_eq!(Milli::new(1, 414), Milli::new(2, 0).sqrt());
         assert_eq!(Milli::new(1, 732), Milli::new(3, 0).sqrt());
         assert_eq!(Milli::new(2, 0), Milli::new(4, 0).sqrt());
+    }
+
+    fn approx_eq(v1: Milli, v2: Milli, delta: Milli) -> bool {
+        v1.diff(v2) <= delta
+    }
+
+    quickcheck! {
+        fn prop_milli_add(n1: u64, n2: u64) -> bool {
+            test_milli_add_eq(n1, n2)
+        }
+
+        fn prop_milli_mul(n1: u64, n2: u64) -> bool {
+            test_milli_mul_eq(n1, n2)
+        }
+
+        fn prop_milli_div(n1: u64, n2: u64) -> bool {
+            n2 == 0 || test_milli_div_eq(n1, n2)
+        }
+
+        fn prop_symm(n1: u64, n2: u64) -> bool {
+            // Check Symmetry:  a*b = b*a
+            let v1 = Milli::from_millis(n1);
+            let v2 = Milli::from_millis(n2);
+            v1 * v2 == v2 * v1
+        }
+
+        fn prop_milli_tri_ineq(n1: u64, n2: u64, n3: u64) -> bool {
+            //Check: Triangle-inequality
+            let v1 = Milli::from_millis(n1);
+            let v2 = Milli::from_millis(n2);
+            let v3 = Milli::from_millis(n3);
+            let v11 = v1 * v1;
+            let v22 = v2 * v2;
+            let v33 = v3 * v3;
+            if v1 + v2 + v3 >= Milli::new(1, 0) {
+                v11 + v22 + v33 >= (v11 + v22 + v33).sqrt()
+            } else {
+                v11 + v22 + v33 <= (v11 + v22 + v33).sqrt()
+            }
+        }
+
+        fn prop_milli_mul_inverse(n1: u64, n2: u64) -> bool {
+            // Check: (a/b)*b = a
+            let v1 = Milli::from_millis(n1);
+            let v2 = Milli::from_millis(n2);
+            v2 == Milli::new(0, 0) || approx_eq((v1 / v2) * v2, v1, Milli::from_millis(1))
+        }
+
+        fn propmilli_sq_mul(n1: u64) -> bool {
+            //Check: sqrt(a*a) = a
+            let v1 = Milli::from_millis(n1);
+            approx_eq(v1.sqrt() * v1.sqrt(), v1, Milli::from_millis(1))
+        }
+
+        fn prop_milli_mul_id(n1: u64) -> bool {
+            //Check: a * 1 = a
+            let v1 = Milli::from_millis(n1);
+            v1 * Milli::new(1, 0) == v1
+        }
+
+        fn prop_milli_div_id(n1: u64) -> bool {
+            //Check: a/a = 1
+            if n1 == 0 {
+                true
+            } else {
+                let v1 = Milli::from_millis(n1);
+                v1 / v1 == Milli::new(1, 0)
+            }
+        }
     }
 }
