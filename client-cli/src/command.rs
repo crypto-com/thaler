@@ -153,7 +153,8 @@ impl Command {
                     fee_algorithm,
                     transaction_obfuscation,
                 );
-                transaction_command.execute(network_ops_client.get_wallet(), &network_ops_client)
+                transaction_command
+                    .execute(network_ops_client.get_wallet_client(), &network_ops_client)
             }
             Command::StakedState { name, address } => {
                 let storage = SledStorage::new(storage_path())?;

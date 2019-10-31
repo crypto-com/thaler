@@ -152,6 +152,14 @@ pub trait WalletClient: Send + Sync {
     fn unspent_transactions(&self, name: &str, passphrase: &SecUtf8)
         -> Result<UnspentTransactions>;
 
+    /// Checks if all the provided transaction inputs are present in unspent transaction for given wallet
+    fn has_unspent_transactions(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        inputs: &[TxoPointer],
+    ) -> Result<bool>;
+
     /// Returns output of transaction with given input details
     fn output(&self, name: &str, passphrase: &SecUtf8, input: &TxoPointer) -> Result<TxOut>;
 

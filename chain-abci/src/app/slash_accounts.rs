@@ -68,6 +68,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             last_state.rewards_pool.remaining = (last_state.rewards_pool.remaining
                 + slashed_amount)
                 .map_err(|_| Error::InvalidSum)?;
+            self.rewards_pool_updated = true;
 
             let (new_root, _) = update_account(
                 account,

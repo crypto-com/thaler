@@ -126,8 +126,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         if !self.delivered_txs.is_empty() {
             self.process_txs(&mut inittx);
         }
-
-        new_state.rewards_pool.last_block_height = new_state.last_block_height;
+        if self.rewards_pool_updated {
+            new_state.rewards_pool.last_block_height = new_state.last_block_height;
+            self.rewards_pool_updated = false;
+        }
         new_state.last_account_root_hash = self.uncommitted_account_root_hash;
         let app_hash = compute_app_hash(
             &tree,
