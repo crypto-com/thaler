@@ -1,5 +1,5 @@
 #!/bin/bash
-FILE=/usr/local/bin/kcov
+FILE="${HOME}/.cargo/bin/cargo-kcov"
 if [ ! -f "$FILE" ]; then
     echo "$FILE does not exist"
     wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz

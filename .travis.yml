@@ -14,14 +14,15 @@ rust: &rust
         - binutils-dev
         - libc6-dev
   cache:
-    directories:
-      - /home/travis/.cargo
-      - /home/travis/lib
-      - /home/travis/include
-      - /home/travis/bin
-      - /usr/local/bin/
+    directories: # cargo caching from https://docs.travis-ci.com/user/caching/#rust-cargo-cache
+      - $HOME/.cargo
+      - $TRAVIS_BUILD_DIR/target
+      - $HOME/.toolchains
+      - $HOME/lib
+      - $HOME/include
+      - $HOME/bin
   before_cache:
-    - rm -rf /home/travis/.cargo/registry
+    - rm -rf $HOME/.cargo/registry/src
   env:
     - RUST_BACKTRACE=1
     - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
@@ -29,26 +30,35 @@ rust: &rust
     - LD_LIBRARY_PATH=$HOME/lib
     - PKG_CONFIG_PATH=$HOME/lib/pkgconfig
   before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
+    - |
+      if [[ "$TRAVIS_EVENT_TYPE" == cron ]]; then
+        echo "Hasta la vista, cargo cache"
+        rm -rf $HOME/.cargo/registry
+        rm -rf $HOME/.toolchains
+        cargo clean
+      fi
     - ./install_zeromq.sh
+    - |
+      if [[ "$TRAVIS_RUST_VERSION" == nightly ]] && [[ "$TRAVIS_EVENT_TYPE" != cron ]]; then
+        ./install_kcov.sh 
+        cargo-kcov --version || cargo install cargo-kcov;
+      fi
 
   script:
-    - cargo clean
     - cargo build
     - cargo test
     - |
       if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
-        (rustfmt --version || rustup component add rustfmt) &&
-        cargo fmt -- --check --color=auto &&
-        (cargo-clippy --version || rustup component add clippy) &&
-        cargo clippy -- -D warnings &&
-        (cargo-audit -h || cargo install cargo-audit) &&
-        cargo audit       
+        (rustfmt --version || rustup component add rustfmt)
+        cargo fmt -- --check --color=auto
+        (cargo-clippy --version || rustup component add clippy)
+        cargo clippy -- -D warnings
+        (cargo-audit -h || cargo install cargo-audit)
+        cargo audit
       fi
 
   after_success: |
     if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-      ./install_kcov.sh 
-      cargo-kcov --version || cargo install cargo-kcov;
       travis_wait 30 cargo kcov --all;
       bash <(curl -s https://codecov.io/bash);
     fi
@@ -59,25 +69,19 @@ jobs:
   include:
     - <<: *rust
       rust: stable
-      if: (branch != staging.tmp) AND (branch != trying.tmp)
+      if: (type == cron) OR ((branch != staging.tmp) AND (branch != trying.tmp))
     - <<: *rust
       rust: beta
-      if: (branch = staging) OR (branch = trying)
+      if: (type == cron) OR (branch = staging) OR (branch = trying)
     - <<: *rust
       rust: nightly
-      if: (branch != staging.tmp) AND (branch != trying.tmp)
+      if: (type == cron) OR ((branch != staging.tmp) AND (branch != trying.tmp))
     - name: Integration Test
       language: node_js
       node_js: 10
       sudo: required
       dist: trusty
       if: (branch = staging) OR (branch = trying)
-      cache:
-        directories:
-          - /home/travis/lib
-          - /home/travis/include
-          - /home/travis/bin
-          - /usr/local/bin/
       script:
         - cd integration-tests
         - ./prepare.sh || travis_terminate 1;
