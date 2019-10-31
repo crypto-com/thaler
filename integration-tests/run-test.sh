@@ -31,6 +31,7 @@ function check_command_exist() {
     set -e
 }
 
+check_command_exist "curl"
 check_command_exist "jq"
 
 # Test Tendermint
