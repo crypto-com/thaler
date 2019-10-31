@@ -41,6 +41,14 @@ steps:
   # - nix-channel --update
   - nix-shell drone.nix --run "./run-integration-tests.sh"
 
+trigger:
+  branch:
+  - master
+  - staging
+  - trying
+  event:
+  - push
+
 ---
 kind: pipeline
 type: exec
@@ -111,6 +119,6 @@ trigger:
 
 ---
 kind: signature
-hmac: bdc2684e182cf00ebf7a8a2e7971884e5ff9ee193d16398aec745bcd1260cf6f
+hmac: 833fd84baae72c607bbebfed1ef91c5283bdb4ed3753237949cd96894e03ea38
 
 ...
