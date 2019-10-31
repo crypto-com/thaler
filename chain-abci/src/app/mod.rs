@@ -356,6 +356,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             let new_remaining = (rewards_pool.remaining + fee_acc.0.to_coin())
                 .expect("rewards pool + fee greater than max coin?");
             rewards_pool.remaining = new_remaining;
+            self.rewards_pool_updated = true;
             // this "buffered write" shouldn't persist (persistence done in commit)
             // but should change it in-memory -- TODO: check
             self.storage.db.write_buffered(inittx);

@@ -112,6 +112,8 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub power_changed_in_block: BTreeMap<StakedStateAddress, TendermintVotePower>,
     /// proxy for processing transaction validation requests
     pub tx_validator: T,
+    /// was rewards pool updated in the current block?
+    pub rewards_pool_updated: bool,
 }
 
 fn get_validator_key(node: &CouncilNode) -> PubKey {
@@ -271,6 +273,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             validator_pubkeys,
             power_changed_in_block: BTreeMap::new(),
             tx_validator,
+            rewards_pool_updated: false,
         }
     }
 
@@ -375,6 +378,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 validator_pubkeys: BTreeMap::new(),
                 power_changed_in_block: BTreeMap::new(),
                 tx_validator,
+                rewards_pool_updated: false,
             }
         }
     }
