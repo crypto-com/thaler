@@ -8,6 +8,7 @@ edition = "2018"
 
 [features]
 mock-enc-dec = []
+mock-validation = []
 default = ["mock-enc-dec"]
 
 [dependencies]

@@ -162,16 +162,35 @@ pub fn test_integration() {
         let msg = socket
             .recv_bytes(FLAGS)
             .expect("failed to receive a response");
-        let resp = EnclaveResponse::decode(&mut msg.as_slice()).expect("enclave response");
+        let resp = EnclaveResponse::decode(&mut msg.as_slice()).expect("enclave tx response");
         info!("received a TX response");
         match resp {
             EnclaveResponse::VerifyTx(Ok(_)) => {
-                info!("ok response");
+                info!("ok tx response");
             }
             _ => {
-                panic!("failed response");
+                panic!("failed tx response");
             }
         }
+        let request2 = EnclaveRequest::CommitBlock {
+            app_hash: [0u8; 32], info,
+        };
+        let req2 = request2.encode();
+        socket.send(req2, FLAGS).expect("request sending failed");
+        let msg2 = socket
+            .recv_bytes(FLAGS)
+            .expect("failed to receive a response");
+        let resp2 = EnclaveResponse::decode(&mut msg2.as_slice()).expect("enclave commit response");
+        info!("received a commit response");
+        match resp2 {
+            EnclaveResponse::CommitBlock(Ok(_)) => {
+                info!("ok commit response");
+            }
+            _ => {
+                panic!("failed commit response");
+            }
+        }
+
         thread::sleep(time::Duration::from_secs(10));
         let c =
             DefaultTransactionObfuscation::new("localhost:3443".to_owned(), "localhost".to_owned());

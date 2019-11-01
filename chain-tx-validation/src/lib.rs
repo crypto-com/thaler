@@ -87,37 +87,6 @@ pub enum Error {
     AccountNotJailed,
 }
 
-/// FIXME: this will go away with simplified intra-enclave FFI calls
-impl From<i32> for Error {
-    fn from(v: i32) -> Self {
-        match v {
-            x if x == Error::WrongChainHexId as i32 => Error::WrongChainHexId,
-            x if x == Error::NoInputs as i32 => Error::NoInputs,
-            x if x == Error::NoOutputs as i32 => Error::NoOutputs,
-            x if x == Error::DuplicateInputs as i32 => Error::DuplicateInputs,
-            x if x == Error::ZeroCoin as i32 => Error::ZeroCoin,
-            x if x == Error::UnexpectedWitnesses as i32 => Error::UnexpectedWitnesses,
-            x if x == Error::MissingWitnesses as i32 => Error::MissingWitnesses,
-            x if x == Error::InvalidInput as i32 => Error::InvalidInput,
-            x if x == Error::InputSpent as i32 => Error::InputSpent,
-            x if x == Error::InputOutputDoNotMatch as i32 => Error::InputOutputDoNotMatch,
-            x if x == Error::OutputInTimelock as i32 => Error::OutputInTimelock,
-            x if x == Error::EcdsaCrypto as i32 => Error::EcdsaCrypto,
-            x if x == Error::IoError as i32 => Error::IoError,
-            x if x == Error::AccountNotFound as i32 => Error::AccountNotFound,
-            x if x == Error::AccountNotUnbonded as i32 => Error::AccountNotUnbonded,
-            x if x == Error::AccountWithdrawOutputNotLocked as i32 => {
-                Error::AccountWithdrawOutputNotLocked
-            }
-            x if x == Error::MismatchAccountAddress as i32 => Error::MismatchAccountAddress,
-            x if x == Error::AccountIncorrectNonce as i32 => Error::AccountIncorrectNonce,
-            x if x == Error::AccountJailed as i32 => Error::AccountJailed,
-            x if x == Error::AccountNotJailed as i32 => Error::AccountNotJailed,
-            _ => Error::EnclaveRejected,
-        }
-    }
-}
-
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::Error::*;

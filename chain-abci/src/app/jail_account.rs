@@ -149,6 +149,7 @@ mod tests {
             TEST_CHAIN_ID,
             storage,
             account_storage,
+            None,
         );
 
         // Init Chain

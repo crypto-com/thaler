@@ -143,9 +143,9 @@ pub enum EnclaveRequest {
     VerifyTx(Box<VerifyTxRequest>),
     /// request to get the block's transaction filter and reset the existing one
     EndBlock,
-    /// request to flush/persist storage + store the computed app hash
+    /// request to flush/persist storage + store the computed app hash + chain info (min_computed_fee is set to the constant factor in fee)
     /// FIXME: enclave should be able to compute a part of app hash, so send the other parts and check the same app hash was computed
-    CommitBlock { app_hash: H256 },
+    CommitBlock { app_hash: H256, info: ChainInfo },
     /// request to get tx data sealed to "mrsigner" (requested by TQE -- they should be on the same machine)
     GetSealedTxData { txids: Vec<TxId> },
     /// request to encrypt tx by the current key (requested by TQE -- they should be on the same machine)
@@ -168,7 +168,7 @@ pub enum EnclaveResponse {
     VerifyTx(Result<(Fee, Option<StakedState>), chain_tx_validation::Error>),
     /// returns the transaction filter for the current block
     EndBlock(Result<Box<TxFilter>, ()>),
-    /// returns if the data was sucessfully persisted in the enclave's local storage
+    /// returns if the data was successfully persisted in the enclave's local storage
     CommitBlock(Result<(), ()>),
     /// returns Some(sealed data payloads) or None (if any TXID was not found / invalid)
     GetSealedTxData(Option<Vec<SealedLog>>),

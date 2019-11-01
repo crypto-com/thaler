@@ -114,6 +114,8 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub tx_validator: T,
     /// was rewards pool updated in the current block?
     pub rewards_pool_updated: bool,
+    /// address of tx query enclave to supply to clients (if any)
+    pub tx_query_address: Option<String>,
 }
 
 fn get_validator_key(node: &CouncilNode) -> PubKey {
@@ -228,6 +230,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         chain_id: &str,
         storage: Storage,
         accounts: AccountStorage,
+        tx_query_address: Option<String>,
     ) -> Self {
         let stored_gah = storage
             .db
@@ -274,6 +277,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             power_changed_in_block: BTreeMap::new(),
             tx_validator,
             rewards_pool_updated: false,
+            tx_query_address,
         }
     }
 
@@ -286,13 +290,15 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// * `gah` - hex-encoded genesis app hash
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `storage` - underlying storage to be used (in-mem or persistent)
-    /// * `accounts` - underlying storage for account tries to be used (in-mem or persistent)    
+    /// * `accounts` - underlying storage for account tries to be used (in-mem or persistent)
+    /// * `tx_query_address` -  address of tx query enclave to supply to clients (if any)
     pub fn new_with_storage(
         mut tx_validator: T,
         gah: &str,
         chain_id: &str,
         storage: Storage,
         accounts: AccountStorage,
+        tx_query_address: Option<String>,
     ) -> Self {
         let decoded_gah = hex::decode(gah).expect("failed to decode genesis app hash");
         let mut genesis_app_hash = [0u8; HASH_SIZE_256];
@@ -336,6 +342,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 chain_id,
                 storage,
                 accounts,
+                tx_query_address,
             )
         } else {
             info!("no last app state stored");
@@ -379,6 +386,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 power_changed_in_block: BTreeMap::new(),
                 tx_validator,
                 rewards_pool_updated: false,
+                tx_query_address,
             }
         }
     }
@@ -392,12 +400,14 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `node_storage_config` - configuration for node storage (currently only the path, but TODO: more options, e.g. SSD or HDD params)
     /// * `account_storage_config` - configuration for account storage
+    /// * `tx_query_address` -  address of tx query enclave to supply to clients (if any)
     pub fn new(
         tx_validator: T,
         gah: &str,
         chain_id: &str,
         node_storage_config: &StorageConfig<'_>,
         account_storage_config: &StorageConfig<'_>,
+        tx_query_address: Option<String>,
     ) -> ChainNodeApp<T> {
         ChainNodeApp::new_with_storage(
             tx_validator,
@@ -405,6 +415,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             chain_id,
             Storage::new(node_storage_config),
             AccountStorage::new(Storage::new(account_storage_config), 20).expect("account db"),
+            tx_query_address,
         )
     }
 

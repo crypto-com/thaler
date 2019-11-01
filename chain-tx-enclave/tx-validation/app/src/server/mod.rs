@@ -121,15 +121,11 @@ impl TxValidationServer {
                         self.enclave.geteid(),
                         IntraEnclaveRequest::EndBlock,
                     )),
-                    Ok(EnclaveRequest::CommitBlock { app_hash }) => {
+                    Ok(EnclaveRequest::CommitBlock { app_hash, info }) => {
                         let _ = self.metadb.insert(LAST_APP_HASH_KEY, &app_hash);
-                        match self.info {
-                            Some(info) => {
-                                let _ = self.metadb.insert(LAST_CHAIN_INFO_KEY, &info.encode()[..]);
-                            }
-                            _ => {}
-                        };
+                        let _ = self.metadb.insert(LAST_CHAIN_INFO_KEY, &info.encode()[..]);
                         if let Ok(_) = self.flush_all() {
+                            self.info = Some(info);
                             EnclaveResponse::CommitBlock(Ok(()))
                         } else {
                             EnclaveResponse::CommitBlock(Err(()))
@@ -141,7 +137,6 @@ impl TxValidationServer {
                         if is_basic_valid_tx_request(&req, &mtxins, chid).is_err() {
                             EnclaveResponse::UnknownRequest
                         } else {
-                            self.info = Some(req.info);
                             EnclaveResponse::VerifyTx(check_tx(
                                 self.enclave.geteid(),
                                 IntraEnclaveRequest::ValidateTx {

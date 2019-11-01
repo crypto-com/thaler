@@ -88,6 +88,7 @@ fn proper_hash_and_chainid_should_be_stored() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
     );
     let decoded_gah = decode(example_hash).unwrap();
     let stored_gah = db
@@ -112,6 +113,7 @@ fn too_long_hash_should_panic() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
     );
 }
 
@@ -126,6 +128,7 @@ fn chain_id_without_hex_digits_should_panic() {
         "test",
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
     );
 }
 
@@ -140,6 +143,7 @@ fn nonhex_hash_should_panic() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
     );
 }
 
@@ -191,6 +195,7 @@ fn previously_stored_hash_should_match() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
     );
 }
 
@@ -261,6 +266,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
             create_account_db(),
+            None,
         );
         let mut req = RequestInitChain::default();
         req.set_time(t);
@@ -341,6 +347,7 @@ fn init_chain_panics_with_different_app_hash() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
     );
     let mut req = RequestInitChain::default();
     req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
@@ -360,6 +367,7 @@ fn init_chain_panics_with_empty_app_bytes() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
     );
     let req = RequestInitChain::default();
     app.init_chain(&req);
@@ -1023,6 +1031,7 @@ fn end_block_should_update_liveness_tracker() {
         TEST_CHAIN_ID,
         storage,
         account_storage,
+        None,
     );
 
     // Init Chain
@@ -1190,6 +1199,7 @@ fn begin_block_should_jail_byzantine_validators() {
         TEST_CHAIN_ID,
         storage,
         account_storage,
+        None,
     );
 
     // Init Chain
@@ -1322,6 +1332,7 @@ fn begin_block_should_jail_non_live_validators() {
         TEST_CHAIN_ID,
         storage,
         account_storage,
+        None,
     );
 
     // Init Chain
@@ -1459,6 +1470,7 @@ fn begin_block_should_slash_byzantine_validators() {
         TEST_CHAIN_ID,
         storage,
         account_storage,
+        None,
     );
 
     // Init Chain
@@ -1639,6 +1651,7 @@ fn begin_block_should_slash_non_live_validators() {
         TEST_CHAIN_ID,
         storage,
         account_storage,
+        None,
     );
 
     // Init Chain
