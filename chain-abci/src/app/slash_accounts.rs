@@ -51,10 +51,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 &self.accounts,
             )?;
 
-            if !account.is_jailed() {
-                panic!("Account scheduled for slashing should already be jailed");
-            }
-
             let schedule = last_state
                 .punishment
                 .slashing_schedule
@@ -62,7 +58,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 .unwrap();
 
             let slashed_amount = account
-                .slash(schedule.slash_ratio)
+                .slash(schedule.slash_ratio, schedule.punishment_kind)
                 .map_err(|_| Error::InvalidSum)?;
 
             last_state.rewards_pool.remaining = (last_state.rewards_pool.remaining

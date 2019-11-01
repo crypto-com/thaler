@@ -18,7 +18,7 @@ use crate::storage::tx::StarlingFixedKey;
 use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
 use chain_core::common::TendermintEventType;
-use chain_core::state::account::StakedState;
+use chain_core::state::account::{PunishmentKind, StakedState};
 use chain_core::state::tendermint::{
     BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
@@ -168,6 +168,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 accounts_to_punish.push((
                     account_address,
                     last_state.slashing_config.byzantine_slash_percent,
+                    PunishmentKind::ByzantineFault,
                 ))
             }
         }
@@ -184,6 +185,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     (
                         liveness_tracker.address(),
                         last_state.slashing_config.liveness_slash_percent,
+                        PunishmentKind::NonLive,
                     )
                 }),
         );
@@ -201,7 +203,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
 
-        for (account_address, slash_ratio) in accounts_to_punish.iter() {
+        for (account_address, slash_ratio, punishment_kind) in accounts_to_punish.iter() {
             match last_state
                 .punishment
                 .slashing_schedule
@@ -209,25 +211,29 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             {
                 Some(account_slashing_schedule) => {
                     account_slashing_schedule
-                        .update_slash_ratio((*slash_ratio) * slashing_proportion);
+                        .update_slash_ratio((*slash_ratio) * slashing_proportion, *punishment_kind);
                 }
                 None => {
                     last_state.punishment.slashing_schedule.insert(
                         *account_address,
-                        SlashingSchedule::new((*slash_ratio) * slashing_proportion, slashing_time),
+                        SlashingSchedule::new(
+                            (*slash_ratio) * slashing_proportion,
+                            slashing_time,
+                            *punishment_kind,
+                        ),
                     );
                 }
             }
         }
 
-        for (account_address, _) in accounts_to_punish {
+        for (account_address, _, punishment_kind) in accounts_to_punish {
             let mut kvpair = KVPair::new();
             kvpair.key = b"account".to_vec();
             kvpair.value = account_address.to_string().into_bytes();
 
             jailing_event.attributes.push(kvpair);
 
-            self.jail_account(account_address)
+            self.jail_account(account_address, punishment_kind)
                 .expect("Unable to jail account in begin block");
         }
 

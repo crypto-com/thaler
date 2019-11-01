@@ -377,8 +377,9 @@ mod tests {
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::CoinError;
-    use chain_core::state::account::StakedState;
-    use chain_core::state::account::StakedStateOpAttributes;
+    use chain_core::state::account::{
+        Punishment, PunishmentKind, StakedState, StakedStateOpAttributes,
+    };
     use chain_core::tx::data::input::TxoIndex;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::Fee;
@@ -489,7 +490,11 @@ mod tests {
                 Coin::new(2499999999999999999 + 1).unwrap(),
                 0,
                 StakedStateAddress::BasicRedeem(RedeemAddress::default()),
-                Some(1),
+                Some(Punishment {
+                    kind: PunishmentKind::NonLive,
+                    jailed_until: 1,
+                    slash_amount: None,
+                }),
             );
 
             Ok(QueryResult {

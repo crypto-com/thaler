@@ -115,7 +115,7 @@ mod test {
                 unbonded: Coin::from(unbonded),
                 unbonded_from,
                 address,
-                jailed_until: None,
+                punishment: None,
             })
         }
     }

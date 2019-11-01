@@ -991,7 +991,7 @@ fn end_block_should_update_liveness_tracker() {
         slashing_config: SlashingParameters {
             liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
-            slash_wait_period: 10800,
+            slash_wait_period: 30,
         },
     };
 
@@ -1151,7 +1151,7 @@ fn begin_block_should_jail_byzantine_validators() {
         slashing_config: SlashingParameters {
             liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
-            slash_wait_period: 10800,
+            slash_wait_period: 30,
         },
     };
 
@@ -1285,7 +1285,7 @@ fn begin_block_should_jail_non_live_validators() {
         slashing_config: SlashingParameters {
             liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
-            slash_wait_period: 10800,
+            slash_wait_period: 30,
         },
     };
     let mut nodes = BTreeMap::new();

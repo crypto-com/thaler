@@ -245,15 +245,34 @@ impl Command {
                 ]),
                 Row::new(vec![
                     Cell::new("Jailed Until", bold),
-                    staked_state.jailed_until.map_or_else(
+                    staked_state.punishment.as_ref().map_or_else(
                         || Cell::new("Not jailed", justify_right),
-                        |jailed_until| {
+                        |punishment| {
                             Cell::new(
                                 &<DateTime<Local>>::from(DateTime::<Utc>::from_utc(
-                                    NaiveDateTime::from_timestamp(jailed_until, 0),
+                                    NaiveDateTime::from_timestamp(punishment.jailed_until, 0),
                                     Utc,
                                 )),
                                 justify_right,
+                            )
+                        },
+                    ),
+                ]),
+                Row::new(vec![
+                    Cell::new("Punishment Type", bold),
+                    staked_state.punishment.as_ref().map_or_else(
+                        || Cell::new("Not punished", justify_right),
+                        |punishment| Cell::new(&punishment.kind.to_string(), justify_right),
+                    ),
+                ]),
+                Row::new(vec![
+                    Cell::new("Slash Amount", bold),
+                    staked_state.punishment.as_ref().map_or_else(
+                        || Cell::new("Not punished", justify_right),
+                        |punishment| {
+                            punishment.slash_amount.map_or_else(
+                                || Cell::new("Not slashed", justify_right),
+                                |slash_amount| Cell::new(&slash_amount, justify_right),
                             )
                         },
                     ),
