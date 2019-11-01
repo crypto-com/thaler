@@ -240,7 +240,22 @@ impl Command {
                             NaiveDateTime::from_timestamp(staked_state.unbonded_from, 0),
                             Utc,
                         )),
-                        Default::default(),
+                        justify_right,
+                    ),
+                ]),
+                Row::new(vec![
+                    Cell::new("Jailed Until", bold),
+                    staked_state.jailed_until.map_or_else(
+                        || Cell::new("Not jailed", justify_right),
+                        |jailed_until| {
+                            Cell::new(
+                                &<DateTime<Local>>::from(DateTime::<Utc>::from_utc(
+                                    NaiveDateTime::from_timestamp(jailed_until, 0),
+                                    Utc,
+                                )),
+                                justify_right,
+                            )
+                        },
                     ),
                 ]),
             ],
