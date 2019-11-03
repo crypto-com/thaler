@@ -22,7 +22,7 @@ blake2 = { version = "0.8", default-features = false }
 parity-scale-codec = { features = ["derive"], default-features = false, version = "1.0" }
 base64 = { version = "0.11", optional = true }
 sgx_tstd = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk.git", optional = true }
-static_assertions = { version = "1.0.0", default-features = false}
+static_assertions = { version = "1.1.0", default-features = false}
 bech32 = { version = "0.7.1", optional = true }
 aead = "0.1.1"
 
