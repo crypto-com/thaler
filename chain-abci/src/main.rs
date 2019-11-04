@@ -10,9 +10,14 @@ use std::net::{IpAddr, SocketAddr};
 use zmq::{Context, REQ};
 
 use crate::app::ChainNodeApp;
+#[cfg(feature = "mock-validation")]
+use crate::enclave_bridge::mock::MockClient;
+#[cfg(not(feature = "mock-validation"))]
 use crate::enclave_bridge::ZmqEnclaveClient;
 use crate::storage::*;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
+#[cfg(feature = "mock-validation")]
+use log::warn;
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -60,24 +65,42 @@ struct AbciOpt {
         help = "Connection string (e.g. ipc://enclave.socket or tcp://127.0.0.1:25933) for ZeroMQ server wrapper around the transaction validation enclave."
     )]
     enclave_server: String,
+    #[structopt(
+        short = "tq",
+        long = "tx_query",
+        help = "Optional transaction query support for clients (tx query enclave listening address, e.g. mydomain.com:4444)"
+    )]
+    tx_query: Option<String>,
+}
+
+/// normal
+#[cfg(not(feature = "mock-validation"))]
+fn get_enclave_proxy(opts: &AbciOpt) -> ZmqEnclaveClient {
+    let ctx = Context::new();
+    let socket = ctx.socket(REQ).expect("failed to init zmq context");
+    socket
+        .connect(&opts.enclave_server)
+        .expect("failed to connect to enclave zmq wrapper");
+    ZmqEnclaveClient::new(socket)
+}
+
+/// for development
+#[cfg(feature = "mock-validation")]
+fn get_enclave_proxy(opts: &AbciOpt) -> MockClient {
+    warn!("Using mock (non-enclave) infrastructure");
+    MockClient::new(get_network_id())
 }
 
 fn main() {
     env_logger::init();
     let opt = AbciOpt::from_args();
-    let ctx = Context::new();
-    let socket = ctx.socket(REQ).expect("failed to init zmq context");
-    socket
-        .connect(&opt.enclave_server)
-        .expect("failed to connect to enclave zmq wrapper");
-    let proxy = ZmqEnclaveClient::new(socket);
-
     init_chain_id(&opt.chain_id);
     info!(
         "network={:?} network_id={:X}",
         get_network(),
         get_network_id()
     );
+    let proxy = get_enclave_proxy(&opt);
 
     let addr = SocketAddr::new(opt.host, opt.port);
     info!("starting up");
@@ -89,6 +112,7 @@ fn main() {
             &opt.chain_id,
             &StorageConfig::new(&opt.data, StorageType::Node),
             &StorageConfig::new(&opt.data, StorageType::AccountTrie),
+            opt.tx_query,
         ),
     );
 }

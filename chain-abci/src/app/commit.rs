@@ -6,11 +6,14 @@ use abci::*;
 use bit_vec::BitVec;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
+use chain_core::init::coin::Coin;
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::TxId;
+use chain_core::tx::fee::Fee;
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{TxAux, TxEnclaveAux};
+use chain_core::ChainInfo;
 use chain_tx_validation::TxWithOutputs;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use integer_encoding::VarInt;
@@ -140,8 +143,18 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         new_state.last_apphash = app_hash;
         match self
             .tx_validator
-            .process_request(EnclaveRequest::CommitBlock { app_hash })
-        {
+            .process_request(EnclaveRequest::CommitBlock {
+                app_hash,
+                info: ChainInfo {
+                    // TODO: fee computation in enclave?
+                    min_fee_computed: Fee::new(
+                        Coin::new(new_state.fee_policy.constant.to_integral()).expect("valid fee"),
+                    ),
+                    chain_hex_id: self.chain_hex_id,
+                    previous_block_time: new_state.block_time,
+                    unbonding_period: new_state.unbonding_period,
+                },
+            }) {
             EnclaveResponse::CommitBlock(Ok(_)) => {
                 debug!("enclave storage persisted");
             }

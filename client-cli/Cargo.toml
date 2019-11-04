@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Devashish Dixit <devashish@crypto.com>"]
 edition = "2018"
 
+[features]
+mock-enc-dec = []
+default = ["mock-enc-dec"]
+
 [dependencies]
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }

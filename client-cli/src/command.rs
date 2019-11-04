@@ -18,6 +18,9 @@ use chain_core::state::account::StakedStateAddress;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result, ResultExt, Storage};
+#[cfg(not(feature = "mock-enc-dec"))]
+use client_core::cipher::DefaultTransactionObfuscation;
+#[cfg(feature = "mock-enc-dec")]
 use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_core::signer::DefaultSigner;
@@ -27,6 +30,8 @@ use client_core::types::BalanceChange;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_core::BlockHandler;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
+#[cfg(feature = "mock-enc-dec")]
+use log::warn;
 
 use self::address_command::AddressCommand;
 use self::transaction_command::TransactionCommand;
@@ -97,6 +102,38 @@ pub enum Command {
     },
 }
 
+/// normal
+#[cfg(not(feature = "mock-enc-dec"))]
+fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
+    let result = tendermint_client.query("txquery", &[])?.bytes()?;
+    let address = std::str::from_utf8(&result).chain(|| {
+        (
+            ErrorKind::ConnectionError,
+            "Unable to decode txquery address",
+        )
+    })?;
+    if let Some(hostname) = address.split(':').next() {
+        Ok(DefaultTransactionObfuscation::new(
+            address.to_string(),
+            hostname.to_string(),
+        ))
+    } else {
+        Err(client_common::Error::new(
+            ErrorKind::ConnectionError,
+            "Unable to decode txquery address",
+        ))
+    }
+}
+
+/// temporary
+#[cfg(feature = "mock-enc-dec")]
+fn get_tx_query(
+    tendermint_client: WebsocketRpcClient,
+) -> Result<MockAbciTransactionObfuscation<WebsocketRpcClient>> {
+    warn!("WARNING: Using mock (non-enclave) infrastructure");
+    Ok(MockAbciTransactionObfuscation::new(tendermint_client))
+}
+
 impl Command {
     pub fn execute(&self) -> Result<()> {
         match self {
@@ -133,8 +170,7 @@ impl Command {
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_obfuscation =
-                    MockAbciTransactionObfuscation::new(tendermint_client.clone());
+                let transaction_obfuscation = get_tx_query(tendermint_client.clone())?;
                 let transaction_builder = DefaultTransactionBuilder::new(
                     signer.clone(),
                     fee_algorithm,
@@ -161,8 +197,7 @@ impl Command {
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
                 let signer = DefaultSigner::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
-                let transaction_obfuscation =
-                    MockAbciTransactionObfuscation::new(tendermint_client.clone());
+                let transaction_obfuscation = get_tx_query(tendermint_client.clone())?;
                 let transaction_builder = DefaultTransactionBuilder::new(
                     signer.clone(),
                     fee_algorithm,
@@ -192,8 +227,7 @@ impl Command {
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
 
                 let transaction_handler = DefaultTransactionHandler::new(storage.clone());
-                let transaction_obfuscation =
-                    MockAbciTransactionObfuscation::new(tendermint_client.clone());
+                let transaction_obfuscation = get_tx_query(tendermint_client.clone())?;
                 let block_handler = DefaultBlockHandler::new(
                     transaction_obfuscation,
                     transaction_handler,
