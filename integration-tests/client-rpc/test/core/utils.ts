@@ -7,11 +7,11 @@ export const WALLET_TRANSFER_ADDRESS_1 = (<any>addressState).transfer[0];
 export const WALLET_TRANSFER_ADDRESS_2 = (<any>addressState).transfer[1];
 
 export const newZeroFeeRpcClient = (): RpcClient => {
-	return newRpcClient("localhost", 16659);
+	return newRpcClient("localhost", Number(process.env.CLIENT_RPC_ZEROFEE_PORT) || 16659);
 };
 
 export const newWithFeeRpcClient = (): RpcClient => {
-	return newRpcClient("localhost", 26659);
+	return newRpcClient("localhost", Number(process.env.CLIENT_RPC_PORT) || 26659);
 };
 
 export const newRpcClient = (
@@ -22,11 +22,11 @@ export const newRpcClient = (
 };
 
 export const newZeroFeeTendermintClient = (): TendermintClient => {
-	return newTendermintClient("localhost", 16657);
+	return newTendermintClient("localhost", Number(process.env.TENDERMINT_ZEROFEE_RPC_PORT) || 16657);
 };
 
 export const newWithFeeTendermintClient = (): TendermintClient => {
-	return newTendermintClient("localhost", 26657);
+	return newTendermintClient("localhost", Number(process.env.TENDERMINT_RPC_PORT) || 26657);
 };
 
 export const newTendermintClient = (
