@@ -8,7 +8,7 @@ use chain_core::tx::TxAux;
 use chain_tx_validation::ChainInfo;
 use parity_scale_codec::Decode;
 
-/// Wrapper to astract over CheckTx and DeliverTx requests
+/// Wrapper to abstract over CheckTx and DeliverTx requests
 pub trait RequestWithTx {
     fn tx(&self) -> &[u8];
 }
@@ -25,7 +25,7 @@ impl RequestWithTx for RequestDeliverTx {
     }
 }
 
-/// Wrapper to astract over CheckTx and DeliverTx responses
+/// Wrapper to abstract over CheckTx and DeliverTx responses
 pub trait ResponseWithCodeAndLog {
     fn set_code(&mut self, _: u32);
     fn add_log(&mut self, _: &str);

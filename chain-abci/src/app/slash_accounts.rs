@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use abci::{Event, KVPair};
 
-use chain_core::common::TendermintEventType;
+use chain_core::common::{TendermintEventKey, TendermintEventType};
 use chain_core::init::config::SlashRatio;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::fee::Milli;
@@ -40,7 +40,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         for staking_address in accounts_to_slash {
             let mut kvpair = KVPair::new();
-            kvpair.key = b"account".to_vec();
+            kvpair.key = TendermintEventKey::Account.into();
             kvpair.value = staking_address.to_string().into_bytes();
 
             slashing_event.attributes.push(kvpair);

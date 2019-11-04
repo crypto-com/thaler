@@ -28,10 +28,14 @@ pub(crate) fn handle_end_block(response_buf: *mut u8, response_len: u32) -> sgx_
     let mut filter = FILTER
         .lock()
         .expect("poisoned lock: failed to get block tx filter");
-    let payload: [u8; 256] = filter.get_raw();
+    let maybe_filter = if filter.is_modified() {
+        Some(Box::new(filter.get_raw()))
+    } else {
+        None
+    };
     filter.reset();
     write_back_response(
-        Ok(Ok(IntraEnclaveResponseOk::EndBlock(Box::new(payload)))),
+        Ok(Ok(IntraEnclaveResponseOk::EndBlock(maybe_filter))),
         response_buf,
         response_len,
     )

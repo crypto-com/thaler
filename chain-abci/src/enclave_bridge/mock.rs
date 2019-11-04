@@ -174,9 +174,13 @@ impl EnclaveProxy for MockClient {
                 }
             }
             EnclaveRequest::EndBlock => {
-                let raw = self.filter.get_raw();
+                let maybe_filter = if self.filter.is_modified() {
+                    Some(Box::new(self.filter.get_raw()))
+                } else {
+                    None
+                };
                 self.filter.reset();
-                EnclaveResponse::EndBlock(Ok(Box::new(raw)))
+                EnclaveResponse::EndBlock(Ok(maybe_filter))
             }
             EnclaveRequest::CommitBlock { .. } => EnclaveResponse::CommitBlock(Ok(())),
             EnclaveRequest::VerifyTx(txrequest) => {

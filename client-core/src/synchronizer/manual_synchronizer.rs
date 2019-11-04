@@ -5,7 +5,6 @@ use itertools::Itertools;
 use secstr::SecUtf8;
 
 use chain_core::state::account::StakedStateAddress;
-use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::{Block, BlockResults, Status};
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, Result, Storage, Transaction};
@@ -239,12 +238,12 @@ where
 }
 
 fn check_unencrypted_transactions(
-    block_filter: &BlockFilter,
+    block_results: &BlockResults,
     staking_addresses: &BTreeSet<StakedStateAddress>,
     block: &Block,
 ) -> Result<Vec<Transaction>> {
     for staking_address in staking_addresses {
-        if block_filter.check_staked_state_address(staking_address) {
+        if block_results.contains_account(&staking_address)? {
             return block.unencrypted_transactions();
         }
     }
@@ -265,7 +264,7 @@ fn prepare_block_header(
     let block_filter = block_result.block_filter()?;
 
     let unencrypted_transactions =
-        check_unencrypted_transactions(&block_filter, staking_addresses, block)?;
+        check_unencrypted_transactions(&block_result, staking_addresses, block)?;
 
     Ok(BlockHeader {
         app_hash,
@@ -288,7 +287,7 @@ mod tests {
     use parity_scale_codec::Encode;
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
-    use chain_core::common::TendermintEventType;
+    use chain_core::common::{TendermintEventKey, TendermintEventType};
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::state::account::{
@@ -411,7 +410,7 @@ mod tests {
                             events: vec![Event {
                                 event_type: TendermintEventType::BlockFilter.to_string(),
                                 attributes: vec![Attribute {
-                                    key: "ethbloom".to_owned(),
+                                    key: TendermintEventKey::EthBloom.to_base64_string(),
                                     value: encode(&[0; 256][..]),
                                 }],
                             }],
@@ -419,33 +418,31 @@ mod tests {
                     },
                 })
             } else if height == 2 {
-                let mut block_filter = BlockFilter::default();
-                block_filter.add_staked_state_address(&self.staking_address);
-
                 Ok(BlockResults {
                     height: "2".to_string(),
                     results: Results {
                         deliver_tx: Some(vec![DeliverTx {
                             events: vec![Event {
                                 event_type: TendermintEventType::ValidTransactions.to_string(),
-                                attributes: vec![Attribute {
-                                    key: "dHhpZA==".to_owned(),
-                                    value: encode(
-                                        hex::encode(&unbond_transaction().tx_id()).as_bytes(),
-                                    )
-                                    .to_owned(),
-                                }],
+                                attributes: vec![
+                                    Attribute {
+                                        key: TendermintEventKey::TxId.to_base64_string(),
+                                        value: encode(
+                                            hex::encode(&unbond_transaction().tx_id()).as_bytes(),
+                                        )
+                                        .to_owned(),
+                                    },
+                                    Attribute {
+                                        key: TendermintEventKey::Account.to_base64_string(),
+                                        value: encode(&Vec::from(format!(
+                                            "{}",
+                                            &self.staking_address
+                                        ))),
+                                    },
+                                ],
                             }],
                         }]),
-                        end_block: Some(EndBlock {
-                            events: vec![Event {
-                                event_type: TendermintEventType::BlockFilter.to_string(),
-                                attributes: vec![Attribute {
-                                    key: "ethbloom".to_owned(),
-                                    value: encode(&block_filter.get_tendermint_kv().unwrap().1),
-                                }],
-                            }],
-                        }),
+                        end_block: Some(EndBlock { events: Vec::new() }),
                     },
                 })
             } else {

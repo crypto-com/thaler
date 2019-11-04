@@ -2,8 +2,7 @@
 //! polling the latest state
 //! change wallets and continue syncing
 use chain_core::state::account::StakedStateAddress;
-use chain_tx_filter::BlockFilter;
-use client_common::tendermint::types::Block;
+use client_common::tendermint::types::{Block, BlockResults};
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage, Transaction};
 use futures::sink::Sink;
@@ -217,7 +216,7 @@ where
             .staking_addresses(&wallet.name, &wallet.passphrase)?;
 
         let unencrypted_transactions =
-            self.check_unencrypted_transactions(&block_filter, &staking_addresses, block)?;
+            self.check_unencrypted_transactions(&block_results, &staking_addresses, block)?;
 
         let block_header = BlockHeader {
             app_hash,
@@ -508,12 +507,12 @@ where
     /// decrypt using viewkey
     fn check_unencrypted_transactions(
         &self,
-        block_filter: &BlockFilter,
+        block_results: &BlockResults,
         staking_addresses: &BTreeSet<StakedStateAddress>,
         block: &Block,
     ) -> Result<Vec<Transaction>> {
         for staking_address in staking_addresses {
-            if block_filter.check_staked_state_address(staking_address) {
+            if block_results.contains_account(&staking_address)? {
                 return block.unencrypted_transactions();
             }
         }

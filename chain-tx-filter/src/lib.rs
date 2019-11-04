@@ -7,10 +7,9 @@
 #[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
 extern crate sgx_tstd as std;
 mod filter;
-use chain_core::state::account::StakedStateAddress;
+use chain_core::common::TendermintEventKey;
 use filter::Bloom;
 use filter::H2048;
-use parity_scale_codec::Encode;
 use secp256k1::key::PublicKey;
 use std::convert::TryFrom;
 use std::prelude::v1::Vec;
@@ -42,20 +41,9 @@ impl BlockFilter {
         self.bloom.set(&view_key.serialize()[..]);
     }
 
-    /// adds a staked state address to the filter
-    /// FIXME: to be deprecated/removed -- just use events in ABCI and regular Tendermint indexing
-    pub fn add_staked_state_address(&mut self, address: &StakedStateAddress) {
-        self.modified = true;
-        self.bloom.set(&address.encode());
-    }
-
-    /// gets a Key-Value payload for tendermint events (if any view keys were added)
-    pub fn get_tendermint_kv(&self) -> Option<(Vec<u8>, Vec<u8>)> {
-        if self.modified {
-            Some((Vec::from(&b"ethbloom"[..]), self.bloom.data()))
-        } else {
-            None
-        }
+    /// gets a Key-Value payload for tendermint events
+    pub fn get_tendermint_kv(&self) -> (Vec<u8>, Vec<u8>) {
+        (TendermintEventKey::EthBloom.into(), self.bloom.data())
     }
 
     /// tests if a view key is in the filter
@@ -63,14 +51,6 @@ impl BlockFilter {
     /// false = not present
     pub fn check_view_key(&self, view_key: &PublicKey) -> bool {
         self.bloom.check(&view_key.serialize())
-    }
-
-    /// tests if a staked state address is in the filter
-    /// true = maybe present
-    /// false = not present
-    /// FIXME: to be deprecated/removed -- just use events in ABCI and regular Tendermint indexing
-    pub fn check_staked_state_address(&self, address: &StakedStateAddress) -> bool {
-        self.bloom.check(&address.encode())
     }
 
     /// check if view keys were added since its creation
