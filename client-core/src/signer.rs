@@ -1,8 +1,10 @@
 //! Transaction signing
 mod default_signer;
+mod dummy_signer;
 mod unauthorized_signer;
 
 pub use default_signer::DefaultSigner;
+pub use dummy_signer::DummySigner;
 pub use unauthorized_signer::UnauthorizedSigner;
 
 use secstr::SecUtf8;
@@ -20,6 +22,6 @@ pub trait Signer: Send + Sync {
         name: &str,
         passphrase: &SecUtf8,
         message: T,
-        selected_unspent_transactions: SelectedUnspentTransactions<'_>,
+        selected_unspent_transactions: &SelectedUnspentTransactions<'_>,
     ) -> Result<TxWitness>;
 }

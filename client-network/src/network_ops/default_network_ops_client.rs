@@ -133,7 +133,7 @@ where
             name,
             passphrase,
             transaction.id(),
-            unspent_transactions.select_all(),
+            &unspent_transactions.select_all(),
         )?;
 
         let signed_transaction = SignedTransaction::DepositStakeTransaction(transaction, witness);

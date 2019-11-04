@@ -110,7 +110,7 @@ where
         name: &str,
         passphrase: &SecUtf8,
         message: T,
-        selected_unspent_transactions: SelectedUnspentTransactions<'_>,
+        selected_unspent_transactions: &SelectedUnspentTransactions<'_>,
     ) -> Result<TxWitness> {
         selected_unspent_transactions
             .iter()
@@ -182,7 +182,7 @@ mod tests {
         let signer = DefaultSigner::new(storage);
 
         let witness = signer
-            .sign(name, passphrase, message, selected_unspent_transactions)
+            .sign(name, passphrase, message, &selected_unspent_transactions)
             .expect("Unable to sign transaction");
 
         assert!(verify_tx_address(&witness[0], &message, &tree_address).is_ok());
@@ -236,7 +236,7 @@ mod tests {
         assert_eq!(
             ErrorKind::IllegalInput,
             signer
-                .sign(name, passphrase, message, selected_unspent_transactions)
+                .sign(name, passphrase, message, &selected_unspent_transactions)
                 .expect_err("Unable to sign transaction")
                 .kind()
         );

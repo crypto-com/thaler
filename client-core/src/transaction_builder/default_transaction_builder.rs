@@ -1,13 +1,15 @@
 use secstr::SecUtf8;
 
+use crate::signer::DummySigner;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
+use chain_core::tx::data::{input::TxoIndex, output::TxOut};
 use chain_core::tx::fee::FeeAlgorithm;
-use chain_core::tx::{TransactionId, TxAux};
-use client_common::{ErrorKind, Result, ResultExt, SignedTransaction};
+use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
+use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction};
+use parity_scale_codec::Encode;
 
 use crate::{
     SelectedUnspentTransactions, Signer, TransactionBuilder, TransactionObfuscation,
@@ -22,12 +24,11 @@ use crate::{
 /// 2. Initialize `fees = 0`.
 /// 3. Select unspent transactions with `fees + output_value`.
 /// 4. Build transaction with selected unspent transactions (also add an extra output for change amount).
-/// 5. Sign transaction with private keys corresponding to selected unspent transactions.
+/// 5. Sign transaction with dummy signer.
 /// 6. Encrypt/obfuscate transaction.
 /// 7. Calculate `new_fees`.
 /// 8. If `new_fees > fees`, then change `fees = new_fees` and goto step 3, otherwise return signed transaction.
 ///
-/// TODO: Create a `DummySigner` which signs a transaction with dummy values for fees calculation.
 #[derive(Debug)]
 pub struct DefaultTransactionBuilder<S, F, O>
 where
@@ -38,6 +39,89 @@ where
     signer: S,
     fee_algorithm: F,
     transaction_obfuscation: O,
+}
+
+impl<S, F, O> DefaultTransactionBuilder<S, F, O>
+where
+    S: Signer,
+    F: FeeAlgorithm,
+    O: TransactionObfuscation,
+{
+    ///  Create a `DummySigner` which signs a transaction with dummy values for fees calculation.
+    /// Returns a result of fees , `Tx` and selected unspent transactions
+    pub fn get_fees<'a>(
+        &self,
+        total_pubkeys_len: usize,
+        outputs: Vec<TxOut>,
+        attributes: TxAttributes,
+        return_address: ExtendedAddr,
+        unspent_transactions: &'a UnspentTransactions,
+    ) -> Result<(Coin, Tx, SelectedUnspentTransactions<'a>)> {
+        let output_value = sum_coins(outputs.iter().map(|output| output.value)).chain(|| {
+            (
+                ErrorKind::IllegalInput,
+                "Sum of output values exceeds maximum allowed amount",
+            )
+        })?;
+        let mut fees = Coin::zero();
+        let dummy_signer = DummySigner {};
+        let (tx, selected_unspent_txs) = loop {
+            let (selected_unspent_txs, difference_amount) =
+                unspent_transactions.select((output_value + fees).chain(|| {
+                    (
+                        ErrorKind::IllegalInput,
+                        "Sum of output values and fee exceeds maximum allowed amount",
+                    )
+                })?)?;
+
+            let tx = build_transaction(
+                &selected_unspent_txs,
+                outputs.clone(),
+                attributes.clone(),
+                difference_amount,
+                return_address.clone(),
+            );
+
+            // use the dummy signer to sign the selected unspent transactions
+            let witness = dummy_signer.sign(total_pubkeys_len, &selected_unspent_txs)?;
+            let plain_payload_len = PlainTxAux::TransferTx(tx.clone(), witness).encode().len();
+            //  pad the payload to the multiples of 128bit(8bit*16)
+            let padded_payload = if plain_payload_len % 16_usize == 0 {
+                vec![0; plain_payload_len]
+            } else {
+                vec![0; plain_payload_len + 16_usize - plain_payload_len % 16_usize]
+            };
+            // mock the enclave encrypted result
+            let tx_enclave_aux = TxEnclaveAux::TransferTx {
+                inputs: tx.inputs.clone(),
+                no_of_outputs: tx.outputs.len() as TxoIndex,
+                payload: TxObfuscated {
+                    txid: [0; 32],
+                    key_from: 0,
+                    init_vector: [0u8; 12],
+                    txpayload: padded_payload,
+                },
+            };
+            let tx_aux = TxAux::EnclaveTx(tx_enclave_aux);
+            let new_fees = self
+                .fee_algorithm
+                .calculate_for_txaux(&tx_aux)
+                .chain(|| {
+                    (
+                        ErrorKind::IllegalInput,
+                        "Fee exceeds maximum allowed amount",
+                    )
+                })?
+                .to_coin();
+
+            if new_fees > fees {
+                fees = new_fees;
+            } else {
+                break (tx, selected_unspent_txs);
+            }
+        };
+        Ok((fees, tx, selected_unspent_txs))
+    }
 }
 
 impl<S, F, O> DefaultTransactionBuilder<S, F, O>
@@ -72,57 +156,34 @@ where
         unspent_transactions: UnspentTransactions,
         return_address: ExtendedAddr,
     ) -> Result<TxAux> {
-        let output_value = sum_coins(outputs.iter().map(|output| output.value)).chain(|| {
-            (
-                ErrorKind::IllegalInput,
-                "Sum of output values exceeds maximum allowed amount",
-            )
-        })?;
-        let mut fees = Coin::zero();
+        let total_pubkeys_len = 2;
+        let (calculated_fees, tx, selected_unspent_txs) = self.get_fees(
+            total_pubkeys_len,
+            outputs,
+            attributes.clone(),
+            return_address,
+            &unspent_transactions,
+        )?;
+        let witness = self
+            .signer
+            .sign(name, passphrase, tx.id(), &selected_unspent_txs)?;
 
-        loop {
-            let (selected_unspent_transactions, difference_amount) =
-                unspent_transactions.select((output_value + fees).chain(|| {
-                    (
-                        ErrorKind::IllegalInput,
-                        "Sum of output values and fee exceeds maximum allowed amount",
-                    )
-                })?)?;
-
-            let transaction = build_transaction(
-                &selected_unspent_transactions,
-                outputs.clone(),
-                attributes.clone(),
-                difference_amount,
-                return_address.clone(),
-            );
-
-            let witness = self.signer.sign(
-                name,
-                passphrase,
-                transaction.id(),
-                selected_unspent_transactions,
-            )?;
-
-            let signed_transaction = SignedTransaction::TransferTransaction(transaction, witness);
-            let tx_aux = self.transaction_obfuscation.encrypt(signed_transaction)?;
-
-            let new_fees = self
-                .fee_algorithm
-                .calculate_for_txaux(&tx_aux)
-                .chain(|| {
-                    (
-                        ErrorKind::IllegalInput,
-                        "Fee exceeds maximum allowed amount",
-                    )
-                })?
-                .to_coin();
-
-            if new_fees > fees {
-                fees = new_fees;
-            } else {
-                return Ok(tx_aux);
-            }
+        let signed_transaction = SignedTransaction::TransferTransaction(tx, witness);
+        let tx_aux = self.transaction_obfuscation.encrypt(signed_transaction)?;
+        let fees = self
+            .fee_algorithm
+            .calculate_for_txaux(&tx_aux)
+            .chain(|| {
+                (
+                    ErrorKind::IllegalInput,
+                    "Fee exceeds maximum allowed amount",
+                )
+            })?
+            .to_coin();
+        if calculated_fees >= fees {
+            Ok(tx_aux)
+        } else {
+            Err(Error::new(ErrorKind::MultiSigError, "calculate fee error"))
         }
     }
 
@@ -275,7 +336,7 @@ mod tests {
             .new_transfer_address(name, passphrase)
             .unwrap();
 
-        let signer = DefaultSigner::new(storage);
+        let signer = DefaultSigner::new(storage.clone());
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
         let transaction_builder =
@@ -328,7 +389,6 @@ mod tests {
                         }
                     }))
                     .unwrap();
-
                     assert!((output_value + fee).unwrap() <= input_value);
 
                     for (i, input) in transaction.inputs.iter().enumerate() {
@@ -409,7 +469,7 @@ mod tests {
             .new_transfer_address(name, passphrase)
             .unwrap();
 
-        let signer = DefaultSigner::new(storage);
+        let signer = DefaultSigner::new(storage.clone());
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
         let transaction_builder =
