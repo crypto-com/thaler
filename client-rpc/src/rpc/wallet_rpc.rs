@@ -717,7 +717,7 @@ pub mod tests {
         let result = wallet_rpc
             .restore(
                 create_wallet_request("Default", "123456"),
-                SecUtf8::from("online hire print other clock like betray vote hollow bus insect meadow replace two tape worry quality disease cabin girl tree pudding issue radar")
+                SecUtf8::from("speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch")
             )
             .unwrap();
         assert_eq!("Default", result);
@@ -728,7 +728,7 @@ pub mod tests {
             .create_transfer_address(wallet_request.clone())
             .unwrap();
         assert_eq!(
-            "dcro1ed02367j6wh8mvhjqah4pfxk7y49hlxzsmf7ykt6q5mdlv65lfdsktx0xd",
+            "dcro1fnjq70pf9hvd2tkd3rj7pash6ph7p42qakqt2k39sjqp4m4p25kqclslnt",
             result.to_string()
         );
 
@@ -736,7 +736,7 @@ pub mod tests {
             .create_transfer_address(wallet_request.clone())
             .unwrap();
         assert_eq!(
-            "dcro1g7ld56zlc4vx8mkrww6vhjth38vcjud5ys6wcgwckucnrjvmz0nsvvhvpf",
+            "dcro1ee3exuxyv5pauameswxureamlvmptjm8tsg4lcwqpx2nclshc6eqt8fanm",
             to_result.to_string()
         );
 
