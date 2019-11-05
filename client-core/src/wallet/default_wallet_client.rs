@@ -134,7 +134,7 @@ where
 
         let (view_key, _) =
             self.hd_key_service
-                .generate_keypair(name, passphrase, AddressType::Staking)?;
+                .generate_keypair(name, passphrase, AddressType::Transfer)?;
 
         self.wallet_service.create(name, passphrase, view_key)
     }
