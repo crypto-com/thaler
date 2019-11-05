@@ -6,10 +6,8 @@ use abci::*;
 use bit_vec::BitVec;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
-use chain_core::init::coin::Coin;
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::TxId;
-use chain_core::tx::fee::Fee;
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{TxAux, TxEnclaveAux};
@@ -138,6 +136,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             &tree,
             &new_state.last_account_root_hash,
             &new_state.rewards_pool,
+            &new_state.network_params,
         );
         inittx.put(COL_MERKLE_PROOFS, &app_hash[..], &tree.encode());
         new_state.last_apphash = app_hash;
@@ -147,12 +146,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 app_hash,
                 info: ChainInfo {
                     // TODO: fee computation in enclave?
-                    min_fee_computed: Fee::new(
-                        Coin::new(new_state.fee_policy.constant.to_integral()).expect("valid fee"),
-                    ),
+                    min_fee_computed: new_state.network_params.calculate_fee(0).expect("base fee"),
                     chain_hex_id: self.chain_hex_id,
                     previous_block_time: new_state.block_time,
-                    unbonding_period: new_state.unbonding_period,
+                    unbonding_period: new_state.network_params.get_unbonding_period(),
                 },
             }) {
             EnclaveResponse::CommitBlock(Ok(_)) => {

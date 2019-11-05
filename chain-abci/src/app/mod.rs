@@ -167,12 +167,12 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
 
                 accounts_to_punish.push((
                     account_address,
-                    last_state.slashing_config.byzantine_slash_percent,
+                    last_state.network_params.get_byzantine_slash_percent(),
                 ))
             }
         }
 
-        let missed_block_threshold = last_state.jailing_config.missed_block_threshold;
+        let missed_block_threshold = last_state.network_params.get_missed_block_threshold();
 
         accounts_to_punish.extend(
             last_state
@@ -183,13 +183,13 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 .map(|liveness_tracker| {
                     (
                         liveness_tracker.address(),
-                        last_state.slashing_config.liveness_slash_percent,
+                        last_state.network_params.get_liveness_slash_percent(),
                     )
                 }),
         );
 
         let slashing_time =
-            last_state.block_time + i64::from(last_state.slashing_config.slash_wait_period);
+            last_state.block_time + last_state.network_params.get_slash_wait_period();
         let slashing_proportion =
             self.get_slashing_proportion(accounts_to_punish.iter().map(|x| x.0));
 
@@ -318,7 +318,8 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                             self.last_state
                                 .as_ref()
                                 .expect("delivertx should have app state")
-                                .required_council_node_stake,
+                                .network_params
+                                .get_required_council_node_stake(),
                         );
                         let new_power = TendermintVotePower::from(account.bonded);
                         let old_power = self.validator_voting_power[&account.address];
@@ -420,7 +421,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                             validator_address,
                             LivenessTracker::new(
                                 *address,
-                                last_state.jailing_config.block_signing_window,
+                                last_state.network_params.get_block_signing_window(),
                             ),
                         );
                     }

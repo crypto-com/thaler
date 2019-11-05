@@ -13,6 +13,7 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
+use chain_core::init::config::NetworkParameters;
 use chain_core::init::config::StakedStateDestination;
 use chain_core::init::config::{
     JailingParameters, SlashRatio, SlashingParameters, ValidatorKeyType, ValidatorPubkey,
@@ -147,15 +148,9 @@ fn nonhex_hash_should_panic() {
     );
 }
 
-fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
-    ChainNodeState {
-        last_block_height: 0,
-        last_apphash: app_hash,
-        block_time: 0,
-        rewards_pool: RewardsPoolState::new(1.into(), 0),
-        fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
-        last_account_root_hash: [0u8; 32],
-        council_nodes: vec![],
+fn get_dummy_network_params() -> NetworkParameters {
+    NetworkParameters::Genesis(InitNetworkParameters {
+        initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
         required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
         jailing_config: JailingParameters {
@@ -168,6 +163,18 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
         },
+    })
+}
+
+fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
+    ChainNodeState {
+        last_block_height: 0,
+        last_apphash: app_hash,
+        block_time: 0,
+        rewards_pool: RewardsPoolState::new(1.into(), 0),
+        last_account_root_hash: [0u8; 32],
+        council_nodes: vec![],
+        network_params: get_dummy_network_params(),
         punishment: Default::default(),
     }
 }
@@ -257,7 +264,12 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
             .insert(None, &mut keys, &mut wrapped)
             .expect("initial insert");
 
-        let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
+        let genesis_app_hash = compute_app_hash(
+            &tx_tree,
+            &new_account_root,
+            &rp,
+            &get_dummy_network_params(),
+        );
 
         let example_hash = hex::encode_upper(genesis_app_hash);
         let mut app = ChainNodeApp::new_with_storage(
@@ -768,6 +780,7 @@ fn query_should_return_proof_for_committed_tx() {
     bs.extend(transaction_root_hash.to_vec());
     bs.extend(&app.last_state.clone().unwrap().last_account_root_hash[..]);
     bs.extend(&rewards_pool_part);
+    bs.extend(&get_dummy_network_params().hash());
 
     assert_eq!(txid_hash(&bs).to_vec(), cresp.data);
     let mut qreq2 = RequestQuery::new();
@@ -1003,7 +1016,12 @@ fn end_block_should_update_liveness_tracker() {
         },
     };
 
-    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
+    let init_config = InitConfig::new(
+        rewards_pool,
+        distribution,
+        init_network_params.clone(),
+        nodes,
+    );
 
     let timestamp = Timestamp::new();
 
@@ -1022,8 +1040,12 @@ fn end_block_should_update_liveness_tracker() {
 
     let transaction_tree = MerkleTree::empty();
 
-    let genesis_app_hash =
-        compute_app_hash(&transaction_tree, &new_account_root, &rewards_pool_state);
+    let genesis_app_hash = compute_app_hash(
+        &transaction_tree,
+        &new_account_root,
+        &rewards_pool_state,
+        &NetworkParameters::Genesis(init_network_params),
+    );
 
     let mut app = ChainNodeApp::new_with_storage(
         get_enclave_bridge_mock(),
@@ -1171,7 +1193,12 @@ fn begin_block_should_jail_byzantine_validators() {
     };
     nodes.insert(address, node_pubkey);
 
-    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
+    let init_config = InitConfig::new(
+        rewards_pool,
+        distribution,
+        init_network_params.clone(),
+        nodes,
+    );
 
     let timestamp = Timestamp::new();
 
@@ -1190,8 +1217,12 @@ fn begin_block_should_jail_byzantine_validators() {
 
     let transaction_tree = MerkleTree::empty();
 
-    let genesis_app_hash =
-        compute_app_hash(&transaction_tree, &new_account_root, &rewards_pool_state);
+    let genesis_app_hash = compute_app_hash(
+        &transaction_tree,
+        &new_account_root,
+        &rewards_pool_state,
+        &NetworkParameters::Genesis(init_network_params),
+    );
 
     let mut app = ChainNodeApp::new_with_storage(
         get_enclave_bridge_mock(),
@@ -1304,7 +1335,12 @@ fn begin_block_should_jail_non_live_validators() {
         consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
     };
     nodes.insert(address, node_pubkey);
-    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
+    let init_config = InitConfig::new(
+        rewards_pool,
+        distribution,
+        init_network_params.clone(),
+        nodes,
+    );
 
     let timestamp = Timestamp::new();
 
@@ -1323,8 +1359,12 @@ fn begin_block_should_jail_non_live_validators() {
 
     let transaction_tree = MerkleTree::empty();
 
-    let genesis_app_hash =
-        compute_app_hash(&transaction_tree, &new_account_root, &rewards_pool_state);
+    let genesis_app_hash = compute_app_hash(
+        &transaction_tree,
+        &new_account_root,
+        &rewards_pool_state,
+        &NetworkParameters::Genesis(init_network_params),
+    );
 
     let mut app = ChainNodeApp::new_with_storage(
         get_enclave_bridge_mock(),
@@ -1442,7 +1482,12 @@ fn begin_block_should_slash_byzantine_validators() {
         consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
     };
     nodes.insert(address, node_pubkey);
-    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
+    let init_config = InitConfig::new(
+        rewards_pool,
+        distribution,
+        init_network_params.clone(),
+        nodes,
+    );
 
     let timestamp = Timestamp::new();
 
@@ -1461,8 +1506,12 @@ fn begin_block_should_slash_byzantine_validators() {
 
     let transaction_tree = MerkleTree::empty();
 
-    let genesis_app_hash =
-        compute_app_hash(&transaction_tree, &new_account_root, &rewards_pool_state);
+    let genesis_app_hash = compute_app_hash(
+        &transaction_tree,
+        &new_account_root,
+        &rewards_pool_state,
+        &NetworkParameters::Genesis(init_network_params),
+    );
 
     let mut app = ChainNodeApp::new_with_storage(
         get_enclave_bridge_mock(),
@@ -1623,7 +1672,12 @@ fn begin_block_should_slash_non_live_validators() {
     };
     nodes.insert(address, node_pubkey);
 
-    let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
+    let init_config = InitConfig::new(
+        rewards_pool,
+        distribution,
+        init_network_params.clone(),
+        nodes,
+    );
 
     let timestamp = Timestamp::new();
 
@@ -1642,8 +1696,12 @@ fn begin_block_should_slash_non_live_validators() {
 
     let transaction_tree = MerkleTree::empty();
 
-    let genesis_app_hash =
-        compute_app_hash(&transaction_tree, &new_account_root, &rewards_pool_state);
+    let genesis_app_hash = compute_app_hash(
+        &transaction_tree,
+        &new_account_root,
+        &rewards_pool_state,
+        &NetworkParameters::Genesis(init_network_params),
+    );
 
     let mut app = ChainNodeApp::new_with_storage(
         get_enclave_bridge_mock(),

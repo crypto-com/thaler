@@ -26,7 +26,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             .expect("Last state not found. Init chain was not called.");
 
         let block_time = last_state.block_time;
-        let jail_duration: i64 = last_state.jailing_config.jail_duration.into();
+        let jail_duration = last_state.network_params.get_jail_duration();
 
         account.jail_until(block_time + jail_duration);
 
@@ -61,8 +61,8 @@ mod tests {
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::init::config::{
-        InitConfig, InitNetworkParameters, JailingParameters, SlashRatio, SlashingParameters,
-        StakedStateDestination, ValidatorKeyType, ValidatorPubkey,
+        InitConfig, InitNetworkParameters, JailingParameters, NetworkParameters, SlashRatio,
+        SlashingParameters, StakedStateDestination, ValidatorKeyType, ValidatorPubkey,
     };
     use chain_core::tx::fee::{LinearFee, Milli};
 
@@ -119,8 +119,13 @@ mod tests {
         };
         nodes.insert(address, node_key);
         let rewards_pool = Coin::new(0).unwrap();
-        let init_config = InitConfig::new(rewards_pool, distribution, init_network_params, nodes);
-
+        let init_config = InitConfig::new(
+            rewards_pool,
+            distribution,
+            init_network_params.clone(),
+            nodes,
+        );
+        let network_params = NetworkParameters::Genesis(init_network_params);
         let timestamp = Timestamp::new();
 
         let (accounts, rewards_pool_state, _) = init_config
@@ -140,8 +145,12 @@ mod tests {
 
         let transaction_tree = MerkleTree::empty();
 
-        let genesis_app_hash =
-            compute_app_hash(&transaction_tree, &new_account_root, &rewards_pool_state);
+        let genesis_app_hash = compute_app_hash(
+            &transaction_tree,
+            &new_account_root,
+            &rewards_pool_state,
+            &network_params,
+        );
 
         let mut app = ChainNodeApp::new_with_storage(
             MockClient::new(0),

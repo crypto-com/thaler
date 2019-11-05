@@ -3,7 +3,7 @@ use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::tx::verify;
 use abci::*;
 use chain_core::state::account::StakedState;
-use chain_core::tx::fee::{Fee, FeeAlgorithm};
+use chain_core::tx::fee::Fee;
 use chain_core::tx::TxAux;
 use chain_tx_validation::ChainInfo;
 use parity_scale_codec::Decode;
@@ -70,7 +70,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             Ok(txaux) => {
                 let state = self.last_state.as_ref().expect("the app state is expected");
                 let min_fee = state
-                    .fee_policy
+                    .network_params
                     .calculate_fee(_req.tx().len())
                     .expect("invalid fee policy");
                 let fee_paid = verify(
@@ -80,7 +80,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                         min_fee_computed: min_fee,
                         chain_hex_id: self.chain_hex_id,
                         previous_block_time: state.block_time,
-                        unbonding_period: state.unbonding_period,
+                        unbonding_period: state.network_params.get_unbonding_period(),
                     },
                     &self.uncommitted_account_root_hash,
                     self.storage.db.clone(),
