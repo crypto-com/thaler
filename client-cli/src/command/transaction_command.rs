@@ -1,11 +1,5 @@
 use std::str::FromStr;
 
-use hex::decode;
-use quest::{ask, text, yesno};
-use secstr::SecUtf8;
-use structopt::StructOpt;
-use unicase::eq_ascii;
-
 use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::network::get_network_id;
 use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
@@ -18,6 +12,11 @@ use chain_core::tx::TxAux;
 use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
+use hex::decode;
+use quest::{ask, text, yesno};
+use secstr::SecUtf8;
+use structopt::StructOpt;
+use unicase::eq_ascii;
 
 use crate::{ask_passphrase, coin_from_str};
 
@@ -27,6 +26,7 @@ pub enum TransactionType {
     Deposit,
     Unbond,
     Withdraw,
+    Unjail,
 }
 
 impl FromStr for TransactionType {
@@ -41,6 +41,8 @@ impl FromStr for TransactionType {
             Ok(TransactionType::Unbond)
         } else if eq_ascii(s, "withdraw") {
             Ok(TransactionType::Withdraw)
+        } else if eq_ascii(s, "unjail") {
+            Ok(TransactionType::Unjail)
         } else {
             Err(ErrorKind::DeserializationError.into())
         }
@@ -88,6 +90,7 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
         TransactionType::Withdraw => {
             new_withdraw_transaction(wallet_client, network_ops_client, name, &passphrase)
         }
+        TransactionType::Unjail => new_unjail_transaction(network_ops_client, name, &passphrase),
     }?;
 
     wallet_client.broadcast_transaction(&transaction)?;
@@ -185,6 +188,17 @@ fn new_transfer_transaction<T: WalletClient>(
     let return_address = wallet_client.new_transfer_address(name, &passphrase)?;
 
     wallet_client.create_transaction(name, &passphrase, outputs, attributes, None, return_address)
+}
+
+fn new_unjail_transaction<N: NetworkOpsClient>(
+    network_ops_client: &N,
+    name: &str,
+    passphrase: &SecUtf8,
+) -> Result<TxAux> {
+    let attributes = StakedStateOpAttributes::new(get_network_id());
+    let address = ask_staking_address()?;
+
+    network_ops_client.create_unjail_transaction(name, passphrase, address, attributes)
 }
 
 fn ask_view_keys() -> Result<Vec<PublicKey>> {
@@ -308,6 +322,7 @@ fn ask_inputs() -> Result<Vec<TxoPointer>> {
     Ok(inputs)
 }
 
+#[cfg(not(test))]
 fn ask_staking_address() -> Result<StakedStateAddress> {
     ask("Enter staking address: ");
     let address = text()
@@ -323,6 +338,14 @@ fn ask_staking_address() -> Result<StakedStateAddress> {
     Ok(address)
 }
 
+#[cfg(test)]
+fn ask_staking_address() -> Result<StakedStateAddress> {
+    Ok(
+        StakedStateAddress::from_str("0x83fe11feb0887183eb62c30994bdd9e303497e3d")
+            .expect("get staked address"),
+    )
+}
+
 fn ask_transfer_address() -> Result<ExtendedAddr> {
     ask("Enter transfer address: ");
     let address = text()
@@ -336,4 +359,134 @@ fn ask_transfer_address() -> Result<ExtendedAddr> {
         })?;
 
     Ok(address)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chain_core::init::coin::Coin;
+    use chain_core::init::coin::CoinError;
+
+    use chain_core::tx::data::TxId;
+    use chain_core::tx::fee::Fee;
+    use chain_core::tx::fee::FeeAlgorithm;
+
+    use chain_core::tx::TxAux;
+    use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::*;
+    use client_common::tendermint::Client;
+    use client_common::PrivateKey;
+    use client_common::SignedTransaction;
+    use client_common::Transaction;
+    use client_core::cipher::TransactionObfuscation;
+    use client_core::signer::DefaultSigner;
+    use client_core::wallet::DefaultWalletClient;
+    use client_network::network_ops::DefaultNetworkOpsClient;
+    //use parity_scale_codec::codec::Encode;
+    struct MockClient;
+
+    impl Client for MockClient {
+        fn genesis(&self) -> Result<Genesis> {
+            unreachable!()
+        }
+
+        fn status(&self) -> Result<Status> {
+            unreachable!()
+        }
+
+        fn block(&self, _height: u64) -> Result<Block> {
+            unreachable!()
+        }
+
+        fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, _heights: T) -> Result<Vec<Block>> {
+            unreachable!()
+        }
+
+        fn block_results(&self, _height: u64) -> Result<BlockResults> {
+            unreachable!()
+        }
+
+        fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
+            &self,
+            _heights: T,
+        ) -> Result<Vec<BlockResults>> {
+            unreachable!()
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+            Ok(BroadcastTxResult {
+                code: 0,
+                data: String::from(""),
+                hash: String::from(""),
+                log: String::from(""),
+            })
+        }
+
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+            unreachable!()
+        }
+    }
+
+    #[derive(Default)]
+    pub struct ZeroFeeAlgorithm;
+
+    impl FeeAlgorithm for ZeroFeeAlgorithm {
+        fn calculate_fee(&self, _num_bytes: usize) -> std::result::Result<Fee, CoinError> {
+            Ok(Fee::new(Coin::zero()))
+        }
+
+        fn calculate_for_txaux(&self, _txaux: &TxAux) -> std::result::Result<Fee, CoinError> {
+            Ok(Fee::new(Coin::zero()))
+        }
+    }
+
+    #[derive(Debug)]
+    struct MockTransactionCipher;
+
+    impl TransactionObfuscation for MockTransactionCipher {
+        fn decrypt(
+            &self,
+            _transaction_ids: &[TxId],
+            _private_key: &PrivateKey,
+        ) -> Result<Vec<Transaction>> {
+            unreachable!()
+        }
+
+        fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
+            match transaction {
+                SignedTransaction::TransferTransaction(_, _) => unreachable!(),
+                SignedTransaction::DepositStakeTransaction(_, _) => unreachable!(),
+                SignedTransaction::WithdrawUnbondedStakeTransaction(_, _, _) => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn check_unjail_tx() {
+        let name = "name";
+
+        let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
+        let fee_algorithm = ZeroFeeAlgorithm::default();
+
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
+        let tendermint_client = MockClient {};
+
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            DefaultWalletClient::new_read_only(storage.clone()),
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
+
+        assert!(!new_transaction(
+            &wallet_client,
+            &network_ops_client,
+            name,
+            &TransactionType::Unjail,
+        )
+        .is_ok());
+    }
 }

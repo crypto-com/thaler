@@ -1,7 +1,7 @@
 #![deny(missing_docs, unsafe_code, unstable_features)]
 //! CLI for interacting with Crypto.com Chain
 mod command;
-
+#[allow(unused_imports)]
 use quest::{ask, error, password};
 use secstr::SecUtf8;
 use structopt::StructOpt;
@@ -60,12 +60,17 @@ pub(crate) fn chain_id() -> Option<String> {
     std::env::var("CRYPTO_CHAIN_ID").map(Some).unwrap_or(None)
 }
 
-#[inline]
+#[cfg(not(test))]
 pub(crate) fn ask_passphrase(message: Option<&str>) -> Result<SecUtf8> {
     ask(message.unwrap_or("Enter passphrase: "));
     password()
         .map(Into::into)
         .chain(|| (ErrorKind::IoError, "Unable to read password"))
+}
+
+#[cfg(test)]
+pub(crate) fn ask_passphrase(_message: Option<&str>) -> Result<SecUtf8> {
+    Ok(SecUtf8::from("123456"))
 }
 
 pub(crate) fn coin_from_str(coin_str: &str) -> Result<Coin> {
