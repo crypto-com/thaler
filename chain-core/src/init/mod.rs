@@ -9,8 +9,12 @@ pub mod coin;
 #[cfg(feature = "base64")]
 pub mod config;
 
+/// Network static configuration
 #[cfg(all(feature = "bech32", feature = "hex"))]
 pub mod network;
+
+/// Network parameters
+pub mod params;
 
 /// maximum total supply with a fixed decimal point
 /// ref: https://etherscan.io/token/0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b

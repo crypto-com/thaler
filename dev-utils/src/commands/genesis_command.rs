@@ -13,7 +13,7 @@ use chain_abci::storage::tx::StarlingFixedKey;
 use chain_abci::storage::Storage;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
-use chain_core::init::config::{InitNetworkParameters, StakedStateDestination};
+use chain_core::init::config::{InitNetworkParameters, NetworkParameters, StakedStateDestination};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::{LinearFee, Milli};
@@ -70,6 +70,7 @@ impl GenesisCommand {
             jailing_config: genesis_dev.jailing_config,
             slashing_config: genesis_dev.slashing_config,
         };
+        let init_network_params = NetworkParameters::Genesis(network_params.clone());
         let config = InitConfig::new(
             genesis_dev.rewards_pool,
             dist,
@@ -97,7 +98,8 @@ impl GenesisCommand {
             .insert(None, &mut keys, &wrapped)
             .expect("initial insert");
 
-        let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
+        let genesis_app_hash =
+            compute_app_hash(&tx_tree, &new_account_root, &rp, &init_network_params);
         println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
         let config_str = serde_json::to_string_pretty(&config)
             .chain(|| (ErrorKind::InvalidInput, "Invalid config"))?;

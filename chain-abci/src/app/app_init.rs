@@ -14,13 +14,13 @@ use chain_core::compute_app_hash;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
+use chain_core::init::config::NetworkParameters;
 use chain_core::init::config::StakedStateDestination;
-use chain_core::init::config::{InitNetworkParameters, JailingParameters, SlashingParameters};
 use chain_core::state::account::{StakedState, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::state::CouncilNode;
 use chain_core::state::RewardsPoolState;
-use chain_core::tx::{fee::LinearFee, TxAux};
+use chain_core::tx::TxAux;
 use chain_tx_filter::BlockFilter;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::DBTransaction;
@@ -43,16 +43,8 @@ pub struct ChainNodeState {
     pub last_account_root_hash: StarlingFixedKey,
     /// last rewards pool state
     pub rewards_pool: RewardsPoolState,
-    /// fee policy to apply -- TODO: change to be against T: FeeAlgorithm
-    pub fee_policy: LinearFee,
-    /// time when unbonded stake can be withdrawn
-    pub unbonding_period: u32,
-    /// (minimal?) amount required to be bonded in validator-associated accounts
-    pub required_council_node_stake: Coin,
-    /// Jailing configuration
-    pub jailing_config: JailingParameters,
-    /// Slashing configuration
-    pub slashing_config: SlashingParameters,
+    /// network parameters (fee policy, staking configuration etc.)
+    pub network_params: NetworkParameters,
     /// council nodes metadata
     pub council_nodes: Vec<CouncilNode>,
     /// Runtime state for computing and executing validator punishment
@@ -65,7 +57,7 @@ impl ChainNodeState {
         genesis_time: Timespec,
         last_account_root_hash: StarlingFixedKey,
         rewards_pool: RewardsPoolState,
-        network_params: InitNetworkParameters,
+        network_params: NetworkParameters,
         council_nodes: Vec<CouncilNode>,
         punishment: ValidatorPunishment,
     ) -> Self {
@@ -75,11 +67,7 @@ impl ChainNodeState {
             block_time: genesis_time,
             last_account_root_hash,
             rewards_pool,
-            fee_policy: network_params.initial_fee_policy,
-            unbonding_period: network_params.unbonding_period,
-            required_council_node_stake: network_params.required_council_node_stake,
-            jailing_config: network_params.jailing_config,
-            slashing_config: network_params.slashing_config,
+            network_params,
             council_nodes,
             punishment,
         }
@@ -144,7 +132,12 @@ fn get_validator_mapping(
             accounts,
         )
         .expect("council node staking account should be in the account state");
-        if account.is_jailed() || account.bonded < last_app_state.required_council_node_stake {
+        if account.is_jailed()
+            || account.bonded
+                < last_app_state
+                    .network_params
+                    .get_required_council_node_stake()
+        {
             validator_voting_power.insert(
                 node.staking_account_address,
                 TendermintVotePower::from(Coin::zero()),
@@ -162,7 +155,7 @@ fn get_validator_mapping(
 fn check_and_store_consensus_params(
     init_consensus_params: Option<&ConsensusParams>,
     _validators: &[CouncilNode],
-    _network_params: &InitNetworkParameters,
+    _network_params: &NetworkParameters,
     inittx: &mut DBTransaction,
 ) {
     match init_consensus_params {
@@ -196,30 +189,10 @@ fn get_voting_power(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn store_valid_genesis_state(
-    genesis_time: Timespec,
-    genesis_app_hash: H256,
-    rewards_pool: RewardsPoolState,
-    network_params: InitNetworkParameters,
-    last_account_root_hash: StarlingFixedKey,
-    council_nodes: Vec<CouncilNode>,
-    punishment: ValidatorPunishment,
-    inittx: &mut DBTransaction,
-) -> ChainNodeState {
-    let last_state = ChainNodeState::genesis(
-        genesis_app_hash,
-        genesis_time,
-        last_account_root_hash,
-        rewards_pool,
-        network_params,
-        council_nodes,
-        punishment,
-    );
-    let encoded = last_state.encode();
+fn store_valid_genesis_state(genesis_state: &ChainNodeState, inittx: &mut DBTransaction) {
+    let encoded = genesis_state.encode();
     inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &encoded);
     inittx.put(COL_EXTRA, b"init_chain_state", &encoded);
-    last_state
 }
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
@@ -451,8 +424,9 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 .accounts
                 .insert(None, &mut keys, &wrapped)
                 .expect("initial insert");
-
-            let genesis_app_hash = compute_app_hash(&tx_tree, &new_account_root, &rp);
+            let network_params = NetworkParameters::Genesis(conf.network_params);
+            let genesis_app_hash =
+                compute_app_hash(&tx_tree, &new_account_root, &rp, &network_params);
             if self.genesis_app_hash != genesis_app_hash {
                 panic!("initchain resulting genesis app hash: {} does not match the expected genesis app hash: {}", hex::encode(genesis_app_hash), hex::encode(self.genesis_app_hash));
             }
@@ -461,7 +435,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             check_and_store_consensus_params(
                 req.consensus_params.as_ref(),
                 &nodes,
-                &conf.network_params,
+                &network_params,
                 &mut inittx,
             );
             // NOTE: &req.validators are ignored / replaced by init config
@@ -483,32 +457,32 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     TendermintValidatorAddress::from(&node.consensus_pubkey),
                     LivenessTracker::new(
                         node.staking_account_address,
-                        conf.network_params.jailing_config.block_signing_window,
+                        network_params.get_block_signing_window(),
                     ),
                 );
             }
             let mut resp = ResponseInitChain::new();
             resp.set_validators(RepeatedField::from(validators));
-            let last_state = store_valid_genesis_state(
-                genesis_time,
+            let genesis_state = ChainNodeState::genesis(
                 genesis_app_hash,
-                rp,
-                conf.network_params,
+                genesis_time,
                 new_account_root,
+                rp,
+                network_params,
                 nodes,
                 ValidatorPunishment {
                     validator_liveness,
                     slashing_schedule: Default::default(),
                 },
-                &mut inittx,
             );
+            store_valid_genesis_state(&genesis_state, &mut inittx);
 
             let wr = db.write(inittx);
             if wr.is_err() {
                 panic!("db write error: {}", wr.err().unwrap());
             } else {
-                self.uncommitted_account_root_hash = last_state.last_account_root_hash;
-                self.last_state = Some(last_state);
+                self.uncommitted_account_root_hash = genesis_state.last_account_root_hash;
+                self.last_state = Some(genesis_state);
             }
 
             resp
