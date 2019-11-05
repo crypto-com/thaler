@@ -32,7 +32,7 @@ describe("Staking", () => {
 	});
 
 	it("unbond of same amount and nonce from different account should have different txid", async function() {
-		this.timeout(90000);
+		this.timeout(300000);
 
 		const stakingAmount = "10000";
 		const unbondAmount = "5000";
@@ -96,7 +96,7 @@ describe("Staking", () => {
 	});
 
 	it("should support staking, unbonding and withdrawing", async function() {
-		this.timeout(90000);
+		this.timeout(300000);
 
 		const walletContext = await prepareWalletContext(tendermintClient, rpcClient);
 		const { walletName, stakingAddress, transferAddress } = walletContext;

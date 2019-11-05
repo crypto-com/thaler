@@ -38,7 +38,7 @@ describe("Wallet Auto-sync", () => {
 	}
 
 	it("can auto-sync unlocked wallets", async function() {
-		this.timeout(90000);
+		this.timeout(300000);
 
 		const receiverWalletName = generateWalletName("Receive");
 		const senderWalletRequest = newWalletRequest("Default", "123456");

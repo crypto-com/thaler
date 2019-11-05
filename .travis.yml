@@ -44,6 +44,11 @@ rust: &rust
       - $HOME/bin
       - /usr/local/bin # kcov
   before_cache:
+    - |
+      # $TRAVIS_BUILD_DIR/target becomes too big under nightly
+      if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
+        rm -rf $TRAVIS_BUILD_DIR/target
+      fi
     - du -sh $HOME/.cargo $TRAVIS_BUILD_DIR/target $HOME/.rustup/toolchains $HOME/lib $HOME/include $HOME/bin
     - rm -rf $HOME/.cargo/registry/src
   env:
