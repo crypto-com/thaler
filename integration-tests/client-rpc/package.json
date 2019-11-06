@@ -6,7 +6,7 @@
   "author": "Calvin Lau (calvin@crypto.com)",
   "license": "Apache-2.0",
   "scripts": {
-    "test": "mocha --recursive --exit --require ./node_modules/ts-node/register --require source-map-support/register './{,!(node_modules)/**/}*.test.ts' --timeout 10000"
+    "test": "mocha --recursive --exit --require ./node_modules/ts-node/register --require source-map-support/register './{,!(node_modules)/**/}*.test.ts' --timeout 90000"
   },
   "dependencies": {
     "@types/bignumber.js": "^5.0.0",
