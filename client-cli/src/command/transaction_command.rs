@@ -1,11 +1,5 @@
 use std::str::FromStr;
 
-use hex::decode;
-use quest::{ask, text, yesno};
-use secstr::SecUtf8;
-use structopt::StructOpt;
-use unicase::eq_ascii;
-
 use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::network::get_network_id;
 use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
@@ -18,6 +12,11 @@ use chain_core::tx::TxAux;
 use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
+use hex::decode;
+use quest::{ask, text, yesno};
+use secstr::SecUtf8;
+use structopt::StructOpt;
+use unicase::eq_ascii;
 
 use crate::{ask_passphrase, coin_from_str};
 
@@ -27,6 +26,7 @@ pub enum TransactionType {
     Deposit,
     Unbond,
     Withdraw,
+    Unjail,
 }
 
 impl FromStr for TransactionType {
@@ -41,6 +41,8 @@ impl FromStr for TransactionType {
             Ok(TransactionType::Unbond)
         } else if eq_ascii(s, "withdraw") {
             Ok(TransactionType::Withdraw)
+        } else if eq_ascii(s, "unjail") {
+            Ok(TransactionType::Unjail)
         } else {
             Err(ErrorKind::DeserializationError.into())
         }
@@ -88,6 +90,7 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
         TransactionType::Withdraw => {
             new_withdraw_transaction(wallet_client, network_ops_client, name, &passphrase)
         }
+        TransactionType::Unjail => new_unjail_transaction(network_ops_client, name, &passphrase),
     }?;
 
     wallet_client.broadcast_transaction(&transaction)?;
@@ -185,6 +188,17 @@ fn new_transfer_transaction<T: WalletClient>(
     let return_address = wallet_client.new_transfer_address(name, &passphrase)?;
 
     wallet_client.create_transaction(name, &passphrase, outputs, attributes, None, return_address)
+}
+
+fn new_unjail_transaction<N: NetworkOpsClient>(
+    network_ops_client: &N,
+    name: &str,
+    passphrase: &SecUtf8,
+) -> Result<TxAux> {
+    let attributes = StakedStateOpAttributes::new(get_network_id());
+    let address = ask_staking_address()?;
+
+    network_ops_client.create_unjail_transaction(name, passphrase, address, attributes)
 }
 
 fn ask_view_keys() -> Result<Vec<PublicKey>> {
