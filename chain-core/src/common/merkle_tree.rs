@@ -70,7 +70,7 @@ impl<T> Tree<T> {
 
     /// Generates merkle path for given value. Returns `None` if given value is not present in tree.
     /// Uses depth first search (DFS) to find value in tree
-    fn generate_path(&self, value: T) -> Option<Path>
+    fn generate_path(&self, value: &T) -> Option<Path>
     where
         T: AsRef<[u8]> + Clone,
     {
@@ -81,92 +81,126 @@ impl<T> Tree<T> {
             } => {
                 if &hash(value, NodeType::Leaf) == node_hash {
                     Some(Path {
-                        node_hash: *node_hash,
-                        sibling: None,
-                        sub_path: None,
+                        leaf_hash: *node_hash,
+                        nodes: vec![],
                     })
                 } else {
                     None
                 }
             }
-            Tree::Node { hash, left, right } => match left.generate_path(value.clone()) {
-                None => right.generate_path(value).map(|mut path| {
-                    path.sibling = Some(Sibling::Left(left.hash()));
-
-                    Path {
-                        node_hash: *hash,
-                        sibling: None,
-                        sub_path: Some(Box::new(path)),
-                    }
-                }),
-                Some(mut path) => {
-                    path.sibling = Some(Sibling::Right(right.hash()));
-
-                    Some(Path {
-                        node_hash: *hash,
-                        sibling: None,
-                        sub_path: Some(Box::new(path)),
+            Tree::Node {
+                hash: node_hash,
+                left,
+                right,
+            } => left.generate_path(value).map_or_else(
+                || {
+                    right.generate_path(value).map(|mut path| {
+                        path.nodes.push(PathNode {
+                            node_hash: *node_hash,
+                            child_hash: left.hash(),
+                            hash_side: Side::Left,
+                        });
+                        path
                     })
-                }
-            },
+                },
+                |mut path| {
+                    path.nodes.push(PathNode {
+                        node_hash: *node_hash,
+                        child_hash: right.hash(),
+                        hash_side: Side::Right,
+                    });
+                    Some(path)
+                },
+            ),
         }
     }
-}
-
-/// Sibling's hash
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-pub enum Sibling {
-    Left(H256),
-    Right(H256),
 }
 
 /// Merkle path for inclusion proof
+///
+/// ```plain
+///          node_hash1, Left
+///              |
+///           +--+--+
+///           |     |
+///  child_hash1  node_hash0, Right
+///                 |
+///              +--+--+
+///              |     |
+///        leaf_hash   child_hash0
+/// ```
+///
+/// Above merkle path is represented as:
+///
+/// ```plain
+/// Path {
+///   leaf_hash: leaf_hash,
+///   nodes: [ PathNode {
+///     node_hash: node_hash0,
+///     child_hash: child_hash0,
+///     hash_side: Right
+///   }, PathNode {
+///     node_hash: node_hash1,
+///     child_hash: child_hash1,
+///     hash_side: Left
+///   } ]
+/// }
+/// ```
+
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+pub enum Side {
+    Left,
+    Right,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+pub struct PathNode {
+    node_hash: H256,
+    child_hash: H256, // hash of left child unless reversed
+    hash_side: Side,  // the side of hash child
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct Path {
-    node_hash: H256,
-    sibling: Option<Sibling>,
-    sub_path: Option<Box<Path>>,
+    leaf_hash: H256,
+    nodes: Vec<PathNode>, // order from inner node to outer node
 }
 
 impl Path {
-    /// Verifies inclusion of given hash in current path
-    fn verify(&self) -> bool {
-        match self.calculate_hash() {
-            None => false,
-            Some(path_hash) => path_hash == self.node_hash,
+    fn hash(&self) -> &H256 {
+        match self.nodes.last() {
+            None => &self.leaf_hash,
+            Some(node) => &node.node_hash,
         }
     }
 
-    /// Calculates hash of a path
-    fn calculate_hash(&self) -> Option<H256> {
-        match self.sub_path {
-            None => match self.sibling {
-                None => Some(self.node_hash),
-                Some(ref sibling) => match sibling {
-                    Sibling::Left(sibling_hash) => {
-                        Some(combined_hash(sibling_hash, &self.node_hash))
-                    }
-                    Sibling::Right(sibling_hash) => {
-                        Some(combined_hash(&self.node_hash, sibling_hash))
-                    }
-                },
-            },
-            Some(ref sub_path) => match self.sibling {
-                None => sub_path.calculate_hash(),
-                Some(ref sibling) => sub_path.calculate_hash().map(|sub_hash| match sibling {
-                    Sibling::Left(sibling_hash) => combined_hash(sibling_hash, &sub_hash),
-                    Sibling::Right(sibling_hash) => combined_hash(&sub_hash, sibling_hash),
-                }),
-            },
+    fn verify(&self) -> bool {
+        for i in (0..self.nodes.len()).rev() {
+            let node = &self.nodes[i];
+
+            let ref_hash = if i == 0 {
+                self.leaf_hash
+            } else {
+                self.nodes[i - 1].node_hash
+            };
+
+            let calced_hash = if Side::Left == node.hash_side {
+                combined_hash(&node.child_hash, &ref_hash)
+            } else {
+                combined_hash(&ref_hash, &node.child_hash)
+            };
+
+            if calced_hash != node.node_hash {
+                return false;
+            }
         }
+        true
     }
 }
 
-// TODO: Consider implementing `Encode`/`Decode` traits using BitVec + Vec of hashes for efficiency
 /// Inclusion proof of a value
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct Proof<T> {
-    root_hash: H256,
     path: Path,
     value: T,
 }
@@ -178,7 +212,7 @@ impl<T> Proof<T> {
     where
         T: AsRef<[u8]>,
     {
-        root_hash == &self.root_hash && root_hash == &self.path.node_hash && self.path.verify()
+        root_hash == self.path.hash() && self.path.verify()
     }
 
     /// Returns a borrow of value contained in this proof
@@ -189,8 +223,8 @@ impl<T> Proof<T> {
 
     /// Returns root hash of this proof
     #[inline]
-    pub fn root_hash(&self) -> H256 {
-        self.root_hash
+    pub fn root_hash(&self) -> &H256 {
+        self.path.hash()
     }
 }
 
@@ -303,18 +337,15 @@ impl<T> MerkleTree<T> {
     where
         T: AsRef<[u8]> + Clone,
     {
-        let root_hash = self.root_hash();
-
-        self.generate_path(value.clone()).map(|path| Proof {
-            root_hash,
-            path,
-            value,
+        self.generate_path(&value).map(|path| {
+            assert_eq!(&self.root_hash(), path.hash());
+            Proof { path, value }
         })
     }
 
     /// Generates merkle path for given value. Returns `None` if given value is not present in merkle tree
     #[inline]
-    fn generate_path(&self, value: T) -> Option<Path>
+    fn generate_path(&self, value: &T) -> Option<Path>
     where
         T: AsRef<[u8]> + Clone,
     {
