@@ -6,6 +6,7 @@ use chain_core::state::account::{
     StakedState, StakedStateAddress, StakedStateOpWitness, WithdrawUnbondedTx,
 };
 use chain_core::tx::fee::Fee;
+use chain_core::state::account::StakedStateDestination;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::PlainTxAux;
@@ -84,9 +85,9 @@ fn get_ecdsa_witness<C: Signing>(
 fn get_account(account_address: &RedeemAddress) -> StakedState {
     StakedState::new_init(
         Coin::one(),
-        0,
+        None,
         StakedStateAddress::from(*account_address),
-        false,
+        &StakedStateDestination::UnbondedFromCustomTime(0),
     )
 }
 

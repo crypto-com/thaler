@@ -2,6 +2,7 @@ use crate::common::Timespec;
 use crate::common::{hash256, H256};
 use crate::init::address::RedeemAddress;
 use crate::init::coin::{Coin, CoinError};
+use crate::state::account::StakedStateDestination;
 use crate::tx::fee::{Fee, FeeAlgorithm};
 use crate::tx::fee::{LinearFee, Milli, MilliError};
 use blake2::Blake2s;
@@ -238,23 +239,6 @@ impl fmt::Display for SlashRatioError {
             }
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum AccountType {
-    // vanilla -- redeemable
-    ExternallyOwnedAccount,
-    // smart contracts -- non-redeemable (moved to the initial rewards pool)
-    Contract,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum StakedStateDestination {
-    Bonded,
-    UnbondedFromGenesis,
-    UnbondedFromCustomTime(Timespec),
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]

@@ -7,7 +7,7 @@ use chain_core::common::MerkleTree;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
-    StakedState, StakedStateAddress, StakedStateOpWitness, WithdrawUnbondedTx,
+    StakedState, StakedStateDestination, StakedStateAddress, StakedStateOpWitness, WithdrawUnbondedTx,
 };
 use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::tree::RawPubkey;
@@ -62,9 +62,9 @@ pub fn get_ecdsa_witness<C: Signing>(
 fn get_account(account_address: &RedeemAddress) -> StakedState {
     StakedState::new_init(
         Coin::one(),
-        0,
+        None,
         StakedStateAddress::from(*account_address),
-        false,
+        &StakedStateDestination::UnbondedFromCustomTime(0),
     )
 }
 

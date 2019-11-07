@@ -2,8 +2,9 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::{
     InitConfig, InitNetworkParameters, JailingParameters, SlashRatio, SlashingParameters,
-    StakedStateDestination, ValidatorKeyType, ValidatorPubkey,
+    ValidatorKeyType, ValidatorPubkey,
 };
+use chain_core::state::account::StakedStateDestination;
 use chain_core::tx::fee::{LinearFee, Milli};
 use serde::Deserialize;
 use std::collections::BTreeMap;
