@@ -6,7 +6,6 @@ import {
 	shouldTest,
 	FEE_SCHEMA,
 	newWalletRequest,
-	sleep,
 	newZeroFeeRpcClient,
 	newWithFeeRpcClient,
 	asyncMiddleman,

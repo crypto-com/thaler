@@ -1,9 +1,9 @@
 ---
 kind: pipeline
-name: default
+name: rust
 
 steps:
-- name: test
+- name: Build and Test
   image: chain
   pull: never
   commands:
@@ -27,7 +27,7 @@ platform:
   arch: amd64
 
 steps:
-- name: integration-tests
+- name: Build and Test
   commands:
   - mkdir bin
   - export PATH="$PATH:$PWD/bin"
@@ -35,11 +35,21 @@ steps:
   - chmod +x bin/docker-compose
   - export NIX_REMOTE=daemon
   - export PATH="$PATH:/nix/var/nix/profiles/default/bin/"
+  - export DOCKER_COMPOSE_PREFIX="${DRONE_BRANCH}"
   - . /usr/local/etc/profile.d/nix.sh
   - . /opt/intel/sgxsdk/sgxsdk/environment
   # - nix-channel --add https://nixos.org/channels/nixpkgs-unstable
   # - nix-channel --update
-  - nix-shell drone.nix --run "./run-integration-tests.sh"
+  - nix-shell ci-scripts/drone.nix --run "./ci-scripts/run-integration-tests.sh"
+- name: Teardown
+  commands:
+  - export PATH="$PATH:$PWD/bin"
+  - cd integration-tests
+  - docker-compose -p "${DRONE_BRANCH}" down || exit 0
+  when:
+    status:
+      - success
+      - failure
 
 trigger:
   branch:
@@ -59,7 +69,7 @@ platform:
   arch: amd64
 
 steps:
-- name: hw-test-tx-validation
+- name: Build and Test
   commands:
   - export SGX_MODE=HW
   - export NETWORK_ID=ab
@@ -68,7 +78,15 @@ steps:
   - ls -l /dev/sgx
   - ls -l /var/run/aesmd/aesm.socket
   - cd chain-tx-enclave/tx-validation && make clean && SGX_TEST=1 make
-  - cd bin && ./tx-validation-app
+  - cd bin && sh -c 'echo $$$ > $HOME/.PID; exec ./tx-validation-app'
+- name: Teardown
+  commands:
+  - kill "$(cat "$HOME/.PID")" || echo "./tx-validation-app already exited"
+  - (ps | grep ./tx-validation-app) || exit 0
+  when:
+    status:
+      - success
+      - failure
 
 trigger:
   branch:
@@ -88,7 +106,7 @@ platform:
   arch: amd64
 
 steps:
-- name: hw-test-tx-query
+- name: Build and Test
   environment:
     SPID:
       from_secret: dev_spid
@@ -101,14 +119,23 @@ steps:
   - export NETWORK_ID=ab
   - export RUST_LOG=info
   - export TX_VALIDATION_BIN_DIR=`pwd`/chain-tx-enclave/tx-validation/bin/
+  - export TX_QUERY_APP_PORT=`./ci-scripts/find-free-port.sh`
   - . /opt/intel/sgxsdk/sgxsdk/environment
   - rustup default nightly-2019-08-01-x86_64-unknown-linux-gnu
   - ls -l /dev/sgx
   - ls -l /var/run/aesmd/aesm.socket
   - cd chain-tx-enclave/tx-validation && make clean && make
   - cd ../tx-query && make clean && SGX_TEST=1 make
-  - cd bin && ./tx-query-app
-  
+  - cd bin && sh -c 'echo $$$ > $HOME/.PID; exec ./tx-query-app'
+- name: Teardown
+  commands:
+  - kill "$(cat "$HOME/.PID")" || echo "./tx-query-app already exited"
+  - (ps | grep ./tx-query-app) || exit 0
+  when:
+    status:
+      - success
+      - failure
+
 trigger:
   branch:
   - master

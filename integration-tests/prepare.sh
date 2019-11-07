@@ -60,13 +60,17 @@ function init_tendermint() {
     print_config "TENDERMINT_VERSION" "${TENDERMINT_VERSION}"
     docker run --rm -v "$(pwd)/${1}:/tendermint" --env TMHOME=/tendermint --user "$(id -u):$(id -g)" "tendermint/tendermint:v${TENDERMINT_VERSION}" init
 
+    sync
+
     index_all_tags "${1}"
 }
 
 # @argument Tendermint directory
 function index_all_tags() {
     print_step "Enable tag indexing for ${1}"
-    cat "${1}/config/config.toml" | sed "s/index_all_tags = false/index_all_tags = true/g" | tee "${1}/config/config.toml" > /dev/null
+    sed -i -e "s/index_all_tags = false/index_all_tags = true/g" "${1}/config/config.toml"
+
+    sync
 }
 
 # @argument original Tendermint directory
@@ -143,8 +147,9 @@ function save_wallet_addresses() {
     echo "${ADDRESS_STATE_TEMPLATE}" | \
         jq --arg ADDRESS "${1}" '.staking=($ADDRESS)' | \
         jq --arg ADDRESS "${2}" '.transfer[0]=($ADDRESS)' | \
-        jq --arg ADDRESS "${3}" '.transfer[1]=($ADDRESS)' | \
-        tee ${ADDRESS_STATE_PATH} > /dev/null
+        jq --arg ADDRESS "${3}" '.transfer[1]=($ADDRESS)' > ${ADDRESS_STATE_PATH}
+    
+    sync
 }
 
 ADDRESS_STATE_TEMPLATE=$(cat << EOF
@@ -204,6 +209,8 @@ function generate_tendermint_genesis() {
     _change_tenermint_chain_id "${RET_VALUE}" "${3}"
 
     echo "${RET_VALUE}" > "${2}/config/genesis.json"
+
+    sync
 }
 
 # @argument Dev uilts config path
@@ -290,12 +297,14 @@ print_config "GENESIS_TIME" "${GENESIS_TIME}"
 # @argument Ouput File Path
 function generate_dev_conf() {
     print_step "Generating dev-utils configuration: Base Fee: ${1}, Per Byte Fee: ${2} -> ${3}"
-	echo "${DEV_CONF}" | \
-		sed "s/{STAKING_ADDRESS}/${STAKING_ADDRESS}/g" | \
-		sed "s/{BASE_FEE}/${1}/g" | \
-		sed "s/{PER_BYTE_FEE}/${2}/g" | \
+    echo "${DEV_CONF}" | \
+        sed "s/{STAKING_ADDRESS}/${STAKING_ADDRESS}/g" | \
+        sed "s/{BASE_FEE}/${1}/g" | \
+        sed "s/{PER_BYTE_FEE}/${2}/g" | \
         sed "s#{PUB_KEY}#${VALIDATOR_PUB_KEY}#g" | \
-		sed "s/{GENESIS_TIME}/${GENESIS_TIME}/g" | tee ${3} > /dev/null
+        sed "s/{GENESIS_TIME}/${GENESIS_TIME}/g" > ${3}
+
+    sync
 }
 
 generate_dev_conf "1.1" "1.25" "${DEVCONF_WITHFEE_PATH}"
@@ -304,4 +313,4 @@ generate_dev_conf "0.0" "0.0" "${DEVCONF_ZEROFEE_PATH}"
 generate_tendermint_genesis "${DEVCONF_WITHFEE_PATH}" "${TENDERMINT_WITHFEE_DIRECTORY}" "${CHAIN_ID}"
 generate_tendermint_genesis "${DEVCONF_ZEROFEE_PATH}" "${TENDERMINT_ZEROFEE_DIRECTORY}" "${CHAIN_ID}"
 
-sleep 5
+sync

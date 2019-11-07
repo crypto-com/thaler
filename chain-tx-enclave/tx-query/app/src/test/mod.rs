@@ -74,6 +74,9 @@ pub fn test_integration() {
     let mut builder = Builder::new();
     let validation_path =
         std::env::var("TX_VALIDATION_BIN_DIR").unwrap_or("/root/sgx/tx-validation/bin/".to_owned());
+    let query_server_host = std::env::var("TX_QUERY_APP_HOST").unwrap_or("0.0.0.0".to_owned());
+    let query_server_port = std::env::var("TX_QUERY_APP_PORT").unwrap_or("3443".to_owned());
+    let query_server_addr = format!("{}:{}", query_server_host, query_server_port);
     let validation_dir = Path::new(&validation_path);
     let connection_socket = format! {"ipc://{}integration.enclave", validation_path};
     builder
@@ -93,7 +96,8 @@ pub fn test_integration() {
 
         info!("Running TX Decryption Query server...");
 
-        let listener = TcpListener::bind("0.0.0.0:3443").expect("failed to bind the TCP socket");
+        let listener = TcpListener::bind(query_server_addr)
+            .expect("failed to bind the TCP socket");
 
         for _ in 0..2 {
             match listener.accept() {
@@ -192,8 +196,10 @@ pub fn test_integration() {
         }
 
         thread::sleep(time::Duration::from_secs(10));
-        let c =
-            DefaultTransactionObfuscation::new("localhost:3443".to_owned(), "localhost".to_owned());
+        let c = DefaultTransactionObfuscation::new(
+            format!("localhost:{}", query_server_port),
+            "localhost".to_owned(),
+        );
         let txids = vec![*txid];
         let r1 = c.decrypt(
             txids.as_slice(),

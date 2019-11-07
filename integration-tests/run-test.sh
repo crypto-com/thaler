@@ -79,9 +79,9 @@ function test_client_rpc() {
 }
 
 print_step "Testing Tendermint"
-test_tendermint 26657 "${WITHFEE_APP_HASH}"
-test_tendermint 16657 "${ZEROFEE_APP_HASH}"
+test_tendermint "${TENDERMINT_RPC_PORT:-26657}" "${WITHFEE_APP_HASH}"
+test_tendermint "${TENDERMINT_ZEROFEE_RPC_PORT:-16657}" "${ZEROFEE_APP_HASH}"
 
 print_step "Testing ClientRPC"
-test_client_rpc 26659
-test_client_rpc 16659
+test_client_rpc "${CLIENT_RPC_PORT:-26659}"
+test_client_rpc "${CLIENT_RPC_ZEROFEE_PORT:-16659}"

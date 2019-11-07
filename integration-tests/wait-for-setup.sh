@@ -67,10 +67,10 @@ trial=1
 MAX_TRIALS_LIMIT=$(( $MAX_TRIALS + 1 ))
 while true; do
     print_step "Waiting for Tendermint and ClientRPC readiness ... (${trial})"
-    is_tendermint_up 26657 && WITHFEE_TENDERMINT_READY=${RET_VALUE}
-    is_tendermint_up 16657 && ZEROFEE_TENDERMINT_READY=${RET_VALUE}
-    is_client_rpc_up 26659 && WITHFEE_CLIENT_RPC_READY=${RET_VALUE}
-    is_client_rpc_up 16659 && ZEROFEE_CLIENT_RPC_READY=${RET_VALUE}
+    is_tendermint_up "${TENDERMINT_RPC_PORT:-26657}" && WITHFEE_TENDERMINT_READY=${RET_VALUE}
+    is_tendermint_up "${TENDERMINT_ZEROFEE_RPC_PORT:-16657}" && ZEROFEE_TENDERMINT_READY=${RET_VALUE}
+    is_client_rpc_up "${CLIENT_RPC_PORT:-26659}" && WITHFEE_CLIENT_RPC_READY=${RET_VALUE}
+    is_client_rpc_up "${CLIENT_RPC_ZEROFEE_PORT:-16659}" && ZEROFEE_CLIENT_RPC_READY=${RET_VALUE}
     if [ "${WITHFEE_TENDERMINT_READY}" == "0" ] && [ "${ZEROFEE_TENDERMINT_READY}" == "0" ] && [ "${WITHFEE_CLIENT_RPC_READY}" == "0" ] && [ "${ZEROFEE_CLIENT_RPC_READY}" == "0" ]; then
         print_step "All Tendermint and ClientRPC are ready"
         break
