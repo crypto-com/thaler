@@ -1,0 +1,9 @@
+version: '3'
+services:
+  web:
+    build: .
+    volumes:
+     - .:/code
+    image: chain_test
+    ports:
+      - "1022:22"
