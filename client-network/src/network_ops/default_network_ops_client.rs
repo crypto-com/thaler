@@ -1,6 +1,7 @@
 use parity_scale_codec::Decode;
 use secstr::SecUtf8;
 
+use crate::NetworkOpsClient;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::state::account::{
     DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
@@ -14,9 +15,8 @@ use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction};
-use client_core::{Signer, TransactionObfuscation, UnspentTransactions, WalletClient};
-
-use crate::NetworkOpsClient;
+use client_core::signer::{DummySigner, Signer};
+use client_core::{TransactionObfuscation, UnspentTransactions, WalletClient};
 
 /// Default implementation of `NetworkOpsClient`
 pub struct DefaultNetworkOpsClient<W, S, C, F, E>
@@ -90,6 +90,25 @@ where
         match to_staked_account {
             StakedStateAddress::BasicRedeem(ref a) => self.get_account(&a.0),
         }
+    }
+
+    /// Calculate the withdraw unbounded fee
+    fn calculate_fee(&self, outputs: Vec<TxOut>, attributes: TxAttributes) -> Result<Coin> {
+        let tx = WithdrawUnbondedTx::new(0, outputs, attributes);
+        // mock the signature
+        let dummy_signer = DummySigner();
+        let tx_aux = dummy_signer.mock_txaux_for_withdraw(tx);
+        let fee = self
+            .fee_algorithm
+            .calculate_for_txaux(&tx_aux)
+            .chain(|| {
+                (
+                    ErrorKind::IllegalInput,
+                    "Calculated fee is more than the maximum allowed value",
+                )
+            })?
+            .to_coin();
+        Ok(fee)
     }
 }
 
@@ -311,29 +330,9 @@ where
         attributes: TxAttributes,
     ) -> Result<TxAux> {
         let staked_state = self.get_staked_state(name, passphrase, from_address)?;
-
         let temp_output =
             TxOut::new_with_timelock(to_address.clone(), Coin::zero(), staked_state.unbonded_from);
-
-        let temp_transaction = self.create_withdraw_unbonded_stake_transaction(
-            name,
-            passphrase,
-            from_address,
-            vec![temp_output],
-            attributes.clone(),
-        )?;
-
-        let fee = self
-            .fee_algorithm
-            .calculate_for_txaux(&temp_transaction)
-            .chain(|| {
-                (
-                    ErrorKind::IllegalInput,
-                    "Calculated fee is more than the maximum allowed value",
-                )
-            })?
-            .to_coin();
-
+        let fee = self.calculate_fee(vec![temp_output], attributes.clone())?;
         let amount = (staked_state.unbonded - fee).chain(|| {
             (
                 ErrorKind::IllegalInput,

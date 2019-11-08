@@ -4,12 +4,11 @@ use crate::signer::DummySigner;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
-use chain_core::tx::data::{input::TxoIndex, output::TxOut};
 use chain_core::tx::fee::FeeAlgorithm;
-use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
+use chain_core::tx::{TransactionId, TxAux};
 use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction};
-use parity_scale_codec::Encode;
 
 use crate::{
     SelectedUnspentTransactions, Signer, TransactionBuilder, TransactionObfuscation,
@@ -64,7 +63,7 @@ where
             )
         })?;
         let mut fees = Coin::zero();
-        let dummy_signer = DummySigner {};
+        let dummy_signer = DummySigner();
         let (tx, selected_unspent_txs) = loop {
             let (selected_unspent_txs, difference_amount) =
                 unspent_transactions.select((output_value + fees).chain(|| {
@@ -83,26 +82,8 @@ where
             );
 
             // use the dummy signer to sign the selected unspent transactions
-            let witness = dummy_signer.sign(total_pubkeys_len, &selected_unspent_txs)?;
-            let plain_payload_len = PlainTxAux::TransferTx(tx.clone(), witness).encode().len();
-            //  pad the payload to the multiples of 128bit(8bit*16)
-            let padded_payload = if plain_payload_len % 16_usize == 0 {
-                vec![0; plain_payload_len]
-            } else {
-                vec![0; plain_payload_len + 16_usize - plain_payload_len % 16_usize]
-            };
-            // mock the enclave encrypted result
-            let tx_enclave_aux = TxEnclaveAux::TransferTx {
-                inputs: tx.inputs.clone(),
-                no_of_outputs: tx.outputs.len() as TxoIndex,
-                payload: TxObfuscated {
-                    txid: [0; 32],
-                    key_from: 0,
-                    init_vector: [0u8; 12],
-                    txpayload: padded_payload,
-                },
-            };
-            let tx_aux = TxAux::EnclaveTx(tx_enclave_aux);
+            let witness = dummy_signer.sign_txs(total_pubkeys_len, &selected_unspent_txs)?;
+            let tx_aux = dummy_signer.mock_txaux_for_tx(tx.clone(), witness);
             let new_fees = self
                 .fee_algorithm
                 .calculate_for_txaux(&tx_aux)
