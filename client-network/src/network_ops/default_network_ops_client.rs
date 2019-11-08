@@ -531,7 +531,7 @@ mod tests {
         let to_staked_account = network_ops_client
             .get_wallet_client()
             .new_staking_address(name, passphrase)
-            .unwrap();;
+            .unwrap();
 
         let attributes = StakedStateOpAttributes::new(0);
         assert!(network_ops_client
