@@ -16,7 +16,7 @@ pub type BlockHeight = i64;
 /// The protobuf structure currently has "String" to denote the type / length
 /// and variable length byte array. In this internal representation,
 /// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
-#[derive(Debug, PartialEq, Eq, Hash, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TendermintValidatorPubKey {
     Ed25519([u8; 32]),
@@ -168,7 +168,8 @@ impl TryFrom<&[u8]> for TendermintValidatorAddress {
 pub const TENDERMINT_MAX_VOTE_POWER: i64 = std::i64::MAX / 1000;
 
 /// Tendermint consensus voting power
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TendermintVotePower(i64);
 
 impl From<TendermintVotePower> for i64 {

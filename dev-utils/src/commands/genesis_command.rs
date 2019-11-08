@@ -69,6 +69,7 @@ impl GenesisCommand {
             unbonding_period: genesis_dev.unbonding_period,
             jailing_config: genesis_dev.jailing_config,
             slashing_config: genesis_dev.slashing_config,
+            max_validators: 50,
         };
         let init_network_params = NetworkParameters::Genesis(network_params.clone());
         let config = InitConfig::new(

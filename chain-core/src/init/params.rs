@@ -1,15 +1,12 @@
 use crate::common::Timespec;
 use crate::common::{hash256, H256};
-use crate::init::address::RedeemAddress;
 use crate::init::coin::{Coin, CoinError};
-use crate::state::account::StakedStateDestination;
 use crate::tx::fee::{Fee, FeeAlgorithm};
 use crate::tx::fee::{LinearFee, Milli, MilliError};
 use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::fmt;
 use std::ops::Mul;
@@ -33,6 +30,8 @@ pub struct InitNetworkParameters {
     pub jailing_config: JailingParameters,
     /// Slashing configuration
     pub slashing_config: SlashingParameters,
+    /// maximum number of active validators at a time (may be reshuffled)
+    pub max_validators: u16,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
@@ -47,6 +46,12 @@ impl NetworkParameters {
     /// retrieves the hash of the current state (currently blake2s(scale_code_bytes(network params)))
     pub fn hash(&self) -> H256 {
         hash256::<Blake2s>(&self.encode())
+    }
+
+    pub fn get_max_validators(&self) -> usize {
+        match self {
+            NetworkParameters::Genesis(params) => params.max_validators as usize,
+        }
     }
 
     pub fn get_required_council_node_stake(&self) -> Coin {
@@ -139,7 +144,7 @@ pub struct SlashRatio(Milli);
 
 impl SlashRatio {
     #[inline]
-    pub(crate) fn as_millis(self) -> u64 {
+    pub fn as_millis(self) -> u64 {
         self.0.as_millis()
     }
 }
@@ -254,20 +259,4 @@ pub struct ValidatorPubkey {
     pub consensus_pubkey_type: ValidatorKeyType,
     // Tendermint consensus public key encoded in base64
     pub consensus_pubkey_b64: String,
-}
-
-/// Initial configuration ("app_state" in genesis.json of Tendermint config)
-/// TODO: reward/treasury config, extra validator config...
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct InitConfig {
-    // initial rewards pool of CRO tokens
-    pub rewards_pool: Coin,
-    // Redeem mapping of ERC20 snapshot: Eth address => (StakedStateDestination,CRO tokens)
-    // (doesn't include the rewards pool amount)
-    pub distribution: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
-    // initial network parameters
-    pub network_params: InitNetworkParameters,
-    // initial validators
-    pub council_nodes: BTreeMap<RedeemAddress, ValidatorPubkey>,
 }

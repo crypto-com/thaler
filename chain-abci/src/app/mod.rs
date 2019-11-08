@@ -8,7 +8,7 @@ mod validate_tx;
 use abci::*;
 use log::info;
 
-pub use self::app_init::{ChainNodeApp, ChainNodeState};
+pub use self::app_init::{get_validator_key, ChainNodeApp, ChainNodeState};
 use crate::enclave_bridge::EnclaveProxy;
 use crate::liveness::LivenessTracker;
 use crate::slashing::SlashingSchedule;
@@ -19,9 +19,7 @@ use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
 use chain_core::common::TendermintEventType;
 use chain_core::state::account::StakedState;
-use chain_core::state::tendermint::{
-    BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
-};
+use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::{TxAux, TxEnclaveAux};
 use chain_tx_filter::BlockFilter;
@@ -391,24 +389,29 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         // TODO: skipchain-based validator changes?
         if !self.power_changed_in_block.is_empty() {
             let mut validators = Vec::with_capacity(self.power_changed_in_block.len());
+            // FIXME: this logic should change with new Tx type to propose validators
+            let last_state = self
+                .last_state
+                .as_mut()
+                .expect("Last app state not found, init chain was not called");
             for (address, new_power) in self.power_changed_in_block.iter() {
                 let old_power = self.validator_voting_power[&address];
                 // sanity check, as multiple transactions/events may have cancelled out the vote power change
                 if old_power != *new_power {
+                    let old_key = (old_power, *address);
+                    let node = last_state
+                        .council_nodes_by_power
+                        .remove(&old_key)
+                        .expect("council node data should be present");
                     let mut validator = ValidatorUpdate::default();
                     validator.set_power(i64::from(*new_power));
-                    validator.set_pub_key(self.validator_pubkeys[&address].clone());
+                    validator.set_pub_key(get_validator_key(&node));
                     validators.push(validator);
-
-                    let last_state = self
-                        .last_state
-                        .as_mut()
-                        .expect("Last app state not found, init chain was not called");
 
                     let validator_liveness = &mut last_state.punishment.validator_liveness;
 
                     let validator_address: TendermintValidatorAddress =
-                        into_tendermint_validator_pub_key(&self.validator_pubkeys[&address]).into();
+                        node.consensus_pubkey.clone().into();
 
                     let new_vote_power: i64 = (*new_power).into();
 
@@ -425,6 +428,9 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                             ),
                         );
                     }
+                    last_state
+                        .council_nodes_by_power
+                        .insert((*new_power, *address), node);
                 }
                 self.validator_voting_power.insert(*address, *new_power);
             }
@@ -476,20 +482,4 @@ fn update_validator_liveness(
             }
         }
     }
-}
-
-/// Converts `abci::PubKey` into `TendermintValidatorPubKey`
-pub fn into_tendermint_validator_pub_key(pubkey: &PubKey) -> TendermintValidatorPubKey {
-    if pubkey.field_type != "ed25519" {
-        panic!("Received invalid pubkey type");
-    }
-
-    if pubkey.data.len() != 32 {
-        panic!("Reviced pubkey of invalid length");
-    }
-
-    let mut bytes = [0; 32];
-    bytes.copy_from_slice(&pubkey.data);
-
-    TendermintValidatorPubKey::Ed25519(bytes)
 }

@@ -67,7 +67,7 @@ pub enum SignedTransaction {
     ///
     /// NOTE: `StakedState` is needed because this type is primarily for encryption of transaction where we need
     /// `StakedState`.
-    WithdrawUnbondedStakeTransaction(WithdrawUnbondedTx, StakedState, StakedStateOpWitness),
+    WithdrawUnbondedStakeTransaction(WithdrawUnbondedTx, Box<StakedState>, StakedStateOpWitness),
 }
 
 impl TransactionId for SignedTransaction {

@@ -16,9 +16,8 @@ use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::NetworkParameters;
 use chain_core::state::account::StakedStateDestination;
-use chain_core::state::account::{StakedState, StakedStateAddress};
+use chain_core::state::account::{CouncilNode, StakedState, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
-use chain_core::state::CouncilNode;
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::TxAux;
 use chain_tx_filter::BlockFilter;
@@ -46,7 +45,8 @@ pub struct ChainNodeState {
     /// network parameters (fee policy, staking configuration etc.)
     pub network_params: NetworkParameters,
     /// council nodes metadata
-    pub council_nodes: Vec<CouncilNode>,
+    /// FIXME: delete node metadata if voting power == 0 for longer than unbonding time
+    pub council_nodes_by_power: BTreeMap<(TendermintVotePower, StakedStateAddress), CouncilNode>,
     /// Runtime state for computing and executing validator punishment
     pub punishment: ValidatorPunishment,
 }
@@ -58,7 +58,7 @@ impl ChainNodeState {
         last_account_root_hash: StarlingFixedKey,
         rewards_pool: RewardsPoolState,
         network_params: NetworkParameters,
-        council_nodes: Vec<CouncilNode>,
+        council_nodes_by_power: BTreeMap<(TendermintVotePower, StakedStateAddress), CouncilNode>,
         punishment: ValidatorPunishment,
     ) -> Self {
         ChainNodeState {
@@ -68,7 +68,7 @@ impl ChainNodeState {
             last_account_root_hash,
             rewards_pool,
             network_params,
-            council_nodes,
+            council_nodes_by_power,
             punishment,
         }
     }
@@ -94,8 +94,6 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub last_state: Option<ChainNodeState>,
     /// validator voting power
     pub validator_voting_power: BTreeMap<StakedStateAddress, TendermintVotePower>,
-    /// validator public keys
-    pub validator_pubkeys: BTreeMap<StakedStateAddress, PubKey>,
     /// validator addresses whose bonded amount changed in the current block
     pub power_changed_in_block: BTreeMap<StakedStateAddress, TendermintVotePower>,
     /// proxy for processing transaction validation requests
@@ -106,7 +104,7 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub tx_query_address: Option<String>,
 }
 
-fn get_validator_key(node: &CouncilNode) -> PubKey {
+pub fn get_validator_key(node: &CouncilNode) -> PubKey {
     let mut pk = PubKey::new();
     let (keytype, key) = node.consensus_pubkey.to_validator_update();
     pk.set_field_type(keytype);
@@ -117,44 +115,52 @@ fn get_validator_key(node: &CouncilNode) -> PubKey {
 fn get_validator_mapping(
     accounts: &AccountStorage,
     last_app_state: &ChainNodeState,
-) -> (
-    BTreeMap<StakedStateAddress, TendermintVotePower>,
-    BTreeMap<StakedStateAddress, PubKey>,
-) {
+) -> BTreeMap<StakedStateAddress, TendermintVotePower> {
     let mut validator_voting_power = BTreeMap::new();
-    let mut validator_pubkeys = BTreeMap::new();
-    for node in last_app_state.council_nodes.iter() {
-        let pk = get_validator_key(&node);
-        validator_pubkeys.insert(node.staking_account_address, pk);
-        let account = get_account(
-            &node.staking_account_address,
-            &last_app_state.last_account_root_hash,
-            accounts,
-        )
-        .expect("council node staking account should be in the account state");
+    for ((voting_power, address), node) in last_app_state
+        .council_nodes_by_power
+        .iter()
+        .rev()
+        .take(last_app_state.network_params.get_max_validators())
+    {
+        // integrity checks -- committed / disk-persisted values should match up
+        let account = get_account(&address, &last_app_state.last_account_root_hash, accounts)
+            .expect("council node staking state address should be in the state trie");
+        assert!(
+            &account.council_node.is_some(),
+            "council node's staking state should contain it"
+        );
         if account.is_jailed()
             || account.bonded
                 < last_app_state
                     .network_params
                     .get_required_council_node_stake()
         {
-            validator_voting_power.insert(
-                node.staking_account_address,
-                TendermintVotePower::from(Coin::zero()),
+            let vp = TendermintVotePower::from(Coin::zero());
+            assert!(
+                voting_power == &vp,
+                "jailed or below minimum bonded amounts should have 0 voting power"
             );
+            validator_voting_power.insert(*address, vp);
         } else {
-            validator_voting_power.insert(
-                node.staking_account_address,
-                TendermintVotePower::from(account.bonded),
+            let vp = TendermintVotePower::from(account.bonded);
+            assert!(
+                voting_power == &vp,
+                "voting power should match the bonded amount"
             );
+            validator_voting_power.insert(*address, vp);
         }
+        assert!(
+            node == &account.council_node.unwrap(),
+            "council node should match the one in the state trie"
+        );
     }
-    (validator_voting_power, validator_pubkeys)
+    validator_voting_power
 }
 
 fn check_and_store_consensus_params(
     init_consensus_params: Option<&ConsensusParams>,
-    _validators: &[CouncilNode],
+    _validators: &[(StakedStateAddress, CouncilNode)],
     _network_params: &NetworkParameters,
     inittx: &mut DBTransaction,
 ) {
@@ -234,8 +240,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
 
-        let (validator_voting_power, validator_pubkeys) =
-            get_validator_mapping(&accounts, &last_app_state);
+        let validator_voting_power = get_validator_mapping(&accounts, &last_app_state);
         ChainNodeApp {
             storage,
             accounts,
@@ -246,7 +251,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             genesis_app_hash,
             last_state: Some(last_app_state),
             validator_voting_power,
-            validator_pubkeys,
             power_changed_in_block: BTreeMap::new(),
             tx_validator,
             rewards_pool_updated: false,
@@ -355,7 +359,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 genesis_app_hash,
                 last_state: None,
                 validator_voting_power: BTreeMap::new(),
-                validator_pubkeys: BTreeMap::new(),
                 power_changed_in_block: BTreeMap::new(),
                 tx_validator,
                 rewards_pool_updated: false,
@@ -441,24 +444,20 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             // NOTE: &req.validators are ignored / replaced by init config
             let mut validators = Vec::with_capacity(nodes.len());
             let mut validator_liveness = BTreeMap::new();
-            for node in nodes.iter() {
+            let mut validator_by_voting_power = BTreeMap::new();
+            for (address, node) in nodes.iter() {
                 let mut validator = ValidatorUpdate::default();
-                let power = get_voting_power(&conf.distribution, &node.staking_account_address);
-                self.validator_voting_power
-                    .insert(node.staking_account_address, power);
+                let power = get_voting_power(&conf.distribution, address);
+                self.validator_voting_power.insert(*address, power);
+                validator_by_voting_power.insert((power, *address), node.clone());
                 validator.set_power(power.into());
                 let pk = get_validator_key(&node);
-                self.validator_pubkeys
-                    .insert(node.staking_account_address, pk.clone());
                 validator.set_pub_key(pk);
                 validators.push(validator);
 
                 validator_liveness.insert(
                     TendermintValidatorAddress::from(&node.consensus_pubkey),
-                    LivenessTracker::new(
-                        node.staking_account_address,
-                        network_params.get_block_signing_window(),
-                    ),
+                    LivenessTracker::new(*address, network_params.get_block_signing_window()),
                 );
             }
             let mut resp = ResponseInitChain::new();
@@ -469,7 +468,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 new_account_root,
                 rp,
                 network_params,
-                nodes,
+                validator_by_voting_power,
                 ValidatorPunishment {
                     validator_liveness,
                     slashing_schedule: Default::default(),
