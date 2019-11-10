@@ -268,7 +268,9 @@ impl WebsocketRpcClient {
 impl Client for WebsocketRpcClient {
     #[inline]
     fn genesis(&self) -> Result<Genesis> {
-        self.call("genesis", Default::default())
+        Ok(self
+            .call::<GenesisResponse>("genesis", Default::default())?
+            .genesis)
     }
 
     #[inline]
@@ -279,7 +281,7 @@ impl Client for WebsocketRpcClient {
     #[inline]
     fn block(&self, height: u64) -> Result<Block> {
         let params = [json!(height.to_string())];
-        self.call("block", &params)
+        Ok(self.call::<BlockResponse>("block", &params)?.block)
     }
 
     #[inline]
@@ -287,7 +289,8 @@ impl Client for WebsocketRpcClient {
         let params = heights
             .map(|height| ("block", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
-        self.call_batch::<Block>(params)
+        let mut rsps = self.call_batch::<BlockResponse>(params)?;
+        Ok(rsps.drain(..).map(|rsp| rsp.block).collect())
     }
 
     #[inline]
@@ -307,31 +310,33 @@ impl Client for WebsocketRpcClient {
         self.call_batch::<BlockResults>(params)
     }
 
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult> {
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResponse> {
         let params = [json!(transaction)];
-        let broadcast_tx_result: BroadcastTxResult = self.call("broadcast_tx_sync", &params)?;
+        let rsp = self.call::<BroadcastTxResponse>("broadcast_tx_sync", &params)?;
 
-        if broadcast_tx_result.code != 0 {
-            Err(Error::new(
-                ErrorKind::TendermintRpcError,
-                broadcast_tx_result.log,
-            ))
+        if rsp.code.is_err() {
+            Err(Error::new(ErrorKind::TendermintRpcError, rsp.log.as_ref()))
         } else {
-            Ok(broadcast_tx_result)
+            Ok(rsp)
         }
     }
 
-    fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult> {
+    fn query(&self, path: &str, data: &[u8]) -> Result<AbciQuery> {
         let params = [
             json!(path),
             json!(hex::encode(data)),
             json!(null),
             json!(null),
         ];
-        let result: QueryResult = self.call("abci_query", &params)?;
+        let result = self
+            .call::<AbciQueryResponse>("abci_query", &params)?
+            .response;
 
-        if result.code() != 0 {
-            return Err(Error::new(ErrorKind::TendermintRpcError, result.log()));
+        if result.code.is_err() {
+            return Err(Error::new(
+                ErrorKind::TendermintRpcError,
+                result.log.to_string(),
+            ));
         }
 
         Ok(result)

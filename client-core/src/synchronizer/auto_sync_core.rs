@@ -3,7 +3,7 @@
 //! change wallets and continue syncing
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_filter::BlockFilter;
-use client_common::tendermint::types::Block;
+use client_common::tendermint::types::{Block, BlockExt};
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage, Transaction};
 use futures::sink::Sink;
@@ -148,7 +148,7 @@ where
             return Ok(());
         }
         // restore as object
-        let height: u64 = block.height()?;
+        let height: u64 = block.header.height.value();
         let current = self.get_current_height();
         if height != current + 1 {
             log::info!(
@@ -202,10 +202,10 @@ where
 
     /// low level block processing
     pub fn write_block(&self, block_height: u64, block: &Block) -> Result<()> {
-        let app_hash = block.app_hash();
+        let app_hash = block.header.app_hash.to_string();
         let block_results = self.client.block_results(block_height)?;
 
-        let block_time = block.time();
+        let block_time = block.header.time;
 
         let transaction_ids = block_results.transaction_ids()?;
         let block_filter = block_results.block_filter()?;
@@ -545,10 +545,9 @@ mod tests {
     use std::sync::Arc;
     use std::sync::Mutex;
 
+    use super::super::auto_sync_data::{AutoSyncData, AutoSyncSendQueue};
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
-
-    use super::super::auto_sync_data::{AutoSyncData, AutoSyncSendQueue};
 
     struct MockClient;
 
@@ -580,16 +579,11 @@ mod tests {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
-            Ok(BroadcastTxResult {
-                code: 0,
-                data: String::from(""),
-                hash: String::from(""),
-                log: String::from(""),
-            })
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
+            Ok(BroadcastTxResponse::default())
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
             unreachable!()
         }
     }

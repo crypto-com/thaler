@@ -106,7 +106,9 @@ impl RpcClient {
 
 impl Client for RpcClient {
     fn genesis(&self) -> Result<Genesis> {
-        self.call("genesis", Default::default())
+        Ok(self
+            .call::<GenesisResponse>("genesis", Default::default())?
+            .genesis)
     }
 
     fn status(&self) -> Result<Status> {
@@ -115,18 +117,20 @@ impl Client for RpcClient {
 
     fn block(&self, height: u64) -> Result<Block> {
         let params = [json!(height.to_string())];
-        self.call("block", &params)
+        Ok(self.call::<BlockResponse>("block", &params)?.block)
     }
 
     fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, heights: T) -> Result<Vec<Block>> {
         let params = heights
             .map(|height| ("block", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
-        let response = self.call_batch::<Block>(&params)?;
 
-        response
-            .into_iter()
-            .map(|block| block.chain(|| (ErrorKind::InvalidInput, "Block information not found")))
+        let mut rsps = self.call_batch::<BlockResponse>(&params)?;
+        rsps.drain(..)
+            .map(|rsp| {
+                rsp.chain(|| (ErrorKind::InvalidInput, "Block information not found"))
+                    .map(|rsp_| rsp_.block)
+            })
             .collect::<Result<Vec<Block>>>()
     }
 
@@ -157,29 +161,37 @@ impl Client for RpcClient {
             .collect::<Result<Vec<BlockResults>>>()
     }
 
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult> {
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResponse> {
         let params = [json!(transaction)];
-        self.call::<BroadcastTxResult>("broadcast_tx_sync", &params)
+        self.call::<BroadcastTxResponse>("broadcast_tx_sync", &params)
             .and_then(|result| {
-                if result.code != 0 {
-                    Err(Error::new(ErrorKind::TendermintRpcError, result.log))
+                if result.code.is_err() {
+                    Err(Error::new(
+                        ErrorKind::TendermintRpcError,
+                        result.log.to_string(),
+                    ))
                 } else {
                     Ok(result)
                 }
             })
     }
 
-    fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult> {
+    fn query(&self, path: &str, data: &[u8]) -> Result<AbciQuery> {
         let params = [
             json!(path),
             json!(hex::encode(data)),
             json!(null),
             json!(null),
         ];
-        let result = self.call::<QueryResult>("abci_query", &params)?;
+        let result = self
+            .call::<AbciQueryResponse>("abci_query", &params)?
+            .response;
 
-        if result.code() != 0 {
-            return Err(Error::new(ErrorKind::TendermintRpcError, result.log()));
+        if result.code.is_err() {
+            return Err(Error::new(
+                ErrorKind::TendermintRpcError,
+                result.log.to_string(),
+            ));
         }
 
         Ok(result)

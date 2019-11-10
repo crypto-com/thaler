@@ -6,7 +6,7 @@ use secstr::SecUtf8;
 
 use chain_core::state::account::StakedStateAddress;
 use chain_tx_filter::BlockFilter;
-use client_common::tendermint::types::{Block, BlockResults, Status};
+use client_common::tendermint::types::{Block, BlockExt, BlockResults, Status};
 use client_common::tendermint::Client;
 use client_common::{BlockHeader, Result, Storage, Transaction};
 
@@ -84,7 +84,7 @@ where
         let last_block_height = self
             .global_state_service
             .last_block_height(name, passphrase)?;
-        let current_block_height = status.last_block_height()?;
+        let current_block_height = status.sync_info.latest_block_height.value();
 
         if let Some(ref sender) = &progress_reporter {
             let _ = sender.send(ProgressReport::Init {
@@ -147,7 +147,7 @@ where
 
                 if let Some(ref sender) = &progress_reporter {
                     let _ = sender.send(ProgressReport::Update {
-                        current_block_height: block.height()?,
+                        current_block_height: block.header.height.value(),
                     });
                 }
             }
@@ -182,10 +182,10 @@ where
         progress_reporter: &Option<Sender<ProgressReport>>,
     ) -> Result<bool> {
         let last_app_hash = self.global_state_service.last_app_hash(name, passphrase)?;
-        let current_app_hash = status.last_app_hash();
+        let current_app_hash = status.sync_info.latest_app_hash.to_string();
 
         if current_app_hash == last_app_hash {
-            let current_block_height = status.last_block_height()?;
+            let current_block_height = status.sync_info.latest_block_height.value();
 
             let block = self.client.block(current_block_height)?;
             let block_result = self.client.block_results(current_block_height)?;
@@ -215,10 +215,10 @@ where
         progress_reporter: &Option<Sender<ProgressReport>>,
     ) -> Result<bool> {
         let last_app_hash = self.global_state_service.last_app_hash(name, passphrase)?;
-        let current_app_hash = block.app_hash();
+        let current_app_hash = block.header.app_hash.to_string();
 
         if current_app_hash == last_app_hash {
-            let current_block_height = block.height()?;
+            let current_block_height = block.header.height.value();
 
             let block_result = self.client.block_results(current_block_height)?;
 
@@ -257,9 +257,9 @@ fn prepare_block_header(
     block: &Block,
     block_result: &BlockResults,
 ) -> Result<BlockHeader> {
-    let app_hash = block.app_hash();
-    let block_height = block.height()?;
-    let block_time = block.time();
+    let app_hash = block.header.app_hash.to_string();
+    let block_height = block.header.height.value();
+    let block_time = block.header.time;
 
     let transaction_ids = block_result.transaction_ids()?;
     let block_filter = block_result.block_filter()?;
@@ -284,7 +284,6 @@ mod tests {
     use std::str::FromStr;
 
     use base64::encode;
-    use chrono::DateTime;
     use parity_scale_codec::Encode;
     use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 
@@ -296,6 +295,7 @@ mod tests {
     };
     use chain_core::tx::TxAux;
     use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::mock::*;
     use client_common::tendermint::types::*;
     use client_common::ErrorKind;
 
@@ -354,43 +354,45 @@ mod tests {
 
         fn status(&self) -> Result<Status> {
             Ok(Status {
-                sync_info: SyncInfo {
-                    latest_block_height: "2".to_owned(),
-                    latest_app_hash:
-                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
-                            .to_string(),
+                sync_info: status::SyncInfo {
+                    latest_block_height: Height::default().increment(),
+                    latest_app_hash: Hash::from_str(
+                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                    )
+                    .unwrap(),
+                    ..Default::default()
                 },
+                ..status_response()
             })
         }
 
         fn block(&self, height: u64) -> Result<Block> {
             if height == 1 {
                 Ok(Block {
-                    block: BlockInner {
-                        header: Header {
-                            app_hash:
-                                "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3D"
-                                    .to_string(),
-                            height: "1".to_owned(),
-                            time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
-                        },
-                        data: Data { txs: None },
+                    header: Header {
+                        app_hash: Hash::from_str(
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3D",
+                        )
+                        .unwrap(),
+                        height: height.into(),
+                        time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                        ..default_header()
                     },
+                    ..default_block()
                 })
             } else if height == 2 {
                 Ok(Block {
-                    block: BlockInner {
-                        header: Header {
-                            app_hash:
-                                "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
-                                    .to_string(),
-                            height: "2".to_owned(),
-                            time: DateTime::from_str("2019-04-10T09:38:41.735577Z").unwrap(),
-                        },
-                        data: Data {
-                            txs: Some(vec![encode(&unbond_transaction().encode())]),
-                        },
+                    header: Header {
+                        app_hash: Hash::from_str(
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                        )
+                        .unwrap(),
+                        height: height.into(),
+                        time: Time::from_str("2019-04-10T09:38:41.735577Z").unwrap(),
+                        ..default_header()
                     },
+                    data: Data::new(vec![abci::Transaction::new(unbond_transaction().encode())]),
+                    ..default_block()
                 })
             } else {
                 Err(ErrorKind::InvalidInput.into())
@@ -404,7 +406,7 @@ mod tests {
         fn block_results(&self, height: u64) -> Result<BlockResults> {
             if height == 1 {
                 Ok(BlockResults {
-                    height: "1".to_string(),
+                    height: Height::default(),
                     results: Results {
                         deliver_tx: None,
                         end_block: Some(EndBlock {
@@ -423,7 +425,7 @@ mod tests {
                 block_filter.add_staked_state_address(&self.staking_address);
 
                 Ok(BlockResults {
-                    height: "2".to_string(),
+                    height: Height::default().increment(),
                     results: Results {
                         deliver_tx: Some(vec![DeliverTx {
                             events: vec![Event {
@@ -460,11 +462,11 @@ mod tests {
             heights.map(|height| self.block_results(*height)).collect()
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
             unreachable!()
         }
     }

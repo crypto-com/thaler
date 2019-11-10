@@ -13,6 +13,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
+use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction};
 use client_core::signer::{DummySigner, Signer};
@@ -478,11 +479,11 @@ mod tests {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _: &[u8]) -> Result<BroadcastTxResult> {
+        fn broadcast_transaction(&self, _: &[u8]) -> Result<BroadcastTxResponse> {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
             let staked_state = StakedState::new(
                 0,
                 Coin::zero(),
@@ -496,12 +497,9 @@ mod tests {
                 }),
             );
 
-            Ok(QueryResult {
-                response: Response {
-                    code: 0,
-                    value: base64::encode(&staked_state.encode()),
-                    log: "".to_owned(),
-                },
+            Ok(AbciQuery {
+                value: base64::encode(&staked_state.encode()),
+                ..Default::default()
             })
         }
     }

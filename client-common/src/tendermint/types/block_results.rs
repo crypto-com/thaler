@@ -8,11 +8,12 @@ use chain_core::common::TendermintEventType;
 use chain_core::tx::data::TxId;
 use chain_tx_filter::BlockFilter;
 
+use crate::tendermint::types::Height;
 use crate::{Error, ErrorKind, Result, ResultExt};
 
 #[derive(Debug, Deserialize)]
 pub struct BlockResults {
-    pub height: String,
+    pub height: Height,
     pub results: Results,
 }
 
@@ -145,7 +146,7 @@ mod tests {
     #[test]
     fn check_ids() {
         let block_results = BlockResults {
-            height: "2".to_owned(),
+            height: Height::default().increment(),
             results: Results {
                 deliver_tx: Some(vec![DeliverTx {
                     events: vec![Event {
@@ -165,7 +166,7 @@ mod tests {
     #[test]
     fn check_block_filter() {
         let block_results = BlockResults {
-            height: "2".to_owned(),
+            height: Height::default().increment(),
             results: Results {
                 deliver_tx: None,
                 end_block: Some(EndBlock {
@@ -185,7 +186,7 @@ mod tests {
     #[test]
     fn check_wrong_id() {
         let block_results = BlockResults {
-            height: "2".to_owned(),
+            height: Height::default().increment(),
             results: Results {
                 deliver_tx: Some(vec![DeliverTx {
                     events: vec![Event {
@@ -206,7 +207,7 @@ mod tests {
     #[test]
     fn check_null_deliver_tx() {
         let block_results = BlockResults {
-            height: "2".to_owned(),
+            height: Height::default().increment(),
             results: Results {
                 deliver_tx: None,
                 end_block: None,

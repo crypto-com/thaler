@@ -54,7 +54,15 @@ impl Error {
 impl fmt::Display for Error {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.kind, self.message)
+        write!(
+            f,
+            "{}: {}, {}",
+            self.kind,
+            self.message,
+            self.origin
+                .as_ref()
+                .map_or("".to_owned(), |err| err.to_string())
+        )
     }
 }
 

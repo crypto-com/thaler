@@ -23,6 +23,7 @@ jsonrpc = { version = "0.11", optional = true }
 serde_json = { version = "1.0", optional = true }
 parity-scale-codec = { features = ["derive"], version = "1.0" }
 websocket = { version = "0.24", default-features = false, features = ["sync"], optional = true }
+tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", rev = "bb27fdc5dd0ce59767badab246d1d4c203cf3d23" }
 
 [features]
 default = ["sled", "websocket-rpc"]

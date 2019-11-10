@@ -35,11 +35,11 @@ impl Client for UnauthorizedClient {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+    fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+    fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
         Err(ErrorKind::PermissionDenied.into())
     }
 }

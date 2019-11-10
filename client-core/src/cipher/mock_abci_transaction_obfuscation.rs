@@ -2,6 +2,7 @@ use parity_scale_codec::{Decode, Encode};
 
 use chain_core::tx::data::TxId;
 use chain_core::tx::{TxAux, TxWithOutputs};
+use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
 use client_common::{
     ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction, SECP,
@@ -163,11 +164,11 @@ mod tests {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
             unreachable!()
         }
 
-        fn query(&self, path: &str, _data: &[u8]) -> Result<QueryResult> {
+        fn query(&self, path: &str, _data: &[u8]) -> Result<AbciQuery> {
             match path {
                 "mockdecrypt" => {
                     let response = DecryptionResponse {
@@ -175,12 +176,9 @@ mod tests {
                     }
                     .encode();
 
-                    Ok(QueryResult {
-                        response: Response {
-                            code: 0,
-                            value: encode(&response),
-                            log: "".to_owned(),
-                        },
+                    Ok(AbciQuery {
+                        value: encode(&response),
+                        ..Default::default()
                     })
                 }
                 "mockencrypt" => {
@@ -189,12 +187,9 @@ mod tests {
                     }
                     .encode();
 
-                    Ok(QueryResult {
-                        response: Response {
-                            code: 0,
-                            value: encode(&response),
-                            log: "".to_owned(),
-                        },
+                    Ok(AbciQuery {
+                        value: encode(&response),
+                        ..Default::default()
                     })
                 }
                 _ => Err(ErrorKind::InvalidInput.into()),

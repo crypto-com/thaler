@@ -1,4 +1,3 @@
-use crate::tendermint::types::QueryResult;
 use crate::tendermint::types::*;
 use crate::Result;
 
@@ -26,8 +25,8 @@ pub trait Client: Send + Sync {
     ) -> Result<Vec<BlockResults>>;
 
     /// Makes `broadcast_tx_sync` call to tendermint
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult>;
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResponse>;
 
     /// Makes `abci_query` call to tendermint
-    fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult>;
+    fn query(&self, path: &str, data: &[u8]) -> Result<AbciQuery>;
 }

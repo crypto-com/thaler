@@ -254,7 +254,7 @@ where
 
         self.client
             .broadcast_transaction(&tx_aux)
-            .map(|result| result.data)
+            .map(|result| result.data.to_string())
             .map_err(to_rpc_error)
     }
 }
@@ -459,11 +459,11 @@ mod test {
             unreachable!("block_results_batch")
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResponse> {
             unreachable!("broadcast_transaction")
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<AbciQuery> {
             unreachable!("query")
         }
     }
