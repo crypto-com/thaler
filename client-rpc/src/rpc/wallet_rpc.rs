@@ -273,7 +273,6 @@ pub mod tests {
 
     use secstr::SecUtf8;
 
-    use chrono::DateTime;
     use parity_scale_codec::Encode;
 
     use chain_core::init::coin::CoinError;
@@ -282,6 +281,8 @@ pub mod tests {
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxObfuscated};
     use client_common::storage::MemoryStorage;
+    use client_common::tendermint::lite;
+    use client_common::tendermint::mock;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
     use client_common::{
@@ -377,27 +378,29 @@ pub mod tests {
 
         fn status(&self) -> CommonResult<Status> {
             Ok(Status {
-                sync_info: SyncInfo {
-                    latest_block_height: "1".to_string(),
-                    latest_app_hash:
-                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
-                            .to_string(),
+                sync_info: status::SyncInfo {
+                    latest_block_height: Height::default(),
+                    latest_app_hash: Hash::from_str(
+                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                    )
+                    .unwrap(),
+                    ..mock::sync_info()
                 },
+                ..mock::status_response()
             })
         }
 
         fn block(&self, _height: u64) -> CommonResult<Block> {
             Ok(Block {
-                block: BlockInner {
-                    header: Header {
-                        app_hash:
-                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
-                                .to_string(),
-                        height: "1".to_string(),
-                        time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
-                    },
-                    data: Data { txs: None },
+                header: Header {
+                    app_hash: Hash::from_str(
+                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                    )
+                    .unwrap(),
+                    time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                    ..mock::header()
                 },
+                ..mock::block()
             })
         }
 
@@ -406,22 +409,21 @@ pub mod tests {
             _heights: T,
         ) -> CommonResult<Vec<Block>> {
             Ok(vec![Block {
-                block: BlockInner {
-                    header: Header {
-                        app_hash:
-                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
-                                .to_string(),
-                        height: "1".to_string(),
-                        time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
-                    },
-                    data: Data { txs: None },
+                header: Header {
+                    app_hash: Hash::from_str(
+                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                    )
+                    .unwrap(),
+                    time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                    ..mock::header()
                 },
+                ..mock::block()
             }])
         }
 
         fn block_results(&self, _height: u64) -> CommonResult<BlockResults> {
             Ok(BlockResults {
-                height: "1".to_string(),
+                height: Height::default(),
                 results: Results {
                     deliver_tx: None,
                     end_block: None,
@@ -434,7 +436,7 @@ pub mod tests {
             _heights: T,
         ) -> CommonResult<Vec<BlockResults>> {
             Ok(vec![BlockResults {
-                height: "1".to_string(),
+                height: Height::default(),
                 results: Results {
                     deliver_tx: None,
                     end_block: None,
@@ -442,11 +444,19 @@ pub mod tests {
             }])
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
+        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+            &self,
+            _state: lite::TrustedState,
+            _heights: T,
+        ) -> CommonResult<(Vec<Block>, lite::TrustedState)> {
+            unreachable!()
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResponse> {
             unreachable!("broadcast_transaction")
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<AbciQuery> {
             unreachable!("query")
         }
     }

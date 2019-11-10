@@ -1,7 +1,7 @@
 //! Types for tracking balance change in a wallet
-use std::{ops::Add, str::FromStr};
+use std::ops::Add;
+use std::str::FromStr;
 
-use chrono::{DateTime, Utc};
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
@@ -9,6 +9,7 @@ use chain_core::{
     init::coin::{Coin, CoinError},
     tx::data::{input::TxoPointer, output::TxOut, TxId},
 };
+use client_common::tendermint::types::Time;
 use client_common::{ErrorKind, Result, ResultExt, Transaction};
 
 /// Transaction data with attached metadata
@@ -30,7 +31,7 @@ pub struct TransactionChange {
     /// Height of block which has this transaction
     pub block_height: u64,
     /// Time of block which has this transaction
-    pub block_time: DateTime<Utc>,
+    pub block_time: Time,
 }
 
 /// Transaction input
@@ -132,7 +133,7 @@ impl Decode for TransactionChange {
         let balance_change = BalanceChange::decode(input)?;
         let transaction_type = TransactionType::decode(input)?;
         let block_height = u64::decode(input)?;
-        let block_time = DateTime::from_str(&String::decode(input)?)
+        let block_time = Time::from_str(&String::decode(input)?)
             .map_err(|_| Error::from("Unable to parse block time"))?;
         Ok(TransactionChange {
             transaction_id,
@@ -195,9 +196,6 @@ impl From<&Transaction> for TransactionType {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::time::SystemTime;
-
     use chain_core::{init::coin::Coin, tx::data::txid_hash};
 
     #[test]
@@ -211,7 +209,7 @@ mod tests {
             },
             transaction_type: TransactionType::Transfer,
             block_height: 0,
-            block_time: DateTime::from(SystemTime::now()),
+            block_time: Time::now(),
         };
 
         let encoded = transaction_change.encode();

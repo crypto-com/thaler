@@ -262,13 +262,11 @@ impl WalletStateMemento {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use std::str::FromStr;
-
-    use chrono::DateTime;
 
     use chain_core::tx::data::address::ExtendedAddr;
     use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::Time;
 
     use crate::types::{BalanceChange, TransactionType};
 
@@ -360,7 +358,7 @@ mod tests {
             },
             transaction_type: TransactionType::Transfer,
             block_height: 0,
-            block_time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+            block_time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
         });
 
         assert!(wallet_state_service
@@ -404,7 +402,7 @@ mod tests {
             },
             transaction_type: TransactionType::Transfer,
             block_height: 0,
-            block_time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+            block_time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
         });
 
         assert!(wallet_state_service

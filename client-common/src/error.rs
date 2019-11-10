@@ -54,7 +54,11 @@ impl Error {
 impl fmt::Display for Error {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}", self.kind, self.message)
+        write!(
+            f,
+            "{}: {}, origin: {:?}",
+            self.kind, self.message, self.origin
+        )
     }
 }
 
@@ -113,6 +117,8 @@ pub enum ErrorKind {
     InternalError,
     /// Validator error
     ValidationError,
+    /// Block data verify failed
+    VerifyError,
 }
 
 impl fmt::Display for ErrorKind {
@@ -134,6 +140,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::MultiSigError => write!(f, "Multi-sig error"),
             ErrorKind::InternalError => write!(f, "Internal error"),
             ErrorKind::ValidationError => write!(f, "Validation error"),
+            ErrorKind::VerifyError => write!(f, "Verify error"),
         }
     }
 }

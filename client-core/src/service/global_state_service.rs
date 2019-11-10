@@ -1,9 +1,13 @@
 use parity_scale_codec::{Decode, Encode};
 use secstr::SecUtf8;
+use serde_json;
 
+use client_common::tendermint::lite;
 use client_common::{ErrorKind, Result, ResultExt, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_global_state";
+const TRUST_KEYSPACE: &str = "verified_sync";
+const TRUST_STATE_KEY: &str = "state";
 
 #[derive(Debug, Default, Encode, Decode)]
 struct GlobalState {
@@ -97,6 +101,41 @@ where
                     .transpose()
                     .map(|global_state_optional| global_state_optional.unwrap_or_default())
             })
+    }
+
+    /// load trust state
+    pub fn load_trust_state(&self) -> Result<Option<lite::TrustedState>> {
+        // get current trusted state
+        let opt = self.storage.get(KEYSPACE, TRUST_STATE_KEY)?;
+        if let Some(bytes) = opt {
+            let state = serde_json::from_slice(bytes.as_slice()).chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    format!(
+                        "Unable to deserialize trusted state from storage: {:?}",
+                        bytes
+                    ),
+                )
+            })?;
+            Ok(Some(state))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// save trust state
+    pub fn save_trust_state(&self, state: &lite::TrustedState) -> Result<()> {
+        let s = serde_json::to_string(state).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to serialize trusted state",
+            )
+        })?;
+
+        let _result = self
+            .storage
+            .set(TRUST_KEYSPACE, TRUST_STATE_KEY, s.as_bytes().to_vec());
+        Ok(())
     }
 }
 

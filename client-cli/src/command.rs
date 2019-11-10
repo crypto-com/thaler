@@ -16,6 +16,7 @@ use structopt::StructOpt;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use client_common::storage::SledStorage;
+use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result, ResultExt, Storage};
 #[cfg(not(feature = "mock-enc-dec"))]
@@ -99,6 +100,8 @@ pub enum Command {
             help = "Force synchronization from genesis"
         )]
         force: bool,
+        #[structopt(long, help = "Verify block data")]
+        verify: bool,
     },
 }
 
@@ -222,6 +225,7 @@ impl Command {
                 name,
                 batch_size,
                 force,
+                verify,
             } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
@@ -237,7 +241,7 @@ impl Command {
                 let synchronizer =
                     ManualSynchronizer::new(storage, tendermint_client, block_handler);
 
-                Self::resync(synchronizer, name, *batch_size, *force)
+                Self::resync(synchronizer, name, *batch_size, *force, *verify)
             }
         }
     }
@@ -407,6 +411,7 @@ impl Command {
         name: &str,
         batch_size: Option<usize>,
         force: bool,
+        verify: bool,
     ) -> Result<()> {
         let passphrase = ask_passphrase(None)?;
 
@@ -447,9 +452,9 @@ impl Command {
         });
 
         if force {
-            synchronizer.sync_all(name, &passphrase, batch_size, Some(sender))?;
+            synchronizer.sync_all(name, &passphrase, batch_size, Some(sender), verify)?;
         } else {
-            synchronizer.sync(name, &passphrase, batch_size, Some(sender))?;
+            synchronizer.sync(name, &passphrase, batch_size, Some(sender), verify)?;
         }
 
         let _ = handle.join();

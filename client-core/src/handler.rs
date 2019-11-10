@@ -5,9 +5,9 @@ mod default_transaction_handler;
 pub use default_block_handler::DefaultBlockHandler;
 pub use default_transaction_handler::DefaultTransactionHandler;
 
-use chrono::{DateTime, Utc};
 use secstr::SecUtf8;
 
+use client_common::tendermint::types::Time;
 use client_common::{BlockHeader, Result, Transaction};
 
 /// Interface for handling stream of transactions in Crypto.com Chain
@@ -19,7 +19,7 @@ pub trait TransactionHandler: Send + Sync {
         passphrase: &SecUtf8,
         transaction: Transaction,
         block_height: u64,
-        block_time: DateTime<Utc>,
+        block_time: Time,
     ) -> Result<()>;
 }
 

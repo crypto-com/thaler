@@ -9,6 +9,7 @@ use std::net::SocketAddr;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_core::tx::fee::LinearFee;
 use client_common::storage::SledStorage;
+use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{Error, Result};
 use client_core::cipher::MockAbciTransactionObfuscation;
