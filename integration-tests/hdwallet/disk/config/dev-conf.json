@@ -1,0 +1,36 @@
+{
+    "rewards_pool": "1250000000000000000",
+    "distribution": {
+      "0x83fe11feb0887183eb62c30994bdd9e303497e3d": "1250000000000000000",
+      "0xe5b4b42406a061752c78bf5c4d6d6fccca0b575f": "1250000000000000000",
+      "0x7310a0328e446df02cb4fb668a7a6790cea8c96e": "1250000000000000000",
+      "0x56cbf4a74f59dcf1e0064f0daff3b1cf177ea972": "1250000000000000000",
+
+      "0xf5a455160877fea4fd518e6ece3b7f0585d0de8a": "1250000000000000000",
+      "0xcaa0a19a65c76dd1a9c373e89d06b8eafbc7ecbe": "1250000000000000000",
+      "0x0c93fa274eada0ea819068ea4b687e41ab1d304a": "1250000000000000000"
+    },
+    "unbonding_period": 60,
+    "required_council_node_stake": "1250000000000000000",
+    "jailing_config": {
+      "jail_duration": 300,
+      "block_signing_window": 100,
+      "missed_block_threshold": 80
+    },
+    "slashing_config": {
+      "liveness_slash_percent": "0.1",
+      "byzantine_slash_percent": "0.2",
+      "slash_wait_period": 100 
+    },
+    "initial_fee_policy": {
+      "base_fee": "1.1",
+      "per_byte_fee": "1.25"
+    },
+    "council_nodes": {
+      "0x83fe11feb0887183eb62c30994bdd9e303497e3d": {
+        "consensus_pubkey_type": "Ed25519",
+        "consensus_pubkey_b64": "zVbAlxXktHidGs1c6pA01IIxLqm0DIZiqHGZqeWIjB0="
+      }
+    },
+    "genesis_time": "2019-10-29T09:14:27.251142654Z"
+  }

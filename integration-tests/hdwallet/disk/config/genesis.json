@@ -1,0 +1,85 @@
+{
+  "genesis_time": "2019-10-29T09:14:27.251142654Z",
+  "chain_id": "test-ab",
+  "consensus_params": {
+    "block": {
+      "max_bytes": "22020096",
+      "max_gas": "-1",
+      "time_iota_ms": "1000"
+    },
+    "evidence": {
+      "max_age": "100000"
+    },
+    "validator": {
+      "pub_key_types": [
+        "ed25519"
+      ]
+    }
+  },
+  "validators": [
+    
+  ],
+  "app_hash": "33B7416EF0309A4144A287351B3D89730ACD7398FA666E7988C5BEBA94543AC6",
+"app_state": {
+  "rewards_pool": "1250000000000000000",
+  "distribution": {
+    "0x0c93fa274eada0ea819068ea4b687e41ab1d304a": [
+      "UnbondedFromGenesis",
+      "1250000000000000000"
+    ],
+    "0x56cbf4a74f59dcf1e0064f0daff3b1cf177ea972": [
+      "UnbondedFromGenesis",
+      "1250000000000000000"
+    ],
+    "0x7310a0328e446df02cb4fb668a7a6790cea8c96e": [
+      "UnbondedFromGenesis",
+      "1250000000000000000"
+    ],
+    "0x83fe11feb0887183eb62c30994bdd9e303497e3d": [
+      "Bonded",
+      "1250000000000000000"
+    ],
+    "0xcaa0a19a65c76dd1a9c373e89d06b8eafbc7ecbe": [
+      "UnbondedFromGenesis",
+      "1250000000000000000"
+    ],
+    "0xe5b4b42406a061752c78bf5c4d6d6fccca0b575f": [
+      "UnbondedFromGenesis",
+      "1250000000000000000"
+    ],
+    "0xf5a455160877fea4fd518e6ece3b7f0585d0de8a": [
+      "UnbondedFromGenesis",
+      "1250000000000000000"
+    ]
+  },
+  "network_params": {
+    "initial_fee_policy": {
+      "constant": 1100,
+      "coefficient": 1250
+    },
+    "required_council_node_stake": "1250000000000000000",
+    "unbonding_period": 60,
+    "jailing_config": {
+      "jail_duration": 300,
+      "block_signing_window": 100,
+      "missed_block_threshold": 80
+    },
+    "slashing_config": {
+      "liveness_slash_percent": "0.100",
+      "byzantine_slash_percent": "0.200",
+      "slash_wait_period": 100
+    }
+  },
+  "council_nodes": {
+    "0x83fe11feb0887183eb62c30994bdd9e303497e3d": {
+      "consensus_pubkey_type": "Ed25519",
+      "consensus_pubkey_b64": "zVbAlxXktHidGs1c6pA01IIxLqm0DIZiqHGZqeWIjB0="
+    }
+  }
+}
+
+
+  
+  
+
+}

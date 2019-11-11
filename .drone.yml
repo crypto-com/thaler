@@ -20,6 +20,24 @@ steps:
 ---
 kind: pipeline
 type: exec
+name: hdwallet-integration-tests
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: integration-tests
+  commands:
+  - mkdir bin
+  - export PATH="$PATH:$PWD/bin"
+  - echo "OK"
+  - cd integration-tests/hdwallet
+  - ./run.sh
+
+---
+kind: pipeline
+type: exec
 name: integration-tests
 
 platform:

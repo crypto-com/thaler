@@ -117,12 +117,15 @@ where
                 self.hd_key_service
                     .add_mnemonic(name, &mnemonic, passphrase)?;
 
-                let (view_key, _) =
+                let (public_key, private_key) =
                     self.hd_key_service
                         .generate_keypair(name, passphrase, AddressType::Staking)?;
 
+                self.key_service
+                    .add_keypair(&private_key, &public_key, passphrase)?;
+
                 self.wallet_service
-                    .create(name, passphrase, view_key)
+                    .create(name, passphrase, public_key)
                     .map(|_| Some(mnemonic))
             }
         }
@@ -132,11 +135,14 @@ where
         self.hd_key_service
             .add_mnemonic(name, mnemonic, passphrase)?;
 
-        let (view_key, _) =
+        let (public_key, private_key) =
             self.hd_key_service
                 .generate_keypair(name, passphrase, AddressType::Transfer)?;
 
-        self.wallet_service.create(name, passphrase, view_key)
+        self.key_service
+            .add_keypair(&private_key, &public_key, passphrase)?;
+
+        self.wallet_service.create(name, passphrase, public_key)
     }
 
     #[inline]
