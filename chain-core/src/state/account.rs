@@ -203,6 +203,39 @@ impl CouncilNode {
     }
 }
 
+/// Types of possible punishments
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Deserialize, Serialize)
+)]
+pub enum PunishmentKind {
+    NonLive,
+    ByzantineFault,
+}
+
+#[cfg(feature = "hex")]
+impl fmt::Display for PunishmentKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            PunishmentKind::NonLive => write!(f, "Non-live"),
+            PunishmentKind::ByzantineFault => write!(f, "Byzantine fault"),
+        }
+    }
+}
+
+/// Details of a punishment for a staked state
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Deserialize, Serialize)
+)]
+pub struct Punishment {
+    pub kind: PunishmentKind,
+    pub jailed_until: Timespec,
+    pub slash_amount: Option<Coin>,
+}
+
 /// represents the StakedState (account involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(
@@ -215,7 +248,7 @@ pub struct StakedState {
     pub unbonded: Coin,
     pub unbonded_from: Timespec,
     pub address: StakedStateAddress,
-    pub jailed_until: Option<Timespec>,
+    pub punishment: Option<Punishment>,
     pub council_node: Option<CouncilNode>,
 }
 
@@ -250,7 +283,7 @@ impl StakedState {
         unbonded: Coin,
         unbonded_from: Timespec,
         address: StakedStateAddress,
-        jailed_until: Option<Timespec>,
+        punishment: Option<Punishment>,
     ) -> Self {
         StakedState {
             nonce,
@@ -258,7 +291,7 @@ impl StakedState {
             unbonded,
             unbonded_from,
             address,
-            jailed_until,
+            punishment,
             council_node: None,
         }
     }
@@ -276,7 +309,7 @@ impl StakedState {
             unbonded: Coin::zero(),
             unbonded_from: genesis_time,
             address,
-            jailed_until: None,
+            punishment: None,
             council_node,
         }
     }
@@ -289,7 +322,7 @@ impl StakedState {
             unbonded: amount,
             unbonded_from: time,
             address,
-            jailed_until: None,
+            punishment: None,
             council_node: None,
         }
     }
@@ -326,30 +359,40 @@ impl StakedState {
     /// Checks if current account is jailed
     #[inline]
     pub fn is_jailed(&self) -> bool {
-        self.jailed_until.is_some()
+        self.punishment.is_some()
     }
 
     /// Returns `jailed_until` for current account, `None` if current account is not jailed
     #[inline]
     pub fn jailed_until(&self) -> Option<Timespec> {
-        self.jailed_until
+        self.punishment
+            .as_ref()
+            .map(|punishment| punishment.jailed_until)
     }
 
     /// Jails current account until given time
-    pub fn jail_until(&mut self, jail_until: Timespec) {
+    pub fn jail_until(&mut self, jailed_until: Timespec, kind: PunishmentKind) {
         self.nonce += 1;
-        self.jailed_until = Some(jail_until)
+        self.punishment = Some(Punishment {
+            kind,
+            jailed_until,
+            slash_amount: None,
+        });
     }
 
     /// Unjails current account
     pub fn unjail(&mut self) {
         self.nonce += 1;
-        self.jailed_until = None;
+        self.punishment = None;
     }
 
     /// Slashes current account with given ratio and returns slashed amount
     #[cfg(feature = "base64")]
-    pub fn slash(&mut self, slash_ratio: SlashRatio) -> Result<Coin, CoinError> {
+    pub fn slash(
+        &mut self,
+        slash_ratio: SlashRatio,
+        punishment_kind: PunishmentKind,
+    ) -> Result<Coin, CoinError> {
         self.nonce += 1;
 
         let bonded_slash_value = self.bonded * slash_ratio;
@@ -358,7 +401,14 @@ impl StakedState {
         self.bonded = (self.bonded - bonded_slash_value)?;
         self.unbonded = (self.unbonded - unbonded_slash_value)?;
 
-        bonded_slash_value + unbonded_slash_value
+        let slash_amount = (bonded_slash_value + unbonded_slash_value)?;
+
+        if let Some(ref mut punishment) = self.punishment {
+            punishment.slash_amount = Some(slash_amount);
+            punishment.kind = punishment_kind;
+        }
+
+        Ok(slash_amount)
     }
 }
 

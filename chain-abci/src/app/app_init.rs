@@ -47,11 +47,14 @@ pub struct ChainNodeState {
     /// council nodes metadata
     /// FIXME: delete node metadata if voting power == 0 for longer than unbonding time
     pub council_nodes_by_power: BTreeMap<(TendermintVotePower, StakedStateAddress), CouncilNode>,
+    /// stores staking account address corresponding to tendermint validator addresses
+    pub tendermint_validator_addresses: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
     /// Runtime state for computing and executing validator punishment
     pub punishment: ValidatorPunishment,
 }
 
 impl ChainNodeState {
+    #[allow(clippy::too_many_arguments)]
     pub fn genesis(
         genesis_apphash: H256,
         genesis_time: Timespec,
@@ -59,6 +62,7 @@ impl ChainNodeState {
         rewards_pool: RewardsPoolState,
         network_params: NetworkParameters,
         council_nodes_by_power: BTreeMap<(TendermintVotePower, StakedStateAddress), CouncilNode>,
+        tendermint_validator_addresses: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
         punishment: ValidatorPunishment,
     ) -> Self {
         ChainNodeState {
@@ -69,6 +73,7 @@ impl ChainNodeState {
             rewards_pool,
             network_params,
             council_nodes_by_power,
+            tendermint_validator_addresses,
             punishment,
         }
     }
@@ -445,6 +450,8 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             let mut validators = Vec::with_capacity(nodes.len());
             let mut validator_liveness = BTreeMap::new();
             let mut validator_by_voting_power = BTreeMap::new();
+            let mut tendermint_validator_addresses = BTreeMap::new();
+
             for (address, node) in nodes.iter() {
                 let mut validator = ValidatorUpdate::default();
                 let power = get_voting_power(&conf.distribution, address);
@@ -455,9 +462,15 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 validator.set_pub_key(pk);
                 validators.push(validator);
 
+                let tendermint_validator_address =
+                    TendermintValidatorAddress::from(&node.consensus_pubkey);
+
+                tendermint_validator_addresses
+                    .insert(tendermint_validator_address.clone(), *address);
+
                 validator_liveness.insert(
-                    TendermintValidatorAddress::from(&node.consensus_pubkey),
-                    LivenessTracker::new(*address, network_params.get_block_signing_window()),
+                    tendermint_validator_address,
+                    LivenessTracker::new(network_params.get_block_signing_window()),
                 );
             }
             let mut resp = ResponseInitChain::new();
@@ -469,6 +482,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 rp,
                 network_params,
                 validator_by_voting_power,
+                tendermint_validator_addresses,
                 ValidatorPunishment {
                     validator_liveness,
                     slashing_schedule: Default::default(),

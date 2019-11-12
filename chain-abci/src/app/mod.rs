@@ -18,7 +18,7 @@ use crate::storage::tx::StarlingFixedKey;
 use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
 use chain_core::common::TendermintEventType;
-use chain_core::state::account::StakedState;
+use chain_core::state::account::{PunishmentKind, StakedState};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::{TxAux, TxEnclaveAux};
@@ -156,16 +156,16 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 let validator_address =
                     TendermintValidatorAddress::try_from(validator.address.as_slice())
                         .expect("Invalid validator address in begin block request");
-                let account_address = last_state
-                    .punishment
-                    .validator_liveness
+
+                let account_address = *last_state
+                    .tendermint_validator_addresses
                     .get(&validator_address)
-                    .expect("Validator not found in liveness tracker")
-                    .address();
+                    .expect("Staking account address not found for tendermint validator address");
 
                 accounts_to_punish.push((
                     account_address,
                     last_state.network_params.get_byzantine_slash_percent(),
+                    PunishmentKind::ByzantineFault,
                 ))
             }
         }
@@ -176,12 +176,14 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             last_state
                 .punishment
                 .validator_liveness
-                .values()
-                .filter(|tracker| !tracker.is_live(missed_block_threshold))
-                .map(|liveness_tracker| {
+                .iter()
+                .filter(|(_, tracker)| !tracker.is_live(missed_block_threshold))
+                .map(|(tendermint_validator_address, _)| {
                     (
-                        liveness_tracker.address(),
+                        *last_state.tendermint_validator_addresses.get(tendermint_validator_address)
+                            .expect("Staking account address for tendermint validator address not found"),
                         last_state.network_params.get_liveness_slash_percent(),
+                        PunishmentKind::NonLive,
                     )
                 }),
         );
@@ -199,7 +201,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
 
-        for (account_address, slash_ratio) in accounts_to_punish.iter() {
+        for (account_address, slash_ratio, punishment_kind) in accounts_to_punish.iter() {
             match last_state
                 .punishment
                 .slashing_schedule
@@ -207,25 +209,29 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             {
                 Some(account_slashing_schedule) => {
                     account_slashing_schedule
-                        .update_slash_ratio((*slash_ratio) * slashing_proportion);
+                        .update_slash_ratio((*slash_ratio) * slashing_proportion, *punishment_kind);
                 }
                 None => {
                     last_state.punishment.slashing_schedule.insert(
                         *account_address,
-                        SlashingSchedule::new((*slash_ratio) * slashing_proportion, slashing_time),
+                        SlashingSchedule::new(
+                            (*slash_ratio) * slashing_proportion,
+                            slashing_time,
+                            *punishment_kind,
+                        ),
                     );
                 }
             }
         }
 
-        for (account_address, _) in accounts_to_punish {
+        for (account_address, _, punishment_kind) in accounts_to_punish {
             let mut kvpair = KVPair::new();
             kvpair.key = b"account".to_vec();
             kvpair.value = account_address.to_string().into_bytes();
 
             jailing_event.attributes.push(kvpair);
 
-            self.jail_account(account_address)
+            self.jail_account(account_address, punishment_kind)
                 .expect("Unable to jail account in begin block");
         }
 
@@ -420,10 +426,12 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     } else if new_vote_power != 0
                         && !validator_liveness.contains_key(&validator_address)
                     {
+                        last_state
+                            .tendermint_validator_addresses
+                            .insert(validator_address.clone(), *address);
                         validator_liveness.insert(
                             validator_address,
                             LivenessTracker::new(
-                                *address,
                                 last_state.network_params.get_block_signing_window(),
                             ),
                         );

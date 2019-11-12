@@ -2,14 +2,11 @@ use bit_vec::BitVec;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use serde::{Deserialize, Serialize};
 
-use chain_core::state::account::StakedStateAddress;
 use chain_core::state::tendermint::BlockHeight;
 
 /// Liveness tracker for a validator
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LivenessTracker {
-    /// Address of staking account
-    address: StakedStateAddress,
     /// Holds data to measure liveness
     ///
     /// # Note
@@ -23,9 +20,8 @@ pub struct LivenessTracker {
 impl LivenessTracker {
     /// Creates a new instance of liveness tracker
     #[inline]
-    pub fn new(address: StakedStateAddress, block_signing_window: u16) -> Self {
+    pub fn new(block_signing_window: u16) -> Self {
         Self {
-            address,
             liveness: BitVec::from_elem(block_signing_window as usize, true),
         }
     }
@@ -43,21 +39,14 @@ impl LivenessTracker {
         let zero_count = self.liveness.iter().filter(|x| !x).count();
         zero_count < missed_block_threshold as usize
     }
-
-    /// Returns staking address of current tracker
-    #[inline]
-    pub fn address(&self) -> StakedStateAddress {
-        self.address
-    }
 }
 
 impl Encode for LivenessTracker {
     fn size_hint(&self) -> usize {
-        self.address.size_hint() + std::mem::size_of::<u16>() + self.liveness.to_bytes().size_hint()
+        std::mem::size_of::<u16>() + self.liveness.to_bytes().size_hint()
     }
 
     fn encode_to<W: Output>(&self, dest: &mut W) {
-        self.address.encode_to(dest);
         (self.liveness.len() as u16).encode_to(dest);
         self.liveness.to_bytes().encode_to(dest);
     }
@@ -65,14 +54,13 @@ impl Encode for LivenessTracker {
 
 impl Decode for LivenessTracker {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let address = StakedStateAddress::decode(input)?;
         let length = u16::decode(input)?;
         let bytes = <Vec<u8>>::decode(input)?;
 
         let mut liveness = BitVec::from_bytes(&bytes);
         liveness.truncate(length as usize);
 
-        Ok(LivenessTracker { address, liveness })
+        Ok(LivenessTracker { liveness })
     }
 }
 
@@ -80,13 +68,9 @@ impl Decode for LivenessTracker {
 mod tests {
     use super::*;
 
-    use chain_core::init::address::RedeemAddress;
-
     #[test]
     fn check_liveness_tracker_encode_decode() {
-        let address = StakedStateAddress::BasicRedeem(RedeemAddress([0; 20]));
-
-        let mut initial = LivenessTracker::new(address, 50);
+        let mut initial = LivenessTracker::new(50);
         initial.update(1, true);
         initial.update(2, false);
 
@@ -98,9 +82,7 @@ mod tests {
 
     #[test]
     fn check_liveness_tracker() {
-        let address = StakedStateAddress::BasicRedeem(RedeemAddress([0; 20]));
-
-        let mut tracker = LivenessTracker::new(address, 5);
+        let mut tracker = LivenessTracker::new(5);
         tracker.update(1, true);
         tracker.update(2, false);
         tracker.update(3, true);
