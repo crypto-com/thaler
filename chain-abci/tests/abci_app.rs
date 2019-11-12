@@ -3,6 +3,7 @@ use abci::*;
 use bit_vec::BitVec;
 use chain_abci::app::*;
 use chain_abci::enclave_bridge::mock::MockClient;
+use chain_abci::punishment::ValidatorPunishment;
 use chain_abci::storage::account::AccountStorage;
 use chain_abci::storage::account::AccountWrapper;
 use chain_abci::storage::tx::StarlingFixedKey;
@@ -18,10 +19,12 @@ use chain_core::init::config::{
     JailingParameters, SlashRatio, SlashingParameters, ValidatorKeyType, ValidatorPubkey,
 };
 use chain_core::state::account::{
-    to_stake_key, DepositBondTx, StakedState, StakedStateAddress, StakedStateDestination,
-    StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
+    to_stake_key, CouncilNode, DepositBondTx, StakedState, StakedStateAddress,
+    StakedStateDestination, StakedStateOpAttributes, StakedStateOpWitness, UnbondTx,
+    WithdrawUnbondedTx,
 };
-use chain_core::state::tendermint::TendermintVotePower;
+use chain_core::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
+use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::tree::RawPubkey;
@@ -172,10 +175,15 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         block_time: 0,
         rewards_pool: RewardsPoolState::new(1.into(), 0),
         last_account_root_hash: [0u8; 32],
-        council_nodes_by_power: BTreeMap::new(),
         network_params: get_dummy_network_params(),
-        tendermint_validator_addresses: Default::default(),
-        punishment: Default::default(),
+        validators: ValidatorState {
+            council_nodes_by_power: BTreeMap::new(),
+            tendermint_validator_addresses: BTreeMap::new(),
+            punishment: ValidatorPunishment {
+                validator_liveness: BTreeMap::new(),
+                slashing_schedule: Default::default(),
+            },
+        },
     }
 }
 
@@ -864,7 +872,7 @@ fn all_valid_tx_types_should_commit() {
         0,
         vec![
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
-            TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
+            TxOut::new_with_timelock(eaddr.clone(), (Coin::one() + Coin::one()).unwrap(), 0),
         ],
         TxAttributes::new_with_access(
             0,
@@ -967,19 +975,62 @@ fn all_valid_tx_types_should_commit() {
         assert_eq!(account.nonce, 2);
     }
 
-    let tx3 = UnbondTx::new(addr.into(), 2, halfcoin, StakedStateOpAttributes::new(0));
-    let witness3 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx3.id(), &secret_key));
-    let unbondtx = TxAux::UnbondStakeTx(tx3, witness3);
+    let tx = NodeJoinRequestTx::new(
+        2,
+        addr.into(),
+        StakedStateOpAttributes::new(0),
+        CouncilNode::new(TendermintValidatorPubKey::Ed25519([2u8; 32])),
+    );
+    let secp = Secp256k1::new();
+    let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
+    let nodejointx = TxAux::NodeJoinTx(tx, witness);
+    {
+        let account = get_account(&addr, &app);
+        assert!(account.council_node.is_none());
+        assert_eq!(
+            app.last_state
+                .as_ref()
+                .unwrap()
+                .validators
+                .council_nodes_by_power
+                .len(),
+            1
+        );
+        assert_eq!(account.nonce, 2);
+    }
+    block_commit(&mut app, nodejointx, 4);
+    {
+        let account = get_account(&addr, &app);
+        assert!(account.council_node.is_some());
+        assert_eq!(
+            app.last_state
+                .as_ref()
+                .unwrap()
+                .validators
+                .council_nodes_by_power
+                .len(),
+            2
+        );
+        assert_eq!(account.nonce, 3);
+    }
+
+    let tx4 = UnbondTx::new(
+        addr.into(),
+        3,
+        Coin::unit(),
+        StakedStateOpAttributes::new(0),
+    );
+    let witness4 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx4.id(), &secret_key));
+    let unbondtx = TxAux::UnbondStakeTx(tx4, witness4);
     {
         let account = get_account(&addr, &app);
         assert_eq!(account.unbonded, Coin::zero());
-        assert_eq!(account.nonce, 2);
+        assert_eq!(account.nonce, 3);
     }
-    block_commit(&mut app, unbondtx, 4);
+    block_commit(&mut app, unbondtx, 5);
     {
         let account = get_account(&addr, &app);
-        // TODO: more precise amount assertions
-        assert!(account.unbonded > Coin::zero());
-        assert_eq!(account.nonce, 3);
+        assert_eq!(account.unbonded, Coin::unit());
+        assert_eq!(account.nonce, 4);
     }
 }

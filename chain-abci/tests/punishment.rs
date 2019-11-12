@@ -337,6 +337,7 @@ fn end_block_should_update_liveness_tracker() {
         .last_state
         .as_ref()
         .unwrap()
+        .validators
         .punishment
         .validator_liveness
         .contains_key(&validator_address));
@@ -348,18 +349,23 @@ fn end_block_should_update_liveness_tracker() {
 
     assert_eq!(1, response_end_block.validator_updates.to_vec().len());
     assert_eq!(0, response_end_block.validator_updates.to_vec()[0].power);
-    assert_eq!(
-        0,
-        i64::from(
-            *app.validator_voting_power
-                .get(&env.accounts[0].staking_address)
-                .unwrap()
-        )
-    );
+    // no longer in the current set of validators
+    assert!(!app
+        .validator_voting_power
+        .contains_key(&env.accounts[0].staking_address));
+    let zero_key = (TendermintVotePower::zero(), env.accounts[0].staking_address);
+    assert!(app
+        .last_state
+        .as_ref()
+        .unwrap()
+        .validators
+        .council_nodes_by_power
+        .contains_key(&zero_key));
     assert!(!app
         .last_state
         .as_ref()
         .unwrap()
+        .validators
         .punishment
         .validator_liveness
         .contains_key(&validator_address));
@@ -436,6 +442,7 @@ fn begin_block_should_slash_byzantine_validators() {
         .last_state
         .as_ref()
         .unwrap()
+        .validators
         .punishment
         .slashing_schedule
         .contains_key(&env.accounts[0].staking_address));
@@ -458,6 +465,7 @@ fn begin_block_should_slash_byzantine_validators() {
         .last_state
         .as_ref()
         .unwrap()
+        .validators
         .punishment
         .slashing_schedule
         .contains_key(&env.accounts[0].staking_address));
@@ -493,6 +501,7 @@ fn begin_block_should_slash_non_live_validators() {
         .last_state
         .as_ref()
         .unwrap()
+        .validators
         .punishment
         .slashing_schedule
         .contains_key(&env.accounts[0].staking_address));
@@ -515,6 +524,7 @@ fn begin_block_should_slash_non_live_validators() {
         .last_state
         .as_ref()
         .unwrap()
+        .validators
         .punishment
         .slashing_schedule
         .contains_key(&env.accounts[0].staking_address));
@@ -550,6 +560,7 @@ fn begin_block_should_update_slash_ratio_for_multiple_punishments() {
         .last_state
         .as_ref()
         .unwrap()
+        .validators
         .punishment
         .slashing_schedule
         .contains_key(&env.accounts[0].staking_address));
@@ -572,6 +583,7 @@ fn begin_block_should_update_slash_ratio_for_multiple_punishments() {
         .last_state
         .as_ref()
         .unwrap()
+        .validators
         .punishment
         .slashing_schedule
         .contains_key(&env.accounts[0].staking_address));
@@ -594,6 +606,7 @@ fn begin_block_should_update_slash_ratio_for_multiple_punishments() {
         .last_state
         .as_ref()
         .unwrap()
+        .validators
         .punishment
         .slashing_schedule
         .contains_key(&env.accounts[0].staking_address));

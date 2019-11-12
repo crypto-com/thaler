@@ -41,6 +41,8 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     pub fn process_txs(&mut self, inittx: &mut DBTransaction) {
         for txaux in self.delivered_txs.iter() {
             let txid: TxId = txaux.tx_id();
+            // TODO: do the abci-query mock via enclave mock + switch to tx-query in client by default
+            // TODO: some of the storage may be unnecessary / duplicate
             match &txaux {
                 TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                     inputs,
@@ -106,6 +108,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     inittx.put(COL_BODIES, &txid[..], &tx.encode());
                     inittx.put(COL_WITNESS, &txid[..], &witness.encode());
                     // account should be already unjailed in deliver_tx
+                }
+                TxAux::NodeJoinTx(tx, witness) => {
+                    inittx.put(COL_BODIES, &txid[..], &tx.encode());
+                    inittx.put(COL_WITNESS, &txid[..], &witness.encode());
+                    // staked state updated in deliver_tx
+                    // validator state updated in end_block
                 }
             }
         }

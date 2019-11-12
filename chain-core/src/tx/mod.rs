@@ -18,6 +18,7 @@ use crate::state::account::{
     DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
 };
 use crate::state::tendermint::BlockHeight;
+use crate::state::validator::NodeJoinRequestTx;
 use crate::tx::data::{txid_hash, TxId};
 use aead::Payload;
 use data::input::{TxoIndex, TxoPointer};
@@ -189,10 +190,12 @@ impl TxEnclaveAux {
 pub enum TxAux {
     /// transactions that need to be processed inside TEE
     EnclaveTx(TxEnclaveAux),
-    /// Tx that modifies account state -- moves some bonded stake into unbonded (witness for account)
+    /// Tx that modifies staked state -- moves some bonded stake into unbonded (witness for staked state)
     UnbondStakeTx(UnbondTx, StakedStateOpWitness),
-    /// Tx that unjails an account
+    /// Tx that unjails a staked state
     UnjailTx(UnjailTx, StakedStateOpWitness),
+    /// Tx that updates a staked state with council node / validator details
+    NodeJoinTx(NodeJoinRequestTx, StakedStateOpWitness),
 }
 
 impl Decode for TxAux {
@@ -215,6 +218,10 @@ impl Decode for TxAux {
                 UnjailTx::decode(input)?,
                 StakedStateOpWitness::decode(input)?,
             )),
+            3 => Ok(TxAux::NodeJoinTx(
+                NodeJoinRequestTx::decode(input)?,
+                StakedStateOpWitness::decode(input)?,
+            )),
             _ => Err("No such variant in enum TxAux".into()),
         }
     }
@@ -234,6 +241,7 @@ impl TxAux {
             TxAux::EnclaveTx(tx) => tx.tx_id(),
             TxAux::UnbondStakeTx(tx, _) => tx.id(),
             TxAux::UnjailTx(tx, _) => tx.id(),
+            TxAux::NodeJoinTx(tx, _) => tx.id(),
         }
     }
 }
@@ -275,6 +283,7 @@ impl fmt::Display for TxAux {
                 writeln!(f, "witness: {:?}\n", witness)
             }
             TxAux::UnjailTx(tx, witness) => display_tx_witness(f, tx, witness),
+            TxAux::NodeJoinTx(tx, witness) => display_tx_witness(f, tx, witness),
         }
     }
 }
