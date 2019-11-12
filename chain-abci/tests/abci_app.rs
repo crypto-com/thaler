@@ -1131,7 +1131,8 @@ fn end_block_should_update_liveness_tracker() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
     assert!(app
         .last_state
@@ -1279,7 +1280,8 @@ fn begin_block_should_jail_byzantine_validators() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
@@ -1429,7 +1431,8 @@ fn begin_block_should_jail_non_live_validators() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
@@ -1584,7 +1587,8 @@ fn begin_block_should_slash_byzantine_validators() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
@@ -1782,7 +1786,8 @@ fn begin_block_should_slash_non_live_validators() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
