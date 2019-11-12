@@ -90,7 +90,9 @@ mod test {
     use chain_core::common::Timespec;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
-    use chain_core::state::account::{CouncilNode, Nonce, StakedState, StakedStateAddress};
+    use chain_core::state::account::{
+        CouncilNode, Nonce, Punishment, PunishmentKind, StakedState, StakedStateAddress,
+    };
     use chain_core::state::tendermint::TendermintValidatorPubKey;
     use kvdb_memorydb::create;
     use quickcheck::quickcheck;
@@ -108,9 +110,13 @@ mod test {
             g.fill_bytes(&mut raw_address);
             let address: StakedStateAddress =
                 StakedStateAddress::from(RedeemAddress::from(raw_address));
-            let jailed_until = if bool::arbitrary(g) {
+            let punishment = if bool::arbitrary(g) {
                 let time = i64::arbitrary(g);
-                Some(time)
+                Some(Punishment {
+                    kind: PunishmentKind::NonLive,
+                    jailed_until: time,
+                    slash_amount: None,
+                })
             } else {
                 None
             };
@@ -129,7 +135,7 @@ mod test {
                 unbonded: Coin::from(unbonded),
                 unbonded_from,
                 address,
-                jailed_until,
+                punishment,
                 council_node,
             })
         }

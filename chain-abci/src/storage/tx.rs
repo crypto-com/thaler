@@ -205,7 +205,8 @@ pub mod tests {
     use chain_core::init::coin::Coin;
     use chain_core::state::account::StakedStateOpAttributes;
     use chain_core::state::account::{
-        DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
+        DepositBondTx, Punishment, PunishmentKind, StakedStateOpWitness, UnbondTx, UnjailTx,
+        WithdrawUnbondedTx,
     };
     use chain_core::tx::data::{
         address::ExtendedAddr,
@@ -1529,7 +1530,18 @@ pub mod tests {
         let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
 
         let addr = RedeemAddress::from(&public_key);
-        let account = StakedState::new(1, Coin::zero(), Coin::one(), 0, addr.into(), Some(100));
+        let account = StakedState::new(
+            1,
+            Coin::zero(),
+            Coin::one(),
+            0,
+            addr.into(),
+            Some(Punishment {
+                kind: PunishmentKind::NonLive,
+                jailed_until: 100,
+                slash_amount: None,
+            }),
+        );
 
         let key = account.key();
         let wrapped = AccountWrapper(account.clone());

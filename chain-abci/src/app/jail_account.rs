@@ -1,4 +1,4 @@
-use chain_core::state::account::StakedStateAddress;
+use chain_core::state::account::{PunishmentKind, StakedStateAddress};
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_tx_validation::Error;
 
@@ -8,7 +8,11 @@ use crate::storage::tx::get_account;
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Jails staking account with given address
-    pub fn jail_account(&mut self, staking_address: StakedStateAddress) -> Result<(), Error> {
+    pub fn jail_account(
+        &mut self,
+        staking_address: StakedStateAddress,
+        punishment_kind: PunishmentKind,
+    ) -> Result<(), Error> {
         let mut account = get_account(
             &staking_address,
             &self.uncommitted_account_root_hash,
@@ -28,7 +32,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let block_time = last_state.block_time;
         let jail_duration = last_state.network_params.get_jail_duration();
 
-        account.jail_until(block_time + jail_duration);
+        account.jail_until(block_time + jail_duration, punishment_kind);
 
         let (new_root, _) = update_account(
             account,
@@ -109,7 +113,7 @@ mod tests {
             slashing_config: SlashingParameters {
                 liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
                 byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
-                slash_wait_period: 10800,
+                slash_wait_period: 30,
             },
             max_validators: 2,
         };
@@ -185,7 +189,7 @@ mod tests {
 
         // Check jailing
 
-        app.jail_account(staking_account_address)
+        app.jail_account(staking_account_address, PunishmentKind::NonLive)
             .expect("Unable to jail account");
 
         let account = get_account(

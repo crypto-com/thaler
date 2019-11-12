@@ -175,6 +175,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         last_account_root_hash: [0u8; 32],
         council_nodes_by_power: BTreeMap::new(),
         network_params: get_dummy_network_params(),
+        tendermint_validator_addresses: Default::default(),
         punishment: Default::default(),
     }
 }
@@ -1022,7 +1023,7 @@ fn end_block_should_update_liveness_tracker() {
         slashing_config: SlashingParameters {
             liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
-            slash_wait_period: 10800,
+            slash_wait_period: 30,
         },
         max_validators: 1,
     };
@@ -1131,7 +1132,8 @@ fn end_block_should_update_liveness_tracker() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
     assert!(app
         .last_state
@@ -1196,7 +1198,7 @@ fn begin_block_should_jail_byzantine_validators() {
         slashing_config: SlashingParameters {
             liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
-            slash_wait_period: 10800,
+            slash_wait_period: 30,
         },
         max_validators: 1,
     };
@@ -1279,7 +1281,8 @@ fn begin_block_should_jail_byzantine_validators() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
@@ -1348,7 +1351,7 @@ fn begin_block_should_jail_non_live_validators() {
         slashing_config: SlashingParameters {
             liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
-            slash_wait_period: 10800,
+            slash_wait_period: 30,
         },
         max_validators: 1,
     };
@@ -1429,7 +1432,8 @@ fn begin_block_should_jail_non_live_validators() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
@@ -1584,7 +1588,8 @@ fn begin_block_should_slash_byzantine_validators() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
@@ -1782,7 +1787,8 @@ fn begin_block_should_slash_non_live_validators() {
         .next()
         .expect("one council node")
         .1
-        .consensus_pubkey.clone()
+        .consensus_pubkey
+        .clone()
         .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
@@ -1859,6 +1865,295 @@ fn begin_block_should_slash_non_live_validators() {
 
     assert_eq!(
         Coin::new(u64::from(Coin::max()) / 10).unwrap(), // 0.1 * account_balance
+        app.last_state.as_ref().unwrap().rewards_pool.remaining
+    );
+}
+
+#[test]
+fn begin_block_should_update_slash_ratio_for_multiple_punishments() {
+    use chain_core::state::tendermint::TendermintValidatorAddress;
+    use protobuf::well_known_types::Timestamp;
+
+    let storage = Storage::new_db(create_db());
+    let mut account_storage =
+        AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db");
+
+    let secp = Secp256k1::new();
+    let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+    let address = RedeemAddress::from(&public_key);
+    let staking_account_address = StakedStateAddress::BasicRedeem(address);
+
+    let static_validator_secret_key =
+        SecretKey::from_slice(&[0xab; 32]).expect("32 bytes, within curve order");
+    let static_validator_public_key =
+        PublicKey::from_secret_key(&secp, &static_validator_secret_key);
+    let static_validator_address = RedeemAddress::from(&static_validator_public_key);
+    let static_staking_account_address = StakedStateAddress::BasicRedeem(static_validator_address);
+
+    let mut validator_pubkey = PubKey::new();
+    validator_pubkey.field_type = "Ed25519".to_string();
+    validator_pubkey.data = base64::decode("EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=").unwrap();
+
+    let mut validator_voting_power = BTreeMap::new();
+    validator_voting_power.insert(staking_account_address, TendermintVotePower::zero());
+
+    let rewards_pool = Coin::zero();
+    let mut distribution = BTreeMap::new();
+    distribution.insert(
+        address,
+        (
+            StakedStateDestination::Bonded,
+            Coin::new(u64::from(Coin::max()) / 2).unwrap(),
+        ),
+    );
+    distribution.insert(
+        static_validator_address,
+        (
+            StakedStateDestination::Bonded,
+            Coin::new(u64::from(Coin::max()) / 2).unwrap(),
+        ),
+    );
+
+    let init_network_params = InitNetworkParameters {
+        initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
+        required_council_node_stake: Coin::new(u64::from(Coin::max()) / 2).unwrap(),
+        unbonding_period: 1,
+        jailing_config: JailingParameters {
+            jail_duration: 60,
+            block_signing_window: 5,
+            missed_block_threshold: 1,
+        },
+        slashing_config: SlashingParameters {
+            liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
+            byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            slash_wait_period: 5,
+        },
+        max_validators: 1,
+    };
+
+    let mut nodes = BTreeMap::new();
+    let node_pubkey = (
+        "test".to_owned(),
+        None,
+        ValidatorPubkey {
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+        },
+    );
+    let static_node_pubkey = (
+        "static".to_owned(),
+        None,
+        ValidatorPubkey {
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "Vcrw/tEI0JOXw2SZGeowDxw5+Eot8qndCJoh2m6RC/M=".to_string(),
+        },
+    );
+
+    nodes.insert(address, node_pubkey);
+    nodes.insert(static_validator_address, static_node_pubkey);
+
+    let init_config = InitConfig::new(
+        rewards_pool,
+        distribution,
+        init_network_params.clone(),
+        nodes,
+    );
+
+    let timestamp = Timestamp::new();
+
+    let (accounts, rewards_pool_state, council_nodes) = init_config
+        .validate_config_get_genesis(timestamp.get_seconds())
+        .expect("Error while validating distribution");
+
+    let mut keys: Vec<StarlingFixedKey> = accounts.iter().map(|account| account.key()).collect();
+    let mut wrapped: Vec<AccountWrapper> = accounts
+        .iter()
+        .map(|account| AccountWrapper(account.clone()))
+        .collect();
+    let new_account_root = account_storage
+        .insert(None, &mut keys, &mut wrapped)
+        .expect("initial insert");
+
+    let transaction_tree = MerkleTree::empty();
+
+    let genesis_app_hash = compute_app_hash(
+        &transaction_tree,
+        &new_account_root,
+        &rewards_pool_state,
+        &NetworkParameters::Genesis(init_network_params),
+    );
+
+    let mut app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
+        &hex::encode_upper(genesis_app_hash),
+        TEST_CHAIN_ID,
+        storage,
+        account_storage,
+        None,
+    );
+
+    // Init Chain
+
+    let mut request_init_chain = RequestInitChain::default();
+    request_init_chain.set_time(timestamp);
+    request_init_chain.set_app_state_bytes(serde_json::to_vec(&init_config).unwrap());
+    request_init_chain.set_chain_id(String::from(TEST_CHAIN_ID));
+    let response_init_chain = app.init_chain(&request_init_chain);
+
+    let validators = response_init_chain.validators.to_vec();
+
+    assert_eq!(2, validators.len());
+    assert_eq!(
+        50000000000,
+        i64::from(
+            *app.validator_voting_power
+                .get(&staking_account_address)
+                .unwrap()
+        )
+    );
+
+    // Begin Block
+
+    let validator_address: TendermintValidatorAddress = council_nodes
+        .iter()
+        .filter(|(address, _)| address == &staking_account_address)
+        .next()
+        .expect("one council node")
+        .1
+        .consensus_pubkey
+        .clone()
+        .into();
+
+    let mut request_begin_block = RequestBeginBlock::default();
+    let mut header = Header::default();
+    header.time = Some(Timestamp::new()).into();
+    header.chain_id = TEST_CHAIN_ID.to_owned();
+    header.height = 2;
+
+    let mut validator = Validator::new();
+    validator.address = <[u8; 20]>::from(&validator_address).to_vec();
+
+    let mut vote_info = VoteInfo::new();
+    vote_info.validator = Some(validator).into();
+    vote_info.signed_last_block = false;
+
+    let mut last_commit_info = LastCommitInfo::new();
+    last_commit_info.votes = vec![vote_info].into();
+
+    request_begin_block.header = Some(header).into();
+    request_begin_block.last_commit_info = Some(last_commit_info).into();
+    app.begin_block(&request_begin_block);
+
+    assert_eq!(
+        TendermintVotePower::zero(),
+        *app.power_changed_in_block
+            .get(&staking_account_address)
+            .unwrap()
+    );
+
+    let account = get_account(&address, &app);
+    assert!(account.is_jailed());
+
+    assert!(app
+        .last_state
+        .as_ref()
+        .unwrap()
+        .punishment
+        .slashing_schedule
+        .contains_key(&staking_account_address));
+
+    // End Block
+
+    let request_end_block = RequestEndBlock::new();
+    app.end_block(&request_end_block);
+
+    assert_eq!(
+        Coin::zero(),
+        app.last_state.as_ref().unwrap().rewards_pool.remaining
+    );
+
+    // Begin Block
+
+    let mut request_begin_block = RequestBeginBlock::default();
+    let mut header = Header::default();
+    header.time = Some(Timestamp::new()).into();
+    header.chain_id = TEST_CHAIN_ID.to_owned();
+    header.height = 1;
+
+    let mut validator = Validator::new();
+    validator.address = <[u8; 20]>::from(&validator_address).to_vec();
+
+    let mut evidence = Evidence::new();
+    evidence.validator = Some(validator).into();
+
+    let static_tendermint_validator_address: TendermintValidatorAddress = council_nodes
+        .iter()
+        .filter(|(address, _)| address == &static_staking_account_address)
+        .next()
+        .expect("one council node")
+        .1
+        .consensus_pubkey
+        .clone()
+        .into();
+
+    let mut static_validator = Validator::new();
+    static_validator.address = <[u8; 20]>::from(&static_tendermint_validator_address).to_vec();
+
+    let mut static_validator_evidence = Evidence::new();
+    static_validator_evidence.validator = Some(static_validator).into();
+
+    request_begin_block.header = Some(header).into();
+    request_begin_block.byzantine_validators = vec![evidence, static_validator_evidence].into();
+    app.begin_block(&request_begin_block);
+
+    let account = get_account(&address, &app);
+    assert!(account.is_jailed());
+
+    assert!(app
+        .last_state
+        .as_ref()
+        .unwrap()
+        .punishment
+        .slashing_schedule
+        .contains_key(&staking_account_address));
+
+    // End Block
+
+    let request_end_block = RequestEndBlock::new();
+    app.end_block(&request_end_block);
+
+    assert_eq!(
+        Coin::zero(),
+        app.last_state.as_ref().unwrap().rewards_pool.remaining
+    );
+
+    // Begin Block
+
+    let mut request_begin_block = RequestBeginBlock::default();
+
+    let mut time = Timestamp::new();
+    time.seconds = 10;
+
+    let mut header = Header::default();
+    header.time = Some(time).into();
+    header.chain_id = TEST_CHAIN_ID.to_owned();
+    header.height = 1;
+
+    request_begin_block.header = Some(header).into();
+
+    app.begin_block(&request_begin_block);
+
+    assert!(!app
+        .last_state
+        .as_ref()
+        .unwrap()
+        .punishment
+        .slashing_schedule
+        .contains_key(&staking_account_address));
+
+    assert_eq!(
+        Coin::new(u64::from(Coin::max()) / 5).unwrap(), // 0.1 * account_balance
         app.last_state.as_ref().unwrap().rewards_pool.remaining
     );
 }
