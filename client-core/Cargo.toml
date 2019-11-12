@@ -32,10 +32,10 @@ futures = "0.1.29"
 jsonrpc-core = "14.0"
 log ="0.4.8"
 serde = { version = "1.0", features = ["derive"] }
-tokio="0.1.22"
+tokio = { version = "0.1.22", default-features = false, features = ["rt-full"] }
 tiny-bip39 = { version = "0.6", default-features = false }
-unicase="2.5.1"
-lazy_static="1.4.0"
+unicase = "2.5.1"
+lazy_static = "1.4.0"
 ring = "0.16.9"
 
 [dev-dependencies]
@@ -43,7 +43,6 @@ chain-tx-validation = { path = "../chain-tx-validation" }
 hex = "0.4.0"
 base58 = "0.1.0"
 ripemd160 = "0.8.0"
-
 
 [features]
 default = ["sled"]
