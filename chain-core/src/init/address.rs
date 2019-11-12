@@ -28,7 +28,7 @@ use serde::de::Error;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "hex")]
 use std::fmt;
-use tiny_keccak::Keccak;
+use tiny_keccak::{Hasher, Keccak};
 
 use crate::common::{H256, HASH_SIZE_256};
 
@@ -59,7 +59,9 @@ pub const KECCAK256_BYTES: usize = 32;
 /// Calculate Keccak-256 crypto hash
 pub fn keccak256(data: &[u8]) -> H256 {
     let mut output = [0u8; HASH_SIZE_256];
-    Keccak::keccak256(data, &mut output);
+    let mut hasher = Keccak::v256();
+    hasher.update(data);
+    hasher.finalize(&mut output);
     output
 }
 
