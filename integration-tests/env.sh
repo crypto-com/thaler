@@ -28,8 +28,13 @@ function check_command_exist() {
 
 # Awlays execute at script located directory
 CWD=$(pwd)
-if [ x"$(basename "${0}")" = "xenv.sh" ]; then
-    cd "$(dirname "${0}")"
+# in non interactive shell
+# ${0} is -bash
+# TODO: replace this line, to make it work on non interactive shell
+if [ -f "${0}" ]; then 
+    if [ x"$(basename "${0}")" = "xenv.sh" ]; then
+        cd "$(dirname "${0}")"
+    fi
 fi
 # Travis CI run `. ./env.sh` using `build.sh`. i.e. `${0}`` is `/home/travis/build.sh`
 
