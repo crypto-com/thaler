@@ -60,11 +60,10 @@ pub fn get_ecdsa_witness<C: Signing>(
 }
 
 fn get_account(account_address: &RedeemAddress) -> StakedState {
-    StakedState::new_init(
+    StakedState::new_init_unbonded(
         Coin::one(),
-        None,
+        0,
         StakedStateAddress::from(*account_address),
-        &StakedStateDestination::UnbondedFromCustomTime(0),
     )
 }
 

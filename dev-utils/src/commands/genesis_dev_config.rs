@@ -8,6 +8,7 @@ use chain_core::init::{
     coin::Coin,
     config::{JailingParameters, SlashRatio, SlashingParameters, ValidatorPubkey},
 };
+use chain_core::state::account::{ValidatorName, ValidatorSecurityContact};
 
 #[derive(Deserialize, Debug)]
 pub struct GenesisDevConfig {
@@ -18,7 +19,8 @@ pub struct GenesisDevConfig {
     pub jailing_config: JailingParameters,
     pub slashing_config: SlashingParameters,
     pub initial_fee_policy: InitialFeePolicy,
-    pub council_nodes: BTreeMap<RedeemAddress, ValidatorPubkey>,
+    pub council_nodes:
+        BTreeMap<RedeemAddress, (ValidatorName, ValidatorSecurityContact, ValidatorPubkey)>,
     pub genesis_time: DateTime<Utc>,
 }
 

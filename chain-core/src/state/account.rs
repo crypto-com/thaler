@@ -20,12 +20,14 @@ use std::str::FromStr;
 // TODO: switch to normal signatures + explicit public key
 #[cfg(feature = "hex")]
 use crate::init::address::ErrorAddress;
+use crate::state::tendermint::TendermintValidatorPubKey;
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::From;
 #[cfg(feature = "hex")]
 use std::convert::TryFrom;
 #[cfg(feature = "hex")]
 use std::fmt;
+use std::prelude::v1::{String, ToString};
 
 /// Each input is 34 bytes
 ///
@@ -118,6 +120,89 @@ impl FromStr for StakedStateAddress {
     }
 }
 
+pub type ValidatorName = String;
+pub type ValidatorSecurityContact = Option<String>;
+
+/// holds state about a node responsible for transaction validation / block signing and service node whitelist management
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[cfg_attr(
+    all(feature = "serde", feature = "hex"),
+    derive(Serialize, Deserialize)
+)]
+pub struct CouncilNode {
+    // validator name / moniker (just for reference / human use)
+    pub name: ValidatorName,
+    // optional security@... email address
+    pub security_contact: ValidatorSecurityContact,
+    // Tendermint consensus validator-associated public key
+    pub consensus_pubkey: TendermintValidatorPubKey,
+}
+
+impl Encode for CouncilNode {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        self.name.encode_to(dest);
+        match &self.security_contact {
+            None => dest.push_byte(0),
+            Some(c) => {
+                dest.push_byte(1);
+                c.encode_to(dest);
+            }
+        };
+        self.consensus_pubkey.encode_to(dest);
+    }
+}
+
+const MAX_STRING_LEN: usize = 255;
+
+impl Decode for CouncilNode {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let name_raw: Vec<u8> = Vec::decode(input)?;
+        if name_raw.len() > MAX_STRING_LEN {
+            return Err(Error::from("Validator name longer than 255 chars"));
+        }
+        let name =
+            String::from_utf8(name_raw).map_err(|_| Error::from("Invalid validator name"))?;
+        let security_contact_raw: Option<Vec<u8>> = Option::decode(input)?;
+        let security_contact = match security_contact_raw {
+            Some(c) => {
+                if c.len() > MAX_STRING_LEN {
+                    return Err(Error::from("Security contact longer than 255 chars"));
+                }
+                Some(String::from_utf8(c).map_err(|_| Error::from("Invalid security contact"))?)
+            }
+            None => None,
+        };
+        let consensus_pubkey = TendermintValidatorPubKey::decode(input)?;
+        Ok(CouncilNode::new_with_details(
+            name,
+            security_contact,
+            consensus_pubkey,
+        ))
+    }
+}
+
+impl CouncilNode {
+    pub fn new(consensus_pubkey: TendermintValidatorPubKey) -> Self {
+        CouncilNode {
+            name: "no-name".to_string(),
+            security_contact: None,
+            consensus_pubkey,
+        }
+    }
+
+    pub fn new_with_details(
+        name: ValidatorName,
+        security_contact: ValidatorSecurityContact,
+        consensus_pubkey: TendermintValidatorPubKey,
+    ) -> Self {
+        CouncilNode {
+            name,
+            security_contact,
+            consensus_pubkey,
+        }
+    }
+}
+
 /// represents the StakedState (account involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(
@@ -131,7 +216,7 @@ pub struct StakedState {
     pub unbonded_from: Timespec,
     pub address: StakedStateAddress,
     pub jailed_until: Option<Timespec>,
-    // TODO: slashing
+    pub council_node: Option<CouncilNode>,
 }
 
 /// the tree used in StakedState storage db has a hardcoded 32-byte keys,
@@ -174,31 +259,38 @@ impl StakedState {
             unbonded_from,
             address,
             jailed_until,
+            council_node: None,
         }
     }
 
-    /// creates a StakedState at "genesis" (amount is either all bonded or unbonded depending on `destination` argument)
-    pub fn new_init(
+    /// creates a bonded StakedState with a validator metadata specified at genesis
+    pub fn new_init_bonded(
         amount: Coin,
-        genesis_time: Option<Timespec>,
+        genesis_time: Timespec,
         address: StakedStateAddress,
-        destination: &StakedStateDestination,
+        council_node: Option<CouncilNode>,
     ) -> Self {
-        let (bonded, unbonded, unbonded_from) = match *destination {
-            StakedStateDestination::Bonded => (amount, Coin::zero(), genesis_time.unwrap_or(0)),
-            StakedStateDestination::UnbondedFromGenesis => {
-                (Coin::zero(), amount, genesis_time.unwrap_or(0))
-            }
-            StakedStateDestination::UnbondedFromCustomTime(t) => (Coin::zero(), amount, t),
-        };
-
         StakedState {
             nonce: 0,
-            bonded,
-            unbonded,
-            unbonded_from,
+            bonded: amount,
+            unbonded: Coin::zero(),
+            unbonded_from: genesis_time,
             address,
             jailed_until: None,
+            council_node,
+        }
+    }
+
+    /// creates a StakedState at unbonded at specified time
+    pub fn new_init_unbonded(amount: Coin, time: Timespec, address: StakedStateAddress) -> Self {
+        StakedState {
+            nonce: 0,
+            bonded: Coin::zero(),
+            unbonded: amount,
+            unbonded_from: time,
+            address,
+            jailed_until: None,
+            council_node: None,
         }
     }
 
@@ -521,6 +613,55 @@ impl Decode for StakedStateOpWitness {
                 Ok(StakedStateOpWitness::BasicRedeem(sig))
             }
             _ => Err(Error::from("Invalid tag")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use quickcheck::quickcheck;
+    use quickcheck::Arbitrary;
+    use quickcheck::Gen;
+
+    impl Arbitrary for CouncilNode {
+        fn arbitrary<G: Gen>(g: &mut G) -> Self {
+            let name = String::arbitrary(g);
+            let mut raw_pubkey = [0u8; 32];
+            g.fill_bytes(&mut raw_pubkey);
+            let security_contact = if bool::arbitrary(g) {
+                let contact = String::arbitrary(g);
+                Some(contact)
+            } else {
+                None
+            };
+            CouncilNode::new_with_details(
+                name,
+                security_contact,
+                TendermintValidatorPubKey::Ed25519(raw_pubkey),
+            )
+        }
+    }
+
+    fn has_valid_len(council_node: &CouncilNode) -> bool {
+        match (council_node.name.len(), &council_node.security_contact) {
+            (i, Some(ref c)) if (i <= MAX_STRING_LEN && c.len() <= MAX_STRING_LEN) => true,
+            (i, None) if i <= MAX_STRING_LEN => true,
+            _ => false,
+        }
+    }
+
+    quickcheck! {
+        // tests if decode(encode(x)) == x
+        fn prop_encode_decode_council_node(council_node: CouncilNode) -> bool {
+            if has_valid_len(&council_node) {
+                let encoded = council_node.encode();
+                CouncilNode::decode(&mut encoded.as_ref()).expect("decode council node") == council_node
+            } else {
+                let encoded = council_node.encode();
+                CouncilNode::decode(&mut encoded.as_ref()).is_err()
+            }
         }
     }
 }

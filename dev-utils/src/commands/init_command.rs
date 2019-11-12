@@ -186,7 +186,9 @@ impl InitCommand {
             .staking_account_address
             .parse::<RedeemAddress>()
             .unwrap();
-        self.genesis_dev.council_nodes.insert(address, pubkey);
+        self.genesis_dev
+            .council_nodes
+            .insert(address, ("dev test".to_owned(), None, pubkey));
         Ok(())
     }
 

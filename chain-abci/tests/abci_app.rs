@@ -162,6 +162,7 @@ fn get_dummy_network_params() -> NetworkParameters {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
         },
+        max_validators: 1,
     })
 }
 
@@ -172,7 +173,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         block_time: 0,
         rewards_pool: RewardsPoolState::new(1.into(), 0),
         last_account_root_hash: [0u8; 32],
-        council_nodes: vec![],
+        council_nodes_by_power: BTreeMap::new(),
         network_params: get_dummy_network_params(),
         punishment: Default::default(),
     }
@@ -240,12 +241,17 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
         },
+        max_validators: 1,
     };
     let mut nodes = BTreeMap::new();
-    let node_pubkey = ValidatorPubkey {
-        consensus_pubkey_type: ValidatorKeyType::Ed25519,
-        consensus_pubkey_b64: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=".to_string(),
-    };
+    let node_pubkey = (
+        "test".to_owned(),
+        None,
+        ValidatorPubkey {
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=".to_string(),
+        },
+    );
     nodes.insert(validator_addr, node_pubkey);
     let c = InitConfig::new(rewards_pool, distribution, params, nodes);
     let t = ::protobuf::well_known_types::Timestamp::new();
@@ -348,6 +354,7 @@ fn init_chain_panics_with_different_app_hash() {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
         },
+        max_validators: 1,
     };
     let c = InitConfig::new(rewards_pool, distribution, params, BTreeMap::new());
 
@@ -965,9 +972,9 @@ fn all_valid_tx_types_should_commit() {
     }
 }
 
+// TODO: reduce the copy-pasted stuff
 #[test]
 fn end_block_should_update_liveness_tracker() {
-    use chain_abci::app::into_tendermint_validator_pub_key;
     use chain_core::state::tendermint::TendermintValidatorAddress;
     use protobuf::well_known_types::Timestamp;
 
@@ -993,10 +1000,14 @@ fn end_block_should_update_liveness_tracker() {
     distribution.insert(address, (StakedStateDestination::Bonded, Coin::max()));
 
     let mut nodes = BTreeMap::new();
-    let node_pubkey = ValidatorPubkey {
-        consensus_pubkey_type: ValidatorKeyType::Ed25519,
-        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-    };
+    let node_pubkey = (
+        "test".to_owned(),
+        None,
+        ValidatorPubkey {
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+        },
+    );
     nodes.insert(address, node_pubkey);
 
     let init_network_params = InitNetworkParameters {
@@ -1013,6 +1024,7 @@ fn end_block_should_update_liveness_tracker() {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
         },
+        max_validators: 1,
     };
 
     let init_config = InitConfig::new(
@@ -1024,7 +1036,7 @@ fn end_block_should_update_liveness_tracker() {
 
     let timestamp = Timestamp::new();
 
-    let (accounts, rewards_pool_state, _) = init_config
+    let (accounts, rewards_pool_state, council_nodes) = init_config
         .validate_config_get_genesis(timestamp.get_seconds())
         .expect("Error while validating distribution");
 
@@ -1114,10 +1126,13 @@ fn end_block_should_update_liveness_tracker() {
 
     // End Block (this'll remove validator from liveness tracker)
 
-    let validator_address: TendermintValidatorAddress = into_tendermint_validator_pub_key(
-        app.validator_pubkeys.get(&staking_account_address).unwrap(),
-    )
-    .into();
+    let validator_address: TendermintValidatorAddress = council_nodes
+        .iter()
+        .next()
+        .expect("one council node")
+        .1
+        .consensus_pubkey.clone()
+        .into();
     assert!(app
         .last_state
         .as_ref()
@@ -1149,9 +1164,9 @@ fn end_block_should_update_liveness_tracker() {
         .contains_key(&validator_address));
 }
 
+// TODO: reduce the copy-pasted stuff
 #[test]
 fn begin_block_should_jail_byzantine_validators() {
-    use chain_abci::app::into_tendermint_validator_pub_key;
     use chain_core::state::tendermint::TendermintValidatorAddress;
     use protobuf::well_known_types::Timestamp;
 
@@ -1183,13 +1198,18 @@ fn begin_block_should_jail_byzantine_validators() {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
         },
+        max_validators: 1,
     };
 
     let mut nodes = BTreeMap::new();
-    let node_pubkey = ValidatorPubkey {
-        consensus_pubkey_type: ValidatorKeyType::Ed25519,
-        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-    };
+    let node_pubkey = (
+        "test".to_owned(),
+        None,
+        ValidatorPubkey {
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+        },
+    );
     nodes.insert(address, node_pubkey);
 
     let init_config = InitConfig::new(
@@ -1201,7 +1221,7 @@ fn begin_block_should_jail_byzantine_validators() {
 
     let timestamp = Timestamp::new();
 
-    let (accounts, rewards_pool_state, _) = init_config
+    let (accounts, rewards_pool_state, council_nodes) = init_config
         .validate_config_get_genesis(timestamp.get_seconds())
         .expect("Error while validating distribution");
 
@@ -1254,10 +1274,13 @@ fn begin_block_should_jail_byzantine_validators() {
 
     // Begin Block
 
-    let validator_address: TendermintValidatorAddress = into_tendermint_validator_pub_key(
-        app.validator_pubkeys.get(&staking_account_address).unwrap(),
-    )
-    .into();
+    let validator_address: TendermintValidatorAddress = council_nodes
+        .iter()
+        .next()
+        .expect("one council node")
+        .1
+        .consensus_pubkey.clone()
+        .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
     let mut header = Header::default();
@@ -1286,9 +1309,9 @@ fn begin_block_should_jail_byzantine_validators() {
     assert!(account.is_jailed());
 }
 
+// TODO: reduce the copy-pasted stuff
 #[test]
 fn begin_block_should_jail_non_live_validators() {
-    use chain_abci::app::into_tendermint_validator_pub_key;
     use chain_core::state::tendermint::TendermintValidatorAddress;
     use protobuf::well_known_types::Timestamp;
 
@@ -1327,12 +1350,17 @@ fn begin_block_should_jail_non_live_validators() {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
         },
+        max_validators: 1,
     };
     let mut nodes = BTreeMap::new();
-    let node_pubkey = ValidatorPubkey {
-        consensus_pubkey_type: ValidatorKeyType::Ed25519,
-        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-    };
+    let node_pubkey = (
+        "test".to_owned(),
+        None,
+        ValidatorPubkey {
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+        },
+    );
     nodes.insert(address, node_pubkey);
     let init_config = InitConfig::new(
         rewards_pool,
@@ -1343,7 +1371,7 @@ fn begin_block_should_jail_non_live_validators() {
 
     let timestamp = Timestamp::new();
 
-    let (accounts, rewards_pool_state, _) = init_config
+    let (accounts, rewards_pool_state, council_nodes) = init_config
         .validate_config_get_genesis(timestamp.get_seconds())
         .expect("Error while validating distribution");
 
@@ -1396,10 +1424,13 @@ fn begin_block_should_jail_non_live_validators() {
 
     // Begin Block
 
-    let validator_address: TendermintValidatorAddress = into_tendermint_validator_pub_key(
-        app.validator_pubkeys.get(&staking_account_address).unwrap(),
-    )
-    .into();
+    let validator_address: TendermintValidatorAddress = council_nodes
+        .iter()
+        .next()
+        .expect("one council node")
+        .1
+        .consensus_pubkey.clone()
+        .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
     let mut header = Header::default();
@@ -1432,9 +1463,9 @@ fn begin_block_should_jail_non_live_validators() {
     assert!(account.is_jailed());
 }
 
+// TODO: reduce the copy-pasted stuff
 #[test]
 fn begin_block_should_slash_byzantine_validators() {
-    use chain_abci::app::into_tendermint_validator_pub_key;
     use chain_core::state::tendermint::TendermintValidatorAddress;
     use protobuf::well_known_types::Timestamp;
 
@@ -1473,13 +1504,18 @@ fn begin_block_should_slash_byzantine_validators() {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 5,
         },
+        max_validators: 1,
     };
 
     let mut nodes = BTreeMap::new();
-    let node_pubkey = ValidatorPubkey {
-        consensus_pubkey_type: ValidatorKeyType::Ed25519,
-        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-    };
+    let node_pubkey = (
+        "test".to_owned(),
+        None,
+        ValidatorPubkey {
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+        },
+    );
     nodes.insert(address, node_pubkey);
     let init_config = InitConfig::new(
         rewards_pool,
@@ -1490,7 +1526,7 @@ fn begin_block_should_slash_byzantine_validators() {
 
     let timestamp = Timestamp::new();
 
-    let (accounts, rewards_pool_state, _) = init_config
+    let (accounts, rewards_pool_state, council_nodes) = init_config
         .validate_config_get_genesis(timestamp.get_seconds())
         .expect("Error while validating distribution");
 
@@ -1543,10 +1579,13 @@ fn begin_block_should_slash_byzantine_validators() {
 
     // Begin Block
 
-    let validator_address: TendermintValidatorAddress = into_tendermint_validator_pub_key(
-        app.validator_pubkeys.get(&staking_account_address).unwrap(),
-    )
-    .into();
+    let validator_address: TendermintValidatorAddress = council_nodes
+        .iter()
+        .next()
+        .expect("one council node")
+        .1
+        .consensus_pubkey.clone()
+        .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
     let mut header = Header::default();
@@ -1622,9 +1661,9 @@ fn begin_block_should_slash_byzantine_validators() {
     );
 }
 
+// TODO: reduce the copy-pasted stuff
 #[test]
 fn begin_block_should_slash_non_live_validators() {
-    use chain_abci::app::into_tendermint_validator_pub_key;
     use chain_core::state::tendermint::TendermintValidatorAddress;
     use protobuf::well_known_types::Timestamp;
 
@@ -1663,12 +1702,17 @@ fn begin_block_should_slash_non_live_validators() {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 5,
         },
+        max_validators: 1,
     };
     let mut nodes = BTreeMap::new();
-    let node_pubkey = ValidatorPubkey {
-        consensus_pubkey_type: ValidatorKeyType::Ed25519,
-        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-    };
+    let node_pubkey = (
+        "test".to_owned(),
+        None,
+        ValidatorPubkey {
+            consensus_pubkey_type: ValidatorKeyType::Ed25519,
+            consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
+        },
+    );
     nodes.insert(address, node_pubkey);
 
     let init_config = InitConfig::new(
@@ -1680,7 +1724,7 @@ fn begin_block_should_slash_non_live_validators() {
 
     let timestamp = Timestamp::new();
 
-    let (accounts, rewards_pool_state, _) = init_config
+    let (accounts, rewards_pool_state, council_nodes) = init_config
         .validate_config_get_genesis(timestamp.get_seconds())
         .expect("Error while validating distribution");
 
@@ -1733,10 +1777,13 @@ fn begin_block_should_slash_non_live_validators() {
 
     // Begin Block
 
-    let validator_address: TendermintValidatorAddress = into_tendermint_validator_pub_key(
-        app.validator_pubkeys.get(&staking_account_address).unwrap(),
-    )
-    .into();
+    let validator_address: TendermintValidatorAddress = council_nodes
+        .iter()
+        .next()
+        .expect("one council node")
+        .1
+        .consensus_pubkey.clone()
+        .into();
 
     let mut request_begin_block = RequestBeginBlock::default();
     let mut header = Header::default();

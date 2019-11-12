@@ -5,12 +5,11 @@ pub mod tendermint;
 
 use crate::common::{hash256, H256};
 use crate::init::coin::Coin;
-use account::{Nonce, StakedStateAddress};
 use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use tendermint::{BlockHeight, TendermintValidatorPubKey};
+use tendermint::BlockHeight;
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -31,35 +30,6 @@ impl RewardsPoolState {
         RewardsPoolState {
             remaining,
             last_block_height,
-        }
-    }
-}
-
-/// holds state about a node responsible for transaction validation / block signing and service node whitelist management
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(
-    all(feature = "serde", feature = "hex"),
-    derive(Serialize, Deserialize)
-)]
-pub struct CouncilNode {
-    // account with the required staked amount
-    pub staking_account_address: StakedStateAddress,
-    // Tendermint consensus validator-associated public key
-    pub consensus_pubkey: TendermintValidatorPubKey,
-    // update counter
-    pub nonce: Nonce,
-    // TODO: public keys / addresses for other operations
-}
-
-impl CouncilNode {
-    pub fn new(
-        staking_account_address: StakedStateAddress,
-        consensus_pubkey: TendermintValidatorPubKey,
-    ) -> Self {
-        CouncilNode {
-            staking_account_address,
-            consensus_pubkey,
-            nonce: 0,
         }
     }
 }

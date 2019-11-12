@@ -34,7 +34,7 @@ fn test_verify_test_example_snapshot() {
         consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
     };
     let mut nodes = BTreeMap::new();
-    nodes.insert(node_address, node_pubkey);
+    nodes.insert(node_address, ("no-name".to_owned(), None, node_pubkey));
 
     let mut dist: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)> = BTreeMap::new();
 
@@ -64,6 +64,7 @@ fn test_verify_test_example_snapshot() {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
         },
+        max_validators: 1,
     };
 
     let rewards_pool = Coin::new(9516484570597337034).unwrap();

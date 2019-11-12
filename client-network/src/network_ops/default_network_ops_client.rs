@@ -261,7 +261,7 @@ where
 
         let signed_transaction = SignedTransaction::WithdrawUnbondedStakeTransaction(
             transaction,
-            staked_state,
+            Box::new(staked_state),
             signature,
         );
         let tx_aux = self.transaction_cipher.encrypt(signed_transaction)?;

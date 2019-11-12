@@ -201,7 +201,7 @@ pub enum TxQueryInitResponse {
 pub enum EncryptionRequest {
     TransferTx(Tx, TxWitness),
     DepositStake(DepositBondTx, TxWitness),
-    WithdrawStake(WithdrawUnbondedTx, StakedState, StakedStateOpWitness),
+    WithdrawStake(WithdrawUnbondedTx, Box<StakedState>, StakedStateOpWitness),
 }
 
 impl Decode for EncryptionRequest {
@@ -225,7 +225,7 @@ impl Decode for EncryptionRequest {
             )),
             2 => Ok(EncryptionRequest::WithdrawStake(
                 WithdrawUnbondedTx::decode(input)?,
-                StakedState::decode(input)?,
+                Box::new(StakedState::decode(input)?),
                 StakedStateOpWitness::decode(input)?,
             )),
             _ => Err("No such variant in enum EncryptionRequest".into()),

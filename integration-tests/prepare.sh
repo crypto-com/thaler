@@ -187,10 +187,13 @@ DEV_CONF=$(cat << EOF
         "per_byte_fee": "{PER_BYTE_FEE}"
     },
     "council_nodes": {
-        "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": {
+        "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": [
+            "integration test",
+            "security@integration.test",
+        {
             "consensus_pubkey_type": "Ed25519",
             "consensus_pubkey_b64": "{PUB_KEY}"
-        }
+        }]
     },
     "genesis_time": "{GENESIS_TIME}"
 }

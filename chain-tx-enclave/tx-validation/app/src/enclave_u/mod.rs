@@ -3,7 +3,6 @@ use sgx_types::*;
 use chain_core::common::H256;
 use chain_core::state::account::DepositBondTx;
 use chain_core::state::account::StakedState;
-use chain_core::state::account::StakedStateDestination;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::TxEnclaveAux;
 use chain_core::tx::TxObfuscated;
@@ -164,11 +163,11 @@ pub fn check_tx(
                                 },
                             ..
                         },
-                    ) => Some(StakedState::new_init(
+                    ) => Some(StakedState::new_init_bonded(
                         deposit_amount,
-                        Some(request.info.previous_block_time),
+                        request.info.previous_block_time,
                         to_staked_account,
-                        &StakedStateDestination::Bonded,
+                        None,
                     )),
                     (_, _) => unreachable!("one shouldn't call this with other variants"),
                 };

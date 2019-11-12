@@ -111,6 +111,7 @@ mod tests {
                 byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
                 slash_wait_period: 10800,
             },
+            max_validators: 2,
         };
 
         let mut nodes = BTreeMap::new();
@@ -118,7 +119,7 @@ mod tests {
             consensus_pubkey_type: ValidatorKeyType::Ed25519,
             consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
         };
-        nodes.insert(address, node_key);
+        nodes.insert(address, ("test".to_owned(), None, node_key));
         let rewards_pool = Coin::new(0).unwrap();
         let init_config = InitConfig::new(
             rewards_pool,
