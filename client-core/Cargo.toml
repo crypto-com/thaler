@@ -12,7 +12,7 @@ chain-tx-filter = { path = "../chain-tx-filter" }
 enclave-protocol = { path = "../enclave-protocol" }
 chain-tx-validation = { path = "../chain-tx-validation" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "8b9a38b870a7759fcdbd4a5d435b5ba873c70afd", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
-parity-scale-codec = { features = ["derive"], version = "1.0" }
+parity-scale-codec = { features = ["derive"], version = "1.1" }
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.7"
 hex = "0.4"

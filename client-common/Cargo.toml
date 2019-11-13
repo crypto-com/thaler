@@ -21,7 +21,7 @@ chrono = { version = "0.4", features = ["serde"] }
 sled = { version = "0.29", optional = true }
 jsonrpc = { version = "0.11", optional = true }
 serde_json = { version = "1.0", optional = true }
-parity-scale-codec = { features = ["derive"], version = "1.0" }
+parity-scale-codec = { features = ["derive"], version = "1.1" }
 websocket = { version = "0.24", default-features = false, features = ["sync"], optional = true }
 
 [features]

@@ -27,4 +27,4 @@ zeroize = "1.0"
 tiny-bip39 = { version = "0.6", default-features = false }
 
 [dev-dependencies]
-parity-scale-codec = "1.0"
+parity-scale-codec = "1.1"
