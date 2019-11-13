@@ -109,6 +109,8 @@ pub enum ErrorKind {
     MultiSigError,
     /// Internal error
     InternalError,
+    /// Validator error
+    ValidationError,
 }
 
 impl fmt::Display for ErrorKind {
@@ -128,6 +130,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::TendermintRpcError => write!(f, "Tendermint RPC error"),
             ErrorKind::MultiSigError => write!(f, "Multi-sig error"),
             ErrorKind::InternalError => write!(f, "Internal error"),
+            ErrorKind::ValidationError => write!(f, "Validation error"),
         }
     }
 }

@@ -8,6 +8,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
+use chain_tx_validation::{check_inputs_basic, check_outputs_basic};
 use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction};
 
 use crate::{
@@ -148,6 +149,20 @@ where
         let witness = self
             .signer
             .sign(name, passphrase, tx.id(), &selected_unspent_txs)?;
+
+        check_inputs_basic(&tx.inputs, &witness).map_err(|e| {
+            Error::new(
+                ErrorKind::ValidationError,
+                format!("Failed to validate transaction inputs: {}", e),
+            )
+        })?;
+
+        check_outputs_basic(&tx.outputs).map_err(|e| {
+            Error::new(
+                ErrorKind::ValidationError,
+                format!("Failed to validate transaction outputs: {}", e),
+            )
+        })?;
 
         let signed_transaction = SignedTransaction::TransferTransaction(tx, witness);
         let tx_aux = self.transaction_obfuscation.encrypt(signed_transaction)?;
