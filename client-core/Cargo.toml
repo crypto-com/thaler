@@ -10,6 +10,7 @@ chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 chain-tx-filter = { path = "../chain-tx-filter" }
 enclave-protocol = { path = "../enclave-protocol" }
+chain-tx-validation = { path = "../chain-tx-validation" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "8b9a38b870a7759fcdbd4a5d435b5ba873c70afd", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
 parity-scale-codec = { features = ["derive"], version = "1.0" }
 chrono = { version = "0.4", features = ["serde"] }
@@ -39,7 +40,6 @@ lazy_static = "1.4.0"
 ring = "0.16.9"
 
 [dev-dependencies]
-chain-tx-validation = { path = "../chain-tx-validation" }
 hex = "0.4.0"
 base58 = "0.1.0"
 ripemd160 = "0.8.0"

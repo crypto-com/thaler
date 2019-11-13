@@ -141,7 +141,8 @@ fn check_attributes(tx_chain_hex_id: u8, extra_info: &ChainInfo) -> Result<(), E
     Ok(())
 }
 
-fn check_inputs_basic(inputs: &[TxoPointer], witness: &TxWitness) -> Result<(), Error> {
+/// Applies basic checks on transaction inputs
+pub fn check_inputs_basic(inputs: &[TxoPointer], witness: &TxWitness) -> Result<(), Error> {
     // check that there are inputs
     if inputs.is_empty() {
         return Err(Error::NoInputs);
@@ -208,7 +209,8 @@ fn check_inputs(
     Ok(incoins)
 }
 
-fn check_outputs_basic(outputs: &[TxOut]) -> Result<(), Error> {
+/// Applies basic checks on transaction outputs
+pub fn check_outputs_basic(outputs: &[TxOut]) -> Result<(), Error> {
     // check that there are outputs
     if outputs.is_empty() {
         return Err(Error::NoOutputs);
