@@ -46,6 +46,7 @@ pub struct ChainNodeState {
     pub network_params: NetworkParameters,
     /// council nodes metadata
     /// FIXME: delete node metadata if voting power == 0 for longer than unbonding time
+    #[serde(skip)]
     pub council_nodes_by_power: BTreeMap<(TendermintVotePower, StakedStateAddress), CouncilNode>,
     /// stores staking account address corresponding to tendermint validator addresses
     pub tendermint_validator_addresses: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
