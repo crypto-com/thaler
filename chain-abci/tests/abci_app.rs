@@ -21,6 +21,7 @@ use chain_core::state::account::{
     to_stake_key, DepositBondTx, StakedState, StakedStateAddress, StakedStateDestination,
     StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
 };
+use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::tree::RawPubkey;
@@ -243,14 +244,25 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
         max_validators: 1,
     };
     let mut nodes = BTreeMap::new();
+    let pub_key_base64 = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=";
     let node_pubkey = (
         "test".to_owned(),
         None,
         ValidatorPubkey {
             consensus_pubkey_type: ValidatorKeyType::Ed25519,
-            consensus_pubkey_b64: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=".to_string(),
+            consensus_pubkey_b64: pub_key_base64.to_string(),
         },
     );
+    let validator = ValidatorUpdate {
+        pub_key: Some(PubKey {
+            field_type: "ed25519".to_owned(),
+            data: base64::decode(&pub_key_base64).unwrap(),
+            ..Default::default()
+        })
+        .into(),
+        power: TendermintVotePower::from(Coin::unit()).into(),
+        ..Default::default()
+    };
     nodes.insert(validator_addr, node_pubkey);
     let c = InitConfig::new(rewards_pool, distribution, params, nodes);
     let t = ::protobuf::well_known_types::Timestamp::new();
@@ -288,6 +300,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
         req.set_time(t);
         req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
         req.set_chain_id(String::from(TEST_CHAIN_ID));
+        req.set_validators(vec![validator].into());
         app.init_chain(&req);
         app
     } else {
