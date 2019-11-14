@@ -163,7 +163,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "bitvec"
-version = "0.14.0"
+version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -291,7 +291,7 @@ dependencies = [
  "kvdb-memorydb 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-rocksdb 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=8b9a38b870a7759fcdbd4a5d435b5ba873c70afd)",
@@ -314,7 +314,7 @@ dependencies = [
  "blake2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=8b9a38b870a7759fcdbd4a5d435b5ba873c70afd)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -333,7 +333,7 @@ dependencies = [
  "chain-core 0.1.0",
  "ethbloom 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=8b9a38b870a7759fcdbd4a5d435b5ba873c70afd)",
  "sgx_tstd 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
@@ -344,7 +344,7 @@ name = "chain-tx-validation"
 version = "0.1.0"
 dependencies = [
  "chain-core 0.1.0",
- "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=8b9a38b870a7759fcdbd4a5d435b5ba873c70afd)",
  "sgx_tstd 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
 ]
@@ -419,7 +419,7 @@ dependencies = [
  "jsonrpc 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "miscreant 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=8b9a38b870a7759fcdbd4a5d435b5ba873c70afd)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -451,7 +451,7 @@ dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-bigint 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "ripemd160 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -481,7 +481,7 @@ dependencies = [
  "client-common 0.1.0",
  "client-core 0.1.0",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=8b9a38b870a7759fcdbd4a5d435b5ba873c70afd)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -504,7 +504,7 @@ dependencies = [
  "jsonrpc-derive 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-http-server 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.41 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -734,7 +734,7 @@ version = "0.1.0"
 dependencies = [
  "chain-core 0.1.0",
  "chain-tx-validation 0.1.0",
- "parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=8b9a38b870a7759fcdbd4a5d435b5ba873c70afd)",
  "sgx_tstd 1.0.9 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=v1.0.9)",
 ]
@@ -1692,11 +1692,11 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "1.0.6"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "arrayvec 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
- "bitvec 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bitvec 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "byte-slice-cast 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec-derive 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.102 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3286,7 +3286,7 @@ dependencies = [
 "checksum bincode 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b8ab639324e3ee8774d296864fbc0dbbb256cf1a41c490b94cba90c082915f92"
 "checksum bit-vec 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a4523a10839ffae575fb08aa3423026c8cb4687eef43952afb956229d4f246f7"
 "checksum bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
-"checksum bitvec 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9633b74910e1870f50f5af189b08487195cdb83c0e27a71d6f64d5e09dd0538b"
+"checksum bitvec 0.15.2 (registry+https://github.com/rust-lang/crates.io-index)" = "a993f74b4c99c1908d156b8d2e0fb6277736b0ecbd833982fd1241d39b2766a6"
 "checksum blake2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "94cb07b0da6a73955f8fb85d24c466778e70cda767a568229b104f0264089330"
 "checksum blake2b_simd 0.5.9 (registry+https://github.com/rust-lang/crates.io-index)" = "b83b7baab1e671718d78204225800d6b170e648188ac7dc992e9d6bddf87d0c0"
 "checksum block-buffer 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)" = "c0940dc441f31689269e10ac70eb1002a3a1d3ad1390e030043662eb7fe4688b"
@@ -3431,7 +3431,7 @@ dependencies = [
 "checksum parity-bytes 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0c276d76c5333b8c2579e02d49a06733a55b8282d2d9b13e8d53b6406bd7e30a"
 "checksum parity-rocksdb 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2d17caf6640e24b70242f3f48615e3f0764f98871e8c7aea25584e29833eb5a8"
 "checksum parity-rocksdb-sys 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)" = "9581e6b8c63f3808500638372ee56faaaffb57c4d349974bff591606b94d5f57"
-"checksum parity-scale-codec 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "001fbbb956d8593f321c7a784f64d16b2c99b2657823976eea729006ad2c3668"
+"checksum parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f9f9d99dae413590a5f37e43cd99b94d4e62a244160562899126913ea7108673"
 "checksum parity-scale-codec-derive 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "42af752f59119656fa3cb31e8852ed24e895b968c0bdb41847da7f0cea6d155f"
 "checksum parity-snappy-sys 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "1a413d51e5e1927320c9de992998e4a279dffb8c8a7363570198bd8383e66f1b"
 "checksum parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ab41b4aed082705d1056416ae4468b6ea99d52599ecf3169b00088d43113e337"

@@ -34,7 +34,7 @@ integer-encoding = "1.0.7"
 structopt = "0.3"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "8b9a38b870a7759fcdbd4a5d435b5ba873c70afd", features = ["recovery", "endomorphism"] }
 blake2 = "0.8"
-parity-scale-codec = { features = ["derive"], version = "1.0" }
+parity-scale-codec = { features = ["derive"], version = "1.1" }
 zmq = "0.9"
 
 [dev-dependencies]
