@@ -5,6 +5,9 @@ IFS=
 # Global function return value
 RET_VALUE=0
 
+# change attribute
+chmod ug+s ./docker-data
+
 # @argument message
 function print_message() {
     echo "[$(date +"%Y-%m-%d|%T")] ${1}"
