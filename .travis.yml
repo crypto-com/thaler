@@ -46,7 +46,7 @@ rust: &rust
     - rm -rf $HOME/.cargo/registry/src
   env:
     - RUST_BACKTRACE=1
-    - RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
+    - RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3
     - PATH=$HOME/.local/bin:$PATH
     - LD_LIBRARY_PATH=$HOME/lib
     - PKG_CONFIG_PATH=$HOME/lib/pkgconfig

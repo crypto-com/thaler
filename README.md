@@ -88,7 +88,7 @@ Crypto.com chain requires the following to be installed before build.
 After all dependencies are installed, add the following lines to `~/.cargo/config` to enable generating instructions for Streaming SIMD Extensions 3 and Advanced Vector Extensions on build:
 ```
 [build]
-rustflags = ["-Ctarget-feature=+aes,+ssse3"]
+rustflags = ["-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3"]
 ```
 
 (TODO: In the future, the build tooling may be migrated to Bazel / Nix etc. for reproducible builds.)

@@ -89,6 +89,8 @@ pub enum ErrorKind {
     StorageError,
     /// Random number generation error
     RngError,
+    /// Encryption error
+    EncryptionError,
     /// Decryption error
     DecryptionError,
     /// Serialization error
@@ -120,6 +122,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::ConnectionError => write!(f, "Connection error"),
             ErrorKind::StorageError => write!(f, "Storage error"),
             ErrorKind::RngError => write!(f, "Random number generation error"),
+            ErrorKind::EncryptionError => write!(f, "Encryption error"),
             ErrorKind::DecryptionError => write!(f, "Decryption error"),
             ErrorKind::SerializationError => write!(f, "Serialization error"),
             ErrorKind::DeserializationError => write!(f, "Deserialization error"),

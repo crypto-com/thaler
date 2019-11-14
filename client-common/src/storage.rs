@@ -9,16 +9,18 @@ pub use memory_storage::MemoryStorage;
 pub use sled_storage::SledStorage;
 pub use unauthorized_storage::UnauthorizedStorage;
 
+use aes_gcm_siv::aead::generic_array::GenericArray;
+use aes_gcm_siv::aead::{Aead, NewAead};
+use aes_gcm_siv::Aes256GcmSiv;
 use blake2::{Blake2s, Digest};
-use miscreant::{Aead, Aes128PmacSivAead};
 use rand::rngs::OsRng;
 use rand::Rng;
 use secstr::SecUtf8;
 
-use crate::{ErrorKind, Result, ResultExt};
+use crate::{Error, ErrorKind, Result, ResultExt};
 
 /// Nonce size in bytes
-const NONCE_SIZE: usize = 8;
+const NONCE_SIZE: usize = 12;
 
 /// Interface for a generic key-value storage
 pub trait Storage: Send + Sync {
@@ -104,19 +106,7 @@ where
         passphrase: &SecUtf8,
     ) -> Result<Option<Vec<u8>>> {
         self.get(keyspace, &key)?
-            .map(|value| {
-                let nonce_index = value.len() - NONCE_SIZE;
-                let mut algo = get_algo(passphrase);
-
-                Ok(algo
-                    .open(&value[nonce_index..], key.as_ref(), &value[..nonce_index])
-                    .chain(|| {
-                        (
-                            ErrorKind::DecryptionError,
-                            "Incorrect passphrase: Unable to unlock stored values",
-                        )
-                    })?)
-            })
+            .map(|value| decrypt_bytes(passphrase, &value))
             .transpose()
     }
 
@@ -129,14 +119,7 @@ where
     ) -> Result<Option<Vec<u8>>> {
         let old_value = self.get_secure(&keyspace, &key, passphrase)?;
 
-        let mut algo = get_algo(passphrase);
-
-        let mut nonce = [0u8; NONCE_SIZE];
-        OsRng.fill(&mut nonce);
-
-        let mut cipher = algo.seal(&nonce, key.as_ref(), &value);
-        cipher.extend(&nonce[..]);
-
+        let cipher = encrypt_bytes(passphrase, &value)?;
         self.set(keyspace, key, cipher)?;
 
         Ok(old_value)
@@ -155,17 +138,8 @@ where
         F: Fn(Option<&[u8]>) -> Result<Option<Vec<u8>>>,
     {
         self.fetch_and_update(keyspace, &key, |current| {
-            let mut algo = get_algo(passphrase);
             let opened = current
-                .map(|current| {
-                    let nonce_index = current.len() - NONCE_SIZE;
-
-                    algo.open(
-                        &current[nonce_index..],
-                        key.as_ref(),
-                        &current[..nonce_index],
-                    )
-                })
+                .map(|current| decrypt_bytes(passphrase, current))
                 .transpose()
                 .chain(|| {
                     (
@@ -176,39 +150,53 @@ where
 
             let next = f(opened.as_ref().map(AsRef::as_ref))?;
 
-            next.map(|next| {
-                let mut nonce = [0u8; NONCE_SIZE];
-                OsRng.fill(&mut nonce);
-
-                let mut sealed = algo.seal(&nonce, key.as_ref(), &next);
-                sealed.extend(&nonce[..]);
-
-                Ok(sealed)
-            })
-            .transpose()
+            next.as_ref()
+                .map(|next| encrypt_bytes(passphrase, next))
+                .transpose()
         })
     }
 }
 
-/// Decrypts bytes with given key and passphrase
-pub fn decrypt_bytes<K>(key: K, passphrase: &SecUtf8, bytes: &[u8]) -> Result<Vec<u8>>
-where
-    K: AsRef<[u8]>,
-{
-    let mut algo = get_algo(passphrase);
-    let nonce_index = bytes.len() - NONCE_SIZE;
+/// Encrypts bytes with given passphrase
+pub fn encrypt_bytes(passphrase: &SecUtf8, bytes: &[u8]) -> Result<Vec<u8>> {
+    let mut nonce = [0; NONCE_SIZE];
 
-    algo.open(&bytes[nonce_index..], key.as_ref(), &bytes[..nonce_index])
-        .chain(|| {
-            (
-                ErrorKind::DecryptionError,
-                "Incorrect passphrase: Unable to unlock stored values",
-            )
-        })
+    OsRng.fill(&mut nonce);
+
+    let algo = get_algo(passphrase)?;
+
+    let mut cipher = Vec::new();
+    cipher.extend_from_slice(&nonce[..]);
+
+    cipher.append(
+        &mut algo
+            .encrypt(GenericArray::from_slice(&nonce), bytes)
+            .map_err(|_| Error::new(ErrorKind::EncryptionError, "Unable to encrypt bytes"))?,
+    );
+
+    Ok(cipher)
 }
 
-fn get_algo(passphrase: &SecUtf8) -> Aes128PmacSivAead {
+/// Decrypts bytes with given passphrase
+pub fn decrypt_bytes(passphrase: &SecUtf8, bytes: &[u8]) -> Result<Vec<u8>> {
+    let algo = get_algo(passphrase)?;
+
+    algo.decrypt(
+        GenericArray::from_slice(&bytes[..NONCE_SIZE]),
+        &bytes[NONCE_SIZE..],
+    )
+    .map_err(|_| {
+        Error::new(
+            ErrorKind::DecryptionError,
+            "Incorrect passphrase: Unable to unlock stored values",
+        )
+    })
+}
+
+fn get_algo(passphrase: &SecUtf8) -> Result<Aes256GcmSiv> {
     let mut hasher = Blake2s::new();
     hasher.input(passphrase.unsecure());
-    Aes128PmacSivAead::new(&hasher.result_reset())
+
+    let key = GenericArray::clone_from_slice(&hasher.result_reset());
+    Ok(Aes256GcmSiv::new(key))
 }
