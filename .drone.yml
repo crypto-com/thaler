@@ -8,7 +8,7 @@ steps:
   pull: never
   commands:
   - export RUST_BACKTRACE=1
-  - export RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
+  - export RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3
   - export LD_LIBRARY_PATH=$HOME/lib
   - export LIBRARY_PATH=$HOME/lib
   - export PATH=$HOME/.cargo/bin:$HOME/.local/bin:$PATH
@@ -114,7 +114,7 @@ steps:
       from_secret: dev_ias_key
   commands:
   - export RUST_BACKTRACE=1
-  - export RUSTFLAGS=-Ctarget-feature=+aes,+ssse3
+  - export RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3
   - export SGX_MODE=HW
   - export NETWORK_ID=ab
   - export RUST_LOG=info
@@ -146,6 +146,6 @@ trigger:
 
 ---
 kind: signature
-hmac: 7cc5892757c793d3cabdbacedaf37498fb1cf65d9a05eb19218daf38e28222de
+hmac: cf4d1c1fdb5895f7fa7bcf7edb0e1fe4131cf8d9d548a46cb8f4aca4e182d4ab
 
 ...
