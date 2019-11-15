@@ -242,7 +242,7 @@ function _change_tenermint_chain_id() {
 }
 
 # Always execute at script located directory
-cd "$(dirname "${0}")"
+cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # Source constants
 . ./const-env.sh

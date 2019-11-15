@@ -30,12 +30,7 @@ function check_command_exist() {
 CWD=$(pwd)
 # BASH_SOURCE is more reliable way to get script file location.
 # It is available after bash 3.0-alpha
-echo "${BASH_SOURCE[0]}"
 cd "$(dirname -- "${BASH_SOURCE[0]}")"
-# if [ $(basename -- "${BASH_SOURCE[0]}") = "xenv.sh" ]; then
-#     cd "$(dirname -- "${BASH_SOURCE[0]}")"
-# fi
-# Travis CI run `. ./env.sh` using `build.sh`. i.e. `${0}`` is `/home/travis/build.sh`
 
 check_command_exist "jq"
 
