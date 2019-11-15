@@ -36,7 +36,7 @@ dependencies = [
 
 [[package]]
 name = "aes-gcm-siv"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "aead 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -442,7 +442,7 @@ dependencies = [
 name = "client-common"
 version = "0.1.0"
 dependencies = [
- "aes-gcm-siv 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "aes-gcm-siv 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.1.0",
@@ -3223,7 +3223,7 @@ dependencies = [
 "checksum abci 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "f78374b3e064b75f924152988934fe209702c2bdda4327c766f8cb4b1ae9275a"
 "checksum aead 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "529ae27769da55d955d190396e67896f49b440aff94a5b2f50900e091d168b77"
 "checksum aes 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "54eb1d8fe354e5fc611daf4f2ea97dd45a765f4f1e4512306ec183ae2e8f20c9"
-"checksum aes-gcm-siv 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "19c98ccad042fd262c33cdfc50d9f748ddedcbb73fb81ab6d1588b0d2a4331fd"
+"checksum aes-gcm-siv 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2ace491cdc1e95524c1db1b9fc38a2699a66bc948b750b0b8f4330bbf7531cdc"
 "checksum aes-soft 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "cfd7e7ae3f9a1fb5c03b389fc6bb9a51400d0c13053f0dca698c832bfd893a0d"
 "checksum aesni 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2f70a6b5f971e473091ab7cfb5ffac6cde81666c4556751d8d5620ead8abf100"
 "checksum aho-corasick 0.7.6 (registry+https://github.com/rust-lang/crates.io-index)" = "58fb5e95d83b38284460a5fda7d6470aa0b8844d283a0b614b8535e880800d2d"
