@@ -154,7 +154,7 @@ function start_client_cli() {
     echo
     echo "CRYPTO_CHAIN_ID="${CHAIN_ID}" \\"
     echo "CRYPTO_CLIENT_STORAGE="${STORAGE}" \\"
-    echo "CRYPTO_CLIENT_TENDERMINT="ws://127.0.0.1:${1}/websocket" \\"
+    echo "CRYPTO_CLIENT_TENDERMINT="ws://127.0.0.1:${2}/websocket" \\"
     echo "RUST_BACKTRACE=1 \\"
     echo "RUST_LOG=info \\"
     echo "    cargo run --bin client-cli --"
