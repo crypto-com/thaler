@@ -14,6 +14,7 @@ fi
 # Constants (No not modify unless you are absolutely sure what you are doing)
 export CHAIN_DOCKER_IMAGE="integration-tests-chain"
 export CHAIN_TX_ENCLAVE_DOCKER_IMAGE="integration-tests-chain-tx-enclave"
+export DOCKER_DATA_DIRECTORY="docker-data"
 export TENDERMINT_TEMP_DIRECTORY="docker-data/temp/tendermint"
 export TENDERMINT_WITHFEE_DIRECTORY="docker-data/withfee/tendermint"
 export TENDERMINT_ZEROFEE_DIRECTORY="docker-data/zerofee/tendermint"

@@ -5,9 +5,6 @@ IFS=
 # Global function return value
 RET_VALUE=0
 
-# change attribute
-chmod ug+s ./docker-data
-
 # @argument message
 function print_message() {
     echo "[$(date +"%Y-%m-%d|%T")] ${1}"
@@ -260,6 +257,9 @@ fi
 if [ -z "${USE_DOCKER_COMPOSE}" ]; then
     check_command_exist "cargo"
 fi
+
+# allow current user to access docker data directory 
+chmod ug+s "${DOCKER_DATA_DIRECTORY}"
 
 print_step "Build Chain image"
 if [ ! -z "${USE_DOCKER_COMPOSE}" ]; then
