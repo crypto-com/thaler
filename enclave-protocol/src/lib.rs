@@ -99,7 +99,7 @@ pub enum IntraEnclaveResponseOk {
     /// deposit stake pays minimal fee, so this returns the sum of input amounts -- staked stake's bonded balance is added `input_coins-min_fee`
     DepositStakeTx { input_coins: Coin },
     /// transaction filter
-    EndBlock(Box<TxFilter>),
+    EndBlock(Option<Box<TxFilter>>),
     /// encryption response
     Encrypt(TxObfuscated),
 }
@@ -167,7 +167,7 @@ pub enum EnclaveResponse {
     /// returns the affected (account) state (if any) and paid fee if the TX is valid
     VerifyTx(Result<(Fee, Option<StakedState>), chain_tx_validation::Error>),
     /// returns the transaction filter for the current block
-    EndBlock(Result<Box<TxFilter>, ()>),
+    EndBlock(Result<Option<Box<TxFilter>>, ()>),
     /// returns if the data was successfully persisted in the enclave's local storage
     CommitBlock(Result<(), ()>),
     /// returns Some(sealed data payloads) or None (if any TXID was not found / invalid)

@@ -47,8 +47,9 @@ pub fn check_initchain(
 pub fn end_block(
     eid: sgx_enclave_id_t,
     request: IntraEnclaveRequest,
-) -> Result<Box<[u8; 256]>, ()> {
+) -> Result<Option<Box<[u8; 256]>>, ()> {
     let request_buf: Vec<u8> = request.encode();
+    // Buffer size: Result(1)+Result(1)+Enum(1)+Option(1)+Box(0)+TxFilter(256)
     let mut response_buf: Vec<u8> = vec![0u8; 260];
     let mut retval: sgx_status_t = sgx_status_t::SGX_SUCCESS;
     let response_slice = &mut response_buf[..];
@@ -65,7 +66,7 @@ pub fn end_block(
     if retval == sgx_status_t::SGX_SUCCESS && result == retval {
         let response = IntraEnclaveResponse::decode(&mut response_buf.as_slice());
         match response {
-            Ok(Ok(IntraEnclaveResponseOk::EndBlock(filter))) => Ok(filter),
+            Ok(Ok(IntraEnclaveResponseOk::EndBlock(maybe_filter))) => Ok(maybe_filter),
             _ => Err(()),
         }
     } else {

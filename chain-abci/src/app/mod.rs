@@ -17,7 +17,7 @@ use crate::storage::account::AccountWrapper;
 use crate::storage::tx::StarlingFixedKey;
 use crate::storage::COL_TX_META;
 use bit_vec::BitVec;
-use chain_core::common::TendermintEventType;
+use chain_core::common::{TendermintEventKey, TendermintEventType};
 use chain_core::state::account::{PunishmentKind, StakedState};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::tx::data::input::TxoPointer;
@@ -226,7 +226,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
 
         for (account_address, _, punishment_kind) in accounts_to_punish {
             let mut kvpair = KVPair::new();
-            kvpair.key = b"account".to_vec();
+            kvpair.key = TendermintEventKey::Account.into();
             kvpair.value = account_address.to_string().into_bytes();
 
             jailing_event.attributes.push(kvpair);
@@ -300,15 +300,13 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             let mut event = Event::new();
             event.field_type = TendermintEventType::ValidTransactions.to_string();
             let mut kvpair_fee = KVPair::new();
-            kvpair_fee.key = Vec::from(&b"fee"[..]);
+            kvpair_fee.key = TendermintEventKey::Fee.into();
             kvpair_fee.value = Vec::from(format!("{}", fee_acc.0.to_coin()));
             event.attributes.push(kvpair_fee);
 
             if let Some(ref account) = maccount {
-                // FIXME: no need to add to the filter / maintain this filter in abci
-                self.filter.add_staked_state_address(&account.address);
                 let mut kvpair = KVPair::new();
-                kvpair.key = Vec::from(&b"account"[..]);
+                kvpair.key = TendermintEventKey::Account.into();
                 kvpair.value = Vec::from(format!("{}", &account.address));
                 event.attributes.push(kvpair);
             }
@@ -348,7 +346,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             // TODO: most of these intermediate uncommitted tree roots aren't useful (not exposed for querying) -- prune them / the account storage?
             self.uncommitted_account_root_hash = next_account_root;
             let mut kvpair = KVPair::new();
-            kvpair.key = Vec::from(&b"txid"[..]);
+            kvpair.key = TendermintEventKey::TxId.into();
             kvpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
             event.attributes.push(kvpair);
             resp.events.push(event);
@@ -375,23 +373,23 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         let mut resp = ResponseEndBlock::new();
         if !self.delivered_txs.is_empty() {
             let end_block_resp = self.tx_validator.process_request(EnclaveRequest::EndBlock);
-            if let EnclaveResponse::EndBlock(Ok(raw_filter)) = end_block_resp {
-                let filter = BlockFilter::from(&*raw_filter);
-                self.filter.add_filter(&filter);
+            if let EnclaveResponse::EndBlock(Ok(maybe_filter)) = end_block_resp {
+                if let Some(raw_filter) = maybe_filter {
+                    let filter = BlockFilter::from(&*raw_filter);
+
+                    let (key, value) = filter.get_tendermint_kv();
+                    let mut kvpair = KVPair::new();
+                    kvpair.key = key;
+                    kvpair.value = value;
+                    let mut event = Event::new();
+                    event.field_type = TendermintEventType::BlockFilter.to_string();
+                    event.attributes.push(kvpair);
+                    resp.events.push(event);
+                }
             } else {
                 panic!("end block request to obtain the block filter failed");
             }
         }
-        if let Some((key, value)) = self.filter.get_tendermint_kv() {
-            let mut kvpair = KVPair::new();
-            kvpair.key = key;
-            kvpair.value = value;
-            let mut event = Event::new();
-            event.field_type = TendermintEventType::BlockFilter.to_string();
-            event.attributes.push(kvpair);
-            resp.events.push(event);
-        }
-        self.filter.reset();
         // TODO: skipchain-based validator changes?
         if !self.power_changed_in_block.is_empty() {
             let mut validators = Vec::with_capacity(self.power_changed_in_block.len());

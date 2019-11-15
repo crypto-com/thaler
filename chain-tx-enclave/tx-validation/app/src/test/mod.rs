@@ -130,7 +130,7 @@ pub fn test_sealing() {
     match end_b {
         Ok(b) => {
             debug!("request filter in the beginning");
-            assert!(b.iter().all(|x| *x == 0u8), "empty filter");
+            assert!(b.is_none(), "empty filter");
         }
         _ => {
             cleanup(&mut db);
@@ -209,7 +209,7 @@ pub fn test_sealing() {
     match end_b {
         Ok(b) => {
             debug!("request filter after one tx");
-            assert!(b.iter().any(|x| *x != 0u8), "non-empty filter");
+            assert!(b.unwrap().iter().any(|x| *x != 0u8), "non-empty filter");
         }
         _ => {
             cleanup(&mut db);
