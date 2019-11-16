@@ -71,6 +71,15 @@ impl PublicKey {
         Ok(PublicKey(public_key))
     }
 
+    /// Combine multiple public keys into one and returns as RawPubKey
+    pub fn combine_to_raw_pubkey(public_keys: &[PublicKey]) -> Result<RawPubkey> {
+        if public_keys.len() == 1 {
+            Ok(RawPubkey::from(&public_keys[0]))
+        } else {
+            Ok(RawPubkey::from(PublicKey::combine(&public_keys)?.0))
+        }
+    }
+
     /// Combines multiple public keys into one and also returns hash of combined public key
     pub fn combine(public_keys: &[Self]) -> Result<(Self, H256)> {
         let (public_key, public_key_hash) = SECP

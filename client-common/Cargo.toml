@@ -14,6 +14,7 @@ aes-gcm-siv = "0.2"
 blake2 = "0.8"
 hex = "0.4"
 base64 = "0.11"
+itertools = "0.8"
 secstr = { version = "0.3.2", features = ["serde"] }
 zeroize = "1.0"
 serde = { version = "1.0", features = ["derive"] }

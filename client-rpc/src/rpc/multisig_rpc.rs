@@ -106,7 +106,6 @@ where
         required_signatures: usize,
     ) -> Result<String> {
         let public_keys = parse_public_keys(public_keys).map_err(to_rpc_error)?;
-        let total_public_keys = public_keys.len();
         let self_public_key = parse_public_key(self_public_key).map_err(to_rpc_error)?;
         let extended_address = self
             .client
@@ -116,7 +115,6 @@ where
                 public_keys,
                 self_public_key,
                 required_signatures,
-                total_public_keys,
             )
             .map_err(to_rpc_error)?;
 

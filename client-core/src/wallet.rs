@@ -114,7 +114,6 @@ pub trait WalletClient: Send + Sync {
     /// `public_keys`: Public keys of co-signers (including public key of current co-signer)
     /// `self_public_key`: Public key of current co-signer
     /// `m`: Number of required co-signers
-    /// `n`: Total number of co-signers
     fn new_multisig_transfer_address(
         &self,
         name: &str,
@@ -122,7 +121,6 @@ pub trait WalletClient: Send + Sync {
         public_keys: Vec<PublicKey>,
         self_public_key: PublicKey,
         m: usize,
-        n: usize,
     ) -> Result<ExtendedAddr>;
 
     /// Generates inclusion proof for set of public keys in multi-sig address

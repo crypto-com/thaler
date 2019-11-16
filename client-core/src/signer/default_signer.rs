@@ -169,7 +169,6 @@ mod tests {
                 public_keys.clone(),
                 public_keys[0].clone(),
                 1,
-                3,
             )
             .unwrap();
 
@@ -221,7 +220,6 @@ mod tests {
                 public_keys.clone(),
                 public_keys[0].clone(),
                 2,
-                3,
             )
             .unwrap();
 
