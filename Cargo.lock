@@ -2,7 +2,7 @@
 # It is not intended for manual editing.
 [[package]]
 name = "abci"
-version = "0.6.3"
+version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "byteorder 1.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -306,7 +306,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "chain-abci"
 version = "0.1.0"
 dependencies = [
- "abci 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "abci 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3220,7 +3220,7 @@ dependencies = [
 ]
 
 [metadata]
-"checksum abci 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "f78374b3e064b75f924152988934fe209702c2bdda4327c766f8cb4b1ae9275a"
+"checksum abci 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "9456adb9a2aa0e7434c09fb416d92185ef20c7d4192551c0700c14149ec8c996"
 "checksum aead 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "529ae27769da55d955d190396e67896f49b440aff94a5b2f50900e091d168b77"
 "checksum aes 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "54eb1d8fe354e5fc611daf4f2ea97dd45a765f4f1e4512306ec183ae2e8f20c9"
 "checksum aes-gcm-siv 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "2ace491cdc1e95524c1db1b9fc38a2699a66bc948b750b0b8f4330bbf7531cdc"
