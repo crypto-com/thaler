@@ -10,7 +10,7 @@ pub use sled_storage::SledStorage;
 pub use unauthorized_storage::UnauthorizedStorage;
 
 use aes_gcm_siv::aead::generic_array::GenericArray;
-use aes_gcm_siv::aead::{Aead, NewAead};
+use aes_gcm_siv::aead::{Aead, NewAead, Payload};
 use aes_gcm_siv::Aes256GcmSiv;
 use blake2::{Blake2s, Digest};
 use rand::rngs::OsRng;
@@ -106,7 +106,7 @@ where
         passphrase: &SecUtf8,
     ) -> Result<Option<Vec<u8>>> {
         self.get(keyspace, &key)?
-            .map(|value| decrypt_bytes(passphrase, &value))
+            .map(|value| decrypt_bytes(&key, passphrase, &value))
             .transpose()
     }
 
@@ -119,8 +119,8 @@ where
     ) -> Result<Option<Vec<u8>>> {
         let old_value = self.get_secure(&keyspace, &key, passphrase)?;
 
-        let cipher = encrypt_bytes(passphrase, &value)?;
-        self.set(keyspace, key, cipher)?;
+        let cipher = encrypt_bytes(&key, passphrase, &value)?;
+        self.set(keyspace, &key, cipher)?;
 
         Ok(old_value)
     }
@@ -139,7 +139,7 @@ where
     {
         self.fetch_and_update(keyspace, &key, |current| {
             let opened = current
-                .map(|current| decrypt_bytes(passphrase, current))
+                .map(|current| decrypt_bytes(&key, passphrase, current))
                 .transpose()
                 .chain(|| {
                     (
@@ -151,14 +151,18 @@ where
             let next = f(opened.as_ref().map(AsRef::as_ref))?;
 
             next.as_ref()
-                .map(|next| encrypt_bytes(passphrase, next))
+                .map(|next| encrypt_bytes(&key, passphrase, next))
                 .transpose()
         })
     }
 }
 
 /// Encrypts bytes with given passphrase
-pub fn encrypt_bytes(passphrase: &SecUtf8, bytes: &[u8]) -> Result<Vec<u8>> {
+pub fn encrypt_bytes<K: AsRef<[u8]>>(
+    key: K,
+    passphrase: &SecUtf8,
+    bytes: &[u8],
+) -> Result<Vec<u8>> {
     let mut nonce = [0; NONCE_SIZE];
 
     OsRng.fill(&mut nonce);
@@ -168,9 +172,14 @@ pub fn encrypt_bytes(passphrase: &SecUtf8, bytes: &[u8]) -> Result<Vec<u8>> {
     let mut cipher = Vec::new();
     cipher.extend_from_slice(&nonce[..]);
 
+    let payload = Payload {
+        msg: bytes,
+        aad: key.as_ref(),
+    };
+
     cipher.append(
         &mut algo
-            .encrypt(GenericArray::from_slice(&nonce), bytes)
+            .encrypt(GenericArray::from_slice(&nonce), payload)
             .map_err(|_| Error::new(ErrorKind::EncryptionError, "Unable to encrypt bytes"))?,
     );
 
@@ -178,19 +187,25 @@ pub fn encrypt_bytes(passphrase: &SecUtf8, bytes: &[u8]) -> Result<Vec<u8>> {
 }
 
 /// Decrypts bytes with given passphrase
-pub fn decrypt_bytes(passphrase: &SecUtf8, bytes: &[u8]) -> Result<Vec<u8>> {
+pub fn decrypt_bytes<K: AsRef<[u8]>>(
+    key: K,
+    passphrase: &SecUtf8,
+    bytes: &[u8],
+) -> Result<Vec<u8>> {
     let algo = get_algo(passphrase)?;
 
-    algo.decrypt(
-        GenericArray::from_slice(&bytes[..NONCE_SIZE]),
-        &bytes[NONCE_SIZE..],
-    )
-    .map_err(|_| {
-        Error::new(
-            ErrorKind::DecryptionError,
-            "Incorrect passphrase: Unable to unlock stored values",
-        )
-    })
+    let payload = Payload {
+        msg: &bytes[NONCE_SIZE..],
+        aad: key.as_ref(),
+    };
+
+    algo.decrypt(GenericArray::from_slice(&bytes[..NONCE_SIZE]), payload)
+        .map_err(|_| {
+            Error::new(
+                ErrorKind::DecryptionError,
+                "Incorrect passphrase: Unable to unlock stored values",
+            )
+        })
 }
 
 fn get_algo(passphrase: &SecUtf8) -> Result<Aes256GcmSiv> {

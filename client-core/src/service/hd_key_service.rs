@@ -118,7 +118,7 @@ where
                 )
             })?;
 
-        let hd_key_bytes = decrypt_bytes(passphrase, &bytes)?;
+        let hd_key_bytes = decrypt_bytes(name, passphrase, &bytes)?;
 
         let hd_key = HdKey::decode(&mut hd_key_bytes.as_slice()).chain(|| {
             (
