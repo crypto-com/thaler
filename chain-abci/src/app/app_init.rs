@@ -24,7 +24,7 @@ use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use kvdb::DBTransaction;
 use log::{info, warn};
 use parity_scale_codec::{Decode, Encode};
-use protobuf::{Message, RepeatedField};
+use protobuf::Message;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -442,7 +442,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 &network_params,
                 &mut inittx,
             );
-            // NOTE: &req.validators are ignored / replaced by init config
+
             let mut validators = Vec::with_capacity(nodes.len());
             let mut validator_liveness = BTreeMap::new();
             let mut validator_by_voting_power = BTreeMap::new();
@@ -469,8 +469,20 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     LivenessTracker::new(network_params.get_block_signing_window()),
                 );
             }
-            let mut resp = ResponseInitChain::new();
-            resp.set_validators(RepeatedField::from(validators));
+
+            // check req.validators is consistent with app_state's council nodes
+            let mut req_validators = req.validators.clone().into_vec();
+            let fn_sort_key = |a: &ValidatorUpdate| {
+                a.pub_key
+                    .as_ref()
+                    .map(|key| (key.field_type.clone(), key.data.clone()))
+            };
+            validators.sort_by_key(fn_sort_key);
+            req_validators.sort_by_key(fn_sort_key);
+            if validators != req_validators {
+                panic!("validators in genesis configuration are not consistent with app_state");
+            }
+
             let genesis_state = ChainNodeState::genesis(
                 genesis_app_hash,
                 genesis_time,
@@ -494,7 +506,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 self.last_state = Some(genesis_state);
             }
 
-            resp
+            ResponseInitChain::new()
         } else {
             panic!(
                 "distribution validation error: {}",

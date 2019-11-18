@@ -216,6 +216,8 @@ function generate_tendermint_genesis() {
 
     echo "${RET_VALUE}" > "${2}/config/genesis.json"
 
+    python fix_genesis.py "${2}/config/genesis.json"
+
     sync
 }
 

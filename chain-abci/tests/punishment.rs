@@ -28,8 +28,9 @@ use chain_core::init::config::{
     SlashingParameters, ValidatorKeyType, ValidatorPubkey,
 };
 use chain_core::state::account::{
-    CouncilNode, StakedStateAddress, StakedStateDestination, StakedStateOpAttributes,
-    StakedStateOpWitness, UnbondTx, ValidatorName, ValidatorSecurityContact,
+    CouncilNode, PunishmentKind, StakedStateAddress, StakedStateDestination,
+    StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, ValidatorName,
+    ValidatorSecurityContact,
 };
 use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
 use chain_core::tx::fee::{LinearFee, Milli};
@@ -227,10 +228,26 @@ impl TestEnv {
     }
 
     fn req_init_chain(&self) -> RequestInitChain {
+        let share = Coin::new(u64::from(self.dist_coin) / self.accounts.len() as u64).unwrap();
+        let validators = self
+            .accounts
+            .iter()
+            .map(|acct| ValidatorUpdate {
+                pub_key: Some(PubKey {
+                    field_type: "ed25519".to_owned(),
+                    data: base64::decode(&acct.validator_pub_key).unwrap(),
+                    ..Default::default()
+                })
+                .into(),
+                power: TendermintVotePower::from(share).into(),
+                ..Default::default()
+            })
+            .collect();
         RequestInitChain {
             time: Some(self.timestamp.clone()).into(),
             app_state_bytes: serde_json::to_vec(&self.init_config).unwrap(),
             chain_id: TEST_CHAIN_ID.to_owned(),
+            validators,
             ..Default::default()
         }
     }
@@ -583,5 +600,25 @@ fn begin_block_should_update_slash_ratio_for_multiple_punishments() {
     assert_eq!(
         Coin::new(u64::from(Coin::max()) / 5).unwrap(), // 0.1 * account_balance
         app.last_state.as_ref().unwrap().rewards_pool.remaining
+    );
+}
+
+#[test]
+fn check_successful_jailing() {
+    // Init Chain
+    let (env, storage, account_storage) = TestEnv::new(Coin::max(), Coin::zero(), 1);
+    let mut app = env.chain_node(storage, account_storage);
+    let _rsp_init_chain = app.init_chain(&env.req_init_chain());
+
+    app.jail_account(env.accounts[0].staking_address, PunishmentKind::NonLive)
+        .expect("Unable to jail account");
+
+    let account = get_account(&env.accounts[0].address, &app);
+    assert!(account.is_jailed());
+    assert_eq!(
+        TendermintVotePower::zero(),
+        *app.power_changed_in_block
+            .get(&env.accounts[0].staking_address)
+            .unwrap()
     );
 }
