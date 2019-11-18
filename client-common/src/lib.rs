@@ -5,6 +5,7 @@ mod transaction;
 
 pub mod error;
 pub mod key;
+pub mod multi_sig_address;
 pub mod storage;
 pub mod tendermint;
 
@@ -14,6 +15,8 @@ pub use block_header::BlockHeader;
 pub use error::{Error, ErrorKind, Result, ResultExt};
 #[doc(inline)]
 pub use key::{PrivateKey, PublicKey};
+#[doc(inline)]
+pub use multi_sig_address::MultiSigAddress;
 #[doc(inline)]
 pub use storage::{SecureStorage, Storage};
 #[doc(inline)]

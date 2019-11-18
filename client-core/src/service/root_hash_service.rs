@@ -1,25 +1,13 @@
-use itertools::Itertools;
 use parity_scale_codec::{Decode, Encode};
 use secstr::SecUtf8;
 
-use chain_core::common::{MerkleTree, Proof, H256};
+use chain_core::common::{Proof, H256};
 use chain_core::tx::witness::tree::RawPubkey;
-use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecureStorage, Storage};
+use client_common::{
+    ErrorKind, MultiSigAddress, PublicKey, Result, ResultExt, SecureStorage, Storage,
+};
 
 const KEYSPACE: &str = "core_root_hash";
-
-/// m-of-n multi-sig address
-#[derive(Debug, Encode, Decode)]
-struct MultiSigAddress {
-    /// Number of required co-signers
-    pub m: u64,
-    /// Total number of co-signers
-    pub n: u64,
-    /// Public key of current signer
-    pub self_public_key: PublicKey,
-    /// Merkle tree with different combinations of `n` public keys as leaf nodes
-    pub merkle_tree: MerkleTree<RawPubkey>,
-}
 
 /// Maintains mapping `multi-sig-public-key -> multi-sig address`
 #[derive(Debug, Default, Clone)]
@@ -37,105 +25,65 @@ where
     }
 
     /// Creates and persists new multi-sig address and returns its root hash
+    /// and MultiSigAddr pair
     pub fn new_root_hash(
         &self,
         public_keys: Vec<PublicKey>,
         self_public_key: PublicKey,
-        m: usize,
-        n: usize,
+        required_signers: usize,
         passphrase: &SecUtf8,
-    ) -> Result<H256> {
-        if m > n
-            || public_keys.is_empty()
-            || public_keys.len() != n
-            || m == 0
-            || !public_keys.contains(&self_public_key)
-        {
-            // TODO: Return different error kinds for different input errors
-            return Err(ErrorKind::InvalidInput.into());
-        }
-
-        let combinations = combinations(public_keys, m)?;
-        let merkle_tree = MerkleTree::new(combinations);
-        let root_hash = merkle_tree.root_hash();
-
-        let multi_sig_address = MultiSigAddress {
-            m: m as u64,
-            n: n as u64,
-            self_public_key,
-            merkle_tree,
-        };
+    ) -> Result<(H256, MultiSigAddress)> {
+        let multi_sig_address =
+            MultiSigAddress::new(public_keys, self_public_key, required_signers)?;
+        let root_hash = multi_sig_address.root_hash();
 
         self.storage
             .set_secure(KEYSPACE, root_hash, multi_sig_address.encode(), passphrase)?;
 
-        Ok(root_hash)
+        Ok((root_hash, multi_sig_address))
     }
 
     /// Generates inclusion proof for set of public keys in merkle root hash
     pub fn generate_proof(
         &self,
         root_hash: &H256,
-        mut public_keys: Vec<PublicKey>,
+        public_keys: Vec<PublicKey>,
         passphrase: &SecUtf8,
     ) -> Result<Proof<RawPubkey>> {
-        let address_bytes = self
-            .storage
-            .get_secure(KEYSPACE, root_hash, passphrase)?
-            .chain(|| (ErrorKind::InvalidInput, "Address not found"))?;
-        let address = MultiSigAddress::decode(&mut address_bytes.as_slice()).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                format!(
-                    "Unable to deserialize multi-sig address details for root hash ({})",
-                    hex::encode(root_hash)
-                ),
-            )
-        })?;
-
-        if public_keys.len() != address.m as usize {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                format!("{} public keys are required to generate a proof", address.m),
-            ));
-        }
-
-        public_keys.sort();
+        let address = self.get_multi_sig_address_from_root_hash(root_hash, passphrase)?;
 
         address
-            .merkle_tree
-            .generate_proof(raw_public_key(&public_keys)?)
+            .generate_proof(public_keys)?
             .chain(|| (ErrorKind::InvalidInput, "Unable to generate merkle proof"))
     }
 
     /// Returns the number of required cosigners for given root_hash
     pub fn required_signers(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<usize> {
-        let address_bytes = self
-            .storage
-            .get_secure(KEYSPACE, root_hash, passphrase)?
-            .chain(|| (ErrorKind::InvalidInput, "Address not found"))?;
+        let address = self.get_multi_sig_address_from_root_hash(root_hash, passphrase)?;
 
-        let address = MultiSigAddress::decode(&mut address_bytes.as_slice()).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                format!(
-                    "Unable to deserialize multi-sig address details for root hash ({})",
-                    hex::encode(root_hash)
-                ),
-            )
-        })?;
-
-        Ok(address.m as usize)
+        Ok(address.required_signers())
     }
 
     /// Returns public key of current signer
     pub fn public_key(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<PublicKey> {
+        let address = self.get_multi_sig_address_from_root_hash(root_hash, passphrase)?;
+
+        Ok(address.self_public_key())
+    }
+
+    /// Returns MultiSig address from storage with the given root_hash
+    /// decrypted with passphrase
+    fn get_multi_sig_address_from_root_hash(
+        &self,
+        root_hash: &H256,
+        passphrase: &SecUtf8,
+    ) -> Result<MultiSigAddress> {
         let address_bytes = self
             .storage
             .get_secure(KEYSPACE, root_hash, passphrase)?
             .chain(|| (ErrorKind::InvalidInput, "Address not found"))?;
 
-        let address = MultiSigAddress::decode(&mut address_bytes.as_slice()).chain(|| {
+        MultiSigAddress::decode(&mut address_bytes.as_slice()).chain(|| {
             (
                 ErrorKind::DeserializationError,
                 format!(
@@ -143,58 +91,13 @@ where
                     hex::encode(root_hash)
                 ),
             )
-        })?;
-
-        Ok(address.self_public_key)
+        })
     }
 
     /// Clears all storage
     pub fn clear(&self) -> Result<()> {
         self.storage.clear(KEYSPACE)
     }
-}
-
-fn raw_public_key(public_keys: &[PublicKey]) -> Result<RawPubkey> {
-    if public_keys.len() == 1 {
-        Ok(RawPubkey::from(&public_keys[0]))
-    } else {
-        Ok(RawPubkey::from(PublicKey::combine(&public_keys)?.0))
-    }
-}
-
-fn combinations(public_keys: Vec<PublicKey>, n: usize) -> Result<Vec<RawPubkey>> {
-    if public_keys.is_empty() {
-        return Err(Error::new(
-            ErrorKind::InvalidInput,
-            "Length of public keys cannot be zero",
-        ));
-    }
-
-    if n > public_keys.len() {
-        return Err(Error::new(
-            ErrorKind::InvalidInput,
-            "Length of public keys cannot be less than number of required signers",
-        ));
-    }
-
-    if n == 0 {
-        return Err(Error::new(
-            ErrorKind::InvalidInput,
-            "Number of required signers cannot be zero",
-        ));
-    }
-
-    let mut combinations = public_keys
-        .into_iter()
-        .combinations(n)
-        .map(|mut combination| {
-            combination.sort();
-            raw_public_key(&combination)
-        })
-        .collect::<Result<Vec<RawPubkey>>>()?;
-
-    combinations.sort();
-    Ok(combinations)
 }
 
 #[cfg(test)]
@@ -220,28 +123,7 @@ mod tests {
         assert_eq!(
             ErrorKind::InvalidInput,
             root_hash_service
-                .new_root_hash(
-                    public_keys.clone(),
-                    public_keys[0].clone(),
-                    2,
-                    4,
-                    &passphrase
-                )
-                .expect_err("Created invalid multi-sig address")
-                .kind(),
-            "Should throw error when required signature is larger than public key size"
-        );
-
-        assert_eq!(
-            ErrorKind::InvalidInput,
-            root_hash_service
-                .new_root_hash(
-                    public_keys.clone(),
-                    public_keys[0].clone(),
-                    5,
-                    3,
-                    &passphrase
-                )
+                .new_root_hash(public_keys.clone(), public_keys[0].clone(), 5, &passphrase)
                 .expect_err("Created invalid multi-sig address")
                 .kind(),
             "Should throw error when required signature is larger than total public keys"
@@ -254,7 +136,6 @@ mod tests {
                     public_keys.clone(),
                     PublicKey::from(&PrivateKey::new().unwrap()),
                     2,
-                    3,
                     &passphrase
                 )
                 .expect_err("Created multi-sig address without self public key")
@@ -265,20 +146,14 @@ mod tests {
         assert_eq!(
             ErrorKind::InvalidInput,
             root_hash_service
-                .new_root_hash(vec![], public_keys[0].clone(), 0, 0, &passphrase)
+                .new_root_hash(vec![], public_keys[0].clone(), 0, &passphrase)
                 .expect_err("Created invalid multi-sig address")
                 .kind(),
             "Should throw error when required signature is 0"
         );
 
-        let root_hash = root_hash_service
-            .new_root_hash(
-                public_keys.clone(),
-                public_keys[0].clone(),
-                2,
-                3,
-                &passphrase,
-            )
+        let (root_hash, multi_sig_address) = root_hash_service
+            .new_root_hash(public_keys.clone(), public_keys[0].clone(), 2, &passphrase)
             .unwrap();
 
         assert_eq!(
@@ -287,6 +162,7 @@ mod tests {
                 .required_signers(&root_hash, &passphrase)
                 .unwrap()
         );
+        assert_eq!(root_hash, multi_sig_address.root_hash(),);
 
         assert_eq!(
             public_keys[0].clone(),

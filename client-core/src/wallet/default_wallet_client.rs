@@ -291,7 +291,6 @@ where
             vec![public_key.clone()],
             public_key,
             1,
-            1,
         )
     }
 
@@ -302,7 +301,6 @@ where
         public_keys: Vec<PublicKey>,
         self_public_key: PublicKey,
         m: usize,
-        n: usize,
     ) -> Result<ExtendedAddr> {
         // Check if self public key belongs to current wallet
         let _ = self.private_key(passphrase, &self_public_key)?.chain(|| {
@@ -319,14 +317,14 @@ where
             ));
         }
 
-        let root_hash =
+        let (root_hash, multi_sig_address) =
             self.root_hash_service
-                .new_root_hash(public_keys, self_public_key, m, n, passphrase)?;
+                .new_root_hash(public_keys, self_public_key, m, passphrase)?;
 
         self.wallet_service
             .add_root_hash(name, passphrase, root_hash)?;
 
-        Ok(ExtendedAddr::OrTree(root_hash))
+        Ok(multi_sig_address.into())
     }
 
     fn generate_proof(
