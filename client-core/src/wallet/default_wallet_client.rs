@@ -117,9 +117,11 @@ where
                 self.hd_key_service
                     .add_mnemonic(name, &mnemonic, passphrase)?;
 
-                let (public_key, private_key) =
-                    self.hd_key_service
-                        .generate_keypair(name, passphrase, AddressType::Transfer)?;
+                let (public_key, private_key) = self.hd_key_service.generate_keypair(
+                    name,
+                    passphrase,
+                    AddressType::Transfer,
+                )?;
 
                 self.key_service
                     .add_keypair(&private_key, &public_key, passphrase)?;
