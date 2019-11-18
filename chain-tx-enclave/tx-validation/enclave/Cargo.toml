@@ -32,5 +32,6 @@ chain-tx-filter   = { path = "../../../chain-tx-filter", default-features = fals
 lazy_static  = { version = "1.4", features = ["spin_no_std"] }
 enclave-t-common = { path = "../../enclave-t-common" }
 aes-gcm-siv = "0.2"
-aead = "0.1"
+# TODO: fix version
+aead = ">= 0.1.1, < 0.1.2"
 zeroize = { version = "1.0", default-features = false }
