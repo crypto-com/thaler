@@ -2,7 +2,8 @@ use std::str::FromStr;
 
 use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::network::get_network_id;
-use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
+use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateOpAttributes};
+use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
@@ -27,6 +28,7 @@ pub enum TransactionType {
     Unbond,
     Withdraw,
     Unjail,
+    NodeJoin,
 }
 
 impl FromStr for TransactionType {
@@ -43,6 +45,8 @@ impl FromStr for TransactionType {
             Ok(TransactionType::Withdraw)
         } else if eq_ascii(s, "unjail") {
             Ok(TransactionType::Unjail)
+        } else if eq_ascii(s, "node-join") {
+            Ok(TransactionType::NodeJoin)
         } else {
             Err(ErrorKind::DeserializationError.into())
         }
@@ -91,6 +95,9 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
             new_withdraw_transaction(wallet_client, network_ops_client, name, &passphrase)
         }
         TransactionType::Unjail => new_unjail_transaction(network_ops_client, name, &passphrase),
+        TransactionType::NodeJoin => {
+            new_node_join_transaction(network_ops_client, name, &passphrase)
+        }
     }?;
 
     wallet_client.broadcast_transaction(&transaction)?;
@@ -199,6 +206,24 @@ fn new_unjail_transaction<N: NetworkOpsClient>(
     let address = ask_staking_address()?;
 
     network_ops_client.create_unjail_transaction(name, passphrase, address, attributes)
+}
+
+fn new_node_join_transaction<N: NetworkOpsClient>(
+    network_ops_client: &N,
+    name: &str,
+    passphrase: &SecUtf8,
+) -> Result<TxAux> {
+    let attributes = StakedStateOpAttributes::new(get_network_id());
+    let staking_account_address = ask_staking_address()?;
+    let node_metadata = ask_node_metadata()?;
+
+    network_ops_client.create_node_join_transaction(
+        name,
+        passphrase,
+        staking_account_address,
+        attributes,
+        node_metadata,
+    )
 }
 
 fn ask_view_keys() -> Result<Vec<PublicKey>> {
@@ -350,4 +375,36 @@ fn ask_transfer_address() -> Result<ExtendedAddr> {
         })?;
 
     Ok(address)
+}
+
+fn ask_node_metadata() -> Result<CouncilNode> {
+    ask("Enter validator node name: ");
+    let name = text().chain(|| (ErrorKind::IoError, "Unable to read validator node name"))?;
+
+    ask("Enter validator pub-key (base64 encoded): ");
+    let validator_pubkey =
+        text().chain(|| (ErrorKind::IoError, "Unable to read validator pub-key"))?;
+
+    let decoded_pubkey = base64::decode(&validator_pubkey).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            "Unable to decode base64 encoded bytes of validator pub-key",
+        )
+    })?;
+
+    if decoded_pubkey.len() != 32 {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Expected validator pub-key of 32 bytes",
+        ));
+    }
+
+    let mut pubkey_bytes = [0; 32];
+    pubkey_bytes.copy_from_slice(&decoded_pubkey);
+
+    Ok(CouncilNode {
+        name,
+        security_contact: None,
+        consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
+    })
 }

@@ -420,6 +420,7 @@ dependencies = [
 name = "client-cli"
 version = "0.1.0"
 dependencies = [
+ "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.1.0",
  "chrono 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "cli-table 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
