@@ -155,6 +155,7 @@ mod multi_sig_tests {
     mod generate_proof {
         use super::*;
 
+        #[test]
         fn should_throw_error_when_number_of_provided_public_keys_is_different_from_required_signers(
         ) {
             let public_key_1 = PublicKey::from(
@@ -164,7 +165,7 @@ mod multi_sig_tests {
                 &PrivateKey::new().expect("Derive public key from private key should work"),
             );
             let public_keys = vec![public_key_1.clone(), public_key_2.clone()];
-            let required_signers = 1;
+            let required_signers = 2;
 
             let multi_sig_address =
                 MultiSigAddress::new(public_keys, public_key_1.clone(), required_signers)
@@ -396,6 +397,7 @@ mod multi_sig_tests {
         }
     }
 
+    #[test]
     fn check_root_hash_flow() {
         // 8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841bd1e8a8697ad42251de39f6a72081dfdf42abc542a6d6fe0715548b588fafbe70
         let public_key_1 = PublicKey::from(
