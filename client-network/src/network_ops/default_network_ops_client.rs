@@ -4,9 +4,10 @@ use secstr::SecUtf8;
 use crate::NetworkOpsClient;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::state::account::{
-    DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
-    UnbondTx, UnjailTx, WithdrawUnbondedTx,
+    CouncilNode, DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes,
+    StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
 };
+use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
@@ -391,6 +392,58 @@ where
         )
     }
 
+    fn create_node_join_transaction(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        staking_account_address: StakedStateAddress,
+        attributes: StakedStateOpAttributes,
+        node_metadata: CouncilNode,
+    ) -> Result<TxAux> {
+        let staked_state = self.get_staked_state(name, passphrase, &staking_account_address)?;
+
+        verify_unjailed(&staked_state).map_err(|e| {
+            Error::new(
+                ErrorKind::ValidationError,
+                format!("Failed to validate staking account: {}", e),
+            )
+        })?;
+
+        let transaction = NodeJoinRequestTx {
+            nonce: staked_state.nonce,
+            address: staking_account_address,
+            attributes,
+            node_meta: node_metadata,
+        };
+
+        let public_key = match staking_account_address {
+            StakedStateAddress::BasicRedeem(ref redeem_address) => self
+                .wallet_client
+                .find_staking_key(name, passphrase, redeem_address)?
+                .chain(|| {
+                    (
+                        ErrorKind::InvalidInput,
+                        "Address not found in current wallet",
+                    )
+                })?,
+        };
+        let private_key = self
+            .wallet_client
+            .private_key(passphrase, &public_key)?
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Not able to find private key for given address in current wallet",
+                )
+            })?;
+
+        let signature = private_key
+            .sign(transaction.id())
+            .map(StakedStateOpWitness::new)?;
+
+        Ok(TxAux::NodeJoinTx(transaction, signature))
+    }
+
     fn get_staked_state(
         &self,
         name: &str,
@@ -420,6 +473,7 @@ mod tests {
     use chain_core::state::account::{
         Punishment, PunishmentKind, StakedState, StakedStateOpAttributes,
     };
+    use chain_core::state::tendermint::TendermintValidatorPubKey;
     use chain_core::tx::data::input::TxoIndex;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::Fee;
@@ -978,6 +1032,69 @@ mod tests {
                 assert_eq!(account_address, from_address);
             }
             _ => unreachable!("`unjail_tx()` created invalid transaction"),
+        }
+    }
+
+    #[test]
+    fn check_node_join_transaction() {
+        let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
+
+        let storage = MemoryStorage::default();
+        let signer = DefaultSigner::new(storage.clone());
+
+        let fee_algorithm = UnitFeeAlgorithm::default();
+
+        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
+
+        let tendermint_client = MockClient::default();
+        let network_ops_client = DefaultNetworkOpsClient::new(
+            wallet_client,
+            signer,
+            tendermint_client,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
+
+        network_ops_client
+            .get_wallet_client()
+            .new_wallet(name, passphrase, WalletKind::Basic)
+            .unwrap();
+
+        let staking_account_address = network_ops_client
+            .get_wallet_client()
+            .new_staking_address(name, passphrase)
+            .unwrap();
+
+        let mut validator_pubkey = [0; 32];
+        validator_pubkey.copy_from_slice(
+            &base64::decode("P2B49bRtePqHr0JGRVAOS9ZqSFjBpS6dFtCah9p+cro=").unwrap(),
+        );
+
+        let node_metadata = CouncilNode {
+            name: "test".to_owned(),
+            security_contact: None,
+            consensus_pubkey: TendermintValidatorPubKey::Ed25519(validator_pubkey),
+        };
+
+        let transaction = network_ops_client
+            .create_node_join_transaction(
+                name,
+                passphrase,
+                staking_account_address,
+                StakedStateOpAttributes::new(171),
+                node_metadata,
+            )
+            .unwrap();
+
+        match transaction {
+            TxAux::NodeJoinTx(tx, witness) => {
+                let txid = tx.id();
+                let account_address = verify_tx_recover_address(&witness, &txid)
+                    .expect("Unable to verify transaction");
+                assert_eq!(account_address, staking_account_address);
+            }
+            _ => unreachable!("`create_node_join_tx()` created invalid transaction"),
         }
     }
 }

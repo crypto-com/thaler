@@ -6,7 +6,9 @@ pub use self::default_network_ops_client::DefaultNetworkOpsClient;
 use secstr::SecUtf8;
 
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{StakedState, StakedStateAddress, StakedStateOpAttributes};
+use chain_core::state::account::{
+    CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
+};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
@@ -63,6 +65,16 @@ pub trait NetworkOpsClient: Send + Sync {
         passphrase: &SecUtf8,
         address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
+    ) -> Result<TxAux>;
+
+    /// Creates a new transaction for a node joining validator set
+    fn create_node_join_transaction(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        staking_account_address: StakedStateAddress,
+        attributes: StakedStateOpAttributes,
+        node_metadata: CouncilNode,
     ) -> Result<TxAux>;
 
     /// Returns staked stake corresponding to given address
