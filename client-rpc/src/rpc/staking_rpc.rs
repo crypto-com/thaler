@@ -44,6 +44,9 @@ pub trait StakingRpc: Send + Sync {
         to_address: String,
         view_keys: Vec<String>,
     ) -> Result<String>;
+
+    #[rpc(name = "staking_unjail")]
+    fn unjail(&self, request: WalletRequest, unjail_address: String) -> Result<String>;
 }
 
 pub struct StakingRpcImpl<T, N>
@@ -200,6 +203,35 @@ where
                 &request.passphrase,
                 &from_address,
                 to_address,
+                attributes,
+            )
+            .map_err(to_rpc_error)?;
+
+        self.client
+            .broadcast_transaction(&transaction)
+            .map_err(to_rpc_error)?;
+
+        Ok(hex::encode(transaction.tx_id()))
+    }
+
+    fn unjail(&self, request: WalletRequest, unjail_address: String) -> Result<String> {
+        let unjail_address = StakedStateAddress::from_str(&unjail_address)
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    format!("Unable to deserialize unjail_address ({})", unjail_address),
+                )
+            })
+            .map_err(to_rpc_error)?;
+
+        let attributes = StakedStateOpAttributes::new(self.network_id);
+
+        let transaction = self
+            .ops_client
+            .create_unjail_transaction(
+                &request.name,
+                &request.passphrase,
+                unjail_address,
                 attributes,
             )
             .map_err(to_rpc_error)?;

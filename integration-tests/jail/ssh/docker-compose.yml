@@ -1,0 +1,15 @@
+version: '3'
+services:
+  chain:
+    build: .
+    volumes:
+      - ../..:/root/chain
+      - ./bin:/root/bin
+    image: chain_test
+    ports:
+       - "1022:22"
+    command: /root/bin/go.sh
+    environment:
+      RUST_BACKTRACE: 1
+      RUST_LOG: debug
+  

@@ -144,6 +144,26 @@ trigger:
   event:
   - push
 
+
+---
+kind: pipeline
+type: exec
+name: integration-tests-jail-unjail
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: integration-tests
+  commands:
+  - mkdir bin
+  - export PATH="$PATH:$PWD/bin"
+  - echo "OK"
+  - cd integration-tests/jail
+  - ./run.sh
+
+
 ---
 kind: signature
 hmac: cf4d1c1fdb5895f7fa7bcf7edb0e1fe4131cf8d9d548a46cb8f4aca4e182d4ab

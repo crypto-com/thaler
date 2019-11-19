@@ -1,0 +1,52 @@
+"app_hash": "C8B1101B2FDF6684046C4F0E6BEE9FE595433AAC5200A3EFFD7CC77A9FD27E7C",
+"app_state": {
+  "rewards_pool": "5000000000000000000",
+  "distribution": {
+    "0x83fe11feb0887183eb62c30994bdd9e303497e3d": [
+      "Bonded",
+      "3750000000000000000"
+    ],
+    "0xe5b4b42406a061752c78bf5c4d6d6fccca0b575f": [
+      "Bonded",
+      "1250000000000000000"
+    ]
+  },
+  "network_params": {
+    "initial_fee_policy": {
+      "constant": 1100,
+      "coefficient": 1250
+    },
+    "required_council_node_stake": "250000000000000000",
+    "unbonding_period": 60,
+    "jailing_config": {
+      "jail_duration": 600,
+      "block_signing_window": 100,
+      "missed_block_threshold": 50
+    },
+    "slashing_config": {
+      "liveness_slash_percent": "0.100",
+      "byzantine_slash_percent": "0.200",
+      "slash_wait_period": 300
+    },
+    "max_validators": 50
+  },
+  "council_nodes": {
+    "0x83fe11feb0887183eb62c30994bdd9e303497e3d": [
+      "test0",
+      "security0@example.com",
+      {
+        "consensus_pubkey_type": "Ed25519",
+        "consensus_pubkey_b64": "zVbAlxXktHidGs1c6pA01IIxLqm0DIZiqHGZqeWIjB0="
+      }
+    ],
+    "0xe5b4b42406a061752c78bf5c4d6d6fccca0b575f": [
+      "test1",
+      "security1@example.com",
+      {
+        "consensus_pubkey_type": "Ed25519",
+        "consensus_pubkey_b64": "6hYXhMHZpWP0yz+5+aT+wLT2deJsGcyOLR/h+o7CZS8="
+      }
+    ]
+  }
+}
+
