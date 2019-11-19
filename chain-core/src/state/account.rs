@@ -236,6 +236,13 @@ pub struct Punishment {
     pub slash_amount: Option<Coin>,
 }
 
+#[cfg(feature = "hex")]
+impl fmt::Display for CouncilNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} -- {}", self.name, self.consensus_pubkey)
+    }
+}
+
 /// represents the StakedState (account involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(
@@ -347,6 +354,12 @@ impl StakedState {
     pub fn withdraw(&mut self) {
         self.nonce += 1;
         self.unbonded = Coin::zero();
+    }
+
+    /// in-place update after node join request
+    pub fn join_node(&mut self, council_node: CouncilNode) {
+        self.nonce += 1;
+        self.council_node = Some(council_node);
     }
 
     /// the tree used in StakedState storage db has a hardcoded 32-byte keys,

@@ -27,6 +27,15 @@ pub enum TendermintValidatorPubKey {
     // TODO: some other schemes when they are added in TM?
 }
 
+#[cfg(feature = "hex")]
+impl fmt::Display for TendermintValidatorPubKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TendermintValidatorPubKey::Ed25519(key) => write!(f, "{}", hex::encode(key)),
+        }
+    }
+}
+
 impl TendermintValidatorPubKey {
     pub fn to_validator_update(&self) -> (String, Vec<u8>) {
         match self {
@@ -175,6 +184,12 @@ pub struct TendermintVotePower(i64);
 impl From<TendermintVotePower> for i64 {
     fn from(c: TendermintVotePower) -> i64 {
         c.0
+    }
+}
+
+impl From<TendermintVotePower> for u64 {
+    fn from(c: TendermintVotePower) -> u64 {
+        c.0 as u64
     }
 }
 

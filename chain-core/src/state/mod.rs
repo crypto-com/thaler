@@ -1,7 +1,9 @@
-/// data types related to account operations
+/// data types related to staked state operations
 pub mod account;
 /// data types related to working with Tendermint
 pub mod tendermint;
+/// data types related to council node operations in staked state
+pub mod validator;
 
 use crate::common::{hash256, H256};
 use crate::init::coin::Coin;

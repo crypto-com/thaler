@@ -28,6 +28,53 @@ use protobuf::Message;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// Validator state tracking
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode, Default)]
+pub struct ValidatorState {
+    /// all nodes (current validator set + pending): TendermintVotePower == coin bonded amount if >= minimal
+    /// or TendermintVotePower == 0 if < minimal or was jailed
+    /// FIXME: delete node metadata if voting power == 0 for longer than unbonding time
+    pub council_nodes_by_power: BTreeMap<(TendermintVotePower, StakedStateAddress), CouncilNode>,
+    /// stores staking account address corresponding to tendermint validator addresses
+    /// FIXME: delete node metadata if voting power == 0 for longer than unbonding time
+    pub tendermint_validator_addresses: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
+    /// Runtime state for computing and executing validator punishment
+    pub punishment: ValidatorPunishment,
+}
+
+impl ValidatorState {
+    /// add validator for tracking if it wasn't added before
+    pub fn add_validator_for_tracking(
+        &mut self,
+        validator_address: TendermintValidatorAddress,
+        staking_address: StakedStateAddress,
+        block_signing_window: u16,
+    ) {
+        if !self
+            .punishment
+            .validator_liveness
+            .contains_key(&validator_address)
+        {
+            self.tendermint_validator_addresses
+                .insert(validator_address.clone(), staking_address);
+            self.punishment.validator_liveness.insert(
+                validator_address,
+                LivenessTracker::new(block_signing_window),
+            );
+        }
+    }
+
+    /// remove from tracking liveness
+    pub fn remove_validator_from_tracking(
+        &mut self,
+        tendermint_address: &TendermintValidatorAddress,
+    ) {
+        self.punishment
+            .validator_liveness
+            .remove(tendermint_address);
+    }
+}
+
 /// ABCI app state snapshot
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode)]
 pub struct ChainNodeState {
@@ -43,27 +90,19 @@ pub struct ChainNodeState {
     pub rewards_pool: RewardsPoolState,
     /// network parameters (fee policy, staking configuration etc.)
     pub network_params: NetworkParameters,
-    /// council nodes metadata
-    /// FIXME: delete node metadata if voting power == 0 for longer than unbonding time
+    /// state of validators (keys, voting power, punishments, rewards...)
     #[serde(skip)]
-    pub council_nodes_by_power: BTreeMap<(TendermintVotePower, StakedStateAddress), CouncilNode>,
-    /// stores staking account address corresponding to tendermint validator addresses
-    pub tendermint_validator_addresses: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
-    /// Runtime state for computing and executing validator punishment
-    pub punishment: ValidatorPunishment,
+    pub validators: ValidatorState,
 }
 
 impl ChainNodeState {
-    #[allow(clippy::too_many_arguments)]
     pub fn genesis(
         genesis_apphash: H256,
         genesis_time: Timespec,
         last_account_root_hash: StarlingFixedKey,
         rewards_pool: RewardsPoolState,
         network_params: NetworkParameters,
-        council_nodes_by_power: BTreeMap<(TendermintVotePower, StakedStateAddress), CouncilNode>,
-        tendermint_validator_addresses: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
-        punishment: ValidatorPunishment,
+        validators: ValidatorState,
     ) -> Self {
         ChainNodeState {
             last_block_height: 0,
@@ -72,9 +111,7 @@ impl ChainNodeState {
             last_account_root_hash,
             rewards_pool,
             network_params,
-            council_nodes_by_power,
-            tendermint_validator_addresses,
-            punishment,
+            validators,
         }
     }
 }
@@ -95,10 +132,12 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub chain_hex_id: u8,
     /// last application state snapshot (if any)
     pub last_state: Option<ChainNodeState>,
-    /// validator voting power
+    /// validator voting power (current validator set)
     pub validator_voting_power: BTreeMap<StakedStateAddress, TendermintVotePower>,
-    /// validator addresses whose bonded amount changed in the current block
+    /// new validator addresses or whose bonded amount changed in the current block
     pub power_changed_in_block: BTreeMap<StakedStateAddress, TendermintVotePower>,
+    /// new nodes proposed in the block
+    pub new_nodes_in_block: BTreeMap<StakedStateAddress, CouncilNode>,
     /// proxy for processing transaction validation requests
     pub tx_validator: T,
     /// was rewards pool updated in the current block?
@@ -121,6 +160,7 @@ fn get_validator_mapping(
 ) -> BTreeMap<StakedStateAddress, TendermintVotePower> {
     let mut validator_voting_power = BTreeMap::new();
     for ((voting_power, address), node) in last_app_state
+        .validators
         .council_nodes_by_power
         .iter()
         .rev()
@@ -254,6 +294,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             last_state: Some(last_app_state),
             validator_voting_power,
             power_changed_in_block: BTreeMap::new(),
+            new_nodes_in_block: BTreeMap::new(),
             tx_validator,
             rewards_pool_updated: false,
             tx_query_address,
@@ -361,6 +402,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 last_state: None,
                 validator_voting_power: BTreeMap::new(),
                 power_changed_in_block: BTreeMap::new(),
+                new_nodes_in_block: BTreeMap::new(),
                 tx_validator,
                 rewards_pool_updated: false,
                 tx_query_address,
@@ -489,11 +531,13 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 new_account_root,
                 rp,
                 network_params,
-                validator_by_voting_power,
-                tendermint_validator_addresses,
-                ValidatorPunishment {
-                    validator_liveness,
-                    slashing_schedule: Default::default(),
+                ValidatorState {
+                    council_nodes_by_power: validator_by_voting_power,
+                    tendermint_validator_addresses,
+                    punishment: ValidatorPunishment {
+                        validator_liveness,
+                        slashing_schedule: Default::default(),
+                    },
                 },
             );
             store_valid_genesis_state(&genesis_state, &mut inittx);

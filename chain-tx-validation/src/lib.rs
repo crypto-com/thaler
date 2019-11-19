@@ -14,12 +14,13 @@ pub mod witness;
 #[macro_use]
 extern crate sgx_tstd as std;
 
-use std::prelude::v1::Vec;
-
 use chain_core::init::coin::Coin;
+use chain_core::state::account::StakedStateAddress;
 use chain_core::state::account::{
     DepositBondTx, StakedState, UnbondTx, UnjailTx, WithdrawUnbondedTx,
 };
+use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
+use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
@@ -30,9 +31,11 @@ use chain_core::tx::TransactionId;
 pub use chain_core::tx::TxWithOutputs;
 pub use chain_core::ChainInfo;
 use parity_scale_codec::{Decode, Encode};
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::convert::From;
 use std::fmt;
+use std::prelude::v1::Vec;
 use witness::verify_tx_address;
 
 /// All possible TX validation errors
@@ -85,6 +88,10 @@ pub enum Error {
     AccountJailed,
     /// Account is not jailed
     AccountNotJailed,
+    /// Bonded amount < minimal required stake
+    NotEnoughStake,
+    /// Validator data already present in node state
+    DuplicateValidator,
 }
 
 impl fmt::Display for Error {
@@ -128,6 +135,8 @@ impl fmt::Display for Error {
             MismatchAccountAddress => write!(f, "mismatch account address"),
             AccountJailed => write!(f, "account is jailed"),
             AccountNotJailed => write!(f, "account is not jailed"),
+            NotEnoughStake => write!(f, "staked state bonded amount is less than the minimal required stake"),
+            DuplicateValidator => write!(f, "council node with the same staked state address or validator public key already added"),
         }
     }
 }
@@ -309,7 +318,6 @@ pub fn verify_bonded_deposit(
     }
 
     let incoins = verify_bonded_deposit_core(maintx, witness, extra_info, transaction_inputs)?;
-    // TODO: checking account not jailed etc.?
     let deposit_amount = (incoins - extra_info.min_fee_computed.to_coin()).expect("init");
     let account = match maccount {
         Some(mut a) => {
@@ -333,6 +341,7 @@ pub fn verify_unbonding(
     extra_info: ChainInfo,
     mut account: StakedState,
 ) -> Result<(Fee, Option<StakedState>), Error> {
+    verify_unjailed(&account)?;
     check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
 
     if maintx.from_staked_account != account.address {
@@ -445,4 +454,55 @@ pub fn verify_unjailed(account: &StakedState) -> Result<(), Error> {
     } else {
         Ok(())
     }
+}
+
+/// information needed for NodeJoinRequestTx verification
+pub struct NodeInfo<'a> {
+    /// minimal required stake
+    pub minimal_stake: Coin,
+    /// current validator addresses
+    pub tendermint_validator_addresses:
+        &'a BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
+    /// current validator staking addresses
+    pub validator_voting_power: &'a BTreeMap<StakedStateAddress, TendermintVotePower>,
+}
+
+/// Verifies if a new council node can be added
+pub fn verify_node_join(
+    maintx: &NodeJoinRequestTx,
+    extra_info: ChainInfo,
+    node_info: NodeInfo,
+    mut account: StakedState,
+) -> Result<(Fee, Option<StakedState>), Error> {
+    verify_unjailed(&account)?;
+    check_attributes(maintx.attributes.chain_hex_id, &extra_info)?;
+
+    // checks that staked state transaction count matches to the one in transaction
+    if maintx.nonce != account.nonce {
+        return Err(Error::AccountIncorrectNonce);
+    }
+
+    // checks that the address in unjail transaction is same as that of staked state recovered from witness
+    if maintx.address != account.address {
+        return Err(Error::MismatchAccountAddress);
+    }
+
+    // checks that the bonded amount >= minimal required stake
+    if account.bonded < node_info.minimal_stake {
+        return Err(Error::NotEnoughStake);
+    }
+    let validator_address = TendermintValidatorAddress::from(&maintx.node_meta.consensus_pubkey);
+    // checks that validator hasn't joined yet
+    if node_info
+        .validator_voting_power
+        .contains_key(&maintx.address)
+        || node_info
+            .tendermint_validator_addresses
+            .contains_key(&validator_address)
+    {
+        return Err(Error::DuplicateValidator);
+    }
+
+    account.join_node(maintx.node_meta.clone());
+    Ok((Fee::new(Coin::zero()), Some(account))) // Zero fee for node join request
 }

@@ -36,6 +36,7 @@ impl LivenessTracker {
     /// Checks if validator is live or not
     #[inline]
     pub fn is_live(&self, missed_block_threshold: u16) -> bool {
+        // FIXME: use POPCOUNT
         let zero_count = self.liveness.iter().filter(|x| !x).count();
         zero_count < missed_block_threshold as usize
     }
