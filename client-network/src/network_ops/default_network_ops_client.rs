@@ -15,6 +15,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TransactionId, TxAux};
 use chain_tx_validation::{check_inputs_basic, check_outputs_basic, verify_unjailed};
+use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction};
 use client_core::signer::{DummySigner, Signer};
@@ -480,6 +481,7 @@ mod tests {
     use chain_core::tx::{PlainTxAux, TxEnclaveAux, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_recover_address;
     use client_common::storage::MemoryStorage;
+    use client_common::tendermint::lite;
     use client_common::tendermint::types::*;
     use client_common::{PrivateKey, PublicKey, Transaction};
     use client_core::signer::DefaultSigner;
@@ -566,6 +568,14 @@ mod tests {
             unreachable!()
         }
 
+        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+            &self,
+            _state: lite::TrustedState,
+            _heights: T,
+        ) -> Result<(Vec<Block>, lite::TrustedState)> {
+            unreachable!()
+        }
+
         fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             _heights: T,
@@ -573,11 +583,11 @@ mod tests {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _: &[u8]) -> Result<BroadcastTxResult> {
+        fn broadcast_transaction(&self, _: &[u8]) -> Result<BroadcastTxResponse> {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
             let staked_state = StakedState::new(
                 0,
                 Coin::new(1000000).unwrap(),
@@ -591,12 +601,9 @@ mod tests {
                 }),
             );
 
-            Ok(QueryResult {
-                response: Response {
-                    code: 0,
-                    value: base64::encode(&staked_state.encode()),
-                    log: "".to_owned(),
-                },
+            Ok(AbciQuery {
+                value: Some(base64::encode(&staked_state.encode())),
+                ..Default::default()
             })
         }
     }
@@ -632,11 +639,19 @@ mod tests {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _: &[u8]) -> Result<BroadcastTxResult> {
+        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+            &self,
+            _state: lite::TrustedState,
+            _heights: T,
+        ) -> Result<(Vec<Block>, lite::TrustedState)> {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+        fn broadcast_transaction(&self, _: &[u8]) -> Result<BroadcastTxResponse> {
+            unreachable!()
+        }
+
+        fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
             let staked_state = StakedState::new(
                 0,
                 Coin::new(1000000).unwrap(),
@@ -646,12 +661,9 @@ mod tests {
                 None,
             );
 
-            Ok(QueryResult {
-                response: Response {
-                    code: 0,
-                    value: base64::encode(&staked_state.encode()),
-                    log: "".to_owned(),
-                },
+            Ok(AbciQuery {
+                value: Some(base64::encode(&staked_state.encode())),
+                ..Default::default()
             })
         }
     }

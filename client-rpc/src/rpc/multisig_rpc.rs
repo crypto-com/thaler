@@ -252,7 +252,7 @@ where
 
         self.client
             .broadcast_transaction(&tx_aux)
-            .map(|result| result.data)
+            .map(|result| result.data.to_string())
             .map_err(to_rpc_error)
     }
 }
@@ -313,6 +313,7 @@ mod test {
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
     use client_common::storage::MemoryStorage;
+    use client_common::tendermint::lite;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
     use client_common::{PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
@@ -457,11 +458,19 @@ mod test {
             unreachable!("block_results_batch")
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResult> {
+        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+            &self,
+            _state: lite::TrustedState,
+            _heights: T,
+        ) -> CommonResult<(Vec<Block>, lite::TrustedState)> {
+            unreachable!()
+        }
+
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResponse> {
             unreachable!("broadcast_transaction")
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<QueryResult> {
+        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<AbciQuery> {
             unreachable!("query")
         }
     }

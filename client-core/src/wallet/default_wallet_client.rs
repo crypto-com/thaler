@@ -17,7 +17,7 @@ use chain_core::tx::data::Tx;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::TxAux;
-use client_common::tendermint::types::BroadcastTxResult;
+use client_common::tendermint::types::BroadcastTxResponse;
 use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
     Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SignedTransaction, Storage,
@@ -454,7 +454,7 @@ where
     }
 
     #[inline]
-    fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<BroadcastTxResult> {
+    fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<BroadcastTxResponse> {
         self.tendermint_client
             .broadcast_transaction(&tx_aux.encode())
     }

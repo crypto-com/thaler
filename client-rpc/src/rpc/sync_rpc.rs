@@ -44,14 +44,14 @@ where
     #[inline]
     fn sync(&self, request: WalletRequest) -> Result<()> {
         self.synchronizer
-            .sync(&request.name, &request.passphrase, None, None)
+            .sync(&request.name, &request.passphrase, None, None, true)
             .map_err(to_rpc_error)
     }
 
     #[inline]
     fn sync_all(&self, request: WalletRequest) -> Result<()> {
         self.synchronizer
-            .sync_all(&request.name, &request.passphrase, None, None)
+            .sync_all(&request.name, &request.passphrase, None, None, true)
             .map_err(to_rpc_error)
     }
 

@@ -1,12 +1,14 @@
 #![cfg(feature = "http-rpc")]
 
+use itertools::izip;
 use jsonrpc::client::Client as JsonRpcClient;
 use jsonrpc::Request;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tendermint::{lite::verifier, validator};
 
 use crate::tendermint::types::*;
-use crate::tendermint::Client;
+use crate::tendermint::{lite, Client};
 use crate::{Error, ErrorKind, Result, ResultExt};
 
 /// Tendermint RPC Client
@@ -72,10 +74,10 @@ impl RpcClient {
             // inefficient workaround is to create a new client on every call.
             // https://github.com/apoelstra/rust-jsonrpc/issues/26
             let client = JsonRpcClient::new(self.url.to_owned(), None, None);
-            let requests = params
+            let requests: Vec<Request> = params
                 .iter()
                 .map(|(name, params)| client.build_request(name, params))
-                .collect::<Vec<Request>>();
+                .collect();
             let responses = client.send_batch(&requests).chain(|| {
                 (
                     ErrorKind::TendermintRpcError,
@@ -99,14 +101,44 @@ impl RpcClient {
                         })
                         .transpose()
                 })
-                .collect::<Result<Vec<Option<T>>>>()
+                .collect()
         }
+    }
+
+    fn validators_batch<'a, T: Iterator<Item = &'a u64>>(
+        &self,
+        heights: T,
+    ) -> Result<Vec<ValidatorsResponse>> {
+        let params: Vec<(&str, Vec<Value>)> = heights
+            .map(|height| ("validators", vec![json!(height.to_string())]))
+            .collect();
+        let rsps = self.call_batch::<ValidatorsResponse>(&params)?;
+
+        rsps.into_iter()
+            .map(|rsp| rsp.chain(|| (ErrorKind::InvalidInput, "Validators information not found")))
+            .collect()
+    }
+
+    fn commit_batch<'a, T: Iterator<Item = &'a u64>>(
+        &self,
+        heights: T,
+    ) -> Result<Vec<CommitResponse>> {
+        let params: Vec<(&str, Vec<Value>)> = heights
+            .map(|height| ("commit", vec![json!(height.to_string())]))
+            .collect();
+        let rsps = self.call_batch::<CommitResponse>(&params)?;
+
+        rsps.into_iter()
+            .map(|rsp| rsp.chain(|| (ErrorKind::InvalidInput, "Validators information not found")))
+            .collect()
     }
 }
 
 impl Client for RpcClient {
     fn genesis(&self) -> Result<Genesis> {
-        self.call("genesis", Default::default())
+        Ok(self
+            .call::<GenesisResponse>("genesis", Default::default())?
+            .genesis)
     }
 
     fn status(&self) -> Result<Status> {
@@ -115,19 +147,21 @@ impl Client for RpcClient {
 
     fn block(&self, height: u64) -> Result<Block> {
         let params = [json!(height.to_string())];
-        self.call("block", &params)
+        Ok(self.call::<BlockResponse>("block", &params)?.block)
     }
 
     fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, heights: T) -> Result<Vec<Block>> {
-        let params = heights
+        let params: Vec<(&str, Vec<Value>)> = heights
             .map(|height| ("block", vec![json!(height.to_string())]))
-            .collect::<Vec<(&str, Vec<Value>)>>();
-        let response = self.call_batch::<Block>(&params)?;
+            .collect();
 
-        response
-            .into_iter()
-            .map(|block| block.chain(|| (ErrorKind::InvalidInput, "Block information not found")))
-            .collect::<Result<Vec<Block>>>()
+        let rsps = self.call_batch::<BlockResponse>(&params)?;
+        rsps.into_iter()
+            .map(|rsp| {
+                rsp.chain(|| (ErrorKind::InvalidInput, "Block information not found"))
+                    .map(|rsp_| rsp_.block)
+            })
+            .collect()
     }
 
     fn block_results(&self, height: u64) -> Result<BlockResults> {
@@ -139,9 +173,9 @@ impl Client for RpcClient {
         &self,
         heights: T,
     ) -> Result<Vec<BlockResults>> {
-        let params = heights
+        let params: Vec<(&str, Vec<Value>)> = heights
             .map(|height| ("block_results", vec![json!(height.to_string())]))
-            .collect::<Vec<(&str, Vec<Value>)>>();
+            .collect();
         let response = self.call_batch::<BlockResults>(&params)?;
 
         response
@@ -154,32 +188,71 @@ impl Client for RpcClient {
                     )
                 })
             })
-            .collect::<Result<Vec<BlockResults>>>()
+            .collect()
     }
 
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult> {
+    fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+        &self,
+        mut state: lite::TrustedState,
+        heights: T,
+    ) -> Result<(Vec<Block>, lite::TrustedState)> {
+        let commits = self.commit_batch(heights.clone())?;
+        let validators: Vec<validator::Set> = self
+            .validators_batch(heights.clone())?
+            .into_iter()
+            .map(|rsp| validator::Set::new(rsp.validators))
+            .collect();
+        let blocks = self.block_batch(heights)?;
+        for (commit, next_vals, block) in izip!(&commits, &validators, &blocks) {
+            verifier::verify_trusting(
+                block.header.clone(),
+                commit.signed_header.clone(),
+                state.validators.clone(),
+                next_vals.clone(),
+            )
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::VerifyError,
+                    format!("block verify failed: {:?}", err),
+                )
+            })?;
+            state.header = Some(block.header.clone());
+            state.validators = next_vals.clone();
+        }
+        Ok((blocks, state))
+    }
+
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResponse> {
         let params = [json!(transaction)];
-        self.call::<BroadcastTxResult>("broadcast_tx_sync", &params)
+        self.call::<BroadcastTxResponse>("broadcast_tx_sync", &params)
             .and_then(|result| {
-                if result.code != 0 {
-                    Err(Error::new(ErrorKind::TendermintRpcError, result.log))
+                if result.code.is_err() {
+                    Err(Error::new(
+                        ErrorKind::TendermintRpcError,
+                        result.log.to_string(),
+                    ))
                 } else {
                     Ok(result)
                 }
             })
     }
 
-    fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult> {
+    fn query(&self, path: &str, data: &[u8]) -> Result<AbciQuery> {
         let params = [
             json!(path),
             json!(hex::encode(data)),
             json!(null),
             json!(null),
         ];
-        let result = self.call::<QueryResult>("abci_query", &params)?;
+        let result = self
+            .call::<AbciQueryResponse>("abci_query", &params)?
+            .response;
 
-        if result.code() != 0 {
-            return Err(Error::new(ErrorKind::TendermintRpcError, result.log()));
+        if result.code.is_err() {
+            return Err(Error::new(
+                ErrorKind::TendermintRpcError,
+                result.log.to_string(),
+            ));
         }
 
         Ok(result)

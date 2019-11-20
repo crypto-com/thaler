@@ -1,5 +1,5 @@
 use crate::{
-    tendermint::{types::*, Client},
+    tendermint::{lite, types::*, Client},
     ErrorKind, Result,
 };
 
@@ -35,11 +35,19 @@ impl Client for UnauthorizedClient {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+    fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn query(&self, _path: &str, _data: &[u8]) -> Result<QueryResult> {
+    fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
+        Err(ErrorKind::PermissionDenied.into())
+    }
+
+    fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+        &self,
+        _state: lite::TrustedState,
+        _heights: T,
+    ) -> Result<(Vec<Block>, lite::TrustedState)> {
         Err(ErrorKind::PermissionDenied.into())
     }
 }

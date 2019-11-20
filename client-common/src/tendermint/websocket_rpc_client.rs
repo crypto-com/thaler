@@ -4,6 +4,7 @@ mod websocket_rpc_loop;
 
 pub use types::ConnectionState;
 
+use itertools::izip;
 use std::collections::HashMap;
 use std::iter;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
@@ -15,13 +16,14 @@ use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tendermint::{lite::verifier, validator};
 use websocket::sender::Writer;
 use websocket::stream::sync::TcpStream;
 use websocket::OwnedMessage;
 
 use self::types::*;
 use crate::tendermint::types::*;
-use crate::tendermint::Client;
+use crate::tendermint::{lite, Client};
 use crate::{Error, ErrorKind, Result, ResultExt};
 
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -263,12 +265,34 @@ impl WebsocketRpcClient {
                 .collect()
         }
     }
+
+    fn validators_batch<'a, T: Iterator<Item = &'a u64>>(
+        &self,
+        heights: T,
+    ) -> Result<Vec<ValidatorsResponse>> {
+        let params = heights
+            .map(|height| ("validators", vec![json!(height.to_string())]))
+            .collect::<Vec<(&str, Vec<Value>)>>();
+        self.call_batch(params)
+    }
+
+    fn commit_batch<'a, T: Iterator<Item = &'a u64>>(
+        &self,
+        heights: T,
+    ) -> Result<Vec<CommitResponse>> {
+        let params = heights
+            .map(|height| ("commit", vec![json!(height.to_string())]))
+            .collect::<Vec<(&str, Vec<Value>)>>();
+        self.call_batch(params)
+    }
 }
 
 impl Client for WebsocketRpcClient {
     #[inline]
     fn genesis(&self) -> Result<Genesis> {
-        self.call("genesis", Default::default())
+        Ok(self
+            .call::<GenesisResponse>("genesis", Default::default())?
+            .genesis)
     }
 
     #[inline]
@@ -279,7 +303,7 @@ impl Client for WebsocketRpcClient {
     #[inline]
     fn block(&self, height: u64) -> Result<Block> {
         let params = [json!(height.to_string())];
-        self.call("block", &params)
+        Ok(self.call::<BlockResponse>("block", &params)?.block)
     }
 
     #[inline]
@@ -287,7 +311,8 @@ impl Client for WebsocketRpcClient {
         let params = heights
             .map(|height| ("block", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
-        self.call_batch::<Block>(params)
+        let rsps = self.call_batch::<BlockResponse>(params)?;
+        Ok(rsps.into_iter().map(|rsp| rsp.block).collect())
     }
 
     #[inline]
@@ -304,37 +329,70 @@ impl Client for WebsocketRpcClient {
         let params = heights
             .map(|height| ("block_results", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
-        self.call_batch::<BlockResults>(params)
+        self.call_batch(params)
     }
 
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult> {
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResponse> {
         let params = [json!(transaction)];
-        let broadcast_tx_result: BroadcastTxResult = self.call("broadcast_tx_sync", &params)?;
+        let rsp = self.call::<BroadcastTxResponse>("broadcast_tx_sync", &params)?;
 
-        if broadcast_tx_result.code != 0 {
-            Err(Error::new(
-                ErrorKind::TendermintRpcError,
-                broadcast_tx_result.log,
-            ))
+        if rsp.code.is_err() {
+            Err(Error::new(ErrorKind::TendermintRpcError, rsp.log.as_ref()))
         } else {
-            Ok(broadcast_tx_result)
+            Ok(rsp)
         }
     }
 
-    fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult> {
+    fn query(&self, path: &str, data: &[u8]) -> Result<AbciQuery> {
         let params = [
             json!(path),
             json!(hex::encode(data)),
             json!(null),
             json!(null),
         ];
-        let result: QueryResult = self.call("abci_query", &params)?;
+        let result = self
+            .call::<AbciQueryResponse>("abci_query", &params)?
+            .response;
 
-        if result.code() != 0 {
-            return Err(Error::new(ErrorKind::TendermintRpcError, result.log()));
+        if result.code.is_err() {
+            return Err(Error::new(
+                ErrorKind::TendermintRpcError,
+                result.log.to_string(),
+            ));
         }
 
         Ok(result)
+    }
+
+    fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+        &self,
+        mut state: lite::TrustedState,
+        heights: T,
+    ) -> Result<(Vec<Block>, lite::TrustedState)> {
+        let commits = self.commit_batch(heights.clone())?;
+        let validators: Vec<validator::Set> = self
+            .validators_batch(heights.clone())?
+            .into_iter()
+            .map(|rsp| validator::Set::new(rsp.validators))
+            .collect();
+        let blocks = self.block_batch(heights)?;
+        for (commit, next_vals, block) in izip!(&commits, &validators, &blocks) {
+            verifier::verify_trusting(
+                block.header.clone(),
+                commit.signed_header.clone(),
+                state.validators.clone(),
+                next_vals.clone(),
+            )
+            .map_err(|err| {
+                Error::new(
+                    ErrorKind::VerifyError,
+                    format!("block verify failed: {:?}", err),
+                )
+            })?;
+            state.header = Some(block.header.clone());
+            state.validators = next_vals.clone();
+        }
+        Ok((blocks, state))
     }
 }
 

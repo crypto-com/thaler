@@ -2,6 +2,7 @@ use parity_scale_codec::{Decode, Encode};
 
 use chain_core::tx::data::TxId;
 use chain_core::tx::{TxAux, TxWithOutputs};
+use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
 use client_common::{
     ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction, SECP,
@@ -118,6 +119,7 @@ mod tests {
     use chain_core::tx::data::Tx;
     use chain_core::tx::witness::TxWitness;
     use chain_core::tx::{TxEnclaveAux, TxObfuscated};
+    use client_common::tendermint::lite;
     use client_common::tendermint::types::*;
 
     fn transfer_transaction() -> TxEnclaveAux {
@@ -163,11 +165,19 @@ mod tests {
             unreachable!()
         }
 
-        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResult> {
+        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+            &self,
+            _state: lite::TrustedState,
+            _heights: T,
+        ) -> Result<(Vec<Block>, lite::TrustedState)> {
             unreachable!()
         }
 
-        fn query(&self, path: &str, _data: &[u8]) -> Result<QueryResult> {
+        fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
+            unreachable!()
+        }
+
+        fn query(&self, path: &str, _data: &[u8]) -> Result<AbciQuery> {
             match path {
                 "mockdecrypt" => {
                     let response = DecryptionResponse {
@@ -175,12 +185,9 @@ mod tests {
                     }
                     .encode();
 
-                    Ok(QueryResult {
-                        response: Response {
-                            code: 0,
-                            value: encode(&response),
-                            log: "".to_owned(),
-                        },
+                    Ok(AbciQuery {
+                        value: Some(encode(&response)),
+                        ..Default::default()
                     })
                 }
                 "mockencrypt" => {
@@ -189,12 +196,9 @@ mod tests {
                     }
                     .encode();
 
-                    Ok(QueryResult {
-                        response: Response {
-                            code: 0,
-                            value: encode(&response),
-                            log: "".to_owned(),
-                        },
+                    Ok(AbciQuery {
+                        value: Some(encode(&response)),
+                        ..Default::default()
                     })
                 }
                 _ => Err(ErrorKind::InvalidInput.into()),

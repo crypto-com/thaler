@@ -1,4 +1,4 @@
-use crate::tendermint::types::QueryResult;
+use crate::tendermint::lite;
 use crate::tendermint::types::*;
 use crate::Result;
 
@@ -25,9 +25,16 @@ pub trait Client: Send + Sync {
         heights: T,
     ) -> Result<Vec<BlockResults>>;
 
+    /// Fetch continuous blocks and verify them.
+    fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+        &self,
+        _state: lite::TrustedState,
+        _heights: T,
+    ) -> Result<(Vec<Block>, lite::TrustedState)>;
+
     /// Makes `broadcast_tx_sync` call to tendermint
-    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResult>;
+    fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResponse>;
 
     /// Makes `abci_query` call to tendermint
-    fn query(&self, path: &str, data: &[u8]) -> Result<QueryResult>;
+    fn query(&self, path: &str, data: &[u8]) -> Result<AbciQuery>;
 }

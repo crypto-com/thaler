@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 
-use chrono::{DateTime, Utc};
 use secstr::SecUtf8;
 
 use chain_core::init::coin::Coin;
@@ -9,6 +8,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::TxId;
 use chain_core::tx::TransactionId;
+use client_common::tendermint::types::Time;
 use client_common::{Error, ErrorKind, Result, ResultExt, Storage, Transaction};
 
 use crate::service::{WalletService, WalletStateService};
@@ -49,7 +49,7 @@ where
         passphrase: &SecUtf8,
         transaction: Transaction,
         block_height: u64,
-        block_time: DateTime<Utc>,
+        block_time: Time,
     ) -> Result<()> {
         let transaction_id = transaction.id();
         let inputs = self.decorate_inputs(name, passphrase, transaction.inputs().to_vec())?;
@@ -278,7 +278,6 @@ fn get_total_output_amount(outputs: &[TxOut]) -> Result<Coin> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     use std::str::FromStr;
 
     use chain_core::tx::data::attribute::TxAttributes;
@@ -336,7 +335,7 @@ mod tests {
                 passphrase1,
                 transactions[0].clone(),
                 0,
-                DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             )
             .unwrap();
 
@@ -361,7 +360,7 @@ mod tests {
                 passphrase1,
                 transactions[1].clone(),
                 1,
-                DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             )
             .unwrap();
 
@@ -385,7 +384,7 @@ mod tests {
                 passphrase2,
                 transactions[0].clone(),
                 0,
-                DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             )
             .unwrap();
 
@@ -410,7 +409,7 @@ mod tests {
                 passphrase2,
                 transactions[1].clone(),
                 1,
-                DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             )
             .unwrap();
 

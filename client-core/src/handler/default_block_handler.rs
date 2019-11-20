@@ -108,8 +108,6 @@ mod tests {
 
     use std::str::FromStr;
 
-    use chrono::{DateTime, Utc};
-
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes, UnbondTx};
@@ -120,6 +118,7 @@ mod tests {
     use chain_core::tx::{TransactionId, TxAux};
     use chain_tx_filter::BlockFilter;
     use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::Time;
     use client_common::{PrivateKey, PublicKey, SignedTransaction, Transaction};
 
     use crate::types::WalletKind;
@@ -153,14 +152,14 @@ mod tests {
             _passphrase: &SecUtf8,
             transaction: Transaction,
             block_height: u64,
-            block_time: DateTime<Utc>,
+            block_time: Time,
         ) -> Result<()> {
             if transaction != transfer_transaction() && transaction != unbond_transaction() {
                 panic!("Invalid transaction")
             }
             assert_eq!(1, block_height);
             assert_eq!(
-                <DateTime<Utc>>::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+                Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                 block_time
             );
             Ok(())
@@ -198,10 +197,9 @@ mod tests {
         block_filter.add_view_key(&view_key.into());
 
         BlockHeader {
-            app_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
-                .to_string(),
+            app_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C".to_owned(),
             block_height: 1,
-            block_time: DateTime::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
+            block_time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             transaction_ids,
             block_filter,
             unencrypted_transactions: vec![unbond_transaction()],
