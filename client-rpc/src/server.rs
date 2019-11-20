@@ -15,7 +15,7 @@ use client_common::{Error, Result};
 use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_core::signer::DefaultSigner;
-use client_core::synchronizer::{AutoSync, ManualSynchronizer};
+use client_core::synchronizer::ManualSynchronizer;
 use client_core::transaction_builder::DefaultTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
@@ -46,7 +46,6 @@ pub(crate) struct Server {
     network_id: u8,
     storage_dir: String,
     websocket_url: String,
-    autosync: AutoSync,
 }
 
 impl Server {
@@ -61,7 +60,6 @@ impl Server {
             network_id,
             storage_dir: options.storage_dir,
             websocket_url: options.websocket_url,
-            autosync: AutoSync::new(),
         })
     }
 
@@ -119,25 +117,6 @@ impl Server {
         ))
     }
 
-    pub fn start_websocket(
-        &mut self,
-        storage: SledStorage,
-        tendermint_client: WebsocketRpcClient,
-    ) -> Result<()> {
-        log::info!("start_websocket");
-        let url = self.websocket_url.clone();
-
-        let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
-        let transaction_handler = DefaultTransactionHandler::new(storage.clone());
-        let block_handler =
-            DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
-
-        self.autosync
-            .run(url, tendermint_client, storage.clone(), block_handler);
-
-        Ok(())
-    }
-
     pub fn start_client(
         &self,
         io: &mut IoHandler,
@@ -158,7 +137,7 @@ impl Server {
 
         let synchronizer = self.make_synchronizer(storage.clone(), tendermint_client.clone())?;
 
-        let sync_rpc = SyncRpcImpl::new(synchronizer, self.autosync.clone());
+        let sync_rpc = SyncRpcImpl::new(synchronizer);
 
         let wallet_rpc_wallet_client =
             self.make_wallet_client(storage.clone(), tendermint_client.clone())?;
@@ -178,8 +157,6 @@ impl Server {
 
         let tendermint_client = WebsocketRpcClient::new(&self.websocket_url)?;
 
-        self.start_websocket(storage.clone(), tendermint_client.clone())
-            .unwrap();
         self.start_client(&mut io, storage.clone(), tendermint_client.clone())
             .unwrap();
 

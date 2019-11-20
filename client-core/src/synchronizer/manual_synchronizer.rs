@@ -20,6 +20,8 @@ const DEFAULT_BATCH_SIZE: usize = 20;
 pub enum ProgressReport {
     /// Initial report to send start/finish heights
     Init {
+        /// Name of wallet
+        wallet_name: String,
         /// Block height from which synchronization started
         start_block_height: u64,
         /// Block height at which synchronization will finish
@@ -27,12 +29,15 @@ pub enum ProgressReport {
     },
     /// Report to update progress status
     Update {
+        /// Name of wallet
+        wallet_name: String,
         /// Current synchronized block height
         current_block_height: u64,
     },
 }
 
 /// Synchronizer for transaction index which can be triggered manually
+#[derive(Clone)]
 pub struct ManualSynchronizer<S, C, H>
 where
     S: Storage,
@@ -94,6 +99,7 @@ where
 
         if let Some(ref sender) = &progress_reporter {
             let _ = sender.send(ProgressReport::Init {
+                wallet_name: name.to_owned(),
                 start_block_height: last_block_height,
                 finish_block_height: current_block_height,
             });
@@ -162,6 +168,7 @@ where
 
                 if let Some(ref sender) = &progress_reporter {
                     let _ = sender.send(ProgressReport::Update {
+                        wallet_name: name.to_owned(),
                         current_block_height: block.header.height.value(),
                     });
                 }
@@ -215,6 +222,7 @@ where
 
             if let Some(ref sender) = progress_reporter {
                 let _ = sender.send(ProgressReport::Update {
+                    wallet_name: name.to_owned(),
                     current_block_height,
                 });
             }
@@ -247,6 +255,7 @@ where
 
             if let Some(ref sender) = progress_reporter {
                 let _ = sender.send(ProgressReport::Update {
+                    wallet_name: name.to_owned(),
                     current_block_height,
                 });
             }
