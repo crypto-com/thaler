@@ -7,6 +7,7 @@ use crate::service::{GlobalStateService, KeyService, WalletService};
 use crate::{BlockHandler, TransactionHandler, TransactionObfuscation};
 
 /// Default implementation of `BlockHandler`
+#[derive(Clone)]
 pub struct DefaultBlockHandler<O, H, S>
 where
     O: TransactionObfuscation,

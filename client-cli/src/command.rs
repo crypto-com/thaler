@@ -427,6 +427,7 @@ impl Command {
                     ProgressReport::Init {
                         start_block_height,
                         finish_block_height,
+                        ..
                     } => {
                         init_block_height = start_block_height;
                         final_block_height = finish_block_height;
@@ -438,6 +439,7 @@ impl Command {
                     }
                     ProgressReport::Update {
                         current_block_height,
+                        ..
                     } => {
                         if let Some(ref mut pb) = progress_bar {
                             if current_block_height == final_block_height {
