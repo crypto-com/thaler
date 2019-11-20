@@ -35,16 +35,24 @@ fn get_tls_config() -> Arc<rustls::ClientConfig> {
 #[derive(Debug, Clone)]
 pub struct DefaultTransactionObfuscation {
     tqe_address: String,
-    tqe_hostname: String,
+    tqe_hostname: webpki::DNSName,
 }
 
 impl DefaultTransactionObfuscation {
     /// tqe_address: connection string <HOST/IP:PORT>
     /// tqe_hostname: expected hostname (e.g. localhost in testing)
     pub fn new(tqe_address: String, tqe_hostname: String) -> Self {
+        // one may just write an ip address instead of a domain name, which isn't a valid DNS name
+        // so there's a default case
+        // TODO: should TQE enforce valid domain names,
+        // as some of the infra may not be assigned a domain name
+        // and the TLS checking is augmented with attestation anyway?
+        let dns_name = webpki::DNSNameRef::try_from_ascii_str(&tqe_hostname)
+            .unwrap_or_else(|_| webpki::DNSNameRef::try_from_ascii_str("localhost").unwrap())
+            .to_owned();
         DefaultTransactionObfuscation {
             tqe_address,
-            tqe_hostname,
+            tqe_hostname: dns_name,
         }
     }
 }
@@ -56,12 +64,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
         private_key: &PrivateKey,
     ) -> Result<Vec<Transaction>> {
         let client_config = get_tls_config();
-        let dns_name = webpki::DNSNameRef::try_from_ascii_str(&self.tqe_hostname).chain(|| {
-            (
-                ErrorKind::InvalidInput,
-                format!("Invalid TQE hostname: {}", self.tqe_hostname),
-            )
-        })?;
+        let dns_name = self.tqe_hostname.as_ref();
         let mut sess = rustls::ClientSession::new(&client_config, dns_name);
 
         let mut conn = TcpStream::connect(&self.tqe_address).chain(|| {
@@ -139,12 +142,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
 
     fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
         let client_config = get_tls_config();
-        let dns_name = webpki::DNSNameRef::try_from_ascii_str(&self.tqe_hostname).chain(|| {
-            (
-                ErrorKind::InvalidInput,
-                format!("Invalid TQE hostname: {}", self.tqe_hostname),
-            )
-        })?;
+        let dns_name = self.tqe_hostname.as_ref();
         let mut sess = rustls::ClientSession::new(&client_config, dns_name);
 
         let mut conn = TcpStream::connect(&self.tqe_address).chain(|| {

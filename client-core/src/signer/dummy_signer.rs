@@ -21,11 +21,8 @@ impl DummySigner {
     fn pad_payload(&self, plain_txaux: PlainTxAux) -> Vec<u8> {
         let unit = 16_usize;
         let plain_payload_len = plain_txaux.encode().len();
-        if plain_payload_len % unit == 0 {
-            vec![0; plain_payload_len]
-        } else {
-            vec![0; plain_payload_len + unit - plain_payload_len % unit]
-        }
+        // PKCS7 padding -- if the len is multiple of the block length, it'll still be padded
+        vec![0; plain_payload_len + unit - plain_payload_len % unit]
     }
 
     /// Creates a mock merkletree
