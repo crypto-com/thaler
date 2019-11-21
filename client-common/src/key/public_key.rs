@@ -59,6 +59,11 @@ impl PublicKey {
         self.0.serialize_uncompressed()[..].to_vec()
     }
 
+    /// Serializes current public key in compressed form
+    pub fn serialize_compressed(&self) -> Vec<u8> {
+        self.0.serialize()[..].to_vec()
+    }
+
     /// Deserializes public key from bytes
     pub fn deserialize_from(bytes: &[u8]) -> Result<PublicKey> {
         let public_key: SecpPublicKey = SecpPublicKey::from_slice(bytes).chain(|| {

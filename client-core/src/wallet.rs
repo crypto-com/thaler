@@ -5,7 +5,6 @@ pub use default_wallet_client::DefaultWalletClient;
 
 use std::collections::BTreeSet;
 
-use bip39::Mnemonic;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 
@@ -24,7 +23,7 @@ use client_common::tendermint::types::BroadcastTxResponse;
 use client_common::{PrivateKey, PublicKey, Result};
 
 use crate::types::{AddressType, TransactionChange, WalletKind};
-use crate::{InputSelectionStrategy, UnspentTransactions};
+use crate::{InputSelectionStrategy, Mnemonic, UnspentTransactions};
 
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {

@@ -1,15 +1,14 @@
-use bip39::{Mnemonic, Seed};
 use parity_scale_codec::{Decode, Encode};
 use secstr::SecUtf8;
 
-use chain_core::init::network::get_bip44_coin_type;
+use chain_core::init::network::get_network;
 use client_common::storage::decrypt_bytes;
 use client_common::{
     Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecureStorage, Storage,
 };
 
-use crate::hd_wallet::{ChainPath, DefaultKeyChain, ExtendedPrivKey, KeyChain};
 use crate::types::AddressType;
+use crate::{HDSeed, Mnemonic};
 
 const KEYSPACE: &str = "core_hd_key";
 
@@ -17,7 +16,7 @@ const KEYSPACE: &str = "core_hd_key";
 struct HdKey {
     staking_index: u32,
     transfer_index: u32,
-    seed: Vec<u8>,
+    seed: HDSeed,
 }
 
 /// Stores HD Wallet's `seed` and `index`
@@ -55,14 +54,12 @@ where
             ));
         }
 
-        // TODO: advanced/optional recovery" seeding option
-        // give salt as another argument, make default as ""
-        let seed = Seed::new(mnemonic, "");
+        let hd_seed = HDSeed::from(mnemonic);
 
         let hd_key = HdKey {
-            seed: seed.as_bytes().to_vec(),
             staking_index: 0,
             transfer_index: 0,
+            seed: hd_seed,
         };
 
         self.storage
@@ -119,7 +116,6 @@ where
             })?;
 
         let hd_key_bytes = decrypt_bytes(name, passphrase, &bytes)?;
-
         let hd_key = HdKey::decode(&mut hd_key_bytes.as_slice()).chain(|| {
             (
                 ErrorKind::DeserializationError,
@@ -127,31 +123,14 @@ where
             )
         })?;
 
-        let (index, account) = match address_type {
-            AddressType::Transfer => (hd_key.transfer_index, 0),
-            AddressType::Staking => (hd_key.staking_index, 1),
+        let index = match address_type {
+            AddressType::Transfer => hd_key.transfer_index,
+            AddressType::Staking => hd_key.staking_index,
         };
-        let coin_type = get_bip44_coin_type();
 
-        let chain_path_string = format!("m/44'/{}'/{}'/0/{}", coin_type, account, index);
-        log::debug!("chain_path {}", chain_path_string);
-        let chain_path = ChainPath::from(chain_path_string);
-        let key_chain = DefaultKeyChain::new(
-            ExtendedPrivKey::with_seed(&hd_key.seed)
-                .chain(|| (ErrorKind::InternalError, "Invalid seed bytes"))?,
-        );
-
-        let (extended_private_key, _) = key_chain.derive_private_key(chain_path).chain(|| {
-            (
-                ErrorKind::InternalError,
-                "Failed to derive HD wallet private key",
-            )
-        })?;
-
-        let private_key = PrivateKey::from(extended_private_key.private_key);
-        let public_key = PublicKey::from(&private_key);
-
-        Ok((public_key, private_key))
+        hd_key
+            .seed
+            .derive_key_pair(get_network(), address_type, index)
     }
 
     /// Clears all storage
@@ -165,7 +144,6 @@ where
 mod tests {
     use super::*;
     use crate::wallet::{DefaultWalletClient, WalletClient};
-    use bip39::Language;
 
     use client_common::storage::MemoryStorage;
 
@@ -174,17 +152,27 @@ mod tests {
         let hd_key = HdKey {
             staking_index: 0,
             transfer_index: 0,
-            seed: vec![
+            seed: HDSeed::new(vec![
                 5, 60, 53, 84, 12, 242, 183, 58, 174, 139, 134, 77, 28, 50, 203, 135, 181, 100,
                 155, 234, 4, 110, 57, 243, 155, 154, 44, 159, 112, 255, 130, 44, 171, 107, 46, 195,
                 115, 216, 81, 144, 7, 21, 109, 237, 40, 136, 91, 227, 27, 77, 94, 2, 39, 164, 114,
                 51, 145, 97, 19, 147, 4, 127, 154, 228,
-            ],
+            ]),
         };
 
         let encoded = hd_key.encode();
-        let decoded_hd_key = HdKey::decode(&mut encoded.as_slice()).unwrap();
+        assert_eq!(
+            encoded,
+            vec![
+                0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 5, 60, 53, 84, 12, 242, 183, 58, 174, 139, 134, 77,
+                28, 50, 203, 135, 181, 100, 155, 234, 4, 110, 57, 243, 155, 154, 44, 159, 112, 255,
+                130, 44, 171, 107, 46, 195, 115, 216, 81, 144, 7, 21, 109, 237, 40, 136, 91, 227,
+                27, 77, 94, 2, 39, 164, 114, 51, 145, 97, 19, 147, 4, 127, 154, 228,
+            ],
+            "encode should be backward-compatible"
+        );
 
+        let decoded_hd_key = HdKey::decode(&mut encoded.as_slice()).unwrap();
         assert_eq!(hd_key, decoded_hd_key);
     }
 
@@ -194,7 +182,7 @@ mod tests {
         let passphrase = SecUtf8::from("passphrase");
         let name = "testhdwallet";
         let mnemonic =
-            Mnemonic::from_phrase("speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch", Language::English).unwrap();
+            Mnemonic::from_secstr(&SecUtf8::from("speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch")).unwrap();
 
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
         wallet
@@ -240,7 +228,7 @@ mod tests {
         let passphrase = SecUtf8::from("passphrase");
         let name = "testhdwallet";
         let mnemonic =
-            Mnemonic::from_phrase("speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch", Language::English).unwrap();
+            Mnemonic::from_secstr(&SecUtf8::from("speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch")).unwrap();
 
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
         wallet
