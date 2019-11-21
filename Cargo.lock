@@ -501,7 +501,6 @@ dependencies = [
  "chrono 0.4.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common 0.1.0",
  "enclave-protocol 0.1.0",
- "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 14.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
