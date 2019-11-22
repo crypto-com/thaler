@@ -1,11 +1,10 @@
-use bip39::{Language, Mnemonic};
 use quest::{ask, success, text};
+use secstr::SecUtf8;
 use structopt::StructOpt;
-use zeroize::Zeroize;
 
 use client_common::{Error, ErrorKind, Result, ResultExt};
 use client_core::types::WalletKind;
-use client_core::WalletClient;
+use client_core::{Mnemonic, WalletClient};
 
 use crate::ask_passphrase;
 
@@ -65,7 +64,7 @@ impl WalletCommand {
         if let WalletKind::HD = wallet_kind {
             ask("Please store following mnemonic safely to restore your wallet later: ");
             println!();
-            success(&mnemonic.unwrap().to_string());
+            success(&mnemonic.unwrap().unsecure_phrase());
         }
 
         Ok(())
@@ -94,7 +93,7 @@ impl WalletCommand {
 
         wallet_client.restore_wallet(name, &passphrase, &mnemonic)?;
 
-        mnemonic.into_phrase().zeroize();
+        mnemonic.zeroize();
 
         success(&format!("Wallet restored with name: {}", name));
         Ok(())
@@ -118,12 +117,7 @@ impl WalletCommand {
 
 fn ask_mnemonic(message: Option<&str>) -> Result<Mnemonic> {
     ask(message.unwrap_or("Enter mnemonic: "));
-    let mnemonic = text().chain(|| (ErrorKind::IoError, "Unable to read mnemonic"))?;
+    let mnemonic = SecUtf8::from(text().chain(|| (ErrorKind::IoError, "Unable to read mnemonic"))?);
 
-    Mnemonic::from_phrase(mnemonic, Language::English).chain(|| {
-        (
-            ErrorKind::DeserializationError,
-            "Unable to deserialize mnemonic",
-        )
-    })
+    Mnemonic::from_secstr(&mnemonic)
 }

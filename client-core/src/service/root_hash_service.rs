@@ -3,9 +3,8 @@ use secstr::SecUtf8;
 
 use chain_core::common::{Proof, H256};
 use chain_core::tx::witness::tree::RawPubkey;
-use client_common::{
-    ErrorKind, MultiSigAddress, PublicKey, Result, ResultExt, SecureStorage, Storage,
-};
+use client_common::MultiSigAddress;
+use client_common::{ErrorKind, PublicKey, Result, ResultExt, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_root_hash";
 

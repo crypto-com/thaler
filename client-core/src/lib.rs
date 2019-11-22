@@ -11,8 +11,10 @@
 //! - Transaction creation and signing (with automatic unspent transaction selection)
 pub mod cipher;
 pub mod handler;
+pub mod hd_seed;
 pub mod hd_wallet;
 pub mod input_selection;
+pub mod mnemonic;
 pub mod service;
 pub mod signer;
 pub mod synchronizer;
@@ -26,7 +28,11 @@ pub use crate::cipher::TransactionObfuscation;
 #[doc(inline)]
 pub use crate::handler::{BlockHandler, TransactionHandler};
 #[doc(inline)]
+pub use crate::hd_seed::HDSeed;
+#[doc(inline)]
 pub use crate::input_selection::InputSelectionStrategy;
+#[doc(inline)]
+pub use crate::mnemonic::Mnemonic;
 #[doc(inline)]
 pub use crate::service::WalletStateMemento;
 #[doc(inline)]

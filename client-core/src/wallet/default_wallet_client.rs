@@ -1,6 +1,5 @@
 use std::collections::BTreeSet;
 
-use bip39::{Language, Mnemonic, MnemonicType};
 use parity_scale_codec::Encode;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
@@ -28,8 +27,8 @@ use crate::transaction_builder::UnauthorizedTransactionBuilder;
 use crate::types::WalletKind;
 use crate::types::{AddressType, BalanceChange, TransactionChange};
 use crate::{
-    InputSelectionStrategy, MultiSigWalletClient, TransactionBuilder, UnspentTransactions,
-    WalletClient,
+    InputSelectionStrategy, Mnemonic, MultiSigWalletClient, TransactionBuilder,
+    UnspentTransactions, WalletClient,
 };
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
@@ -112,7 +111,7 @@ where
                     .map(|_| None)
             }
             WalletKind::HD => {
-                let mnemonic = Mnemonic::new(MnemonicType::Words24, Language::English);
+                let mnemonic = Mnemonic::new();
 
                 self.hd_key_service
                     .add_mnemonic(name, &mnemonic, passphrase)?;
@@ -126,9 +125,9 @@ where
                 self.key_service
                     .add_keypair(&private_key, &public_key, passphrase)?;
 
-                self.wallet_service
-                    .create(name, passphrase, public_key)
-                    .map(|_| Some(mnemonic))
+                self.wallet_service.create(name, passphrase, public_key)?;
+
+                Ok(Some(mnemonic))
             }
         }
     }
