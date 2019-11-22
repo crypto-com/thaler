@@ -7,7 +7,8 @@ use chain_core::common::MerkleTree;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
-    StakedState, StakedStateDestination, StakedStateAddress, StakedStateOpWitness, WithdrawUnbondedTx,
+    StakedState, StakedStateAddress, StakedStateDestination, StakedStateOpWitness,
+    WithdrawUnbondedTx,
 };
 use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::tree::RawPubkey;
@@ -45,6 +46,7 @@ use sgx_types::sgx_status_t;
 use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
+use std::process::Child;
 use std::process::Command;
 use std::thread;
 use std::time;
@@ -60,14 +62,15 @@ pub fn get_ecdsa_witness<C: Signing>(
 }
 
 fn get_account(account_address: &RedeemAddress) -> StakedState {
-    StakedState::new_init_unbonded(
-        Coin::one(),
-        0,
-        StakedStateAddress::from(*account_address),
-    )
+    StakedState::new_init_unbonded(Coin::one(), 0, StakedStateAddress::from(*account_address))
 }
 
 const TEST_NETWORK_ID: u8 = 0xab;
+
+pub fn fail_exit(validation: &mut Child) {
+    validation.kill();
+    std::process::exit(1);
+}
 
 pub fn test_integration() {
     let mut builder = Builder::new();
@@ -95,8 +98,7 @@ pub fn test_integration() {
 
         info!("Running TX Decryption Query server...");
 
-        let listener = TcpListener::bind(query_server_addr)
-            .expect("failed to bind the TCP socket");
+        let listener = TcpListener::bind(query_server_addr).expect("failed to bind the TCP socket");
 
         for _ in 0..2 {
             match listener.accept() {
@@ -172,11 +174,13 @@ pub fn test_integration() {
                 info!("ok tx response");
             }
             _ => {
-                panic!("failed tx response");
+                error!("failed tx response");
+                fail_exit(&mut validation);
             }
         }
         let request2 = EnclaveRequest::CommitBlock {
-            app_hash: [0u8; 32], info,
+            app_hash: [0u8; 32],
+            info,
         };
         let req2 = request2.encode();
         socket.send(req2, FLAGS).expect("request sending failed");
@@ -190,7 +194,8 @@ pub fn test_integration() {
                 info!("ok commit response");
             }
             _ => {
-                panic!("failed commit response");
+                error!("failed commit response");
+                fail_exit(&mut validation);
             }
         }
 
@@ -209,8 +214,9 @@ pub fn test_integration() {
                 // TODO: check tx details
                 assert_eq!(v.len(), 1, "expected one TX");
             }
-            _ => {
-                panic!("wrong decryption response");
+            Err(e) => {
+                error!("wrong decryption response: {}", e);
+                fail_exit(&mut validation);
             }
         }
         let r2 = c.decrypt(txids.as_slice(), &PrivateKey::new().expect("random key"));
@@ -218,8 +224,9 @@ pub fn test_integration() {
             Ok(v) => {
                 assert_eq!(v.len(), 0, "expected no TX");
             }
-            _ => {
-                panic!("wrong decryption response");
+            Err(e) => {
+                error!("wrong decryption response: {}", e);
+                fail_exit(&mut validation);
             }
         }
         validation.kill();
