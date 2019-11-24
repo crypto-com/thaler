@@ -31,6 +31,8 @@ use std::fmt;
 use tiny_keccak::{Hasher, Keccak};
 
 use crate::common::{H256, HASH_SIZE_256};
+#[cfg(feature = "bech32")]
+use crate::init::network::{get_bech32_human_part_from_network, Network};
 
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -49,8 +51,8 @@ impl ::std::error::Error for CroAddressError {}
 // DCRO: devnet/regnet transfer
 #[cfg(feature = "bech32")]
 pub trait CroAddress<T> {
-    fn to_cro(&self) -> Result<String, CroAddressError>;
-    fn from_cro(encoded: &str) -> Result<T, CroAddressError>;
+    fn to_cro(&self, network: Network) -> Result<String, CroAddressError>;
+    fn from_cro(encoded: &str, network: Network) -> Result<T, CroAddressError>;
 }
 
 /// Keccak-256 crypto hash length in bytes
@@ -187,18 +189,18 @@ impl RedeemAddress {
 
 #[cfg(all(feature = "bech32", feature = "hex"))]
 impl CroAddress<RedeemAddress> for RedeemAddress {
-    fn to_cro(&self) -> Result<String, CroAddressError> {
+    fn to_cro(&self, network: Network) -> Result<String, CroAddressError> {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
-        let encoded = bech32::encode(super::network::get_bech32_human_part(), checked_data)
-            .expect("bech32 crms encoding");
+        let encoded = bech32::encode(get_bech32_human_part_from_network(network), checked_data)
+            .expect("bech32 encoding error");
         Ok(encoded.to_string())
     }
 
-    fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
+    fn from_cro(encoded: &str, network: Network) -> Result<Self, CroAddressError> {
         let (human_part, u5_bytes) =
             bech32::decode(encoded).map_err(|e| CroAddressError::Bech32Error(e.to_string()))?;
 
-        if human_part != super::network::get_bech32_human_part() {
+        if human_part != get_bech32_human_part_from_network(network) {
             return Err(CroAddressError::InvalidNetwork);
         }
 
@@ -384,10 +386,17 @@ mod tests {
 
     #[test]
     fn should_be_correct_textual_address() {
-        let a = RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
-        let b = a.to_cro().unwrap();
-        assert_eq!(b.to_string(), "dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5rm547c");
-        let c = RedeemAddress::from_cro(&b).unwrap();
-        assert_eq!(c, a);
+        let network = Network::Devnet;
+
+        let redeem_address =
+            RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
+        let bech32_address = redeem_address.to_cro(network).unwrap();
+        assert_eq!(
+            bech32_address.to_string(),
+            "dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5rm547c"
+        );
+
+        let restored_redeem_address = RedeemAddress::from_cro(&bech32_address, network).unwrap();
+        assert_eq!(redeem_address, restored_redeem_address);
     }
 }

@@ -82,6 +82,7 @@ mod test {
     use super::*;
     use chain_core::init::address::CroAddress;
     use chain_core::init::coin::Coin;
+    use chain_core::init::network::Network;
     use chain_core::tx::data::address::ExtendedAddr;
     use client_common::PrivateKey;
 
@@ -95,6 +96,7 @@ mod test {
         let outputs = vec![TxOut::new(
             ExtendedAddr::from_cro(
                 "dcro1zz30nheum6vnug3mjs0j4kw4w739tca8cuqae2kdjmt8suhv693qcs3qyn",
+                Network::Devnet,
             )
             .unwrap(),
             Coin::new(750).unwrap(),
