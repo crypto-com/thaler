@@ -3,6 +3,7 @@ use std::mem;
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use std::time;
 
 use secstr::SecUtf8;
 
@@ -73,11 +74,13 @@ where
 
                 for (name, passphrase) in wallets_to_synchronize.iter() {
                     if let Err(e) =
-                        manual_synchronizer.sync(name, passphrase, None, Some(sender.clone()), true)
+                        manual_synchronizer.sync(name, passphrase, None, Some(sender.clone()))
                     {
                         log::error!("Error while synchronizing wallet [{}]: {:?}", name, e);
                     }
                 }
+
+                thread::sleep(time::Duration::from_millis(100));
             });
 
             thread::spawn(move || {

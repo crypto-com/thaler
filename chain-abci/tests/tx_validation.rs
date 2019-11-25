@@ -90,7 +90,7 @@ fn get_old_tx(addr: ExtendedAddr, timelocked: bool) -> Tx {
     if timelocked {
         old_tx.add_output(TxOut::new_with_timelock(addr, Coin::one(), 20));
     } else {
-        old_tx.add_output(TxOut::new_with_timelock(addr, Coin::one(), -20));
+        old_tx.add_output(TxOut::new_with_timelock(addr, Coin::one(), 0));
     }
     old_tx
 }

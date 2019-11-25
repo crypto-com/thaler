@@ -14,6 +14,7 @@ pub mod witness;
 #[macro_use]
 extern crate sgx_tstd as std;
 
+use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::account::{
@@ -359,7 +360,7 @@ pub fn verify_unbonding(
     account.unbond(
         maintx.value,
         extra_info.min_fee_computed.to_coin(),
-        extra_info.previous_block_time + i64::from(extra_info.unbonding_period),
+        extra_info.previous_block_time + Timespec::from(extra_info.unbonding_period),
     );
     // only pay the minimal fee from the bonded amount if correct; the rest remains in bonded
     Ok((extra_info.min_fee_computed, Some(account)))

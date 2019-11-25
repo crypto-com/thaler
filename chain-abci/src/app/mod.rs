@@ -9,7 +9,9 @@ mod validate_tx;
 use abci::*;
 use log::info;
 
-pub use self::app_init::{get_validator_key, ChainNodeApp, ChainNodeState, ValidatorState};
+pub use self::app_init::{
+    get_validator_key, init_app_hash, ChainNodeApp, ChainNodeState, ValidatorState,
+};
 use crate::enclave_bridge::EnclaveProxy;
 use crate::slashing::SlashingSchedule;
 use crate::storage::account::AccountStorage;
@@ -132,7 +134,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
 
-        last_state.block_time = block_time;
+        last_state.block_time = block_time.try_into().expect("invalid block time");
 
         if block_height > 1 {
             if let Some(last_commit_info) = req.last_commit_info.as_ref() {

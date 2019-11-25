@@ -1,20 +1,13 @@
-mod app;
-mod enclave_bridge;
-mod liveness;
-mod punishment;
-mod slashing;
-mod storage;
-
 use log::info;
 use std::net::{IpAddr, SocketAddr};
 use zmq::{Context, REQ};
 
-use crate::app::ChainNodeApp;
+use chain_abci::app::ChainNodeApp;
 #[cfg(feature = "mock-validation")]
-use crate::enclave_bridge::mock::MockClient;
+use chain_abci::enclave_bridge::mock::MockClient;
 #[cfg(not(feature = "mock-validation"))]
-use crate::enclave_bridge::ZmqEnclaveClient;
-use crate::storage::*;
+use chain_abci::enclave_bridge::ZmqEnclaveClient;
+use chain_abci::storage::*;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 #[cfg(feature = "mock-validation")]
 use log::warn;

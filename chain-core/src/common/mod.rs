@@ -21,7 +21,7 @@ pub fn hash256<D: Digest>(data: &[u8]) -> H256 {
 }
 
 /// Seconds since UNIX epoch
-pub type Timespec = i64;
+pub type Timespec = u64;
 
 pub type H256 = [u8; HASH_SIZE_256];
 pub type H264 = [u8; HASH_SIZE_256 + 1];

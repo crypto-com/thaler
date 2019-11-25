@@ -1,6 +1,7 @@
 mod abci_app;
 
 use std::collections::BTreeMap;
+use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -164,7 +165,7 @@ impl TestEnv {
 
         let timestamp = Timestamp::new();
         let (states, rewards_pool_state, council_nodes) = init_config
-            .validate_config_get_genesis(timestamp.get_seconds())
+            .validate_config_get_genesis(timestamp.get_seconds().try_into().unwrap())
             .expect("Error while validating distribution");
 
         let mut keys: Vec<StarlingFixedKey> = states.iter().map(|account| account.key()).collect();
