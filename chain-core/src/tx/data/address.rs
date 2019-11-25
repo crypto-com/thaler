@@ -13,7 +13,7 @@ use crate::init::address::{CroAddress, CroAddressError};
 use bech32::{self, u5, FromBase32, ToBase32};
 
 #[cfg(all(feature = "bech32", feature = "hex"))]
-use crate::init::network::get_bech32_human_part;
+use crate::init::network::{get_bech32_human_part_from_network, get_network, Network};
 
 /// TODO: opaque types?
 type TreeRoot = H256;
@@ -28,34 +28,29 @@ pub enum ExtendedAddr {
 }
 
 #[cfg(all(feature = "bech32", feature = "hex"))]
-impl ExtendedAddr {
-    fn get_string(&self, hash: TreeRoot) -> String {
-        let checked_data: Vec<u5> = hash.to_vec().to_base32();
-
-        bech32::encode(get_bech32_human_part(), checked_data)
-            .expect("bech32 should be successful in ExtendedAddr get_string")
-    }
-}
-
-#[cfg(all(feature = "bech32", feature = "hex"))]
 impl CroAddress<ExtendedAddr> for ExtendedAddr {
-    fn to_cro(&self) -> Result<String, CroAddressError> {
+    fn to_cro(&self, network: Network) -> Result<String, CroAddressError> {
         match self {
             ExtendedAddr::OrTree(hash) => {
-                let encoded = self.get_string(*hash);
+                let checked_data: Vec<u5> = hash.to_vec().to_base32();
+                let encoded = bech32::encode(
+                    get_bech32_human_part_from_network(network),
+                    checked_data,
+                )
+                .expect("bech32 encoding error");
                 Ok(encoded.to_string())
             }
         }
     }
 
-    fn from_cro(encoded: &str) -> Result<Self, CroAddressError> {
+    fn from_cro(encoded: &str, _network: Network) -> Result<Self, CroAddressError> {
         bech32::decode(encoded)
             .map_err(|e| CroAddressError::Bech32Error(e.to_string()))
-            .and_then(|a| Vec::from_base32(&a.1).map_err(|_e| CroAddressError::ConvertError))
-            .and_then(|src| {
-                let mut a: TreeRoot = [0 as u8; 32];
-                a.copy_from_slice(&src.as_slice());
-                Ok(ExtendedAddr::OrTree(a))
+            .and_then(|decoded| Vec::from_base32(&decoded.1).map_err(|_e| CroAddressError::ConvertError))
+            .and_then(|hash| {
+                let mut tree_root_hash: TreeRoot = [0 as u8; 32];
+                tree_root_hash.copy_from_slice(&hash.as_slice());
+                Ok(ExtendedAddr::OrTree(tree_root_hash))
             })
     }
 }
@@ -63,7 +58,7 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
 #[cfg(all(feature = "bech32", feature = "hex"))]
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_cro().unwrap())
+        write!(f, "{}", self.to_cro(get_network()).unwrap())
     }
 }
 
@@ -72,7 +67,7 @@ impl FromStr for ExtendedAddr {
     type Err = CroAddressError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        ExtendedAddr::from_cro(s).map_err(|_e| CroAddressError::ConvertError)
+        ExtendedAddr::from_cro(s, get_network()).map_err(|_e| CroAddressError::ConvertError)
     }
 }
 
@@ -82,19 +77,22 @@ mod test {
 
     #[test]
     fn should_be_correct_textual_address() {
-        let mut ar = [0; 32];
-        ar.copy_from_slice(
+        let network = Network::Devnet;
+
+        let mut tree_root_hash = [0; 32];
+        tree_root_hash.copy_from_slice(
             &hex::decode("0e7c045110b8dbf29765047380898919c5cb56f400112233445566778899aabb")
                 .unwrap(),
         );
-        let a = ExtendedAddr::OrTree(ar);
-        let b = a.to_cro().unwrap();
+        let extended_addr = ExtendedAddr::OrTree(tree_root_hash);
+        let bech32_addr = extended_addr.to_cro(network).unwrap();
         assert_eq!(
-            b,
+            bech32_addr,
             "dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5qqgjyv6y24n80zye42as88x8tg"
         );
-        let c = ExtendedAddr::from_cro(&b).unwrap();
-        assert_eq!(c, a);
+
+        let restored_extended_addr = ExtendedAddr::from_cro(&bech32_addr, network).unwrap();
+        assert_eq!(restored_extended_addr, extended_addr);
     }
 
     #[test]

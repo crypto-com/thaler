@@ -61,20 +61,24 @@ pub fn get_network() -> Network {
 
 /// Given the chosen network, it returns the human readable part of Bech32 address
 pub fn get_bech32_human_part() -> &'static str {
-    unsafe {
-        match chosen_network::NETWORK {
-            Network::Mainnet => "cro",
-            Network::Testnet => "tcro",
-            Network::Devnet => "dcro",
-        }
+    get_bech32_human_part_from_network(get_network())
+}
+
+/// Returns the human readable part of Bech32 address of the provided network
+pub fn get_bech32_human_part_from_network(network: Network) -> &'static str {
+    match network {
+        Network::Mainnet => "cro",
+        Network::Testnet => "tcro",
+        Network::Devnet => "dcro",
     }
 }
 
+/// Given the chosen network, it returns bip44 cointype
 pub fn get_bip44_coin_type() -> u32 {
     get_bip44_coin_type_from_network(get_network())
 }
 
-/// Given the chosen network, it returns bip44 cointype
+/// Returns bip44 cointype of the provided network
 /// 1     	0x80000001 	    	Testnet (all coins)
 /// 394 	0x8000018a 	CRO 	Crypto.com Chain
 pub fn get_bip44_coin_type_from_network(network: Network) -> u32 {

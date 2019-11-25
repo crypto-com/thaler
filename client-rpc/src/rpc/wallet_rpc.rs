@@ -132,7 +132,7 @@ where
     fn create_staking_address(&self, request: WalletRequest) -> Result<String> {
         self.client
             .new_staking_address(&request.name, &request.passphrase)
-            .map(|extended_addr| extended_addr.to_string())
+            .map(|staked_state_addr| staked_state_addr.to_string())
             .map_err(to_rpc_error)
     }
 
