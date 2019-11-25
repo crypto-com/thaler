@@ -1,19 +1,18 @@
 use secstr::SecUtf8;
 
-use crate::signer::DummySigner;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::Tx;
 use chain_core::tx::fee::FeeAlgorithm;
-use chain_core::tx::{TransactionId, TxAux};
-use chain_tx_validation::{check_inputs_basic, check_outputs_basic};
-use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction};
+use chain_core::tx::TxAux;
+use client_common::{ErrorKind, Result, ResultExt, SignedTransaction, Storage};
 
+use crate::signer::WalletSignerManager;
+use crate::transaction_builder::RawTransferTransactionBuilder;
 use crate::{
-    SelectedUnspentTransactions, Signer, TransactionBuilder, TransactionObfuscation,
-    UnspentTransactions,
+    SelectedUnspentTransactions, TransactionObfuscation, UnspentTransactions,
+    WalletTransactionBuilder,
 };
 
 /// Default implementation of `TransactionBuilder`
@@ -25,162 +24,51 @@ use crate::{
 /// 3. Select unspent transactions with `fees + output_value`.
 /// 4. Build transaction with selected unspent transactions (also add an extra output for change amount).
 /// 5. Sign transaction with dummy signer.
-/// 6. Encrypt/obfuscate transaction.
+/// 6. Wrap up transaction.
 /// 7. Calculate `new_fees`.
 /// 8. If `new_fees > fees`, then change `fees = new_fees` and goto step 3, otherwise return signed transaction.
 ///
 #[derive(Debug)]
-pub struct DefaultTransactionBuilder<S, F, O>
+pub struct DefaultWalletTransactionBuilder<S, F, O>
 where
-    S: Signer,
-    F: FeeAlgorithm,
-    O: TransactionObfuscation,
+    S: Storage + Clone,
+    F: FeeAlgorithm + Clone,
+    O: TransactionObfuscation + Clone,
 {
-    signer: S,
+    signer_manager: WalletSignerManager<S>,
     fee_algorithm: F,
     transaction_obfuscation: O,
 }
 
-impl<S, F, O> DefaultTransactionBuilder<S, F, O>
+impl<S, F, O> WalletTransactionBuilder for DefaultWalletTransactionBuilder<S, F, O>
 where
-    S: Signer,
-    F: FeeAlgorithm,
-    O: TransactionObfuscation,
+    S: Storage + Clone,
+    F: FeeAlgorithm + Clone,
+    O: TransactionObfuscation + Clone,
 {
-    ///  Create a `DummySigner` which signs a transaction with dummy values for fees calculation.
-    /// Returns a result of fees , `Tx` and selected unspent transactions
-    pub fn get_fees<'a>(
-        &self,
-        total_pubkeys_len: usize,
-        outputs: Vec<TxOut>,
-        attributes: TxAttributes,
-        return_address: ExtendedAddr,
-        unspent_transactions: &'a UnspentTransactions,
-    ) -> Result<(Coin, Tx, SelectedUnspentTransactions<'a>)> {
-        let output_value = sum_coins(outputs.iter().map(|output| output.value)).chain(|| {
-            (
-                ErrorKind::IllegalInput,
-                "Sum of output values exceeds maximum allowed amount",
-            )
-        })?;
-        let mut fees = Coin::zero();
-        let dummy_signer = DummySigner();
-        let (tx, selected_unspent_txs) = loop {
-            let (selected_unspent_txs, difference_amount) =
-                unspent_transactions.select((output_value + fees).chain(|| {
-                    (
-                        ErrorKind::IllegalInput,
-                        "Sum of output values and fee exceeds maximum allowed amount",
-                    )
-                })?)?;
-
-            let tx = build_transaction(
-                &selected_unspent_txs,
-                outputs.clone(),
-                attributes.clone(),
-                difference_amount,
-                return_address.clone(),
-            );
-
-            // use the dummy signer to sign the selected unspent transactions
-            let witness = dummy_signer.sign_txs(total_pubkeys_len, &selected_unspent_txs)?;
-            let tx_aux = dummy_signer.mock_txaux_for_tx(tx.clone(), witness);
-            let new_fees = self
-                .fee_algorithm
-                .calculate_for_txaux(&tx_aux)
-                .chain(|| {
-                    (
-                        ErrorKind::IllegalInput,
-                        "Fee exceeds maximum allowed amount",
-                    )
-                })?
-                .to_coin();
-
-            if new_fees > fees {
-                fees = new_fees;
-            } else {
-                break (tx, selected_unspent_txs);
-            }
-        };
-        Ok((fees, tx, selected_unspent_txs))
-    }
-}
-
-impl<S, F, O> DefaultTransactionBuilder<S, F, O>
-where
-    S: Signer,
-    F: FeeAlgorithm,
-    O: TransactionObfuscation,
-{
-    /// Creates a new instance of transaction builder
-    #[inline]
-    pub fn new(signer: S, fee_algorithm: F, transaction_obfuscation: O) -> Self {
-        Self {
-            signer,
-            fee_algorithm,
-            transaction_obfuscation,
-        }
-    }
-}
-
-impl<S, F, O> TransactionBuilder for DefaultTransactionBuilder<S, F, O>
-where
-    S: Signer,
-    F: FeeAlgorithm,
-    O: TransactionObfuscation,
-{
-    fn build(
+    fn build_transfer_tx(
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        outputs: Vec<TxOut>,
-        attributes: TxAttributes,
         unspent_transactions: UnspentTransactions,
+        outputs: Vec<TxOut>,
         return_address: ExtendedAddr,
+        attributes: TxAttributes,
     ) -> Result<TxAux> {
-        let total_pubkeys_len = 2;
-        let (calculated_fees, tx, selected_unspent_txs) = self.get_fees(
-            total_pubkeys_len,
-            outputs,
-            attributes.clone(),
-            return_address,
+        let mut raw_builder = self.select_and_build(
             &unspent_transactions,
+            outputs,
+            return_address,
+            attributes.clone(),
         )?;
-        let witness = self
-            .signer
-            .sign(name, passphrase, tx.id(), &selected_unspent_txs)?;
 
-        check_inputs_basic(&tx.inputs, &witness).map_err(|e| {
-            Error::new(
-                ErrorKind::ValidationError,
-                format!("Failed to validate transaction inputs: {}", e),
-            )
-        })?;
+        let signer = self.signer_manager.create_signer(name, passphrase);
 
-        check_outputs_basic(&tx.outputs).map_err(|e| {
-            Error::new(
-                ErrorKind::ValidationError,
-                format!("Failed to validate transaction outputs: {}", e),
-            )
-        })?;
+        raw_builder.sign_all(signer)?;
 
-        let signed_transaction = SignedTransaction::TransferTransaction(tx, witness);
-        let tx_aux = self.transaction_obfuscation.encrypt(signed_transaction)?;
-        let fees = self
-            .fee_algorithm
-            .calculate_for_txaux(&tx_aux)
-            .chain(|| {
-                (
-                    ErrorKind::IllegalInput,
-                    "Fee exceeds maximum allowed amount",
-                )
-            })?
-            .to_coin();
-        if calculated_fees >= fees {
-            Ok(tx_aux)
-        } else {
-            Err(Error::new(ErrorKind::MultiSigError, "calculate fee error"))
-        }
+        let tx_aux = raw_builder.to_tx_aux()?;
+
+        Ok(tx_aux)
     }
 
     #[inline]
@@ -189,29 +77,99 @@ where
     }
 }
 
-fn build_transaction(
-    selected_unspent_transactions: &SelectedUnspentTransactions<'_>,
-    mut outputs: Vec<TxOut>,
-    attributes: TxAttributes,
-    difference_amount: Coin,
-    return_address: ExtendedAddr,
-) -> Tx {
-    if difference_amount != Coin::zero() {
-        outputs.push(TxOut::new(return_address.clone(), difference_amount));
+impl<S, F, O> DefaultWalletTransactionBuilder<S, F, O>
+where
+    S: Storage + Clone,
+    F: FeeAlgorithm + Clone,
+    O: TransactionObfuscation + Clone,
+{
+    /// Creates a new instance of transaction builder
+    #[inline]
+    pub fn new(
+        signer_manager: WalletSignerManager<S>,
+        fee_algorithm: F,
+        transaction_obfuscation: O,
+    ) -> Self {
+        Self {
+            signer_manager,
+            fee_algorithm,
+            transaction_obfuscation,
+        }
     }
 
-    Tx {
-        inputs: selected_unspent_transactions
-            .iter()
-            .map(|(input, _)| input.clone())
-            .collect(),
-        outputs,
-        attributes,
+    ///  Create a `DummySigner` which signs a transaction with dummy values for fees calculation.
+    /// Returns a result of fees , `Tx` and selected unspent transactions
+    pub fn select_and_build<'a>(
+        &self,
+        unspent_transactions: &'a UnspentTransactions,
+        outputs: Vec<TxOut>,
+        return_address: ExtendedAddr,
+        attributes: TxAttributes,
+    ) -> Result<RawTransferTransactionBuilder<F, O>> {
+        let output_value = sum_coins(outputs.iter().map(|output| output.value)).chain(|| {
+            (
+                ErrorKind::IllegalInput,
+                "Sum of output values exceeds maximum allowed amount",
+            )
+        })?;
+        let mut fees = Coin::zero();
+        let raw_tx_builder = loop {
+            let (selected_unspent_txs, change_amount) =
+                unspent_transactions.select((output_value + fees).chain(|| {
+                    (
+                        ErrorKind::IllegalInput,
+                        "Sum of output values and fee exceeds maximum allowed amount",
+                    )
+                })?)?;
+
+            let raw_tx_builder = self.build_raw_transaction(
+                &selected_unspent_txs,
+                &outputs,
+                return_address.clone(),
+                change_amount,
+                attributes.clone(),
+            );
+
+            let new_fees = raw_tx_builder.estimate_fee()?;
+            if new_fees > fees {
+                fees = new_fees;
+            } else {
+                break raw_tx_builder;
+            }
+        };
+
+        Ok(raw_tx_builder)
+    }
+
+    fn build_raw_transaction(
+        &self,
+        selected_unspent_transactions: &SelectedUnspentTransactions<'_>,
+        outputs: &[TxOut],
+        return_address: ExtendedAddr,
+        change_amount: Coin,
+        attributes: TxAttributes,
+    ) -> RawTransferTransactionBuilder<F, O> {
+        let mut raw_tx_builder = RawTransferTransactionBuilder::new(
+            attributes,
+            self.fee_algorithm.clone(),
+            self.transaction_obfuscation.clone(),
+        );
+        for input in selected_unspent_transactions.iter() {
+            raw_tx_builder.add_input(input.clone());
+        }
+        for output in outputs.iter() {
+            raw_tx_builder.add_output(output.clone());
+        }
+        if change_amount != Coin::zero() {
+            raw_tx_builder.add_output(TxOut::new(return_address, change_amount));
+        }
+
+        raw_tx_builder
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod default_wallet_transaction_builder_tests {
     use super::*;
 
     use parity_scale_codec::{Decode, Encode};
@@ -219,17 +177,17 @@ mod tests {
     use chain_core::tx::data::input::{TxoIndex, TxoPointer};
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{LinearFee, Milli};
-    use chain_core::tx::{PlainTxAux, TxAux, TxEnclaveAux, TxObfuscated};
+    use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_address;
     use client_common::storage::MemoryStorage;
     use client_common::{PrivateKey, Transaction};
 
-    use crate::signer::DefaultSigner;
+    use crate::signer::WalletSignerManager;
     use crate::types::WalletKind;
     use crate::unspent_transactions::{Operation, Sorter};
     use crate::wallet::{DefaultWalletClient, WalletClient};
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     struct MockTransactionCipher;
 
     impl TransactionObfuscation for MockTransactionCipher {
@@ -331,11 +289,14 @@ mod tests {
             .new_transfer_address(name, passphrase)
             .unwrap();
 
-        let signer = DefaultSigner::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone());
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
-        let transaction_builder =
-            DefaultTransactionBuilder::new(signer, fee_algorithm, MockTransactionCipher);
+        let transaction_builder = DefaultWalletTransactionBuilder::new(
+            signer_manager,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
 
         let outputs = vec![TxOut::new(
             wallet_client
@@ -346,13 +307,13 @@ mod tests {
         let attributes = TxAttributes::new(171);
 
         let tx_aux = transaction_builder
-            .build(
+            .build_transfer_tx(
                 name,
                 passphrase,
-                outputs,
-                attributes,
                 unspent_transactions.clone(),
+                outputs,
                 return_address,
+                attributes,
             )
             .unwrap();
 
@@ -463,11 +424,14 @@ mod tests {
             .new_transfer_address(name, passphrase)
             .unwrap();
 
-        let signer = DefaultSigner::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone());
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
-        let transaction_builder =
-            DefaultTransactionBuilder::new(signer, fee_algorithm, MockTransactionCipher);
+        let transaction_builder = DefaultWalletTransactionBuilder::new(
+            signer_manager,
+            fee_algorithm,
+            MockTransactionCipher,
+        );
 
         let outputs = vec![TxOut::new(
             wallet_client
@@ -480,13 +444,13 @@ mod tests {
         assert_eq!(
             ErrorKind::InvalidInput,
             transaction_builder
-                .build(
+                .build_transfer_tx(
                     name,
                     passphrase,
-                    outputs,
-                    attributes,
                     unspent_transactions.clone(),
+                    outputs,
                     return_address,
+                    attributes,
                 )
                 .unwrap_err()
                 .kind()

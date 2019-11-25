@@ -6,7 +6,7 @@ use chain_core::tx::witness::TxInWitness;
 use secp256k1::{schnorrsig::schnorr_verify, Message, PublicKey, Secp256k1};
 
 /// verify a given extended address is associated to the witness
-/// and the signature against the given transation `Tx`
+/// and the signature against the given transaction `Tx`
 /// TODO: capture possible errors in enum?
 ///
 pub fn verify_tx_address(

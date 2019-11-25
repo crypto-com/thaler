@@ -14,9 +14,9 @@ use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{Error, Result};
 use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
-use client_core::signer::DefaultSigner;
+use client_core::signer::WalletSignerManager;
 use client_core::synchronizer::ManualSynchronizer;
-use client_core::transaction_builder::DefaultTransactionBuilder;
+use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
 
@@ -25,13 +25,12 @@ use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBui
 use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 
-type AppSigner = DefaultSigner<SledStorage>;
 type AppTransactionCipher = MockAbciTransactionObfuscation<WebsocketRpcClient>;
-type AppTxBuilder = DefaultTransactionBuilder<AppSigner, LinearFee, AppTransactionCipher>;
+type AppTxBuilder = DefaultWalletTransactionBuilder<SledStorage, LinearFee, AppTransactionCipher>;
 type AppWalletClient = DefaultWalletClient<SledStorage, WebsocketRpcClient, AppTxBuilder>;
 type AppOpsClient = DefaultNetworkOpsClient<
     AppWalletClient,
-    AppSigner,
+    SledStorage,
     WebsocketRpcClient,
     LinearFee,
     AppTransactionCipher,
@@ -68,10 +67,10 @@ impl Server {
         storage: SledStorage,
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppWalletClient> {
-        let signer = DefaultSigner::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone());
         let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
-        let transaction_builder = DefaultTransactionBuilder::new(
-            signer,
+        let transaction_builder = DefaultWalletTransactionBuilder::new(
+            signer_manager,
             tendermint_client.genesis().unwrap().fee_policy(),
             transaction_cipher,
         );
@@ -88,12 +87,12 @@ impl Server {
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppOpsClient> {
         let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
-        let signer = DefaultSigner::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone());
         let fee_algorithm = tendermint_client.genesis().unwrap().fee_policy();
         let wallet_client = self.make_wallet_client(storage, tendermint_client.clone())?;
         Ok(DefaultNetworkOpsClient::new(
             wallet_client,
-            signer,
+            signer_manager,
             tendermint_client,
             fee_algorithm,
             transaction_cipher,

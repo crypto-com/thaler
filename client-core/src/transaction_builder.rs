@@ -1,9 +1,11 @@
-//! Transaction building
-mod default_transaction_builder;
-mod unauthorized_transaction_builder;
+//! Transaction builder
+mod default_wallet_transaction_builder;
+mod raw_transfer_transaction_builder;
+mod unauthorized_wallet_transaction_builder;
 
-pub use default_transaction_builder::DefaultTransactionBuilder;
-pub use unauthorized_transaction_builder::UnauthorizedTransactionBuilder;
+pub use default_wallet_transaction_builder::DefaultWalletTransactionBuilder;
+pub use raw_transfer_transaction_builder::RawTransferTransactionBuilder;
+pub use unauthorized_wallet_transaction_builder::UnauthorizedWalletTransactionBuilder;
 
 use secstr::SecUtf8;
 
@@ -15,27 +17,27 @@ use client_common::{Result, SignedTransaction};
 
 use crate::UnspentTransactions;
 
-/// Interface for transaction building from output addresses and amount. This trait is also responsible for UTXO
-/// selection.
-pub trait TransactionBuilder: Send + Sync {
-    /// Builds a transaction
+/// Interface for wallet transaction building from output addresses and amount.
+/// This trait is also responsible for UTXO selection.
+pub trait WalletTransactionBuilder: Send + Sync {
+    /// Builds a transfer transaction
     ///
     /// # Attributes
     ///
     /// - `name`: Name of wallet
     /// - `passphrase`: Passphrase of wallet
-    /// - `outputs`: Transaction outputs
-    /// - `attributes`: Transaction attributes,
     /// - `unspent_transactions`: Unspent transactions
+    /// - `outputs`: Transaction outputs
     /// - `return_address`: Address to which change amount will get returned
-    fn build(
+    /// - `attributes`: Transaction attributes,
+    fn build_transfer_tx(
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        outputs: Vec<TxOut>,
-        attributes: TxAttributes,
         unspent_transactions: UnspentTransactions,
+        outputs: Vec<TxOut>,
         return_address: ExtendedAddr,
+        attributes: TxAttributes,
     ) -> Result<TxAux>;
 
     /// Obfuscates given signed transaction

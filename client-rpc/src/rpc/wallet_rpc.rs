@@ -276,12 +276,12 @@ pub mod tests {
     use client_common::{
         Error, ErrorKind, PrivateKey, Result as CommonResult, SignedTransaction, Transaction,
     };
-    use client_core::signer::DefaultSigner;
-    use client_core::transaction_builder::DefaultTransactionBuilder;
+    use client_core::signer::WalletSignerManager;
+    use client_core::transaction_builder::DefaultWalletTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
     use client_core::TransactionObfuscation;
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct ZeroFeeAlgorithm;
 
     impl FeeAlgorithm for ZeroFeeAlgorithm {
@@ -294,7 +294,7 @@ pub mod tests {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     struct MockTransactionCipher;
 
     impl TransactionObfuscation for MockTransactionCipher {
@@ -351,10 +351,10 @@ pub mod tests {
         }
     }
 
-    type TestTxBuilder =
-        DefaultTransactionBuilder<TestSigner, ZeroFeeAlgorithm, MockTransactionCipher>;
-    type TestSigner = DefaultSigner<MemoryStorage>;
-    type TestWalletClient = DefaultWalletClient<MemoryStorage, MockRpcClient, TestTxBuilder>;
+    type TestWalletTransactionBuilder =
+        DefaultWalletTransactionBuilder<MemoryStorage, ZeroFeeAlgorithm, MockTransactionCipher>;
+    type TestWalletClient =
+        DefaultWalletClient<MemoryStorage, MockRpcClient, TestWalletTransactionBuilder>;
 
     #[derive(Default)]
     pub struct MockRpcClient;
@@ -667,9 +667,9 @@ pub mod tests {
     }
 
     fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
-        let signer = DefaultSigner::new(storage.clone());
-        let transaction_builder = DefaultTransactionBuilder::new(
-            signer,
+        let signer_manager = WalletSignerManager::new(storage.clone());
+        let transaction_builder = DefaultWalletTransactionBuilder::new(
+            signer_manager,
             ZeroFeeAlgorithm::default(),
             MockTransactionCipher,
         );

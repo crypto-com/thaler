@@ -44,6 +44,12 @@ impl Error {
         }
     }
 
+    #[inline]
+    /// Returns message
+    pub fn message(&self) -> &str {
+        self.message.as_str()
+    }
+
     /// Returns kind of error
     #[inline]
     pub fn kind(&self) -> ErrorKind {
