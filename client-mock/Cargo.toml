@@ -10,7 +10,7 @@ signatory = { version = "0.12", features = ["ed25519", "ecdsa"] }
 signatory-dalek = { version = "0.12" }
 serde_json = { version = "1.0" }
 subtle = "2"
-subtle-encoding = { version = "0.3", features = ["bech32-preview"] }
+subtle-encoding = { version = "0.5", features = ["bech32-preview"] }
 secstr = { version = "0.3.2", features = ["serde"] }
 lazy_static  = { version = "1.4", features = ["spin_no_std"] }
 signature = "0.2.0"
