@@ -16,39 +16,40 @@ steps:
   - cargo test
   - echo "HOME FOLDER = " $HOME
 
----
-kind: pipeline
-type: exec
-name: integration-tests
+# TODO: fix, it wasn't that portable / reproducible  
+# ---
+# kind: pipeline
+# type: exec
+# name: integration-tests
 
-platform:
-  os: linux
-  arch: amd64
+# platform:
+#   os: linux
+#   arch: amd64
 
-steps:
-- name: Build and Test
-  commands:
-  - mkdir bin
-  - export PATH="$PATH:$PWD/bin"
-  - curl -sSL "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o bin/docker-compose
-  - chmod +x bin/docker-compose
-  - export NIX_REMOTE=daemon
-  - export PATH="$PATH:/nix/var/nix/profiles/default/bin/"
-  - export DOCKER_COMPOSE_PREFIX="${DRONE_BRANCH}"
-  - . /usr/local/etc/profile.d/nix.sh
-  - . /opt/intel/sgxsdk/sgxsdk/environment
-  # - nix-channel --add https://nixos.org/channels/nixpkgs-unstable
-  # - nix-channel --update
-  - nix-shell ci-scripts/drone.nix --run "./ci-scripts/run-integration-tests.sh"
-- name: Teardown
-  commands:
-  - export PATH="$PATH:$PWD/bin"
-  - cd integration-tests
-  - docker-compose -p "${DRONE_BRANCH}" down || exit 0
-  when:
-    status:
-      - success
-      - failure
+# steps:
+# - name: Build and Test
+#   commands:
+#   - mkdir bin
+#   - export PATH="$PATH:$PWD/bin"
+#   - curl -sSL "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o bin/docker-compose
+#   - chmod +x bin/docker-compose
+#   - export NIX_REMOTE=daemon
+#   - export PATH="$PATH:/nix/var/nix/profiles/default/bin/"
+#   - export DOCKER_COMPOSE_PREFIX="${DRONE_BRANCH}"
+#   # - . /usr/local/etc/profile.d/nix.sh
+#   - . /opt/intel/sgxsdk/sgxsdk/environment
+#   # - nix-channel --add https://nixos.org/channels/nixpkgs-unstable
+#   # - nix-channel --update
+#   - nix-shell ci-scripts/drone.nix --run "./ci-scripts/run-integration-tests.sh"
+# - name: Teardown
+#   commands:
+#   - export PATH="$PATH:$PWD/bin"
+#   - cd integration-tests
+#   - docker-compose -p "${DRONE_BRANCH}" down || exit 0
+#   when:
+#     status:
+#       - success
+#       - failure
 
 trigger:
   branch:
@@ -113,6 +114,6 @@ trigger:
 
 ---
 kind: signature
-hmac: 8e8cafffe61da4485e7a7200b856fad51a872bfe81aa37ef49574dcf323c61be
+hmac: ee167569e3c167ba42f4f260c78ff358816fc8826e0d5b94f22cfb7f4fd30075
 
 ...
