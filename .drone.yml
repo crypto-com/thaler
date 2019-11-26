@@ -51,29 +51,28 @@ steps:
 #       - success
 #       - failure
 
-trigger:
-  branch:
-  - master
-  - staging
-  - trying
-  event:
-  - push
+# trigger:
+#   branch:
+#   - master
+#   - staging
+#   - trying
+#   event:
+#   - push
 
 ---
 kind: pipeline
-type: exec
 name: sgx-cargo-1804-hw1
 
-platform:
-  os: linux
-  arch: amd64
-
 steps:
 - name: Build and Test
+  image: cryptocom/chain:latest
+  volumes:
+  - name: sgx
+    path: /dev/sgx
+  - name: aesmd
+    path: /var/run/aesmd/aesm.socket
   commands:
-  - ls -l /dev/sgx
-  - ls -l /var/run/aesmd/aesm.socket
-  - docker run --rm -v $PWD:/chain --device /dev/sgx cryptocom/chain:latest /bin/bash /chain/ci-scripts/tx-validation-hw-test.sh
+  - ci-scripts/tx-validation-hw-test.sh
 
 trigger:
   branch:
@@ -83,26 +82,33 @@ trigger:
   event:
   - push
 
+volumes:
+- name: sgx
+  host:
+    path: /dev/sgx
+- name: aesmd
+  host:
+    path: /var/run/aesmd/aesm.socket
+
 ---
 kind: pipeline
-type: exec
 name: sgx-cargo-1804-hw2
-
-platform:
-  os: linux
-  arch: amd64
 
 steps:
 - name: Build and Test
+  image: cryptocom/chain:latest
+  volumes:
+  - name: sgx
+    path: /dev/sgx
+  - name: aesmd
+    path: /var/run/aesmd/aesm.socket
   environment:
     SPID:
       from_secret: dev_spid
     IAS_API_KEY:
       from_secret: dev_ias_key
   commands:
-  - ls -l /dev/sgx
-  - ls -l /var/run/aesmd/aesm.socket
-  - docker run --rm --env SPID=$SPID --env IAS_API_KEY=$IAS_API_KEY -v $PWD:/chain --device /dev/sgx cryptocom/chain:latest /bin/bash /chain/ci-scripts/tx-query-hw-test.sh
+  - ci-scripts/tx-query-hw-test.sh
 
 trigger:
   branch:
@@ -112,8 +118,16 @@ trigger:
   event:
   - push
 
+volumes:
+- name: sgx
+  host:
+    path: /dev/sgx
+- name: aesmd
+  host:
+    path: /var/run/aesmd/aesm.socket
+
 ---
 kind: signature
-hmac: ee167569e3c167ba42f4f260c78ff358816fc8826e0d5b94f22cfb7f4fd30075
+hmac: 94883af24ff35efe5623683abbe36b1345162ac9a4f197507759c39f25afaa47
 
 ...

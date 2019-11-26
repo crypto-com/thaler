@@ -11,15 +11,17 @@ export RUST_BACKTRACE=1
 export RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3
 
 ls /dev/sgx
+# aesm assumed to be passed in
+ls /var/run/aesmd/aesm.socket
+ 
+# LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service &
 
-LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service &
-
-echo "[aesm_service] Running in background ..."
-# Wait for aesm_service to initialize
-sleep 1
+# echo "[aesm_service] Running in background ..."
+# # Wait for aesm_service to initialize
+# sleep 1
 
 
-cd /chain/chain-tx-enclave/tx-validation
+cd chain-tx-enclave/tx-validation
 make clean
 make
 cd bin
