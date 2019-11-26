@@ -15,10 +15,6 @@ export CLIENT_RPC_PORT=$(../ci-scripts/find-free-port.sh)
 export TENDERMINT_ZEROFEE_RPC_PORT=$(../ci-scripts/find-free-port.sh)
 export CLIENT_RPC_ZEROFEE_PORT=$(../ci-scripts/find-free-port.sh)
 
-env
-cat "./${TENDERMINT_WITHFEE_DIRECTORY}/config/config.toml"
-cat "./${TENDERMINT_ZEROFEE_DIRECTORY}/config/config.toml"
-
 docker-compose -p "${DOCKER_COMPOSE_PREFIX}" up -d || (docker ps; exit 1)
 
 ./wait-for-setup.sh || (docker ps; docker-compose -p "${DOCKER_COMPOSE_PREFIX}" logs -t --tail="all"; exit 1)
