@@ -89,8 +89,10 @@ Enclave_EDL_Files := enclave/Enclave_t.c enclave/Enclave_t.h app/Enclave_u.c app
 
 ifeq ($(SGX_TEST), 1)
 	App_Rust_Flags := $(CARGO_TARGET) --features "sgx-test"
+	Enclave_Rust_Flags := $(CARGO_TARGET) --features "sgx-test"
 else
 	App_Rust_Flags := $(CARGO_TARGET)
+	Enclave_Rust_Flags := $(CARGO_TARGET)
 endif
 
 App_SRC_Files := $(shell find app/ -type f -name '*.rs') $(shell find app/ -type f -name 'Cargo.toml')
@@ -177,7 +179,7 @@ $(Signed_RustEnclave_Name): $(RustEnclave_Name)
 
 .PHONY: enclave
 enclave:
-	@cd ./enclave/ && cargo build ${CARGO_TARGET}
+	@cd ./enclave/ && cargo build ${Enclave_Rust_Flags}
 	cp ./enclave/target/$(OUTPUT_PATH)/libtxqueryenclave.a ./lib/libenclave.a
 
 .PHONY: compiler-rt
