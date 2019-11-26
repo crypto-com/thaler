@@ -2,6 +2,7 @@ mod address_command;
 mod transaction_command;
 mod wallet_command;
 
+use std::convert::TryInto;
 use std::sync::mpsc::channel;
 use std::thread;
 
@@ -100,8 +101,6 @@ pub enum Command {
             help = "Force synchronization from genesis"
         )]
         force: bool,
-        #[structopt(long, help = "Verify block data")]
-        verify: bool,
     },
 }
 
@@ -225,7 +224,6 @@ impl Command {
                 name,
                 batch_size,
                 force,
-                verify,
             } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
@@ -241,7 +239,7 @@ impl Command {
                 let synchronizer =
                     ManualSynchronizer::new(storage, tendermint_client, block_handler);
 
-                Self::resync(synchronizer, name, *batch_size, *force, *verify)
+                Self::resync(synchronizer, name, *batch_size, *force)
             }
         }
     }
@@ -275,7 +273,10 @@ impl Command {
                     Cell::new("Unbonded From", bold),
                     Cell::new(
                         &<DateTime<Local>>::from(DateTime::<Utc>::from_utc(
-                            NaiveDateTime::from_timestamp(staked_state.unbonded_from, 0),
+                            NaiveDateTime::from_timestamp(
+                                staked_state.unbonded_from.try_into().unwrap(),
+                                0,
+                            ),
                             Utc,
                         )),
                         justify_right,
@@ -288,7 +289,10 @@ impl Command {
                         |punishment| {
                             Cell::new(
                                 &<DateTime<Local>>::from(DateTime::<Utc>::from_utc(
-                                    NaiveDateTime::from_timestamp(punishment.jailed_until, 0),
+                                    NaiveDateTime::from_timestamp(
+                                        punishment.jailed_until.try_into().unwrap(),
+                                        0,
+                                    ),
                                     Utc,
                                 )),
                                 justify_right,
@@ -411,7 +415,6 @@ impl Command {
         name: &str,
         batch_size: Option<usize>,
         force: bool,
-        verify: bool,
     ) -> Result<()> {
         let passphrase = ask_passphrase(None)?;
 
@@ -454,9 +457,9 @@ impl Command {
         });
 
         if force {
-            synchronizer.sync_all(name, &passphrase, batch_size, Some(sender), verify)?;
+            synchronizer.sync_all(name, &passphrase, batch_size, Some(sender))?;
         } else {
-            synchronizer.sync(name, &passphrase, batch_size, Some(sender), verify)?;
+            synchronizer.sync(name, &passphrase, batch_size, Some(sender))?;
         }
 
         let _ = handle.join();

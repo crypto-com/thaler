@@ -2,22 +2,17 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use hex::encode_upper;
-use kvdb_memorydb::create;
 use structopt::StructOpt;
 
-use chain_abci::storage::account::{AccountStorage, AccountWrapper};
-use chain_abci::storage::tx::StarlingFixedKey;
-use chain_abci::storage::Storage;
-use chain_core::common::MerkleTree;
-use chain_core::compute_app_hash;
-use chain_core::init::config::{InitNetworkParameters, NetworkParameters};
+use chain_abci::app::init_app_hash;
+use chain_core::init::config::InitNetworkParameters;
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
-use chain_core::state::account::{StakedState, StakedStateDestination};
+use chain_core::state::account::StakedStateDestination;
 use chain_core::tx::fee::{LinearFee, Milli};
-use client_common::{Error, ErrorKind, Result, ResultExt};
+use client_common::tendermint::types::Time;
+use client_common::{ErrorKind, Result, ResultExt};
 
 use crate::commands::genesis_dev_config::GenesisDevConfig;
 
@@ -71,36 +66,21 @@ impl GenesisCommand {
             slashing_config: genesis_dev.slashing_config,
             max_validators: 50,
         };
-        let init_network_params = NetworkParameters::Genesis(network_params.clone());
         let config = InitConfig::new(
             genesis_dev.rewards_pool,
             dist,
             network_params,
             genesis_dev.council_nodes.clone(),
         );
-        let (accounts, rp, _nodes) = config
-            .validate_config_get_genesis(genesis_dev.genesis_time.timestamp())
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::InvalidInput,
-                    format!("distribution validation error: {}", err),
-                )
-            })?;
+        let genesis_app_hash = init_app_hash(
+            &config,
+            genesis_dev
+                .genesis_time
+                .duration_since(Time::unix_epoch())
+                .expect("invalid genesis time")
+                .as_secs(),
+        );
 
-        let tx_tree = MerkleTree::empty();
-        let mut account_tree =
-            AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db");
-
-        let mut keys: Vec<StarlingFixedKey> = accounts.iter().map(StakedState::key).collect();
-        // TODO: get rid of the extra allocations
-        let wrapped: Vec<AccountWrapper> =
-            accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
-        let new_account_root = account_tree
-            .insert(None, &mut keys, &wrapped)
-            .expect("initial insert");
-
-        let genesis_app_hash =
-            compute_app_hash(&tx_tree, &new_account_root, &rp, &init_network_params);
         println!("\"app_hash\": \"{}\",", encode_upper(genesis_app_hash));
         let config_str = serde_json::to_string_pretty(&config)
             .chain(|| (ErrorKind::InvalidInput, "Invalid config"))?;

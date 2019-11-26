@@ -3,6 +3,7 @@
 //! Copyright (c) 2019, Josiah Evans (licensed under the MIT License and the Apache License, Version 2.0)
 //! Modifications Copyright (c) 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 //!
+
 use blake2::{Blake2s, Digest};
 use chain_core::common::H256;
 use chain_core::state::account::Count;

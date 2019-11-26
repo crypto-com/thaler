@@ -12,7 +12,7 @@ use crate::{HDSeed, Mnemonic};
 
 const KEYSPACE: &str = "core_hd_key";
 
-#[derive(Debug, Default, PartialEq, Encode, Decode)]
+#[derive(Debug, PartialEq, Encode, Decode)]
 struct HdKey {
     staking_index: u32,
     transfer_index: u32,

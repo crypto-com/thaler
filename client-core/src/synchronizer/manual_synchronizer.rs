@@ -8,7 +8,7 @@ use tendermint::validator;
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::types::{Block, BlockExt, BlockResults, Status};
 use client_common::tendermint::{lite, Client};
-use client_common::{BlockHeader, Result, Storage, Transaction};
+use client_common::{BlockHeader, Error, ErrorKind, Result, Storage, Transaction};
 
 use crate::service::{GlobalStateService, WalletService, WalletStateService};
 use crate::BlockHandler;
@@ -83,13 +83,8 @@ where
         passphrase: &SecUtf8,
         batch_size: Option<usize>,
         progress_reporter: Option<Sender<ProgressReport>>,
-        verify: bool,
     ) -> Result<()> {
-        let mut trust_state = if verify {
-            Some(self.load_trust_state()?)
-        } else {
-            None
-        };
+        let trust_state = self.load_trust_state()?;
         let status = self.client.status()?;
 
         let last_block_height = self
@@ -139,16 +134,9 @@ where
             }
 
             // Fetch batch details if it cannot be fast forwarded
-            let (blocks, trust_state_) = match &trust_state {
-                Some(state) => {
-                    let (blocks, state_) = self
-                        .client
-                        .block_batch_verified(state.clone(), range.iter())?;
-                    (blocks, Some(state_))
-                }
-                None => (self.client.block_batch(range.iter())?, None),
-            };
-            trust_state = trust_state_;
+            let (blocks, trust_state) = self
+                .client
+                .block_batch_verified(trust_state.clone(), range.iter())?;
             let block_results = self.client.block_results_batch(range.iter())?;
 
             for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
@@ -174,9 +162,7 @@ where
                 }
             }
 
-            if let Some(trust_state) = &trust_state {
-                self.global_state_service.save_trust_state(trust_state)?;
-            }
+            self.global_state_service.save_trust_state(&trust_state)?;
         }
 
         Ok(())
@@ -190,13 +176,12 @@ where
         passphrase: &SecUtf8,
         batch_size: Option<usize>,
         progress_reporter: Option<Sender<ProgressReport>>,
-        verify: bool,
     ) -> Result<()> {
         self.global_state_service
             .delete_global_state(name, passphrase)?;
         self.wallet_state_service
             .delete_wallet_state(name, passphrase)?;
-        self.sync(name, passphrase, batch_size, progress_reporter, verify)
+        self.sync(name, passphrase, batch_size, progress_reporter)
     }
 
     /// Fast forwards state to given status if app hashes match
@@ -209,7 +194,11 @@ where
         progress_reporter: &Option<Sender<ProgressReport>>,
     ) -> Result<bool> {
         let last_app_hash = self.global_state_service.last_app_hash(name, passphrase)?;
-        let current_app_hash = status.sync_info.latest_app_hash.to_string();
+        let current_app_hash = status
+            .sync_info
+            .latest_app_hash
+            .ok_or_else(|| Error::from(ErrorKind::TendermintRpcError))?
+            .to_string();
 
         if current_app_hash == last_app_hash {
             let current_block_height = status.sync_info.latest_block_height.value();
@@ -243,7 +232,11 @@ where
         progress_reporter: &Option<Sender<ProgressReport>>,
     ) -> Result<bool> {
         let last_app_hash = self.global_state_service.last_app_hash(name, passphrase)?;
-        let current_app_hash = block.header.app_hash.to_string();
+        let current_app_hash = block
+            .header
+            .app_hash
+            .ok_or_else(|| Error::from(ErrorKind::TendermintRpcError))?
+            .to_string();
 
         if current_app_hash == last_app_hash {
             let current_block_height = block.header.height.value();
@@ -297,7 +290,11 @@ fn prepare_block_header(
     block: &Block,
     block_result: &BlockResults,
 ) -> Result<BlockHeader> {
-    let app_hash = block.header.app_hash.to_string();
+    let app_hash = block
+        .header
+        .app_hash
+        .ok_or_else(|| Error::from(ErrorKind::TendermintRpcError))?
+        .to_string();
     let block_height = block.header.height.value();
     let block_time = block.header.time;
 
@@ -390,17 +387,19 @@ mod tests {
 
     impl Client for MockClient {
         fn genesis(&self) -> Result<Genesis> {
-            unreachable!()
+            Ok(mock::genesis())
         }
 
         fn status(&self) -> Result<Status> {
             Ok(Status {
                 sync_info: status::SyncInfo {
                     latest_block_height: Height::default().increment(),
-                    latest_app_hash: Hash::from_str(
-                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
-                    )
-                    .unwrap(),
+                    latest_app_hash: Some(
+                        Hash::from_str(
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                        )
+                        .unwrap(),
+                    ),
                     ..mock::sync_info()
                 },
                 ..mock::status_response()
@@ -411,10 +410,12 @@ mod tests {
             if height == 1 {
                 Ok(Block {
                     header: Header {
-                        app_hash: Hash::from_str(
-                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3D",
-                        )
-                        .unwrap(),
+                        app_hash: Some(
+                            Hash::from_str(
+                                "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3D",
+                            )
+                            .unwrap(),
+                        ),
                         height: height.into(),
                         time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                         ..mock::header()
@@ -424,10 +425,12 @@ mod tests {
             } else if height == 2 {
                 Ok(Block {
                     header: Header {
-                        app_hash: Hash::from_str(
-                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
-                        )
-                        .unwrap(),
+                        app_hash: Some(
+                            Hash::from_str(
+                                "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                            )
+                            .unwrap(),
+                        ),
                         height: height.into(),
                         time: Time::from_str("2019-04-10T09:38:41.735577Z").unwrap(),
                         ..mock::header()
@@ -503,10 +506,10 @@ mod tests {
 
         fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
             &self,
-            _state: lite::TrustedState,
-            _heights: T,
+            state: lite::TrustedState,
+            heights: T,
         ) -> Result<(Vec<Block>, lite::TrustedState)> {
-            unreachable!()
+            Ok((self.block_batch(heights)?, state))
         }
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
@@ -540,7 +543,7 @@ mod tests {
         );
 
         synchronizer
-            .sync(name, passphrase, None, None, false)
+            .sync(name, passphrase, None, None)
             .expect("Unable to synchronize");
     }
 }

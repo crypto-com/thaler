@@ -1,6 +1,5 @@
 use std::{collections::BTreeMap, str::FromStr};
 
-use chrono::{offset::Utc, DateTime};
 use serde::{Deserialize, Serialize};
 
 use chain_core::init::{
@@ -9,6 +8,7 @@ use chain_core::init::{
     config::{JailingParameters, SlashRatio, SlashingParameters, ValidatorPubkey},
 };
 use chain_core::state::account::{ValidatorName, ValidatorSecurityContact};
+use client_common::tendermint::types::Time;
 
 #[derive(Deserialize, Debug)]
 pub struct GenesisDevConfig {
@@ -21,12 +21,12 @@ pub struct GenesisDevConfig {
     pub initial_fee_policy: InitialFeePolicy,
     pub council_nodes:
         BTreeMap<RedeemAddress, (ValidatorName, ValidatorSecurityContact, ValidatorPubkey)>,
-    pub genesis_time: DateTime<Utc>,
+    pub genesis_time: Time,
 }
 
 impl GenesisDevConfig {
     pub fn new(rewards_pool: Coin) -> Self {
-        let gt = DateTime::parse_from_rfc3339("2019-03-21T02:26:51.366017Z").unwrap();
+        let gt = Time::from_str("2019-03-21T02:26:51.366017Z").unwrap();
         GenesisDevConfig {
             rewards_pool,
             distribution: BTreeMap::new(),
@@ -47,7 +47,7 @@ impl GenesisDevConfig {
                 per_byte_fee: "1.25".to_string(),
             },
             council_nodes: BTreeMap::new(),
-            genesis_time: DateTime::from(gt),
+            genesis_time: gt,
         }
     }
 }

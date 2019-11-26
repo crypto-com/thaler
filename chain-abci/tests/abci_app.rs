@@ -54,6 +54,7 @@ use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -274,7 +275,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     nodes.insert(validator_addr, node_pubkey);
     let c = InitConfig::new(rewards_pool, distribution, params, nodes);
     let t = ::protobuf::well_known_types::Timestamp::new();
-    let result = c.validate_config_get_genesis(t.get_seconds());
+    let result = c.validate_config_get_genesis(t.get_seconds().try_into().unwrap());
     if let Ok((accounts, rp, _nodes)) = result {
         let tx_tree = MerkleTree::empty();
         let mut account_tree =

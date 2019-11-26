@@ -9,7 +9,7 @@ use crate::types::AddressType;
 use crate::Mnemonic;
 
 /// Hierarchical Deterministic seed
-#[derive(Debug, Default, PartialEq, Decode, Encode)]
+#[derive(Debug, Clone, PartialEq, Decode, Encode)]
 pub struct HDSeed {
     bytes: Vec<u8>,
 }

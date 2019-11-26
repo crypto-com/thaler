@@ -1,0 +1,22 @@
+[package]
+name = "client-mock"
+version = "0.1.0"
+authors = ["yihuang <yi.codeplayer@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+sha2 = { version = "0.8", default-features = false }
+signatory = { version = "0.12", features = ["ed25519", "ecdsa"] }
+signatory-dalek = { version = "0.12" }
+serde_json = { version = "1.0" }
+subtle = "2"
+subtle-encoding = { version = "0.3", features = ["bech32-preview"] }
+secstr = { version = "0.3.2", features = ["serde"] }
+lazy_static  = { version = "1.4", features = ["spin_no_std"] }
+signature = "0.2.0"
+
+tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", rev = "ce6cf1e1e275411c0757fe9ee95146c7875843a8" }
+chain-core = { path = "../chain-core" }
+chain-abci = { path = "../chain-abci" }
+client-common = { path = "../client-common" }
+client-core = { path = "../client-core" }

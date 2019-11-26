@@ -368,10 +368,12 @@ pub mod tests {
             Ok(Status {
                 sync_info: status::SyncInfo {
                     latest_block_height: Height::default(),
-                    latest_app_hash: Hash::from_str(
-                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
-                    )
-                    .unwrap(),
+                    latest_app_hash: Some(
+                        Hash::from_str(
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                        )
+                        .unwrap(),
+                    ),
                     ..mock::sync_info()
                 },
                 ..mock::status_response()
@@ -381,10 +383,12 @@ pub mod tests {
         fn block(&self, _height: u64) -> CommonResult<Block> {
             Ok(Block {
                 header: Header {
-                    app_hash: Hash::from_str(
-                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
-                    )
-                    .unwrap(),
+                    app_hash: Some(
+                        Hash::from_str(
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                        )
+                        .unwrap(),
+                    ),
                     time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                     ..mock::header()
                 },
@@ -398,10 +402,12 @@ pub mod tests {
         ) -> CommonResult<Vec<Block>> {
             Ok(vec![Block {
                 header: Header {
-                    app_hash: Hash::from_str(
-                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
-                    )
-                    .unwrap(),
+                    app_hash: Some(
+                        Hash::from_str(
+                            "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
+                        )
+                        .unwrap(),
+                    ),
                     time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                     ..mock::header()
                 },

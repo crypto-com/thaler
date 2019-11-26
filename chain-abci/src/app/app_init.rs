@@ -1,12 +1,22 @@
+use std::collections::BTreeMap;
+use std::convert::TryInto;
+
+use abci::*;
+use enclave_protocol::{EnclaveRequest, EnclaveResponse};
+use kvdb::DBTransaction;
+use log::{info, warn};
+use parity_scale_codec::{Decode, Encode};
+use protobuf::Message;
+use serde::{Deserialize, Serialize};
+
 use crate::enclave_bridge::EnclaveProxy;
 use crate::liveness::LivenessTracker;
 use crate::punishment::ValidatorPunishment;
-use crate::storage::account::AccountStorage;
 use crate::storage::account::AccountWrapper;
+use crate::storage::account::{pure_account_storage, AccountStorage};
 use crate::storage::tx::get_account;
 use crate::storage::tx::StarlingFixedKey;
 use crate::storage::*;
-use abci::*;
 use chain_core::common::MerkleTree;
 use chain_core::common::Timespec;
 use chain_core::common::{H256, HASH_SIZE_256};
@@ -20,13 +30,6 @@ use chain_core::state::account::{CouncilNode, StakedState, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::state::RewardsPoolState;
 use chain_core::tx::TxAux;
-use enclave_protocol::{EnclaveRequest, EnclaveResponse};
-use kvdb::DBTransaction;
-use log::{info, warn};
-use parity_scale_codec::{Decode, Encode};
-use protobuf::Message;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 /// Validator state tracking
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode, Default)]
@@ -244,6 +247,27 @@ fn store_valid_genesis_state(genesis_state: &ChainNodeState, inittx: &mut DBTran
     inittx.put(COL_EXTRA, b"init_chain_state", &encoded);
 }
 
+fn compute_accounts_root(account_storage: &mut AccountStorage, accounts: &[StakedState]) -> H256 {
+    let mut keys: Vec<_> = accounts.iter().map(StakedState::key).collect();
+    let wrapped: Vec<_> = accounts.iter().cloned().map(AccountWrapper).collect();
+    account_storage
+        .insert(None, &mut keys, &wrapped)
+        .expect("insert failed")
+}
+
+pub fn init_app_hash(conf: &InitConfig, genesis_time: Timespec) -> H256 {
+    let (accounts, rp, _nodes) = conf
+        .validate_config_get_genesis(genesis_time)
+        .expect("distribution validation error");
+
+    compute_app_hash(
+        &MerkleTree::empty(),
+        &compute_accounts_root(&mut pure_account_storage(20).unwrap(), &accounts),
+        &rp,
+        &NetworkParameters::Genesis(conf.network_params.clone()),
+    )
+}
+
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     fn restore_from_storage(
         tx_validator: T,
@@ -443,119 +467,117 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// provided as arguments.
     pub fn init_chain_handler(&mut self, req: &RequestInitChain) -> ResponseInitChain {
         let db = &self.storage.db;
-        let genesis_time = req.time.as_ref().expect("genesis time").get_seconds();
         let conf: InitConfig =
             serde_json::from_slice(&req.app_state_bytes).expect("failed to parse initial config");
-        let dist_result = conf.validate_config_get_genesis(genesis_time);
-        if let Ok((accounts, rp, nodes)) = dist_result {
-            let stored_chain_id = db
-                .get(COL_EXTRA, CHAIN_ID_KEY)
-                .unwrap()
-                .expect("last app hash found, no but chain id stored");
-            if stored_chain_id != req.chain_id.as_bytes() {
-                panic!(
-                    "stored chain id: {} does not match the provided chain id: {}",
-                    String::from_utf8(stored_chain_id.to_vec()).unwrap(),
-                    req.chain_id
-                );
-            }
 
-            let tx_tree = MerkleTree::empty();
+        let genesis_time = req
+            .time
+            .as_ref()
+            .expect("missing genesis time")
+            .get_seconds()
+            .try_into()
+            .expect("invalid genesis time");
+        let (accounts, rp, nodes) = conf
+            .validate_config_get_genesis(genesis_time)
+            .expect("distribution validation error");
 
-            let mut keys: Vec<StarlingFixedKey> = accounts.iter().map(StakedState::key).collect();
-            // TODO: get rid of the extra allocations
-            let wrapped: Vec<AccountWrapper> =
-                accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
-            let new_account_root = self
-                .accounts
-                .insert(None, &mut keys, &wrapped)
-                .expect("initial insert");
-            let network_params = NetworkParameters::Genesis(conf.network_params);
-            let genesis_app_hash =
-                compute_app_hash(&tx_tree, &new_account_root, &rp, &network_params);
-            if self.genesis_app_hash != genesis_app_hash {
-                panic!("initchain resulting genesis app hash: {} does not match the expected genesis app hash: {}", hex::encode(genesis_app_hash), hex::encode(self.genesis_app_hash));
-            }
-
-            let mut inittx = db.transaction();
-            check_and_store_consensus_params(
-                req.consensus_params.as_ref(),
-                &nodes,
-                &network_params,
-                &mut inittx,
-            );
-
-            let mut validators = Vec::with_capacity(nodes.len());
-            let mut validator_liveness = BTreeMap::new();
-            let mut validator_by_voting_power = BTreeMap::new();
-            let mut tendermint_validator_addresses = BTreeMap::new();
-
-            for (address, node) in nodes.iter() {
-                let mut validator = ValidatorUpdate::default();
-                let power = get_voting_power(&conf.distribution, address);
-                self.validator_voting_power.insert(*address, power);
-                validator_by_voting_power.insert((power, *address), node.clone());
-                validator.set_power(power.into());
-                let pk = get_validator_key(&node);
-                validator.set_pub_key(pk);
-                validators.push(validator);
-
-                let tendermint_validator_address =
-                    TendermintValidatorAddress::from(&node.consensus_pubkey);
-
-                tendermint_validator_addresses
-                    .insert(tendermint_validator_address.clone(), *address);
-
-                validator_liveness.insert(
-                    tendermint_validator_address,
-                    LivenessTracker::new(network_params.get_block_signing_window()),
-                );
-            }
-
-            // check req.validators is consistent with app_state's council nodes
-            let mut req_validators = req.validators.clone().into_vec();
-            let fn_sort_key = |a: &ValidatorUpdate| {
-                a.pub_key
-                    .as_ref()
-                    .map(|key| (key.field_type.clone(), key.data.clone()))
-            };
-            validators.sort_by_key(fn_sort_key);
-            req_validators.sort_by_key(fn_sort_key);
-            if validators != req_validators {
-                panic!("validators in genesis configuration are not consistent with app_state");
-            }
-
-            let genesis_state = ChainNodeState::genesis(
-                genesis_app_hash,
-                genesis_time,
-                new_account_root,
-                rp,
-                network_params,
-                ValidatorState {
-                    council_nodes_by_power: validator_by_voting_power,
-                    tendermint_validator_addresses,
-                    punishment: ValidatorPunishment {
-                        validator_liveness,
-                        slashing_schedule: Default::default(),
-                    },
-                },
-            );
-            store_valid_genesis_state(&genesis_state, &mut inittx);
-
-            let wr = db.write(inittx);
-            if wr.is_err() {
-                panic!("db write error: {}", wr.err().unwrap());
-            } else {
-                self.uncommitted_account_root_hash = genesis_state.last_account_root_hash;
-                self.last_state = Some(genesis_state);
-            }
-
-            ResponseInitChain::new()
-        } else {
+        let stored_chain_id = db
+            .get(COL_EXTRA, CHAIN_ID_KEY)
+            .unwrap()
+            .expect("last app hash found, but no chain id stored");
+        if stored_chain_id != req.chain_id.as_bytes() {
             panic!(
-                "distribution validation error: {}",
-                dist_result.err().unwrap()
+                "stored chain id: {} does not match the provided chain id: {}",
+                String::from_utf8(stored_chain_id.to_vec()).unwrap(),
+                req.chain_id
             );
         }
+
+        let network_params = NetworkParameters::Genesis(conf.network_params);
+        let new_account_root = compute_accounts_root(&mut self.accounts, &accounts);
+        let genesis_app_hash = compute_app_hash(
+            &MerkleTree::empty(),
+            &new_account_root,
+            &rp,
+            &network_params,
+        );
+
+        if self.genesis_app_hash != genesis_app_hash {
+            panic!("initchain resulting genesis app hash: {} does not match the expected genesis app hash: {}", hex::encode(genesis_app_hash), hex::encode(self.genesis_app_hash));
+        }
+
+        let mut inittx = db.transaction();
+        check_and_store_consensus_params(
+            req.consensus_params.as_ref(),
+            &nodes,
+            &network_params,
+            &mut inittx,
+        );
+
+        let mut validators = Vec::with_capacity(nodes.len());
+        let mut validator_liveness = BTreeMap::new();
+        let mut validator_by_voting_power = BTreeMap::new();
+        let mut tendermint_validator_addresses = BTreeMap::new();
+
+        for (address, node) in nodes.iter() {
+            let mut validator = ValidatorUpdate::default();
+            let power = get_voting_power(&conf.distribution, address);
+            self.validator_voting_power.insert(*address, power);
+            validator_by_voting_power.insert((power, *address), node.clone());
+            validator.set_power(power.into());
+            let pk = get_validator_key(&node);
+            validator.set_pub_key(pk);
+            validators.push(validator);
+
+            let tendermint_validator_address =
+                TendermintValidatorAddress::from(&node.consensus_pubkey);
+
+            tendermint_validator_addresses.insert(tendermint_validator_address.clone(), *address);
+
+            validator_liveness.insert(
+                tendermint_validator_address,
+                LivenessTracker::new(network_params.get_block_signing_window()),
+            );
+        }
+
+        // check req.validators is consistent with app_state's council nodes
+        let mut req_validators = req.validators.clone().into_vec();
+        let fn_sort_key = |a: &ValidatorUpdate| {
+            a.pub_key
+                .as_ref()
+                .map(|key| (key.field_type.clone(), key.data.clone()))
+        };
+        validators.sort_by_key(fn_sort_key);
+        req_validators.sort_by_key(fn_sort_key);
+        if validators != req_validators {
+            panic!("validators in genesis configuration are not consistent with app_state");
+        }
+
+        let genesis_state = ChainNodeState::genesis(
+            genesis_app_hash,
+            genesis_time,
+            new_account_root,
+            rp,
+            network_params,
+            ValidatorState {
+                council_nodes_by_power: validator_by_voting_power,
+                tendermint_validator_addresses,
+                punishment: ValidatorPunishment {
+                    validator_liveness,
+                    slashing_schedule: Default::default(),
+                },
+            },
+        );
+        store_valid_genesis_state(&genesis_state, &mut inittx);
+
+        let wr = self.storage.db.write(inittx);
+        if wr.is_err() {
+            panic!("db write error: {}", wr.err().unwrap());
+        } else {
+            self.uncommitted_account_root_hash = genesis_state.last_account_root_hash;
+            self.last_state = Some(genesis_state);
+        }
+
+        ResponseInitChain::new()
     }
 }

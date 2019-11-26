@@ -4,7 +4,6 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 
-use chrono::{DateTime, SecondsFormat};
 use quest::{password, success};
 use secstr::SecUtf8;
 use serde_json::json;
@@ -12,6 +11,7 @@ use serde_json::json;
 use chain_core::init::config::{ValidatorKeyType, ValidatorPubkey};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use client_common::storage::SledStorage;
+use client_common::tendermint::types::Time;
 use client_common::{Error, ErrorKind, Result, ResultExt};
 use client_core::types::WalletKind;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
@@ -158,18 +158,14 @@ impl InitCommand {
 
     fn read_genesis_time(&mut self) -> Result<()> {
         // change
-        let old_genesis_time = self
-            .genesis_dev
-            .genesis_time
-            .to_rfc3339_opts(SecondsFormat::Micros, true);
+        let old_genesis_time = self.genesis_dev.genesis_time.to_string();
 
         let new_genesis_time: String = self.ask_string(
             format!("genesis_time( {} )=", old_genesis_time).as_str(),
             old_genesis_time.as_str(),
         );
 
-        self.genesis_dev.genesis_time =
-            DateTime::from(DateTime::parse_from_rfc3339(&new_genesis_time).unwrap());
+        self.genesis_dev.genesis_time = Time::from_str(&new_genesis_time).unwrap();
         Ok(())
     }
 
@@ -261,10 +257,7 @@ impl InitCommand {
 
         let app_hash = self.app_hash.clone();
         let app_state = self.app_state.clone();
-        let gt = self
-            .genesis_dev
-            .genesis_time
-            .to_rfc3339_opts(SecondsFormat::Micros, true);
+        let gt = self.genesis_dev.genesis_time.to_string();
         let mut json_string = String::from("");
         fs::read_to_string(&InitCommand::get_tendermint_filename())
             .and_then(|contents| {
