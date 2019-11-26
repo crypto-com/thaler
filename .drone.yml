@@ -4,8 +4,7 @@ name: rust
 
 steps:
 - name: Build and Test
-  image: chain
-  pull: never
+  image: cryptocom/chain:latest
   commands:
   - export RUST_BACKTRACE=1
   - export RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3
@@ -71,22 +70,9 @@ platform:
 steps:
 - name: Build and Test
   commands:
-  - export SGX_MODE=HW
-  - export NETWORK_ID=ab
-  - . /opt/intel/sgxsdk/sgxsdk/environment
-  - rustup default nightly-2019-08-01-x86_64-unknown-linux-gnu
   - ls -l /dev/sgx
   - ls -l /var/run/aesmd/aesm.socket
-  - cd chain-tx-enclave/tx-validation && make clean && SGX_TEST=1 make
-  - cd bin && sh -c 'echo $$$ > $HOME/.PID; exec ./tx-validation-app'
-- name: Teardown
-  commands:
-  - kill "$(cat "$HOME/.PID")" || echo "./tx-validation-app already exited"
-  - (ps | grep ./tx-validation-app) || exit 0
-  when:
-    status:
-      - success
-      - failure
+  - docker run --rm -v $PWD:/chain --device /dev/sgx cryptocom/chain:latest /bin/bash /chain/ci-scripts/tx-validation-hw-test.sh
 
 trigger:
   branch:
@@ -113,28 +99,9 @@ steps:
     IAS_API_KEY:
       from_secret: dev_ias_key
   commands:
-  - export RUST_BACKTRACE=1
-  - export RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3
-  - export SGX_MODE=HW
-  - export NETWORK_ID=ab
-  - export RUST_LOG=info
-  - export TX_VALIDATION_BIN_DIR=`pwd`/chain-tx-enclave/tx-validation/bin/
-  - export TX_QUERY_APP_PORT=`./ci-scripts/find-free-port.sh`
-  - . /opt/intel/sgxsdk/sgxsdk/environment
-  - rustup default nightly-2019-08-01-x86_64-unknown-linux-gnu
   - ls -l /dev/sgx
   - ls -l /var/run/aesmd/aesm.socket
-  - cd chain-tx-enclave/tx-validation && make clean && make
-  - cd ../tx-query && make clean && SGX_TEST=1 make
-  - cd bin && sh -c 'echo $$$ > $HOME/.PID; exec ./tx-query-app'
-- name: Teardown
-  commands:
-  - kill "$(cat "$HOME/.PID")" || echo "./tx-query-app already exited"
-  - (ps | grep ./tx-query-app) || exit 0
-  when:
-    status:
-      - success
-      - failure
+  - docker run --rm --env SPID=$SPID --env IAS_API_KEY=$IAS_API_KEY -v $PWD:/chain --device /dev/sgx cryptocom/chain:latest /bin/bash /chain/ci-scripts/tx-query-hw-test.sh
 
 trigger:
   branch:
@@ -146,6 +113,6 @@ trigger:
 
 ---
 kind: signature
-hmac: cf4d1c1fdb5895f7fa7bcf7edb0e1fe4131cf8d9d548a46cb8f4aca4e182d4ab
+hmac: 8e8cafffe61da4485e7a7200b856fad51a872bfe81aa37ef49574dcf323c61be
 
 ...
