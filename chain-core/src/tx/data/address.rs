@@ -33,11 +33,9 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
         match self {
             ExtendedAddr::OrTree(hash) => {
                 let checked_data: Vec<u5> = hash.to_vec().to_base32();
-                let encoded = bech32::encode(
-                    get_bech32_human_part_from_network(network),
-                    checked_data,
-                )
-                .expect("bech32 encoding error");
+                let encoded =
+                    bech32::encode(get_bech32_human_part_from_network(network), checked_data)
+                        .expect("bech32 encoding error");
                 Ok(encoded.to_string())
             }
         }
@@ -46,7 +44,9 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
     fn from_cro(encoded: &str, _network: Network) -> Result<Self, CroAddressError> {
         bech32::decode(encoded)
             .map_err(|e| CroAddressError::Bech32Error(e.to_string()))
-            .and_then(|decoded| Vec::from_base32(&decoded.1).map_err(|_e| CroAddressError::ConvertError))
+            .and_then(|decoded| {
+                Vec::from_base32(&decoded.1).map_err(|_e| CroAddressError::ConvertError)
+            })
             .and_then(|hash| {
                 let mut tree_root_hash: TreeRoot = [0 as u8; 32];
                 tree_root_hash.copy_from_slice(&hash.as_slice());
