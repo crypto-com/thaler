@@ -538,7 +538,7 @@ dependencies = [
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.42 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "signatory 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signatory 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "signatory-dalek 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "signature 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -783,6 +783,24 @@ dependencies = [
  "libc 0.2.65 (registry+https://github.com/rust-lang/crates.io-index)",
  "redox_users 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "winapi 0.3.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ecdsa"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "generic-array 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signature 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "ed25519"
+version = "1.0.0-pre.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "signature 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2589,6 +2607,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "signatory"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "ecdsa 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ed25519 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "getrandom 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signature 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "subtle-encoding 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zeroize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "signatory-dalek"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2602,6 +2633,14 @@ dependencies = [
 [[package]]
 name = "signature"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "signature"
+version = "1.0.0-pre.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2725,6 +2764,14 @@ dependencies = [
  "failure 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "zeroize 0.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "subtle-encoding"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "zeroize 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -3570,6 +3617,8 @@ dependencies = [
 "checksum digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f3d0c8c8752312f9713efd397ff63acb9f85585afbf179282e720e7704954dd5"
 "checksum dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "13aea89a5c93364a98e9b37b2fa237effbb694d5cfe01c5b70941f7eb087d5e3"
 "checksum dirs-sys 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "afa0b23de8fd801745c471deffa6e12d248f962c9fd4b4c33787b055599bde7b"
+"checksum ecdsa 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e1dd187cba85a8c826912572f4f76045d2e613b42e08a4c2896eefe1adf3f347"
+"checksum ed25519 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)" = "c28f2b738e873c40ce7339dfb8c5a48c936084b4540127e86c47a0fddcaa8624"
 "checksum ed25519-dalek 1.0.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)" = "845aaacc16f01178f33349e7c992ecd0cee095aa5e577f0f4dee35971bd36455"
 "checksum either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
 "checksum elastic-array 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)" = "073be79b6538296faf81c631872676600616073817dd9a440c477ad09b408983"
@@ -3771,8 +3820,10 @@ dependencies = [
 "checksum sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7b4d8bfd0e469f417657573d8451fb33d16cfe0989359b93baf3a1ffc639543d"
 "checksum sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "dd26bc0e7a2e3a7c959bc494caf58b72ee0c71d67704e9520f736ca7e4853ecf"
 "checksum signatory 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "92785dea71e4d1d2b2c5dceee9cdaf809a177e3865b29d246b0314f4ecc110b0"
+"checksum signatory 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e8bf586660531e464ee01168605e858ddc90b7191e7fe4206478d257e0bfcc94"
 "checksum signatory-dalek 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ad3891c134888db96183ebfa6d1f6bf5b4c566b3a43d40d219cd5959620bbcdd"
 "checksum signature 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "144b5d1138a4339c839603f15f69ffe3195e51b5caa92f815b47d4553db47337"
+"checksum signature 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a0cfcdc45066661979294e965c21b60355da35eb5d638af8143e5aa83fdfce53"
 "checksum skeptic 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "24ebf8a06f5f8bae61ae5bbc7af7aac4ef6907ae975130faba1199e5fe82256a"
 "checksum slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 "checksum sled 0.29.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d7c3453de0f6a77abdd17cc9f68d6650214abd088b052b13302f86fa9a5b286e"
@@ -3789,6 +3840,7 @@ dependencies = [
 "checksum subtle 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2d67a5a62ba6e01cb2192ff309324cb4875d0c451d55fe2319433abe7a05a8ee"
 "checksum subtle 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ab3af2eb31c42e8f0ccf43548232556c42737e01a96db6e1777b0be108e79799"
 "checksum subtle-encoding 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)" = "661a0cd6c74eca6fab1a5b452d9f2201fbac9004e958bd70d5b4f288b1aed479"
+"checksum subtle-encoding 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "30492c59ec8bdeee7d6dd2d851711cae5f1361538f10ecfdcd1d377d57c2a783"
 "checksum syn 0.14.9 (registry+https://github.com/rust-lang/crates.io-index)" = "261ae9ecaa397c42b960649561949d69311f08eeaea86a65696e6e46517cf741"
 "checksum syn 0.15.44 (registry+https://github.com/rust-lang/crates.io-index)" = "9ca4b3b69a77cbe1ffc9e198781b7acb0c7365a883670e8f1c1bc66fba79a5c5"
 "checksum syn 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)" = "661641ea2aa15845cddeb97dad000d22070bb5c1fb456b96c1cba883ec691e92"
