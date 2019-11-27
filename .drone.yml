@@ -16,48 +16,39 @@ steps:
   - cargo test
   - echo "HOME FOLDER = " $HOME
 
-# TODO: fix, it wasn't that portable / reproducible  
-# ---
-# kind: pipeline
-# type: exec
-# name: integration-tests
+---
+kind: pipeline
+type: exec
+name: integration-tests
 
-# platform:
-#   os: linux
-#   arch: amd64
+platform:
+  os: linux
+  arch: amd64
 
-# steps:
-# - name: Build and Test
-#   commands:
-#   - mkdir bin
-#   - export PATH="$PATH:$PWD/bin"
-#   - curl -sSL "https://github.com/docker/compose/releases/download/1.24.1/docker-compose-$(uname -s)-$(uname -m)" -o bin/docker-compose
-#   - chmod +x bin/docker-compose
-#   - export NIX_REMOTE=daemon
-#   - export PATH="$PATH:/nix/var/nix/profiles/default/bin/"
-#   - export DOCKER_COMPOSE_PREFIX="${DRONE_BRANCH}"
-#   # - . /usr/local/etc/profile.d/nix.sh
-#   - . /opt/intel/sgxsdk/sgxsdk/environment
-#   # - nix-channel --add https://nixos.org/channels/nixpkgs-unstable
-#   # - nix-channel --update
-#   - nix-shell ci-scripts/drone.nix --run "./ci-scripts/run-integration-tests.sh"
-# - name: Teardown
-#   commands:
-#   - export PATH="$PATH:$PWD/bin"
-#   - cd integration-tests
-#   - docker-compose -p "${DRONE_BRANCH}" down || exit 0
-#   when:
-#     status:
-#       - success
-#       - failure
+steps:
+- name: Build and Test
+  commands:
+  - export NIX_REMOTE=daemon
+  - export DOCKER_COMPOSE_PREFIX="${DRONE_BRANCH}"
+  - export SGX_MODE=HW
+  - . /etc/profile.d/nix.sh
+  - nix-shell ci-scripts/drone.nix --run "./ci-scripts/run-integration-tests.sh"
+- name: Teardown
+  commands:
+  - cd integration-tests
+  - docker-compose -p "${DRONE_BRANCH}" down || exit 0
+  when:
+    status:
+      - success
+      - failure
 
-# trigger:
-#   branch:
-#   - master
-#   - staging
-#   - trying
-#   event:
-#   - push
+trigger:
+  branch:
+  - master
+  - staging
+  - trying
+  event:
+  - push
 
 ---
 kind: pipeline
@@ -128,6 +119,6 @@ trigger:
 
 ---
 kind: signature
-hmac: 8c0ea390f8d2afe9975a18473c01569112444233423ebb3888e5425b03f98623
+hmac: 0f8171e647ab947251845f2541fd7aa6710961670259ab31ed47b15080a96b7b
 
 ...
