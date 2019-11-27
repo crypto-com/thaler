@@ -36,6 +36,7 @@ impl<'de> Deserialize<'de> for Mnemonic {
 
 impl Mnemonic {
     /// Generate and returns mnemonic words
+    #[allow(clippy::new_without_default)]
     #[inline]
     pub fn new() -> Self {
         let mnemonic = bip39::Mnemonic::new(MNEMONIC_TYPE, MNEMONIC_LANGUAGE);
@@ -132,11 +133,7 @@ mod mnemonic_tests {
         #[test]
         fn should_generate_24_word() {
             let mnemonic = Mnemonic::new();
-            let word_count = mnemonic
-                .unsecure_phrase()
-                .split(' ')
-                .collect::<Vec<&str>>()
-                .len();
+            let word_count = mnemonic.unsecure_phrase().split(' ').count();
 
             assert_eq!(24, word_count);
         }
