@@ -100,11 +100,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Returns Some(parsed txaux, (paid fee, updated staking account)) if OK, or None if some problems (and sets log + error code in the passed in response).
     pub fn validate_tx_req(
         &mut self,
-        _req: &dyn RequestWithTx,
+        req: &dyn RequestWithTx,
         resp: &mut dyn ResponseWithCodeAndLog,
     ) -> Option<(TxAux, (Fee, Option<StakedState>))> {
-        let data = Vec::from(_req.tx());
-        let dtx = TxAux::decode(&mut data.as_slice());
+        let dtx = TxAux::decode(&mut req.tx());
         match dtx {
             Err(e) => {
                 resp.set_code(1);
@@ -112,7 +111,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 None
             }
             Ok(txaux) => {
-                let fee_paid = self.handle_tx(&txaux, _req.tx().len());
+                let fee_paid = self.handle_tx(&txaux, req.tx().len());
                 match fee_paid {
                     Ok(fee) => {
                         resp.set_code(0);

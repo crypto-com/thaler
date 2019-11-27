@@ -45,7 +45,7 @@ impl BlockExt for Block {
         self.data
             .iter()
             .map(|raw| -> Result<TxAux> {
-                TxAux::decode(&mut raw.clone().into_vec().as_slice()).chain(|| {
+                TxAux::decode(&mut raw.as_bytes()).chain(|| {
                     (
                         ErrorKind::DeserializationError,
                         "Unable to decode transactions from bytes in a block",
