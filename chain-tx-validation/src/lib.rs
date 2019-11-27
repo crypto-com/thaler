@@ -15,7 +15,7 @@ pub mod witness;
 extern crate sgx_tstd as std;
 
 use chain_core::common::Timespec;
-use chain_core::init::coin::Coin;
+use chain_core::init::coin::{Coin, CoinError};
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::account::{
     DepositBondTx, StakedState, UnbondTx, UnjailTx, WithdrawUnbondedTx,
@@ -93,6 +93,8 @@ pub enum Error {
     NotEnoughStake,
     /// Validator data already present in node state
     DuplicateValidator,
+    /// Calculate fee
+    FeeCalculationError,
 }
 
 impl fmt::Display for Error {
@@ -138,6 +140,7 @@ impl fmt::Display for Error {
             AccountNotJailed => write!(f, "account is not jailed"),
             NotEnoughStake => write!(f, "staked state bonded amount is less than the minimal required stake"),
             DuplicateValidator => write!(f, "council node with the same staked state address or validator public key already added"),
+            FeeCalculationError => write!(f, "fee calculation error"),
         }
     }
 }

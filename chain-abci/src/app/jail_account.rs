@@ -38,7 +38,8 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             account,
             &self.uncommitted_account_root_hash,
             &mut self.accounts,
-        );
+        )
+        .expect("update account");
         self.uncommitted_account_root_hash = new_root;
         self.power_changed_in_block
             .insert(staking_address, TendermintVotePower::zero());

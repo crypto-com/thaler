@@ -4,7 +4,7 @@ mod end_block;
 mod jail_account;
 mod query;
 mod slash_accounts;
-mod validate_tx;
+mod tx;
 
 use abci::*;
 use log::info;
@@ -12,58 +12,13 @@ use log::info;
 pub use self::app_init::{
     get_validator_key, init_app_hash, ChainNodeApp, ChainNodeState, ValidatorState,
 };
+pub use self::tx::{spend_utxos, update_account};
 use crate::enclave_bridge::EnclaveProxy;
 use crate::slashing::SlashingSchedule;
-use crate::storage::account::AccountStorage;
-use crate::storage::account::AccountWrapper;
-use crate::storage::tx::StarlingFixedKey;
-use crate::storage::COL_TX_META;
-use bit_vec::BitVec;
 use chain_core::common::{TendermintEventKey, TendermintEventType};
-use chain_core::state::account::{PunishmentKind, StakedState};
-use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
-use chain_core::tx::data::input::TxoPointer;
-use chain_core::tx::{TxAux, TxEnclaveAux};
-use kvdb::{DBTransaction, KeyValueDB};
-use std::collections::BTreeMap;
+use chain_core::state::account::PunishmentKind;
+use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
 use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
-
-/// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
-/// in the TX_META storage.
-pub fn spend_utxos(txins: &[TxoPointer], db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
-    let mut updated_txs = BTreeMap::new();
-    for txin in txins.iter() {
-        updated_txs
-            .entry(txin.id)
-            .or_insert_with(|| {
-                BitVec::from_bytes(&db.get(COL_TX_META, &txin.id[..]).unwrap().unwrap())
-            })
-            .set(txin.index as usize, true);
-    }
-    for (txid, bv) in &updated_txs {
-        dbtx.put(COL_TX_META, &txid[..], &bv.to_bytes());
-    }
-}
-
-/// Given the Account state storage and the current / uncommitted account storage root,
-/// it inserts the updated account state into the account storage and returns the new root hash of the account state trie.
-pub fn update_account(
-    account: StakedState,
-    account_root_hash: &StarlingFixedKey,
-    accounts: &mut AccountStorage,
-) -> (StarlingFixedKey, Option<StakedState>) {
-    (
-        accounts
-            .insert_one(
-                Some(account_root_hash),
-                &account.key(),
-                &AccountWrapper(account.clone()),
-            )
-            .expect("update account"),
-        Some(account),
-    )
-}
 
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
 impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
@@ -93,10 +48,16 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     /// Mempool Connection:  Used to validate incoming transactions.  If the application reponds
     /// with a non-zero value, the transaction is added to Tendermint's mempool for processing
     /// on the deliver_tx call below.
-    fn check_tx(&mut self, _req: &RequestCheckTx) -> ResponseCheckTx {
+    fn check_tx(&mut self, req: &RequestCheckTx) -> ResponseCheckTx {
         info!("received checktx request");
         let mut resp = ResponseCheckTx::new();
-        ChainNodeApp::validate_tx_req(self, _req, &mut resp);
+        match self.validate_tx_req(&req.tx) {
+            Ok(_) => {}
+            Err(log) => {
+                resp.code = 1;
+                resp.log = log;
+            }
+        }
         resp
     }
 
@@ -258,141 +219,34 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
 
     /// Consensus Connection: Actually processing the transaction, performing some form of a
     /// state transistion.
-    fn deliver_tx(&mut self, _req: &RequestDeliverTx) -> ResponseDeliverTx {
+    fn deliver_tx(&mut self, req: &RequestDeliverTx) -> ResponseDeliverTx {
         info!("received delivertx request");
         let mut resp = ResponseDeliverTx::new();
-        let mtxaux = ChainNodeApp::validate_tx_req(self, _req, &mut resp);
-        if let (0, Some((txaux, fee_acc))) = (resp.code, mtxaux) {
-            let mut inittx = self.storage.db.transaction();
-            let (next_account_root, maccount) = match &txaux {
-                TxAux::EnclaveTx(TxEnclaveAux::TransferTx { inputs, .. }) => {
-                    // here the original idea was "conservative" that it "spent" utxos here
-                    // but it didn't create utxos for this TX (they are created in commit)
-                    spend_utxos(&inputs, self.storage.db.clone(), &mut inittx);
-                    (self.uncommitted_account_root_hash, None)
-                }
-                TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx { tx, .. }) => {
-                    spend_utxos(&tx.inputs, self.storage.db.clone(), &mut inittx);
-                    update_account(
-                        fee_acc
-                            .1
-                            .expect("account returned in deposit stake verification"),
-                        &self.uncommitted_account_root_hash,
-                        &mut self.accounts,
-                    )
-                }
-                TxAux::UnbondStakeTx(_, _) => update_account(
-                    fee_acc
-                        .1
-                        .expect("account returned in unbond stake verification"),
-                    &self.uncommitted_account_root_hash,
-                    &mut self.accounts,
-                ),
-                TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx { .. }) => update_account(
-                    fee_acc
-                        .1
-                        .expect("account returned in withdraw unbonded stake verification"),
-                    &self.uncommitted_account_root_hash,
-                    &mut self.accounts,
-                ),
-                TxAux::UnjailTx(_, _) => update_account(
-                    fee_acc.1.expect("account returned in unjail verification"),
-                    &self.uncommitted_account_root_hash,
-                    &mut self.accounts,
-                ),
-                TxAux::NodeJoinTx(_, _) => {
-                    let state = fee_acc
-                        .1
-                        .expect("staked state returned in node join verification");
-                    self.new_nodes_in_block.insert(
-                        state.address,
-                        state
-                            .council_node
-                            .clone()
-                            .expect("state after nodejointx should have council node"),
-                    );
-                    let power = TendermintVotePower::from(state.bonded);
-                    self.power_changed_in_block.insert(state.address, power);
-                    update_account(
-                        state,
-                        &self.uncommitted_account_root_hash,
-                        &mut self.accounts,
-                    )
-                }
-            };
-            let mut event = Event::new();
-            event.field_type = TendermintEventType::ValidTransactions.to_string();
-            let mut kvpair_fee = KVPair::new();
-            kvpair_fee.key = TendermintEventKey::Fee.into();
-            kvpair_fee.value = Vec::from(format!("{}", fee_acc.0.to_coin()));
-            event.attributes.push(kvpair_fee);
+        match self.deliver_tx_req(&req.tx) {
+            Ok((txid, fee, account)) => {
+                let mut event = Event::new();
+                event.field_type = TendermintEventType::ValidTransactions.to_string();
+                let mut kvpair_fee = KVPair::new();
+                kvpair_fee.key = TendermintEventKey::Fee.into();
+                kvpair_fee.value = Vec::from(format!("{}", fee.to_coin()));
+                event.attributes.push(kvpair_fee);
 
-            if let Some(ref account) = maccount {
-                let mut kvpair = KVPair::new();
-                kvpair.key = TendermintEventKey::Account.into();
-                kvpair.value = Vec::from(format!("{}", &account.address));
-                event.attributes.push(kvpair);
-            }
-            match maccount {
-                Some(ref account)
-                    if (self.validator_voting_power.contains_key(&account.address)
-                        || self.power_changed_in_block.contains_key(&account.address)) =>
-                {
-                    if account.is_jailed() {
-                        log::error!("Validation should not be successful for jailed accounts");
-                        unreachable!("Validation should not be successful for jailed accounts");
-                    } else {
-                        let min_power = TendermintVotePower::from(
-                            self.last_state
-                                .as_ref()
-                                .expect("delivertx should have app state")
-                                .network_params
-                                .get_required_council_node_stake(),
-                        );
-                        let new_power = TendermintVotePower::from(account.bonded);
-                        let old_power = self
-                            .validator_voting_power
-                            .get(&account.address)
-                            .copied()
-                            .unwrap_or_else(TendermintVotePower::zero);
-                        if new_power > old_power && new_power >= min_power {
-                            self.power_changed_in_block
-                                .insert(account.address, new_power);
-                        } else if old_power >= min_power && new_power < old_power {
-                            self.power_changed_in_block
-                                .insert(account.address, TendermintVotePower::zero());
-                        }
-                    }
+                if let Some(ref account) = account {
+                    let mut kvpair = KVPair::new();
+                    kvpair.key = TendermintEventKey::Account.into();
+                    kvpair.value = Vec::from(format!("{}", &account.address));
+                    event.attributes.push(kvpair);
                 }
-                _ => {}
-            };
-            // as self.accounts allows querying against different tree roots
-            // the modifications done with "update_account" _should_ be safe, as the final tree root will
-            // be persisted in commit.
-            // The question is whether it really is -- e.g. if Tendermint/ABCI app crashes during DeliverTX
-            // and then it tries to replay the block on the restart, will it cause problems
-            // with the account storage (starling / MerkleBIT), because it already persisted those "future" / not-yet-committed account states?
-            // TODO: check-verify / test starling persistence safety?
-            // TODO: most of these intermediate uncommitted tree roots aren't useful (not exposed for querying) -- prune them / the account storage?
-            self.uncommitted_account_root_hash = next_account_root;
-            let mut kvpair = KVPair::new();
-            kvpair.key = TendermintEventKey::TxId.into();
-            kvpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
-            event.attributes.push(kvpair);
-            resp.events.push(event);
-            self.delivered_txs.push(txaux);
-            let rewards_pool = &mut self
-                .last_state
-                .as_mut()
-                .expect("deliver tx, but last state not initialized")
-                .rewards_pool;
-            let new_remaining = (rewards_pool.remaining + fee_acc.0.to_coin())
-                .expect("rewards pool + fee greater than max coin?");
-            rewards_pool.remaining = new_remaining;
-            self.rewards_pool_updated = true;
-            // this "buffered write" shouldn't persist (persistence done in commit)
-            // but should change it in-memory -- TODO: check
-            self.storage.db.write_buffered(inittx);
+                let mut kvpair = KVPair::new();
+                kvpair.key = TendermintEventKey::TxId.into();
+                kvpair.value = Vec::from(hex::encode(txid).as_bytes());
+                event.attributes.push(kvpair);
+                resp.events.push(event);
+            }
+            Err(log) => {
+                resp.code = 1;
+                resp.log = log;
+            }
         }
         resp
     }
