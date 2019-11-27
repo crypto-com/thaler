@@ -540,7 +540,7 @@ dependencies = [
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "signatory 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "signatory-dalek 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "signature 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signature 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle 2.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle-encoding 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=ce6cf1e1e275411c0757fe9ee95146c7875843a8)",
@@ -2608,6 +2608,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "signature"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "skeptic"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3781,6 +3789,7 @@ dependencies = [
 "checksum signatory 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "92785dea71e4d1d2b2c5dceee9cdaf809a177e3865b29d246b0314f4ecc110b0"
 "checksum signatory-dalek 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ad3891c134888db96183ebfa6d1f6bf5b4c566b3a43d40d219cd5959620bbcdd"
 "checksum signature 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "144b5d1138a4339c839603f15f69ffe3195e51b5caa92f815b47d4553db47337"
+"checksum signature 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b4a5e37049d50ec8878c63cd6e91cc2f41073d49f29a1b038eede1500116557b"
 "checksum skeptic 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "24ebf8a06f5f8bae61ae5bbc7af7aac4ef6907ae975130faba1199e5fe82256a"
 "checksum slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 "checksum sled 0.29.2 (registry+https://github.com/rust-lang/crates.io-index)" = "d7c3453de0f6a77abdd17cc9f68d6650214abd088b052b13302f86fa9a5b286e"
