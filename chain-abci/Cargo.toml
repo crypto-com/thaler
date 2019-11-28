@@ -9,7 +9,7 @@ edition = "2018"
 [features]
 mock-enc-dec = []
 mock-validation = []
-default = ["mock-enc-dec"]
+default = []
 
 [dependencies]
 abci = "0.6"

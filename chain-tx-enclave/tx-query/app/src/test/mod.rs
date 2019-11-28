@@ -26,10 +26,10 @@ use chain_core::tx::{
         Tx, TxId,
     },
     witness::TxInWitness,
-    TxEnclaveAux,
+    TxAux, TxEnclaveAux,
 };
 use chain_core::ChainInfo;
-use client_common::PrivateKey;
+use client_common::{PrivateKey, SignedTransaction};
 use client_core::cipher::DefaultTransactionObfuscation;
 use client_core::cipher::TransactionObfuscation;
 use enclave_protocol::FLAGS;
@@ -100,15 +100,14 @@ pub fn test_integration() {
 
         let listener = TcpListener::bind(query_server_addr).expect("failed to bind the TCP socket");
 
-        for _ in 0..2 {
+        for _ in 0..3 {
             match listener.accept() {
                 Ok((stream, addr)) => {
                     info!("new client: {:?}", addr);
-                    let _ = stream.set_read_timeout(Some(time::Duration::new(TIMEOUT_SEC, 0)));
-                    let _ = stream.set_write_timeout(Some(time::Duration::new(TIMEOUT_SEC, 0)));
                     let mut retval = sgx_status_t::SGX_SUCCESS;
-                    let result =
-                        unsafe { run_server(enclave.geteid(), &mut retval, stream.as_raw_fd()) };
+                    let result = unsafe {
+                        run_server(enclave.geteid(), &mut retval, stream.as_raw_fd(), -1)
+                    };
                     match result {
                         sgx_status_t::SGX_SUCCESS => {
                             info!("client query finished");
@@ -141,16 +140,7 @@ pub fn test_integration() {
     );
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
-    let withdrawtx = TxEnclaveAux::WithdrawUnbondedStakeTx {
-        no_of_outputs: tx0.outputs.len() as TxoIndex,
-        witness: witness0,
-        payload: TxObfuscated {
-            txid: tx0.id(),
-            key_from: 0,
-            init_vector: [0u8; 12],
-            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),
-        },
-    };
+
     let account = get_account(&addr);
     let info = ChainInfo {
         min_fee_computed: Fee::new(Coin::zero()),
@@ -160,6 +150,51 @@ pub fn test_integration() {
     };
 
     ZMQ_SOCKET.with(|socket| {
+        info!("sending a block commit request");
+        let request = EnclaveRequest::CommitBlock {
+            app_hash: [0u8; 32],
+            info,
+        };
+        let req = request.encode();
+        socket.send(req, FLAGS).expect("request sending failed");
+        let msg = socket
+            .recv_bytes(FLAGS)
+            .expect("failed to receive a response");
+        let resp = EnclaveResponse::decode(&mut msg.as_slice()).expect("enclave tx response");
+        info!("received a block commit response");
+        match resp {
+            EnclaveResponse::CommitBlock(Ok(_)) => {
+                info!("ok block commit response");
+            }
+            _ => {
+                error!("failed block commit response");
+                fail_exit(&mut validation);
+            }
+        }
+        let c = DefaultTransactionObfuscation::new(
+            format!("localhost:{}", query_server_port),
+            "localhost".to_owned(),
+        );
+        info!("sending a enc request");
+        let wrapped = c.encrypt(SignedTransaction::WithdrawUnbondedStakeTransaction(
+            tx0,
+            Box::new(account.clone()),
+            witness0,
+        ));
+        let withdrawtx = match wrapped {
+            Ok(TxAux::EnclaveTx(tx)) => tx,
+            Ok(_) => {
+                error!("failed enc request");
+                fail_exit(&mut validation);
+                panic!();
+            }
+            Err(e) => {
+                error!("failed enc request, {:?}", e);
+                fail_exit(&mut validation);
+                panic!();
+            }
+        };
+
         info!("sending a TX request");
         let request = EnclaveRequest::new_tx_request(withdrawtx, Some(account), info);
         let req = request.encode();
@@ -200,10 +235,7 @@ pub fn test_integration() {
         }
 
         thread::sleep(time::Duration::from_secs(10));
-        let c = DefaultTransactionObfuscation::new(
-            format!("localhost:{}", query_server_port),
-            "localhost".to_owned(),
-        );
+
         let txids = vec![*txid];
         let r1 = c.decrypt(
             txids.as_slice(),

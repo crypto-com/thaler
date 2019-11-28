@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ErrorKind, Result, ResultExt, Transaction};
 use chain_core::init::config::InitConfig;
+use chain_core::tx::data::TxId;
 use chain_core::tx::fee::LinearFee;
 use chain_core::tx::{TxAux, TxEnclaveAux};
 
@@ -37,6 +38,9 @@ pub struct GenesisResponse {
 pub trait BlockExt {
     /// Returns un-encrypted transactions in a block (this may also contain invalid transactions)
     fn unencrypted_transactions(&self) -> Result<Vec<Transaction>>;
+
+    /// Returns ids of transactions whose main content is only available in enclaves (Transfer, Withdraw)
+    fn enclave_transaction_ids(&self) -> Result<Vec<TxId>>;
 }
 
 impl BlockExt for Block {
@@ -65,6 +69,29 @@ impl BlockExt for Block {
                 },
             })
             .collect::<Result<Vec<Transaction>>>()
+    }
+    fn enclave_transaction_ids(&self) -> Result<Vec<TxId>> {
+        self.data
+            .iter()
+            .map(|raw| -> Result<TxAux> {
+                TxAux::decode(&mut raw.clone().into_vec().as_slice()).chain(|| {
+                    (
+                        ErrorKind::DeserializationError,
+                        "Unable to decode transactions from bytes in a block",
+                    )
+                })
+            })
+            .filter_map(|tx_aux_result| match tx_aux_result {
+                Err(e) => Some(Err(e)),
+                Ok(tx_aux) => match tx_aux {
+                    TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx { .. }) => {
+                        Some(Ok(tx_aux.tx_id()))
+                    }
+                    TxAux::EnclaveTx(TxEnclaveAux::TransferTx { .. }) => Some(Ok(tx_aux.tx_id())),
+                    _ => None,
+                },
+            })
+            .collect::<Result<Vec<TxId>>>()
     }
 }
 

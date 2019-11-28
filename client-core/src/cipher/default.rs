@@ -12,7 +12,7 @@ use enclave_protocol::{
 };
 use parity_scale_codec::{Decode, Encode};
 use std::io::{Read, Write};
-use std::net::TcpStream;
+use std::net::{Shutdown, TcpStream};
 use std::sync::Arc;
 
 fn get_tls_config() -> Arc<rustls::ClientConfig> {
@@ -65,79 +65,96 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
     ) -> Result<Vec<Transaction>> {
         let client_config = get_tls_config();
         let dns_name = self.tqe_hostname.as_ref();
-        let mut sess = rustls::ClientSession::new(&client_config, dns_name);
+        // FIXME: better response from enclave and retry mechanism
+        for attempt in 0..3 {
+            let mut sess = rustls::ClientSession::new(&client_config, dns_name);
 
-        let mut conn = TcpStream::connect(&self.tqe_address).chain(|| {
-            (
-                ErrorKind::ConnectionError,
-                format!("Unable to connect to TQE address: {}", self.tqe_address),
-            )
-        })?;
+            let mut conn = TcpStream::connect(&self.tqe_address).chain(|| {
+                (
+                    ErrorKind::ConnectionError,
+                    format!("Unable to connect to TQE address: {}", self.tqe_address),
+                )
+            })?;
 
-        let mut tls = rustls::Stream::new(&mut sess, &mut conn);
-        tls.write_all(&TxQueryInitRequest::DecryptChallenge.encode())
-            .chain(|| {
+            let mut tls = rustls::Stream::new(&mut sess, &mut conn);
+            tls.write_all(&TxQueryInitRequest::DecryptChallenge.encode())
+                .chain(|| {
+                    (
+                        ErrorKind::IoError,
+                        "Unable to write to TQE connection stream",
+                    )
+                })?;
+            let mut challenge = [0u8; 33];
+            tls.read_exact(&mut challenge).chain(|| {
+                (
+                    ErrorKind::IoError,
+                    "Unable to read from TQE connection stream",
+                )
+            })?;
+            let resp = TxQueryInitResponse::decode(&mut challenge.as_ref());
+            let ch = match resp {
+                Ok(TxQueryInitResponse::DecryptChallenge(challenge)) => challenge,
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::IoError,
+                        "unexpected response from TQE connection stream",
+                    ))
+                }
+            };
+            let request = SECP.with(|secp| {
+                DecryptionRequest::create(
+                    &secp,
+                    transaction_ids.to_owned(),
+                    ch,
+                    &private_key.into(),
+                )
+            });
+            tls.write_all(&request.encode()).chain(|| {
                 (
                     ErrorKind::IoError,
                     "Unable to write to TQE connection stream",
                 )
             })?;
-        let mut challenge = [0u8; 33];
-        tls.read_exact(&mut challenge).chain(|| {
-            (
-                ErrorKind::IoError,
-                "Unable to read from TQE connection stream",
-            )
-        })?;
-        let resp = TxQueryInitResponse::decode(&mut challenge.as_ref());
-        let ch = match resp {
-            Ok(TxQueryInitResponse::DecryptChallenge(challenge)) => challenge,
-            _ => {
-                return Err(Error::new(
-                    ErrorKind::IoError,
-                    "unexpected response from TQE connection stream",
-                ))
-            }
-        };
-        let request = SECP.with(|secp| {
-            DecryptionRequest::create(&secp, transaction_ids.to_owned(), ch, &private_key.into())
-        });
-        tls.write_all(&request.encode()).chain(|| {
-            (
-                ErrorKind::IoError,
-                "Unable to write to TQE connection stream",
-            )
-        })?;
 
-        let mut plaintext = Vec::new();
-        match tls.read_to_end(&mut plaintext) {
-            Ok(_) => {
-                let txs = DecryptionResponse::decode(&mut plaintext.as_slice())
-                    .chain(|| {
-                        (
+            let mut plaintext = Vec::new();
+            let result = match tls.read_to_end(&mut plaintext) {
+                Ok(_) => {
+                    let mresp = DecryptionResponse::decode(&mut plaintext.as_slice());
+                    if let Ok(resp) = mresp {
+                        let txs = resp.txs;
+
+                        let transactions = txs
+                            .into_iter()
+                            .map(|tx| match tx {
+                                TxWithOutputs::Transfer(t) => Transaction::TransferTransaction(t),
+                                TxWithOutputs::StakeWithdraw(t) => {
+                                    Transaction::WithdrawUnbondedStakeTransaction(t)
+                                }
+                            })
+                            .collect::<Vec<Transaction>>();
+
+                        Ok(transactions)
+                    } else {
+                        Err(Error::new(
                             ErrorKind::DeserializationError,
                             "Unable to deserialize decryption response from enclave",
-                        )
-                    })?
-                    .txs;
-
-                let transactions = txs
-                    .into_iter()
-                    .map(|tx| match tx {
-                        TxWithOutputs::Transfer(t) => Transaction::TransferTransaction(t),
-                        TxWithOutputs::StakeWithdraw(t) => {
-                            Transaction::WithdrawUnbondedStakeTransaction(t)
-                        }
-                    })
-                    .collect::<Vec<Transaction>>();
-
-                Ok(transactions)
+                        ))
+                    }
+                }
+                Err(_) => Err(Error::new(
+                    ErrorKind::IoError,
+                    "Unable to read from TQE connection stream",
+                )),
+            };
+            if result.is_ok() || attempt == 2 {
+                return result;
+            } else {
+                let _ = conn.shutdown(Shutdown::Both);
+                log::info!("Decrypt request failed, retrying");
+                std::thread::sleep(std::time::Duration::from_millis(3000));
             }
-            Err(_) => Err(Error::new(
-                ErrorKind::IoError,
-                "Unable to read from TQE connection stream",
-            )),
         }
+        unreachable!()
     }
 
     fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
@@ -179,7 +196,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
                     .chain(|| {
                         (
                             ErrorKind::DeserializationError,
-                            "Unable to deserialize decryption response from enclave",
+                            "Unable to deserialize encryption response from enclave",
                         )
                     })?
                     .tx;

@@ -2,6 +2,7 @@ use parity_scale_codec::Decode;
 use secstr::SecUtf8;
 
 use crate::NetworkOpsClient;
+use chain_core::common::Timespec;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::state::account::{
     CouncilNode, DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes,
@@ -20,6 +21,7 @@ use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction, Storage};
 use client_core::signer::{DummySigner, Signer, WalletSignerManager};
 use client_core::{TransactionObfuscation, UnspentTransactions, WalletClient};
+use tendermint::Time;
 
 /// Default implementation of `NetworkOpsClient`
 pub struct DefaultNetworkOpsClient<W, S, C, F, E>
@@ -112,6 +114,17 @@ where
             })?
             .to_coin();
         Ok(fee)
+    }
+
+    fn get_last_block_time(&self) -> Result<Timespec> {
+        Ok(self
+            .client
+            .status()?
+            .sync_info
+            .latest_block_time
+            .duration_since(Time::unix_epoch())
+            .unwrap()
+            .as_secs())
     }
 }
 
@@ -233,7 +246,15 @@ where
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
     ) -> Result<TxAux> {
+        let last_block_time = self.get_last_block_time()?;
         let staked_state = self.get_staked_state(name, passphrase, from_address)?;
+
+        if staked_state.unbonded_from > last_block_time {
+            return Err(Error::new(
+                ErrorKind::ValidationError,
+                "Staking state is not yet unbonded",
+            ));
+        }
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -481,11 +502,13 @@ mod tests {
     use chain_tx_validation::witness::verify_tx_recover_address;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::lite;
+    use client_common::tendermint::mock;
     use client_common::tendermint::types::*;
     use client_common::{PrivateKey, PublicKey, Transaction};
     use client_core::signer::WalletSignerManager;
     use client_core::types::WalletKind;
     use client_core::wallet::DefaultWalletClient;
+
     #[derive(Debug)]
     struct MockTransactionCipher;
 
@@ -623,7 +646,14 @@ mod tests {
         }
 
         fn status(&self) -> Result<Status> {
-            unreachable!()
+            Ok(Status {
+                sync_info: status::SyncInfo {
+                    latest_block_height: Height::default(),
+                    latest_app_hash: None,
+                    ..mock::sync_info()
+                },
+                ..mock::status_response()
+            })
         }
 
         fn block(&self, _: u64) -> Result<Block> {

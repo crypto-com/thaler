@@ -24,6 +24,7 @@ use enclave_t_common::check_unseal;
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::Secp256k1;
 use sgx_tseal::SgxSealedData;
+use std::convert::TryInto;
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::prelude::v1::*;
@@ -34,8 +35,6 @@ use std::vec::Vec;
 mod attest;
 /// utility for generating the TLS cert with the RA payload
 mod cert;
-
-const TIMEOUT_SEC: u64 = 5;
 
 extern "C" {
     pub fn ocall_encrypt_request(
@@ -56,15 +55,18 @@ extern "C" {
 }
 
 fn process_decryption_request(body: &DecryptionRequestBody) -> Option<DecryptionResponse> {
-    let txids_enc = body.txs.encode();
+    let request = EnclaveRequest::GetSealedTxData {
+        txids: body.txs.clone(),
+    };
+    let req = request.encode();
     // TODO: check tx size
     let mut inputs_buf = vec![0u8; body.txs.len() * 8000];
     let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
     let result = unsafe {
         ocall_get_txs(
             &mut rt as *mut sgx_status_t,
-            txids_enc.as_ptr(),
-            txids_enc.len() as u32,
+            req.as_ptr(),
+            req.len() as u32,
             inputs_buf.as_mut_ptr(),
             inputs_buf.len() as u32,
         )
@@ -72,18 +74,18 @@ fn process_decryption_request(body: &DecryptionRequestBody) -> Option<Decryption
     if result != sgx_status_t::SGX_SUCCESS || rt != sgx_status_t::SGX_SUCCESS {
         return None;
     }
-    let inputs_enc: Result<Vec<Vec<u8>>, parity_scale_codec::Error> =
-        Decode::decode(&mut inputs_buf.as_slice());
-    if let Ok(inputs) = inputs_enc {
-        check_unseal(
+    match EnclaveResponse::decode(&mut inputs_buf.as_slice()) {
+        Ok(EnclaveResponse::GetSealedTxData(Some(inputs))) => check_unseal(
             Some(body.view_key),
             true,
             body.txs.iter().map(|x| *x),
             inputs,
         )
-        .map(|txs| DecryptionResponse { txs })
-    } else {
-        None
+        .map(|txs| DecryptionResponse { txs }),
+        _ => {
+            // println!("failed to decode a response for obtaining sealed data");
+            None
+        }
     }
 }
 
@@ -261,13 +263,14 @@ fn handle_encryption_request(
 /// - unseales the transactions and checks if the metadata contains the view key in the request
 /// - if so, it includes the transaction in the reply and sends it back
 #[no_mangle]
-pub extern "C" fn run_server(socket_fd: c_int) -> sgx_status_t {
+pub extern "C" fn run_server(socket_fd: c_int, timeout: c_int) -> sgx_status_t {
     let mut sess = rustls::ServerSession::new(&attest::get_tls_config());
     let mut conn = TcpStream::new(socket_fd).unwrap();
-    #[cfg(not(feature = "sgx-test"))]
-    let _ = conn.set_read_timeout(Some(Duration::new(TIMEOUT_SEC, 0)));
-    #[cfg(not(feature = "sgx-test"))]
-    let _ = conn.set_write_timeout(Some(Duration::new(TIMEOUT_SEC, 0)));
+    if timeout > 0 {
+        let utimeout = timeout.try_into().unwrap();
+        let _ = conn.set_read_timeout(Some(Duration::new(utimeout, 0)));
+        let _ = conn.set_write_timeout(Some(Duration::new(utimeout, 0)));
+    }
     let mut tls = rustls::Stream::new(&mut sess, &mut conn);
     let mut plain = vec![0; ENCRYPTION_REQUEST_SIZE];
     match tls.read(&mut plain) {

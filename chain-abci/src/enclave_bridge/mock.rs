@@ -2,9 +2,11 @@
 ///! TODO: feature-guard when workspaces can be built with --features flag: https://github.com/rust-lang/cargo/issues/5015
 use super::*;
 use crate::storage::Storage;
+#[cfg(feature = "mock-enc-dec")]
 use crate::storage::COL_BODIES;
 use abci::{RequestQuery, ResponseQuery};
 use chain_core::state::account::DepositBondTx;
+#[cfg(feature = "mock-enc-dec")]
 use chain_core::tx::data::input::TxoIndex;
 use chain_core::tx::data::TxId;
 use chain_core::tx::PlainTxAux;
@@ -14,6 +16,7 @@ use chain_core::tx::TxObfuscated;
 use chain_core::tx::TxWithOutputs;
 use chain_tx_filter::BlockFilter;
 use chain_tx_validation::{verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw};
+#[cfg(feature = "mock-enc-dec")]
 use enclave_protocol::{
     DecryptionRequest, DecryptionRequestBody, DecryptionResponse, EncryptionRequest,
     EncryptionResponse,
@@ -23,9 +26,9 @@ use std::collections::HashMap;
 
 /// TODO: Remove
 #[cfg(not(feature = "mock-enc-dec"))]
-pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Storage) {
+pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, _storage: &Storage) {
     let msg = "received a temporary *mock* (non-enclave) encryption/decryption query in abci (use the dedicated enclaves instead)";
-    warn!(msg);
+    warn!("{}", msg);
     resp.log += msg;
     resp.code = 1;
 }
@@ -33,7 +36,10 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
 /// temporary mock
 #[cfg(feature = "mock-enc-dec")]
 pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Storage) {
-    warn!("received a temporary *mock* (non-enclave) encryption/decryption query in abci");
+    warn!(
+        "{}",
+        "received a temporary *mock* (non-enclave) encryption/decryption query in abci"
+    );
     match _req.path.as_ref() {
         // FIXME: temporary mock
         "mockencrypt" => {

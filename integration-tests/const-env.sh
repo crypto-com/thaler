@@ -3,7 +3,7 @@ set -e
 IFS=
 
 export WALLET_PASSPHRASE=${WALLET_PASSPHRASE:-123456}
-export TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.32.0}
+export TENDERMINT_VERSION=${TENDERMINT_VERSION:-0.32.8}
 export SGX_MODE=${SGX_MODE:-SW}
 export DOCKER_SGX_DEVICE_BINDING="/dev/zero:/dev/dummy"
 if [ ! -z "${DRONE}" ]; then
@@ -14,6 +14,7 @@ fi
 # Constants (No not modify unless you are absolutely sure what you are doing)
 export CHAIN_DOCKER_IMAGE="integration-tests-chain"
 export CHAIN_TX_ENCLAVE_DOCKER_IMAGE="integration-tests-chain-tx-enclave"
+export CHAIN_TX_ENCLAVE_QUERY_DOCKER_IMAGE="integration-tests-chain-tx-enclave-query"
 export DOCKER_DATA_DIRECTORY="docker-data"
 export TENDERMINT_TEMP_DIRECTORY="${DOCKER_DATA_DIRECTORY}/temp/tendermint"
 export TENDERMINT_WITHFEE_DIRECTORY="${DOCKER_DATA_DIRECTORY}/withfee/tendermint"

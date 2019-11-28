@@ -81,7 +81,7 @@ where
 
             let transactions = self
                 .transaction_obfuscation
-                .decrypt(&block_header.transaction_ids, &private_key)?;
+                .decrypt(&block_header.enclave_transaction_ids, &private_key)?;
 
             for transaction in transactions {
                 self.transaction_handler.on_next(
@@ -133,9 +133,8 @@ mod tests {
             transaction_ids: &[TxId],
             _private_key: &PrivateKey,
         ) -> Result<Vec<Transaction>> {
-            assert_eq!(2, transaction_ids.len());
+            assert_eq!(1, transaction_ids.len());
             assert_eq!(transfer_transaction().id(), transaction_ids[0]);
-            assert_eq!(unbond_transaction().id(), transaction_ids[1]);
             Ok(vec![transfer_transaction()])
         }
 
@@ -202,6 +201,7 @@ mod tests {
             block_height: 1,
             block_time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             transaction_ids,
+            enclave_transaction_ids: vec![transfer_transaction().id()],
             block_filter,
             unencrypted_transactions: vec![unbond_transaction()],
         }
