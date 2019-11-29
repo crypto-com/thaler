@@ -3,7 +3,8 @@ use std::str::FromStr;
 
 use secstr::SecUtf8;
 use serde_json;
-use signatory::{ed25519, PublicKeyed};
+use signatory::ed25519;
+use signatory::public_key::PublicKeyed;
 use signatory_dalek::Ed25519Signer;
 use signature::Signer;
 use subtle_encoding::{base64, hex};
@@ -477,8 +478,8 @@ fn gen_network_params(
             monetary_expansion_cap: expansion_cap,
             distribution_period: 24 * 60 * 60, // distribute once per day
             monetary_expansion_r0: "0.5".parse().unwrap(),
-            monetary_expansion_tau: "10000000000".parse().unwrap(),
-            monetary_expansion_decay: "0.95".parse().unwrap(),
+            monetary_expansion_tau: 166666600,
+            monetary_expansion_decay: 999860,
         },
         max_validators: 50,
     }

@@ -1,8 +1,8 @@
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::{
-    InitConfig, InitNetworkParameters, JailingParameters, SlashRatio, SlashingParameters,
-    ValidatorKeyType, ValidatorPubkey,
+    InitConfig, InitNetworkParameters, JailingParameters, RewardsParameters, SlashRatio,
+    SlashingParameters, ValidatorKeyType, ValidatorPubkey,
 };
 use chain_core::state::account::StakedStateDestination;
 use chain_core::tx::fee::{LinearFee, Milli};
@@ -50,9 +50,10 @@ fn test_verify_test_example_snapshot() {
     let constant_fee = Milli::new(1, 25);
     let coefficient_fee = Milli::new(1, 1);
     let fee_policy = LinearFee::new(constant_fee, coefficient_fee);
-    let params = InitNetworkParameters {
+    let expansion_cap = Coin::new(951_6484_5705_9733_7034).unwrap();
+    let mut params = InitNetworkParameters {
         initial_fee_policy: fee_policy,
-        required_council_node_stake: Coin::new(50_000_000_0000_0000).unwrap(),
+        required_council_node_stake: Coin::new(5000_0000_0000_0000).unwrap(),
         unbonding_period: 86400,
         jailing_config: JailingParameters {
             jail_duration: 86400,
@@ -64,17 +65,23 @@ fn test_verify_test_example_snapshot() {
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
         },
+        rewards_config: RewardsParameters {
+            monetary_expansion_cap: expansion_cap,
+            distribution_period: 24 * 60 * 60,
+            monetary_expansion_r0: "0.5".parse().unwrap(),
+            monetary_expansion_tau: 166666600,
+            monetary_expansion_decay: 999860,
+        },
         max_validators: 1,
     };
 
-    let rewards_pool = Coin::new(9516484570597337034).unwrap();
-    let config = InitConfig::new(rewards_pool, dist.clone(), params.clone(), nodes.clone());
+    let config = InitConfig::new(dist.clone(), params.clone(), nodes.clone());
     let result = config.validate_config_get_genesis(0);
     assert!(result.is_ok());
 
     // add 1 into rewards_pool
-    let rewards_pool = Coin::new(9516484570597337035).unwrap();
-    let config = InitConfig::new(rewards_pool, dist, params, nodes);
+    params.rewards_config.monetary_expansion_cap = Coin::new(951_6484_5705_9733_7035).unwrap();
+    let config = InitConfig::new(dist, params, nodes);
     let result = config.validate_config_get_genesis(0);
     assert!(result.is_err());
 }

@@ -89,10 +89,10 @@ pub fn create_storage() -> (Storage, AccountStorage) {
     )
 }
 
-pub fn get_init_network_params(share: Coin, expansion_cap: Coin) -> InitNetworkParameters {
+pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
     InitNetworkParameters {
         initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
-        required_council_node_stake: share,
+        required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
         jailing_config: JailingParameters {
             jail_duration: 60,
@@ -108,10 +108,10 @@ pub fn get_init_network_params(share: Coin, expansion_cap: Coin) -> InitNetworkP
             monetary_expansion_cap: expansion_cap,
             distribution_period: 24 * 60 * 60, // distribute once per day
             monetary_expansion_r0: "0.5".parse().unwrap(),
-            monetary_expansion_tau: "10000000000".parse().unwrap(),
-            monetary_expansion_decay: "0.95".parse().unwrap(),
+            monetary_expansion_tau: "145000000".parse().unwrap(),
+            monetary_expansion_decay: "999860".parse().unwrap(),
         },
-        max_validators: 1,
+        max_validators: 50,
     }
 }
 
@@ -201,7 +201,7 @@ impl ChainEnv {
             .collect();
 
         let share = (dist_coin / (accounts.len() as u64)).unwrap();
-        let mut init_network_params = get_init_network_params(share, expansion_cap);
+        let mut init_network_params = get_init_network_params(expansion_cap);
         customize_network_params(&mut init_network_params);
 
         let mut distribution = BTreeMap::new();

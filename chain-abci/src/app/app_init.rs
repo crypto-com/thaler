@@ -91,11 +91,16 @@ pub struct ChainNodeState {
     pub last_account_root_hash: StarlingFixedKey,
     /// last rewards pool state
     pub rewards_pool: RewardsPoolState,
+    /// Record how many block each validator proposed, used for rewards distribution,
+    /// cleared after rewards distributed
+    pub proposer_stats: BTreeMap<StakedStateAddress, u64>,
     /// network parameters (fee policy, staking configuration etc.)
     pub network_params: NetworkParameters,
     /// state of validators (keys, voting power, punishments, rewards...)
     #[serde(skip)]
     pub validators: ValidatorState,
+    /// genesis time
+    pub genesis_time: Timespec,
 }
 
 impl ChainNodeState {
@@ -113,8 +118,10 @@ impl ChainNodeState {
             block_time: genesis_time,
             last_account_root_hash,
             rewards_pool,
+            proposer_stats: BTreeMap::new(),
             network_params,
             validators,
+            genesis_time,
         }
     }
 }

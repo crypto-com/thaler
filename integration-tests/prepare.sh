@@ -165,7 +165,6 @@ EOF
 
 DEV_CONF=$(cat << EOF
 {
-    "rewards_pool": "6250000000000000000",
     "distribution": {
         "{STAKING_ADDRESS}": "2500000000000000000",
         "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": "1250000000000000000"
@@ -185,6 +184,13 @@ DEV_CONF=$(cat << EOF
     "initial_fee_policy": {
         "base_fee": "{BASE_FEE}",
         "per_byte_fee": "{PER_BYTE_FEE}"
+    },
+    "rewards_config": {
+        "monetary_expansion_cap": "6250000000000000000",
+        "distribution_period": 86400,
+        "monetary_expansion_r0": 500,
+        "monetary_expansion_tau": 166666600,
+        "monetary_expansion_decay": 999860
     },
     "council_nodes": {
         "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": [

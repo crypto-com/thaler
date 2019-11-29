@@ -14,6 +14,13 @@ subtle-encoding = { version = "0.5", features = ["bech32-preview"] }
 secstr = { version = "0.3.2", features = ["serde"] }
 lazy_static  = { version = "1.4", features = ["spin_no_std"] }
 signature = "1.0.0-pre.1"
+abci = "0.6"
+kvdb-memorydb = "0.1"
+protobuf = "2.7.0"
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "8b9a38b870a7759fcdbd4a5d435b5ba873c70afd", features = ["recovery", "endomorphism"] }
+parity-scale-codec = { features = ["derive"], version = "1.1" }
+base64 = "0.11"
+hex = "0.4"
 
 tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "8e95731ee671777638ab2a3d5dfd7b35992b86aa" }
 chain-core = { path = "../chain-core" }
