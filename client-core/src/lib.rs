@@ -36,9 +36,9 @@ pub use crate::mnemonic::Mnemonic;
 #[doc(inline)]
 pub use crate::service::WalletStateMemento;
 #[doc(inline)]
-pub use crate::signer::Signer;
+pub use crate::signer::{SignCondition, Signer};
 #[doc(inline)]
-pub use crate::transaction_builder::TransactionBuilder;
+pub use crate::transaction_builder::WalletTransactionBuilder;
 #[doc(inline)]
 pub use crate::unspent_transactions::{SelectedUnspentTransactions, UnspentTransactions};
 #[doc(inline)]

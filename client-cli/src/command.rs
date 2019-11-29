@@ -25,9 +25,9 @@ use client_core::cipher::DefaultTransactionObfuscation;
 #[cfg(feature = "mock-enc-dec")]
 use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
-use client_core::signer::DefaultSigner;
+use client_core::signer::WalletSignerManager;
 use client_core::synchronizer::{ManualSynchronizer, ProgressReport};
-use client_core::transaction_builder::DefaultTransactionBuilder;
+use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::types::BalanceChange;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_core::BlockHandler;
@@ -170,11 +170,11 @@ impl Command {
             } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
-                let signer = DefaultSigner::new(storage.clone());
+                let signer_manager = WalletSignerManager::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
                 let transaction_obfuscation = get_tx_query(tendermint_client.clone())?;
-                let transaction_builder = DefaultTransactionBuilder::new(
-                    signer.clone(),
+                let transaction_builder = DefaultWalletTransactionBuilder::new(
+                    signer_manager.clone(),
                     fee_algorithm,
                     transaction_obfuscation.clone(),
                 );
@@ -186,7 +186,7 @@ impl Command {
                 );
                 let network_ops_client = DefaultNetworkOpsClient::new(
                     wallet_client,
-                    signer,
+                    signer_manager,
                     tendermint_client,
                     fee_algorithm,
                     transaction_obfuscation,
@@ -197,11 +197,11 @@ impl Command {
             Command::StakedState { name, address } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
-                let signer = DefaultSigner::new(storage.clone());
+                let signer_manager = WalletSignerManager::new(storage.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
                 let transaction_obfuscation = get_tx_query(tendermint_client.clone())?;
-                let transaction_builder = DefaultTransactionBuilder::new(
-                    signer.clone(),
+                let transaction_builder = DefaultWalletTransactionBuilder::new(
+                    signer_manager.clone(),
                     fee_algorithm,
                     transaction_obfuscation.clone(),
                 );
@@ -213,7 +213,7 @@ impl Command {
 
                 let network_ops_client = DefaultNetworkOpsClient::new(
                     wallet_client,
-                    signer,
+                    signer_manager,
                     tendermint_client,
                     fee_algorithm,
                     transaction_obfuscation,

@@ -1,27 +1,48 @@
 //! Transaction signing
-mod default_signer;
 mod dummy_signer;
+mod key_pair_signer;
 mod unauthorized_signer;
+mod wallet_signer;
 
-pub use default_signer::DefaultSigner;
 pub use dummy_signer::DummySigner;
+pub use key_pair_signer::KeyPairSigner;
 pub use unauthorized_signer::UnauthorizedSigner;
+pub use wallet_signer::{WalletSigner, WalletSignerManager};
 
-use secstr::SecUtf8;
-
-use chain_core::tx::witness::TxWitness;
+use chain_core::tx::data::address::ExtendedAddr;
+use chain_core::tx::witness::{TxInWitness, TxWitness};
 use client_common::Result;
 
 use crate::SelectedUnspentTransactions;
 
-/// Interface for signing transactions
+/// Interface for signing message and transactions
 pub trait Signer: Send + Sync {
-    /// Signs given transaction with private keys corresponding to selected unspent transactions
-    fn sign<T: AsRef<[u8]>>(
+    /// Signs given transaction with private keys corresponding to selected
+    /// unspent transactions
+    fn schnorr_sign_transaction<T: AsRef<[u8]>>(
         &self,
-        name: &str,
-        passphrase: &SecUtf8,
         message: T,
         selected_unspent_transactions: &SelectedUnspentTransactions<'_>,
     ) -> Result<TxWitness>;
+
+    /// Returns the sign condition of an address to the signer
+    fn schnorr_sign_condition(&self, signing_addr: &ExtendedAddr) -> Result<SignCondition>;
+
+    /// Sign given message with private key corresponding to provided address
+    /// using schnorr signature
+    fn schnorr_sign<'a, T: AsRef<[u8]>>(
+        &self,
+        message: T,
+        signing_addr: &'a ExtendedAddr,
+    ) -> Result<TxInWitness>;
+}
+
+/// Signing condition of an address to the signer
+// TODO: Add MultiSigUnlock condition
+#[derive(PartialEq)]
+pub enum SignCondition {
+    /// can unlock outputs under the address on its own
+    SingleSignUnlock,
+    /// cannot unlock outputs under the address
+    Impossible,
 }

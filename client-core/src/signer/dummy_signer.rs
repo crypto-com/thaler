@@ -1,4 +1,3 @@
-use crate::SelectedUnspentTransactions;
 use chain_core::common::MerkleTree;
 use chain_core::common::H264;
 use chain_core::state::account::{StakedStateOpWitness, WithdrawUnbondedTx};
@@ -47,17 +46,17 @@ impl DummySigner {
         Ok(TxInWitness::TreeSig(mock_signature, proof))
     }
 
-    /// Signs the selected_unspent_transactions
-    pub fn sign_txs(
+    /// Schnorr sign consecutive imaginary inputs of provided length
+    pub fn schnorr_sign_inputs_len(
         &self,
         total_pubkeys_len: usize,
-        selected_unspent_transactions: &SelectedUnspentTransactions<'_>,
+        inputs_len: usize,
     ) -> Result<TxWitness> {
-        selected_unspent_transactions
-            .iter()
-            .map(|_| self.sign_tx(total_pubkeys_len))
-            .collect::<Result<Vec<TxInWitness>>>()
-            .map(Into::into)
+        let dummy_witness = self.sign_tx(total_pubkeys_len)?;
+        Ok(std::iter::repeat(dummy_witness)
+            .take(inputs_len)
+            .collect::<Vec<TxInWitness>>()
+            .into())
     }
 
     /// Mock the txaux for transactions

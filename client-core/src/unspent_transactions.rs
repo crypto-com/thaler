@@ -196,7 +196,7 @@ impl Sorter {
 }
 
 #[cfg(test)]
-mod tests {
+mod unspent_transactions_tests {
     use super::*;
 
     use rand::random;
