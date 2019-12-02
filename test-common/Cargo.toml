@@ -1,5 +1,5 @@
 [package]
-name = "client-mock"
+name = "test-common"
 version = "0.1.0"
 authors = ["yihuang <yi.codeplayer@gmail.com>"]
 edition = "2018"
