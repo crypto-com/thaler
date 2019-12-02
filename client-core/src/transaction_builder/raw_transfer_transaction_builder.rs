@@ -93,7 +93,7 @@ where
             prev_tx_out: input.1,
             witness: None,
         });
-;
+
         self.clear_witness();
     }
 
