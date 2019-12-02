@@ -4,7 +4,7 @@ LABEL maintainer="calvin@crypto.com"
 ENV RUSTFLAGS "-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3"
 
 RUN apt-get update -y && \
-    apt-get install cmake libgflags-dev libzmq3-dev pkg-config -y
+    apt-get install cmake libgflags-dev libzmq3-dev pkg-config clang -y
 
 COPY . .
 

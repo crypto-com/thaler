@@ -5,7 +5,7 @@ RUN echo 'source /opt/sgxsdk/environment' >> /root/.docker_bashrc && \
     echo 'source /root/.cargo/env' >> /root/.docker_bashrc
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends libzmq3-dev rsync && \
+    apt-get install -y --no-install-recommends libzmq3-dev clang && \
     rm -rf /var/lib/apt/lists/*
 
 ARG SGX_MODE=SW
