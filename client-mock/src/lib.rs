@@ -6,7 +6,8 @@ use std::str::FromStr;
 
 use secstr::SecUtf8;
 use serde_json;
-use signatory::{ed25519, PublicKeyed};
+use signatory::ed25519;
+use signatory::public_key::PublicKeyed;
 use signatory_dalek::Ed25519Signer;
 use signature::Signer;
 use subtle_encoding::{base64, hex};
