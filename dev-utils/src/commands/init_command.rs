@@ -35,12 +35,12 @@ pub struct InitCommand {
 
 impl InitCommand {
     pub fn new() -> Self {
-        let rewards_pool = Coin::new(2_500_000_000_000_000_000).unwrap();
+        let expansion_cap = Coin::new(2_500_000_000_000_000_000).unwrap();
         InitCommand {
             chain_id: "".to_string(),
             app_hash: "".to_string(),
             app_state: None,
-            genesis_dev: GenesisDevConfig::new(rewards_pool),
+            genesis_dev: GenesisDevConfig::new(expansion_cap),
             tendermint_pubkey: "".to_string(),
             staking_account_address: "".to_string(),
             other_staking_accounts: vec![],
@@ -135,7 +135,7 @@ impl InitCommand {
 
         loop {
             let i = self.distribution_addresses.len();
-            if self.remain_coin == self.genesis_dev.rewards_pool {
+            if self.remain_coin == self.genesis_dev.rewards_config.monetary_expansion_cap {
                 break;
             }
             let j = i - 1;

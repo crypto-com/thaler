@@ -68,7 +68,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 .slash(schedule.slash_ratio, schedule.punishment_kind)
                 .map_err(|_| Error::InvalidSum)?;
 
-            last_state.rewards_pool.remaining = (last_state.rewards_pool.remaining
+            last_state.rewards_pool.period_bonus = (last_state.rewards_pool.period_bonus
                 + slashed_amount)
                 .map_err(|_| Error::InvalidSum)?;
             self.rewards_pool_updated = true;

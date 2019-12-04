@@ -3,6 +3,7 @@ mod commit;
 mod end_block;
 mod jail_account;
 mod query;
+mod rewards;
 mod slash_accounts;
 mod validate_tx;
 
@@ -117,7 +118,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         info!("received beginblock request");
         // TODO: process RequestBeginBlock -- e.g. rewards for validators? + punishment for malicious ByzantineValidators
         // TODO: Check security implications once https://github.com/tendermint/tendermint/issues/2653 is closed
-        let (block_height, block_time) = match req.header.as_ref() {
+        let (block_height, block_time, proposer_address) = match req.header.as_ref() {
             None => panic!("No block header in begin block request from tendermint"),
             Some(header) => (
                 header.height,
@@ -126,6 +127,8 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     .as_ref()
                     .expect("No timestamp in begin block request from tendermint")
                     .seconds,
+                TendermintValidatorAddress::try_from(header.proposer_address.as_slice())
+                    .expect("invalid proposer_address"),
             ),
         };
 
@@ -251,6 +254,27 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
 
         if !slashing_event.attributes.is_empty() {
             response.events.push(slashing_event);
+        }
+
+        self.rewards_record_proposer(&proposer_address);
+        if let Some((distributed, minted)) = self.rewards_try_distribute() {
+            let mut event = Event::new();
+            event.field_type = TendermintEventType::RewardsDistribution.to_string();
+
+            let mut kvpair = KVPair::new();
+            kvpair.key = TendermintEventKey::RewardsDistribution.into();
+            kvpair.value = serde_json::to_string(&distributed)
+                .expect("encode rewards result failed")
+                .as_bytes()
+                .to_owned();
+            event.attributes.push(kvpair);
+
+            let mut kvpair = KVPair::new();
+            kvpair.key = TendermintEventKey::CoinMinted.into();
+            kvpair.value = minted.to_string().as_bytes().to_owned();
+            event.attributes.push(kvpair);
+
+            response.events.push(event);
         }
 
         response
@@ -386,9 +410,9 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 .as_mut()
                 .expect("deliver tx, but last state not initialized")
                 .rewards_pool;
-            let new_remaining = (rewards_pool.remaining + fee_acc.0.to_coin())
+            let new_remaining = (rewards_pool.period_bonus + fee_acc.0.to_coin())
                 .expect("rewards pool + fee greater than max coin?");
-            rewards_pool.remaining = new_remaining;
+            rewards_pool.period_bonus = new_remaining;
             self.rewards_pool_updated = true;
             // this "buffered write" shouldn't persist (persistence done in commit)
             // but should change it in-memory -- TODO: check

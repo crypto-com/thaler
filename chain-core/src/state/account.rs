@@ -423,6 +423,11 @@ impl StakedState {
 
         Ok(slash_amount)
     }
+
+    pub fn add_reward(&mut self, amount: Coin) -> Result<Coin, CoinError> {
+        self.bonded = (self.bonded + amount)?;
+        Ok(self.bonded)
+    }
 }
 
 /// attributes in StakedState-related transactions

@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate lazy_static;
-
 use std::collections::BTreeMap;
 use std::str::FromStr;
 
@@ -177,7 +174,7 @@ impl Node {
 
 pub struct TestnetSpec {
     pub nodes: Vec<Node>, // validator nodes.
-    pub rewards_pool: Coin,
+    pub expansion_cap: Coin,
     pub base_fee: Milli,
     pub per_byte_fee: Milli,
     pub genesis_time: Time,
@@ -188,7 +185,7 @@ impl TestnetSpec {
     pub fn new(nodes: Vec<Node>) -> TestnetSpec {
         TestnetSpec {
             nodes,
-            rewards_pool: Coin::zero(),
+            expansion_cap: Coin::zero(),
             base_fee: "0.0".parse().unwrap(),
             per_byte_fee: "0.0".parse().unwrap(),
             genesis_time: Time::now(),
@@ -198,7 +195,7 @@ impl TestnetSpec {
 
     pub fn share(&self) -> Coin {
         Coin::new(
-            u64::from((Coin::max() - self.rewards_pool).unwrap()) / self.nodes.len() as u64 / 2,
+            u64::from((Coin::max() - self.expansion_cap).unwrap()) / self.nodes.len() as u64 / 2,
         )
         .unwrap()
     }
@@ -230,9 +227,12 @@ impl TestnetSpec {
         }
 
         InitConfig {
-            rewards_pool: self.rewards_pool,
             distribution,
-            network_params: gen_network_params(self.base_fee, self.per_byte_fee),
+            network_params: gen_network_params(
+                self.base_fee,
+                self.per_byte_fee,
+                self.expansion_cap,
+            ),
             council_nodes,
         }
     }
@@ -452,7 +452,11 @@ impl Client for BlockGenerator {
     }
 }
 
-fn gen_network_params(base_fee: Milli, per_byte_fee: Milli) -> params::InitNetworkParameters {
+fn gen_network_params(
+    base_fee: Milli,
+    per_byte_fee: Milli,
+    expansion_cap: Coin,
+) -> params::InitNetworkParameters {
     params::InitNetworkParameters {
         initial_fee_policy: LinearFee {
             constant: base_fee,
@@ -469,6 +473,13 @@ fn gen_network_params(base_fee: Milli, per_byte_fee: Milli) -> params::InitNetwo
             liveness_slash_percent: params::SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: params::SlashRatio::from_str("0.2").unwrap(),
             slash_wait_period: 10800,
+        },
+        rewards_config: params::RewardsParameters {
+            monetary_expansion_cap: expansion_cap,
+            distribution_period: 24 * 60 * 60, // distribute once per day
+            monetary_expansion_r0: "0.5".parse().unwrap(),
+            monetary_expansion_tau: 166666600,
+            monetary_expansion_decay: 999860,
         },
         max_validators: 50,
     }

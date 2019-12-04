@@ -9,6 +9,7 @@ use crate::state::account::{
 };
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::RewardsPoolState;
+use crate::tx::fee::Milli;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -71,8 +72,6 @@ impl fmt::Display for DistributionError {
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct InitConfig {
-    // initial rewards pool of CRO tokens
-    pub rewards_pool: Coin,
     // Redeem mapping of ERC20 snapshot: Eth address => (StakedStateDestination,CRO tokens)
     // (doesn't include the rewards pool amount)
     pub distribution: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
@@ -92,7 +91,6 @@ pub type GenesisState = (
 impl InitConfig {
     /// creates a new config (mainly for testing / tools)
     pub fn new(
-        rewards_pool: Coin,
         owners: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
         network_params: InitNetworkParameters,
         council_nodes: BTreeMap<
@@ -101,7 +99,6 @@ impl InitConfig {
         >,
     ) -> Self {
         InitConfig {
-            rewards_pool,
             distribution: owners,
             network_params,
             council_nodes,
@@ -221,7 +218,7 @@ impl InitConfig {
         // check the total amount
         match sum_coins(self.distribution.iter().map(|(_, (_, amount))| *amount)) {
             Ok(s) => {
-                let sum_result = s + self.rewards_pool;
+                let sum_result = s + self.network_params.rewards_config.monetary_expansion_cap;
                 match sum_result {
                     Ok(sum) => {
                         if sum != Coin::max() {
@@ -245,7 +242,10 @@ impl InitConfig {
         }
 
         let accounts = self.get_account(genesis_time);
-        let rewards_pool = RewardsPoolState::new(self.rewards_pool, 0);
+        let rewards_pool = RewardsPoolState::new(
+            genesis_time,
+            Milli::integral(self.network_params.rewards_config.monetary_expansion_tau as u64),
+        );
         Ok((accounts, rewards_pool, validators?))
     }
 }

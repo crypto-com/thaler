@@ -13,7 +13,7 @@
 !/client-core
 !/client-network
 !/client-rpc
-!/client-mock
+!/test-common
 !/dev-utils
 !/enclave-protocol
 !Carog.lock

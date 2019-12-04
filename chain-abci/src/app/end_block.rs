@@ -188,7 +188,7 @@ mod tests {
     use chain_core::init::coin::Coin;
     use chain_core::init::params::InitNetworkParameters;
     use chain_core::init::params::{
-        JailingParameters, NetworkParameters, SlashRatio, SlashingParameters,
+        JailingParameters, NetworkParameters, RewardsParameters, SlashRatio, SlashingParameters,
     };
     use chain_core::state::tendermint::TendermintValidatorPubKey;
     use chain_core::state::RewardsPoolState;
@@ -205,7 +205,6 @@ mod tests {
         let genesis_app_hash = H256::default();
         let genesis_time = 0;
         let new_account_root = StarlingFixedKey::default();
-        let rewards_pool = RewardsPoolState::new(Coin::one(), 0);
         let network_params = NetworkParameters::Genesis(InitNetworkParameters {
             initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
             required_council_node_stake: Coin::one(),
@@ -220,8 +219,19 @@ mod tests {
                 byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
                 slash_wait_period: 30,
             },
+            rewards_config: RewardsParameters {
+                monetary_expansion_cap: Coin::new(1_0000_0000).unwrap(),
+                distribution_period: 24 * 60 * 60, // distribute each block
+                monetary_expansion_r0: "0.5".parse().unwrap(),
+                monetary_expansion_tau: 166666600,
+                monetary_expansion_decay: 999860,
+            },
             max_validators: 2,
         });
+        let rewards_pool = RewardsPoolState::new(
+            genesis_time,
+            Milli::integral(network_params.get_rewards_monetary_expansion_tau() as u64),
+        );
         let v1_address: StakedStateAddress =
             StakedStateAddress::from(RedeemAddress::from([0u8; 20]));
         let v1_key = TendermintValidatorPubKey::Ed25519([0u8; 32]);

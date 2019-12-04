@@ -64,14 +64,10 @@ impl GenesisCommand {
             unbonding_period: genesis_dev.unbonding_period,
             jailing_config: genesis_dev.jailing_config,
             slashing_config: genesis_dev.slashing_config,
+            rewards_config: genesis_dev.rewards_config,
             max_validators: 50,
         };
-        let config = InitConfig::new(
-            genesis_dev.rewards_pool,
-            dist,
-            network_params,
-            genesis_dev.council_nodes.clone(),
-        );
+        let config = InitConfig::new(dist, network_params, genesis_dev.council_nodes.clone());
         let genesis_app_hash = init_app_hash(
             &config,
             genesis_dev

@@ -30,6 +30,8 @@ pub struct InitNetworkParameters {
     pub jailing_config: JailingParameters,
     /// Slashing configuration
     pub slashing_config: SlashingParameters,
+    /// Rewards configuration
+    pub rewards_config: RewardsParameters,
     /// maximum number of active validators at a time (may be reshuffled)
     pub max_validators: u16,
 }
@@ -106,6 +108,36 @@ impl NetworkParameters {
         }
     }
 
+    pub fn get_rewards_distribution_period(&self) -> u32 {
+        match self {
+            NetworkParameters::Genesis(params) => params.rewards_config.distribution_period,
+        }
+    }
+
+    pub fn get_rewards_monetary_expansion_r0(&self) -> Milli {
+        match self {
+            NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_r0,
+        }
+    }
+
+    pub fn get_rewards_monetary_expansion_tau(&self) -> u32 {
+        match self {
+            NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_tau,
+        }
+    }
+
+    pub fn get_rewards_monetary_expansion_decay(&self) -> u32 {
+        match self {
+            NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_decay,
+        }
+    }
+
+    pub fn get_rewards_monetary_expansion_cap(&self) -> Coin {
+        match self {
+            NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_cap,
+        }
+    }
+
     pub fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError> {
         match self {
             NetworkParameters::Genesis(params) => {
@@ -137,6 +169,21 @@ pub struct SlashingParameters {
     pub byzantine_slash_percent: SlashRatio,
     /// Time (in seconds) to wait before slashing funds from an account
     pub slash_wait_period: u32,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct RewardsParameters {
+    /// Maximum monetary expansion for rewards.
+    pub monetary_expansion_cap: Coin,
+    /// Time inteval in seconds to do rewards distribution
+    pub distribution_period: u32,
+    /// Monetary expansion formula parameter
+    pub monetary_expansion_r0: Milli,
+    /// Monetary expansion formula parameter
+    pub monetary_expansion_tau: u32,
+    /// Monetary expansion formula parameter
+    pub monetary_expansion_decay: u32,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Encode, Decode)]

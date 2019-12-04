@@ -40,7 +40,6 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
     ],
     "app_hash": "92AA35815C976AE33FD6042DF445D032B4F0C761EEA24292E6CC73CC3EE18B72",
     "app_state": {
-        "rewards_pool": "6250000000000000000",
         "distribution": {
             "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": [
                 "Bonded",
@@ -67,6 +66,13 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
                 "liveness_slash_percent": "0.100",
                 "byzantine_slash_percent": "0.200",
                 "slash_wait_period": 10800
+            },
+            "rewards_config": {
+                "monetary_expansion_cap": "6250000000000000000",
+                "distribution_period": 86400,
+                "monetary_expansion_r0": 500,
+                "monetary_expansion_tau": 145000000,
+                "monetary_expansion_decay": 999860
             },
             "max_validators": 50
         },

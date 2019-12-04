@@ -1,8 +1,12 @@
+use std::borrow::ToOwned;
 use std::fmt;
 use std::prelude::v1::{String, Vec};
+use std::string::ToString;
 
 use digest::Digest;
 
+/// Fixed point arithmetic
+pub mod fixed;
 /// Generic merkle tree
 mod merkle_tree;
 
@@ -34,6 +38,7 @@ pub enum TendermintEventType {
     BlockFilter,
     JailValidators,
     SlashValidators,
+    RewardsDistribution,
 }
 
 impl fmt::Display for TendermintEventType {
@@ -43,6 +48,7 @@ impl fmt::Display for TendermintEventType {
             TendermintEventType::BlockFilter => write!(f, "block_filter"),
             TendermintEventType::JailValidators => write!(f, "jail_validators"),
             TendermintEventType::SlashValidators => write!(f, "slash_validators"),
+            TendermintEventType::RewardsDistribution => write!(f, "rewards_distribution"),
         }
     }
 }
@@ -54,6 +60,8 @@ pub enum TendermintEventKey {
     Fee,
     TxId,
     EthBloom,
+    RewardsDistribution,
+    CoinMinted,
 }
 
 impl From<TendermintEventKey> for Vec<u8> {
@@ -74,15 +82,23 @@ impl PartialEq<Vec<u8>> for TendermintEventKey {
     }
 }
 
+impl fmt::Display for TendermintEventKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TendermintEventKey::Account => write!(f, "account"),
+            TendermintEventKey::Fee => write!(f, "fee"),
+            TendermintEventKey::TxId => write!(f, "txid"),
+            TendermintEventKey::EthBloom => write!(f, "ethbloom"),
+            TendermintEventKey::RewardsDistribution => write!(f, "dist"),
+            TendermintEventKey::CoinMinted => write!(f, "minted"),
+        }
+    }
+}
+
 impl TendermintEventKey {
     #[inline]
     pub fn to_vec(self) -> Vec<u8> {
-        match self {
-            TendermintEventKey::Account => Vec::from(&b"account"[..]),
-            TendermintEventKey::Fee => Vec::from(&b"fee"[..]),
-            TendermintEventKey::TxId => Vec::from(&b"txid"[..]),
-            TendermintEventKey::EthBloom => Vec::from(&b"ethbloom"[..]),
-        }
+        self.to_string().as_bytes().to_owned()
     }
 
     #[inline]
@@ -92,6 +108,8 @@ impl TendermintEventKey {
             TendermintEventKey::Fee => String::from("ZmVl"),
             TendermintEventKey::TxId => String::from("dHhpZA=="),
             TendermintEventKey::EthBloom => String::from("ZXRoYmxvb20="),
+            TendermintEventKey::RewardsDistribution => String::from("ZGlzdA=="),
+            TendermintEventKey::CoinMinted => String::from("bWludGVk"),
         }
     }
 }

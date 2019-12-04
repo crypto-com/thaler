@@ -19,7 +19,7 @@ use static_assertions::const_assert;
 use std::convert::TryFrom;
 use std::{fmt, ops, result};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode, Default)]
 pub struct Coin(u64);
 
 /// error type relating to `Coin` operations
@@ -33,6 +33,10 @@ pub enum CoinError {
     ParseIntError,
 
     Negative,
+
+    DividByZero,
+
+    Overflow,
 }
 
 #[cfg(feature = "serde")]
@@ -87,6 +91,8 @@ impl fmt::Display for CoinError {
             ),
             CoinError::ParseIntError => write!(f, "Cannot parse a valid integer"),
             CoinError::Negative => write!(f, "Coin cannot hold a negative value"),
+            CoinError::DividByZero => write!(f, "Coin divide by zero"),
+            CoinError::Overflow => write!(f, "Coin overflow"),
         }
     }
 }
@@ -200,6 +206,36 @@ impl ops::Sub<Coin> for CoinResult {
         } else {
             Ok(Coin(self?.0 - other.0))
         }
+    }
+}
+
+impl ops::Mul<u64> for Coin {
+    type Output = CoinResult;
+    fn mul(self, mul: u64) -> CoinResult {
+        self.0
+            .checked_mul(mul)
+            .ok_or(CoinError::Overflow)
+            .and_then(Coin::new)
+    }
+}
+
+impl ops::Div<u64> for Coin {
+    type Output = CoinResult;
+    fn div(self, modulus: u64) -> CoinResult {
+        self.0
+            .checked_div(modulus)
+            .ok_or(CoinError::DividByZero)
+            .map(Coin)
+    }
+}
+
+impl ops::Rem<u64> for Coin {
+    type Output = CoinResult;
+    fn rem(self, modulus: u64) -> CoinResult {
+        self.0
+            .checked_rem(modulus)
+            .ok_or(CoinError::DividByZero)
+            .map(Coin)
     }
 }
 
