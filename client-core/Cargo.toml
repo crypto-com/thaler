@@ -26,7 +26,7 @@ rustls =  {version = "0.16", features = ["dangerous_configuration"]}
 yasna = { version = "0.3.0", features = ["bit-vec", "num-bigint", "chrono"] }
 bit-vec = "0.6.1"
 num-bigint = "0.2.3"
-serde_json = "1.0.42"
+serde_json = "1.0.44"
 uuid = { version = "0.8.1", features = ["v4"] }
 websocket = "0.24.0"
 jsonrpc-core = "14.0"
