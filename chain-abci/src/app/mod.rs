@@ -11,7 +11,8 @@ use abci::*;
 use log::info;
 
 pub use self::app_init::{
-    get_validator_key, init_app_hash, ChainNodeApp, ChainNodeState, ValidatorState,
+    compute_accounts_root, get_validator_key, init_app_hash, ChainNodeApp, ChainNodeState,
+    ValidatorState,
 };
 use crate::enclave_bridge::EnclaveProxy;
 use crate::slashing::SlashingSchedule;
@@ -167,13 +168,19 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
 
                 accounts_to_punish.push((
                     account_address,
-                    last_state.network_params.get_byzantine_slash_percent(),
+                    last_state
+                        .top_level
+                        .network_params
+                        .get_byzantine_slash_percent(),
                     PunishmentKind::ByzantineFault,
                 ))
             }
         }
 
-        let missed_block_threshold = last_state.network_params.get_missed_block_threshold();
+        let missed_block_threshold = last_state
+            .top_level
+            .network_params
+            .get_missed_block_threshold();
 
         accounts_to_punish.extend(
             last_state
@@ -188,14 +195,14 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     (
                         *last_state.validators.tendermint_validator_addresses.get(tendermint_validator_address)
                             .expect("Staking account address for tendermint validator address not found"),
-                        last_state.network_params.get_liveness_slash_percent(),
+                        last_state.top_level.network_params.get_liveness_slash_percent(),
                         PunishmentKind::NonLive,
                     )
                 }),
         );
 
         let slashing_time =
-            last_state.block_time + last_state.network_params.get_slash_wait_period();
+            last_state.block_time + last_state.top_level.network_params.get_slash_wait_period();
         let slashing_proportion =
             self.get_slashing_proportion(accounts_to_punish.iter().map(|x| x.0));
 
@@ -370,6 +377,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                             self.last_state
                                 .as_ref()
                                 .expect("delivertx should have app state")
+                                .top_level
                                 .network_params
                                 .get_required_council_node_stake(),
                         );
@@ -409,6 +417,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 .last_state
                 .as_mut()
                 .expect("deliver tx, but last state not initialized")
+                .top_level
                 .rewards_pool;
             let new_remaining = (rewards_pool.period_bonus + fee_acc.0.to_coin())
                 .expect("rewards pool + fee greater than max coin?");

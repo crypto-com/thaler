@@ -68,9 +68,9 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 .slash(schedule.slash_ratio, schedule.punishment_kind)
                 .map_err(|_| Error::InvalidSum)?;
 
-            last_state.rewards_pool.period_bonus = (last_state.rewards_pool.period_bonus
-                + slashed_amount)
-                .map_err(|_| Error::InvalidSum)?;
+            last_state.top_level.rewards_pool.period_bonus =
+                (last_state.top_level.rewards_pool.period_bonus + slashed_amount)
+                    .map_err(|_| Error::InvalidSum)?;
             self.rewards_pool_updated = true;
 
             let (new_root, _) = update_account(
@@ -113,7 +113,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                         TendermintVotePower::from(
                             get_account(
                                 &address,
-                                &last_state.last_account_root_hash,
+                                &last_state.top_level.account_root,
                                 &self.accounts,
                             )
                             .expect("Voting power for a validator not found")

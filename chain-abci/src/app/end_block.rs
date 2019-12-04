@@ -96,7 +96,7 @@ fn get_validator_updates(
         .council_nodes_by_power
         .iter()
         .rev()
-        .take(last_state.network_params.get_max_validators())
+        .take(last_state.top_level.network_params.get_max_validators())
     {
         let old_power = validator_voting_power.get(&address);
         let create_update = match old_power {
@@ -138,7 +138,10 @@ fn get_validator_updates(
             }
         }
     }
-    let window = last_state.network_params.get_block_signing_window();
+    let window = last_state
+        .top_level
+        .network_params
+        .get_block_signing_window();
     while let Some((validator_address, staking_address)) = new_to_track.pop() {
         last_state.validators.add_validator_for_tracking(
             validator_address,

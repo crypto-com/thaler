@@ -3,6 +3,7 @@ use std::convert::TryInto;
 
 use abci::*;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
+use integer_encoding::VarInt;
 use kvdb::DBTransaction;
 use log::{info, warn};
 use parity_scale_codec::{Decode, Encode};
@@ -28,7 +29,7 @@ use chain_core::init::config::NetworkParameters;
 use chain_core::state::account::StakedStateDestination;
 use chain_core::state::account::{CouncilNode, StakedState, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
-use chain_core::state::RewardsPoolState;
+use chain_core::state::{ChainState, RewardsPoolState};
 use chain_core::tx::TxAux;
 
 /// Validator state tracking
@@ -87,27 +88,24 @@ pub struct ChainNodeState {
     pub last_apphash: H256,
     /// time in previous block's header or genesis time
     pub block_time: Timespec,
-    /// root hash of the sparse merkle patricia trie of staking account states
-    pub last_account_root_hash: StarlingFixedKey,
-    /// last rewards pool state
-    pub rewards_pool: RewardsPoolState,
     /// Record how many block each validator proposed, used for rewards distribution,
     /// cleared after rewards distributed
     pub proposer_stats: BTreeMap<StakedStateAddress, u64>,
-    /// network parameters (fee policy, staking configuration etc.)
-    pub network_params: NetworkParameters,
     /// state of validators (keys, voting power, punishments, rewards...)
     #[serde(skip)]
     pub validators: ValidatorState,
     /// genesis time
     pub genesis_time: Timespec,
+
+    /// The parts of states which involved in computing app_hash
+    pub top_level: ChainState,
 }
 
 impl ChainNodeState {
     pub fn genesis(
         genesis_apphash: H256,
         genesis_time: Timespec,
-        last_account_root_hash: StarlingFixedKey,
+        account_root: StarlingFixedKey,
         rewards_pool: RewardsPoolState,
         network_params: NetworkParameters,
         validators: ValidatorState,
@@ -116,12 +114,14 @@ impl ChainNodeState {
             last_block_height: 0,
             last_apphash: genesis_apphash,
             block_time: genesis_time,
-            last_account_root_hash,
-            rewards_pool,
             proposer_stats: BTreeMap::new(),
-            network_params,
             validators,
             genesis_time,
+            top_level: ChainState {
+                account_root,
+                rewards_pool,
+                network_params,
+            },
         }
     }
 }
@@ -174,10 +174,10 @@ fn get_validator_mapping(
         .council_nodes_by_power
         .iter()
         .rev()
-        .take(last_app_state.network_params.get_max_validators())
+        .take(last_app_state.top_level.network_params.get_max_validators())
     {
         // integrity checks -- committed / disk-persisted values should match up
-        let account = get_account(&address, &last_app_state.last_account_root_hash, accounts)
+        let account = get_account(&address, &last_app_state.top_level.account_root, accounts)
             .expect("council node staking state address should be in the state trie");
         assert!(
             &account.council_node.is_some(),
@@ -186,6 +186,7 @@ fn get_validator_mapping(
         if account.is_jailed()
             || account.bonded
                 < last_app_state
+                    .top_level
                     .network_params
                     .get_required_council_node_stake()
         {
@@ -248,13 +249,27 @@ fn get_voting_power(
     }
 }
 
-fn store_valid_genesis_state(genesis_state: &ChainNodeState, inittx: &mut DBTransaction) {
-    let encoded = genesis_state.encode();
-    inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &encoded);
-    inittx.put(COL_EXTRA, b"init_chain_state", &encoded);
+fn store_valid_genesis_state(
+    genesis_state: &ChainNodeState,
+    inittx: &mut DBTransaction,
+    write_history_states: bool,
+) {
+    inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &genesis_state.encode());
+    let encoded_height = i64::encode_var_vec(0);
+    inittx.put(COL_APP_HASHS, &encoded_height, &genesis_state.last_apphash);
+    if write_history_states {
+        inittx.put(
+            COL_APP_STATES,
+            &encoded_height,
+            &genesis_state.top_level.encode(),
+        );
+    }
 }
 
-fn compute_accounts_root(account_storage: &mut AccountStorage, accounts: &[StakedState]) -> H256 {
+pub fn compute_accounts_root(
+    account_storage: &mut AccountStorage,
+    accounts: &[StakedState],
+) -> H256 {
     let mut keys: Vec<_> = accounts.iter().map(StakedState::key).collect();
     let wrapped: Vec<_> = accounts.iter().cloned().map(AccountWrapper).collect();
     account_storage
@@ -319,7 +334,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             storage,
             accounts,
             delivered_txs: Vec::new(),
-            uncommitted_account_root_hash: last_app_state.last_account_root_hash,
+            uncommitted_account_root_hash: last_app_state.top_level.account_root,
             chain_hex_id,
             genesis_app_hash,
             last_state: Some(last_app_state),
@@ -575,13 +590,13 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 },
             },
         );
-        store_valid_genesis_state(&genesis_state, &mut inittx);
+        store_valid_genesis_state(&genesis_state, &mut inittx, self.tx_query_address.is_some());
 
         let wr = self.storage.db.write(inittx);
         if wr.is_err() {
             panic!("db write error: {}", wr.err().unwrap());
         } else {
-            self.uncommitted_account_root_hash = genesis_state.last_account_root_hash;
+            self.uncommitted_account_root_hash = genesis_state.top_level.account_root;
             self.last_state = Some(genesis_state);
         }
 

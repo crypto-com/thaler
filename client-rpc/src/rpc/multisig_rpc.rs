@@ -309,6 +309,7 @@ mod test {
     use secstr::SecUtf8;
 
     use chain_core::init::coin::CoinError;
+    use chain_core::state::ChainState;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
@@ -472,6 +473,13 @@ mod test {
 
         fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<AbciQuery> {
             unreachable!("query")
+        }
+
+        fn query_state_batch<T: Iterator<Item = u64>>(
+            &self,
+            _heights: T,
+        ) -> CommonResult<Vec<ChainState>> {
+            unreachable!()
         }
     }
 }

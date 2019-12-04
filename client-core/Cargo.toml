@@ -43,6 +43,7 @@ tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-
 hex = "0.4.0"
 base58 = "0.1.0"
 ripemd160 = "0.8.0"
+test-common = { path = "../test-common" }
 
 [features]
 default = ["sled"]

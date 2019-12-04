@@ -45,6 +45,7 @@ pub(crate) struct Server {
     network_id: u8,
     storage_dir: String,
     websocket_url: String,
+    enable_fast_forward: bool,
 }
 
 impl Server {
@@ -59,6 +60,7 @@ impl Server {
             network_id,
             storage_dir: options.storage_dir,
             websocket_url: options.websocket_url,
+            enable_fast_forward: !options.disable_fast_forward,
         })
     }
 
@@ -113,6 +115,7 @@ impl Server {
             storage,
             tendermint_client,
             block_handler,
+            self.enable_fast_forward,
         ))
     }
 

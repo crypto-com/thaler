@@ -9,11 +9,38 @@ use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use std::prelude::v1::Vec;
 
 use self::tendermint::BlockHeight;
-use crate::common::{hash256, Timespec, H256};
+use crate::common::{hash256, MerkleTree, Timespec, H256};
+use crate::compute_app_hash;
 use crate::init::coin::Coin;
+use crate::init::params::NetworkParameters;
+use crate::tx::data::TxId;
 use crate::tx::fee::Milli;
+
+/// ABCI chain state
+#[derive(PartialEq, Debug, Clone, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ChainState {
+    /// root hash of the sparse merkle patricia trie of staking account states
+    pub account_root: H256,
+    /// last rewards pool state
+    pub rewards_pool: RewardsPoolState,
+    /// network parameters (fee policy, staking configuration etc.)
+    pub network_params: NetworkParameters,
+}
+
+impl ChainState {
+    pub fn compute_app_hash(&self, txids: Vec<TxId>) -> H256 {
+        compute_app_hash(
+            &MerkleTree::new(txids),
+            &self.account_root,
+            &self.rewards_pool,
+            &self.network_params,
+        )
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

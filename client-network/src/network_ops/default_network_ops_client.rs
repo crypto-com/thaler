@@ -473,6 +473,7 @@ mod tests {
         Punishment, PunishmentKind, StakedState, StakedStateOpAttributes,
     };
     use chain_core::state::tendermint::TendermintValidatorPubKey;
+    use chain_core::state::ChainState;
     use chain_core::tx::data::input::TxoIndex;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::Fee;
@@ -604,6 +605,13 @@ mod tests {
                 ..Default::default()
             })
         }
+
+        fn query_state_batch<T: Iterator<Item = u64>>(
+            &self,
+            _heights: T,
+        ) -> Result<Vec<ChainState>> {
+            unreachable!()
+        }
     }
 
     #[derive(Default, Clone)]
@@ -663,6 +671,13 @@ mod tests {
                 value: Some(base64::encode(&staked_state.encode())),
                 ..Default::default()
             })
+        }
+
+        fn query_state_batch<T: Iterator<Item = u64>>(
+            &self,
+            _heights: T,
+        ) -> Result<Vec<ChainState>> {
+            unreachable!()
         }
     }
 

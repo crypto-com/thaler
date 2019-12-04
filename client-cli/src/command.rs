@@ -101,6 +101,12 @@ pub enum Command {
             help = "Force synchronization from genesis"
         )]
         force: bool,
+        #[structopt(
+            name = "disable-fast-forward",
+            long,
+            help = "Disable fast forward, which is not secure when connecting to outside nodes"
+        )]
+        disable_fast_forward: bool,
     },
 }
 
@@ -224,6 +230,7 @@ impl Command {
                 name,
                 batch_size,
                 force,
+                disable_fast_forward,
             } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
@@ -236,8 +243,12 @@ impl Command {
                     storage.clone(),
                 );
 
-                let synchronizer =
-                    ManualSynchronizer::new(storage, tendermint_client, block_handler);
+                let synchronizer = ManualSynchronizer::new(
+                    storage,
+                    tendermint_client,
+                    block_handler,
+                    !disable_fast_forward,
+                );
 
                 Self::resync(synchronizer, name, *batch_size, *force)
             }

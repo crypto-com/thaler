@@ -12,18 +12,26 @@ use tendermint::amino_types::message::AminoMessage;
 use tendermint::lite::{Header, ValidatorSet};
 use tendermint::rpc::endpoint::status;
 use tendermint::{
-    abci, account, amino_types, block, block::Height, chain, consensus, evidence, hash, node,
-    public_key, rpc::endpoint::commit::SignedHeader, validator, vote, Block, Hash, PublicKey,
-    Signature, Time,
+    account, amino_types, block, block::Height, chain, consensus, evidence, hash, node, public_key,
+    rpc::endpoint::commit::SignedHeader, validator, vote, Block, Hash, PublicKey, Signature, Time,
 };
 
-use chain_abci::app::init_app_hash;
+use chain_abci::app::{compute_accounts_root, ChainNodeState, ValidatorState};
+use chain_abci::storage::account::{pure_account_storage, AccountStorage};
+use chain_abci::{liveness::LivenessTracker, punishment::ValidatorPunishment};
+use chain_core::common::MerkleTree;
+use chain_core::compute_app_hash;
+use chain_core::init::config::NetworkParameters;
 use chain_core::init::{
     address::RedeemAddress, coin::Coin, config::InitConfig, network::Network, params,
 };
-use chain_core::state::account::StakedStateDestination;
-use chain_core::state::tendermint::TendermintVotePower;
+use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateDestination};
+use chain_core::state::tendermint::{
+    TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
+};
+use chain_core::state::ChainState;
 use chain_core::tx::fee::{LinearFee, Milli};
+use chain_core::tx::TxAux;
 use client_common::tendermint::types::{
     AbciQuery, BlockResults, BroadcastTxResponse, Genesis, Results,
 };
@@ -83,6 +91,14 @@ impl Node {
         }
     }
 
+    pub fn council_node(&self) -> CouncilNode {
+        CouncilNode {
+            name: self.name.clone(),
+            security_contact: Some(format!("{}@example.com", self.name)),
+            consensus_pubkey: self.tendermint_pub_key(),
+        }
+    }
+
     pub fn validator_pub_key(&self) -> PublicKey {
         PublicKey::from_raw_ed25519(seed_to_pk(&self.validator_seed).as_bytes()).unwrap()
     }
@@ -95,6 +111,14 @@ impl Node {
         account::Id::from(seed_to_pk(&self.validator_seed))
     }
 
+    pub fn tendermint_pub_key(&self) -> TendermintValidatorPubKey {
+        TendermintValidatorPubKey::Ed25519(seed_to_pk(&self.validator_seed).into_bytes())
+    }
+
+    pub fn tendermint_validator_address(&self) -> TendermintValidatorAddress {
+        self.tendermint_pub_key().into()
+    }
+
     pub fn node_id(&self) -> node::Id {
         node::Id::from(seed_to_pk(&self.p2p_seed))
     }
@@ -105,6 +129,10 @@ impl Node {
             .derive_key_pair(Network::Testnet, AddressType::Staking, index)
             .unwrap();
         RedeemAddress::from(&vk)
+    }
+
+    pub fn staking_address(&self, index: u32) -> StakedStateAddress {
+        StakedStateAddress::from(self.redeem_address(index))
     }
 
     pub fn sign_msg(&self, msg: &[u8]) -> Signature {
@@ -153,7 +181,7 @@ impl Node {
             listen_addr: node::info::ListenAddress::new("tcp://0.0.0.0:26656".to_owned()),
             network: chain_id,
             version: "0.32.7".parse().unwrap(),
-            channels: serde_json::from_str("4020212223303800").unwrap(),
+            channels: serde_json::from_str("\"4020212223303800\"").unwrap(),
             moniker: self.name.parse().unwrap(),
             other: node::info::OtherInfo {
                 tx_index: node::info::TxIndexStatus::On,
@@ -237,15 +265,27 @@ impl TestnetSpec {
         }
     }
 
-    pub fn gen_genesis(&self) -> Genesis {
+    pub fn gen_genesis(&self) -> (Genesis, ChainNodeState, AccountStorage) {
+        let account_storage = pure_account_storage(20).unwrap();
+
         let config = self.init_config();
-        let app_hash = init_app_hash(
-            &config,
-            self.genesis_time
-                .duration_since(Time::unix_epoch())
-                .expect("invalid genesis time")
-                .as_secs(),
+        let genesis_seconds = self
+            .genesis_time
+            .duration_since(Time::unix_epoch())
+            .expect("invalid genesis time")
+            .as_secs();
+        let (accounts, rewards_pool, _nodes) = config
+            .validate_config_get_genesis(genesis_seconds)
+            .expect("distribution validation error");
+        let account_root = compute_accounts_root(&mut pure_account_storage(20).unwrap(), &accounts);
+        let network_params = NetworkParameters::Genesis(config.network_params.clone());
+        let app_hash = compute_app_hash(
+            &MerkleTree::empty(),
+            &compute_accounts_root(&mut pure_account_storage(20).unwrap(), &accounts),
+            &rewards_pool,
+            &network_params,
         );
+
         let share = self.share();
         let validators = self
             .nodes
@@ -258,7 +298,7 @@ impl TestnetSpec {
             })
             .collect();
 
-        Genesis {
+        let genesis = Genesis {
             genesis_time: self.genesis_time,
             chain_id: self.chain_id,
             consensus_params: consensus::Params {
@@ -275,7 +315,42 @@ impl TestnetSpec {
             validators,
             app_hash: Some(Hash::new(hash::Algorithm::Sha256, &app_hash).unwrap()),
             app_state: config,
+        };
+
+        let mut validator_liveness = BTreeMap::new();
+        let mut validator_by_voting_power = BTreeMap::new();
+        let mut tendermint_validator_addresses = BTreeMap::new();
+        let power = TendermintVotePower::from(self.share());
+        for node in self.nodes.iter() {
+            let staking_address = node.staking_address(0);
+            let validator_address = node.tendermint_validator_address();
+
+            validator_by_voting_power.insert((power, staking_address), node.council_node());
+            tendermint_validator_addresses.insert(validator_address.clone(), staking_address);
+            validator_liveness.insert(
+                validator_address.clone(),
+                LivenessTracker::new(network_params.get_block_signing_window()),
+            );
         }
+        let validator_set = ValidatorState {
+            council_nodes_by_power: validator_by_voting_power,
+            tendermint_validator_addresses,
+            punishment: ValidatorPunishment {
+                validator_liveness,
+                slashing_schedule: Default::default(),
+            },
+        };
+
+        let state = ChainNodeState::genesis(
+            app_hash,
+            genesis_seconds,
+            account_root,
+            rewards_pool,
+            network_params,
+            validator_set,
+        );
+
+        (genesis, state, account_storage)
     }
 
     pub fn validator_set(&self) -> validator::Set {
@@ -289,43 +364,66 @@ impl TestnetSpec {
     }
 }
 
+pub struct BlockState {
+    pub block: block::Block,
+    pub commit: block::Commit,
+    pub state: ChainNodeState,
+}
+
+impl BlockState {
+    pub fn signed_header(&self) -> SignedHeader {
+        SignedHeader {
+            header: self.block.header.clone(),
+            commit: self.commit.clone(),
+        }
+    }
+}
+
 pub struct BlockGenerator {
     pub spec: TestnetSpec,
     pub genesis: Genesis,
+    pub genesis_state: ChainNodeState,
+    pub account_storage: AccountStorage,
     pub validators: validator::Set,
-    pub headers: Vec<SignedHeader>,
+    pub blocks: Vec<BlockState>,
     pub current_height: Option<Height>,
     pub node_index: usize,
 }
 
 impl BlockGenerator {
     pub fn new(spec: TestnetSpec) -> BlockGenerator {
-        let genesis = spec.gen_genesis();
+        let (genesis, genesis_state, account_storage) = spec.gen_genesis();
         let validators = spec.validator_set();
         BlockGenerator {
             spec,
             genesis,
+            genesis_state,
+            account_storage,
             validators,
-            headers: vec![],
+            blocks: vec![],
             current_height: None,
             node_index: 0,
         }
+    }
+
+    pub fn one_node() -> BlockGenerator {
+        BlockGenerator::new(TestnetSpec::new(DEFAULT_NODES.clone()))
     }
 
     pub fn sync_info(&self) -> status::SyncInfo {
         if let Some(height) = self.current_height {
             let index = (height.value() - 1) as usize;
             status::SyncInfo {
-                latest_block_hash: Some(self.headers[index].header.hash()),
+                latest_block_hash: Some(self.blocks[index].block.header.hash()),
                 latest_app_hash: self.genesis.app_hash,
                 latest_block_height: height,
-                latest_block_time: self.headers[index].header.time,
+                latest_block_time: self.blocks[index].block.header.time,
                 catching_up: false,
             }
         } else {
             status::SyncInfo {
                 latest_block_hash: None,
-                latest_app_hash: None,
+                latest_app_hash: self.genesis.app_hash,
                 latest_block_height: Height::default(),
                 latest_block_time: Time::unix_epoch(),
                 catching_up: false,
@@ -333,14 +431,22 @@ impl BlockGenerator {
         }
     }
 
-    pub fn gen_empty_block(&mut self) {
+    pub fn gen_block(&mut self, _txs: &[TxAux]) {
         let height = self
             .current_height
             .map_or(Height::default(), |height| height.increment());
-        let last_block_id = self.headers.last().map(|header| block::Id {
-            hash: header.header.hash(),
+        let last_block_id = self.blocks.last().map(|block| block::Id {
+            hash: block.block.header.hash(),
             parts: None,
         });
+        let last_state = self
+            .blocks
+            .last()
+            .map_or(&self.genesis_state, |blk| &blk.state);
+        let last_commit = self
+            .current_height
+            .map(|height| self.blocks[height.value() as usize - 1].commit.clone());
+
         let node = &self.spec.nodes[height.value() as usize % self.spec.nodes.len()];
         let consensus_hash =
             Hash::from_str("048091BC7DDC283F77BFBF91D73C44DA58C3DF8A9CBC867405D8B7F3DAADA22F")
@@ -358,7 +464,7 @@ impl BlockGenerator {
             validators_hash: self.validators.hash(),
             next_validators_hash: self.validators.hash(),
             consensus_hash,
-            app_hash: None,
+            app_hash: Some(Hash::new(hash::Algorithm::Sha256, &last_state.last_apphash).unwrap()),
             last_results_hash: None,
             evidence_hash: None,
             proposer_address: node.validator_address(),
@@ -378,12 +484,23 @@ impl BlockGenerator {
             block_id,
             precommits: block::Precommits::new(votes),
         };
+        let block = block::Block {
+            header,
+            data: Default::default(),
+            evidence: Default::default(),
+            last_commit,
+        };
 
-        self.headers.push(SignedHeader { header, commit })
+        let state = last_state.clone();
+        self.blocks.push(BlockState {
+            block,
+            commit,
+            state,
+        })
     }
 
     pub fn signed_header(&self, height: Height) -> SignedHeader {
-        self.headers[(height.value() - 1) as usize].clone()
+        self.blocks[(height.value() - 1) as usize].signed_header()
     }
 }
 
@@ -402,16 +519,7 @@ impl Client for BlockGenerator {
     }
 
     fn block(&self, height: u64) -> Result<Block> {
-        Ok(Block {
-            header: self.headers[(height - 1) as usize].header.clone(),
-            data: abci::transaction::Data::new(vec![]),
-            evidence: evidence::Data::new(vec![]),
-            last_commit: if height > 1 {
-                Some(self.headers[(height - 2) as usize].commit.clone())
-            } else {
-                None
-            },
-        })
+        Ok(self.blocks[height as usize - 1].block.clone())
     }
 
     fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, heights: T) -> Result<Vec<Block>> {
@@ -450,6 +558,21 @@ impl Client for BlockGenerator {
     fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
         unreachable!();
     }
+
+    fn query_state_batch<T: Iterator<Item = u64>>(&self, heights: T) -> Result<Vec<ChainState>> {
+        Ok(heights
+            .map(|height| {
+                if height == 0 {
+                    self.genesis_state.top_level.clone()
+                } else {
+                    self.blocks[(height as usize).checked_sub(1).unwrap()]
+                        .state
+                        .top_level
+                        .clone()
+                }
+            })
+            .collect())
+    }
 }
 
 fn gen_network_params(
@@ -478,8 +601,8 @@ fn gen_network_params(
             monetary_expansion_cap: expansion_cap,
             distribution_period: 24 * 60 * 60, // distribute once per day
             monetary_expansion_r0: "0.5".parse().unwrap(),
-            monetary_expansion_tau: 166666600,
-            monetary_expansion_decay: 999860,
+            monetary_expansion_tau: 166_666_600,
+            monetary_expansion_decay: 999_860,
         },
         max_validators: 50,
     }
@@ -492,9 +615,9 @@ mod tests {
 
     #[test]
     fn check_lite_client() {
-        let mut generator = BlockGenerator::new(TestnetSpec::new(DEFAULT_NODES.clone()));
-        generator.gen_empty_block();
-        generator.gen_empty_block();
+        let mut generator = BlockGenerator::one_node();
+        generator.gen_block(&[]);
+        generator.gen_block(&[]);
 
         generator.block(1).unwrap();
         generator.block(2).unwrap();

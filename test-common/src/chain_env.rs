@@ -55,7 +55,7 @@ pub fn get_account(
     let state = app.last_state.clone().expect("app state");
     println!(
         "committed root hash: {}",
-        hex::encode(&state.last_account_root_hash)
+        hex::encode(&state.top_level.account_root)
     );
     let account = app
         .accounts

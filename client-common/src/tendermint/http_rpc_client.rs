@@ -10,6 +10,7 @@ use tendermint::{lite::verifier, validator};
 use crate::tendermint::types::*;
 use crate::tendermint::{lite, Client};
 use crate::{Error, ErrorKind, Result, ResultExt};
+use chain_core::state::ChainState;
 
 /// Tendermint RPC Client
 #[derive(Clone)]
@@ -256,5 +257,42 @@ impl Client for RpcClient {
         }
 
         Ok(result)
+    }
+
+    fn query_state_batch<T: Iterator<Item = u64>>(&self, heights: T) -> Result<Vec<ChainState>> {
+        let params: Vec<(&str, Vec<Value>)> = heights
+            .map(|height| {
+                (
+                    "abci_query",
+                    vec![
+                        json!("state"),
+                        json!(null),
+                        json!(height.to_string()),
+                        json!(null),
+                    ],
+                )
+            })
+            .collect();
+        let rsps = self.call_batch::<AbciQueryResponse>(&params)?;
+
+        rsps.into_iter()
+            .map(|opt| {
+                let rsp =
+                    opt.ok_or(Error::new(ErrorKind::InvalidInput, "chain state not found"))?;
+                if rsp.response.code.is_ok() {
+                    let value = base64
+                        .decode(&rsp.response.value)
+                        .chain(ErrorKind::InvalidInput, "chain state decode failed")?;
+                    let state = serde_json::from_str(String::from_utf8(value))
+                        .chain(ErrorKind::InvalidInput, "chain state decode failed")?;
+                    Ok(state)
+                } else {
+                    Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "abci query return error",
+                    ))
+                }
+            })
+            .collect()
     }
 }

@@ -1,14 +1,15 @@
 use std::collections::BTreeSet;
 use std::sync::mpsc::Sender;
 
-use itertools::Itertools;
+use itertools::{izip, Itertools};
 use secstr::SecUtf8;
 use tendermint::validator;
 
+use chain_core::common::H256;
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::types::{Block, BlockExt, BlockResults, Status};
 use client_common::tendermint::{lite, Client};
-use client_common::{BlockHeader, Error, ErrorKind, Result, Storage, Transaction};
+use client_common::{BlockHeader, Error, ErrorKind, Result, ResultExt, Storage, Transaction};
 
 use crate::service::{GlobalStateService, WalletService, WalletStateService};
 use crate::BlockHandler;
@@ -49,6 +50,7 @@ where
     global_state_service: GlobalStateService<S>,
     client: C,
     block_handler: H,
+    enable_fast_forward: bool,
 }
 
 impl<S, C, H> ManualSynchronizer<S, C, H>
@@ -59,13 +61,14 @@ where
 {
     /// Creates a new instance of `ManualSynchronizer`
     #[inline]
-    pub fn new(storage: S, client: C, block_handler: H) -> Self {
+    pub fn new(storage: S, client: C, block_handler: H, enable_fast_forward: bool) -> Self {
         Self {
             wallet_service: WalletService::new(storage.clone()),
             wallet_state_service: WalletStateService::new(storage.clone()),
             global_state_service: GlobalStateService::new(storage),
             client,
             block_handler,
+            enable_fast_forward,
         }
     }
 }
@@ -107,13 +110,15 @@ where
             .chunks(batch_size.unwrap_or(DEFAULT_BATCH_SIZE))
             .into_iter()
         {
-            if self.fast_forward_status(
-                name,
-                passphrase,
-                &staking_addresses,
-                &status,
-                &progress_reporter,
-            )? {
+            if self.enable_fast_forward
+                && self.fast_forward_status(
+                    name,
+                    passphrase,
+                    &staking_addresses,
+                    &status,
+                    &progress_reporter,
+                )?
+            {
                 // Fast forward to latest state if possible
                 return Ok(());
             }
@@ -122,13 +127,15 @@ where
 
             // Get the last block to check if there are any changes
             let block = self.client.block(range[range.len() - 1])?;
-            if self.fast_forward_block(
-                name,
-                passphrase,
-                &staking_addresses,
-                &block,
-                &progress_reporter,
-            )? {
+            if self.enable_fast_forward
+                && self.fast_forward_block(
+                    name,
+                    passphrase,
+                    &staking_addresses,
+                    &block,
+                    &progress_reporter,
+                )?
+            {
                 // Fast forward batch if possible
                 continue;
             }
@@ -138,15 +145,41 @@ where
                 .client
                 .block_batch_verified(trust_state.clone(), range.iter())?;
             let block_results = self.client.block_results_batch(range.iter())?;
+            let states = self.client.query_state_batch(range.iter().cloned())?;
 
-            for (block, block_result) in blocks.into_iter().zip(block_results.into_iter()) {
-                if self.fast_forward_status(
-                    name,
-                    passphrase,
-                    &staking_addresses,
-                    &status,
-                    &progress_reporter,
-                )? {
+            let mut app_hash: Option<H256> = None;
+            for (block, block_result, state) in izip!(
+                blocks.into_iter(),
+                block_results.into_iter(),
+                states.into_iter()
+            ) {
+                if let Some(app_hash) = app_hash {
+                    let header_app_hash = block.header.app_hash.ok_or_else(|| {
+                        Error::new(ErrorKind::VerifyError, "header don't have app_hash")
+                    })?;
+                    if app_hash != header_app_hash.as_bytes() {
+                        return Err(Error::new(
+                            ErrorKind::VerifyError,
+                            "state app hash don't match block header",
+                        ));
+                    }
+                }
+                app_hash = Some(
+                    state.compute_app_hash(
+                        block_result
+                            .transaction_ids()
+                            .chain(|| (ErrorKind::VerifyError, "verify block results"))?,
+                    ),
+                );
+                if self.enable_fast_forward
+                    && self.fast_forward_status(
+                        name,
+                        passphrase,
+                        &staking_addresses,
+                        &status,
+                        &progress_reporter,
+                    )?
+                {
                     // Fast forward to latest state if possible
                     return Ok(());
                 }
@@ -197,7 +230,7 @@ where
         let current_app_hash = status
             .sync_info
             .latest_app_hash
-            .ok_or_else(|| Error::from(ErrorKind::TendermintRpcError))?
+            .ok_or_else(|| Error::new(ErrorKind::TendermintRpcError, "latest_app_hash not found"))?
             .to_string();
 
         if current_app_hash == last_app_hash {
@@ -235,7 +268,7 @@ where
         let current_app_hash = block
             .header
             .app_hash
-            .ok_or_else(|| Error::from(ErrorKind::TendermintRpcError))?
+            .ok_or_else(|| Error::new(ErrorKind::TendermintRpcError, "app_hash not found"))?
             .to_string();
 
         if current_app_hash == last_app_hash {
@@ -293,7 +326,7 @@ fn prepare_block_header(
     let app_hash = block
         .header
         .app_hash
-        .ok_or_else(|| Error::from(ErrorKind::TendermintRpcError))?
+        .ok_or_else(|| Error::new(ErrorKind::TendermintRpcError, "app_hash not found"))?
         .to_string();
     let block_height = block.header.height.value();
     let block_time = block.header.time;
@@ -330,12 +363,14 @@ mod tests {
     use chain_core::state::account::{
         StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness, UnbondTx,
     };
+    use chain_core::state::ChainState;
     use chain_core::tx::TxAux;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::lite;
     use client_common::tendermint::mock;
     use client_common::tendermint::types::*;
     use client_common::ErrorKind;
+    use test_common::block_generator::BlockGenerator;
 
     use crate::types::WalletKind;
     use crate::wallet::{DefaultWalletClient, WalletClient};
@@ -519,10 +554,16 @@ mod tests {
         fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
             unreachable!()
         }
+
+        fn query_state_batch<T: Iterator<Item = u64>>(
+            &self,
+            _heights: T,
+        ) -> Result<Vec<ChainState>> {
+            unreachable!()
+        }
     }
 
-    #[test]
-    fn check_manual_synchronization() {
+    fn check_manual_synchronization_impl(enable_fast_forward: bool) {
         let storage = MemoryStorage::default();
 
         let name = "name";
@@ -534,16 +575,26 @@ mod tests {
             .new_wallet(name, passphrase, WalletKind::Basic)
             .is_ok());
 
-        let staking_address = wallet.new_staking_address(name, passphrase).unwrap();
+        let mut generator = BlockGenerator::one_node();
+        for _ in 0..10 {
+            generator.gen_block(&[]);
+        }
 
         let synchronizer = ManualSynchronizer::new(
             storage.clone(),
-            MockClient { staking_address },
+            generator,
             MockBlockHandler,
+            enable_fast_forward,
         );
 
         synchronizer
             .sync(name, passphrase, None, None)
             .expect("Unable to synchronize");
+    }
+
+    #[test]
+    fn check_manual_synchronization() {
+        check_manual_synchronization_impl(false);
+        check_manual_synchronization_impl(true);
     }
 }

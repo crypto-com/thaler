@@ -116,6 +116,7 @@ mod tests {
 
     use base64::encode;
 
+    use chain_core::state::ChainState;
     use chain_core::tx::data::Tx;
     use chain_core::tx::witness::TxWitness;
     use chain_core::tx::{TxEnclaveAux, TxObfuscated};
@@ -203,6 +204,13 @@ mod tests {
                 }
                 _ => Err(ErrorKind::InvalidInput.into()),
             }
+        }
+
+        fn query_state_batch<T: Iterator<Item = u64>>(
+            &self,
+            _heights: T,
+        ) -> Result<Vec<ChainState>> {
+            unreachable!()
         }
     }
 
