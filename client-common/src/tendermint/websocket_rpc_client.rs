@@ -215,7 +215,7 @@ impl WebsocketRpcClient {
     }
 
     /// Makes an RPC call and deserializes response
-    fn call<T>(&self, method: &str, params: &[Value]) -> Result<T>
+    pub fn call<T>(&self, method: &str, params: &[Value]) -> Result<T>
     where
         for<'de> T: Deserialize<'de>,
     {
@@ -232,7 +232,7 @@ impl WebsocketRpcClient {
     }
 
     /// Makes RPC call in batch and deserializes responses
-    fn call_batch<T>(&self, params: Vec<(&str, Vec<Value>)>) -> Result<Vec<T>>
+    pub fn call_batch<T>(&self, params: Vec<(&str, Vec<Value>)>) -> Result<Vec<T>>
     where
         for<'de> T: Deserialize<'de>,
     {
