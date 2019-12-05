@@ -15,8 +15,7 @@ use chain_core::init::config::InitConfig;
 use chain_core::init::config::InitNetworkParameters;
 use chain_core::init::config::NetworkParameters;
 use chain_core::init::config::{
-    JailingParameters, RewardsParameters, SlashRatio, SlashingParameters, ValidatorKeyType,
-    ValidatorPubkey,
+    JailingParameters, RewardsParameters, SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
     to_stake_key, CouncilNode, DepositBondTx, StakedState, StakedStateAddress,
@@ -254,19 +253,14 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     .collect();
     let NetworkParameters::Genesis(params) = get_dummy_network_params();
     let mut nodes = BTreeMap::new();
-    let pub_key_base64 = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=";
-    let node_pubkey = (
-        "test".to_owned(),
-        None,
-        ValidatorPubkey {
-            consensus_pubkey_type: ValidatorKeyType::Ed25519,
-            consensus_pubkey_b64: pub_key_base64.to_string(),
-        },
-    );
+    let pub_key =
+        TendermintValidatorPubKey::from_base64(b"MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
+            .unwrap();
+    let node_pubkey = ("test".to_owned(), None, pub_key.clone());
     let validator = ValidatorUpdate {
         pub_key: Some(PubKey {
             field_type: "ed25519".to_owned(),
-            data: base64::decode(&pub_key_base64).unwrap(),
+            data: pub_key.as_bytes().to_vec(),
             ..Default::default()
         })
         .into(),

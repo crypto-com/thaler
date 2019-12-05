@@ -10,7 +10,6 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryFrom;
 use std::fmt;
 use std::ops::Mul;
-use std::prelude::v1::String;
 use std::str::FromStr;
 
 const MAX_SLASH_RATIO: Milli = Milli::new(1, 0); // 1.0
@@ -291,19 +290,4 @@ impl fmt::Display for SlashRatioError {
             }
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ValidatorKeyType {
-    Ed25519,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ValidatorPubkey {
-    // Tendermint consensus public key type
-    pub consensus_pubkey_type: ValidatorKeyType,
-    // Tendermint consensus public key encoded in base64
-    pub consensus_pubkey_b64: String,
 }

@@ -8,8 +8,8 @@ use quest::{password, success};
 use secstr::SecUtf8;
 use serde_json::json;
 
-use chain_core::init::config::{ValidatorKeyType, ValidatorPubkey};
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
+use chain_core::state::tendermint::TendermintValidatorPubKey;
 use client_common::storage::SledStorage;
 use client_common::tendermint::types::Time;
 use client_common::{Error, ErrorKind, Result, ResultExt};
@@ -174,10 +174,13 @@ impl InitCommand {
             "{} {}",
             self.staking_account_address, self.tendermint_pubkey
         );
-        let pubkey = ValidatorPubkey {
-            consensus_pubkey_type: ValidatorKeyType::Ed25519,
-            consensus_pubkey_b64: self.tendermint_pubkey.clone(),
-        };
+        let pubkey = TendermintValidatorPubKey::from_base64(self.tendermint_pubkey.as_bytes())
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "invalid base64 encoded validator public key",
+                )
+            })?;
         let address = self
             .staking_account_address
             .parse::<RedeemAddress>()

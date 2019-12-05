@@ -81,8 +81,8 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
                 "integration test",
                 "security@integration.test",
                 {
-                    "consensus_pubkey_type": "Ed25519",
-                    "consensus_pubkey_b64": "2H0sZxyy5iOU6q0/F+ZCQ3MyJJxg8odE5NMsGIyfFV0="
+                    "type": "tendermint/PubKeyEd25519",
+                    "value": "2H0sZxyy5iOU6q0/F+ZCQ3MyJJxg8odE5NMsGIyfFV0="
                 }
             ]
         }

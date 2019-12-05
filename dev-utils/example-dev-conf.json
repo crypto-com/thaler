@@ -27,13 +27,14 @@
         "per_byte_fee": "1.25"
     },
     "council_nodes": {
-            "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": [
-                "test",
-                "security@example.com",
-                {
-                "consensus_pubkey_type": "Ed25519",
-                "consensus_pubkey_b64": "pPxJH5wUamXcCvSxgywzmANuO0UNR5x3nCbUzsrCeX8="
-        }]
+        "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": [
+            "test",
+            "security@example.com",
+            {
+                "type": "tendermint/PubKeyEd25519",
+                "value": "pPxJH5wUamXcCvSxgywzmANuO0UNR5x3nCbUzsrCeX8="
+            }
+        ]
     },
     "genesis_time": "2019-10-23T07:26:34.783271158Z"
 }

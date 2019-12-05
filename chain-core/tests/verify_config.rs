@@ -2,9 +2,10 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::{
     InitConfig, InitNetworkParameters, JailingParameters, RewardsParameters, SlashRatio,
-    SlashingParameters, ValidatorKeyType, ValidatorPubkey,
+    SlashingParameters,
 };
 use chain_core::state::account::StakedStateDestination;
+use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::fee::{LinearFee, Milli};
 use serde::Deserialize;
 use std::collections::BTreeMap;
@@ -29,10 +30,9 @@ fn test_verify_test_example_snapshot() {
     let node_address = "0x2440ad2533c66d91eb97807a339be13556d04990"
         .parse::<RedeemAddress>()
         .unwrap();
-    let node_pubkey = ValidatorPubkey {
-        consensus_pubkey_type: ValidatorKeyType::Ed25519,
-        consensus_pubkey_b64: "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=".to_string(),
-    };
+    let node_pubkey =
+        TendermintValidatorPubKey::from_base64(b"EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=")
+            .unwrap();
     let mut nodes = BTreeMap::new();
     nodes.insert(node_address, ("no-name".to_owned(), None, node_pubkey));
 

@@ -18,11 +18,8 @@ def validator_addr(pubkey_base64):
 
 GENESIS['validators'] = [
     {
-        'address': validator_addr(node[2]['consensus_pubkey_b64']),
-        'pub_key': {
-            'type': 'tendermint/PubKeyEd25519',
-            'value': node[2]['consensus_pubkey_b64'],
-        },
+        'address': validator_addr(node[2]['value']),
+        'pub_key': node[2],
         'power': get_voting_power(GENESIS['app_state']['distribution'][addr]),
     }
     for addr, node in GENESIS['app_state']['council_nodes'].items()

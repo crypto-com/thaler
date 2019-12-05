@@ -197,8 +197,8 @@ DEV_CONF=$(cat << EOF
             "integration test",
             "security@integration.test",
         {
-            "consensus_pubkey_type": "Ed25519",
-            "consensus_pubkey_b64": "{PUB_KEY}"
+            "type": "tendermint/PubKeyEd25519",
+            "value": "{PUB_KEY}"
         }]
     },
     "genesis_time": "{GENESIS_TIME}"
