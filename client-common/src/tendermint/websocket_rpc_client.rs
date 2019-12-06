@@ -12,6 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use base64;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use serde::Deserialize;
@@ -25,6 +26,7 @@ use self::types::*;
 use crate::tendermint::types::*;
 use crate::tendermint::{lite, Client};
 use crate::{Error, ErrorKind, Result, ResultExt};
+use chain_core::state::ChainState;
 
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -101,7 +103,7 @@ impl WebsocketRpcClient {
     /// # Note
     ///
     /// This does not use batch JSON-RPC requests but makes multiple single JSON-RPC requests in parallel.
-    fn request_batch(&self, batch_params: Vec<(&str, Vec<Value>)>) -> Result<Vec<Value>> {
+    fn request_batch(&self, batch_params: &[(&str, Vec<Value>)]) -> Result<Vec<Value>> {
         let mut receivers = Vec::with_capacity(batch_params.len());
 
         for (method, params) in batch_params.iter() {
@@ -111,9 +113,9 @@ impl WebsocketRpcClient {
 
         receivers
             .into_iter()
-            .zip(batch_params.into_iter())
+            .zip(batch_params.iter().cloned()) // FIXME fix the clone
             .map(|((id, channel_receiver), (method, params))| {
-                self.receive_response(method, &params, &id, channel_receiver)
+                self.receive_response(&method, &params, &id, channel_receiver)
             })
             .collect()
     }
@@ -232,7 +234,7 @@ impl WebsocketRpcClient {
     }
 
     /// Makes RPC call in batch and deserializes responses
-    pub fn call_batch<T>(&self, params: Vec<(&str, Vec<Value>)>) -> Result<Vec<T>>
+    pub fn call_batch<T>(&self, params: &[(&str, Vec<Value>)]) -> Result<Vec<T>>
     where
         for<'de> T: Deserialize<'de>,
     {
@@ -246,11 +248,11 @@ impl WebsocketRpcClient {
             self.call::<T>(params[0].0, &params[0].1)
                 .map(|value| vec![value])
         } else {
-            let response_values = self.request_batch(params.clone())?;
+            let response_values = self.request_batch(params)?;
 
             response_values
                 .into_iter()
-                .zip(params.into_iter())
+                .zip(params.iter().cloned()) // FIXME fix the clone
                 .map(|(response_value, (method, params))| {
                     serde_json::from_value(response_value).chain(|| {
                         (
@@ -273,7 +275,7 @@ impl WebsocketRpcClient {
         let params = heights
             .map(|height| ("validators", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
-        self.call_batch(params)
+        self.call_batch(&params)
     }
 
     fn commit_batch<'a, T: Iterator<Item = &'a u64>>(
@@ -283,7 +285,7 @@ impl WebsocketRpcClient {
         let params = heights
             .map(|height| ("commit", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
-        self.call_batch(params)
+        self.call_batch(&params)
     }
 }
 
@@ -311,7 +313,7 @@ impl Client for WebsocketRpcClient {
         let params = heights
             .map(|height| ("block", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
-        let rsps = self.call_batch::<BlockResponse>(params)?;
+        let rsps = self.call_batch::<BlockResponse>(&params)?;
         Ok(rsps.into_iter().map(|rsp| rsp.block).collect())
     }
 
@@ -329,7 +331,7 @@ impl Client for WebsocketRpcClient {
         let params = heights
             .map(|height| ("block_results", vec![json!(height.to_string())]))
             .collect::<Vec<(&str, Vec<Value>)>>();
-        self.call_batch(params)
+        self.call_batch(&params)
     }
 
     fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResponse> {
@@ -393,6 +395,43 @@ impl Client for WebsocketRpcClient {
             state.validators = next_vals.clone();
         }
         Ok((blocks, state))
+    }
+
+    fn query_state_batch<T: Iterator<Item = u64>>(&self, heights: T) -> Result<Vec<ChainState>> {
+        let params: Vec<(&str, Vec<Value>)> = heights
+            .map(|height| {
+                (
+                    "abci_query",
+                    vec![
+                        json!("state"),
+                        json!(null),
+                        json!(height.to_string()),
+                        json!(null),
+                    ],
+                )
+            })
+            .collect();
+        let rsps = self.call_batch::<AbciQueryResponse>(&params)?;
+
+        rsps.into_iter()
+            .map(|rsp| {
+                if let Some(value) = rsp.response.value {
+                    let value = base64::decode(&value)
+                        .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?;
+                    let state = serde_json::from_str(
+                        &String::from_utf8(value)
+                            .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?,
+                    )
+                    .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?;
+                    Ok(state)
+                } else {
+                    Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "abci query return error",
+                    ))
+                }
+            })
+            .collect()
     }
 }
 

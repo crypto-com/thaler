@@ -264,6 +264,7 @@ pub mod tests {
     use parity_scale_codec::Encode;
 
     use chain_core::init::coin::CoinError;
+    use chain_core::state::ChainState;
     use chain_core::tx::data::input::TxoIndex;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
@@ -452,6 +453,13 @@ pub mod tests {
 
         fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<AbciQuery> {
             unreachable!("query")
+        }
+
+        fn query_state_batch<T: Iterator<Item = u64>>(
+            &self,
+            _heights: T,
+        ) -> CommonResult<Vec<ChainState>> {
+            unreachable!()
         }
     }
 

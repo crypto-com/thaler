@@ -18,10 +18,12 @@ pub const COL_EXTRA: Option<u32> = Some(3);
 pub const COL_NODE_INFO: Option<u32> = Some(4);
 /// Column for seriliazed merkle tree: root hash => MerkleTree
 pub const COL_MERKLE_PROOFS: Option<u32> = Some(5);
-/// Column for tracking app states: height => root hash
-pub const COL_APP_STATES: Option<u32> = Some(6);
+/// Column for tracking app hashes: height => app hash
+pub const COL_APP_HASHS: Option<u32> = Some(6);
+/// Column for tracking app states: height => ChainNodeState, only available when tx_query_address set
+pub const COL_APP_STATES: Option<u32> = Some(7);
 /// Number of columns in DB
-pub const NUM_COLUMNS: Option<u32> = Some(7);
+pub const NUM_COLUMNS: Option<u32> = Some(8);
 
 pub const CHAIN_ID_KEY: &[u8] = b"chain_id";
 pub const GENESIS_APP_HASH_KEY: &[u8] = b"genesis_app_hash";

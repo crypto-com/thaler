@@ -157,7 +157,12 @@ fn begin_block_should_slash_byzantine_validators() {
     app.end_block(&RequestEndBlock::new());
     assert_eq!(
         Coin::zero(),
-        app.last_state.as_ref().unwrap().rewards_pool.period_bonus
+        app.last_state
+            .as_ref()
+            .unwrap()
+            .top_level
+            .rewards_pool
+            .period_bonus
     );
 
     // Begin Block
@@ -177,7 +182,12 @@ fn begin_block_should_slash_byzantine_validators() {
         .contains_key(&env.accounts[0].staking_address()));
     assert_eq!(
         Coin::new((u64::from(env.dist_coin) / 10) * 2).unwrap(), // 0.2 * account_balance
-        app.last_state.as_ref().unwrap().rewards_pool.period_bonus
+        app.last_state
+            .as_ref()
+            .unwrap()
+            .top_level
+            .rewards_pool
+            .period_bonus
     );
 }
 
@@ -216,7 +226,12 @@ fn begin_block_should_slash_non_live_validators() {
     app.end_block(&RequestEndBlock::new());
     assert_eq!(
         Coin::zero(),
-        app.last_state.as_ref().unwrap().rewards_pool.period_bonus
+        app.last_state
+            .as_ref()
+            .unwrap()
+            .top_level
+            .rewards_pool
+            .period_bonus
     );
 
     // Begin Block
@@ -236,7 +251,12 @@ fn begin_block_should_slash_non_live_validators() {
         .contains_key(&env.accounts[0].staking_address()));
     assert_eq!(
         Coin::new(u64::from(env.dist_coin) / 10).unwrap(), // 0.1 * account_balance
-        app.last_state.as_ref().unwrap().rewards_pool.period_bonus
+        app.last_state
+            .as_ref()
+            .unwrap()
+            .top_level
+            .rewards_pool
+            .period_bonus
     );
 }
 
@@ -275,7 +295,12 @@ fn begin_block_should_update_slash_ratio_for_multiple_punishments() {
     app.end_block(&RequestEndBlock::new());
     assert_eq!(
         Coin::zero(),
-        app.last_state.as_ref().unwrap().rewards_pool.period_bonus
+        app.last_state
+            .as_ref()
+            .unwrap()
+            .top_level
+            .rewards_pool
+            .period_bonus
     );
 
     // Begin Block
@@ -298,7 +323,12 @@ fn begin_block_should_update_slash_ratio_for_multiple_punishments() {
     app.end_block(&RequestEndBlock::new());
     assert_eq!(
         Coin::zero(),
-        app.last_state.as_ref().unwrap().rewards_pool.period_bonus
+        app.last_state
+            .as_ref()
+            .unwrap()
+            .top_level
+            .rewards_pool
+            .period_bonus
     );
 
     // Begin Block
@@ -318,7 +348,12 @@ fn begin_block_should_update_slash_ratio_for_multiple_punishments() {
         .contains_key(&env.accounts[0].staking_address()));
     assert_eq!(
         Coin::new(u64::from(Coin::max()) / 5).unwrap(), // 0.1 * account_balance
-        app.last_state.as_ref().unwrap().rewards_pool.period_bonus
+        app.last_state
+            .as_ref()
+            .unwrap()
+            .top_level
+            .rewards_pool
+            .period_bonus
     );
 }
 

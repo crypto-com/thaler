@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use tendermint::{block::Header, validator};
 
 use crate::tendermint::client::Client;
-use crate::Result;
+use crate::Result as CommonResult;
 
 ///
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -15,7 +15,7 @@ pub struct TrustedState {
 }
 
 /// get genesis validator set
-pub fn get_genesis_validators<C>(client: &C) -> Result<validator::Set>
+pub fn get_genesis_validators<C>(client: &C) -> CommonResult<validator::Set>
 where
     C: Client,
 {

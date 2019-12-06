@@ -122,6 +122,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     pub fn commit_handler(&mut self, _req: &RequestCommit) -> ResponseCommit {
         let orig_state = self.last_state.clone();
         let mut new_state = orig_state.expect("executing block commit, but no app state stored (i.e. no initchain or recovery was executed)");
+        let mut top_level = &mut new_state.top_level;
         let mut resp = ResponseCommit::new();
         let mut inittx = self.storage.db.transaction();
 
@@ -136,15 +137,15 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             self.process_txs(&mut inittx);
         }
         if self.rewards_pool_updated {
-            new_state.rewards_pool.last_block_height = new_state.last_block_height;
+            top_level.rewards_pool.last_block_height = new_state.last_block_height;
             self.rewards_pool_updated = false;
         }
-        new_state.last_account_root_hash = self.uncommitted_account_root_hash;
+        top_level.account_root = self.uncommitted_account_root_hash;
         let app_hash = compute_app_hash(
             &tree,
-            &new_state.last_account_root_hash,
-            &new_state.rewards_pool,
-            &new_state.network_params,
+            &top_level.account_root,
+            &top_level.rewards_pool,
+            &top_level.network_params,
         );
         inittx.put(COL_MERKLE_PROOFS, &app_hash[..], &tree.encode());
         new_state.last_apphash = app_hash;
@@ -154,10 +155,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 app_hash,
                 info: ChainInfo {
                     // TODO: fee computation in enclave?
-                    min_fee_computed: new_state.network_params.calculate_fee(0).expect("base fee"),
+                    min_fee_computed: top_level.network_params.calculate_fee(0).expect("base fee"),
                     chain_hex_id: self.chain_hex_id,
                     previous_block_time: new_state.block_time,
-                    unbonding_period: new_state.network_params.get_unbonding_period(),
+                    unbonding_period: top_level.network_params.get_unbonding_period(),
                 },
             }) {
             EnclaveResponse::CommitBlock(Ok(_)) => {
@@ -168,12 +169,16 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             }
         }
 
-        inittx.put(
-            COL_APP_STATES,
-            &i64::encode_var_vec(new_state.last_block_height),
-            &new_state.last_apphash,
-        );
         inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &new_state.encode());
+        let encoded_height = i64::encode_var_vec(new_state.last_block_height);
+        inittx.put(COL_APP_HASHS, &encoded_height, &new_state.last_apphash);
+        if self.tx_query_address.is_some() {
+            inittx.put(
+                COL_APP_STATES,
+                &encoded_height,
+                &new_state.top_level.encode(),
+            );
+        }
         let wr = self.storage.db.write(inittx);
         if wr.is_err() {
             panic!("db write error: {}", wr.err().unwrap());

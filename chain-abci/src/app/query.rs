@@ -5,9 +5,11 @@ use crate::storage::*;
 use abci::*;
 use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
 use chain_core::state::account::StakedStateAddress;
+use chain_core::state::ChainState;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use integer_encoding::VarInt;
 use parity_scale_codec::{Decode, Encode};
+use serde_json;
 use std::convert::TryFrom;
 
 /// Generate generic ABCI ProofOp for the witness
@@ -82,13 +84,13 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                             let app_hash = self
                                 .storage
                                 .db
-                                .get(COL_APP_STATES, &i64::encode_var_vec(height))
+                                .get(COL_APP_HASHS, &i64::encode_var_vec(height))
                                 .unwrap()
                                 .unwrap();
                             let data = self
                                 .storage
                                 .db
-                                .get(COL_MERKLE_PROOFS, &app_hash[..])
+                                .get(COL_MERKLE_PROOFS, &app_hash)
                                 .unwrap()
                                 .unwrap()
                                 .to_vec();
@@ -136,7 +138,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 let account_address = StakedStateAddress::try_from(_req.data.as_slice());
                 if let (Some(state), Ok(address)) = (&self.last_state, account_address) {
                     let account =
-                        get_account(&address, &state.last_account_root_hash, &self.accounts);
+                        get_account(&address, &state.top_level.account_root, &self.accounts);
                     match account {
                         Ok(a) => {
                             resp.value = a.encode();
@@ -150,6 +152,32 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 } else {
                     resp.log += "account lookup failed (either invalid address or node not correctly restored / initialized)";
                     resp.code = 3;
+                }
+            }
+            "state" => {
+                if self.tx_query_address.is_none() {
+                    resp.code = 1;
+                    resp.log += "tx query address not set";
+                } else {
+                    let value = self
+                        .storage
+                        .db
+                        .get(COL_APP_STATES, &i64::encode_var_vec(_req.height));
+                    match value {
+                        Ok(Some(value)) => {
+                            if let Ok(state) = ChainState::decode(&mut value.to_vec().as_slice()) {
+                                resp.value =
+                                    serde_json::to_string(&state).unwrap().as_bytes().to_owned();
+                            } else {
+                                resp.log += "state decode failed";
+                                resp.code = 2;
+                            }
+                        }
+                        _ => {
+                            resp.log += "state not found";
+                            resp.code = 2;
+                        }
+                    }
                 }
             }
             _ => {

@@ -59,6 +59,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     ) -> Result<(Fee, Option<StakedState>), Error> {
         let state = self.last_state.as_ref().expect("the app state is expected");
         let min_fee = state
+            .top_level
             .network_params
             .calculate_fee(tx_len)
             .expect("invalid fee policy");
@@ -66,7 +67,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             min_fee_computed: min_fee,
             chain_hex_id: self.chain_hex_id,
             previous_block_time: state.block_time,
-            unbonding_period: state.network_params.get_unbonding_period(),
+            unbonding_period: state.top_level.network_params.get_unbonding_period(),
         };
         match txaux {
             TxAux::EnclaveTx(tx) => verify_enclave_tx(
@@ -79,7 +80,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             ),
             _ => {
                 let node_info = NodeInfo {
-                    minimal_stake: state.network_params.get_required_council_node_stake(),
+                    minimal_stake: state
+                        .top_level
+                        .network_params
+                        .get_required_council_node_stake(),
                     tendermint_validator_addresses: &state
                         .validators
                         .tendermint_validator_addresses,

@@ -30,7 +30,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             .expect("Last state not found. Init chain was not called.");
 
         let block_time = last_state.block_time;
-        let jail_duration = last_state.network_params.get_jail_duration();
+        let jail_duration = last_state.top_level.network_params.get_jail_duration();
 
         account.jail_until(block_time + jail_duration, punishment_kind);
 

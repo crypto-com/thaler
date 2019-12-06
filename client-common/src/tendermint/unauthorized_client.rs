@@ -2,6 +2,7 @@ use crate::{
     tendermint::{lite, types::*, Client},
     ErrorKind, Result,
 };
+use chain_core::state::ChainState;
 
 /// `Client` which returns `PermissionDenied` error for each function call.
 #[derive(Debug, Default, Clone, Copy)]
@@ -48,6 +49,10 @@ impl Client for UnauthorizedClient {
         _state: lite::TrustedState,
         _heights: T,
     ) -> Result<(Vec<Block>, lite::TrustedState)> {
+        Err(ErrorKind::PermissionDenied.into())
+    }
+
+    fn query_state_batch<T: Iterator<Item = u64>>(&self, _heights: T) -> Result<Vec<ChainState>> {
         Err(ErrorKind::PermissionDenied.into())
     }
 }

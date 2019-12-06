@@ -36,16 +36,17 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Distribute rewards pool
     pub fn rewards_try_distribute(&mut self) -> Option<(RewardsDistribution, Coin)> {
         let state = self.last_state.as_mut().unwrap();
+        let top_level = &mut state.top_level;
 
         if state.block_time < state.genesis_time
-            || state.block_time < state.rewards_pool.last_distribution_time
+            || state.block_time < top_level.rewards_pool.last_distribution_time
         {
             // FIXME use global overflow/underflow check.
             panic!("invalid block time");
         }
 
-        if state.block_time - state.rewards_pool.last_distribution_time
-            < state.network_params.get_rewards_distribution_period() as u64
+        if state.block_time - top_level.rewards_pool.last_distribution_time
+            < top_level.network_params.get_rewards_distribution_period() as u64
         {
             return None;
         }
@@ -53,31 +54,33 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         let mut total_staking = Coin::zero();
         for (addr, _) in self.validator_voting_power.iter() {
-            let account = get_account(addr, &state.last_account_root_hash, &self.accounts)
+            let account = get_account(addr, &top_level.account_root, &self.accounts)
                 .expect("io error or validator account not exists");
             total_staking = (total_staking + account.bonded).expect("coin overflow");
         }
 
         let minted = monetary_expansion(
-            state.rewards_pool.tau,
+            top_level.rewards_pool.tau,
             total_staking,
-            state.rewards_pool.minted,
-            &state.network_params,
+            top_level.rewards_pool.minted,
+            &top_level.network_params,
         );
 
         // tau decay
-        state.rewards_pool.tau = Milli::from_millis(
-            state.rewards_pool.tau.as_millis()
-                * state.network_params.get_rewards_monetary_expansion_decay() as u64
+        top_level.rewards_pool.tau = Milli::from_millis(
+            top_level.rewards_pool.tau.as_millis()
+                * top_level
+                    .network_params
+                    .get_rewards_monetary_expansion_decay() as u64
                 / 1_000_000,
         );
 
-        let total_rewards = (state.rewards_pool.period_bonus + minted).unwrap();
-        state.rewards_pool.minted = (state.rewards_pool.minted + minted).unwrap();
+        let total_rewards = (top_level.rewards_pool.period_bonus + minted).unwrap();
+        top_level.rewards_pool.minted = (top_level.rewards_pool.minted + minted).unwrap();
 
         let total_blocks = state.proposer_stats.iter().map(|(_, count)| count).sum();
         let share = (total_rewards / total_blocks).unwrap();
-        state.rewards_pool.period_bonus = (total_rewards % total_blocks).unwrap();
+        top_level.rewards_pool.period_bonus = (total_rewards % total_blocks).unwrap();
 
         let mut root = self.uncommitted_account_root_hash;
         let mut distributed: RewardsDistribution = vec![];
@@ -141,15 +144,17 @@ mod tests {
 
         // propose block by first validator.
         let state = app.last_state.as_ref().unwrap();
+        let top_level = &state.top_level;
         let reward1 = monetary_expansion(
-            state.rewards_pool.tau,
+            top_level.rewards_pool.tau,
             total_staking,
-            state.rewards_pool.minted,
-            &state.network_params,
+            top_level.rewards_pool.minted,
+            &top_level.network_params,
         );
         let mut req = env.req_begin_block(1, 0);
         req.mut_header().set_time(seconds_to_timestamp(
-            state.block_time + state.network_params.get_rewards_distribution_period() as Timespec,
+            state.block_time
+                + top_level.network_params.get_rewards_distribution_period() as Timespec,
         ));
         app.begin_block(&req);
         app.end_block(&RequestEndBlock::new());
@@ -157,6 +162,7 @@ mod tests {
 
         // check the rewards
         let state = app.last_state.as_ref().unwrap();
+        let top_level = &state.top_level;
         let staking = state
             .validators
             .tendermint_validator_addresses
@@ -167,14 +173,14 @@ mod tests {
 
         // propose block by second validator.
         let reward2 = monetary_expansion(
-            state.rewards_pool.tau,
+            top_level.rewards_pool.tau,
             (total_staking + reward1).unwrap(),
-            state.rewards_pool.minted,
-            &state.network_params,
+            top_level.rewards_pool.minted,
+            &top_level.network_params,
         );
         let mut req = env.req_begin_block(2, 1);
         req.mut_header().set_time(seconds_to_timestamp(
-            state.block_time + state.network_params.get_rewards_distribution_period() as u64,
+            state.block_time + top_level.network_params.get_rewards_distribution_period() as u64,
         ));
         req.set_last_commit_info(env.last_commit_info_signed());
         app.begin_block(&req);

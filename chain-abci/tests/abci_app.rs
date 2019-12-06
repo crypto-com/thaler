@@ -1,4 +1,3 @@
-use abci::Application;
 use abci::*;
 use bit_vec::BitVec;
 use chain_abci::app::*;
@@ -28,7 +27,7 @@ use chain_core::state::tendermint::{
     TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
 use chain_core::state::validator::NodeJoinRequestTx;
-use chain_core::state::RewardsPoolState;
+use chain_core::state::{ChainState, RewardsPoolState};
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::EcdsaSignature;
@@ -172,8 +171,8 @@ fn get_dummy_network_params() -> NetworkParameters {
             monetary_expansion_cap: Coin::zero(),
             distribution_period: 24 * 60 * 60,
             monetary_expansion_r0: "0.5".parse().unwrap(),
-            monetary_expansion_tau: 166666600,
-            monetary_expansion_decay: 999860,
+            monetary_expansion_tau: 166_666_600,
+            monetary_expansion_decay: 999_860,
         },
         max_validators: 1,
     })
@@ -186,13 +185,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         last_apphash: app_hash,
         block_time: 0,
         genesis_time: 0,
-        rewards_pool: RewardsPoolState::new(
-            0,
-            Milli::integral(params.get_rewards_monetary_expansion_tau() as u64),
-        ),
         proposer_stats: BTreeMap::new(),
-        last_account_root_hash: [0u8; 32],
-        network_params: params,
         validators: ValidatorState {
             council_nodes_by_power: BTreeMap::new(),
             tendermint_validator_addresses: BTreeMap::new(),
@@ -200,6 +193,14 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
                 validator_liveness: BTreeMap::new(),
                 slashing_schedule: Default::default(),
             },
+        },
+        top_level: ChainState {
+            account_root: [0u8; 32],
+            rewards_pool: RewardsPoolState::new(
+                0,
+                Milli::integral(params.get_rewards_monetary_expansion_tau() as u64),
+            ),
+            network_params: params,
         },
     }
 }
@@ -340,7 +341,7 @@ fn init_chain_should_create_db_items() {
     assert_eq!(
         1,
         app.accounts
-            .get(&state.last_account_root_hash, &mut [key])
+            .get(&state.top_level.account_root, &mut [key])
             .expect("account")
             .iter()
             .count()
@@ -379,8 +380,8 @@ fn init_chain_panics_with_different_app_hash() {
             monetary_expansion_cap: expansion_cap,
             distribution_period: 24 * 60 * 60,
             monetary_expansion_r0: "0.5".parse().unwrap(),
-            monetary_expansion_tau: 166666600,
-            monetary_expansion_decay: 999860,
+            monetary_expansion_tau: 166_666_600,
+            monetary_expansion_decay: 999_860,
         },
         max_validators: 1,
     };
@@ -561,13 +562,25 @@ fn deliver_valid_tx() -> (
     ResponseDeliverTx,
 ) {
     let (mut app, txaux, tx) = prepare_app_valid_tx();
-    let rewards_pool_remaining_old = app.last_state.as_ref().unwrap().rewards_pool.period_bonus;
+    let rewards_pool_remaining_old = app
+        .last_state
+        .as_ref()
+        .unwrap()
+        .top_level
+        .rewards_pool
+        .period_bonus;
     assert_eq!(0, app.delivered_txs.len());
     begin_block(&mut app);
     let mut creq = RequestDeliverTx::default();
     creq.set_tx(txaux.encode());
     let cresp = app.deliver_tx(&creq);
-    let rewards_pool_remaining_new = app.last_state.as_ref().unwrap().rewards_pool.period_bonus;
+    let rewards_pool_remaining_new = app
+        .last_state
+        .as_ref()
+        .unwrap()
+        .top_level
+        .rewards_pool
+        .period_bonus;
     assert!(rewards_pool_remaining_new > rewards_pool_remaining_old);
     match txaux {
         TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx { witness, .. }) => {
@@ -703,7 +716,7 @@ fn valid_commit_should_persist() {
     )
     .unwrap();
     assert_ne!(10, persisted_state.last_block_height);
-    assert_ne!(10, persisted_state.rewards_pool.last_block_height);
+    assert_ne!(10, persisted_state.top_level.rewards_pool.last_block_height);
     let cresp = app.commit(&RequestCommit::default());
     assert_eq!(0, app.delivered_txs.len());
     assert!(app
@@ -724,6 +737,7 @@ fn valid_commit_should_persist() {
         app.last_state
             .as_ref()
             .unwrap()
+            .top_level
             .rewards_pool
             .last_block_height
     );
@@ -809,10 +823,16 @@ fn query_should_return_proof_for_committed_tx() {
 
     assert!(transaction_proof.verify(&transaction_root_hash));
 
-    let rewards_pool_part = app.last_state.clone().unwrap().rewards_pool.hash();
+    let rewards_pool_part = app
+        .last_state
+        .clone()
+        .unwrap()
+        .top_level
+        .rewards_pool
+        .hash();
     let mut bs = Vec::new();
     bs.extend(transaction_root_hash.to_vec());
-    bs.extend(&app.last_state.clone().unwrap().last_account_root_hash[..]);
+    bs.extend(&app.last_state.clone().unwrap().top_level.account_root);
     bs.extend(&rewards_pool_part);
     bs.extend(&get_dummy_network_params().hash());
 
@@ -848,7 +868,7 @@ pub fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp<MockClien
     let state = app.last_state.clone().expect("app state");
     println!(
         "committed root hash: {}",
-        hex::encode(&state.last_account_root_hash)
+        hex::encode(&state.top_level.account_root)
     );
     let account = app
         .accounts

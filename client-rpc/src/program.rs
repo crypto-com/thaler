@@ -47,6 +47,13 @@ pub struct Options {
         help = "Url for connecting with tendermint websocket RPC"
     )]
     pub websocket_url: String,
+
+    #[structopt(
+        name = "disable-fast-forward",
+        long,
+        help = "Disable fast forward, which is not secure when connecting to outside nodes"
+    )]
+    pub disable_fast_forward: bool,
 }
 
 #[allow(dead_code)]
