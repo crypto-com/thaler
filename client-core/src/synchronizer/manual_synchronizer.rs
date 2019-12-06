@@ -336,12 +336,14 @@ fn prepare_block_header(
 
     let unencrypted_transactions =
         check_unencrypted_transactions(&block_result, staking_addresses, block)?;
+    let enclave_transaction_ids = block.enclave_transaction_ids()?;
 
     Ok(BlockHeader {
         app_hash,
         block_height,
         block_time,
         transaction_ids,
+        enclave_transaction_ids,
         block_filter,
         unencrypted_transactions,
     })

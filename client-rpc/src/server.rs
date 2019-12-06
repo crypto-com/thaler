@@ -9,9 +9,14 @@ use std::net::SocketAddr;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_core::tx::fee::LinearFee;
 use client_common::storage::SledStorage;
+#[cfg(not(feature = "mock-enc-dec"))]
+use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
-use client_common::{Error, Result};
+use client_common::{Error, ErrorKind, Result, ResultExt};
+#[cfg(not(feature = "mock-enc-dec"))]
+use client_core::cipher::DefaultTransactionObfuscation;
+#[cfg(feature = "mock-enc-dec")]
 use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_core::signer::WalletSignerManager;
@@ -19,12 +24,16 @@ use client_core::synchronizer::ManualSynchronizer;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
-
 use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
+#[cfg(feature = "mock-enc-dec")]
+use log::warn;
 use secstr::SecUtf8;
 use serde::{Deserialize, Serialize};
 
+#[cfg(not(feature = "mock-enc-dec"))]
+type AppTransactionCipher = DefaultTransactionObfuscation;
+#[cfg(feature = "mock-enc-dec")]
 type AppTransactionCipher = MockAbciTransactionObfuscation<WebsocketRpcClient>;
 type AppTxBuilder = DefaultWalletTransactionBuilder<SledStorage, LinearFee, AppTransactionCipher>;
 type AppWalletClient = DefaultWalletClient<SledStorage, WebsocketRpcClient, AppTxBuilder>;
@@ -46,6 +55,38 @@ pub(crate) struct Server {
     storage_dir: String,
     websocket_url: String,
     enable_fast_forward: bool,
+}
+
+/// normal
+#[cfg(not(feature = "mock-enc-dec"))]
+fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
+    let result = tendermint_client.query("txquery", &[])?.bytes()?;
+    let address = std::str::from_utf8(&result).chain(|| {
+        (
+            ErrorKind::ConnectionError,
+            "Unable to decode txquery address",
+        )
+    })?;
+    if let Some(hostname) = address.split(':').next() {
+        Ok(DefaultTransactionObfuscation::new(
+            address.to_string(),
+            hostname.to_string(),
+        ))
+    } else {
+        Err(client_common::Error::new(
+            ErrorKind::ConnectionError,
+            "Unable to decode txquery address",
+        ))
+    }
+}
+
+/// temporary
+#[cfg(feature = "mock-enc-dec")]
+fn get_tx_query(
+    tendermint_client: WebsocketRpcClient,
+) -> Result<MockAbciTransactionObfuscation<WebsocketRpcClient>> {
+    warn!("{}", "WARNING: Using mock (non-enclave) infrastructure");
+    Ok(MockAbciTransactionObfuscation::new(tendermint_client))
 }
 
 impl Server {
@@ -70,7 +111,7 @@ impl Server {
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppWalletClient> {
         let signer_manager = WalletSignerManager::new(storage.clone());
-        let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
+        let transaction_cipher = get_tx_query(tendermint_client.clone())?;
         let transaction_builder = DefaultWalletTransactionBuilder::new(
             signer_manager,
             tendermint_client.genesis().unwrap().fee_policy(),
@@ -88,7 +129,7 @@ impl Server {
         storage: SledStorage,
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppOpsClient> {
-        let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
+        let transaction_cipher = get_tx_query(tendermint_client.clone())?;
         let signer_manager = WalletSignerManager::new(storage.clone());
         let fee_algorithm = tendermint_client.genesis().unwrap().fee_policy();
         let wallet_client = self.make_wallet_client(storage, tendermint_client.clone())?;
@@ -106,7 +147,7 @@ impl Server {
         storage: SledStorage,
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppSynchronizer> {
-        let transaction_cipher = MockAbciTransactionObfuscation::new(tendermint_client.clone());
+        let transaction_cipher = get_tx_query(tendermint_client.clone())?;
         let transaction_handler = DefaultTransactionHandler::new(storage.clone());
         let block_handler =
             DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());

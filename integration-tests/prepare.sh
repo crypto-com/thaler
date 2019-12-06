@@ -53,6 +53,15 @@ function build_chain_tx_enclave_docker_image() {
     cd "${CWD}"
 }
 
+function build_chain_tx_enclave_query_docker_image() {
+    print_config "SGX_MODE" "${SGX_MODE}"
+    CWD=$(pwd)
+    cd ../ && docker build -t "${CHAIN_TX_ENCLAVE_QUERY_DOCKER_IMAGE}" \
+        -f ./chain-tx-enclave/tx-query/Dockerfile .
+    cd "${CWD}"
+}
+
+
 # @argument Tendermint directory
 function init_tendermint() {
     mkdir -p "${1}"
@@ -278,6 +287,7 @@ fi
 
 print_step "Build Chain Transaction Enclave image"
 build_chain_tx_enclave_docker_image
+build_chain_tx_enclave_query_docker_image
 
 print_step "Initialize Tendermint"
 rm -rf "${TENDERMINT_TEMP_DIRECTORY}"

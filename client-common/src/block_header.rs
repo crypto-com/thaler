@@ -17,6 +17,8 @@ pub struct BlockHeader {
     pub transaction_ids: Vec<TxId>,
     /// Bloom filter for view keys and staking addresses
     pub block_filter: BlockFilter,
+    /// List of successfully committed transaction of transactions that may need to be queried against
+    pub enclave_transaction_ids: Vec<TxId>,
     /// List of un-encrypted transactions (only contains transactions of type `DepositStake` and `UnbondStake`)
     pub unencrypted_transactions: Vec<Transaction>,
 }

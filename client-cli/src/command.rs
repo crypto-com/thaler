@@ -17,6 +17,8 @@ use structopt::StructOpt;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use client_common::storage::SledStorage;
+#[cfg(not(feature = "mock-enc-dec"))]
+use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result, ResultExt, Storage};

@@ -351,7 +351,7 @@ describe("Staking", () => {
 				[],
 			]),
 		).to.eventually.rejectedWith(
-			"Tendermint RPC error: verification failed:",
+			"Validation error: Staking state is not yet unbonded",
 			"Withdraw unbonded stake should fail before unbond from period",
 		);
 

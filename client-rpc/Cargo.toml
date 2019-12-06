@@ -4,6 +4,10 @@ version = "0.1.0"
 authors = ["Calvin Lau <calvin@crypto.com>"]
 edition = "2018"
 
+[features]
+mock-enc-dec = []
+default = []
+
 [dependencies]
 base64 = "0.11"
 dirs = "2.0.2"

@@ -557,7 +557,7 @@ fn get_ra_cert() -> (CertKeyPair, bool) {
     }
 
     // Do the renew
-    if renew_ra_cert(&mut cache).is_err() {
+    if let Err(e) = renew_ra_cert(&mut cache) {
         // If RA renewal fails, we do not crash for the following reasons.
         // 1. Crashing the enclave causes most data to be lost permanently,
         //    since we do not have persistent key-value storage yet. On the
@@ -568,7 +568,7 @@ fn get_ra_cert() -> (CertKeyPair, bool) {
         // 3. The certificate has a 90 days valid duration. If RA keeps
         //    failing for 90 days, the enclave itself will not serve any
         //    client.
-        panic!("RACACHE renewal failed");
+        panic!("RACACHE renewal failed: {:?}", e);
     }
 
     (cache.cert_key.clone(), true)

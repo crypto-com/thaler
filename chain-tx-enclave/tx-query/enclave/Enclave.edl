@@ -8,7 +8,7 @@ enclave {
     include "sgx_quote.h"
 
     trusted {
-        public sgx_status_t run_server(int fd);
+        public sgx_status_t run_server(int fd, int timeout);
     };
     untrusted {
         sgx_status_t ocall_encrypt_request(

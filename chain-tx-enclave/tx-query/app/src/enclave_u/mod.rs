@@ -50,48 +50,30 @@ pub extern "C" fn ocall_get_txs(
     txs: *mut u8,
     txs_len: u32,
 ) -> sgx_status_t {
-    let mut txids_slice = unsafe { std::slice::from_raw_parts(txids, txids_len as usize) };
-    // TODO: directly construct EnclaveRequest in the enclave
-    let txids_i: Result<Vec<TxId>, parity_scale_codec::Error> = Decode::decode(&mut txids_slice);
-    if let Ok(txids) = txids_i {
-        let request = EnclaveRequest::GetSealedTxData { txids };
-        let req = request.encode();
-        let r = ZMQ_SOCKET.with(|socket| {
-            let send_r = socket.send(req, FLAGS);
-            if send_r.is_err() {
-                error!("failed to send a request for obtaining sealed data");
+    let req = unsafe { std::slice::from_raw_parts(txids, txids_len as usize) };
+
+    let r = ZMQ_SOCKET.with(|socket| {
+        let send_r = socket.send(req, FLAGS);
+        if send_r.is_err() {
+            error!("failed to send a request for obtaining sealed data");
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
+        if let Ok(msg) = socket.recv_bytes(FLAGS) {
+            if msg.len() > (txs_len as usize) {
+                error!("Not enough allocated space to return the sealed tx data");
                 return sgx_status_t::SGX_ERROR_UNEXPECTED;
-            }
-            // TODO: pass back response directly
-            if let Ok(msg) = socket.recv_bytes(FLAGS) {
-                match EnclaveResponse::decode(&mut msg.as_slice()) {
-                    Ok(EnclaveResponse::GetSealedTxData(Some(data))) => {
-                        let txs_enc = data.encode();
-                        if txs_enc.len() > (txs_len as usize) {
-                            error!("Not enough allocated space to return the sealed tx data");
-                            return sgx_status_t::SGX_ERROR_UNEXPECTED;
-                        } else {
-                            unsafe {
-                                std::ptr::copy(txs_enc.as_ptr(), txs, txs_enc.len());
-                            }
-                            return sgx_status_t::SGX_SUCCESS;
-                        }
-                    }
-                    _ => {
-                        error!("failed to decode a response for obtaining sealed data");
-                        return sgx_status_t::SGX_ERROR_UNEXPECTED;
-                    }
-                }
             } else {
-                error!("failed to receive a response for obtaining sealed data");
-                return sgx_status_t::SGX_ERROR_UNEXPECTED;
+                unsafe {
+                    std::ptr::copy(msg.as_ptr(), txs, msg.len());
+                }
+                return sgx_status_t::SGX_SUCCESS;
             }
-        });
-        r
-    } else {
-        error!("failed to decode transaction ids");
-        return sgx_status_t::SGX_ERROR_UNEXPECTED;
-    }
+        } else {
+            error!("failed to receive a response for obtaining sealed data");
+            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+        }
+    });
+    r
 }
 
 /// Untrusted function called from the enclave -- sends a ZMQ message to
@@ -133,6 +115,7 @@ extern "C" {
         eid: sgx_enclave_id_t,
         retval: *mut sgx_status_t,
         socket_fd: c_int,
+        timeout: c_int,
     ) -> sgx_status_t;
 }
 

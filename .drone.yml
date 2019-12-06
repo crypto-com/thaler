@@ -27,6 +27,11 @@ platform:
 
 steps:
 - name: Build and Test
+  environment:
+    SPID:
+      from_secret: dev_spid
+    IAS_API_KEY:
+      from_secret: dev_ias_key
   commands:
   - export NIX_REMOTE=daemon
   - export DOCKER_COMPOSE_PREFIX="${DRONE_BRANCH}"
@@ -119,6 +124,6 @@ trigger:
 
 ---
 kind: signature
-hmac: 16ab872fd8e8665072dc48562ee21a134568501e65d401a8ddfa870ff2d83e79
+hmac: dae5cd458b9f583fe5d3d01f64776c6af23ea9bd9a8c651db4f840ac2fb79d6c
 
 ...

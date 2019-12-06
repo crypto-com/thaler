@@ -6,7 +6,7 @@ edition = "2018"
 
 [features]
 mock-enc-dec = []
-default = ["mock-enc-dec"]
+default = []
 
 [dependencies]
 chain-core = { path = "../chain-core" }
