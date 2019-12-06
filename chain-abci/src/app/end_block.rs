@@ -233,7 +233,7 @@ mod tests {
         });
         let rewards_pool = RewardsPoolState::new(
             genesis_time,
-            Milli::integral(network_params.get_rewards_monetary_expansion_tau() as u64),
+            network_params.get_rewards_monetary_expansion_tau(),
         );
         let v1_address: StakedStateAddress =
             StakedStateAddress::from(RedeemAddress::from([0u8; 20]));

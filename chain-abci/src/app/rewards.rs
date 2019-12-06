@@ -1,34 +1,42 @@
-use std::cmp::min;
+use std::cmp::{max, min};
 
-use chain_core::common::fixed::{exp, FixedNumber};
+use chain_core::common::fixed::{exp, FixedNumber, EXP_LOWER_BOUND};
 use chain_core::init::{coin::Coin, params::NetworkParameters};
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
-use chain_core::tx::fee::Milli;
 
 use crate::app::{update_account, ChainNodeApp};
 use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::tx::get_account;
 
-fn milli_to_fixed(n: Milli) -> FixedNumber {
-    FixedNumber::from_num(n.as_millis()) / 1000
-}
-
 pub fn monetary_expansion(
-    tau: Milli,
+    tau: u64,
     total_staking: Coin,
     minted: Coin,
     params: &NetworkParameters,
 ) -> Coin {
     let cap = params.get_rewards_monetary_expansion_cap();
-    let r0 = milli_to_fixed(params.get_rewards_monetary_expansion_r0());
-    let tau = milli_to_fixed(tau);
-    let total_staking = FixedNumber::from_num(u64::from(total_staking)) / 1_0000_0000;
-    let amount = total_staking * r0 * exp(-total_staking / tau) * 1_0000_0000;
+    let r0 = FixedNumber::from_num(params.get_rewards_monetary_expansion_r0().as_millis()) / 1000;
+    let tau = FixedNumber::from_num(tau);
+    let total_staking = FixedNumber::from_num(u64::from(total_staking));
+    let amount = total_staking
+        * r0
+        * exp(max(
+            FixedNumber::from_num(EXP_LOWER_BOUND),
+            -total_staking / tau,
+        ));
     min(
         (cap - minted).unwrap_or_default(),
         Coin::new(amount.to_num()).unwrap(),
     )
+}
+
+// rate < 1_000_000, no overflow.
+fn mul_micro(n: u64, rate: u64) -> u64 {
+    assert!(rate <= 1_000_000);
+    let div = n / 1_000_000;
+    let rem = n % 1_000_000;
+    div * rate + rem * rate / 1_000_000
 }
 
 type RewardsDistribution = Vec<(StakedStateAddress, Coin)>;
@@ -67,12 +75,11 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         );
 
         // tau decay
-        top_level.rewards_pool.tau = Milli::from_millis(
-            top_level.rewards_pool.tau.as_millis()
-                * top_level
-                    .network_params
-                    .get_rewards_monetary_expansion_decay() as u64
-                / 1_000_000,
+        top_level.rewards_pool.tau = mul_micro(
+            top_level.rewards_pool.tau,
+            top_level
+                .network_params
+                .get_rewards_monetary_expansion_decay() as u64,
         );
 
         let total_rewards = (top_level.rewards_pool.period_bonus + minted).unwrap();

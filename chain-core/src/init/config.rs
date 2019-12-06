@@ -9,7 +9,6 @@ use crate::state::account::{
 };
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::RewardsPoolState;
-use crate::tx::fee::Milli;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -27,6 +26,7 @@ pub enum DistributionError {
     NoValidators,
     InvalidVotingPower,
     InvalidPunishmentConfiguration,
+    InvalidRewardsParamter(&'static str),
 }
 
 impl fmt::Display for DistributionError {
@@ -62,6 +62,9 @@ impl fmt::Display for DistributionError {
             },
             DistributionError::InvalidPunishmentConfiguration => {
                 write!(f, "Invalid punishment configuration (maybe slash_wait_period >= jail_duration)")
+            }
+            DistributionError::InvalidRewardsParamter(err) => {
+                write!(f, "Invalid rewards parameters: {}", err)
             }
         }
     }
@@ -187,6 +190,10 @@ impl InitConfig {
         &self,
         genesis_time: Timespec,
     ) -> Result<GenesisState, DistributionError> {
+        self.network_params
+            .rewards_config
+            .validate()
+            .map_err(DistributionError::InvalidRewardsParamter)?;
         if self.council_nodes.is_empty() {
             return Err(DistributionError::NoValidators);
         }
@@ -244,7 +251,7 @@ impl InitConfig {
         let accounts = self.get_account(genesis_time);
         let rewards_pool = RewardsPoolState::new(
             genesis_time,
-            Milli::integral(self.network_params.rewards_config.monetary_expansion_tau as u64),
+            self.network_params.rewards_config.monetary_expansion_tau,
         );
         Ok((accounts, rewards_pool, validators?))
     }

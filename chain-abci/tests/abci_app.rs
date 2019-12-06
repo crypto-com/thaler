@@ -196,10 +196,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         },
         top_level: ChainState {
             account_root: [0u8; 32],
-            rewards_pool: RewardsPoolState::new(
-                0,
-                Milli::integral(params.get_rewards_monetary_expansion_tau() as u64),
-            ),
+            rewards_pool: RewardsPoolState::new(0, params.get_rewards_monetary_expansion_tau()),
             network_params: params,
         },
     }

@@ -1,8 +1,9 @@
-use fixed::types::I64F64;
+use fixed::types::I65F63;
 use std::iter;
 use std::prelude::v1::Vec;
 
-pub type FixedNumber = I64F64;
+pub type FixedNumber = I65F63;
+pub const EXP_LOWER_BOUND: i32 = -20;
 
 // https://rosettacode.org/wiki/Continued_fraction#Rust
 fn continued_fraction(
@@ -56,5 +57,13 @@ mod tests {
             let err = (a - b).abs();
             err < 0.000_000_000_1_f64
         }
+    }
+
+    #[test]
+    fn check_exp_lower_bound() {
+        let a = E.powf(EXP_LOWER_BOUND.into());
+        let b = exp(FixedNumber::from_num(EXP_LOWER_BOUND)).to_num::<f64>();
+        let err = (a - b).abs();
+        assert!(err < 0.000_000_001_f64);
     }
 }

@@ -120,7 +120,7 @@ impl NetworkParameters {
         }
     }
 
-    pub fn get_rewards_monetary_expansion_tau(&self) -> u32 {
+    pub fn get_rewards_monetary_expansion_tau(&self) -> u64 {
         match self {
             NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_tau,
         }
@@ -181,9 +181,24 @@ pub struct RewardsParameters {
     /// Monetary expansion formula parameter
     pub monetary_expansion_r0: Milli,
     /// Monetary expansion formula parameter
-    pub monetary_expansion_tau: u32,
+    pub monetary_expansion_tau: u64,
     /// Monetary expansion formula parameter
     pub monetary_expansion_decay: u32,
+}
+
+impl RewardsParameters {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.monetary_expansion_r0 > Milli::integral(1) {
+            return Err("R0 can't > 1");
+        }
+        if self.monetary_expansion_tau == 0 {
+            return Err("tau can't == 0");
+        }
+        if self.monetary_expansion_decay > 1_000_000 {
+            return Err("decay can't > 1_000_000");
+        }
+        Ok(())
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Encode, Decode)]
