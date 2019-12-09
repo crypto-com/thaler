@@ -6,6 +6,7 @@ use std::string::ToString;
 use digest::Digest;
 
 /// Fixed point arithmetic
+#[cfg(feature = "fixed")]
 pub mod fixed;
 /// Generic merkle tree
 mod merkle_tree;

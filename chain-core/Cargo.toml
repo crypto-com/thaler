@@ -7,9 +7,8 @@ readme = "../README.md"
 edition = "2018"
 
 [features]
-default = ["serde", "bech32", "hex", "base64", "secp256k1zkp/serde", "secp256k1zkp/std"]
+default = ["serde", "bech32", "hex", "base64", "fixed", "secp256k1zkp/serde", "secp256k1zkp/std"]
 mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx"]
-
 
 [dependencies]
 digest = { version = "0.8", default-features = false}
@@ -25,7 +24,7 @@ sgx_tstd = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk.git", 
 static_assertions = { version = "1.1.0", default-features = false}
 bech32 = { version = "0.7.1", optional = true }
 aead = "0.2"
-fixed = "0.4.6"
+fixed = { version = "0.5.0", optional = true }
 
 [dev-dependencies]
 quickcheck = "0.9"
