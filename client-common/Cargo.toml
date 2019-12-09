@@ -25,6 +25,10 @@ parity-scale-codec = { features = ["derive"], version = "1.1" }
 websocket = { version = "0.24", default-features = false, features = ["sync"], optional = true }
 tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "8e95731ee671777638ab2a3d5dfd7b35992b86aa" }
 itertools = "0.8"
+# Restrict transistive dependency `signatory-dalek` of `tendermint` to avoid compilation error
+# Remove when `signatory-dalek` is updated
+# https://github.com/tendermint/signatory/blob/develop/signatory-dalek/Cargo.toml
+ed25519-dalek = "= 1.0.0-pre.2"
 
 [features]
 default = ["sled", "websocket-rpc"]
