@@ -53,13 +53,6 @@ fn seed_to_pk(seed: &ed25519::Seed) -> ed25519::PublicKey {
     Ed25519Signer::from(seed).public_key().unwrap()
 }
 
-fn to_validator_pub_key(key: &PublicKey) -> params::ValidatorPubkey {
-    params::ValidatorPubkey {
-        consensus_pubkey_type: params::ValidatorKeyType::Ed25519,
-        consensus_pubkey_b64: String::from_utf8(base64::encode(key.as_bytes())).unwrap(),
-    }
-}
-
 fn coin_to_power(coin: Coin) -> vote::Power {
     vote::Power::new(TendermintVotePower::from(coin).into())
 }
@@ -246,11 +239,7 @@ impl TestnetSpec {
         for node in &self.nodes {
             council_nodes.insert(
                 node.redeem_address(0),
-                (
-                    node.name.clone(),
-                    None,
-                    to_validator_pub_key(&node.validator_pub_key()),
-                ),
+                (node.name.clone(), None, node.tendermint_pub_key()),
             );
         }
 

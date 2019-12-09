@@ -9,7 +9,6 @@ use crate::state::account::{
 };
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::RewardsPoolState;
-use crate::tx::fee::Milli;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -27,6 +26,7 @@ pub enum DistributionError {
     NoValidators,
     InvalidVotingPower,
     InvalidPunishmentConfiguration,
+    InvalidRewardsParamter(&'static str),
 }
 
 impl fmt::Display for DistributionError {
@@ -63,6 +63,9 @@ impl fmt::Display for DistributionError {
             DistributionError::InvalidPunishmentConfiguration => {
                 write!(f, "Invalid punishment configuration (maybe slash_wait_period >= jail_duration)")
             }
+            DistributionError::InvalidRewardsParamter(err) => {
+                write!(f, "Invalid rewards parameters: {}", err)
+            }
         }
     }
 }
@@ -78,8 +81,14 @@ pub struct InitConfig {
     // initial network parameters
     pub network_params: InitNetworkParameters,
     // initial validators
-    pub council_nodes:
-        BTreeMap<RedeemAddress, (ValidatorName, ValidatorSecurityContact, ValidatorPubkey)>,
+    pub council_nodes: BTreeMap<
+        RedeemAddress,
+        (
+            ValidatorName,
+            ValidatorSecurityContact,
+            TendermintValidatorPubKey,
+        ),
+    >,
 }
 
 pub type GenesisState = (
@@ -95,7 +104,11 @@ impl InitConfig {
         network_params: InitNetworkParameters,
         council_nodes: BTreeMap<
             RedeemAddress,
-            (ValidatorName, ValidatorSecurityContact, ValidatorPubkey),
+            (
+                ValidatorName,
+                ValidatorSecurityContact,
+                TendermintValidatorPubKey,
+            ),
         >,
     ) -> Self {
         InitConfig {
@@ -111,25 +124,6 @@ impl InitConfig {
             Some((d, c)) if *d == StakedStateDestination::Bonded && *c >= expected => Ok(()),
             Some((_, c)) => Err(DistributionError::DoesNotMatchRequiredAmount(*address, *c)),
             None => Err(DistributionError::AddressNotInDistribution(*address)),
-        }
-    }
-
-    fn check_validator_key(
-        &self,
-        pubkey: &ValidatorPubkey,
-    ) -> Result<TendermintValidatorPubKey, DistributionError> {
-        if let Ok(key) = base64::decode(&pubkey.consensus_pubkey_b64) {
-            let key_len = key.len();
-            match (key_len, &pubkey.consensus_pubkey_type) {
-                (32, ValidatorKeyType::Ed25519) => {
-                    let mut out = [0u8; 32];
-                    out.copy_from_slice(&key);
-                    Ok(TendermintValidatorPubKey::Ed25519(out))
-                }
-                _ => Err(DistributionError::InvalidValidatorKey),
-            }
-        } else {
-            Err(DistributionError::InvalidValidatorKey)
         }
     }
 
@@ -166,15 +160,14 @@ impl InitConfig {
 
     fn get_council_node(&self, address: &RedeemAddress) -> Result<CouncilNode, DistributionError> {
         self.check_validator_address(address)?;
-        let (name, security_contact, key) = self
+        let (name, security_contact, pubkey) = self
             .council_nodes
             .get(address)
             .ok_or(DistributionError::InvalidValidatorAccount)?;
-        let validator_key = self.check_validator_key(key)?;
         Ok(CouncilNode::new_with_details(
             name.clone(),
             security_contact.clone(),
-            validator_key,
+            pubkey.clone(),
         ))
     }
 
@@ -187,14 +180,18 @@ impl InitConfig {
         &self,
         genesis_time: Timespec,
     ) -> Result<GenesisState, DistributionError> {
+        self.network_params
+            .rewards_config
+            .validate()
+            .map_err(DistributionError::InvalidRewardsParamter)?;
         if self.council_nodes.is_empty() {
             return Err(DistributionError::NoValidators);
         }
         // check validator pubkey is duplicated or not
-        let pub_keys: HashSet<String> = self
+        let pub_keys: HashSet<_> = self
             .council_nodes
             .iter()
-            .map(|(_, details)| details.2.consensus_pubkey_b64.clone())
+            .map(|(_, details)| details.2.clone())
             .collect();
         if pub_keys.len() != self.council_nodes.len() {
             return Err(DistributionError::DuplicateValidatorKey);
@@ -244,7 +241,7 @@ impl InitConfig {
         let accounts = self.get_account(genesis_time);
         let rewards_pool = RewardsPoolState::new(
             genesis_time,
-            Milli::integral(self.network_params.rewards_config.monetary_expansion_tau as u64),
+            self.network_params.rewards_config.monetary_expansion_tau,
         );
         Ok((accounts, rewards_pool, validators?))
     }

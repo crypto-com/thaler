@@ -17,7 +17,6 @@ use crate::compute_app_hash;
 use crate::init::coin::Coin;
 use crate::init::params::NetworkParameters;
 use crate::tx::data::TxId;
-use crate::tx::fee::Milli;
 
 /// ABCI chain state
 #[derive(PartialEq, Debug, Clone, Encode, Decode)]
@@ -54,7 +53,7 @@ pub struct RewardsPoolState {
     /// Record how many coins have been minted, can't exceed the cap
     pub minted: Coin,
     /// Parameter in monetary expansion formula, decayed for each rewards distribution
-    pub tau: Milli,
+    pub tau: u64,
 }
 
 impl RewardsPoolState {
@@ -63,7 +62,7 @@ impl RewardsPoolState {
         hash256::<Blake2s>(&self.encode())
     }
 
-    pub fn new(genesis_time: Timespec, tau: Milli) -> Self {
+    pub fn new(genesis_time: Timespec, tau: u64) -> Self {
         RewardsPoolState {
             period_bonus: Coin::zero(),
             last_block_height: 0,

@@ -5,11 +5,10 @@ use serde::{Deserialize, Serialize};
 use chain_core::init::{
     address::RedeemAddress,
     coin::Coin,
-    config::{
-        JailingParameters, RewardsParameters, SlashRatio, SlashingParameters, ValidatorPubkey,
-    },
+    config::{JailingParameters, RewardsParameters, SlashRatio, SlashingParameters},
 };
 use chain_core::state::account::{ValidatorName, ValidatorSecurityContact};
+use chain_core::state::tendermint::TendermintValidatorPubKey;
 use client_common::tendermint::types::Time;
 
 #[derive(Deserialize, Debug)]
@@ -21,8 +20,14 @@ pub struct GenesisDevConfig {
     pub slashing_config: SlashingParameters,
     pub rewards_config: RewardsParameters,
     pub initial_fee_policy: InitialFeePolicy,
-    pub council_nodes:
-        BTreeMap<RedeemAddress, (ValidatorName, ValidatorSecurityContact, ValidatorPubkey)>,
+    pub council_nodes: BTreeMap<
+        RedeemAddress,
+        (
+            ValidatorName,
+            ValidatorSecurityContact,
+            TendermintValidatorPubKey,
+        ),
+    >,
     pub genesis_time: Time,
 }
 
@@ -46,8 +51,8 @@ impl GenesisDevConfig {
             rewards_config: RewardsParameters {
                 monetary_expansion_cap: expansion_cap,
                 distribution_period: 24 * 60 * 60,
-                monetary_expansion_r0: "0.5".parse().unwrap(),
-                monetary_expansion_tau: 145_000_000,
+                monetary_expansion_r0: "0.45".parse().unwrap(),
+                monetary_expansion_tau: 1_4500_0000_0000_0000,
                 monetary_expansion_decay: 999_860,
             },
             initial_fee_policy: InitialFeePolicy {

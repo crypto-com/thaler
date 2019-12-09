@@ -18,8 +18,8 @@
     "rewards_config": {
         "monetary_expansion_cap": 6250000000000000000,
         "distribution_period": 86400,
-        "monetary_expansion_r0": 500,
-        "monetary_expansion_tau": 145000000,
+        "monetary_expansion_r0": 450,
+        "monetary_expansion_tau": 14500000000000000,
         "monetary_expansion_decay": 999860
     },
     "initial_fee_policy": {
@@ -27,13 +27,14 @@
         "per_byte_fee": "1.25"
     },
     "council_nodes": {
-            "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": [
-                "test",
-                "security@example.com",
-                {
-                "consensus_pubkey_type": "Ed25519",
-                "consensus_pubkey_b64": "pPxJH5wUamXcCvSxgywzmANuO0UNR5x3nCbUzsrCeX8="
-        }]
+        "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": [
+            "test",
+            "security@example.com",
+            {
+                "type": "tendermint/PubKeyEd25519",
+                "value": "pPxJH5wUamXcCvSxgywzmANuO0UNR5x3nCbUzsrCeX8="
+            }
+        ]
     },
     "genesis_time": "2019-10-23T07:26:34.783271158Z"
 }

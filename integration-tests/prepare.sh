@@ -198,7 +198,7 @@ DEV_CONF=$(cat << EOF
         "monetary_expansion_cap": "6250000000000000000",
         "distribution_period": 86400,
         "monetary_expansion_r0": 500,
-        "monetary_expansion_tau": 166666600,
+        "monetary_expansion_tau": 14500000000000000,
         "monetary_expansion_decay": 999860
     },
     "council_nodes": {
@@ -206,8 +206,8 @@ DEV_CONF=$(cat << EOF
             "integration test",
             "security@integration.test",
         {
-            "consensus_pubkey_type": "Ed25519",
-            "consensus_pubkey_b64": "{PUB_KEY}"
+            "type": "tendermint/PubKeyEd25519",
+            "value": "{PUB_KEY}"
         }]
     },
     "genesis_time": "{GENESIS_TIME}"

@@ -71,7 +71,7 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
                 "monetary_expansion_cap": "6250000000000000000",
                 "distribution_period": 86400,
                 "monetary_expansion_r0": 500,
-                "monetary_expansion_tau": 145000000,
+                "monetary_expansion_tau": 14500000000000000,
                 "monetary_expansion_decay": 999860
             },
             "max_validators": 50
@@ -81,8 +81,8 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
                 "integration test",
                 "security@integration.test",
                 {
-                    "consensus_pubkey_type": "Ed25519",
-                    "consensus_pubkey_b64": "2H0sZxyy5iOU6q0/F+ZCQ3MyJJxg8odE5NMsGIyfFV0="
+                    "type": "tendermint/PubKeyEd25519",
+                    "value": "2H0sZxyy5iOU6q0/F+ZCQ3MyJJxg8odE5NMsGIyfFV0="
                 }
             ]
         }

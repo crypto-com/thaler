@@ -1,30 +1,63 @@
 use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{
-    de::{self, Visitor},
+    de::{self, Error as _, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
 use sha2::{Digest, Sha256};
 use std::convert::TryFrom;
 use std::fmt;
 use std::prelude::v1::{String, ToString, Vec};
+#[cfg(feature = "base64")]
+use thiserror::Error;
 
 /// Tendermint block height
 /// TODO: u64?
 pub type BlockHeight = i64;
+
+/// ed25519 public key size
+pub const PUBLIC_KEY_SIZE: usize = 32;
 
 /// The protobuf structure currently has "String" to denote the type / length
 /// and variable length byte array. In this internal representation,
 /// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", content = "value"))]
 pub enum TendermintValidatorPubKey {
-    Ed25519([u8; 32]),
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            rename = "tendermint/PubKeyEd25519",
+            serialize_with = "serialize_ed25519_base64",
+            deserialize_with = "deserialize_ed25519_base64"
+        )
+    )]
+    Ed25519([u8; PUBLIC_KEY_SIZE]),
     // there's PubKeySecp256k1, but https://tendermint.com/docs/spec/abci/apps.html#validator-updates
     // "The pub_key currently supports only one type:"
     // "type = "ed25519" anddata = <raw 32-byte public key>`"
     // there's also PubKeyMultisigThreshold, but that probably wouldn't be used for individual nodes / validators
     // TODO: some other schemes when they are added in TM?
+}
+
+/// Serialize the bytes of an Ed25519 public key as Base64. Used for serializing JSON
+#[cfg(feature = "base64")]
+fn serialize_ed25519_base64<S>(pk: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    base64::encode(pk).serialize(serializer)
+}
+
+#[cfg(feature = "base64")]
+fn deserialize_ed25519_base64<'de, D>(deserializer: D) -> Result<[u8; PUBLIC_KEY_SIZE], D::Error>
+where
+    D: Deserializer<'de>,
+{
+    TendermintValidatorPubKey::from_base64(String::deserialize(deserializer)?.as_bytes())
+        .map(|key| *key.as_bytes())
+        .map_err(|e| D::Error::custom(format!("{}", e)))
 }
 
 #[cfg(feature = "hex")]
@@ -36,14 +69,38 @@ impl fmt::Display for TendermintValidatorPubKey {
     }
 }
 
+#[cfg(feature = "base64")]
+#[derive(Error, Debug)]
+pub enum PubKeyDecodeError {
+    #[error("Base64 decode error")]
+    Base64(#[from] base64::DecodeError),
+    #[error("Size of publickey is invalid, expected: {PUBLIC_KEY_SIZE}, got: {0}")]
+    InvalidSize(usize),
+}
+
 impl TendermintValidatorPubKey {
+    #[cfg(feature = "base64")]
+    pub fn from_base64(input: &[u8]) -> Result<TendermintValidatorPubKey, PubKeyDecodeError> {
+        let bytes = base64::decode(input)?;
+        if bytes.len() != PUBLIC_KEY_SIZE {
+            return Err(PubKeyDecodeError::InvalidSize(bytes.len()));
+        }
+        let mut result = [0u8; PUBLIC_KEY_SIZE];
+        result.copy_from_slice(&bytes);
+        Ok(TendermintValidatorPubKey::Ed25519(result))
+    }
     pub fn to_validator_update(&self) -> (String, Vec<u8>) {
         match self {
             TendermintValidatorPubKey::Ed25519(key) => {
-                let mut v = Vec::with_capacity(32);
+                let mut v = Vec::with_capacity(PUBLIC_KEY_SIZE);
                 v.extend_from_slice(&key[..]);
                 ("ed25519".to_string(), v)
             }
+        }
+    }
+    pub fn as_bytes(&self) -> &[u8; PUBLIC_KEY_SIZE] {
+        match self {
+            Self::Ed25519(ref bytes) => bytes,
         }
     }
 }

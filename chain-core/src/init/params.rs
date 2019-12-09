@@ -10,7 +10,6 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryFrom;
 use std::fmt;
 use std::ops::Mul;
-use std::prelude::v1::String;
 use std::str::FromStr;
 
 const MAX_SLASH_RATIO: Milli = Milli::new(1, 0); // 1.0
@@ -120,7 +119,7 @@ impl NetworkParameters {
         }
     }
 
-    pub fn get_rewards_monetary_expansion_tau(&self) -> u32 {
+    pub fn get_rewards_monetary_expansion_tau(&self) -> u64 {
         match self {
             NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_tau,
         }
@@ -181,9 +180,24 @@ pub struct RewardsParameters {
     /// Monetary expansion formula parameter
     pub monetary_expansion_r0: Milli,
     /// Monetary expansion formula parameter
-    pub monetary_expansion_tau: u32,
+    pub monetary_expansion_tau: u64,
     /// Monetary expansion formula parameter
     pub monetary_expansion_decay: u32,
+}
+
+impl RewardsParameters {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.monetary_expansion_r0 > Milli::integral(1) {
+            return Err("R0 can't > 1");
+        }
+        if self.monetary_expansion_tau == 0 {
+            return Err("tau can't == 0");
+        }
+        if self.monetary_expansion_decay > 1_000_000 {
+            return Err("decay can't > 1_000_000");
+        }
+        Ok(())
+    }
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Encode, Decode)]
@@ -291,19 +305,4 @@ impl fmt::Display for SlashRatioError {
             }
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ValidatorKeyType {
-    Ed25519,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ValidatorPubkey {
-    // Tendermint consensus public key type
-    pub consensus_pubkey_type: ValidatorKeyType,
-    // Tendermint consensus public key encoded in base64
-    pub consensus_pubkey_b64: String,
 }

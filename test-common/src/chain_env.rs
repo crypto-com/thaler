@@ -22,14 +22,16 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::{
     InitConfig, InitNetworkParameters, JailingParameters, NetworkParameters, RewardsParameters,
-    SlashRatio, SlashingParameters, ValidatorKeyType, ValidatorPubkey,
+    SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
     to_stake_key, CouncilNode, StakedState, StakedStateAddress, StakedStateDestination,
     StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, ValidatorName,
     ValidatorSecurityContact,
 };
-use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
+use chain_core::state::tendermint::{
+    TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
+};
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::{data::TxId, TransactionId, TxAux};
@@ -38,10 +40,15 @@ const TEST_CHAIN_ID: &str = "test-00";
 
 /// Need to add more seed and validator public keys, if need more validator nodes.
 const SEEDS: [[u8; 32]; 2] = [[0xcd; 32], [0xab; 32]];
-const VALIDATOR_PUB_KEYS: [&str; 2] = [
-    "EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=",
-    "Vcrw/tEI0JOXw2SZGeowDxw5+Eot8qndCJoh2m6RC/M=",
-];
+lazy_static! {
+    static ref VALIDATOR_PUB_KEYS: Vec<TendermintValidatorPubKey> = [
+        b"EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=",
+        b"Vcrw/tEI0JOXw2SZGeowDxw5+Eot8qndCJoh2m6RC/M="
+    ]
+    .iter()
+    .map(|s| TendermintValidatorPubKey::from_base64(*s).unwrap())
+    .collect();
+}
 
 pub fn get_account(
     account_address: &StakedStateAddress,
@@ -108,8 +115,8 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
             monetary_expansion_cap: expansion_cap,
             distribution_period: 24 * 60 * 60, // distribute once per day
             monetary_expansion_r0: "0.5".parse().unwrap(),
-            monetary_expansion_tau: "145000000".parse().unwrap(),
-            monetary_expansion_decay: "999860".parse().unwrap(),
+            monetary_expansion_tau: 1_4500_0000_0000_0000,
+            monetary_expansion_decay: 999_860,
         },
         max_validators: 50,
     }
@@ -117,33 +124,38 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
 
 pub fn get_nodes(
     addresses: &[Account],
-) -> BTreeMap<RedeemAddress, (ValidatorName, ValidatorSecurityContact, ValidatorPubkey)> {
-    let mut nodes = BTreeMap::new();
-
-    for acct in addresses {
-        let node_pubkey = (
-            acct.name.clone(),
-            None,
-            ValidatorPubkey {
-                consensus_pubkey_type: ValidatorKeyType::Ed25519,
-                consensus_pubkey_b64: acct.validator_pub_key.clone(),
-            },
-        );
-        nodes.insert(acct.address, node_pubkey);
-    }
-
-    nodes
+) -> BTreeMap<
+    RedeemAddress,
+    (
+        ValidatorName,
+        ValidatorSecurityContact,
+        TendermintValidatorPubKey,
+    ),
+> {
+    addresses
+        .iter()
+        .map(|acct| {
+            (
+                acct.address,
+                (acct.name.clone(), None, acct.validator_pub_key.clone()),
+            )
+        })
+        .collect()
 }
 
 pub struct Account {
     pub secret_key: SecretKey,
     pub address: RedeemAddress,
-    pub validator_pub_key: String,
+    pub validator_pub_key: TendermintValidatorPubKey,
     pub name: String,
 }
 
 impl Account {
-    pub fn new(seed: &[u8; 32], validator_pub_key: String, name: String) -> Account {
+    pub fn new(
+        seed: &[u8; 32],
+        validator_pub_key: TendermintValidatorPubKey,
+        name: String,
+    ) -> Account {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(seed).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
@@ -300,7 +312,7 @@ impl ChainEnv {
             .map(|acct| ValidatorUpdate {
                 pub_key: Some(PubKey {
                     field_type: "ed25519".to_owned(),
-                    data: base64::decode(&acct.validator_pub_key).unwrap(),
+                    data: acct.validator_pub_key.as_bytes().to_vec(),
                     ..Default::default()
                 })
                 .into(),
