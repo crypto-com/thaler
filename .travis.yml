@@ -90,23 +90,24 @@ jobs:
     - <<: *rust
       rust: nightly
       if: (type != cron) AND (branch != staging.tmp) AND (branch != trying.tmp)
-    - name: Integration Test
-      language: node_js
-      node_js: 10
-      sudo: required
-      dist: trusty
-      if: (type != cron) AND ((branch = staging) OR (branch = trying))
-      script:
-        - cd integration-tests
-        - ./prepare.sh || travis_terminate 1;
-        - . ./env.sh
-        - docker-compose up -d || travis_terminate 1;
-        - ./wait-for-setup.sh || (docker-compose ps; docker-compose logs -t --tail="all"; travis_terminate 1);
-        - ./run-test.sh || (docker-compose ps; docker-compose logs -t --tail="all"; travis_terminate 1);
-        - |
-          cd client-rpc
-          yarn
-          yarn test || (docker-compose ps; docker-compose logs -t --tail="all"; travis_terminate 1);
+    # FIXME: needs recompiling with mock flags, as integration tests use tx-query that does remote attestation
+    # - name: Integration Test
+    #   language: node_js
+    #   node_js: 10
+    #   sudo: required
+    #   dist: trusty
+    #   if: (type != cron) AND ((branch = staging) OR (branch = trying))
+    #   script:
+    #     - cd integration-tests
+    #     - ./prepare.sh || travis_terminate 1;
+    #     - . ./env.sh
+    #     - docker-compose up -d || travis_terminate 1;
+    #     - ./wait-for-setup.sh || (docker-compose ps; docker-compose logs -t --tail="all"; travis_terminate 1);
+    #     - ./run-test.sh || (docker-compose ps; docker-compose logs -t --tail="all"; travis_terminate 1);
+    #     - |
+    #       cd client-rpc
+    #       yarn
+    #       yarn test || (docker-compose ps; docker-compose logs -t --tail="all"; travis_terminate 1);
 
     - <<: *clean_cache
       rust: stable
