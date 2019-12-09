@@ -50,6 +50,7 @@ use std::process::Child;
 use std::process::Command;
 use std::thread;
 use std::time;
+use std::sync::mpsc::channel;
 
 pub fn get_ecdsa_witness<C: Signing>(
     secp: &Secp256k1<C>,
@@ -93,10 +94,12 @@ pub fn test_integration() {
         .spawn()
         .expect("failed to start tx validation");
     init_connection(&connection_socket);
+    let (tx,rx) = channel();
     let t = thread::spawn(move || {
+        info!("Trying to launch TX Query server...");
         let enclave = start_enclave();
-
-        info!("Running TX Decryption Query server...");
+        tx.send(()).expect("Could not send signal on channel.");
+        info!("Running TX Query server...");
 
         let listener = TcpListener::bind(query_server_addr).expect("failed to bind the TCP socket");
 
@@ -171,6 +174,7 @@ pub fn test_integration() {
                 fail_exit(&mut validation);
             }
         }
+        rx.recv().expect("Could not receive from channel.");
         let c = DefaultTransactionObfuscation::new(
             format!("localhost:{}", query_server_port),
             "localhost".to_owned(),
