@@ -17,7 +17,7 @@ pub trait TransactionHandler: Send + Sync {
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        transaction: Transaction,
+        transaction: &Transaction,
         block_height: u64,
         block_time: Time,
     ) -> Result<()>;
@@ -26,5 +26,5 @@ pub trait TransactionHandler: Send + Sync {
 /// Interface for handling stream of block headers in Crypto.com Chain
 pub trait BlockHandler: Send + Sync {
     /// Handles a block header in Crypto.com Chain
-    fn on_next(&self, name: &str, passphrase: &SecUtf8, block_header: BlockHeader) -> Result<()>;
+    fn on_next(&self, name: &str, passphrase: &SecUtf8, block_header: &BlockHeader) -> Result<()>;
 }

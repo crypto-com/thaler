@@ -3,7 +3,7 @@ use secstr::SecUtf8;
 use chain_core::tx::TransactionId;
 use client_common::{BlockHeader, ErrorKind, Result, ResultExt, Storage};
 
-use crate::service::{GlobalStateService, KeyService, WalletService};
+use crate::service::{KeyService, WalletService};
 use crate::{BlockHandler, TransactionHandler, TransactionObfuscation};
 
 /// Default implementation of `BlockHandler`
@@ -19,7 +19,6 @@ where
 
     key_service: KeyService<S>,
     wallet_service: WalletService<S>,
-    global_state_service: GlobalStateService<S>,
 }
 
 impl<O, H, S> DefaultBlockHandler<O, H, S>
@@ -36,7 +35,6 @@ where
             transaction_handler,
             key_service: KeyService::new(storage.clone()),
             wallet_service: WalletService::new(storage.clone()),
-            global_state_service: GlobalStateService::new(storage),
         }
     }
 }
@@ -47,8 +45,8 @@ where
     H: TransactionHandler,
     S: Storage,
 {
-    fn on_next(&self, name: &str, passphrase: &SecUtf8, block_header: BlockHeader) -> Result<()> {
-        for transaction in block_header.unencrypted_transactions {
+    fn on_next(&self, name: &str, passphrase: &SecUtf8, block_header: &BlockHeader) -> Result<()> {
+        for transaction in block_header.unencrypted_transactions.iter() {
             if block_header.transaction_ids.contains(&transaction.id()) {
                 self.transaction_handler.on_next(
                     name,
@@ -83,7 +81,7 @@ where
                 .transaction_obfuscation
                 .decrypt(&block_header.enclave_transaction_ids, &private_key)?;
 
-            for transaction in transactions {
+            for transaction in transactions.iter() {
                 self.transaction_handler.on_next(
                     name,
                     passphrase,
@@ -93,13 +91,7 @@ where
                 )?;
             }
         }
-
-        self.global_state_service.set_global_state(
-            name,
-            passphrase,
-            block_header.block_height,
-            block_header.app_hash,
-        )
+        Ok(())
     }
 }
 
@@ -150,11 +142,11 @@ mod tests {
             &self,
             _name: &str,
             _passphrase: &SecUtf8,
-            transaction: Transaction,
+            transaction: &Transaction,
             block_height: u64,
             block_time: Time,
         ) -> Result<()> {
-            if transaction != transfer_transaction() && transaction != unbond_transaction() {
+            if transaction != &transfer_transaction() && transaction != &unbond_transaction() {
                 panic!("Invalid transaction")
             }
             assert_eq!(1, block_height);
@@ -228,24 +220,8 @@ mod tests {
             storage.clone(),
         );
 
-        let global_state_service = GlobalStateService::new(storage);
-
-        assert_eq!(
-            0,
-            global_state_service
-                .last_block_height(name, passphrase)
-                .unwrap()
-        );
-
         block_handler
-            .on_next(name, passphrase, block_header)
+            .on_next(name, passphrase, &block_header)
             .unwrap();
-
-        assert_eq!(
-            1,
-            global_state_service
-                .last_block_height(name, passphrase)
-                .unwrap()
-        );
     }
 }

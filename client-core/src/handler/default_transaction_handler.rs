@@ -47,14 +47,14 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        transaction: Transaction,
+        transaction: &Transaction,
         block_height: u64,
         block_time: Time,
     ) -> Result<()> {
         let transaction_id = transaction.id();
         let inputs = self.decorate_inputs(name, passphrase, transaction.inputs().to_vec())?;
         let outputs = transaction.outputs().to_vec();
-        let transaction_type = TransactionType::from(&transaction);
+        let transaction_type = TransactionType::from(transaction);
         let balance_change =
             self.calculate_balance_change(name, passphrase, &transaction_id, &inputs, &outputs)?;
 
@@ -333,7 +333,7 @@ mod tests {
             .on_next(
                 name1,
                 passphrase1,
-                transactions[0].clone(),
+                &transactions[0],
                 0,
                 Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             )
@@ -358,7 +358,7 @@ mod tests {
             .on_next(
                 name1,
                 passphrase1,
-                transactions[1].clone(),
+                &transactions[1],
                 1,
                 Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             )
@@ -382,7 +382,7 @@ mod tests {
             .on_next(
                 name2,
                 passphrase2,
-                transactions[0].clone(),
+                &transactions[0],
                 0,
                 Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             )
@@ -407,7 +407,7 @@ mod tests {
             .on_next(
                 name2,
                 passphrase2,
-                transactions[1].clone(),
+                &transactions[1],
                 1,
                 Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             )
