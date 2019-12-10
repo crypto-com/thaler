@@ -28,7 +28,7 @@ itertools = "0.8"
 # Restrict transistive dependency `signatory-dalek` of `tendermint` to avoid compilation error
 # Remove when `signatory-dalek` is updated
 # https://github.com/tendermint/signatory/blob/develop/signatory-dalek/Cargo.toml
-ed25519-dalek = "= 1.0.0-pre.2"
+ed25519-dalek = "= 1.0.0-pre.3"
 
 [features]
 default = ["sled", "websocket-rpc"]
