@@ -20,7 +20,7 @@ use std::str::FromStr;
 // TODO: switch to normal signatures + explicit public key
 #[cfg(feature = "hex")]
 use crate::init::address::ErrorAddress;
-use crate::state::tendermint::TendermintValidatorPubKey;
+use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::From;
 #[cfg(feature = "hex")]
@@ -201,6 +201,22 @@ impl CouncilNode {
             consensus_pubkey,
         }
     }
+}
+
+#[derive(Debug, Clone)]
+#[cfg_attr(all(feature = "serde", feature = "hex"), derive(Serialize))]
+/// Metadata of a validator
+pub struct CouncilNodeMetadata {
+    /// Name of validator
+    pub name: ValidatorName,
+    /// Current voting power of validator
+    pub voting_power: TendermintVotePower,
+    /// Address of staking account of validator
+    pub staking_address: StakedStateAddress,
+    /// Optional security email address of validator
+    pub security_contact: ValidatorSecurityContact,
+    /// Tendermint consensus validator-associated public key
+    pub tendermint_pubkey: TendermintValidatorPubKey,
 }
 
 /// Types of possible punishments
