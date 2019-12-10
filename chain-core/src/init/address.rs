@@ -34,7 +34,7 @@ use crate::common::{H256, HASH_SIZE_256};
 #[cfg(feature = "bech32")]
 use crate::init::network::{get_bech32_human_part_from_network, Network};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CroAddressError {
     // TODO: use directly bech32::Error or wrap it
