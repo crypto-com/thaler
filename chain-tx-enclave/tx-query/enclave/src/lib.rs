@@ -215,34 +215,40 @@ fn handle_encryption_request(
                 return rt;
             }
             match EnclaveResponse::decode(&mut result_buf.as_slice()) {
-                Ok(EnclaveResponse::EncryptTx(Ok(payload))) => {
-                    let tx = match req {
-                        EncryptionRequest::TransferTx(tx, _) => {
-                            let inputs = tx.inputs;
-                            let no_of_outputs = tx.outputs.len() as TxoIndex;
-                            TxEnclaveAux::TransferTx {
-                                inputs,
-                                no_of_outputs,
-                                payload,
-                            }
+                Ok(EnclaveResponse::EncryptTx(encresp)) => {
+                    match encresp {
+                        Ok(payload) => {
+                            let tx = match req {
+                                EncryptionRequest::TransferTx(tx, _) => {
+                                    let inputs = tx.inputs;
+                                    let no_of_outputs = tx.outputs.len() as TxoIndex;
+                                    TxEnclaveAux::TransferTx {
+                                        inputs,
+                                        no_of_outputs,
+                                        payload,
+                                    }
+                                }
+                                EncryptionRequest::DepositStake(tx, _) => {
+                                    TxEnclaveAux::DepositStakeTx { tx, payload }
+                                }
+                                EncryptionRequest::WithdrawStake(tx, _, witness) => {
+                                    let no_of_outputs = tx.outputs.len() as TxoIndex;
+                                    TxEnclaveAux::WithdrawUnbondedStakeTx {
+                                        no_of_outputs,
+                                        witness,
+                                        payload,
+                                    }
+                                }
+                            };
+                            let _ = tls.write(&EncryptionResponse { resp: Ok(tx) }.encode());
                         }
-                        EncryptionRequest::DepositStake(tx, _) => {
-                            TxEnclaveAux::DepositStakeTx { tx, payload }
-                        }
-                        EncryptionRequest::WithdrawStake(tx, _, witness) => {
-                            let no_of_outputs = tx.outputs.len() as TxoIndex;
-                            TxEnclaveAux::WithdrawUnbondedStakeTx {
-                                no_of_outputs,
-                                witness,
-                                payload,
-                            }
+                        Err(e) => {
+                            let _ = tls.write(&EncryptionResponse { resp: Err(e) }.encode());
                         }
                     };
-                    let _ = tls.write(&EncryptionResponse { tx }.encode());
                     sgx_status_t::SGX_SUCCESS
                 }
                 _ => {
-                    // TODO: returning validation error
                     return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
                 }
             }

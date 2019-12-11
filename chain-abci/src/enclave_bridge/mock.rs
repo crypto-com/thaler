@@ -48,7 +48,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                 Ok(EncryptionRequest::TransferTx(tx, witness)) => {
                     let plain = PlainTxAux::TransferTx(tx.clone(), witness);
                     let mock = EncryptionResponse {
-                        tx: TxEnclaveAux::TransferTx {
+                        resp: Ok(TxEnclaveAux::TransferTx {
                             inputs: tx.inputs.clone(),
                             no_of_outputs: tx.outputs.len() as TxoIndex,
                             payload: TxObfuscated {
@@ -57,14 +57,14 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                                 init_vector: [0u8; 12],
                                 txpayload: plain.encode(),
                             },
-                        },
+                        }),
                     };
                     resp.value = mock.encode();
                 }
                 Ok(EncryptionRequest::DepositStake(maintx, witness)) => {
                     let plain = PlainTxAux::DepositStakeTx(witness);
                     let mock = EncryptionResponse {
-                        tx: TxEnclaveAux::DepositStakeTx {
+                        resp: Ok(TxEnclaveAux::DepositStakeTx {
                             tx: maintx.clone(),
                             payload: TxObfuscated {
                                 key_from: 0,
@@ -72,14 +72,14 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                                 init_vector: [0u8; 12],
                                 txpayload: plain.encode(),
                             },
-                        },
+                        }),
                     };
                     resp.value = mock.encode();
                 }
                 Ok(EncryptionRequest::WithdrawStake(tx, _, witness)) => {
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                     let mock = EncryptionResponse {
-                        tx: TxEnclaveAux::WithdrawUnbondedStakeTx {
+                        resp: Ok(TxEnclaveAux::WithdrawUnbondedStakeTx {
                             no_of_outputs: tx.outputs.len() as TxoIndex,
                             witness,
                             payload: TxObfuscated {
@@ -88,7 +88,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                                 init_vector: [0u8; 12],
                                 txpayload: plain.encode(),
                             },
-                        },
+                        }),
                     };
                     resp.value = mock.encode();
                 }

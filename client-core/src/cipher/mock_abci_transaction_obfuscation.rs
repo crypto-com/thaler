@@ -5,7 +5,7 @@ use chain_core::tx::{TxAux, TxWithOutputs};
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
 use client_common::{
-    ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction, SECP,
+    Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction, SECP,
 };
 use enclave_protocol::{
     DecryptionRequest, DecryptionResponse, EncryptionRequest, EncryptionResponse,
@@ -45,7 +45,13 @@ where
                     "Unable to deserialize response of mock-encrypt ABCI call",
                 )
             })?
-            .tx;
+            .resp
+            .map_err(|e| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!("Invalid transaction was submitted: {}", e),
+                )
+            })?;
 
         Ok(TxAux::EnclaveTx(encrypted_transaction))
     }
@@ -193,7 +199,7 @@ mod tests {
                 }
                 "mockencrypt" => {
                     let response = EncryptionResponse {
-                        tx: transfer_transaction(),
+                        resp: Ok(transfer_transaction()),
                     }
                     .encode();
 

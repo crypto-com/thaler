@@ -234,10 +234,9 @@ impl Decode for EncryptionRequest {
 }
 
 /// Response from TQE
-/// TODO: validation error?
 #[derive(Encode, Decode)]
 pub struct EncryptionResponse {
-    pub tx: TxEnclaveAux,
+    pub resp: Result<TxEnclaveAux, chain_tx_validation::Error>,
 }
 
 /// Request in direct communication (over one-side attested TLS) to TQE
