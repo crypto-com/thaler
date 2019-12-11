@@ -97,8 +97,8 @@ where
         }
     }
 
-    ///  Create a `DummySigner` which signs a transaction with dummy values for fees calculation.
-    /// Returns a result of fees , `Tx` and selected unspent transactions
+    /// Create a `DummySigner` which signs a transaction with dummy values for fees calculation.
+    /// Returns a result of unsigned raw transfer transaction builder
     pub fn select_and_build<'a>(
         &self,
         unspent_transactions: &'a UnspentTransactions,
