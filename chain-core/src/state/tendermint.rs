@@ -18,6 +18,45 @@ pub type BlockHeight = i64;
 /// ed25519 public key size
 pub const PUBLIC_KEY_SIZE: usize = 32;
 
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize))]
+pub struct TendermintValidator {
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "serialize_validator_address",)
+    )]
+    pub address: TendermintValidatorAddress,
+    pub name: String,
+    #[cfg_attr(
+        feature = "serde",
+        serde(serialize_with = "serialize_validator_power",)
+    )]
+    pub power: TendermintVotePower,
+    pub pub_key: TendermintValidatorPubKey,
+}
+
+#[cfg(feature = "serde")]
+fn serialize_validator_address<S>(
+    addr: &TendermintValidatorAddress,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&hex::encode_upper(addr.0))
+}
+
+#[cfg(feature = "serde")]
+fn serialize_validator_power<S>(
+    power: &TendermintVotePower,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    serializer.serialize_str(&power.0.to_string())
+}
+
 /// The protobuf structure currently has "String" to denote the type / length
 /// and variable length byte array. In this internal representation,
 /// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
@@ -247,6 +286,12 @@ impl From<TendermintVotePower> for i64 {
 impl From<TendermintVotePower> for u64 {
     fn from(c: TendermintVotePower) -> u64 {
         c.0 as u64
+    }
+}
+
+impl fmt::Display for TendermintVotePower {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

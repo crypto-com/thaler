@@ -9,14 +9,14 @@ use secstr::SecUtf8;
 use serde_json::json;
 
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
-use chain_core::state::tendermint::TendermintValidatorPubKey;
+use chain_core::state::tendermint::{TendermintValidator, TendermintValidatorPubKey};
 use client_common::storage::SledStorage;
 use client_common::tendermint::types::Time;
 use client_common::{Error, ErrorKind, Result, ResultExt};
 use client_core::types::WalletKind;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 
-use super::genesis_command::GenesisCommand;
+use super::genesis_command::generate_genesis;
 use super::genesis_dev_config::GenesisDevConfig;
 
 #[derive(Debug)]
@@ -24,13 +24,14 @@ pub struct InitCommand {
     chain_id: String,
     app_hash: String,
     app_state: Option<InitConfig>,
-    genesis_dev: GenesisDevConfig,
+    genesis_dev_config: GenesisDevConfig,
     tendermint_pubkey: String,
     staking_account_address: String,
     other_staking_accounts: Vec<String>,
     distribution_addresses: Vec<String>,
     remain_coin: Coin,
     tendermint_command: String,
+    validators: Vec<TendermintValidator>,
 }
 
 impl InitCommand {
@@ -40,13 +41,14 @@ impl InitCommand {
             chain_id: "".to_string(),
             app_hash: "".to_string(),
             app_state: None,
-            genesis_dev: GenesisDevConfig::new(expansion_cap),
+            genesis_dev_config: GenesisDevConfig::new(expansion_cap),
             tendermint_pubkey: "".to_string(),
             staking_account_address: "".to_string(),
             other_staking_accounts: vec![],
             distribution_addresses: vec![],
             remain_coin: Coin::max(),
             tendermint_command: "./tendermint".to_string(),
+            validators: Vec::new(),
         }
     }
 
@@ -69,7 +71,7 @@ impl InitCommand {
         let amount_u64 = (amount_cro.parse::<f64>().unwrap() * 1_0000_0000_f64) as u64;
         let amount_coin = Coin::new(amount_u64).unwrap();
 
-        let distribution = &mut self.genesis_dev.distribution;
+        let distribution = &mut self.genesis_dev_config.distribution;
         distribution.insert(RedeemAddress::from_str(&address).unwrap(), amount_coin);
         self.remain_coin = (self.remain_coin - amount_coin).unwrap();
         self.distribution_addresses.push(address.to_string());
@@ -135,7 +137,12 @@ impl InitCommand {
 
         loop {
             let i = self.distribution_addresses.len();
-            if self.remain_coin == self.genesis_dev.rewards_config.monetary_expansion_cap {
+            if self.remain_coin
+                == self
+                    .genesis_dev_config
+                    .rewards_config
+                    .monetary_expansion_cap
+            {
                 break;
             }
             let j = i - 1;
@@ -158,14 +165,14 @@ impl InitCommand {
 
     fn read_genesis_time(&mut self) -> Result<()> {
         // change
-        let old_genesis_time = self.genesis_dev.genesis_time.to_string();
+        let old_genesis_time = self.genesis_dev_config.genesis_time.to_string();
 
         let new_genesis_time: String = self.ask_string(
             format!("genesis_time( {} )=", old_genesis_time).as_str(),
             old_genesis_time.as_str(),
         );
 
-        self.genesis_dev.genesis_time = Time::from_str(&new_genesis_time).unwrap();
+        self.genesis_dev_config.genesis_time = Time::from_str(&new_genesis_time).unwrap();
         Ok(())
     }
 
@@ -185,7 +192,7 @@ impl InitCommand {
             .staking_account_address
             .parse::<RedeemAddress>()
             .unwrap();
-        self.genesis_dev
+        self.genesis_dev_config
             .council_nodes
             .insert(address, ("dev test".to_owned(), None, pubkey));
         Ok(())
@@ -202,9 +209,10 @@ impl InitCommand {
 
     fn generate_app_info(&mut self) -> Result<()> {
         // app_hash,  app_state
-        let result = GenesisCommand::do_generate(&self.genesis_dev).unwrap();
+        let result = generate_genesis(&self.genesis_dev_config).unwrap();
         self.app_hash = result.0;
         self.app_state = Some(result.1);
+        self.validators = result.2;
         Ok(())
     }
 
@@ -260,7 +268,7 @@ impl InitCommand {
 
         let app_hash = self.app_hash.clone();
         let app_state = self.app_state.clone();
-        let gt = self.genesis_dev.genesis_time.to_string();
+        let gt = self.genesis_dev_config.genesis_time.to_string();
         let mut json_string = String::from("");
         fs::read_to_string(&InitCommand::get_tendermint_filename())
             .and_then(|contents| {
@@ -271,6 +279,7 @@ impl InitCommand {
                 obj["app_state"] = json!(&app_state.unwrap());
                 obj["genesis_time"] = json!(gt);
                 obj["chain_id"] = json!(self.chain_id.clone());
+                obj["validators"] = json!(self.validators.clone());
                 json_string = serde_json::to_string_pretty(&json).unwrap();
                 println!("{}", json_string);
 
