@@ -199,7 +199,13 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
                             "Unable to deserialize encryption response from enclave",
                         )
                     })?
-                    .tx;
+                    .resp
+                    .map_err(|e| {
+                        Error::new(
+                            ErrorKind::InvalidInput,
+                            format!("Invalid transaction was submitted: {}", e),
+                        )
+                    })?;
                 Ok(TxAux::EnclaveTx(tx))
             }
             Err(_) => Err(Error::new(
