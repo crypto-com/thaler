@@ -8,8 +8,8 @@ services:
       - ./disk/config0:/root/config
     image: chain_test0
     ports:
-       - ${JAIL_CLIENT_RPC}:9981
-       - ${JAIL_CHAIN_RPC}:26657
+       - ${JAIL_CLIENT_RPC:-9981}:9981
+       - ${JAIL_CHAIN_RPC:-26657}:26657
     command: /root/disk/go_test.sh
     environment:
       RUST_BACKTRACE: 1
