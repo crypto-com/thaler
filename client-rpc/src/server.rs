@@ -5,6 +5,8 @@ use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
 use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
 use std::net::SocketAddr;
+use std::thread;
+use std::time::Duration;
 
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_core::tx::fee::LinearFee;
@@ -198,7 +200,22 @@ impl Server {
         let mut io = IoHandler::new();
         let storage = SledStorage::new(&self.storage_dir)?;
 
-        let tendermint_client = WebsocketRpcClient::new(&self.websocket_url)?;
+        let tendermint_client = loop {
+            match WebsocketRpcClient::new(&self.websocket_url) {
+                Ok(client) => {
+                    break Ok(client);
+                }
+                Err(error) => {
+                    if ErrorKind::InitializationError == error.kind() {
+                        log::error!("{:?}", error);
+                    } else {
+                        break Err(error);
+                    }
+                }
+            }
+
+            thread::sleep(Duration::from_secs(2));
+        }?;
 
         self.start_client(&mut io, storage.clone(), tendermint_client.clone())
             .unwrap();
