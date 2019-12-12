@@ -1,13 +1,13 @@
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
 
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use secp256k1::key::PublicKey;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::de;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::H264;
@@ -15,7 +15,7 @@ use crate::common::H264;
 /// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum TxAccess {
     AllData,
     // TODO: u16 and Vec size check in Decode implementation
@@ -32,15 +32,15 @@ impl Default for TxAccess {
 
 /// Specifies who can access what -- TODO: revisit when enforced by HW encryption / enclaves
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxAccessPolicy {
-    #[cfg_attr(feature = "serde", serde(serialize_with = "serialize_view_key"))]
-    #[cfg_attr(feature = "serde", serde(deserialize_with = "deserialize_view_key"))]
+    #[cfg_attr(not(feature = "mesalock_sgx"), serde(serialize_with = "serialize_view_key"))]
+    #[cfg_attr(not(feature = "mesalock_sgx"), serde(deserialize_with = "deserialize_view_key"))]
     pub view_key: PublicKey,
     pub access: TxAccess,
 }
 
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 fn serialize_view_key<S>(
     view_key: &PublicKey,
     serializer: S,
@@ -52,7 +52,7 @@ where
     serializer.serialize_str(&view_key_string)
 }
 
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_view_key<'de, D>(deserializer: D) -> std::result::Result<PublicKey, D::Error>
 where
     D: Deserializer<'de>,

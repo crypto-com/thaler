@@ -1,12 +1,12 @@
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
 
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::de;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::Timespec;
@@ -17,16 +17,16 @@ use crate::tx::data::address::ExtendedAddr;
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(
-    all(feature = "serde", feature = "hex"),
+    not(feature = "mesalock_sgx"),
     derive(Serialize, Deserialize)
 )]
 pub struct TxOut {
     #[cfg_attr(
-        all(feature = "serde", feature = "hex"),
+        not(feature = "mesalock_sgx"),
         serde(serialize_with = "serialize_address")
     )]
     #[cfg_attr(
-        all(feature = "serde", feature = "hex"),
+        not(feature = "mesalock_sgx"),
         serde(deserialize_with = "deserialize_address")
     )]
     pub address: ExtendedAddr,
@@ -34,7 +34,7 @@ pub struct TxOut {
     pub valid_from: Option<Timespec>,
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 fn serialize_address<S>(
     address: &ExtendedAddr,
     serializer: S,
@@ -45,7 +45,7 @@ where
     serializer.serialize_str(&address.to_string())
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_address<'de, D>(deserializer: D) -> std::result::Result<ExtendedAddr, D::Error>
 where
     D: Deserializer<'de>,
@@ -71,7 +71,7 @@ where
     deserializer.deserialize_str(StrVisitor)
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for TxOut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} -> {}", self.address, self.value)

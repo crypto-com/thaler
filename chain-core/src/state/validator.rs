@@ -1,9 +1,9 @@
 use crate::state::account::{CouncilNode, Nonce, StakedStateAddress, StakedStateOpAttributes};
 use crate::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 
 /// Submits a proposal to add a council node:
@@ -17,7 +17,7 @@ use std::fmt;
 /// - the bonded amount in the stake state is more than the minimal required one
 /// - the witness is correct
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct NodeJoinRequestTx {
     pub nonce: Nonce,
     pub address: StakedStateAddress,
@@ -44,7 +44,7 @@ impl NodeJoinRequestTx {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for NodeJoinRequestTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(

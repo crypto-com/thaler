@@ -1,7 +1,7 @@
 use crate::common::{hash256, Timespec, HASH_SIZE_256};
 use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
-#[cfg(feature = "base64")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::config::SlashRatio;
 use crate::tx::data::attribute::TxAttributes;
 use crate::tx::data::input::TxoPointer;
@@ -10,22 +10,22 @@ use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
 use crate::tx::TransactionId;
 use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::de;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::prelude::v1::Vec;
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
 // TODO: switch to normal signatures + explicit public key
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::address::ErrorAddress;
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::From;
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::convert::TryFrom;
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 use std::prelude::v1::{String, ToString};
 
@@ -47,7 +47,7 @@ pub enum StakedStateAddress {
     BasicRedeem(RedeemAddress),
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl Serialize for StakedStateAddress {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -57,7 +57,7 @@ impl Serialize for StakedStateAddress {
     }
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl<'de> Deserialize<'de> for StakedStateAddress {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -86,7 +86,7 @@ impl<'de> Deserialize<'de> for StakedStateAddress {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl TryFrom<&[u8]> for StakedStateAddress {
     type Error = ErrorAddress;
 
@@ -102,7 +102,7 @@ impl From<RedeemAddress> for StakedStateAddress {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for StakedStateAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -111,7 +111,7 @@ impl fmt::Display for StakedStateAddress {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl FromStr for StakedStateAddress {
     type Err = ErrorAddress;
 
@@ -126,7 +126,7 @@ pub type ValidatorSecurityContact = Option<String>;
 /// holds state about a node responsible for transaction validation / block signing and service node whitelist management
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[cfg_attr(
-    all(feature = "serde", feature = "hex"),
+    not(feature = "mesalock_sgx"),
     derive(Serialize, Deserialize)
 )]
 pub struct CouncilNode {
@@ -204,7 +204,10 @@ impl CouncilNode {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(all(feature = "serde", feature = "hex"), derive(Serialize))]
+#[cfg_attr(
+    not(feature = "mesalock_sgx"),
+    derive(Serialize)
+)]
 /// Metadata of a validator
 pub struct CouncilNodeMetadata {
     /// Name of validator
@@ -222,15 +225,15 @@ pub struct CouncilNodeMetadata {
 /// Types of possible punishments
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(
-    all(feature = "serde", feature = "hex"),
-    derive(Deserialize, Serialize)
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
 )]
 pub enum PunishmentKind {
     NonLive,
     ByzantineFault,
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for PunishmentKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -243,8 +246,8 @@ impl fmt::Display for PunishmentKind {
 /// Details of a punishment for a staked state
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(
-    all(feature = "serde", feature = "hex"),
-    derive(Deserialize, Serialize)
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
 )]
 pub struct Punishment {
     pub kind: PunishmentKind,
@@ -252,7 +255,7 @@ pub struct Punishment {
     pub slash_amount: Option<Coin>,
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for CouncilNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} -- {}", self.name, self.consensus_pubkey)
@@ -262,8 +265,8 @@ impl fmt::Display for CouncilNode {
 /// represents the StakedState (account involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(
-    all(feature = "serde", feature = "hex"),
-    derive(Deserialize, Serialize)
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
 )]
 pub struct StakedState {
     pub nonce: Nonce,
@@ -416,7 +419,8 @@ impl StakedState {
     }
 
     /// Slashes current account with given ratio and returns slashed amount
-    #[cfg(feature = "base64")]
+    /// TODO: previously this required base64, not sure why? check if this needs to be guarded, or it was a mistake
+    #[cfg(not(feature = "mesalock_sgx"))]
     pub fn slash(
         &mut self,
         slash_ratio: SlashRatio,
@@ -448,7 +452,10 @@ impl StakedState {
 
 /// attributes in StakedState-related transactions
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
+)]
 pub struct StakedStateOpAttributes {
     pub chain_hex_id: u8,
     // TODO: Other attributes?
@@ -462,7 +469,10 @@ impl StakedStateOpAttributes {
 
 /// bond status for StakedState initialize
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
+)]
 pub enum StakedStateDestination {
     Bonded,
     UnbondedFromGenesis,
@@ -473,7 +483,7 @@ pub enum StakedStateDestination {
 /// (updates StakedState's bonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(
-    all(feature = "serde", feature = "hex"),
+    not(feature = "mesalock_sgx"),
     derive(Serialize, Deserialize)
 )]
 pub struct DepositBondTx {
@@ -520,7 +530,7 @@ impl DepositBondTx {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for DepositBondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for input in self.inputs.iter() {
@@ -534,7 +544,10 @@ impl fmt::Display for DepositBondTx {
 /// updates the StakedState (TODO: implicit from the witness?) by moving some of the bonded amount - fee into unbonded,
 /// and setting the unbonded_from to last_block_time+min_unbonding_time (network parameter)
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
+)]
 pub struct UnbondTx {
     pub from_staked_account: StakedStateAddress,
     pub nonce: Nonce,
@@ -560,7 +573,7 @@ impl UnbondTx {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for UnbondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
@@ -576,7 +589,7 @@ impl fmt::Display for UnbondTx {
 /// (update's StakedState's unbonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(
-    all(feature = "serde", feature = "hex"),
+    not(feature = "mesalock_sgx"),
     derive(Serialize, Deserialize)
 )]
 pub struct WithdrawUnbondedTx {
@@ -604,7 +617,7 @@ impl WithdrawUnbondedTx {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for WithdrawUnbondedTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "-> (unbonded) (nonce: {})", self.nonce)?;
@@ -617,7 +630,10 @@ impl fmt::Display for WithdrawUnbondedTx {
 
 /// Unjails an account
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
+)]
 pub struct UnjailTx {
     pub nonce: Nonce,
     pub address: StakedStateAddress,
@@ -641,7 +657,7 @@ impl UnjailTx {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for UnjailTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "unjailed: {} (nonce: {})", self.address, self.nonce)?;
@@ -651,7 +667,10 @@ impl fmt::Display for UnjailTx {
 
 /// A witness for StakedState operations
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
+)]
 pub enum StakedStateOpWitness {
     BasicRedeem(EcdsaSignature),
 }

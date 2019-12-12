@@ -1,9 +1,9 @@
 use std::fmt;
 
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::de;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::tx::data::TxId;
@@ -16,16 +16,16 @@ pub type TxoIndex = u16;
 /// transaction.
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
 #[cfg_attr(
-    all(feature = "serde", feature = "hex"),
+    not(feature = "mesalock_sgx"),
     derive(Serialize, Deserialize)
 )]
 pub struct TxoPointer {
     #[cfg_attr(
-        all(feature = "serde", feature = "hex"),
+        not(feature = "mesalock_sgx"),
         serde(serialize_with = "serialize_transaction_id")
     )]
     #[cfg_attr(
-        all(feature = "serde", feature = "hex"),
+        not(feature = "mesalock_sgx"),
         serde(deserialize_with = "deserialize_transaction_id")
     )]
     pub id: TxId,
@@ -33,7 +33,7 @@ pub struct TxoPointer {
     pub index: TxoIndex,
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 fn serialize_transaction_id<S>(
     transaction_id: &TxId,
     serializer: S,
@@ -44,7 +44,7 @@ where
     serializer.serialize_str(&hex::encode(transaction_id))
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_transaction_id<'de, D>(deserializer: D) -> std::result::Result<TxId, D::Error>
 where
     D: Deserializer<'de>,

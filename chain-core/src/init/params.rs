@@ -5,7 +5,7 @@ use crate::tx::fee::{Fee, FeeAlgorithm};
 use crate::tx::fee::{LinearFee, Milli, MilliError};
 use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryFrom;
 use std::fmt;
@@ -15,7 +15,7 @@ use std::str::FromStr;
 const MAX_SLASH_RATIO: Milli = Milli::new(1, 0); // 1.0
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct InitNetworkParameters {
     /// Initial fee setting
     /// -- TODO: perhaps change to be against T: FeeAlgorithm
@@ -36,7 +36,7 @@ pub struct InitNetworkParameters {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum NetworkParameters {
     /// parameters specified at genesis time
     Genesis(InitNetworkParameters),
@@ -147,7 +147,7 @@ impl NetworkParameters {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct JailingParameters {
     /// Minimum jailing time for punished accounts (in seconds)
     pub jail_duration: u32,
@@ -159,7 +159,7 @@ pub struct JailingParameters {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct SlashingParameters {
     /// Percentage of funds (bonded + unbonded) slashed when validator is not live (liveness is calculated by jailing
     /// parameters)
@@ -171,7 +171,7 @@ pub struct SlashingParameters {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct RewardsParameters {
     /// Maximum monetary expansion for rewards.
     pub monetary_expansion_cap: Coin,
@@ -249,7 +249,7 @@ impl fmt::Display for SlashRatio {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl Serialize for SlashRatio {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -259,7 +259,7 @@ impl Serialize for SlashRatio {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl<'de> Deserialize<'de> for SlashRatio {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
