@@ -36,16 +36,16 @@ pub struct GenesisResponse {
 
 /// crypto-chain specific methods.
 pub trait BlockExt {
-    /// Returns un-encrypted transactions in a block (this may also contain invalid transactions)
-    fn unencrypted_transactions(&self) -> Result<Vec<Transaction>>;
+    /// Returns un-encrypted staking(deposit/unbound) transactions in a block
+    /// (this may also contain invalid transactions)
+    fn staking_transactions(&self) -> Result<Vec<Transaction>>;
 
     /// Returns ids of transactions whose main content is only available in enclaves (Transfer, Withdraw)
     fn enclave_transaction_ids(&self) -> Result<Vec<TxId>>;
 }
 
 impl BlockExt for Block {
-    /// NOTE: Un-encrypted transactions only contain deposit stake and unbond stake transactions
-    fn unencrypted_transactions(&self) -> Result<Vec<Transaction>> {
+    fn staking_transactions(&self) -> Result<Vec<Transaction>> {
         self.data
             .iter()
             .map(|raw| -> Result<TxAux> {

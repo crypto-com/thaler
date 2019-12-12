@@ -4,8 +4,9 @@ use jsonrpc_derive::rpc;
 use crate::server::{to_rpc_error, WalletRequest};
 use client_common::tendermint::Client;
 use client_common::Storage;
-use client_core::synchronizer::{ManualSynchronizer, PollingSynchronizer};
-use client_core::BlockHandler;
+use client_core::synchronizer::PollingSynchronizer;
+use client_core::wallet::syncer::{ObfuscationSyncerConfig, WalletSyncer};
+use client_core::TransactionObfuscation;
 
 #[rpc]
 pub trait SyncRpc: Send + Sync {
@@ -22,34 +23,30 @@ pub trait SyncRpc: Send + Sync {
     fn sync_stop(&self, request: WalletRequest) -> Result<()>;
 }
 
-pub struct SyncRpcImpl<S, C, H>
+pub struct SyncRpcImpl<S, C, O>
 where
     S: Storage,
     C: Client,
-    H: BlockHandler,
+    O: TransactionObfuscation,
 {
-    synchronizer: ManualSynchronizer<S, C, H>,
-    polling_synchronizer: PollingSynchronizer<S, C, H>,
+    config: ObfuscationSyncerConfig<S, C, O>,
+    polling_synchronizer: PollingSynchronizer,
 }
 
-impl<S, C, H> SyncRpc for SyncRpcImpl<S, C, H>
+impl<S, C, O> SyncRpc for SyncRpcImpl<S, C, O>
 where
     S: Storage + 'static,
     C: Client + 'static,
-    H: BlockHandler + 'static,
+    O: TransactionObfuscation + 'static,
 {
     #[inline]
     fn sync(&self, request: WalletRequest) -> Result<()> {
-        self.synchronizer
-            .sync(&request.name, &request.passphrase, None, None)
-            .map_err(to_rpc_error)
+        self.do_sync(request, false)
     }
 
     #[inline]
     fn sync_all(&self, request: WalletRequest) -> Result<()> {
-        self.synchronizer
-            .sync_all(&request.name, &request.passphrase, None, None)
-            .map_err(to_rpc_error)
+        self.do_sync(request, true)
     }
 
     #[inline]
@@ -66,19 +63,33 @@ where
     }
 }
 
-impl<S, C, H> SyncRpcImpl<S, C, H>
+impl<S, C, O> SyncRpcImpl<S, C, O>
 where
-    S: Storage + Clone + 'static,
-    C: Client + Clone + 'static,
-    H: BlockHandler + Clone + 'static,
+    S: Storage + 'static,
+    C: Client + 'static,
+    O: TransactionObfuscation + 'static,
 {
-    pub fn new(synchronizer: ManualSynchronizer<S, C, H>) -> Self {
-        let mut polling_synchronizer = PollingSynchronizer::from(synchronizer.clone());
-        polling_synchronizer.spawn();
+    pub fn new(config: ObfuscationSyncerConfig<S, C, O>) -> Self {
+        let mut polling_synchronizer = PollingSynchronizer::default();
+        polling_synchronizer.spawn(config.clone());
 
         SyncRpcImpl {
-            synchronizer,
+            config,
             polling_synchronizer,
         }
+    }
+
+    fn do_sync(&self, request: WalletRequest, reset: bool) -> Result<()> {
+        let syncer = WalletSyncer::with_obfuscation_config(
+            self.config.clone(),
+            None,
+            request.name,
+            request.passphrase,
+        )
+        .map_err(to_rpc_error)?;
+        if reset {
+            syncer.reset_state().map_err(to_rpc_error)?;
+        }
+        syncer.sync().map_err(to_rpc_error)
     }
 }

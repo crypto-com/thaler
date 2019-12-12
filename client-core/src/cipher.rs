@@ -13,7 +13,7 @@ use chain_core::tx::TxAux;
 use client_common::{PrivateKey, Result, SignedTransaction, Transaction};
 
 /// Interface for encryption and decryption of transactions
-pub trait TransactionObfuscation: Send + Sync {
+pub trait TransactionObfuscation: Send + Sync + Clone {
     /// Retrieves decrypted transactions with given ids. Only transactions of type `Transfer` and `Withdraw` need to be
     /// decrypted.
     fn decrypt(

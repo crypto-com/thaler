@@ -1,5 +1,8 @@
 //! Wallet management
 mod default_wallet_client;
+/// Wallet synchronizer
+pub mod syncer;
+mod syncer_logic;
 
 pub use default_wallet_client::DefaultWalletClient;
 

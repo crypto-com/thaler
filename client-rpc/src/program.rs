@@ -51,9 +51,17 @@ pub struct Options {
     #[structopt(
         name = "disable-fast-forward",
         long,
-        help = "Disable fast forward, which is not secure when connecting to outside nodes"
+        help = "Disable fast forward when syncing wallet, which is not secure when connecting to outside nodes"
     )]
     pub disable_fast_forward: bool,
+    #[structopt(
+        name = "batch-size",
+        short,
+        long,
+        default_value = "20",
+        help = "Number of requests per batch when syncing wallet"
+    )]
+    pub batch_size: usize,
 }
 
 #[allow(dead_code)]

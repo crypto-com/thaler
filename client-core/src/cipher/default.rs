@@ -63,6 +63,10 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
         transaction_ids: &[TxId],
         private_key: &PrivateKey,
     ) -> Result<Vec<Transaction>> {
+        if transaction_ids.is_empty() {
+            return Ok(vec![]);
+        }
+
         let client_config = get_tls_config();
         let dns_name = self.tqe_hostname.as_ref();
         // FIXME: better response from enclave and retry mechanism

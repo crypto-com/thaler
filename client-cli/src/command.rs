@@ -12,6 +12,7 @@ use cli_table::{Cell, Row, Table};
 use hex::encode;
 use pbr::ProgressBar;
 use quest::success;
+use secstr::SecUtf8;
 use structopt::StructOpt;
 
 use chain_core::init::coin::Coin;
@@ -26,13 +27,12 @@ use client_common::{ErrorKind, Result, ResultExt, Storage};
 use client_core::cipher::DefaultTransactionObfuscation;
 #[cfg(feature = "mock-enc-dec")]
 use client_core::cipher::MockAbciTransactionObfuscation;
-use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_core::signer::WalletSignerManager;
-use client_core::synchronizer::{ManualSynchronizer, ProgressReport};
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::types::BalanceChange;
+use client_core::wallet::syncer::{ObfuscationSyncerConfig, ProgressReport, WalletSyncer};
 use client_core::wallet::{DefaultWalletClient, WalletClient};
-use client_core::BlockHandler;
+use client_core::TransactionObfuscation;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 #[cfg(feature = "mock-enc-dec")]
 use log::warn;
@@ -93,9 +93,10 @@ pub enum Command {
             name = "batch-size",
             short,
             long,
+            default_value = "20",
             help = "Number of requests per batch in RPC calls to tendermint"
         )]
-        batch_size: Option<usize>,
+        batch_size: usize,
         #[structopt(
             name = "force",
             short,
@@ -234,25 +235,17 @@ impl Command {
                 force,
                 disable_fast_forward,
             } => {
-                let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
-
-                let transaction_handler = DefaultTransactionHandler::new(storage.clone());
-                let transaction_obfuscation = get_tx_query(tendermint_client.clone())?;
-                let block_handler = DefaultBlockHandler::new(
-                    transaction_obfuscation,
-                    transaction_handler,
-                    storage.clone(),
-                );
-
-                let synchronizer = ManualSynchronizer::new(
-                    storage,
+                let tx_obfuscation = get_tx_query(tendermint_client.clone())?;
+                let passphrase = ask_passphrase(None)?;
+                let config = ObfuscationSyncerConfig::new(
+                    SledStorage::new(storage_path())?,
                     tendermint_client,
-                    block_handler,
+                    tx_obfuscation,
                     !disable_fast_forward,
+                    *batch_size,
                 );
-
-                Self::resync(synchronizer, name, *batch_size, *force)
+                Self::resync(config, name.clone(), passphrase, *force)
             }
         }
     }
@@ -423,16 +416,13 @@ impl Command {
         Ok(())
     }
 
-    fn resync<S: Storage, C: Client, H: BlockHandler>(
-        synchronizer: ManualSynchronizer<S, C, H>,
-        name: &str,
-        batch_size: Option<usize>,
+    fn resync<S: Storage, C: Client, O: TransactionObfuscation>(
+        config: ObfuscationSyncerConfig<S, C, O>,
+        name: String,
+        passphrase: SecUtf8,
         force: bool,
     ) -> Result<()> {
-        let passphrase = ask_passphrase(None)?;
-
         let (sender, receiver) = channel();
-
         let handle = thread::spawn(move || {
             let mut init_block_height = 0;
             let mut final_block_height = 0;
@@ -469,14 +459,12 @@ impl Command {
             }
         });
 
+        let syncer = WalletSyncer::with_obfuscation_config(config, Some(sender), name, passphrase)?;
         if force {
-            synchronizer.sync_all(name, &passphrase, batch_size, Some(sender))?;
-        } else {
-            synchronizer.sync(name, &passphrase, batch_size, Some(sender))?;
+            syncer.reset_state()?;
         }
-
+        syncer.sync()?;
         let _ = handle.join();
-
         Ok(())
     }
 }

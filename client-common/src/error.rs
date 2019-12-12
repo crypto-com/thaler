@@ -165,6 +165,12 @@ pub trait ResultExt<T> {
     where
         F: FnOnce() -> (ErrorKind, M),
         String: From<M>;
+
+    /// Adds given error kind and message to source error
+    fn err_kind<F, M>(self, kind: ErrorKind, f: F) -> Result<T>
+    where
+        F: FnOnce() -> M,
+        String: From<M>;
 }
 
 impl<T> ResultExt<T> for Option<T> {
@@ -178,6 +184,15 @@ impl<T> ResultExt<T> for Option<T> {
             let (kind, message) = f();
             Error::new(kind, message)
         })
+    }
+
+    #[inline]
+    fn err_kind<F, M>(self, kind: ErrorKind, f: F) -> Result<T>
+    where
+        F: FnOnce() -> M,
+        String: From<M>,
+    {
+        self.chain(|| (kind, f()))
     }
 }
 
@@ -195,5 +210,14 @@ where
             let (kind, message) = f();
             Error::new_with_source(kind, message, err.into())
         })
+    }
+
+    #[inline]
+    fn err_kind<F, M>(self, kind: ErrorKind, f: F) -> Result<T>
+    where
+        F: FnOnce() -> M,
+        String: From<M>,
+    {
+        self.chain(|| (kind, f()))
     }
 }

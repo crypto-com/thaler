@@ -4,11 +4,12 @@ use tendermint::validator;
 use client_common::tendermint::lite;
 use client_common::{ErrorKind, Result, ResultExt, Storage};
 
-const KEYSPACE: &str = "core_global_state";
+/// key space of wallet sync state
+const KEYSPACE: &str = "core_wallet_sync";
 
-/// Global state for wallet
+/// Sync state for wallet
 #[derive(Debug, Encode, Decode)]
-pub struct GlobalState {
+pub struct SyncState {
     /// last block height
     pub last_block_height: u64,
     /// last app hash
@@ -17,10 +18,10 @@ pub struct GlobalState {
     pub trusted_state: lite::TrustedState,
 }
 
-impl GlobalState {
+impl SyncState {
     /// construct genesis global state
-    pub fn genesis(genesis_validators: Vec<validator::Info>) -> GlobalState {
-        GlobalState {
+    pub fn genesis(genesis_validators: Vec<validator::Info>) -> SyncState {
+        SyncState {
             last_block_height: 0,
             last_app_hash: "".to_owned(),
             trusted_state: lite::TrustedState::genesis(genesis_validators),
@@ -28,18 +29,34 @@ impl GlobalState {
     }
 }
 
+/// Load sync state from storage
+pub fn load_sync_state<S: Storage>(storage: &S, name: &str) -> Result<Option<SyncState>> {
+    storage.load(KEYSPACE, name)
+}
+
+/// Save sync state from storage
+pub fn save_sync_state<S: Storage>(storage: &S, name: &str, state: &SyncState) -> Result<()> {
+    storage.save(KEYSPACE, name, state)
+}
+
+/// Delete sync state from storage
+pub fn delete_sync_state<S: Storage>(storage: &S, name: &str) -> Result<()> {
+    storage.delete(KEYSPACE, name)?;
+    Ok(())
+}
+
 /// Exposes functionalities for managing client's global state (for synchronization)
 ///
 /// Stores `wallet-name -> global-state`
 #[derive(Default, Clone)]
-pub struct GlobalStateService<S>
+pub struct SyncStateService<S>
 where
     S: Storage,
 {
     storage: S,
 }
 
-impl<S> GlobalStateService<S>
+impl<S> SyncStateService<S>
 where
     S: Storage,
 {
@@ -50,7 +67,7 @@ where
     }
 
     /// Updates last block height and last app hash with given values
-    pub fn save_global_state(&self, name: &str, state: &GlobalState) -> Result<()> {
+    pub fn save_global_state(&self, name: &str, state: &SyncState) -> Result<()> {
         self.storage.set(KEYSPACE, name, state.encode()).map(|_| ())
     }
 
@@ -67,9 +84,9 @@ where
     }
 
     /// Get wallet global state
-    pub fn get_global_state(&self, name: &str) -> Result<Option<GlobalState>> {
+    pub fn get_global_state(&self, name: &str) -> Result<Option<SyncState>> {
         if let Some(bytes) = self.storage.get(KEYSPACE, name)? {
-            Ok(Some(GlobalState::decode(&mut bytes.as_slice()).chain(
+            Ok(Some(SyncState::decode(&mut bytes.as_slice()).chain(
                 || {
                     (
                         ErrorKind::DeserializationError,
@@ -94,7 +111,7 @@ mod tests {
     #[test]
     fn check_flow() {
         let storage = MemoryStorage::default();
-        let global_state_service = GlobalStateService::new(storage);
+        let global_state_service = SyncStateService::new(storage);
 
         let name = "name";
 
@@ -105,7 +122,7 @@ mod tests {
         assert!(global_state_service
             .save_global_state(
                 name,
-                &GlobalState {
+                &SyncState {
                     last_block_height: 5,
                     last_app_hash:
                         "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"

@@ -20,10 +20,9 @@ use client_common::{Error, ErrorKind, Result, ResultExt};
 use client_core::cipher::DefaultTransactionObfuscation;
 #[cfg(feature = "mock-enc-dec")]
 use client_core::cipher::MockAbciTransactionObfuscation;
-use client_core::handler::{DefaultBlockHandler, DefaultTransactionHandler};
 use client_core::signer::WalletSignerManager;
-use client_core::synchronizer::ManualSynchronizer;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
+use client_core::wallet::syncer::ObfuscationSyncerConfig;
 use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
 use jsonrpc_core::{self, IoHandler};
@@ -46,10 +45,8 @@ type AppOpsClient = DefaultNetworkOpsClient<
     LinearFee,
     AppTransactionCipher,
 >;
-type AppTransactionHandler = DefaultTransactionHandler<SledStorage>;
-type AppBlockHandler =
-    DefaultBlockHandler<AppTransactionCipher, AppTransactionHandler, SledStorage>;
-type AppSynchronizer = ManualSynchronizer<SledStorage, WebsocketRpcClient, AppBlockHandler>;
+type AppSyncerConfig =
+    ObfuscationSyncerConfig<SledStorage, WebsocketRpcClient, AppTransactionCipher>;
 pub(crate) struct Server {
     host: String,
     port: u16,
@@ -57,6 +54,7 @@ pub(crate) struct Server {
     storage_dir: String,
     websocket_url: String,
     enable_fast_forward: bool,
+    batch_size: usize,
 }
 
 /// normal
@@ -104,6 +102,7 @@ impl Server {
             storage_dir: options.storage_dir,
             websocket_url: options.websocket_url,
             enable_fast_forward: !options.disable_fast_forward,
+            batch_size: options.batch_size,
         })
     }
 
@@ -144,21 +143,19 @@ impl Server {
         ))
     }
 
-    pub fn make_synchronizer(
+    pub fn make_syncer_config(
         &self,
         storage: SledStorage,
         tendermint_client: WebsocketRpcClient,
-    ) -> Result<AppSynchronizer> {
+    ) -> Result<AppSyncerConfig> {
         let transaction_cipher = get_tx_query(tendermint_client.clone())?;
-        let transaction_handler = DefaultTransactionHandler::new(storage.clone());
-        let block_handler =
-            DefaultBlockHandler::new(transaction_cipher, transaction_handler, storage.clone());
 
-        Ok(ManualSynchronizer::new(
+        Ok(AppSyncerConfig::new(
             storage,
             tendermint_client,
-            block_handler,
+            transaction_cipher,
             self.enable_fast_forward,
+            self.batch_size,
         ))
     }
 
@@ -180,9 +177,9 @@ impl Server {
         let staking_rpc =
             StakingRpcImpl::new(staking_rpc_wallet_client, ops_client, self.network_id);
 
-        let synchronizer = self.make_synchronizer(storage.clone(), tendermint_client.clone())?;
+        let syncer_config = self.make_syncer_config(storage.clone(), tendermint_client.clone())?;
 
-        let sync_rpc = SyncRpcImpl::new(synchronizer);
+        let sync_rpc = SyncRpcImpl::new(syncer_config);
 
         let wallet_rpc_wallet_client =
             self.make_wallet_client(storage.clone(), tendermint_client.clone())?;

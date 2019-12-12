@@ -31,9 +31,9 @@ use crate::{
 #[derive(Debug)]
 pub struct DefaultWalletTransactionBuilder<S, F, O>
 where
-    S: Storage + Clone,
+    S: Storage,
     F: FeeAlgorithm + Clone,
-    O: TransactionObfuscation + Clone,
+    O: TransactionObfuscation,
 {
     signer_manager: WalletSignerManager<S>,
     fee_algorithm: F,
@@ -42,9 +42,9 @@ where
 
 impl<S, F, O> WalletTransactionBuilder for DefaultWalletTransactionBuilder<S, F, O>
 where
-    S: Storage + Clone,
+    S: Storage,
     F: FeeAlgorithm + Clone,
-    O: TransactionObfuscation + Clone,
+    O: TransactionObfuscation,
 {
     fn build_transfer_tx(
         &self,
@@ -79,9 +79,9 @@ where
 
 impl<S, F, O> DefaultWalletTransactionBuilder<S, F, O>
 where
-    S: Storage + Clone,
+    S: Storage,
     F: FeeAlgorithm + Clone,
-    O: TransactionObfuscation + Clone,
+    O: TransactionObfuscation,
 {
     /// Creates a new instance of transaction builder
     #[inline]

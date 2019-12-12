@@ -13,7 +13,7 @@ use crate::{SelectedUnspentTransactions, SignCondition, Signer};
 #[derive(Debug, Clone)]
 pub struct WalletSignerManager<S>
 where
-    S: Storage + Clone,
+    S: Storage,
 {
     key_service: KeyService<S>,
     root_hash_service: RootHashService<S>,
@@ -22,7 +22,7 @@ where
 
 impl<S> WalletSignerManager<S>
 where
-    S: Storage + Clone,
+    S: Storage,
 {
     /// Create an instance fo wallet signer manager
     pub fn new(storage: S) -> Self {
