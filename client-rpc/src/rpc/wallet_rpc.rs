@@ -12,8 +12,8 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{TxAux, TxEnclaveAux};
 use client_common::{PublicKey, Result as CommonResult};
-use client_core::types::TransactionChange;
 use client_core::types::WalletKind;
+use client_core::types::{AddressType, TransactionChange};
 use client_core::{Mnemonic, MultiSigWalletClient, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
@@ -28,6 +28,9 @@ pub trait WalletRpc: Send + Sync {
 
     #[rpc(name = "wallet_restore")]
     fn restore(&self, request: WalletRequest, mnemonics: Mnemonic) -> Result<String>;
+
+    #[rpc(name = "wallet_newMultiSigAddressPublicKey")]
+    fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String>;
 
     #[rpc(name = "wallet_createStakingAddress")]
     fn create_staking_address(&self, request: WalletRequest) -> Result<String>;
@@ -127,6 +130,17 @@ where
             .new_transfer_address(&request.name, &request.passphrase)
             .map_err(to_rpc_error)?;
         Ok(request.name)
+    }
+
+    fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String> {
+        self.client
+            .new_public_key(
+                &request.name,
+                &request.passphrase,
+                Some(AddressType::Transfer),
+            )
+            .map(|public_key| public_key.to_string())
+            .map_err(to_rpc_error)
     }
 
     fn create_staking_address(&self, request: WalletRequest) -> Result<String> {
