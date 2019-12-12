@@ -37,7 +37,9 @@ tiny-bip39 = { version = "0.6", default-features = false }
 unicase = "2.6.0"
 lazy_static = "1.4.0"
 ring = "0.16.9"
+thiserror = { version = "1.0", default-features = false }
 tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "8e95731ee671777638ab2a3d5dfd7b35992b86aa" }
+non-empty-vec = "0.1"
 
 [dev-dependencies]
 hex = "0.4.0"

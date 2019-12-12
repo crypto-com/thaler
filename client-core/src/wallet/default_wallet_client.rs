@@ -52,7 +52,7 @@ where
 
 impl<S, C, T> DefaultWalletClient<S, C, T>
 where
-    S: Storage + Clone,
+    S: Storage,
     C: Client,
     T: WalletTransactionBuilder,
 {
@@ -73,7 +73,7 @@ where
 
 impl<S> DefaultWalletClient<S, UnauthorizedClient, UnauthorizedWalletTransactionBuilder>
 where
-    S: Storage + Clone,
+    S: Storage,
 {
     /// Creates a new read-only instance of `DefaultWalletClient`
     pub fn new_read_only(storage: S) -> Self {

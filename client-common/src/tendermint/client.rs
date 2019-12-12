@@ -4,7 +4,7 @@ use crate::Result;
 use chain_core::state::ChainState;
 
 /// Makes remote calls to tendermint (backend agnostic)
-pub trait Client: Send + Sync {
+pub trait Client: Send + Sync + Clone {
     /// Makes `genesis` call to tendermint
     fn genesis(&self) -> Result<Genesis>;
 

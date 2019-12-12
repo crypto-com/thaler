@@ -1063,7 +1063,7 @@ mod raw_transfer_transaction_builder_tests {
         TxInWitness::TreeSig(mock_signature, proof)
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     struct MockTransactionCipher;
 
     impl TransactionObfuscation for MockTransactionCipher {

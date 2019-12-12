@@ -371,7 +371,7 @@ pub mod tests {
     type TestWalletClient =
         DefaultWalletClient<MemoryStorage, MockRpcClient, TestWalletTransactionBuilder>;
 
-    #[derive(Default)]
+    #[derive(Default, Clone)]
     pub struct MockRpcClient;
 
     impl Client for MockRpcClient {
