@@ -15,17 +15,17 @@ default = []
 sgx-test = []
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
-sgx_tse       = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
-sgx_tstd      = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk", features = ["net","backtrace"] }
-sgx_rand      = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
-sgx_trts      = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
-sgx_types     = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
-sgx_tseal     = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
-sgx_tcrypto   = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_tse       = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_tstd      = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk", features = ["net","backtrace"] }
+sgx_rand      = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_trts      = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_types     = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_tseal     = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_tcrypto   = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk" }
 enclave-macro = { path = "../../enclave-macro" }
 chain-tx-validation   = {  path = "../../../chain-tx-validation", default-features = false, features = ["mesalock_sgx"] }
 chain-core   = {  path = "../../../chain-core", default-features = false, features = ["mesalock_sgx"] }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "8b9a38b870a7759fcdbd4a5d435b5ba873c70afd", features = ["recovery", "endomorphism", "sgx"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "be445f29a96af31fe079611d26c07f1f596d1c5f", features = ["recovery", "endomorphism", "sgx"] }
 parity-scale-codec = { default-features = false, version = "1.0" }
 enclave-protocol   = { path = "../../../enclave-protocol", default-features = false, features = ["mesalock_sgx"] }
 chain-tx-filter   = { path = "../../../chain-tx-filter", default-features = false, features = ["mesalock_sgx"] }

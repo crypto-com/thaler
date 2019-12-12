@@ -13,7 +13,7 @@ use enclave_protocol::{
 };
 use enclave_t_common::check_unseal;
 use lazy_static::lazy_static;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use sgx_tseal::SgxSealedData;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 use std::prelude::v1::{Box, Vec};

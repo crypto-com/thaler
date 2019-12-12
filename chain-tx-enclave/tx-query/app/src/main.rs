@@ -1,5 +1,3 @@
-#![feature(const_string_new)]
-
 mod enclave_u;
 
 #[cfg(feature = "sgx-test")]

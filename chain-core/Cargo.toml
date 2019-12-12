@@ -16,12 +16,12 @@ digest = { version = "0.8", default-features = false}
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 sha2 = { version = "0.8", default-features = false }
 hex = { version = "0.4", optional = true }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "8b9a38b870a7759fcdbd4a5d435b5ba873c70afd", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "be445f29a96af31fe079611d26c07f1f596d1c5f", features = ["recovery", "endomorphism"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 blake2 = { version = "0.8", default-features = false }
 parity-scale-codec = { features = ["derive"], default-features = false, version = "1.1" }
 base64 = { version = "0.11", optional = true }
-sgx_tstd = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk.git", optional = true }
+sgx_tstd = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk.git", optional = true }
 static_assertions = { version = "1.1.0", default-features = false}
 bech32 = { version = "0.7.1", optional = true }
 aead = "0.2"
