@@ -122,6 +122,33 @@ trigger:
   event:
   - push
 
+
+---
+kind: pipeline
+type: exec
+name: integration-tests-jail-unjail
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: integration-tests
+  commands:
+  - cd integration-tests/jail
+  - ./run.sh
+- name: teardown
+  commands:
+  - cd integration-tests/jail
+  - export JAIL_CLIENT_RPC=9981
+  - export JAIL_CHAIN_RPC=26657
+  - ./shutdown.sh
+  when:
+    status:
+     - success
+     - failure
+
+
 ---
 kind: signature
 hmac: dae5cd458b9f583fe5d3d01f64776c6af23ea9bd9a8c651db4f840ac2fb79d6c
