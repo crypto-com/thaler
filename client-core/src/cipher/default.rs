@@ -81,9 +81,15 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
                 .chain(|| {
                     (
                         ErrorKind::IoError,
-                        "Unable to write to TQE connection stream",
+                        "Unable to write to TQE connection stream (init decrypt)",
                     )
                 })?;
+            tls.flush().chain(|| {
+                (
+                    ErrorKind::IoError,
+                    "Unable to write to TQE connection stream (init decrypt flush)",
+                )
+            })?;
             let mut challenge = [0u8; 33];
             tls.read_exact(&mut challenge).chain(|| {
                 (
@@ -112,10 +118,15 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
             tls.write_all(&request.encode()).chain(|| {
                 (
                     ErrorKind::IoError,
-                    "Unable to write to TQE connection stream",
+                    "Unable to write to TQE connection stream (decrypt request)",
                 )
             })?;
-
+            tls.flush().chain(|| {
+                (
+                    ErrorKind::IoError,
+                    "Unable to write to TQE connection stream (decrypt request flush)",
+                )
+            })?;
             let mut plaintext = Vec::new();
             let result = match tls.read_to_end(&mut plaintext) {
                 Ok(_) => {
@@ -186,7 +197,13 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
         tls.write_all(&request.encode()).chain(|| {
             (
                 ErrorKind::IoError,
-                "Unable to write to TQE connection stream",
+                "Unable to write to TQE connection stream (encrypt request)",
+            )
+        })?;
+        tls.flush().chain(|| {
+            (
+                ErrorKind::IoError,
+                "Unable to write to TQE connection stream (encrypt request flush)",
             )
         })?;
         let mut plaintext = Vec::new();

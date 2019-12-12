@@ -100,6 +100,7 @@ fn handle_decryption_request(
         let _ = tls.sock.shutdown(Shutdown::Both);
         return sgx_status_t::SGX_ERROR_UNEXPECTED;
     }
+    let _ = tls.flush();
 
     match tls.read(&mut plain) {
         Ok(l) => {
@@ -113,6 +114,7 @@ fn handle_decryption_request(
                 }
                 if let Some(reply) = process_decryption_request(&dr.body) {
                     let _ = tls.write(&reply.encode());
+                    let _ = tls.flush();
                 } else {
                     let _ = tls.sock.shutdown(Shutdown::Both);
                     return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
@@ -246,6 +248,7 @@ fn handle_encryption_request(
                             let _ = tls.write(&EncryptionResponse { resp: Err(e) }.encode());
                         }
                     };
+                    let _ = tls.flush();
                     sgx_status_t::SGX_SUCCESS
                 }
                 _ => {
