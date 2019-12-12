@@ -3,15 +3,14 @@ use std::sync::mpsc::Sender;
 
 use itertools::{izip, Itertools};
 use secstr::SecUtf8;
-use tendermint::validator;
 
 use chain_core::common::H256;
 use chain_core::state::account::StakedStateAddress;
 use client_common::tendermint::types::{Block, BlockExt, BlockResults, Status};
-use client_common::tendermint::{lite, Client};
+use client_common::tendermint::Client;
 use client_common::{BlockHeader, Error, ErrorKind, Result, ResultExt, Storage, Transaction};
 
-use crate::service::{GlobalStateService, WalletService, WalletStateService};
+use crate::service::{GlobalState, GlobalStateService, WalletService, WalletStateService};
 use crate::BlockHandler;
 
 const DEFAULT_BATCH_SIZE: usize = 20;
@@ -87,12 +86,15 @@ where
         batch_size: Option<usize>,
         progress_reporter: Option<Sender<ProgressReport>>,
     ) -> Result<()> {
-        let trust_state = self.load_trust_state()?;
+        let mut global_state =
+            if let Some(global_state) = self.global_state_service.get_global_state(name)? {
+                global_state
+            } else {
+                GlobalState::genesis(self.client.genesis()?.validators)
+            };
         let status = self.client.status()?;
 
-        let last_block_height = self
-            .global_state_service
-            .last_block_height(name, passphrase)?;
+        let last_block_height = global_state.last_block_height;
         let current_block_height = status.sync_info.latest_block_height.value();
 
         if let Some(ref sender) = &progress_reporter {
@@ -117,6 +119,7 @@ where
                     &staking_addresses,
                     &status,
                     &progress_reporter,
+                    &mut global_state,
                 )?
             {
                 // Fast forward to latest state if possible
@@ -134,6 +137,7 @@ where
                     &staking_addresses,
                     &block,
                     &progress_reporter,
+                    &mut global_state,
                 )?
             {
                 // Fast forward batch if possible
@@ -141,9 +145,10 @@ where
             }
 
             // Fetch batch details if it cannot be fast forwarded
-            let (blocks, trust_state) = self
+            let (blocks, trusted_state) = self
                 .client
-                .block_batch_verified(trust_state.clone(), range.iter())?;
+                .block_batch_verified(global_state.trusted_state.clone(), range.iter())?;
+            global_state.trusted_state = trusted_state;
             let block_results = self.client.block_results_batch(range.iter())?;
             let states = self.client.query_state_batch(range.iter().cloned())?;
 
@@ -178,6 +183,7 @@ where
                         &staking_addresses,
                         &status,
                         &progress_reporter,
+                        &mut global_state,
                     )?
                 {
                     // Fast forward to latest state if possible
@@ -185,7 +191,10 @@ where
                 }
 
                 let block_header = prepare_block_header(&staking_addresses, &block, &block_result)?;
-                self.block_handler.on_next(name, passphrase, block_header)?;
+                self.block_handler
+                    .on_next(name, passphrase, &block_header)?;
+                global_state.last_block_height = block_header.block_height;
+                global_state.last_app_hash = block_header.app_hash;
 
                 if let Some(ref sender) = &progress_reporter {
                     let _ = sender.send(ProgressReport::Update {
@@ -195,7 +204,8 @@ where
                 }
             }
 
-            self.global_state_service.save_trust_state(&trust_state)?;
+            self.global_state_service
+                .save_global_state(name, &global_state)?;
         }
 
         Ok(())
@@ -210,8 +220,7 @@ where
         batch_size: Option<usize>,
         progress_reporter: Option<Sender<ProgressReport>>,
     ) -> Result<()> {
-        self.global_state_service
-            .delete_global_state(name, passphrase)?;
+        self.global_state_service.delete_global_state(name)?;
         self.wallet_state_service
             .delete_wallet_state(name, passphrase)?;
         self.sync(name, passphrase, batch_size, progress_reporter)
@@ -225,22 +234,28 @@ where
         staking_addresses: &BTreeSet<StakedStateAddress>,
         status: &Status,
         progress_reporter: &Option<Sender<ProgressReport>>,
+        global_state: &mut GlobalState,
     ) -> Result<bool> {
-        let last_app_hash = self.global_state_service.last_app_hash(name, passphrase)?;
         let current_app_hash = status
             .sync_info
             .latest_app_hash
             .ok_or_else(|| Error::new(ErrorKind::TendermintRpcError, "latest_app_hash not found"))?
             .to_string();
 
-        if current_app_hash == last_app_hash {
+        if current_app_hash == global_state.last_app_hash {
             let current_block_height = status.sync_info.latest_block_height.value();
 
             let block = self.client.block(current_block_height)?;
             let block_result = self.client.block_results(current_block_height)?;
 
             let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
-            self.block_handler.on_next(name, passphrase, block_header)?;
+            self.block_handler
+                .on_next(name, passphrase, &block_header)?;
+
+            global_state.last_block_height = block_header.block_height;
+            global_state.last_app_hash = block_header.app_hash;
+            self.global_state_service
+                .save_global_state(name, global_state)?;
 
             if let Some(ref sender) = progress_reporter {
                 let _ = sender.send(ProgressReport::Update {
@@ -263,21 +278,27 @@ where
         staking_addresses: &BTreeSet<StakedStateAddress>,
         block: &Block,
         progress_reporter: &Option<Sender<ProgressReport>>,
+        global_state: &mut GlobalState,
     ) -> Result<bool> {
-        let last_app_hash = self.global_state_service.last_app_hash(name, passphrase)?;
         let current_app_hash = block
             .header
             .app_hash
             .ok_or_else(|| Error::new(ErrorKind::TendermintRpcError, "app_hash not found"))?
             .to_string();
 
-        if current_app_hash == last_app_hash {
+        if current_app_hash == global_state.last_app_hash {
             let current_block_height = block.header.height.value();
 
             let block_result = self.client.block_results(current_block_height)?;
 
             let block_header = prepare_block_header(staking_addresses, &block, &block_result)?;
-            self.block_handler.on_next(name, passphrase, block_header)?;
+            self.block_handler
+                .on_next(name, passphrase, &block_header)?;
+
+            global_state.last_block_height = block_header.block_height;
+            global_state.last_app_hash = block_header.app_hash;
+            self.global_state_service
+                .save_global_state(name, global_state)?;
 
             if let Some(ref sender) = progress_reporter {
                 let _ = sender.send(ProgressReport::Update {
@@ -289,17 +310,6 @@ where
             Ok(true)
         } else {
             Ok(false)
-        }
-    }
-
-    fn load_trust_state(&self) -> Result<lite::TrustedState> {
-        let opt = self.global_state_service.load_trust_state()?;
-        match opt {
-            None => Ok(lite::TrustedState {
-                header: None,
-                validators: validator::Set::new(self.client.genesis()?.validators),
-            }),
-            Some(st) => Ok(st),
         }
     }
 }
@@ -412,7 +422,7 @@ mod tests {
             &self,
             _name: &str,
             _passphrase: &SecUtf8,
-            _block_header: BlockHeader,
+            _block_header: &BlockHeader,
         ) -> Result<()> {
             Ok(())
         }

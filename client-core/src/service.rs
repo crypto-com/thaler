@@ -11,7 +11,7 @@ mod wallet_state_service;
 #[doc(hidden)]
 pub use self::wallet_state_service::WalletStateMemento;
 
-pub use self::global_state_service::GlobalStateService;
+pub use self::global_state_service::{GlobalState, GlobalStateService};
 pub use self::hd_key_service::HdKeyService;
 pub use self::key_service::KeyService;
 pub use self::multi_sig_session_service::MultiSigSessionService;
