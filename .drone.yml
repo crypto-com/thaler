@@ -123,39 +123,42 @@ trigger:
   - push
 
 
----
-kind: pipeline
-type: exec
-name: integration-tests-jail-unjail
+# FIMXE: 1) no need for this to be exec pipeline (can run in docker -- unjailtx doesn't ever touch enclave)
+# FIXME: 2) proper cleanup -- this thing took over 100gb of 1 day of running
+# FIXME: 3) it runs `cargo build` inside docker compose service and happily continue even if the compilation fails, wtf 
+# ---
+# kind: pipeline
+# type: exec
+# name: integration-tests-jail-unjail
 
-platform:
-  os: linux
-  arch: amd64
+# platform:
+#   os: linux
+#   arch: amd64
 
-steps:
-- name: integration-tests
-  commands:
-  - cd integration-tests/jail
-  - ./run.sh
-- name: teardown
-  commands:
-  - cd integration-tests/jail
-  - ./shutdown.sh
-  when:
-    status:
-     - success
-     - failure
+# steps:
+# - name: integration-tests
+#   commands:
+#   - cd integration-tests/jail
+#   - ./run.sh
+# - name: teardown
+#   commands:
+#   - cd integration-tests/jail
+#   - ./shutdown.sh
+#   when:
+#     status:
+#      - success
+#      - failure
 
-trigger:
-  branch:
-    - master
-    - staging
-    - trying
-  event:
-    - push
+# trigger:
+#   branch:
+#     - master
+#     - staging
+#     - trying
+#   event:
+#     - push
 
 ---
 kind: signature
-hmac: b0227856638a61f1a221c4bae23276462a9200632ebeb3ad60aae3c27f61af02
+hmac: e0c075115c89bf62208031eb72f28eda5f9b045d201e7e4449a486455aad5f96
 
 ...
