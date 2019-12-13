@@ -14,12 +14,12 @@ sgx-test = ["client-core", "client-common"]
 log = "0.4.0"
 env_logger = "0.7.0"
 enclave-u-common = { path = "../../enclave-u-common" }
-sgx_types = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
-sgx_urts = { rev = "v1.0.9", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_types = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk" }
+sgx_urts = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk" }
 parity-scale-codec = { features = ["derive"], version = "1.0" }
 chain-core   = { path = "../../../chain-core" }
 enclave-protocol   = { path = "../../../enclave-protocol" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "8b9a38b870a7759fcdbd4a5d435b5ba873c70afd", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "be445f29a96af31fe079611d26c07f1f596d1c5f", features = ["recovery", "endomorphism"] }
 zmq = "0.9"
 client-core   = { path = "../../../client-core", optional = true }
 client-common   = { path = "../../../client-common", optional = true }
