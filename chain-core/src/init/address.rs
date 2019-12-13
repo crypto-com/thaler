@@ -11,31 +11,31 @@
 //!   These 20 bytes are the address.
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
-#[cfg(feature = "bech32")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use bech32::{self, u5, FromBase32, ToBase32};
 use parity_scale_codec::{Decode, Encode};
 use std::ops;
 use std::prelude::v1::String;
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use hex;
 use secp256k1::key::PublicKey;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::de::Error;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 use tiny_keccak::{Hasher, Keccak};
 
 use crate::common::{H256, HASH_SIZE_256};
-#[cfg(feature = "bech32")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::network::{get_bech32_human_part_from_network, Network};
 
 #[derive(Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum CroAddressError {
     // TODO: use directly bech32::Error or wrap it
     Bech32Error(String),
@@ -43,13 +43,13 @@ pub enum CroAddressError {
     ConvertError,
 }
 
-#[cfg(feature = "bech32")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl ::std::error::Error for CroAddressError {}
 
 // CRO: mainnet transfer
 // TCRO: testnet transfer
 // DCRO: devnet/regnet transfer
-#[cfg(feature = "bech32")]
+#[cfg(not(feature = "mesalock_sgx"))]
 pub trait CroAddress<T> {
     fn to_cro(&self, network: Network) -> Result<String, CroAddressError>;
     fn from_cro(encoded: &str, network: Network) -> Result<T, CroAddressError>;
@@ -85,7 +85,7 @@ where
 
 /// Core domain logic errors
 #[derive(Debug)]
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 pub enum ErrorAddress {
     /// An invalid length
     InvalidLength(usize),
@@ -103,21 +103,21 @@ pub enum ErrorAddress {
     InvalidCroAddress,
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl From<hex::FromHexError> for ErrorAddress {
     fn from(err: hex::FromHexError) -> Self {
         ErrorAddress::UnexpectedHexEncoding(err)
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl From<secp256k1::Error> for ErrorAddress {
     fn from(err: secp256k1::Error) -> Self {
         ErrorAddress::EcdsaCrypto(err)
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for ErrorAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
@@ -134,7 +134,7 @@ impl fmt::Display for ErrorAddress {
     }
 }
 
-#[cfg(feature = "bech32")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for CroAddressError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -145,7 +145,7 @@ impl fmt::Display for CroAddressError {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl std::error::Error for ErrorAddress {
     fn description(&self) -> &str {
         "Core error"
@@ -167,10 +167,10 @@ pub type RedeemAddressRaw = [u8; REDEEM_ADDRESS_BYTES];
 
 /// Eth-style Account address (20 bytes)
 #[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(not(feature = "hex"), derive(Debug))]
+#[cfg_attr(feature = "mesalock_sgx", derive(Debug))]
 pub struct RedeemAddress(pub RedeemAddressRaw);
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl RedeemAddress {
     /// Try to convert a byte vector to `RedeemAddress`.
     ///
@@ -187,7 +187,7 @@ impl RedeemAddress {
     }
 }
 
-#[cfg(all(feature = "bech32", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl CroAddress<RedeemAddress> for RedeemAddress {
     fn to_cro(&self, network: Network) -> Result<String, CroAddressError> {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
@@ -231,7 +231,7 @@ impl From<[u8; REDEEM_ADDRESS_BYTES]> for RedeemAddress {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl FromStr for RedeemAddress {
     type Err = ErrorAddress;
 
@@ -250,21 +250,21 @@ impl FromStr for RedeemAddress {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for RedeemAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "0x{}", hex::encode(self.0))
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Debug for RedeemAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(0x{}", hex::encode(self.0))
     }
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl Serialize for RedeemAddress {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -274,7 +274,7 @@ impl Serialize for RedeemAddress {
     }
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl<'de> Deserialize<'de> for RedeemAddress {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

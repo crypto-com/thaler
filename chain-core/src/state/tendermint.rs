@@ -1,5 +1,5 @@
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{
     de::{self, Error as _, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use std::convert::TryFrom;
 use std::fmt;
 use std::prelude::v1::{String, ToString, Vec};
-#[cfg(feature = "base64")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use thiserror::Error;
 
 /// Tendermint block height
@@ -22,11 +22,11 @@ pub const PUBLIC_KEY_SIZE: usize = 32;
 /// and variable length byte array. In this internal representation,
 /// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(tag = "type", content = "value"))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), serde(tag = "type", content = "value"))]
 pub enum TendermintValidatorPubKey {
     #[cfg_attr(
-        feature = "serde",
+        not(feature = "mesalock_sgx"),
         serde(
             rename = "tendermint/PubKeyEd25519",
             serialize_with = "serialize_ed25519_base64",
@@ -42,7 +42,7 @@ pub enum TendermintValidatorPubKey {
 }
 
 /// Serialize the bytes of an Ed25519 public key as Base64. Used for serializing JSON
-#[cfg(feature = "base64")]
+#[cfg(not(feature = "mesalock_sgx"))]
 fn serialize_ed25519_base64<S>(pk: &[u8], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -50,7 +50,7 @@ where
     base64::encode(pk).serialize(serializer)
 }
 
-#[cfg(feature = "base64")]
+#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_ed25519_base64<'de, D>(deserializer: D) -> Result<[u8; PUBLIC_KEY_SIZE], D::Error>
 where
     D: Deserializer<'de>,
@@ -60,7 +60,7 @@ where
         .map_err(|e| D::Error::custom(format!("{}", e)))
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for TendermintValidatorPubKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -69,7 +69,7 @@ impl fmt::Display for TendermintValidatorPubKey {
     }
 }
 
-#[cfg(feature = "base64")]
+#[cfg(not(feature = "mesalock_sgx"))]
 #[derive(Error, Debug)]
 pub enum PubKeyDecodeError {
     #[error("Base64 decode error")]
@@ -79,7 +79,7 @@ pub enum PubKeyDecodeError {
 }
 
 impl TendermintValidatorPubKey {
-    #[cfg(feature = "base64")]
+    #[cfg(not(feature = "mesalock_sgx"))]
     pub fn from_base64(input: &[u8]) -> Result<TendermintValidatorPubKey, PubKeyDecodeError> {
         let bytes = base64::decode(input)?;
         if bytes.len() != PUBLIC_KEY_SIZE {
@@ -115,7 +115,7 @@ impl From<&TendermintValidatorAddress> for [u8; 20] {
     }
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl Serialize for TendermintValidatorAddress {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -125,7 +125,7 @@ impl Serialize for TendermintValidatorAddress {
     }
 }
 
-#[cfg(all(feature = "serde", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl<'de> Deserialize<'de> for TendermintValidatorAddress {
     fn deserialize<D>(deserializer: D) -> Result<TendermintValidatorAddress, D::Error>
     where
@@ -154,7 +154,7 @@ impl<'de> Deserialize<'de> for TendermintValidatorAddress {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for TendermintValidatorAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(&self.0))
@@ -235,7 +235,7 @@ pub const TENDERMINT_MAX_VOTE_POWER: i64 = std::i64::MAX / 1000;
 
 /// Tendermint consensus voting power
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TendermintVotePower(i64);
 
 impl From<TendermintVotePower> for i64 {

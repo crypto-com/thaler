@@ -11,12 +11,12 @@ pub mod input;
 /// Transaction outputs (amount to an address)
 pub mod output;
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 
 use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode, Error, Input};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 
 use crate::common::{hash256, H256};
@@ -49,7 +49,7 @@ pub type TxId = H256;
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 #[derive(Debug, Default, PartialEq, Eq, Clone, Encode)]
 #[cfg_attr(
-    all(feature = "serde", feature = "hex"),
+    not(feature = "mesalock_sgx"),
     derive(Serialize, Deserialize)
 )]
 pub struct Tx {
@@ -80,7 +80,7 @@ impl Decode for Tx {
     }
 }
 
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for Tx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for input in self.inputs.iter() {

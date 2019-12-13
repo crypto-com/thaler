@@ -7,7 +7,7 @@ pub mod validator;
 
 use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 use std::prelude::v1::Vec;
 
@@ -20,7 +20,10 @@ use crate::tx::data::TxId;
 
 /// ABCI chain state
 #[derive(PartialEq, Debug, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
+)]
 pub struct ChainState {
     /// root hash of the sparse merkle patricia trie of staking account states
     pub account_root: H256,
@@ -42,7 +45,10 @@ impl ChainState {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    not(feature = "mesalock_sgx"),
+    derive(Serialize, Deserialize)
+)]
 pub struct RewardsPoolState {
     /// Rewards accumulated in current period
     pub period_bonus: Coin,

@@ -1,18 +1,18 @@
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "hex")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
-#[cfg(feature = "bech32")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
 
 use crate::common::H256;
-#[cfg(feature = "bech32")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::address::{CroAddress, CroAddressError};
-#[cfg(feature = "bech32")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use bech32::{self, u5, FromBase32, ToBase32};
 
-#[cfg(all(feature = "bech32", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::network::{get_bech32_human_part_from_network, get_network, Network};
 
 /// TODO: opaque types?
@@ -22,12 +22,12 @@ type TreeRoot = H256;
 /// TODO: HD-addresses?
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Encode, Decode, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum ExtendedAddr {
     OrTree(TreeRoot),
 }
 
-#[cfg(all(feature = "bech32", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl CroAddress<ExtendedAddr> for ExtendedAddr {
     fn to_cro(&self, network: Network) -> Result<String, CroAddressError> {
         match self {
@@ -59,14 +59,14 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
     }
 }
 
-#[cfg(all(feature = "bech32", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_cro(get_network()).unwrap())
     }
 }
 
-#[cfg(all(feature = "bech32", feature = "hex"))]
+#[cfg(not(feature = "mesalock_sgx"))]
 impl FromStr for ExtendedAddr {
     type Err = CroAddressError;
 

@@ -9,7 +9,7 @@ use crate::state::account::{
 };
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::RewardsPoolState;
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::fmt;
@@ -73,7 +73,7 @@ impl fmt::Display for DistributionError {
 /// Initial configuration ("app_state" in genesis.json of Tendermint config)
 /// TODO: reward/treasury config, extra validator config...
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct InitConfig {
     // Redeem mapping of ERC20 snapshot: Eth address => (StakedStateDestination,CRO tokens)
     // (doesn't include the rewards pool amount)

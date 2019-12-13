@@ -6,7 +6,7 @@
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::TxAux;
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "serde")]
+#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 use std::num::ParseIntError;
 use std::ops::{Add, Div, Mul};
@@ -33,8 +33,8 @@ impl Fee {
 /// [profile.release]
 /// overflow-checks = true
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "serde", serde(transparent))]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), serde(transparent))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct Milli(u64);
 
 impl Milli {
@@ -202,7 +202,7 @@ impl Div for Milli {
 
 /// Linear fee using the basic affine formula `COEFFICIENT * scale_bytes(txaux).len() + CONSTANT`
 #[derive(PartialEq, Eq, PartialOrd, Debug, Clone, Copy, Encode, Decode)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct LinearFee {
     /// this is the minimal fee
     pub constant: Milli,
