@@ -98,12 +98,12 @@ pub fn test_integration() {
     let t = thread::spawn(move || {
         info!("Trying to launch TX Query server...");
         let enclave = start_enclave();
-        tx.send(()).expect("Could not send signal on channel.");
         info!("Running TX Query server...");
 
         let listener = TcpListener::bind(query_server_addr).expect("failed to bind the TCP socket");
 
         for _ in 0..3 {
+            tx.send(()).expect("Could not send signal on channel.");
             match listener.accept() {
                 Ok((stream, addr)) => {
                     info!("new client: {:?}", addr);
@@ -174,7 +174,7 @@ pub fn test_integration() {
                 fail_exit(&mut validation);
             }
         }
-        rx.recv().expect("Could not receive from channel.");
+        rx.recv().expect("Could not receive from channel. 1");
         let c = DefaultTransactionObfuscation::new(
             format!("localhost:{}", query_server_port),
             "localhost".to_owned(),
@@ -238,8 +238,7 @@ pub fn test_integration() {
             }
         }
 
-        thread::sleep(time::Duration::from_secs(10));
-
+        rx.recv().expect("Could not receive from channel. 2");
         let txids = vec![*txid];
         let r1 = c.decrypt(
             txids.as_slice(),
@@ -255,6 +254,7 @@ pub fn test_integration() {
                 fail_exit(&mut validation);
             }
         }
+        rx.recv().expect("Could not receive from channel. 3");
         let r2 = c.decrypt(txids.as_slice(), &PrivateKey::new().expect("random key"));
         match r2 {
             Ok(v) => {

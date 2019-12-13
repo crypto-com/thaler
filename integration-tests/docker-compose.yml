@@ -40,7 +40,7 @@ services:
       TX_VALIDATION_CONN: tcp://chain-tx-enclave:25933
   client-rpc:
     image: "${CHAIN_DOCKER_IMAGE:-integration-tests-chain}"
-    command: /usr/bin/wait-for-it.sh tendermint:26657 --timeout=60 --strict -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint:26657/websocket
+    command: /usr/bin/wait-for-it.sh chain-tx-query-enclave:25944 --timeout=60 -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint:26657/websocket
     volumes:
       - "./${WALLET_STORAGE_WITHFEE_DIRECTORY}:/.storage"
     environment:
@@ -88,7 +88,7 @@ services:
       TX_VALIDATION_CONN: tcp://chain-tx-enclave-zerofee:25933
   client-rpc-zerofee:
     image: "${CHAIN_DOCKER_IMAGE:-integration-tests-chain}"
-    command: /usr/bin/wait-for-it.sh tendermint-zerofee:26657 --timeout=60 --strict -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint-zerofee:26657/websocket
+    command: /usr/bin/wait-for-it.sh chain-tx-query-enclave-zerofee:25944 --timeout=60 --strict -- /usr/bin/client-rpc --host=0.0.0.0 --port=26659 --chain-id=${CHAIN_ID} --storage-dir=/.storage --websocket-url=ws://tendermint-zerofee:26657/websocket
     volumes:
       - "./${WALLET_STORAGE_ZEROFEE_DIRECTORY}:/.storage"
     environment:
