@@ -70,6 +70,11 @@ impl DefaultTransactionObfuscation {
                 "Unable to decode txquery address",
             )
         })?;
+        DefaultTransactionObfuscation::from_tx_query_address(&address)
+    }
+
+    /// Get DefaultTransactionObfuscation from tx query address
+    pub fn from_tx_query_address(address: &str) -> Result<DefaultTransactionObfuscation> {
         if let Some(hostname) = address.split(':').next() {
             Ok(DefaultTransactionObfuscation::new(
                 address.to_string(),

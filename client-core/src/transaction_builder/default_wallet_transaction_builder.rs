@@ -66,7 +66,7 @@ where
 
         raw_builder.sign_all(signer)?;
 
-        let tx_aux = raw_builder.to_tx_aux()?;
+        let tx_aux = raw_builder.to_tx_aux(self.transaction_obfuscation.clone())?;
 
         Ok(tx_aux)
     }
@@ -105,7 +105,7 @@ where
         outputs: Vec<TxOut>,
         return_address: ExtendedAddr,
         attributes: TxAttributes,
-    ) -> Result<RawTransferTransactionBuilder<F, O>> {
+    ) -> Result<RawTransferTransactionBuilder<F>> {
         let output_value = sum_coins(outputs.iter().map(|output| output.value)).chain(|| {
             (
                 ErrorKind::IllegalInput,
@@ -148,11 +148,10 @@ where
         return_address: ExtendedAddr,
         change_amount: Coin,
         attributes: TxAttributes,
-    ) -> RawTransferTransactionBuilder<F, O> {
+    ) -> RawTransferTransactionBuilder<F> {
         let mut raw_tx_builder = RawTransferTransactionBuilder::new(
             attributes,
             self.fee_algorithm.clone(),
-            self.transaction_obfuscation.clone(),
         );
         for input in selected_unspent_transactions.iter() {
             raw_tx_builder.add_input(input.clone());

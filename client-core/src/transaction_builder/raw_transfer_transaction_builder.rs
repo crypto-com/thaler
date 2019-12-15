@@ -44,24 +44,21 @@ pub struct RawTransferTransaction {
 
 /// Raw transfer transaction builder
 #[derive(Debug)]
-pub struct RawTransferTransactionBuilder<F, O>
+pub struct RawTransferTransactionBuilder<F>
 where
     F: FeeAlgorithm,
-    O: TransactionObfuscation,
 {
     raw_transaction: RawTransferTransaction,
     fee_algorithm: F,
-    transaction_obfuscation: O,
 }
 
-impl<F, O> RawTransferTransactionBuilder<F, O>
+impl<F> RawTransferTransactionBuilder<F>
 where
     F: FeeAlgorithm,
-    O: TransactionObfuscation,
 {
     // TODO: Refactor attribute setter/getter to separate methods
     /// Create an instance of raw transfer transaction builder
-    pub fn new(attributes: TxAttributes, fee_algorithm: F, transaction_obfuscation: O) -> Self {
+    pub fn new(attributes: TxAttributes, fee_algorithm: F) -> Self {
         let raw_transaction = RawTransferTransaction {
             inputs: Vec::new(),
             outputs: Vec::new(),
@@ -70,7 +67,6 @@ where
         RawTransferTransactionBuilder {
             raw_transaction,
             fee_algorithm,
-            transaction_obfuscation,
         }
     }
 
@@ -235,7 +231,10 @@ where
     /// algorithm
     /// # Error
     /// Returns error when transaction is incompleted
-    pub fn required_fee(&self) -> Result<Coin> {
+    pub fn required_fee<O>(&self, transaction_obfuscation: O) -> Result<Coin>
+    where
+        O: TransactionObfuscation,
+    {
         if !self.is_completed() {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -244,7 +243,7 @@ where
         }
         let fee = self
             .fee_algorithm
-            .calculate_for_txaux(&self.to_tx_aux()?)
+            .calculate_for_txaux(&self.to_tx_aux(transaction_obfuscation)?)
             .chain(|| {
                 (
                     ErrorKind::IllegalInput,
@@ -282,7 +281,10 @@ where
     }
 
     /// Convert raw transaction to TxAux
-    pub fn to_tx_aux(&self) -> Result<TxAux> {
+    pub fn to_tx_aux<O>(&self, transaction_obfuscation: O) -> Result<TxAux>
+    where
+        O: TransactionObfuscation,
+    {
         self.verify()?;
 
         let tx = self.to_tx();
@@ -293,7 +295,7 @@ where
         let witness = TxWitness::from(witness_vec);
         let signed_transaction = SignedTransaction::TransferTransaction(tx, witness);
 
-        self.transaction_obfuscation.encrypt(signed_transaction)
+        transaction_obfuscation.encrypt(signed_transaction)
     }
 
     /// Verify the raw transaction is valid
@@ -426,7 +428,6 @@ where
     pub fn from_incomplete(
         bytes: Vec<u8>,
         fee_algorithm: F,
-        transaction_obfuscation: O,
     ) -> Result<Self> {
         let raw_transaction =
             RawTransferTransaction::decode(&mut bytes.as_slice()).chain(|| {
@@ -439,7 +440,6 @@ where
         Ok(RawTransferTransactionBuilder {
             raw_transaction,
             fee_algorithm,
-            transaction_obfuscation,
         })
     }
 }
@@ -481,9 +481,8 @@ mod raw_transfer_transaction_builder_tests {
         fn should_return_error_when_input_is_invalid() {
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_output(TxOut::new(
                 ExtendedAddr::OrTree(random()),
@@ -504,9 +503,8 @@ mod raw_transfer_transaction_builder_tests {
 
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -534,9 +532,8 @@ mod raw_transfer_transaction_builder_tests {
 
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -573,9 +570,8 @@ mod raw_transfer_transaction_builder_tests {
 
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -619,9 +615,8 @@ mod raw_transfer_transaction_builder_tests {
         fn should_append_input_to_raw_transaction() {
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             assert_eq!(builder.inputs_len(), 0);
 
@@ -667,9 +662,8 @@ mod raw_transfer_transaction_builder_tests {
         fn should_append_output_to_raw_transaction() {
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             assert_eq!(builder.outputs_len(), 0);
 
@@ -736,9 +730,8 @@ mod raw_transfer_transaction_builder_tests {
             let (_, _, transfer_addr) = create_key_pair_and_transfer_addr();
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -793,9 +786,8 @@ mod raw_transfer_transaction_builder_tests {
             let (_, _, transfer_addr) = create_key_pair_and_transfer_addr();
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -830,9 +822,8 @@ mod raw_transfer_transaction_builder_tests {
             let (private_key, public_key, transfer_addr) = create_key_pair_and_transfer_addr();
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -962,9 +953,8 @@ mod raw_transfer_transaction_builder_tests {
 
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let tx_obfuscation = MockTransactionCipher;
             let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -1006,7 +996,8 @@ mod raw_transfer_transaction_builder_tests {
             let (_, _, transfer_addr) = create_key_pair_and_transfer_addr();
             let builder = create_2in2out_testing_raw_transaction_builder(transfer_addr);
 
-            let err = builder.required_fee().unwrap_err();
+            let tx_obfuscation = MockTransactionCipher;
+            let err = builder.required_fee(tx_obfuscation).unwrap_err();
             assert_eq!(err.kind(), ErrorKind::VerifyError);
             assert_eq!(err.message(), "Missing signature in inputs");
         }
@@ -1023,7 +1014,8 @@ mod raw_transfer_transaction_builder_tests {
                 .add_witness(1, witness)
                 .expect("should add witness to input index");
 
-            let required_fee = builder.required_fee().unwrap();
+            let tx_obfuscation = MockTransactionCipher;
+            let required_fee = builder.required_fee(tx_obfuscation).unwrap();
             let estimated_fee = builder.estimate_fee().unwrap();
 
             assert!(estimated_fee >= required_fee);
@@ -1046,12 +1038,10 @@ mod raw_transfer_transaction_builder_tests {
         let encoded_incomplete_bytes = raw_transaction_builder.to_incomplete();
 
         let fee_algorithm = create_testing_fee_algorithm();
-        let tx_obfuscation = MockTransactionCipher;
         assert_eq!(
             RawTransferTransactionBuilder::from_incomplete(
                 String::from("hello from rust").into_bytes(),
                 fee_algorithm,
-                tx_obfuscation,
             )
             .expect_err("Unable to decode raw transaction bytes")
             .kind(),
@@ -1059,12 +1049,10 @@ mod raw_transfer_transaction_builder_tests {
         );
 
         let fee_algorithm = create_testing_fee_algorithm();
-        let tx_obfuscation = MockTransactionCipher;
         let restored_raw_transaction_builder_result =
             RawTransferTransactionBuilder::from_incomplete(
                 encoded_incomplete_bytes,
                 fee_algorithm,
-                tx_obfuscation,
             );
 
         assert!(restored_raw_transaction_builder_result.is_ok());
@@ -1075,12 +1063,11 @@ mod raw_transfer_transaction_builder_tests {
 
     fn create_2in2out_testing_raw_transaction_builder(
         transfer_addr: ExtendedAddr,
-    ) -> RawTransferTransactionBuilder<LinearFee, MockTransactionCipher> {
+    ) -> RawTransferTransactionBuilder<LinearFee> {
         let attributes = TxAttributes::default();
         let fee_algorithm = create_testing_fee_algorithm();
-        let tx_obfuscation = MockTransactionCipher;
         let mut builder =
-            RawTransferTransactionBuilder::new(attributes, fee_algorithm, tx_obfuscation);
+            RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
         builder.add_input((
             TxoPointer::new(random(), 0),
