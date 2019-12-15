@@ -17,7 +17,7 @@ chain-core = { path = "../chain-core" }
 chain-tx-filter = { path = "../chain-tx-filter" }
 chain-tx-validation = { path = "../chain-tx-validation" }
 enclave-protocol = { path = "../enclave-protocol" }
-log = "0.4.8"
+log = "0.4.9"
 env_logger = "0.7.1"
 bit-vec = { version = "0.6.1", features = ["serde_no_std"] }
 kvdb = "0.1"
