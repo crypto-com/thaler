@@ -149,10 +149,8 @@ where
         change_amount: Coin,
         attributes: TxAttributes,
     ) -> RawTransferTransactionBuilder<F> {
-        let mut raw_tx_builder = RawTransferTransactionBuilder::new(
-            attributes,
-            self.fee_algorithm.clone(),
-        );
+        let mut raw_tx_builder =
+            RawTransferTransactionBuilder::new(attributes, self.fee_algorithm.clone());
         for input in selected_unspent_transactions.iter() {
             raw_tx_builder.add_input(input.clone());
         }
