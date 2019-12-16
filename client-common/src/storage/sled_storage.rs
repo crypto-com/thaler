@@ -243,7 +243,12 @@ impl Storage for SledStorage {
     }
 
     fn keyspaces(&self) -> Result<Vec<Vec<u8>>> {
-        Ok(self.0.tree_names())
+        let mut result = Vec::with_capacity(self.0.tree_names().len());
+        for name in self.0.tree_names().iter() {
+            let v: Vec<u8> = name.iter().copied().collect();
+            result.push(v);
+        }
+        Ok(result)
     }
 }
 

@@ -125,10 +125,7 @@ pub type ValidatorSecurityContact = Option<String>;
 
 /// holds state about a node responsible for transaction validation / block signing and service node whitelist management
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct CouncilNode {
     // validator name / moniker (just for reference / human use)
     pub name: ValidatorName,
@@ -204,10 +201,7 @@ impl CouncilNode {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize))]
 /// Metadata of a validator
 pub struct CouncilNodeMetadata {
     /// Name of validator
@@ -224,10 +218,7 @@ pub struct CouncilNodeMetadata {
 
 /// Types of possible punishments
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum PunishmentKind {
     NonLive,
     ByzantineFault,
@@ -245,10 +236,7 @@ impl fmt::Display for PunishmentKind {
 
 /// Details of a punishment for a staked state
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct Punishment {
     pub kind: PunishmentKind,
     pub jailed_until: Timespec,
@@ -264,10 +252,7 @@ impl fmt::Display for CouncilNode {
 
 /// represents the StakedState (account involved in staking)
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct StakedState {
     pub nonce: Nonce,
     pub bonded: Coin,
@@ -452,10 +437,7 @@ impl StakedState {
 
 /// attributes in StakedState-related transactions
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct StakedStateOpAttributes {
     pub chain_hex_id: u8,
     // TODO: Other attributes?
@@ -469,10 +451,7 @@ impl StakedStateOpAttributes {
 
 /// bond status for StakedState initialize
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum StakedStateDestination {
     Bonded,
     UnbondedFromGenesis,
@@ -482,10 +461,7 @@ pub enum StakedStateDestination {
 /// takes UTXOs inputs, deposits them in the specified StakedState's bonded amount - fee
 /// (updates StakedState's bonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct DepositBondTx {
     pub inputs: Vec<TxoPointer>,
     pub to_staked_account: StakedStateAddress,
@@ -544,10 +520,7 @@ impl fmt::Display for DepositBondTx {
 /// updates the StakedState (TODO: implicit from the witness?) by moving some of the bonded amount - fee into unbonded,
 /// and setting the unbonded_from to last_block_time+min_unbonding_time (network parameter)
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct UnbondTx {
     pub from_staked_account: StakedStateAddress,
     pub nonce: Nonce,
@@ -588,10 +561,7 @@ impl fmt::Display for UnbondTx {
 /// takes the StakedState (TODO: implicit from the witness?) and creates UTXOs
 /// (update's StakedState's unbonded + nonce)
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct WithdrawUnbondedTx {
     pub nonce: Nonce,
     pub outputs: Vec<TxOut>,
@@ -630,10 +600,7 @@ impl fmt::Display for WithdrawUnbondedTx {
 
 /// Unjails an account
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct UnjailTx {
     pub nonce: Nonce,
     pub address: StakedStateAddress,
@@ -667,10 +634,7 @@ impl fmt::Display for UnjailTx {
 
 /// A witness for StakedState operations
 #[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum StakedStateOpWitness {
     BasicRedeem(EcdsaSignature),
 }

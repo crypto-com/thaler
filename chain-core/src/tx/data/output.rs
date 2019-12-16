@@ -16,10 +16,7 @@ use crate::tx::data::address::ExtendedAddr;
 /// Tx Output composed of an address and a coin value
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxOut {
     #[cfg_attr(
         not(feature = "mesalock_sgx"),

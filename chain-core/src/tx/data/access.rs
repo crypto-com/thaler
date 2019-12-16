@@ -34,8 +34,14 @@ impl Default for TxAccess {
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxAccessPolicy {
-    #[cfg_attr(not(feature = "mesalock_sgx"), serde(serialize_with = "serialize_view_key"))]
-    #[cfg_attr(not(feature = "mesalock_sgx"), serde(deserialize_with = "deserialize_view_key"))]
+    #[cfg_attr(
+        not(feature = "mesalock_sgx"),
+        serde(serialize_with = "serialize_view_key")
+    )]
+    #[cfg_attr(
+        not(feature = "mesalock_sgx"),
+        serde(deserialize_with = "deserialize_view_key")
+    )]
     pub view_key: PublicKey,
     pub access: TxAccess,
 }

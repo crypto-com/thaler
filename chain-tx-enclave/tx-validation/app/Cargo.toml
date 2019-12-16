@@ -10,9 +10,9 @@ edition = "2018"
 sgx-test = []
 
 [dependencies]
-sled = "0.29"
+sled = "0.30"
 zmq = "0.9"
-log = "0.4.0"
+log = "0.4.10"
 env_logger = "0.7.0"
 enclave-u-common = { path = "../../enclave-u-common" }
 sgx_types = { rev = "5b5e512abbbfc3030e8cb274989fb372b685b168", git = "https://github.com/baidu/rust-sgx-sdk" }
