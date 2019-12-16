@@ -2629,7 +2629,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "signatory"
-version = "0.17.0"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "ecdsa 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2648,7 +2648,7 @@ dependencies = [
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "ed25519-dalek 1.0.0-pre.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "signatory 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signatory 0.17.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2854,7 +2854,7 @@ dependencies = [
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "signatory 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signatory 0.17.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "signatory-dalek 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle 2.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle-encoding 0.3.7 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2910,7 +2910,7 @@ dependencies = [
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "signatory 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "signatory 0.17.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "signatory-dalek 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "signature 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle 2.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3860,7 +3860,7 @@ dependencies = [
 "checksum sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7b4d8bfd0e469f417657573d8451fb33d16cfe0989359b93baf3a1ffc639543d"
 "checksum sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "dd26bc0e7a2e3a7c959bc494caf58b72ee0c71d67704e9520f736ca7e4853ecf"
 "checksum shlex 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
-"checksum signatory 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6388e567a20ed174f76ed7cdebac3f52a939075c9066287f027cb03c7cd18775"
+"checksum signatory 0.17.1 (registry+https://github.com/rust-lang/crates.io-index)" = "e8266215e389a88750d9d6afb35c839ca6845b9cf1e78513bee006497620686a"
 "checksum signatory-dalek 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)" = "37e71296303f2f04a00ef9a3133627db900805a41de2c944cc64a31039afa366"
 "checksum signature 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a0cfcdc45066661979294e965c21b60355da35eb5d638af8143e5aa83fdfce53"
 "checksum slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
