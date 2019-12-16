@@ -144,7 +144,7 @@ describe("Staking", () => {
 			"Error when creating transfer address",
 		);
 		const viewKey = await asyncMiddleman(
-			rpcClient.request("wallet_getViewKey", [walletRequest]),
+			rpcClient.request("wallet_getViewKey", [walletRequest, false]),
 			"Error when retrieving wallet view key",
 		);
 

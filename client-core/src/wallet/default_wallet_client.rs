@@ -150,9 +150,28 @@ where
         self.wallet_service.create(name, passphrase, public_key)
     }
 
+    fn restore_basic_wallet(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        view_key_priv: &PrivateKey,
+    ) -> Result<()> {
+        let view_key = PublicKey::from(view_key_priv);
+        self.key_service
+            .add_keypair(&view_key_priv, &view_key, passphrase)?;
+        self.wallet_service.create(name, passphrase, view_key)
+    }
+
     #[inline]
     fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
         self.wallet_service.view_key(name, passphrase)
+    }
+
+    #[inline]
+    fn view_key_private(&self, name: &str, passphrase: &SecUtf8) -> Result<PrivateKey> {
+        self.key_service
+            .private_key(&self.wallet_service.view_key(name, passphrase)?, passphrase)?
+            .err_kind(ErrorKind::InvalidInput, || "private view key not found")
     }
 
     #[inline]
@@ -288,11 +307,43 @@ where
         self.key_service
             .add_keypair(&private_key, &public_key, passphrase)?;
 
+        self.wallet_service
+            .add_public_key(name, passphrase, &public_key)?;
+
         self.new_multisig_transfer_address(
             name,
             passphrase,
             vec![public_key.clone()],
             public_key,
+            1,
+        )
+    }
+
+    fn new_watch_staking_address(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        public_key: &PublicKey,
+    ) -> Result<StakedStateAddress> {
+        self.wallet_service
+            .add_staking_key(name, passphrase, public_key)?;
+
+        Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from(
+            public_key,
+        )))
+    }
+
+    fn new_watch_transfer_address(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        public_key: &PublicKey,
+    ) -> Result<ExtendedAddr> {
+        self.new_multisig_transfer_address(
+            name,
+            passphrase,
+            vec![public_key.clone()],
+            public_key.clone(),
             1,
         )
     }
@@ -305,14 +356,6 @@ where
         self_public_key: PublicKey,
         m: usize,
     ) -> Result<ExtendedAddr> {
-        // Check if self public key belongs to current wallet
-        let _ = self.private_key(passphrase, &self_public_key)?.chain(|| {
-            (
-                ErrorKind::InvalidInput,
-                "Self public key does not belong to current wallet",
-            )
-        })?;
-
         if !public_keys.contains(&self_public_key) {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -368,21 +411,24 @@ where
         self.wallet_state_service.get_balance(name, passphrase)
     }
 
-    fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>> {
+    fn history(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        offset: usize,
+        limit: usize,
+        reversed: bool,
+    ) -> Result<Vec<TransactionChange>> {
         // Check if wallet exists
         self.wallet_service.view_key(name, passphrase)?;
 
-        let history_map = self
+        let history = self
             .wallet_state_service
-            .get_transaction_history(name, passphrase)?;
-
-        let mut history = history_map
-            .values()
+            .get_transaction_history(name, passphrase, reversed)?
             .filter(|change| BalanceChange::NoChange != change.balance_change)
-            .map(Clone::clone)
-            .collect::<Vec<TransactionChange>>();
-
-        history.sort_by(|current, other| current.block_height.cmp(&other.block_height).reverse());
+            .skip(offset)
+            .take(limit)
+            .collect::<Vec<_>>();
 
         Ok(history)
     }

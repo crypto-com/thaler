@@ -24,3 +24,10 @@ docker-compose -p "${DOCKER_COMPOSE_PREFIX}" up -d || (docker ps; exit 1)
 cd client-rpc
 npm install
 npm run test || (docker ps; docker-compose -p "${DOCKER_COMPOSE_PREFIX}" logs -t --tail="all"; exit 1)
+
+# Python integration tests. prisoned for now, waiting for it's hero.
+# cd ../bot
+# pip3 install -e .
+# pip3 install pytest
+# export PASSPHRASE=${WALLET_PASSPHRASE:-123456}
+# CHAIN_RPC_URL=http://127.0.0.1:$TENDERMINT_ZEROFEE_RPC_PORT CLIENT_RPC_URL=http://127.0.0.1:$CLIENT_RPC_ZEROFEE_PORT pytest tests

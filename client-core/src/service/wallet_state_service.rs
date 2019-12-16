@@ -70,9 +70,17 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-    ) -> Result<BTreeMap<TxId, TransactionChange>> {
-        self.get_wallet_state(name, passphrase)
-            .map(|wallet_state| wallet_state.transaction_history)
+        reversed: bool,
+    ) -> Result<Box<dyn Iterator<Item = TransactionChange>>> {
+        let mut state = self.get_wallet_state(name, passphrase)?;
+        let mut history = std::mem::replace(&mut state.transaction_history, BTreeMap::new());
+        let get_tx = move |txid| history.remove(&txid);
+        let iter = state.transaction_log.into_iter();
+        Ok(if reversed {
+            Box::new(iter.rev().filter_map(get_tx))
+        } else {
+            Box::new(iter.filter_map(get_tx))
+        })
     }
 
     /// Returns currently stored transaction change for given wallet and transaction id
@@ -209,11 +217,13 @@ pub fn delete_wallet_state<S: Storage>(storage: &S, name: &str) -> Result<()> {
 /// Wallet state
 #[derive(Debug, Encode, Decode)]
 pub struct WalletState {
-    ///
+    /// UTxO
     pub unspent_transactions: BTreeMap<TxoPointer, TxOut>,
-    ///
+    /// Transaction history indexed by txid
     pub transaction_history: BTreeMap<TxId, TransactionChange>,
-    ///
+    /// Transaction ids ordered by insert order.
+    pub transaction_log: Vec<TxId>,
+    /// Balance
     pub balance: Coin,
 }
 
@@ -223,6 +233,7 @@ impl Default for WalletState {
         WalletState {
             unspent_transactions: Default::default(),
             transaction_history: Default::default(),
+            transaction_log: vec![],
             balance: Coin::zero(),
         }
     }
@@ -237,14 +248,18 @@ impl WalletState {
         Ok(())
     }
 
+    fn add_transaction_change(&mut self, txid: TxId, change: TransactionChange) {
+        self.transaction_history.insert(txid, change);
+        self.transaction_log.push(txid);
+    }
+
     /// Applies a memento operation to wallet state
     fn apply_memento_operation(&mut self, memento_operation: &MementoOperation) -> Result<()> {
         match memento_operation {
             MementoOperation::AddTransactionChange(ref transaction_id, ref transaction_change) => {
                 if !self.transaction_history.contains_key(transaction_id) {
                     self.balance = (self.balance + transaction_change.balance_change)?;
-                    self.transaction_history
-                        .insert(*transaction_id, transaction_change.clone());
+                    self.add_transaction_change(transaction_id.clone(), transaction_change.clone());
                 }
             }
             MementoOperation::AddUnspentTransaction(ref input, ref output) => {
@@ -348,9 +363,9 @@ mod tests {
         assert_eq!(
             0,
             wallet_state_service
-                .get_transaction_history(name, passphrase)
+                .get_transaction_history(name, passphrase, false)
                 .unwrap()
-                .len()
+                .count()
         );
 
         assert!(wallet_state_service
@@ -430,9 +445,9 @@ mod tests {
         assert_eq!(
             1,
             wallet_state_service
-                .get_transaction_history(name, passphrase)
+                .get_transaction_history(name, passphrase, false)
                 .unwrap()
-                .len()
+                .count()
         );
 
         assert!(wallet_state_service
@@ -474,9 +489,9 @@ mod tests {
         assert_eq!(
             2,
             wallet_state_service
-                .get_transaction_history(name, passphrase)
+                .get_transaction_history(name, passphrase, false)
                 .unwrap()
-                .len()
+                .count()
         );
 
         assert!(wallet_state_service

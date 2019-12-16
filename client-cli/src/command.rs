@@ -62,6 +62,8 @@ pub enum Command {
     ViewKey {
         #[structopt(name = "name", short, long, help = "Name of wallet")]
         name: String,
+        #[structopt(name = "private", short, long, help = "Show private key instead")]
+        private: bool,
     },
     #[structopt(name = "balance", about = "Get balance of a wallet")]
     Balance {
@@ -72,6 +74,17 @@ pub enum Command {
     History {
         #[structopt(name = "name", short, long, help = "Name of wallet")]
         name: String,
+        #[structopt(name = "offset", short, long, help = "Offset", default_value = "0")]
+        offset: usize,
+        #[structopt(name = "limit", short, long, help = "Limit", default_value = "100")]
+        limit: usize,
+        #[structopt(
+            name = "reversed",
+            short,
+            long,
+            help = "Reverse order (default is from old to new)"
+        )]
+        reversed: bool,
     },
     #[structopt(name = "transaction", about = "Transaction operations")]
     Transaction {
@@ -158,21 +171,26 @@ impl Command {
                 let wallet_client = DefaultWalletClient::new_read_only(storage);
                 address_command.execute(wallet_client)
             }
-            Command::ViewKey { name } => {
+            Command::ViewKey { name, private } => {
                 let storage = SledStorage::new(storage_path())?;
                 let wallet_client = DefaultWalletClient::new_read_only(storage);
 
-                Self::get_view_key(wallet_client, name)
+                Self::get_view_key(wallet_client, name, *private)
             }
             Command::Balance { name } => {
                 let storage = SledStorage::new(storage_path())?;
                 let wallet_client = DefaultWalletClient::new_read_only(storage);
                 Self::get_balance(wallet_client, name)
             }
-            Command::History { name } => {
+            Command::History {
+                name,
+                offset,
+                limit,
+                reversed,
+            } => {
                 let storage = SledStorage::new(storage_path())?;
                 let wallet_client = DefaultWalletClient::new_read_only(storage);
-                Self::get_history(wallet_client, name)
+                Self::get_history(wallet_client, name, *offset, *limit, *reversed)
             }
             Command::Transaction {
                 transaction_command,
@@ -336,9 +354,17 @@ impl Command {
         Ok(())
     }
 
-    fn get_view_key<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
+    fn get_view_key<T: WalletClient>(wallet_client: T, name: &str, private: bool) -> Result<()> {
         let passphrase = ask_passphrase(None)?;
-        let view_key = wallet_client.view_key(name, &passphrase)?;
+        let view_key = if private {
+            encode(
+                &wallet_client
+                    .view_key_private(name, &passphrase)?
+                    .serialize(),
+            )
+        } else {
+            wallet_client.view_key(name, &passphrase)?.to_string()
+        };
 
         success(&format!("View Key: {}", view_key));
         Ok(())
@@ -352,9 +378,15 @@ impl Command {
         Ok(())
     }
 
-    fn get_history<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
+    fn get_history<T: WalletClient>(
+        wallet_client: T,
+        name: &str,
+        offset: usize,
+        limit: usize,
+        reversed: bool,
+    ) -> Result<()> {
         let passphrase = ask_passphrase(None)?;
-        let history = wallet_client.history(name, &passphrase)?;
+        let history = wallet_client.history(name, &passphrase, offset, limit, reversed)?;
 
         if !history.is_empty() {
             let bold = CellFormat::builder().bold(true).build();
