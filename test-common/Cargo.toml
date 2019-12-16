@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 sha2 = { version = "0.8", default-features = false }
-signatory = { version = "0.16", features = ["ed25519", "ecdsa"] }
-signatory-dalek = { version = "0.16" }
+signatory = { version = "0.17", features = ["ed25519", "ecdsa"] }
+signatory-dalek = "0.17"
 serde_json = { version = "1.0" }
 subtle = "2"
 subtle-encoding = { version = "0.5", features = ["bech32-preview"] }
@@ -22,7 +22,7 @@ parity-scale-codec = { features = ["derive"], version = "1.1" }
 base64 = "0.11"
 hex = "0.4"
 
-tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "8e95731ee671777638ab2a3d5dfd7b35992b86aa" }
+tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "6fca043ec5ca48770fa9e7b95e207f7b0c88c97f" }
 chain-core = { path = "../chain-core" }
 chain-abci = { path = "../chain-abci" }
 client-common = { path = "../client-common" }

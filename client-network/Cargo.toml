@@ -17,7 +17,7 @@ chrono = { version = "0.4", features = ["serde"] }
 parity-scale-codec = { features = ["derive"], version = "1.1" }
 hex = "0.4.0"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "be445f29a96af31fe079611d26c07f1f596d1c5f", features = ["recovery"] }
-tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "8e95731ee671777638ab2a3d5dfd7b35992b86aa" }
+tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "6fca043ec5ca48770fa9e7b95e207f7b0c88c97f" }
 
 [dev-dependencies]
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "be445f29a96af31fe079611d26c07f1f596d1c5f", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
