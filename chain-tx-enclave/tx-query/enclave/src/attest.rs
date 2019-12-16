@@ -604,8 +604,9 @@ fn renew_ra_cert(global_ra_cert: &mut RACache) -> Result<(), RAError> {
         sgx_quote_sign_type_t::SGX_UNLINKABLE_SIGNATURE,
     ) {
         Ok(r) => r,
-        Err(_) => {
-            // println!("Error in create_attestation_report: {:?}", e);
+        Err(_e) => {
+            #[cfg(not(feature = "production"))]
+            println!("Error in create_attestation_report: {:?}", _e);
             return Err(RAError::CertGeneration);
         }
     };
@@ -613,8 +614,9 @@ fn renew_ra_cert(global_ra_cert: &mut RACache) -> Result<(), RAError> {
     let payload = attn_report + "|" + &sig + "|" + &cert;
     let cert_key = match crate::cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
         Ok(r) => r,
-        Err(_) => {
-            // println!("Error in gen_ecc_cert: {:?}", e);
+        Err(_e) => {
+            #[cfg(not(feature = "production"))]
+            println!("Error in gen_ecc_cert: {:?}", _e);
             return Err(RAError::CertGeneration);
         }
     };
