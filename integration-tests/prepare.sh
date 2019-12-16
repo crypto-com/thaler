@@ -220,25 +220,23 @@ EOF
 # @argument Chain ID
 function generate_tendermint_genesis() {
     print_step "Generating Tendermint genesis ${1} -> ${2}"
-    _generate_genesis "${1}"; GENESIS_JSON="${RET_VALUE}"
 
-    TENDERMINT_GENESIS_JSON=$(cat "${2}/config/genesis.json")
-    _append_genesis_to_tendermint_genesis "${TENDERMINT_GENESIS_JSON}" "${GENESIS_JSON}"
+    _generate_genesis "${2}/config/genesis.json" "${1}"; TENDERMINT_GENESIS_JSON="${RET_VALUE}"
+
     _change_tenermint_chain_id "${RET_VALUE}" "${3}"
 
     echo "${RET_VALUE}" > "${2}/config/genesis.json"
 
-    python fix_genesis.py "${2}/config/genesis.json"
-
     sync
 }
 
+# @argument Tendermint genesis.json path
 # @argument Dev uilts config path
 function _generate_genesis() {
     if [ -z "${USE_DOCKER_COMPOSE}" ]; then
-        RET_VALUE=$(../target/debug/dev-utils genesis generate -g "${1}")
+        RET_VALUE=$(../target/debug/dev-utils genesis generate --tendermint_genesis_path "${1}" --genesis_dev_config_path "${2}")
     else
-        RET_VALUE=$(docker run -i --rm -v "$(pwd):/.genesis" "${CHAIN_DOCKER_IMAGE}" dev-utils genesis generate -g "/.genesis/${1}")
+        RET_VALUE=$(docker run -i --rm -v "$(pwd):/.genesis" "${CHAIN_DOCKER_IMAGE}" dev-utils genesis generate "--tendermint_genesis_path" "/.genesis/${1}" "--genesis_dev_config_path" "/.genesis/${2}")
     fi
 }
 
