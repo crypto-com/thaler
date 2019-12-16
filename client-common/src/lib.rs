@@ -1,6 +1,5 @@
 #![deny(missing_docs, unsafe_code, unstable_features)]
 //! This crate contains all the common types and utilities used by other `client-*` crates.
-mod block_header;
 mod transaction;
 
 pub mod error;
@@ -9,8 +8,6 @@ pub mod multi_sig_address;
 pub mod storage;
 pub mod tendermint;
 
-#[doc(inline)]
-pub use block_header::BlockHeader;
 #[doc(inline)]
 pub use error::{Error, ErrorKind, Result, ResultExt};
 #[doc(inline)]

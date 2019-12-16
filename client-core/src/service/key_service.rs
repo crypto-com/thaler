@@ -8,7 +8,7 @@ const KEYSPACE: &str = "core_key";
 
 /// Maintains mapping `public-key -> private-key`
 #[derive(Debug, Default, Clone)]
-pub struct KeyService<T: Storage> {
+pub struct KeyService<T: SecureStorage> {
     storage: T,
 }
 

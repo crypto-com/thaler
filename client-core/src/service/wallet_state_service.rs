@@ -11,6 +11,7 @@ use client_common::{Error, ErrorKind, Result, ResultExt, SecureStorage, Storage}
 
 use crate::types::TransactionChange;
 
+/// key space of wallet state
 const KEYSPACE: &str = "core_wallet_state";
 
 /// Maintains mapping `wallet-name -> wallet-state`
@@ -82,12 +83,9 @@ where
         passphrase: &SecUtf8,
         transaction_id: &TxId,
     ) -> Result<Option<TransactionChange>> {
-        self.get_wallet_state(name, passphrase).map(|wallet_state| {
-            wallet_state
-                .transaction_history
-                .get(transaction_id)
-                .map(Clone::clone)
-        })
+        Ok(self
+            .get_wallet_state(name, passphrase)?
+            .get_transaction_change(transaction_id))
     }
 
     /// Returns details corresponding to given input
@@ -97,27 +95,26 @@ where
         passphrase: &SecUtf8,
         input: &TxoPointer,
     ) -> Result<Option<TxOut>> {
-        let transaction_change = self.get_transaction_change(name, passphrase, &input.id)?;
-
-        transaction_change
-            .map(|change| {
-                if change.outputs.len() > input.index as usize {
-                    Ok(change.outputs[input.index as usize].clone())
-                } else {
-                    Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "Index is greater than total outputs in transaction",
-                    ))
-                }
-            })
-            .transpose()
+        self.get_wallet_state(name, passphrase)?.get_output(input)
     }
 
     /// Returns currently stored balance for given wallet
     #[inline]
     pub fn get_balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin> {
-        self.get_wallet_state(name, passphrase)
-            .map(|wallet_state| wallet_state.balance)
+        Ok(self.get_wallet_state(name, passphrase)?.balance)
+    }
+
+    fn modify_state<F>(&self, name: &str, passphrase: &SecUtf8, f: F) -> Result<()>
+    where
+        F: Fn(&mut WalletState) -> Result<()>,
+    {
+        self.storage
+            .fetch_and_update_secure(KEYSPACE, name, passphrase, |bytes_optional| {
+                let mut wallet_state = parse_wallet_state(name, bytes_optional)?;
+                f(&mut wallet_state)?;
+                Ok(Some(wallet_state.encode()))
+            })
+            .map(|_| ())
     }
 
     /// Applies and commits wallet state memento
@@ -127,13 +124,7 @@ where
         passphrase: &SecUtf8,
         memento: &WalletStateMemento,
     ) -> Result<()> {
-        self.storage
-            .fetch_and_update_secure(KEYSPACE, name, passphrase, |bytes_optional| {
-                let mut wallet_state = parse_wallet_state(name, bytes_optional)?;
-                wallet_state.apply_memento(memento)?;
-                Ok(Some(wallet_state.encode()))
-            })
-            .map(|_| ())
+        self.modify_state(name, passphrase, |state| state.apply_memento(memento))
     }
 
     /// Deletes all the state data corresponding to a wallet
@@ -146,9 +137,7 @@ where
 
     #[inline]
     fn get_wallet_state(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletState> {
-        self.storage
-            .get_secure(KEYSPACE, name, passphrase)
-            .and_then(|bytes_optional| parse_wallet_state(name, bytes_optional))
+        Ok(load_wallet_state(&self.storage, name, passphrase)?.unwrap_or_default())
     }
 }
 
@@ -172,11 +161,60 @@ fn parse_wallet_state<T: AsRef<[u8]>>(
         .map(|wallet_state_optional| wallet_state_optional.unwrap_or_default())
 }
 
+/// Load wallet state from storage
+pub fn load_wallet_state<S: SecureStorage>(
+    storage: &S,
+    name: &str,
+    passphrase: &SecUtf8,
+) -> Result<Option<WalletState>> {
+    storage.load_secure(KEYSPACE, name, passphrase)
+}
+
+/// Save wallet state to storage
+pub fn save_wallet_state<S: SecureStorage>(
+    storage: &S,
+    name: &str,
+    passphrase: &SecUtf8,
+    state: &WalletState,
+) -> Result<()> {
+    storage.save_secure(KEYSPACE, name, passphrase, state)
+}
+
+/// Modify wallet state atomically, and returns the new one.
+pub fn modify_wallet_state<S, F>(
+    storage: &S,
+    name: &str,
+    passphrase: &SecUtf8,
+    f: F,
+) -> Result<WalletState>
+where
+    S: SecureStorage,
+    F: Fn(&mut WalletState) -> Result<()>,
+{
+    storage.fetch_and_update_secure(KEYSPACE, name, passphrase, |bytes_optional| {
+        let mut wallet_state = parse_wallet_state(name, bytes_optional)?;
+        f(&mut wallet_state)?;
+        Ok(Some(wallet_state.encode()))
+    })?;
+    // FIXME need to modify the storage trait to save this extra loading.
+    Ok(load_wallet_state(storage, name, passphrase)?.unwrap())
+}
+
+/// Delete wallet state from storage
+pub fn delete_wallet_state<S: Storage>(storage: &S, name: &str) -> Result<()> {
+    storage.delete(KEYSPACE, name)?;
+    Ok(())
+}
+
+/// Wallet state
 #[derive(Debug, Encode, Decode)]
-struct WalletState {
-    unspent_transactions: BTreeMap<TxoPointer, TxOut>,
-    transaction_history: BTreeMap<TxId, TransactionChange>,
-    balance: Coin,
+pub struct WalletState {
+    ///
+    pub unspent_transactions: BTreeMap<TxoPointer, TxOut>,
+    ///
+    pub transaction_history: BTreeMap<TxId, TransactionChange>,
+    ///
+    pub balance: Coin,
 }
 
 impl Default for WalletState {
@@ -192,11 +230,10 @@ impl Default for WalletState {
 
 impl WalletState {
     /// Applies memento to wallet state
-    fn apply_memento(&mut self, memento: &WalletStateMemento) -> Result<()> {
+    pub fn apply_memento(&mut self, memento: &WalletStateMemento) -> Result<()> {
         for operation in memento.0.iter() {
-            self.apply_memento_operation(operation)?
+            self.apply_memento_operation(operation)?;
         }
-
         Ok(())
     }
 
@@ -218,8 +255,28 @@ impl WalletState {
                 self.unspent_transactions.remove(input);
             }
         }
-
         Ok(())
+    }
+
+    /// Returns currently stored transaction change for given wallet and transaction id
+    pub fn get_transaction_change(&self, transaction_id: &TxId) -> Option<TransactionChange> {
+        self.transaction_history.get(transaction_id).cloned()
+    }
+
+    /// Returns details corresponding to given input
+    pub fn get_output(&self, input: &TxoPointer) -> Result<Option<TxOut>> {
+        if let Some(change) = self.get_transaction_change(&input.id) {
+            if change.outputs.len() > input.index as usize {
+                Ok(Some(change.outputs[input.index as usize].clone()))
+            } else {
+                Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Index is greater than total outputs in transaction",
+                ))
+            }
+        } else {
+            Ok(None)
+        }
     }
 }
 

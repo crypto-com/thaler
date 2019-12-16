@@ -27,7 +27,7 @@ use tendermint::Time;
 pub struct DefaultNetworkOpsClient<W, S, C, F, E>
 where
     W: WalletClient,
-    S: Storage + Clone,
+    S: Storage,
     C: Client,
     F: FeeAlgorithm,
     E: TransactionObfuscation,
@@ -42,7 +42,7 @@ where
 impl<W, S, C, F, E> DefaultNetworkOpsClient<W, S, C, F, E>
 where
     W: WalletClient,
-    S: Storage + Clone,
+    S: Storage,
     C: Client,
     F: FeeAlgorithm,
     E: TransactionObfuscation,
@@ -131,7 +131,7 @@ where
 impl<W, S, C, F, E> NetworkOpsClient for DefaultNetworkOpsClient<W, S, C, F, E>
 where
     W: WalletClient,
-    S: Storage + Clone,
+    S: Storage,
     C: Client,
     F: FeeAlgorithm,
     E: TransactionObfuscation,
@@ -509,7 +509,7 @@ mod tests {
     use client_core::types::WalletKind;
     use client_core::wallet::DefaultWalletClient;
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     struct MockTransactionCipher;
 
     impl TransactionObfuscation for MockTransactionCipher {

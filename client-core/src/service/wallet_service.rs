@@ -9,13 +9,19 @@ use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecureStorage, Storage};
 
+/// Key space of wallet
 const KEYSPACE: &str = "core_wallet";
 
+/// Wallet meta data
 #[derive(Debug, Encode, Decode)]
-struct Wallet {
+pub struct Wallet {
+    /// view key to decrypt enclave transactions
     pub view_key: PublicKey,
+    /// public keys to construct transfer addresses
     pub public_keys: BTreeSet<PublicKey>,
+    /// public keys of staking addresses
     pub staking_keys: BTreeSet<PublicKey>,
+    /// root hashes of multi-sig transfer addresses
     pub root_hashes: BTreeSet<H256>,
 }
 
@@ -29,6 +35,58 @@ impl Wallet {
             root_hashes: Default::default(),
         }
     }
+
+    /// Returns all staking addresses stored in a wallet
+    pub fn staking_addresses(&self) -> BTreeSet<StakedStateAddress> {
+        self.staking_keys
+            .iter()
+            .map(|public_key| StakedStateAddress::BasicRedeem(RedeemAddress::from(public_key)))
+            .collect()
+    }
+
+    /// Returns all tree addresses stored in a wallet
+    pub fn transfer_addresses(&self) -> BTreeSet<ExtendedAddr> {
+        self.root_hashes
+            .iter()
+            .cloned()
+            .map(ExtendedAddr::OrTree)
+            .collect()
+    }
+
+    /// find staking key
+    pub fn find_staking_key(&self, redeem_address: &RedeemAddress) -> Option<&PublicKey> {
+        self.staking_keys
+            .iter()
+            .find(|staking_key| &RedeemAddress::from(*staking_key) == redeem_address)
+    }
+
+    /// find root hash
+    pub fn find_root_hash(&self, address: &ExtendedAddr) -> Option<&H256> {
+        match address {
+            ExtendedAddr::OrTree(ref root_hash) => {
+                self.root_hashes.iter().find(|hash| hash == &root_hash)
+            }
+        }
+    }
+}
+
+/// Load wallet from storage
+pub fn load_wallet<S: SecureStorage>(
+    storage: &S,
+    name: &str,
+    passphrase: &SecUtf8,
+) -> Result<Option<Wallet>> {
+    storage.load_secure(KEYSPACE, name, passphrase)
+}
+
+/// Save wallet to storage
+pub fn save_wallet<S: SecureStorage>(
+    storage: &S,
+    name: &str,
+    passphrase: &SecUtf8,
+    wallet: &Wallet,
+) -> Result<()> {
+    storage.save_secure(KEYSPACE, name, passphrase, wallet)
 }
 
 /// Maintains mapping `wallet-name -> wallet-details`
@@ -47,28 +105,13 @@ where
     }
 
     fn get_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<Wallet> {
-        let wallet_bytes = self
-            .storage
-            .get_secure(KEYSPACE, name, passphrase)?
-            .chain(|| {
-                (
-                    ErrorKind::InvalidInput,
-                    format!("Wallet with name ({}) not found", name),
-                )
-            })?;
-        Wallet::decode(&mut wallet_bytes.as_slice()).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                format!("Unable to deserialize wallet with name {}", name),
-            )
+        load_wallet(&self.storage, name, passphrase)?.err_kind(ErrorKind::InvalidInput, || {
+            format!("Wallet with name ({}) not found", name)
         })
     }
 
     fn set_wallet(&self, name: &str, passphrase: &SecUtf8, wallet: Wallet) -> Result<()> {
-        self.storage
-            .set_secure(KEYSPACE, name, wallet.encode(), passphrase)?;
-
-        Ok(())
+        save_wallet(&self.storage, name, passphrase, &wallet)
     }
 
     /// Finds staking key corresponding to given redeem address
@@ -78,17 +121,10 @@ where
         passphrase: &SecUtf8,
         redeem_address: &RedeemAddress,
     ) -> Result<Option<PublicKey>> {
-        let staking_keys = self.staking_keys(name, passphrase)?;
-
-        for staking_key in staking_keys {
-            let known_address = RedeemAddress::from(&staking_key);
-
-            if known_address == *redeem_address {
-                return Ok(Some(staking_key));
-            }
-        }
-
-        Ok(None)
+        Ok(self
+            .get_wallet(name, passphrase)?
+            .find_staking_key(redeem_address)
+            .cloned())
     }
 
     /// Checks if root hash exists in current wallet and returns root hash if exists
@@ -98,19 +134,10 @@ where
         passphrase: &SecUtf8,
         address: &ExtendedAddr,
     ) -> Result<Option<H256>> {
-        let root_hashes = self.root_hashes(name, passphrase)?;
-
-        match address {
-            ExtendedAddr::OrTree(ref root_hash) => {
-                for known_hash in root_hashes {
-                    if known_hash == *root_hash {
-                        return Ok(Some(known_hash));
-                    }
-                }
-
-                Ok(None)
-            }
-        }
+        Ok(self
+            .get_wallet(name, passphrase)?
+            .find_root_hash(address)
+            .copied())
     }
 
     /// Creates a new wallet and returns wallet ID
@@ -155,11 +182,7 @@ where
         name: &str,
         passphrase: &SecUtf8,
     ) -> Result<BTreeSet<StakedStateAddress>> {
-        Ok(self
-            .staking_keys(name, passphrase)?
-            .iter()
-            .map(|public_key| StakedStateAddress::BasicRedeem(RedeemAddress::from(public_key)))
-            .collect())
+        Ok(self.get_wallet(name, passphrase)?.staking_addresses())
     }
 
     /// Returns all tree addresses stored in a wallet
@@ -168,11 +191,7 @@ where
         name: &str,
         passphrase: &SecUtf8,
     ) -> Result<BTreeSet<ExtendedAddr>> {
-        Ok(self
-            .root_hashes(name, passphrase)?
-            .into_iter()
-            .map(ExtendedAddr::OrTree)
-            .collect())
+        Ok(self.get_wallet(name, passphrase)?.transfer_addresses())
     }
 
     /// Adds a public key to given wallet
@@ -182,25 +201,9 @@ where
         passphrase: &SecUtf8,
         public_key: &PublicKey,
     ) -> Result<()> {
-        self.storage
-            .fetch_and_update_secure(KEYSPACE, name, passphrase, |value| {
-                let mut wallet_bytes = value.chain(|| {
-                    (
-                        ErrorKind::InvalidInput,
-                        format!("Wallet with name ({}) not found", name),
-                    )
-                })?;
-                let mut wallet = Wallet::decode(&mut wallet_bytes).chain(|| {
-                    (
-                        ErrorKind::DeserializationError,
-                        format!("Unable to deserialize wallet with name {}", name),
-                    )
-                })?;
-                wallet.public_keys.insert(public_key.clone());
-
-                Ok(Some(wallet.encode()))
-            })
-            .map(|_| ())
+        self.modify_wallet(name, passphrase, move |wallet| {
+            wallet.public_keys.insert(public_key.clone());
+        })
     }
 
     /// Adds a public key corresponding to a staking address to given wallet
@@ -210,8 +213,17 @@ where
         passphrase: &SecUtf8,
         staking_key: &PublicKey,
     ) -> Result<()> {
+        self.modify_wallet(name, passphrase, move |wallet| {
+            wallet.staking_keys.insert(staking_key.clone());
+        })
+    }
+
+    fn modify_wallet<F>(&self, name: &str, passphrase: &SecUtf8, f: F) -> Result<()>
+    where
+        F: Fn(&mut Wallet),
+    {
         self.storage
-            .fetch_and_update_secure(KEYSPACE, name, passphrase, |value| {
+            .fetch_and_update_secure(KEYSPACE, name, passphrase, move |value| {
                 let mut wallet_bytes = value.chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -224,8 +236,7 @@ where
                         format!("Unable to deserialize wallet with name {}", name),
                     )
                 })?;
-                wallet.staking_keys.insert(staking_key.clone());
-
+                f(&mut wallet);
                 Ok(Some(wallet.encode()))
             })
             .map(|_| ())
@@ -233,25 +244,9 @@ where
 
     /// Adds a multi-sig address to given wallet
     pub fn add_root_hash(&self, name: &str, passphrase: &SecUtf8, root_hash: H256) -> Result<()> {
-        self.storage
-            .fetch_and_update_secure(KEYSPACE, name, passphrase, |value| {
-                let mut wallet_bytes = value.chain(|| {
-                    (
-                        ErrorKind::InvalidInput,
-                        format!("Wallet with name ({}) not found", name),
-                    )
-                })?;
-                let mut wallet = Wallet::decode(&mut wallet_bytes).chain(|| {
-                    (
-                        ErrorKind::DeserializationError,
-                        format!("Unable to deserialize wallet with name {}", name),
-                    )
-                })?;
-                wallet.root_hashes.insert(root_hash);
-
-                Ok(Some(wallet.encode()))
-            })
-            .map(|_| ())
+        self.modify_wallet(name, passphrase, move |wallet| {
+            wallet.root_hashes.insert(root_hash);
+        })
     }
 
     /// Retrieves names of all the stored wallets

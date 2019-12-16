@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use std::sync::{Arc, RwLock};
 
 use secstr::SecUtf8;
 use serde_json;
@@ -254,8 +255,8 @@ impl TestnetSpec {
         }
     }
 
-    pub fn gen_genesis(&self) -> (Genesis, ChainNodeState, AccountStorage) {
-        let account_storage = pure_account_storage(20).unwrap();
+    pub fn gen_genesis(&self) -> (Genesis, ChainNodeState, Arc<AccountStorage>) {
+        let account_storage = Arc::new(pure_account_storage(20).unwrap());
 
         let config = self.init_config();
         let genesis_seconds = self
@@ -372,7 +373,7 @@ pub struct BlockGenerator {
     pub spec: TestnetSpec,
     pub genesis: Genesis,
     pub genesis_state: ChainNodeState,
-    pub account_storage: AccountStorage,
+    pub account_storage: Arc<AccountStorage>,
     pub validators: validator::Set,
     pub blocks: Vec<BlockState>,
     pub current_height: Option<Height>,
@@ -493,22 +494,38 @@ impl BlockGenerator {
     }
 }
 
-impl Client for BlockGenerator {
+#[derive(Clone)]
+pub struct GeneratorClient {
+    pub gen: Arc<RwLock<BlockGenerator>>,
+}
+
+impl GeneratorClient {
+    pub fn new(gen: BlockGenerator) -> GeneratorClient {
+        GeneratorClient {
+            gen: Arc::new(RwLock::new(gen)),
+        }
+    }
+}
+
+impl Client for GeneratorClient {
     fn genesis(&self) -> Result<Genesis> {
-        Ok(self.genesis.clone())
+        Ok(self.gen.read().unwrap().genesis.clone())
     }
 
     fn status(&self) -> Result<status::Response> {
-        let node = &self.spec.nodes[self.node_index];
+        let gen = self.gen.read().unwrap();
+        let node = &gen.spec.nodes[gen.node_index];
         Ok(status::Response {
-            node_info: node.node_info(self.genesis.chain_id.clone()),
-            sync_info: self.sync_info(),
-            validator_info: node.validator_info(self.spec.share()),
+            node_info: node.node_info(gen.genesis.chain_id.clone()),
+            sync_info: gen.sync_info(),
+            validator_info: node.validator_info(gen.spec.share()),
         })
     }
 
     fn block(&self, height: u64) -> Result<Block> {
-        Ok(self.blocks[height as usize - 1].block.clone())
+        Ok(self.gen.read().unwrap().blocks[height as usize - 1]
+            .block
+            .clone())
     }
 
     fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, heights: T) -> Result<Vec<Block>> {
@@ -552,9 +569,9 @@ impl Client for BlockGenerator {
         Ok(heights
             .map(|height| {
                 if height == 0 {
-                    self.genesis_state.top_level.clone()
+                    self.gen.read().unwrap().genesis_state.top_level.clone()
                 } else {
-                    self.blocks[(height as usize).checked_sub(1).unwrap()]
+                    self.gen.read().unwrap().blocks[(height as usize).checked_sub(1).unwrap()]
                         .state
                         .top_level
                         .clone()
@@ -604,22 +621,26 @@ mod tests {
 
     #[test]
     fn check_lite_client() {
-        let mut generator = BlockGenerator::one_node();
-        generator.gen_block(&[]);
-        generator.gen_block(&[]);
+        let c = GeneratorClient::new(BlockGenerator::one_node());
+        {
+            let mut gen = c.gen.write().unwrap();
+            gen.gen_block(&[]);
+            gen.gen_block(&[]);
+        }
 
-        generator.block(1).unwrap();
-        generator.block(2).unwrap();
+        c.block(1).unwrap();
+        c.block(2).unwrap();
 
-        let header1 = generator.signed_header(Height::default());
-        let header2 = generator.signed_header(Height::default().increment());
+        let gen = c.gen.read().unwrap();
+        let header1 = gen.signed_header(Height::default());
+        let header2 = gen.signed_header(Height::default().increment());
 
         assert!(
             verifier::verify_trusting(
                 header1.header.clone(),
                 header1.clone(),
-                generator.validators.clone(),
-                generator.validators.clone(),
+                gen.validators.clone(),
+                gen.validators.clone(),
             )
             .is_ok(),
             "verify failed"
@@ -629,8 +650,8 @@ mod tests {
             verifier::verify_trusting(
                 header2.header.clone(),
                 header2.clone(),
-                generator.validators.clone(),
-                generator.validators.clone(),
+                gen.validators.clone(),
+                gen.validators.clone(),
             )
             .is_ok(),
             "verify failed"

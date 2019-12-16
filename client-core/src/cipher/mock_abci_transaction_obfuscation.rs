@@ -66,6 +66,9 @@ where
         transaction_ids: &[TxId],
         private_key: &PrivateKey,
     ) -> Result<Vec<Transaction>> {
+        if transaction_ids.is_empty() {
+            return Ok(vec![]);
+        }
         let request = SECP.with(|secp| {
             DecryptionRequest::create(
                 &secp,
@@ -142,6 +145,7 @@ mod tests {
         }
     }
 
+    #[derive(Clone)]
     struct MockClient;
 
     impl Client for MockClient {

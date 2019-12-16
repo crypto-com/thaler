@@ -38,6 +38,8 @@ unicase = "2.6.0"
 lazy_static = "1.4.0"
 ring = "0.16.9"
 tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "6fca043ec5ca48770fa9e7b95e207f7b0c88c97f" }
+thiserror = { version = "1.0", default-features = false }
+non-empty-vec = "0.1"
 
 [dev-dependencies]
 hex = "0.4.0"
