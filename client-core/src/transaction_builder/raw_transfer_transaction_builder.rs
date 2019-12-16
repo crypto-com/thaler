@@ -298,7 +298,18 @@ where
         transaction_obfuscation.encrypt(signed_transaction)
     }
 
-    /// Verify the raw transaction is valid
+    /// Verify the raw transaction has inputs and outputs
+    /// # Error
+    /// Returns VerifyError when the transaction has invalid inputs and outputs
+    pub fn verify_inputs_outputs(&self) -> Result<()> {
+        self.verify_inputs()?;
+        self.verify_outputs()?;
+        self.verify_output_does_not_exceed_input_amount()?;
+
+        Ok(())
+    }
+
+    /// Verify the raw transaction is valid to be broadcasted
     /// # Error
     /// Returns VerifyError when the transaction is invalid
     pub fn verify(&self) -> Result<()> {
@@ -309,9 +320,7 @@ where
             ));
         }
 
-        self.verify_inputs()?;
-        self.verify_outputs()?;
-        self.verify_output_does_not_exceed_input_amount()?;
+        self.verify_inputs_outputs()?;
         self.verify_input_witnesses()?;
 
         Ok(())
