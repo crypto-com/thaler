@@ -20,10 +20,7 @@ use crate::tx::data::TxId;
 
 /// ABCI chain state
 #[derive(PartialEq, Debug, Clone, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct ChainState {
     /// root hash of the sparse merkle patricia trie of staking account states
     pub account_root: H256,
@@ -45,10 +42,7 @@ impl ChainState {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct RewardsPoolState {
     /// Rewards accumulated in current period
     pub period_bonus: Coin,

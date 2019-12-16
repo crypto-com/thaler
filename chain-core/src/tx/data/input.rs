@@ -15,10 +15,7 @@ pub type TxoIndex = u16;
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
 /// transaction.
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxoPointer {
     #[cfg_attr(
         not(feature = "mesalock_sgx"),

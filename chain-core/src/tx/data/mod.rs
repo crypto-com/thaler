@@ -48,10 +48,7 @@ pub type TxId = H256;
 /// TODO: max input/output size?
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
 #[derive(Debug, Default, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(
-    not(feature = "mesalock_sgx"),
-    derive(Serialize, Deserialize)
-)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct Tx {
     pub inputs: Vec<TxoPointer>,
     pub outputs: Vec<TxOut>,

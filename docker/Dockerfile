@@ -1,4 +1,4 @@
-FROM rust:1.38.0 AS builder
+FROM rust:1.39.0 AS builder
 LABEL maintainer="calvin@crypto.com"
 
 ENV RUSTFLAGS "-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3"
