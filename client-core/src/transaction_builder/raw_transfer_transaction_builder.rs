@@ -943,7 +943,7 @@ mod raw_transfer_transaction_builder_tests {
             let builder = create_2in2out_testing_raw_transaction_builder(transfer_addr);
 
             let err = builder.fee().unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::VerifyError);
+            assert_eq!(err.kind(), ErrorKind::InvalidInput);
             assert_eq!(err.message(), "Missing signature in inputs");
         }
 
@@ -998,7 +998,7 @@ mod raw_transfer_transaction_builder_tests {
 
             let tx_obfuscation = MockTransactionCipher;
             let err = builder.required_fee(tx_obfuscation).unwrap_err();
-            assert_eq!(err.kind(), ErrorKind::VerifyError);
+            assert_eq!(err.kind(), ErrorKind::InvalidInput);
             assert_eq!(err.message(), "Missing signature in inputs");
         }
 
