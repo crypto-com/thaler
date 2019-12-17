@@ -384,13 +384,12 @@ where
 
     /// Returns the total amount of all inputs
     pub fn total_input_amount(&self) -> Result<Coin> {
-        sum_coins(self.iter_inputs().map(|input| input.prev_tx_out.value))
-            .chain(|| {
-                (
-                    ErrorKind::VerifyError,
-                    "Sum of input values exceeds maximum allowed amount",
-                )
-            })
+        sum_coins(self.iter_inputs().map(|input| input.prev_tx_out.value)).chain(|| {
+            (
+                ErrorKind::VerifyError,
+                "Sum of input values exceeds maximum allowed amount",
+            )
+        })
     }
 
     /// Returns the total amount of all outputs
@@ -425,10 +424,7 @@ where
     }
 
     /// Create raw transaction builder from encoded incompleted raw transaction bytes
-    pub fn from_incomplete(
-        bytes: Vec<u8>,
-        fee_algorithm: F,
-    ) -> Result<Self> {
+    pub fn from_incomplete(bytes: Vec<u8>, fee_algorithm: F) -> Result<Self> {
         let raw_transaction =
             RawTransferTransaction::decode(&mut bytes.as_slice()).chain(|| {
                 (
@@ -481,8 +477,7 @@ mod raw_transfer_transaction_builder_tests {
         fn should_return_error_when_input_is_invalid() {
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_output(TxOut::new(
                 ExtendedAddr::OrTree(random()),
@@ -503,8 +498,7 @@ mod raw_transfer_transaction_builder_tests {
 
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -532,8 +526,7 @@ mod raw_transfer_transaction_builder_tests {
 
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -570,8 +563,7 @@ mod raw_transfer_transaction_builder_tests {
 
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -615,8 +607,7 @@ mod raw_transfer_transaction_builder_tests {
         fn should_append_input_to_raw_transaction() {
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             assert_eq!(builder.inputs_len(), 0);
 
@@ -662,8 +653,7 @@ mod raw_transfer_transaction_builder_tests {
         fn should_append_output_to_raw_transaction() {
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             assert_eq!(builder.outputs_len(), 0);
 
@@ -730,8 +720,7 @@ mod raw_transfer_transaction_builder_tests {
             let (_, _, transfer_addr) = create_key_pair_and_transfer_addr();
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -786,8 +775,7 @@ mod raw_transfer_transaction_builder_tests {
             let (_, _, transfer_addr) = create_key_pair_and_transfer_addr();
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -822,8 +810,7 @@ mod raw_transfer_transaction_builder_tests {
             let (private_key, public_key, transfer_addr) = create_key_pair_and_transfer_addr();
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -953,8 +940,7 @@ mod raw_transfer_transaction_builder_tests {
 
             let attributes = TxAttributes::default();
             let fee_algorithm = create_testing_fee_algorithm();
-            let mut builder =
-                RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+            let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
             builder.add_input((
                 TxoPointer::new(random(), 0),
@@ -1050,10 +1036,7 @@ mod raw_transfer_transaction_builder_tests {
 
         let fee_algorithm = create_testing_fee_algorithm();
         let restored_raw_transaction_builder_result =
-            RawTransferTransactionBuilder::from_incomplete(
-                encoded_incomplete_bytes,
-                fee_algorithm,
-            );
+            RawTransferTransactionBuilder::from_incomplete(encoded_incomplete_bytes, fee_algorithm);
 
         assert!(restored_raw_transaction_builder_result.is_ok());
 
@@ -1066,8 +1049,7 @@ mod raw_transfer_transaction_builder_tests {
     ) -> RawTransferTransactionBuilder<LinearFee> {
         let attributes = TxAttributes::default();
         let fee_algorithm = create_testing_fee_algorithm();
-        let mut builder =
-            RawTransferTransactionBuilder::new(attributes, fee_algorithm);
+        let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
         builder.add_input((
             TxoPointer::new(random(), 0),

@@ -59,10 +59,12 @@ impl GenesisCommand {
                 tendermint_genesis_path,
                 genesis_dev_config_path,
                 in_place,
-            } => {
-                generate_genesis_command(tendermint_genesis_path, genesis_dev_config_path, *in_place)
-                    .map(|_| ())
-            }
+            } => generate_genesis_command(
+                tendermint_genesis_path,
+                genesis_dev_config_path,
+                *in_place,
+            )
+            .map(|_| ()),
         }
     }
 }
@@ -153,7 +155,7 @@ fn generate_genesis_command(
 }
 
 fn find_default_tendermint_path() -> Option<PathBuf> {
-    find_tendermint_path_from_tmhome().or_else(|| find_tendermint_path_from_home())
+    find_tendermint_path_from_tmhome().or_else(find_tendermint_path_from_home)
 }
 
 fn find_tendermint_path_from_tmhome() -> Option<PathBuf> {
@@ -164,7 +166,7 @@ fn find_tendermint_path_from_tmhome() -> Option<PathBuf> {
         }
     }
 
-    return None;
+    None
 }
 
 fn find_tendermint_path_from_home() -> Option<PathBuf> {
@@ -175,7 +177,7 @@ fn find_tendermint_path_from_home() -> Option<PathBuf> {
         }
     }
 
-    return None;
+    None
 }
 
 pub fn generate_genesis(

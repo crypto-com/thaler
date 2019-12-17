@@ -1,6 +1,6 @@
 [package]
 name = "client-core"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Devashish Dixit <devashish@crypto.com>"]
 description = "This crate exposes following functionalities for interacting with Crypto.com Chain."
 edition = "2018"
@@ -30,7 +30,7 @@ serde_json = "1.0.44"
 uuid = { version = "0.8.1", features = ["v4"] }
 websocket = "0.24.0"
 jsonrpc-core = "14.0"
-log ="0.4.10"
+log ="0.4.8"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "0.1.22", default-features = false, features = ["rt-full"] }
 tiny-bip39 = { version = "0.6", default-features = false }
