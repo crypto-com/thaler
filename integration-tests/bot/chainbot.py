@@ -294,12 +294,15 @@ async def interact(cmd, input=None, **kwargs):
     return stdout
 
 
-async def gen_app_state(cfg):
-    with tempfile.NamedTemporaryFile('w') as fp:
-        json.dump(cfg, fp)
-        fp.flush()
-        result = await interact(f'dev-utils genesis generate -g "{fp.name}"')
-        return json.loads('{%s}' % result.decode('utf-8'))
+async def fix_genesis(genesis, cfg):
+    with tempfile.NamedTemporaryFile('w') as fp_genesis:
+        json.dump(genesis, fp_genesis)
+        fp_genesis.flush()
+        with tempfile.NamedTemporaryFile('w') as fp_cfg:
+            json.dump(cfg, fp_cfg)
+            fp_cfg.flush()
+            await run(f'dev-utils genesis generate -i -g "{fp_cfg.name}" -t "{fp_genesis.name}"')
+        return json.load(open(fp_genesis.name))
 
 
 async def gen_wallet_addr(mnemonic, type='Staking', count=1):
@@ -347,24 +350,11 @@ async def gen_genesis(cfg):
                 ]
             }
         },
-        'validators': [
-            {
-                'address': SigningKey(node['validator_seed']).validator_address(),
-                'pub_key': {
-                    'type': 'tendermint/PubKeyEd25519',
-                    'value': SigningKey(node['validator_seed']).pub_key_base64(),
-                },
-                'power': str(coin_to_voting_power(node['bonded_coin'])),
-                'name': node['name'],
-            }
-            for node in cfg['nodes']
-        ],
+        'validators': [],
     }
 
     patch = jsonpatch.JsonPatch(cfg['chain_config_patch'])
-    state = await gen_app_state(patch.apply(app_state_cfg(cfg)))
-    genesis.update(state)
-    return genesis
+    return await fix_genesis(genesis, patch.apply(app_state_cfg(cfg)))
 
 
 def gen_validators(cfgs):
