@@ -123,3 +123,13 @@ There are two places specifying Tendermint version to build and run:
 - integration-tests/docker-compose.yml
 
 If you want to specify your Tendermint version, you can also set environment `TENDERMINT_VERSION` to your desired version before prepare, build and start.
+
+### Use crypto official docker-image
+Librocksdb-sys compiling fails on baidu docker image.  
+It is by out-dated clang version.  
+Use crypto official docker image to compile.  
+
+
+### Using correct local host
+In azure, 127.0.0.1 doesn't represent localhost anymore  
+So use localhost as ip address for connecting local processes
