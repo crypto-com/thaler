@@ -60,24 +60,7 @@ pub(crate) struct Server {
 /// normal
 #[cfg(not(feature = "mock-enc-dec"))]
 fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
-    let result = tendermint_client.query("txquery", &[])?.bytes()?;
-    let address = std::str::from_utf8(&result).chain(|| {
-        (
-            ErrorKind::ConnectionError,
-            "Unable to decode txquery address",
-        )
-    })?;
-    if let Some(hostname) = address.split(':').next() {
-        Ok(DefaultTransactionObfuscation::new(
-            address.to_string(),
-            hostname.to_string(),
-        ))
-    } else {
-        Err(client_common::Error::new(
-            ErrorKind::ConnectionError,
-            "Unable to decode txquery address",
-        ))
-    }
+    DefaultTransactionObfuscation::from_tx_query(&tendermint_client)
 }
 
 /// temporary
