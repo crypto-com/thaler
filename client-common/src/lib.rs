@@ -17,7 +17,7 @@ pub use multi_sig_address::MultiSigAddress;
 #[doc(inline)]
 pub use storage::{SecureStorage, Storage};
 #[doc(inline)]
-pub use transaction::{SignedTransaction, Transaction};
+pub use transaction::{SignedTransaction, Transaction, TransactionInfo};
 
 use secp256k1::{All, Secp256k1};
 

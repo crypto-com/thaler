@@ -2,7 +2,11 @@ use std::fmt;
 
 use parity_scale_codec::{Decode, Encode};
 #[cfg(not(feature = "mesalock_sgx"))]
-use serde::de;
+use serde::de::{
+    self,
+    value::{Error as ValueError, StrDeserializer},
+    IntoDeserializer,
+};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -56,7 +60,7 @@ where
         }
 
         #[inline]
-        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
         where
             E: de::Error,
         {
@@ -93,4 +97,10 @@ impl TxoPointer {
             index: index as TxoIndex,
         }
     }
+}
+
+#[cfg(not(feature = "mesalock_sgx"))]
+pub fn str2txid<S: AsRef<str>>(s: S) -> Result<TxId, ValueError> {
+    let deserializer: StrDeserializer<ValueError> = s.as_ref().into_deserializer();
+    deserialize_transaction_id(deserializer)
 }

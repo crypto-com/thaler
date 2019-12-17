@@ -6,7 +6,9 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::TxAux;
-use client_common::{ErrorKind, Result, ResultExt, SignedTransaction, Storage};
+use client_common::{
+    ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Storage, Transaction,
+};
 
 use crate::signer::WalletSignerManager;
 use crate::transaction_builder::RawTransferTransactionBuilder;
@@ -14,6 +16,7 @@ use crate::{
     SelectedUnspentTransactions, TransactionObfuscation, UnspentTransactions,
     WalletTransactionBuilder,
 };
+use chain_core::tx::{data::TxId, TransactionId};
 
 /// Default implementation of `TransactionBuilder`
 ///
@@ -70,6 +73,17 @@ where
     #[inline]
     fn obfuscate(&self, signed_transaction: SignedTransaction) -> Result<TxAux> {
         self.transaction_obfuscation.encrypt(signed_transaction)
+    }
+
+    fn decrypt_tx(&self, txid: TxId, private_key: &PrivateKey) -> Result<Transaction> {
+        let tx = self
+            .transaction_obfuscation
+            .decrypt(&[txid], private_key)?
+            .iter()
+            .find(|t| t.id() == txid)
+            .map(Clone::clone)
+            .chain(|| (ErrorKind::InvalidInput, "can not find transaction"))?;
+        Ok(tx)
     }
 }
 

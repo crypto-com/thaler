@@ -4,9 +4,10 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{ErrorKind, Result, SignedTransaction};
+use client_common::{ErrorKind, PrivateKey, Result, SignedTransaction, Transaction};
 
 use crate::{UnspentTransactions, WalletTransactionBuilder};
+use chain_core::tx::data::TxId;
 
 /// Implementation of `WalletTransactionBuilder` which always returns
 /// permission denied
@@ -27,6 +28,10 @@ impl WalletTransactionBuilder for UnauthorizedWalletTransactionBuilder {
     }
 
     fn obfuscate(&self, _: SignedTransaction) -> Result<TxAux> {
+        Err(ErrorKind::PermissionDenied.into())
+    }
+
+    fn decrypt_tx(&self, _txid: TxId, _private_key: &PrivateKey) -> Result<Transaction> {
         Err(ErrorKind::PermissionDenied.into())
     }
 }

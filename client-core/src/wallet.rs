@@ -219,6 +219,21 @@ pub trait WalletClient: Send + Sync {
 
     /// Broadcasts a transaction to Crypto.com Chain
     fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<BroadcastTxResponse>;
+
+    /// When receiver's view key not included in the transaction, the receiver can't collect the outputs.
+    /// The sender have to get the plain transaction and send it to the receiver by email or something
+    /// so that the receiver can sync it into the wallet DB and get the outputs.
+    ///
+    /// # Return
+    ///
+    /// base64 encoded of `Transaction` json string
+    fn export_plain_tx(&self, name: &str, passphras: &SecUtf8, txid: &str) -> Result<String>;
+
+    /// import a plain transaction, put the outputs of the transaction into wallet DB
+    ///
+    /// # Return
+    /// the sum of unused outputs coin
+    fn import_plain_tx(&self, name: &str, passphrase: &SecUtf8, tx_str: &str) -> Result<Coin>;
 }
 
 /// Interface for a generic wallet for multi-signature transactions

@@ -10,6 +10,15 @@ use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TransactionId;
 
+/// A struct which the sender can download and the receiver can import
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+pub struct TransactionInfo {
+    /// enum Transaction type
+    pub tx: Transaction,
+    /// block height when the tx broadcast
+    pub block_height: u64,
+}
+
 /// Enum containing different types of transactions
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(tag = "type")]

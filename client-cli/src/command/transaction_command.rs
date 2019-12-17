@@ -14,7 +14,7 @@ use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
 use hex::decode;
-use quest::{ask, text, yesno};
+use quest::{ask, success, text, yesno};
 use secstr::SecUtf8;
 use structopt::StructOpt;
 use unicase::eq_ascii;
@@ -62,6 +62,26 @@ pub enum TransactionCommand {
         #[structopt(name = "type", short, long, help = "Type of transaction to create")]
         transaction_type: TransactionType,
     },
+    #[structopt(
+        name = "export",
+        about = "Export a plain transaction by a given transaction id"
+    )]
+    Export {
+        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        name: String,
+        #[structopt(name = "id", short, long, help = "transaction id")]
+        id: String,
+    },
+    #[structopt(
+        name = "import",
+        about = "Export a plain transaction by a given transaction id"
+    )]
+    Import {
+        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        name: String,
+        #[structopt(name = "tx", short, long, help = "base64 encoded plain transaction")]
+        tx: String,
+    },
 }
 
 impl TransactionCommand {
@@ -75,6 +95,18 @@ impl TransactionCommand {
                 name,
                 transaction_type,
             } => new_transaction(wallet_client, network_ops_client, name, transaction_type),
+            TransactionCommand::Export { name, id } => {
+                let passphrase = ask_passphrase(None)?;
+                let tx = wallet_client.export_plain_tx(name, &passphrase, id)?;
+                success(&tx);
+                Ok(())
+            }
+            TransactionCommand::Import { name, tx } => {
+                let passphrase = ask_passphrase(None)?;
+                let imported_amount = wallet_client.import_plain_tx(name, &passphrase, tx)?;
+                success(format!("import amount: {}", imported_amount).as_str());
+                Ok(())
+            }
         }
     }
 }

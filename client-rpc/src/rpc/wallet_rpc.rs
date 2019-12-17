@@ -91,6 +91,12 @@ pub trait WalletRpc: Send + Sync {
         limit: usize,
         reversed: bool,
     ) -> Result<Vec<TransactionChange>>;
+
+    #[rpc(name = "wallet_exportTransaction")]
+    fn export_plain_tx(&self, request: WalletRequest, txid: String) -> Result<String>;
+
+    #[rpc(name = "wallet_importTransaction")]
+    fn import_plain_tx(&self, request: WalletRequest, tx: String) -> Result<Coin>;
 }
 
 pub struct WalletRpcImpl<T>
@@ -338,6 +344,18 @@ where
                 "Transaction is not transfer transaction",
             )))
         }
+    }
+
+    fn export_plain_tx(&self, request: WalletRequest, txid: String) -> Result<String> {
+        self.client
+            .export_plain_tx(&request.name, &request.passphrase, &txid)
+            .map_err(to_rpc_error)
+    }
+
+    fn import_plain_tx(&self, request: WalletRequest, tx: String) -> Result<Coin> {
+        self.client
+            .import_plain_tx(&request.name, &request.passphrase, &tx)
+            .map_err(to_rpc_error)
     }
 
     fn transactions(

@@ -13,9 +13,10 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{Result, SignedTransaction};
+use client_common::{PrivateKey, Result, SignedTransaction, Transaction};
 
 use crate::UnspentTransactions;
+use chain_core::tx::data::TxId;
 
 /// Interface for wallet transaction building from output addresses and amount.
 /// This trait is also responsible for UTXO selection.
@@ -42,4 +43,7 @@ pub trait WalletTransactionBuilder: Send + Sync {
 
     /// Obfuscates given signed transaction
     fn obfuscate(&self, signed_transaction: SignedTransaction) -> Result<TxAux>;
+
+    /// Get a decrypted transaction by a given tx_id
+    fn decrypt_tx(&self, txid: TxId, private_key: &PrivateKey) -> Result<Transaction>;
 }

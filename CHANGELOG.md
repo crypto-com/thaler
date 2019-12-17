@@ -9,6 +9,7 @@ of Rust SGX SDK (0.1.0 used a beta version of 1.1.0).
 
 ### Breaking changes
 * *client* [703](https://github.com/crypto-com/chain/pull/703): HD wallet generate view key with a different account index.
+* *client* [695](https://github.com/crypto-com/chain/pull/695): export and import transaction -- transactions that do not include receiver's view key can be exported, giving a base64 encoded plain transaction string which can be imported by the receiver.
 
 ### Improvements
 * *dev-utils* [692](https://github.com/crypto-com/chain/pull/692): dev-utils init command logs error when it goes wrong
@@ -25,6 +26,7 @@ of Rust SGX SDK (0.1.0 used a beta version of 1.1.0).
 
 The release is a more complete alpha version meant to be deployed on the second iteration of the public testnet.
 There are no guarantees on future API and binary compatibility at this stage.
+
 
 ## v0.1.0
 
