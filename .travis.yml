@@ -46,7 +46,7 @@ rust: &rust
     - rm -rf $HOME/.cargo/registry/src
   env:
     - RUST_BACKTRACE=1
-    - RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3
+    - RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3 -D warnings"
     - PATH=$HOME/.local/bin:$PATH
     - LD_LIBRARY_PATH=$HOME/lib
     - PKG_CONFIG_PATH=$HOME/lib/pkgconfig
@@ -64,11 +64,11 @@ rust: &rust
     - |
       if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
         (rustfmt --version || rustup component add rustfmt)
-        cargo fmt -- --check --color=auto
+        cargo fmt -- --check --color=auto || travis_terminate 1
         (cargo-clippy --version || rustup component add clippy)
-        cargo clippy -- -D warnings
+        cargo clippy -- -D warnings || travis_terminate 1
         (cargo-audit -h || cargo install cargo-audit)
-        cargo audit
+        cargo audit || travis_terminate 1
       fi
 
   after_success: |

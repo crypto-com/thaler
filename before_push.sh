@@ -103,6 +103,7 @@ done
 check_command_exist "cargo"
 check_command_exist "rustup"
 
+RUSTFLAGS="${RUSTFLAGS:-} -D warnings"
 command_suite "cargo build --quiet" "cargo build"
 
 command_suite "cargo test --quiet" "cargo test"

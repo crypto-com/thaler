@@ -1,6 +1,6 @@
 [package]
 name = "client-cli"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Devashish Dixit <devashish@crypto.com>"]
 edition = "2018"
 
@@ -20,7 +20,7 @@ hex = "0.4"
 unicase = "2.6"
 chrono = "0.4"
 pbr = "1.0"
-log = "0.4.10"
+log = "0.4.8"
 env_logger = "0.7.1"
 cli-table = "0.2"
 zeroize = "1.1"

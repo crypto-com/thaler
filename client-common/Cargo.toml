@@ -1,6 +1,6 @@
 [package]
 name = "client-common"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Devashish Dixit <devashish@crypto.com>"]
 edition = "2018"
 
@@ -9,7 +9,7 @@ chain-core = { path = "../chain-core" }
 chain-tx-filter = { path = "../chain-tx-filter" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "be445f29a96af31fe079611d26c07f1f596d1c5f", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
 rand = "0.7"
-log = "0.4"
+log = "0.4.8"
 aes-gcm-siv = "0.3"
 blake2 = "0.8"
 hex = "0.4"
@@ -18,7 +18,7 @@ secstr = { version = "0.3.2", features = ["serde"] }
 zeroize = "1.1"
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
-sled = { version = "0.30", optional = true }
+sled = { version = "0.29", optional = true }
 jsonrpc = { version = "0.11", optional = true }
 serde_json = { version = "1.0", optional = true }
 parity-scale-codec = { features = ["derive"], version = "1.1" }

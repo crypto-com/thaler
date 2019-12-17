@@ -70,11 +70,11 @@ steps:
   - ls -l /dev/sgx
   - ls -l /var/run/aesmd/aesm.socket
   - docker run --name hw1-${DRONE_COMMIT_SHA} --rm -v $PWD:/chain --device /dev/sgx cryptocom/chain:latest /bin/bash /chain/ci-scripts/tx-validation-hw-test.sh
-- name: Teardown		
-  commands:		
+- name: Teardown
+  commands:
    - docker stop hw1-${DRONE_COMMIT_SHA} || exit 0		
-  when:		
-    status:		
+  when:
+    status:
       - success		
       - failure
 
@@ -106,11 +106,11 @@ steps:
   - ls -l /dev/sgx
   - ls -l /var/run/aesmd/aesm.socket
   - docker run --name hw2-${DRONE_COMMIT_SHA} --rm --env SPID=$SPID --env IAS_API_KEY=$IAS_API_KEY -v $PWD:/chain --device /dev/sgx cryptocom/chain:latest /bin/bash /chain/ci-scripts/tx-query-hw-test.sh
-- name: Teardown		
-  commands:		
+- name: Teardown
+  commands:
    - docker stop hw2-${DRONE_COMMIT_SHA} || exit 0		
-  when:		
-    status:		
+  when:
+    status:
       - success		
       - failure
 
@@ -159,6 +159,6 @@ trigger:
 
 ---
 kind: signature
-hmac: e0c075115c89bf62208031eb72f28eda5f9b045d201e7e4449a486455aad5f96
+hmac: 0c58269524d8cee0b1ce9aa1cf614b35ef440a6bf42aa03b0ff4b932c706e2f6
 
 ...

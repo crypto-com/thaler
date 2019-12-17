@@ -47,6 +47,7 @@ where
 }
 
 #[cfg(feature = "serde")]
+#[allow(clippy::trivially_copy_pass_by_ref)]
 fn serialize_validator_power<S>(
     power: &TendermintVotePower,
     serializer: S,
