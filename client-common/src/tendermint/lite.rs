@@ -35,7 +35,7 @@ impl Encode for TrustedState {
 impl Decode for TrustedState {
     fn decode<I: Input>(value: &mut I) -> Result<Self, Error> {
         serde_json::from_str(&String::decode(value)?)
-            .map_err(|_| "fail to encode trusted_state to json ".into())
+            .map_err(|_| "fail to decode trusted_state from json ".into())
     }
 }
 
