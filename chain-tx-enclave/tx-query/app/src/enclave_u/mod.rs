@@ -1,7 +1,5 @@
-use chain_core::tx::data::TxId;
-use enclave_protocol::{EnclaveRequest, EnclaveResponse, FLAGS};
+use enclave_protocol::FLAGS;
 use log::{debug, error, trace};
-use parity_scale_codec::{Decode, Encode};
 use sgx_types::*;
 use std::net::{SocketAddr, TcpStream};
 use std::os::unix::io::IntoRawFd;

@@ -38,8 +38,15 @@ function check_command_exist() {
 }
 
 function build_chain_docker_image() {
+    print_config "SGX_MODE" "${SGX_MODE}"
+    print_config "CLIENT_FEATURES" "${CLIENT_FEATURES}"
+    print_config "CHAIN_ABCI_FEATURES" "${CHAIN_ABCI_FEATURES}"
+
     CWD=$(pwd)
-    cd ../ && docker build -t "${CHAIN_DOCKER_IMAGE}" -f ./docker/Dockerfile .
+    cd ../ && docker build -t "${CHAIN_DOCKER_IMAGE}" \
+        -f ./docker/Dockerfile . \
+        --build-arg CLIENT_FEATURES="${CLIENT_FEATURES}" \
+        --build-arg CHAIN_ABCI_FEATURES="${CHAIN_ABCI_FEATURES}"
     cd "${CWD}"
 }
 
@@ -283,9 +290,13 @@ else
     cargo build
 fi
 
-print_step "Build Chain Transaction Enclave image"
-build_chain_tx_enclave_docker_image
-build_chain_tx_enclave_query_docker_image
+if [ x"${SGX_MODE}" == "xHW" ]; then
+    print_step "Build Chain Transaction Enclave image"
+    build_chain_tx_enclave_docker_image
+
+    print_step "Build Chain Transaction Enclave Query image"
+    build_chain_tx_enclave_query_docker_image
+fi
 
 print_step "Initialize Tendermint"
 rm -rf "${TENDERMINT_TEMP_DIRECTORY}"

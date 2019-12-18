@@ -61,7 +61,7 @@ describe("Wallet transaction", () => {
 		});
 
 		it("can transfer funds between two wallets", async function() {
-			this.timeout(90000);
+			this.timeout(300000);
 
 			const receiverWalletName = generateWalletName("Receive");
 			const senderWalletRequest = newWalletRequest("Default", "123456");
@@ -202,7 +202,7 @@ describe("Wallet transaction", () => {
 			return;
 		}
 		it("can transfer funds between two wallets with fee included", async function() {
-			this.timeout(90000);
+			this.timeout(300000);
 
 			const receiverWalletName = generateWalletName("Receive");
 			const senderWalletRequest = newWalletRequest("Default", "123456");

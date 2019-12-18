@@ -1,5 +1,6 @@
 use log::info;
 use std::net::{IpAddr, SocketAddr};
+#[cfg(not(feature = "mock-validation"))]
 use zmq::{Context, REQ};
 
 use chain_abci::app::ChainNodeApp;
@@ -79,7 +80,7 @@ fn get_enclave_proxy(opts: &AbciOpt) -> ZmqEnclaveClient {
 
 /// for development
 #[cfg(feature = "mock-validation")]
-fn get_enclave_proxy(opts: &AbciOpt) -> MockClient {
+fn get_enclave_proxy(_opts: &AbciOpt) -> MockClient {
     warn!("Using mock (non-enclave) infrastructure");
     MockClient::new(get_network_id())
 }
