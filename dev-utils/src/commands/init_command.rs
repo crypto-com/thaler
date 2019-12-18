@@ -383,15 +383,42 @@ impl InitCommand {
     pub fn execute(&mut self) -> Result<()> {
         println!("initialize chain");
 
+        let mut msg = "clear disk:".to_string();
         self.clear_disk()
-            .and_then(|_| self.prepare_tendermint())
-            .and_then(|_| self.reset_tendermint())
-            .and_then(|_| self.read_tendermint_genesis())
-            .and_then(|_| self.read_information())
-            .and_then(|_| self.generate_app_info())
-            .and_then(|_| self.write_tendermint_genesis())
-            .and_then(|_| self.write_overmind_procfile())
-            .chain(|| (ErrorKind::InitializationError, "Unable to initialize chain"))
+            .and_then(|_| {
+                msg.push_str("prepare tendermint:");
+                self.prepare_tendermint()
+            })
+            .and_then(|_| {
+                msg.push_str("reset tendermint:");
+                self.reset_tendermint()
+            })
+            .and_then(|_| {
+                msg.push_str("read tendermint genesis:");
+                self.read_tendermint_genesis()
+            })
+            .and_then(|_| {
+                msg.push_str("read information:");
+                self.read_information()
+            })
+            .and_then(|_| {
+                msg.push_str("generate app info:");
+                self.generate_app_info()
+            })
+            .and_then(|_| {
+                msg.push_str("write tendermint genesis:");
+                self.write_tendermint_genesis()
+            })
+            .and_then(|_| {
+                msg.push_str("write overmind procfile:");
+                self.write_overmind_procfile()
+            })
+            .chain(|| {
+                (
+                    ErrorKind::InitializationError,
+                    format!("Unable to initialize chain Steps=({})", msg),
+                )
+            })
     }
 
     fn storage_path() -> String {
