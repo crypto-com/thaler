@@ -45,7 +45,14 @@ use crate::{ask_passphrase, storage_path, tendermint_url};
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "client-cli",
-    about = "Basic CLI tool for interacting with Crypto.com Chain"
+    about = r#"Basic CLI tool for interacting with Crypto.com Chain
+
+ENVIRONMENT VARIABLES:
+    CRYPTO_CLIENT_DEBUG             Set to `true` for detailed error messages (Default: `false`)
+    CRYPTO_CHAIN_ID                 Chain ID of Crypto.com Chain
+    CRYPTO_CLIENT_STORAGE           Storage directory (Default: `.storage`)
+    CRYPTO_CLIENT_TENDERMINT        Websocket endpoint for tendermint (Default: `ws://localhost:26657/websocket`)
+"#
 )]
 pub enum Command {
     #[structopt(name = "wallet", about = "Wallet operations")]
