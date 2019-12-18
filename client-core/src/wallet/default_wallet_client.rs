@@ -123,7 +123,7 @@ where
                 let (public_key, private_key) = self.hd_key_service.generate_keypair(
                     name,
                     passphrase,
-                    AddressType::Transfer,
+                    HDAccountType::Viewkey,
                 )?;
 
                 self.key_service
@@ -142,7 +142,7 @@ where
 
         let (public_key, private_key) =
             self.hd_key_service
-                .generate_keypair(name, passphrase, AddressType::Transfer)?;
+                .generate_keypair(name, passphrase, HDAccountType::Viewkey)?;
 
         self.key_service
             .add_keypair(&private_key, &public_key, passphrase)?;
@@ -229,12 +229,14 @@ where
             self.hd_key_service.generate_keypair(
                 name,
                 passphrase,
-                address_type.chain(|| {
-                    (
-                        ErrorKind::InvalidInput,
-                        "Address type is needed when creating address for HD wallet",
-                    )
-                })?,
+                address_type
+                    .chain(|| {
+                        (
+                            ErrorKind::InvalidInput,
+                            "Address type is needed when creating address for HD wallet",
+                        )
+                    })?
+                    .into(),
             )?
         } else {
             let private_key = PrivateKey::new()?;
@@ -255,7 +257,7 @@ where
     fn new_staking_address(&self, name: &str, passphrase: &SecUtf8) -> Result<StakedStateAddress> {
         let (staking_key, private_key) = if self.hd_key_service.has_wallet(name)? {
             self.hd_key_service
-                .generate_keypair(name, passphrase, AddressType::Staking)?
+                .generate_keypair(name, passphrase, HDAccountType::Staking)?
         } else {
             let private_key = PrivateKey::new()?;
             let public_key = PublicKey::from(&private_key);
@@ -277,7 +279,7 @@ where
     fn new_transfer_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr> {
         let (public_key, private_key) = if self.hd_key_service.has_wallet(name)? {
             self.hd_key_service
-                .generate_keypair(name, passphrase, AddressType::Transfer)?
+                .generate_keypair(name, passphrase, HDAccountType::Transfer)?
         } else {
             let private_key = PrivateKey::new()?;
             let public_key = PublicKey::from(&private_key);

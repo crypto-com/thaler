@@ -750,27 +750,27 @@ pub mod tests {
 
         let wallet_request = create_wallet_request("Default", "123456");
 
-        let result = wallet_rpc
-            .create_transfer_address(wallet_request.clone())
-            .unwrap();
-        assert_eq!(
+        let expect_addrs = [
+            "dcro13z2xw689qhpmv7ge9xg428ljg4848rtu5dcpdmxy3m6njdsjtd3sl30d8n",
             "dcro1fnjq70pf9hvd2tkd3rj7pash6ph7p42qakqt2k39sjqp4m4p25kqclslnt",
-            result.to_string()
-        );
-
-        let to_result = wallet_rpc
-            .create_transfer_address(wallet_request.clone())
-            .unwrap();
-        assert_eq!(
             "dcro1ee3exuxyv5pauameswxureamlvmptjm8tsg4lcwqpx2nclshc6eqt8fanm",
-            to_result.to_string()
-        );
+        ];
+        let addrs = expect_addrs
+            .iter()
+            .map(|s| {
+                let addr = wallet_rpc
+                    .create_transfer_address(wallet_request.clone())
+                    .unwrap();
+                assert_eq!(addr, *s);
+                addr
+            })
+            .collect::<Vec<_>>();
 
         let viewkey = wallet_rpc.get_view_key(wallet_request.clone()).unwrap();
 
         let send_result = wallet_rpc.send_to_address(
             wallet_request.clone(),
-            to_result,
+            addrs[0].clone(),
             Coin::from(1_0000u32),
             vec![viewkey],
         );

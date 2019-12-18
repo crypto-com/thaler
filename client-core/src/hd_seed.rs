@@ -5,7 +5,6 @@ use chain_core::init::network::{get_bip44_coin_type_from_network, Network};
 use client_common::{ErrorKind, PrivateKey, PublicKey, Result, ResultExt};
 
 use crate::hd_wallet::{ChainPath, DefaultKeyChain, ExtendedPrivKey, KeyChain};
-use crate::types::AddressType;
 use crate::Mnemonic;
 
 /// Hierarchical Deterministic seed
@@ -39,16 +38,12 @@ impl HDSeed {
     pub fn derive_key_pair(
         &self,
         network: Network,
-        address_type: AddressType,
+        account_index: u32,
         index: u32,
     ) -> Result<(PublicKey, PrivateKey)> {
         let coin_type = get_bip44_coin_type_from_network(network);
-        let account = match address_type {
-            AddressType::Transfer => 0,
-            AddressType::Staking => 1,
-        };
 
-        let chain_path_string = format!("m/44'/{}'/{}'/0/{}", coin_type, account, index);
+        let chain_path_string = format!("m/44'/{}'/{}'/0/{}", coin_type, account_index, index);
         let chain_path = ChainPath::from(chain_path_string);
         let key_chain = DefaultKeyChain::new(
             ExtendedPrivKey::with_seed(&self.bytes)
@@ -72,6 +67,7 @@ impl HDSeed {
 #[cfg(test)]
 mod hd_seed_tests {
     use super::*;
+    use crate::service::HDAccountType;
     use secstr::SecUtf8;
 
     #[test]
@@ -108,7 +104,7 @@ mod hd_seed_tests {
                     .expect("should decode from private key hex");
 
             let (public_key, private_key) = hd_seed
-                .derive_key_pair(Network::Mainnet, AddressType::Transfer, 1)
+                .derive_key_pair(Network::Mainnet, HDAccountType::Transfer.index(), 1)
                 .expect("should derive key pair");
             assert_eq!(expected_public_key, public_key.serialize_compressed());
             assert_eq!(expected_private_key, private_key.serialize());
@@ -121,7 +117,7 @@ mod hd_seed_tests {
                     .expect("should decode from private key hex");
 
             let (public_key, private_key) = hd_seed
-                .derive_key_pair(Network::Devnet, AddressType::Staking, 1)
+                .derive_key_pair(Network::Devnet, HDAccountType::Staking.index(), 1)
                 .expect("should derive key pair");
             assert_eq!(expected_public_key, public_key.serialize_compressed());
             assert_eq!(expected_private_key, private_key.serialize());
