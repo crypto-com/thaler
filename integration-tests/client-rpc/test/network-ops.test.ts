@@ -31,7 +31,7 @@ describe("Staking", () => {
 		tendermintClient = newZeroFeeTendermintClient();
 	});
 
-	it("unbond of same amount and nonce from different account should have different txid", async function() {
+	it("unbond of same amount and nonce from different account should have different txid", async function () {
 		this.timeout(300000);
 
 		const stakingAmount = "10000";
@@ -95,7 +95,7 @@ describe("Staking", () => {
 		);
 	});
 
-	it("should support staking, unbonding and withdrawing", async function() {
+	it("should support staking, unbonding and withdrawing", async function () {
 		this.timeout(300000);
 
 		const walletContext = await prepareWalletContext(tendermintClient, rpcClient);
@@ -107,7 +107,6 @@ describe("Staking", () => {
 
 		const stakingAmount = "10000";
 		const unbondAmount = "5000";
-
 		const depositStakeTxId = await testTransferAndStakeBaseUnit(
 			walletContext,
 			stakingAmount,
@@ -203,10 +202,16 @@ describe("Staking", () => {
 			"Error when synchronizing wallet",
 		);
 
+		// after sync
+		const expectedWalletBalanceAfterSync = {
+			total: stakingAmount,
+			pending: "0",
+			available: stakingAmount,
+		}
 		await expect(
 			rpcClient.request("wallet_balance", [walletRequest]),
 		).to.eventually.deep.eq(
-			stakingAmount,
+			expectedWalletBalanceAfterSync,
 			"Wallet should be funded with staking amount for staking deposit",
 		);
 
@@ -262,10 +267,15 @@ describe("Staking", () => {
 			syncWallet(rpcClient, walletRequest),
 			"Error when synchronizing wallet",
 		);
+		const expectedBalance = {
+			total: "0",
+			pending: "0",
+			available: "0",
+		};
 		await expect(
 			rpcClient.request("wallet_balance", [walletRequest]),
 		).to.eventually.deep.eq(
-			"0",
+			expectedBalance,
 			"Wallet balance should be deducted after deposit stake",
 		);
 	};
@@ -417,10 +427,15 @@ describe("Staking", () => {
 			"Error when synchronizing wallet",
 		);
 
+		const expectedBalance = {
+			total: unbondAmount,
+			pending: "0",
+			available: unbondAmount,
+		};
 		return expect(
 			rpcClient.request("wallet_balance", [walletRequest]),
 		).to.eventually.deep.eq(
-			unbondAmount,
+			expectedBalance,
 			"Wallet balance should be credited after withdraw stake",
 		);
 	};

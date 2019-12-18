@@ -3,6 +3,7 @@ use secstr::SecUtf8;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::TxAux;
@@ -57,9 +58,23 @@ where
         outputs: Vec<TxOut>,
         return_address: ExtendedAddr,
         attributes: TxAttributes,
-    ) -> Result<TxAux> {
-        let mut raw_builder =
-            self.select_and_build(&unspent_transactions, outputs, return_address, attributes)?;
+    ) -> Result<(TxAux, Vec<TxoPointer>, Coin)> {
+        let mut raw_builder = self.select_and_build(
+            &unspent_transactions,
+            outputs,
+            return_address.clone(),
+            attributes,
+        )?;
+
+        let selected_inputs: Vec<TxoPointer> = raw_builder
+            .iter_inputs()
+            .map(|witness_utxo| witness_utxo.prev_txo_pointer.clone())
+            .collect();
+        let return_amount = raw_builder
+            .iter_outputs()
+            .find(|&m| m.address == return_address)
+            .map(|output| output.value)
+            .unwrap_or_default();
 
         let signer = self.signer_manager.create_signer(name, passphrase);
 
@@ -67,7 +82,7 @@ where
 
         let tx_aux = raw_builder.to_tx_aux(self.transaction_obfuscation.clone())?;
 
-        Ok(tx_aux)
+        Ok((tx_aux, selected_inputs, return_amount))
     }
 
     #[inline]
@@ -131,7 +146,6 @@ where
                         "Sum of output values and fee exceeds maximum allowed amount",
                     )
                 })?)?;
-
             let raw_tx_builder = self.build_raw_transaction(
                 &selected_unspent_txs,
                 &outputs,
@@ -313,7 +327,7 @@ mod default_wallet_transaction_builder_tests {
         )];
         let attributes = TxAttributes::new(171);
 
-        let tx_aux = transaction_builder
+        let (tx_aux, _selected_inputs, _return_amount) = transaction_builder
             .build_transfer_tx(
                 name,
                 passphrase,

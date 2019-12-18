@@ -9,8 +9,10 @@ pub use unauthorized_wallet_transaction_builder::UnauthorizedWalletTransactionBu
 
 use secstr::SecUtf8;
 
+use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
 use client_common::{PrivateKey, Result, SignedTransaction, Transaction};
@@ -31,6 +33,11 @@ pub trait WalletTransactionBuilder: Send + Sync {
     /// - `outputs`: Transaction outputs
     /// - `return_address`: Address to which change amount will get returned
     /// - `attributes`: Transaction attributes,
+    ///
+    /// # return
+    /// - `TxAux`: obfuscated transaction
+    /// - `Vec<TxoPointer>`: the selected inputs
+    /// - `Coin`: the return amount of Coin
     fn build_transfer_tx(
         &self,
         name: &str,
@@ -39,7 +46,7 @@ pub trait WalletTransactionBuilder: Send + Sync {
         outputs: Vec<TxOut>,
         return_address: ExtendedAddr,
         attributes: TxAttributes,
-    ) -> Result<TxAux>;
+    ) -> Result<(TxAux, Vec<TxoPointer>, Coin)>;
 
     /// Obfuscates given signed transaction
     fn obfuscate(&self, signed_transaction: SignedTransaction) -> Result<TxAux>;

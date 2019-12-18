@@ -1,7 +1,9 @@
 use secstr::SecUtf8;
 
+use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
+use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
 use client_common::{ErrorKind, PrivateKey, Result, SignedTransaction, Transaction};
@@ -23,7 +25,7 @@ impl WalletTransactionBuilder for UnauthorizedWalletTransactionBuilder {
         _: Vec<TxOut>,
         _: ExtendedAddr,
         _: TxAttributes,
-    ) -> Result<TxAux> {
+    ) -> Result<(TxAux, Vec<TxoPointer>, Coin)> {
         Err(ErrorKind::PermissionDenied.into())
     }
 

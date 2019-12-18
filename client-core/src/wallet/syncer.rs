@@ -67,6 +67,7 @@ pub struct ObfuscationSyncerConfig<S: SecureStorage, C: Client, O: TransactionOb
     // configs
     pub enable_fast_forward: bool,
     pub batch_size: usize,
+    pub block_height_ensure: u64,
 }
 
 impl<S: SecureStorage, C: Client, O: TransactionObfuscation> ObfuscationSyncerConfig<S, C, O> {
@@ -77,6 +78,7 @@ impl<S: SecureStorage, C: Client, O: TransactionObfuscation> ObfuscationSyncerCo
         obfuscation: O,
         enable_fast_forward: bool,
         batch_size: usize,
+        block_height_ensure: u64,
     ) -> ObfuscationSyncerConfig<S, C, O> {
         ObfuscationSyncerConfig {
             storage,
@@ -84,6 +86,7 @@ impl<S: SecureStorage, C: Client, O: TransactionObfuscation> ObfuscationSyncerCo
             obfuscation,
             enable_fast_forward,
             batch_size,
+            block_height_ensure,
         }
     }
 }
@@ -98,6 +101,7 @@ pub struct SyncerConfig<S: SecureStorage, C: Client> {
     // configs
     enable_fast_forward: bool,
     batch_size: usize,
+    block_height_ensure: u64,
 }
 
 /// Wallet Syncer
@@ -109,6 +113,7 @@ pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor> {
     progress_reporter: Option<Sender<ProgressReport>>,
     enable_fast_forward: bool,
     batch_size: usize,
+    block_height_ensure: u64,
 
     // wallet
     decryptor: D,
@@ -139,6 +144,7 @@ where
             passphrase,
             enable_fast_forward: config.enable_fast_forward,
             batch_size: config.batch_size,
+            block_height_ensure: config.block_height_ensure,
         }
     }
 
@@ -197,6 +203,7 @@ where
                 client: config.client,
                 enable_fast_forward: config.enable_fast_forward,
                 batch_size: config.batch_size,
+                block_height_ensure: config.block_height_ensure,
             },
             decryptor,
             progress_reporter,
@@ -375,7 +382,21 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
                 self.handle_batch(non_empty_batch)?;
             }
         }
-        Ok(())
+        // rollback the pending transaction
+        self.rollback_pending_tx(current_block_height)
+    }
+
+    fn rollback_pending_tx(&mut self, current_block_height: u64) -> Result<()> {
+        let mut memento = WalletStateMemento::default();
+        let state =
+            service::load_wallet_state(&self.env.storage, &self.env.name, &self.env.passphrase)?
+                .chain(|| (ErrorKind::StorageError, "get wallet state failed"))?;
+        for tx_id in
+            state.get_rollback_pending_tx(current_block_height, self.env.block_height_ensure)
+        {
+            memento.remove_pending_transaction(tx_id);
+        }
+        self.save(&memento)
     }
 
     /// Fast forwards state to given status if app hashes match
@@ -555,6 +576,7 @@ mod tests {
                 client,
                 enable_fast_forward,
                 batch_size: 20,
+                block_height_ensure: 50,
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
             None,

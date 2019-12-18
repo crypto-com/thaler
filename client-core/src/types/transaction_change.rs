@@ -12,6 +12,28 @@ use chain_core::{
 use client_common::tendermint::types::Time;
 use client_common::{ErrorKind, Result, ResultExt, Transaction};
 
+/// Wallet balance info
+#[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize, Encode, Decode)]
+pub struct WalletBalance {
+    /// The total amount balance
+    pub total: Coin,
+    /// The available amount balance that can be currently used
+    pub available: Coin,
+    /// The pending amount balance
+    pub pending: Coin,
+}
+
+/// Transaction pending infomation
+#[derive(Debug, Clone, Serialize, Deserialize, Encode, Decode)]
+pub struct TransactionPending {
+    /// The selected inputs of the transaction
+    pub used_inputs: Vec<TxoPointer>,
+    /// The block height when broadcast the transaction
+    pub block_height: u64,
+    /// the return amount of the transaction
+    pub return_amount: Coin,
+}
+
 /// Transaction data with attached metadata
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct TransactionChange {

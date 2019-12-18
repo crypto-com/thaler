@@ -15,6 +15,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
 use client_common::Result;
+use client_core::types::TransactionPending;
 
 /// Interface for performing network operations on Crypto.com Chain
 pub trait NetworkOpsClient: Send + Sync {
@@ -46,7 +47,7 @@ pub trait NetworkOpsClient: Send + Sync {
         from_address: &StakedStateAddress,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
-    ) -> Result<TxAux>;
+    ) -> Result<(TxAux, TransactionPending)>;
 
     /// Creates a new transaction for withdrawing all unbonded stake from an account
     fn create_withdraw_all_unbonded_stake_transaction(
@@ -56,7 +57,7 @@ pub trait NetworkOpsClient: Send + Sync {
         from_address: &StakedStateAddress,
         to_address: ExtendedAddr,
         attributes: TxAttributes,
-    ) -> Result<TxAux>;
+    ) -> Result<(TxAux, TransactionPending)>;
 
     /// Creates a new transaction for un-jailing a previously jailed account
     fn create_unjail_transaction(

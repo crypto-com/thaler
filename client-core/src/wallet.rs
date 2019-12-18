@@ -19,13 +19,13 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::Tx;
+use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResponse;
 use client_common::{PrivateKey, PublicKey, Result};
 
-use crate::types::{AddressType, TransactionChange, WalletKind};
+use crate::types::{AddressType, TransactionChange, TransactionPending, WalletBalance, WalletKind};
 use crate::{InputSelectionStrategy, Mnemonic, UnspentTransactions};
 
 /// Interface for a generic wallet
@@ -170,7 +170,7 @@ pub trait WalletClient: Send + Sync {
     ) -> Result<usize>;
 
     /// Retrieves current balance of wallet
-    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin>;
+    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletBalance>;
 
     /// Retrieves transaction history of wallet
     fn history(
@@ -215,7 +215,7 @@ pub trait WalletClient: Send + Sync {
         attributes: TxAttributes,
         input_selection_strategy: Option<InputSelectionStrategy>,
         return_address: ExtendedAddr,
-    ) -> Result<TxAux>;
+    ) -> Result<(TxAux, Vec<TxoPointer>, Coin)>;
 
     /// Broadcasts a transaction to Crypto.com Chain
     fn broadcast_transaction(&self, tx_aux: &TxAux) -> Result<BroadcastTxResponse>;
@@ -234,6 +234,17 @@ pub trait WalletClient: Send + Sync {
     /// # Return
     /// the sum of unused outputs coin
     fn import_plain_tx(&self, name: &str, passphrase: &SecUtf8, tx_str: &str) -> Result<Coin>;
+    /// Get the current block height
+    fn get_current_block_height(&self) -> Result<u64>;
+
+    /// Update the wallet state
+    fn update_tx_pending_state(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        tx_id: TxId,
+        tx_pending: TransactionPending,
+    ) -> Result<()>;
 }
 
 /// Interface for a generic wallet for multi-signature transactions

@@ -97,12 +97,12 @@ describe("Wallet management", () => {
 		const walletRequest = newWalletRequest(walletName, "123456");
 
 		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest,"Basic"
+			walletRequest, "Basic"
 		]);
 		expect(walletCreateResponse).to.deep.eq(walletName);
 
 		return expect(
-			client.request("wallet_create", [walletRequest,"Basic"]),
+			client.request("wallet_create", [walletRequest, "Basic"]),
 		).to.eventually.rejectedWith(
 			`Invalid input: Wallet with name (${walletName}) already exists`,
 		);
@@ -114,7 +114,7 @@ describe("Wallet management", () => {
 		const walletRequest = newWalletRequest(walletName, walletPassphrase);
 
 		await expect(
-			client.request("wallet_create", [walletRequest,"Basic"]),
+			client.request("wallet_create", [walletRequest, "Basic"]),
 		).to.eventually.deep.eq(walletName);
 
 		const incorrectWalletPassphrase = "different_passphrase";
@@ -161,7 +161,7 @@ describe("Wallet management", () => {
 		const walletPassphrase = "passphrase";
 		const walletRequest = newWalletRequest(walletName, walletPassphrase);
 
-		await client.request("wallet_create", [walletRequest,"Basic"]);
+		await client.request("wallet_create", [walletRequest, "Basic"]);
 
 		const stakingAddress = await client.request("wallet_createStakingAddress", [
 			walletRequest,

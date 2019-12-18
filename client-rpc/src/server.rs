@@ -54,6 +54,7 @@ pub(crate) struct Server {
     websocket_url: String,
     enable_fast_forward: bool,
     batch_size: usize,
+    block_height_ensure: u64,
 }
 
 /// normal
@@ -85,6 +86,7 @@ impl Server {
             websocket_url: options.websocket_url,
             enable_fast_forward: !options.disable_fast_forward,
             batch_size: options.batch_size,
+            block_height_ensure: options.block_height_ensure,
         })
     }
 
@@ -138,6 +140,7 @@ impl Server {
             transaction_cipher,
             self.enable_fast_forward,
             self.batch_size,
+            self.block_height_ensure,
         ))
     }
 

@@ -130,6 +130,12 @@ pub enum Command {
             help = "Disable fast forward, which is not secure when connecting to outside nodes"
         )]
         disable_fast_forward: bool,
+        #[structopt(
+            name = "block_height_ensure",
+            long,
+            help = "Number of block height to rollback the utxos in pending transactions"
+        )]
+        block_height_ensure: u64,
     },
 }
 
@@ -259,6 +265,7 @@ impl Command {
                 batch_size,
                 force,
                 disable_fast_forward,
+                block_height_ensure,
             } => {
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
                 let tx_obfuscation = get_tx_query(tendermint_client.clone())?;
@@ -267,8 +274,9 @@ impl Command {
                     SledStorage::new(storage_path())?,
                     tendermint_client,
                     tx_obfuscation,
-                    !disable_fast_forward,
+                    !*disable_fast_forward,
                     *batch_size,
+                    *block_height_ensure,
                 );
                 Self::resync(config, name.clone(), passphrase, *force)
             }
@@ -381,7 +389,30 @@ impl Command {
         let passphrase = ask_passphrase(None)?;
         let balance = wallet_client.balance(name, &passphrase)?;
 
-        success(&format!("Wallet balance: {}", balance));
+        let rows = vec![
+            Row::new(vec![
+                Cell::new("Total", Default::default()),
+                Cell::new(format!("{}", balance.total).as_str(), Default::default()),
+            ]),
+            Row::new(vec![
+                Cell::new("Pending", Default::default()),
+                Cell::new(format!("{}", balance.pending).as_str(), Default::default()),
+            ]),
+            Row::new(vec![
+                Cell::new("Available", Default::default()),
+                Cell::new(
+                    format!("{}", balance.available).as_str(),
+                    Default::default(),
+                ),
+            ]),
+        ];
+
+        let table = Table::new(rows, Default::default());
+        table
+            .print_stdout()
+            .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
+
+        success(&format!("Wallet balance: \n {:?}", balance));
         Ok(())
     }
 
