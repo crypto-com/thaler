@@ -58,6 +58,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         {
             return None;
         }
+        top_level.rewards_pool.last_distribution_time = state.block_time;
         self.rewards_pool_updated = true;
 
         let mut total_staking = Coin::zero();
@@ -206,5 +207,40 @@ mod tests {
 
         // rewards decrease
         assert!(reward2 > Coin::zero() && reward2 < reward1);
+    }
+
+    #[test]
+    fn empty_block_should_not_change_app_hash() {
+        let (env, storage, account_storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
+        let mut app = env.chain_node(storage, account_storage);
+        let _rsp_init_chain = app.init_chain(&env.req_init_chain());
+
+        let mut req = env.req_begin_block(1, 0);
+        let start_block_time = env
+            .init_config
+            .network_params
+            .rewards_config
+            .distribution_period as u64;
+        req.mut_header()
+            .set_time(seconds_to_timestamp(start_block_time));
+        app.begin_block(&req);
+        app.end_block(&RequestEndBlock::new());
+        app.commit(&RequestCommit::new());
+        let start_app_hash = app.last_state.as_ref().unwrap().last_apphash;
+        assert_ne!(start_app_hash, env.genesis_app_hash);
+
+        for i in 2..10 {
+            let mut req = env.req_begin_block(i, 0);
+            req.mut_header()
+                .set_time(seconds_to_timestamp(start_block_time));
+            req.set_last_commit_info(env.last_commit_info_signed());
+            app.begin_block(&req);
+            app.end_block(&RequestEndBlock::new());
+            app.commit(&RequestCommit::new());
+            assert_eq!(
+                app.last_state.as_ref().unwrap().last_apphash,
+                start_app_hash
+            );
+        }
     }
 }

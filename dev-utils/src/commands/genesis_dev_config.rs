@@ -9,7 +9,6 @@ use chain_core::init::{
 };
 use chain_core::state::account::{ValidatorName, ValidatorSecurityContact};
 use chain_core::state::tendermint::TendermintValidatorPubKey;
-use client_common::tendermint::types::Time;
 
 #[derive(Deserialize, Debug)]
 pub struct GenesisDevConfig {
@@ -28,12 +27,10 @@ pub struct GenesisDevConfig {
             TendermintValidatorPubKey,
         ),
     >,
-    pub genesis_time: Time,
 }
 
 impl GenesisDevConfig {
     pub fn new(expansion_cap: Coin) -> Self {
-        let gt = Time::from_str("2019-03-21T02:26:51.366017Z").unwrap();
         GenesisDevConfig {
             distribution: BTreeMap::new(),
             unbonding_period: 60,
@@ -60,7 +57,6 @@ impl GenesisDevConfig {
                 per_byte_fee: "1.25".to_string(),
             },
             council_nodes: BTreeMap::new(),
-            genesis_time: gt,
         }
     }
 }

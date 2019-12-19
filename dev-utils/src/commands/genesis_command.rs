@@ -9,6 +9,7 @@ use hex::encode_upper;
 use structopt::StructOpt;
 
 use chain_abci::app::init_app_hash;
+use chain_core::common::Timespec;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::{InitConfig, InitNetworkParameters};
@@ -112,7 +113,16 @@ fn generate_genesis_command(
             )
         })?;
 
-    let (app_hash, app_state, validators) = generate_genesis(&genesis_dev_config)?;
+    let genesis_time = Time::from_str(
+        tendermint_genesis["genesis_time"]
+            .as_str()
+            .expect("genesis time config should be string"),
+    )
+    .expect("invalid genesis time format")
+    .duration_since(Time::unix_epoch())
+    .expect("invalid genesis time")
+    .as_secs();
+    let (app_hash, app_state, validators) = generate_genesis(&genesis_dev_config, genesis_time)?;
 
     let app_hash = serde_json::to_value(app_hash).chain(|| {
         (
@@ -182,6 +192,7 @@ fn find_tendermint_path_from_home() -> Option<PathBuf> {
 
 pub fn generate_genesis(
     genesis_dev_config: &GenesisDevConfig,
+    genesis_time: Timespec,
 ) -> Result<(String, InitConfig, Vec<TendermintValidator>)> {
     let mut dist: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)> = BTreeMap::new();
 
@@ -212,14 +223,7 @@ pub fn generate_genesis(
         network_params,
         genesis_dev_config.council_nodes.clone(),
     );
-    let genesis_app_hash = init_app_hash(
-        &config,
-        genesis_dev_config
-            .genesis_time
-            .duration_since(Time::unix_epoch())
-            .expect("invalid genesis time")
-            .as_secs(),
-    );
+    let genesis_app_hash = init_app_hash(&config, genesis_time);
 
     let validators = generate_validators(&genesis_dev_config)?;
 

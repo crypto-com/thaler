@@ -32,6 +32,7 @@ pub struct InitCommand {
     remain_coin: Coin,
     tendermint_command: String,
     validators: Vec<TendermintValidator>,
+    genesis_time: Time,
 }
 
 impl InitCommand {
@@ -49,6 +50,7 @@ impl InitCommand {
             remain_coin: Coin::max(),
             tendermint_command: "./tendermint".to_string(),
             validators: Vec::new(),
+            genesis_time: Time::unix_epoch(),
         }
     }
 
@@ -163,19 +165,6 @@ impl InitCommand {
         Ok(())
     }
 
-    fn read_genesis_time(&mut self) -> Result<()> {
-        // change
-        let old_genesis_time = self.genesis_dev_config.genesis_time.to_string();
-
-        let new_genesis_time: String = self.ask_string(
-            format!("genesis_time( {} )=", old_genesis_time).as_str(),
-            old_genesis_time.as_str(),
-        );
-
-        self.genesis_dev_config.genesis_time = Time::from_str(&new_genesis_time).unwrap();
-        Ok(())
-    }
-
     fn read_councils(&mut self) -> Result<()> {
         println!(
             "{} {}",
@@ -203,13 +192,19 @@ impl InitCommand {
         self.read_chain_id()
             .and_then(|_| self.read_staking_address())
             .and_then(|_| self.read_wallets())
-            .and_then(|_| self.read_genesis_time())
             .and_then(|_| self.read_councils())
     }
 
     fn generate_app_info(&mut self) -> Result<()> {
         // app_hash,  app_state
-        let result = generate_genesis(&self.genesis_dev_config).unwrap();
+        let result = generate_genesis(
+            &self.genesis_dev_config,
+            self.genesis_time
+                .duration_since(Time::unix_epoch())
+                .unwrap()
+                .as_secs(),
+        )
+        .unwrap();
         self.app_hash = result.0;
         self.app_state = Some(result.1);
         self.validators = result.2;
@@ -236,6 +231,7 @@ impl InitCommand {
                 let pub_key = &json["validators"][0]["pub_key"]["value"];
                 self.tendermint_pubkey = pub_key.as_str().unwrap().to_string();
                 self.chain_id = json["chain_id"].as_str().unwrap().to_string();
+                self.genesis_time = Time::from_str(json["genesis_time"].as_str().unwrap()).unwrap();
                 Ok(())
             })
             .chain(|| {
@@ -268,7 +264,7 @@ impl InitCommand {
 
         let app_hash = self.app_hash.clone();
         let app_state = self.app_state.clone();
-        let gt = self.genesis_dev_config.genesis_time.to_string();
+        let gt = self.genesis_time.to_string();
         let mut json_string = String::from("");
         fs::read_to_string(&InitCommand::get_tendermint_filename())
             .and_then(|contents| {
