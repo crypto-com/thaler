@@ -81,3 +81,5 @@ export const asyncMiddleman = async (
 		throw Error(`${errorMessage}: ${err.message}`);
 	}
 };
+
+export const TRANSACTION_HISTORY_LIMIT = 1000;

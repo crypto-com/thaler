@@ -104,7 +104,8 @@ where
         WalletService { storage }
     }
 
-    fn get_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<Wallet> {
+    /// Load wallet
+    pub fn get_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<Wallet> {
         load_wallet(&self.storage, name, passphrase)?.err_kind(ErrorKind::InvalidInput, || {
             format!("Wallet with name ({}) not found", name)
         })

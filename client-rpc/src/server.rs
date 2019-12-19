@@ -4,6 +4,7 @@ use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
 use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
 use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
+use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::thread;
 use std::time::Duration;
@@ -13,7 +14,7 @@ use chain_core::tx::fee::LinearFee;
 use client_common::storage::SledStorage;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
-use client_common::{Error, ErrorKind, Result};
+use client_common::{ErrorKind, Result};
 #[cfg(not(feature = "mock-enc-dec"))]
 use client_core::cipher::DefaultTransactionObfuscation;
 #[cfg(feature = "mock-enc-dec")]
@@ -213,7 +214,7 @@ impl Server {
     }
 }
 
-pub(crate) fn to_rpc_error(error: Error) -> jsonrpc_core::Error {
+pub(crate) fn to_rpc_error<E: ToString + Debug>(error: E) -> jsonrpc_core::Error {
     log::error!("{:?}", error);
     jsonrpc_core::Error {
         code: jsonrpc_core::ErrorCode::InternalError,

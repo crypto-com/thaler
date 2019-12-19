@@ -2,6 +2,7 @@
 /target
 /chain-abci/target
 **/*.rs.bk
+/.cargo
 
 # Storage
 /.storage

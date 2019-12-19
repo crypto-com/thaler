@@ -44,8 +44,19 @@ pub trait WalletClient: Send + Sync {
     /// Restores a HD wallet from given mnemonic
     fn restore_wallet(&self, name: &str, passphrase: &SecUtf8, mnemonic: &Mnemonic) -> Result<()>;
 
+    /// Restore a watch only wallet with view key
+    fn restore_basic_wallet(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        view_key: &PrivateKey,
+    ) -> Result<()>;
+
     /// Retrieves view key corresponding to a given wallet
     fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
+
+    /// Retrieves private view key corresponding to a given wallet
+    fn view_key_private(&self, name: &str, passphrase: &SecUtf8) -> Result<PrivateKey>;
 
     /// Retrieves all public keys corresponding to given wallet
     fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>>;
@@ -107,6 +118,22 @@ pub trait WalletClient: Send + Sync {
     /// Generates a new 1-of-1 transfer address
     fn new_transfer_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr>;
 
+    /// Add watch only staking address
+    fn new_watch_staking_address(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        public_key: &PublicKey,
+    ) -> Result<StakedStateAddress>;
+
+    /// Add watch only transfer address
+    fn new_watch_transfer_address(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        public_key: &PublicKey,
+    ) -> Result<ExtendedAddr>;
+
     /// Generates a new multi-sig transfer address for creating m-of-n transactions
     ///
     /// # Arguments
@@ -146,7 +173,14 @@ pub trait WalletClient: Send + Sync {
     fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin>;
 
     /// Retrieves transaction history of wallet
-    fn history(&self, name: &str, passphrase: &SecUtf8) -> Result<Vec<TransactionChange>>;
+    fn history(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        limit: usize,
+        offset: usize,
+        reversed: bool,
+    ) -> Result<Vec<TransactionChange>>;
 
     /// Retrieves all unspent transactions of wallet
     fn unspent_transactions(&self, name: &str, passphrase: &SecUtf8)

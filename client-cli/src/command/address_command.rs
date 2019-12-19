@@ -48,6 +48,13 @@ pub enum AddressCommand {
         #[structopt(name = "type", short, long, help = "Type of address to create")]
         address_type: AddressType,
     },
+    #[structopt(name = "list_pub_key", about = "Shows the public keys of a wallet")]
+    ListPubKey {
+        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        name: String,
+        #[structopt(name = "type", short, long, help = "Type of public keys to show")]
+        address_type: AddressType,
+    },
 }
 
 impl AddressCommand {
@@ -58,6 +65,9 @@ impl AddressCommand {
             }
             AddressCommand::List { name, address_type } => {
                 Self::list_addresses(wallet_client, name, address_type)
+            }
+            AddressCommand::ListPubKey { name, address_type } => {
+                Self::list_pubkeys(wallet_client, name, address_type)
             }
         }
     }
@@ -115,6 +125,24 @@ impl AddressCommand {
                     success("No addresses found!")
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    fn list_pubkeys<T: WalletClient>(
+        wallet_client: T,
+        name: &str,
+        address_type: &AddressType,
+    ) -> Result<()> {
+        let passphrase = ask_passphrase(None)?;
+
+        let pub_keys = match address_type {
+            AddressType::Staking => wallet_client.staking_keys(name, &passphrase)?,
+            AddressType::Transfer => wallet_client.public_keys(name, &passphrase)?,
+        };
+        for pubkey in pub_keys.iter() {
+            println!("{}", pubkey);
         }
 
         Ok(())

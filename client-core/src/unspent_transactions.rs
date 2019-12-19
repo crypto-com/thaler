@@ -1,4 +1,5 @@
 //! Operations on unspent transactions
+use serde::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut};
 
 use chain_core::init::coin::Coin;
@@ -21,10 +22,9 @@ use client_common::{Error, ErrorKind, Result, ResultExt};
 /// // Apply operations
 /// unspent_transactions.apply_all(operations);
 /// ```
-#[derive(Debug, Default, Clone)]
-pub struct UnspentTransactions {
-    inner: Vec<(TxoPointer, TxOut)>,
-}
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct UnspentTransactions(Vec<(TxoPointer, TxOut)>);
 
 /// An iterator over selected unspent transactions
 #[derive(Debug)]
@@ -37,14 +37,14 @@ impl Deref for UnspentTransactions {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.inner
+        &self.0
     }
 }
 
 impl DerefMut for UnspentTransactions {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
+        &mut self.0
     }
 }
 
@@ -61,9 +61,7 @@ impl UnspentTransactions {
     /// Creates a new instance of unspent transactions
     #[inline]
     pub fn new(unspent_transactions: Vec<(TxoPointer, TxOut)>) -> Self {
-        Self {
-            inner: unspent_transactions,
-        }
+        Self(unspent_transactions)
     }
 
     /// Applies operations on current unspent transactions
@@ -85,14 +83,14 @@ impl UnspentTransactions {
     /// Returns inner vector of unspent transactions
     #[inline]
     pub fn unwrap(self) -> Vec<(TxoPointer, TxOut)> {
-        self.inner
+        self.0
     }
 
     /// Selects unspent transactions for given amount and returns difference amount
     pub fn select(&self, amount: Coin) -> Result<(SelectedUnspentTransactions<'_>, Coin)> {
         let mut selected_amount = Coin::zero();
 
-        for (i, (_, unspent_transaction)) in self.inner.iter().enumerate() {
+        for (i, (_, unspent_transaction)) in self.0.iter().enumerate() {
             selected_amount = (selected_amount + unspent_transaction.value).chain(|| {
                 (
                     ErrorKind::IllegalInput,
@@ -103,7 +101,7 @@ impl UnspentTransactions {
             if selected_amount >= amount {
                 return Ok((
                     SelectedUnspentTransactions {
-                        inner: &self.inner[..=i],
+                        inner: &self.0[..=i],
                     },
                     (selected_amount - amount).chain(|| {
                         (
@@ -120,7 +118,7 @@ impl UnspentTransactions {
 
     /// Selects all unspent transactions
     pub fn select_all(&self) -> SelectedUnspentTransactions<'_> {
-        SelectedUnspentTransactions { inner: &self.inner }
+        SelectedUnspentTransactions { inner: &self.0 }
     }
 }
 

@@ -107,6 +107,16 @@ where
     ) -> Result<String> {
         let public_keys = parse_public_keys(public_keys).map_err(to_rpc_error)?;
         let self_public_key = parse_public_key(self_public_key).map_err(to_rpc_error)?;
+        // Check if self public key belongs to current wallet
+        self.client
+            .private_key(&request.passphrase, &self_public_key)
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Self public key does not belong to current wallet",
+                )
+            })
+            .map_err(to_rpc_error)?;
         let extended_address = self
             .client
             .new_multisig_transfer_address(

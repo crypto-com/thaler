@@ -14,6 +14,7 @@ import {
 	FEE_SCHEMA,
 	asyncMiddleman,
 	newZeroFeeTendermintClient,
+	TRANSACTION_HISTORY_LIMIT,
 } from "./core/utils";
 import { syncWallet, waitTxIdConfirmed } from "./core/rpc";
 import { TendermintClient } from "./core/tendermint-client";
@@ -60,7 +61,7 @@ describe("Wallet Auto-sync", () => {
 		);
 
 		const senderWalletTransactionListBeforeSend = await asyncMiddleman(
-			zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest]),
+			zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
 			"Error when retrieving sender wallet transactions before send",
 		);
 		const senderWalletBalanceBeforeSend = await asyncMiddleman(
@@ -75,7 +76,7 @@ describe("Wallet Auto-sync", () => {
 			"Error when creating receiver wallet transfer address",
 		);
 		const receiverWalletTransactionListBeforeReceive = await asyncMiddleman(
-			zeroFeeRpcClient.request("wallet_transactions", [receiverWalletRequest]),
+			zeroFeeRpcClient.request("wallet_transactions", [receiverWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
 			"Error when retrieving receiver wallet transactions before receive",
 		);
 		const receiverWalletBalanceBeforeReceive = await asyncMiddleman(
@@ -83,7 +84,7 @@ describe("Wallet Auto-sync", () => {
 			"Error when retrieving receiver wallet balance before receive",
 		);
 		const receiverViewKey = await asyncMiddleman(
-			zeroFeeRpcClient.request("wallet_getViewKey", [receiverWalletRequest]),
+			zeroFeeRpcClient.request("wallet_getViewKey", [receiverWalletRequest, false]),
 			"Error when retrieving receiver view key",
 		);
 
@@ -116,12 +117,12 @@ describe("Wallet Auto-sync", () => {
 		while (true) {
 			console.log(`[Log] Checking for wallet sync status`);
 			const senderWalletTransactionListAfterSend = await asyncMiddleman(
-				zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest]),
+				zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
 				"Error when retrieving sender wallet transactions after send",
 			);
 
 			const receiverWalletTransactionListAfterReceive = await asyncMiddleman(
-				zeroFeeRpcClient.request("wallet_transactions", [receiverWalletRequest]),
+				zeroFeeRpcClient.request("wallet_transactions", [receiverWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
 				"Error when retrieving receiver wallet transactions after send",
 			);
 
@@ -138,7 +139,7 @@ describe("Wallet Auto-sync", () => {
 		}
 
 		const senderWalletTransactionListAfterSend = await asyncMiddleman(
-			zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest]),
+			zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
 			"Error when retrieving sender wallet transactions after send",
 		);
 
@@ -171,7 +172,7 @@ describe("Wallet Auto-sync", () => {
 		);
 
 		const receiverWalletTransactionListAfterReceive = await asyncMiddleman(
-			zeroFeeRpcClient.request("wallet_transactions", [receiverWalletRequest]),
+			zeroFeeRpcClient.request("wallet_transactions", [receiverWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
 			"Error when retrieving receiver wallet transactions after receive",
 		);
 		expect(receiverWalletTransactionListAfterReceive.length).to.eq(

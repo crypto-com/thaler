@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
+use secstr::SecUtf8;
 
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
@@ -11,10 +12,10 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{TxAux, TxEnclaveAux};
-use client_common::{PublicKey, Result as CommonResult};
+use client_common::{PrivateKey, PublicKey, Result as CommonResult};
 use client_core::types::WalletKind;
 use client_core::types::{AddressType, TransactionChange};
-use client_core::{Mnemonic, MultiSigWalletClient, WalletClient};
+use client_core::{Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
 
@@ -29,17 +30,34 @@ pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_restore")]
     fn restore(&self, request: WalletRequest, mnemonics: Mnemonic) -> Result<String>;
 
+    #[rpc(name = "wallet_restoreBasic")]
+    fn restore_basic(&self, request: WalletRequest, view_key: SecUtf8) -> Result<String>;
+
     #[rpc(name = "wallet_newMultiSigAddressPublicKey")]
     fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String>;
 
     #[rpc(name = "wallet_createStakingAddress")]
     fn create_staking_address(&self, request: WalletRequest) -> Result<String>;
 
+    #[rpc(name = "wallet_createWatchStakingAddress")]
+    fn create_watch_staking_address(
+        &self,
+        request: WalletRequest,
+        public_key: PublicKey,
+    ) -> Result<String>;
+
     #[rpc(name = "wallet_createTransferAddress")]
     fn create_transfer_address(&self, request: WalletRequest) -> Result<String>;
 
+    #[rpc(name = "wallet_createWatchTransferAddress")]
+    fn create_watch_transfer_address(
+        &self,
+        request: WalletRequest,
+        public_key: PublicKey,
+    ) -> Result<String>;
+
     #[rpc(name = "wallet_getViewKey")]
-    fn get_view_key(&self, request: WalletRequest) -> Result<String>;
+    fn get_view_key(&self, request: WalletRequest, private: bool) -> Result<String>;
 
     #[rpc(name = "wallet_list")]
     fn list(&self) -> Result<Vec<String>>;
@@ -53,6 +71,9 @@ pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_listTransferAddresses")]
     fn list_transfer_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>>;
 
+    #[rpc(name = "wallet_listUTxO")]
+    fn list_utxo(&self, request: WalletRequest) -> Result<UnspentTransactions>;
+
     #[rpc(name = "wallet_sendToAddress")]
     fn send_to_address(
         &self,
@@ -63,7 +84,13 @@ pub trait WalletRpc: Send + Sync {
     ) -> Result<String>;
 
     #[rpc(name = "wallet_transactions")]
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>>;
+    fn transactions(
+        &self,
+        request: WalletRequest,
+        offset: usize,
+        limit: usize,
+        reversed: bool,
+    ) -> Result<Vec<TransactionChange>>;
 }
 
 pub struct WalletRpcImpl<T>
@@ -132,6 +159,17 @@ where
         Ok(request.name)
     }
 
+    fn restore_basic(&self, request: WalletRequest, view_key: SecUtf8) -> Result<String> {
+        let view_key =
+            PrivateKey::deserialize_from(&hex::decode(view_key.unsecure()).map_err(to_rpc_error)?)
+                .map_err(to_rpc_error)?;
+        self.client
+            .restore_basic_wallet(&request.name, &request.passphrase, &view_key)
+            .map_err(to_rpc_error)?;
+
+        Ok(request.name)
+    }
+
     fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String> {
         self.client
             .new_public_key(
@@ -150,6 +188,17 @@ where
             .map_err(to_rpc_error)
     }
 
+    fn create_watch_staking_address(
+        &self,
+        request: WalletRequest,
+        public_key: PublicKey,
+    ) -> Result<String> {
+        self.client
+            .new_watch_staking_address(&request.name, &request.passphrase, &public_key)
+            .map(|staked_state_addr| staked_state_addr.to_string())
+            .map_err(to_rpc_error)
+    }
+
     fn create_transfer_address(&self, request: WalletRequest) -> Result<String> {
         let extended_address = self
             .client
@@ -159,12 +208,35 @@ where
         Ok(extended_address.to_string())
     }
 
-    fn get_view_key(&self, request: WalletRequest) -> Result<String> {
-        let public_key = self
+    fn create_watch_transfer_address(
+        &self,
+        request: WalletRequest,
+        public_key: PublicKey,
+    ) -> Result<String> {
+        let extended_address = self
             .client
-            .view_key(&request.name, &request.passphrase)
+            .new_watch_transfer_address(&request.name, &request.passphrase, &public_key)
             .map_err(to_rpc_error)?;
-        Ok(public_key.to_string())
+
+        Ok(extended_address.to_string())
+    }
+
+    fn get_view_key(&self, request: WalletRequest, private: bool) -> Result<String> {
+        let s = if private {
+            hex::encode(
+                &self
+                    .client
+                    .view_key_private(&request.name, &request.passphrase)
+                    .map_err(to_rpc_error)?
+                    .serialize(),
+            )
+        } else {
+            self.client
+                .view_key(&request.name, &request.passphrase)
+                .map_err(to_rpc_error)?
+                .to_string()
+        };
+        Ok(s)
     }
 
     fn list(&self) -> Result<Vec<String>> {
@@ -188,6 +260,12 @@ where
         self.client
             .transfer_addresses(&request.name, &request.passphrase)
             .map(|addresses| addresses.iter().map(ToString::to_string).collect())
+            .map_err(to_rpc_error)
+    }
+
+    fn list_utxo(&self, request: WalletRequest) -> Result<UnspentTransactions> {
+        self.client
+            .unspent_transactions(&request.name, &request.passphrase)
             .map_err(to_rpc_error)
     }
 
@@ -262,9 +340,15 @@ where
         }
     }
 
-    fn transactions(&self, request: WalletRequest) -> Result<Vec<TransactionChange>> {
+    fn transactions(
+        &self,
+        request: WalletRequest,
+        offset: usize,
+        limit: usize,
+        reversed: bool,
+    ) -> Result<Vec<TransactionChange>> {
         self.client
-            .history(&request.name, &request.passphrase)
+            .history(&request.name, &request.passphrase, offset, limit, reversed)
             .map_err(to_rpc_error)
     }
 }
@@ -636,7 +720,7 @@ pub mod tests {
 
         assert_eq!(
             wallet_rpc
-                .get_view_key(wallet_request.clone())
+                .get_view_key(wallet_request.clone(), false)
                 .unwrap()
                 .len(),
             66
@@ -682,7 +766,7 @@ pub mod tests {
         assert_eq!(
             0,
             wallet_rpc
-                .transactions(wallet_request.clone())
+                .transactions(wallet_request.clone(), 0, 100, false)
                 .unwrap()
                 .len()
         )
@@ -766,7 +850,9 @@ pub mod tests {
             })
             .collect::<Vec<_>>();
 
-        let viewkey = wallet_rpc.get_view_key(wallet_request.clone()).unwrap();
+        let viewkey = wallet_rpc
+            .get_view_key(wallet_request.clone(), false)
+            .unwrap();
 
         let send_result = wallet_rpc.send_to_address(
             wallet_request.clone(),

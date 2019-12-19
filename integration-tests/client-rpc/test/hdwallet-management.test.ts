@@ -10,6 +10,7 @@ import {
 	shouldTest,
 	FEE_SCHEMA,
 	newWithFeeRpcClient,
+	TRANSACTION_HISTORY_LIMIT,
 } from "./core/utils";
 chaiUse(chaiAsPromised);
 
@@ -63,7 +64,7 @@ describe("Wallet management", () => {
 			`Invalid input: Wallet with name (${nonExistingWalletName}) not found`,
 		);
 		await expect(
-			client.request("wallet_transactions", [nonExistingWalletRequest]),
+			client.request("wallet_transactions", [nonExistingWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
 		).to.eventually.rejectedWith(
 			`Invalid input: Wallet with name (${nonExistingWalletName}) not found`,
 		);
@@ -157,7 +158,7 @@ describe("Wallet management", () => {
 			client.request("wallet_balance", [incorrectWalletRequest]),
 		).to.eventually.rejectedWith("Decryption error");
 		await expect(
-			client.request("wallet_transactions", [incorrectWalletRequest]),
+			client.request("wallet_transactions", [incorrectWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
 		).to.eventually.rejectedWith("Decryption error");
 	});
 

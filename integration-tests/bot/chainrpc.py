@@ -1,9 +1,25 @@
 #!/usr/bin/env python3
 import getpass
+import logging
 
 import fire
 from jsonrpcclient import request
 from decouple import config
+
+DEBUG_LEVEL = config('HTTP_DEBUG_LEVEL', 0, cast=int)
+if DEBUG_LEVEL:
+    try:
+        import http.client as http_client
+    except ImportError:
+        # Python 2
+        import httplib as http_client
+    http_client.HTTPConnection.debuglevel = DEBUG_LEVEL
+
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.DEBUG)
+    requests_log = logging.getLogger("urllib3")
+    requests_log.setLevel(logging.DEBUG)
+    requests_log.propagate = True
 
 BASE_PORT = config('BASE_PORT', 26650, cast=int)
 CLIENT_RPC_URL = config('CLIENT_RPC_URL', 'http://127.0.0.1:%d' % (BASE_PORT + 9))
@@ -47,21 +63,41 @@ class Address:
         '''Create address
         :param name: Name of the wallet
         :param type: Type of address. [staking|transfer]'''
+        type = type.lower()
+        assert type in ('staking', 'transfer'), 'invalid type'
         return call(
             'wallet_createStakingAddress'
             if type == 'staking'
             else 'wallet_createTransferAddress',
             [name, get_passphrase()])
 
+    def create_watch(self, public_key, name=DEFAULT_WALLET, type='staking'):
+        '''Create watch address for watch only wallet
+        :param name: Name of the wallet
+        :param type: Type of address. [staking|transfer]
+        :param public_key: Public key of the address'''
+        type = type.lower()
+        assert type in ('staking', 'transfer'), 'invalid type'
+        return call(
+            'wallet_createWatchStakingAddress'
+            if type == 'staking'
+            else 'wallet_createWatchTransferAddress',
+            [name, get_passphrase()], public_key)
+
 
 class Wallet:
     def balance(self, name=DEFAULT_WALLET):
         '''Get balance of wallet
         :param name: Name of the wallet. [default: Default]'''
-        return call('wallet_balance', [name, get_passphrase()])
+        return int(call('wallet_balance', [name, get_passphrase()]))
 
     def list(self):
         return call('wallet_list')
+
+    def utxo(self, name=DEFAULT_WALLET):
+        '''Get UTxO of wallet
+        :param name: Name of the wallet. [default: Default]'''
+        return call('wallet_listUTxO', [name, get_passphrase()])
 
     def create(self, name=DEFAULT_WALLET, type='Basic'):
         '''create wallet
@@ -77,17 +113,24 @@ class Wallet:
         '''
         return call('wallet_restore', [name, get_passphrase()], mnemonics)
 
-    def view_key(self, name=DEFAULT_WALLET):
+    def restore_basic(self, private_view_key, name=DEFAULT_WALLET):
+        '''restore wallet
+        :param name: Name of the wallet. [defualt: Default]
+        :param private_view_key: hex encoded private view key
+        '''
+        return call('wallet_restoreBasic', [name, get_passphrase()], private_view_key)
+
+    def view_key(self, name=DEFAULT_WALLET, private=False):
         return call(
             'wallet_getViewKey',
-            [name, get_passphrase()]
+            [name, get_passphrase()], private
         )
 
     def list_pubkey(self, name=DEFAULT_WALLET):
         return call('wallet_listPublicKeys', [name, get_passphrase()])
 
-    def transactions(self, name=DEFAULT_WALLET):
-        return call('wallet_transactions', [name, get_passphrase()])
+    def transactions(self, name=DEFAULT_WALLET, offset=0, limit=100, reversed=False):
+        return call('wallet_transactions', [name, get_passphrase()], offset, limit, reversed)
 
     def send(self, to_address, amount, name=DEFAULT_WALLET, view_keys=None):
         return call(
@@ -208,7 +251,7 @@ class Blockchain:
         return call_chain('commit', str(height))
 
     def query(self, path, data=None, height=None, proof=False):
-        return call_chain('abci_query', path, data, str(height) if height is not None else None, proof)
+        return call_chain('abci_query', path, fix_address(data), str(height) if height is not None else None, proof)
 
     def broadcast_tx_commit(self, tx):
         return call_chain('broadcast_tx_commit', tx)
