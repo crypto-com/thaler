@@ -38,7 +38,7 @@ use client_common::tendermint::types::{
 };
 use client_common::tendermint::{lite, Client};
 use client_common::Result;
-use client_core::{types::AddressType, HDSeed, Mnemonic};
+use client_core::{service::HDAccountType, HDSeed, Mnemonic};
 
 lazy_static! {
     static ref DEFAULT_NODES: Vec<Node> = vec![Node::new(
@@ -120,7 +120,7 @@ impl Node {
     pub fn redeem_address(&self, index: u32) -> RedeemAddress {
         let (vk, _sk) = self
             .wallet_seed
-            .derive_key_pair(Network::Testnet, AddressType::Staking, index)
+            .derive_key_pair(Network::Testnet, HDAccountType::Staking.index(), index)
             .unwrap();
         RedeemAddress::from(&vk)
     }

@@ -1,6 +1,6 @@
 [package]
 name = "tx-validation-app"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Application server wrapper around the transaction validation enclave."
 readme = "../../README.md"

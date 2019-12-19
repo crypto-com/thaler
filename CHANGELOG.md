@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.0
+
+### Breaking changes
+* *client*: HD wallet generate view key with a different account index.
+
 *December 17, 2019*
 
 The release is a more complete alpha version meant to be deployed on the second iteration of the public testnet.

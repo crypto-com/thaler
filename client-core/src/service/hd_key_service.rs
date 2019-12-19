@@ -16,7 +16,38 @@ const KEYSPACE: &str = "core_hd_key";
 struct HdKey {
     staking_index: u32,
     transfer_index: u32,
+    // curently only one viewkey per wallet, but it's good to keep it for uniformity.
+    viewkey_index: u32,
     seed: HDSeed,
+}
+
+/// Enum for specifying different types of accounts
+#[derive(Debug, Clone, Copy)]
+pub enum HDAccountType {
+    /// Account for transfer address
+    Transfer = 0,
+    /// Account for staking address
+    Staking = 1,
+    /// Account for viewkey
+    Viewkey = 2,
+}
+
+impl HDAccountType {
+    /// get account index for hd wallet
+    #[inline]
+    pub fn index(self) -> u32 {
+        self as u32
+    }
+}
+
+// AddressType is subset of HDAccountType
+impl From<AddressType> for HDAccountType {
+    fn from(addr_type: AddressType) -> HDAccountType {
+        match addr_type {
+            AddressType::Transfer => HDAccountType::Transfer,
+            AddressType::Staking => HDAccountType::Staking,
+        }
+    }
 }
 
 /// Stores HD Wallet's `seed` and `index`
@@ -59,6 +90,7 @@ where
         let hd_key = HdKey {
             staking_index: 0,
             transfer_index: 0,
+            viewkey_index: 0,
             seed: hd_seed,
         };
 
@@ -82,7 +114,7 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        address_type: AddressType,
+        account_type: HDAccountType,
     ) -> Result<(PublicKey, PrivateKey)> {
         let bytes = self
             .storage
@@ -101,9 +133,10 @@ where
                     )
                 })?;
 
-                match address_type {
-                    AddressType::Staking => hd_key.staking_index += 1,
-                    AddressType::Transfer => hd_key.transfer_index += 1,
+                match account_type {
+                    HDAccountType::Staking => hd_key.staking_index += 1,
+                    HDAccountType::Transfer => hd_key.transfer_index += 1,
+                    HDAccountType::Viewkey => hd_key.viewkey_index += 1,
                 }
 
                 Ok(Some(hd_key.encode()))
@@ -123,14 +156,15 @@ where
             )
         })?;
 
-        let index = match address_type {
-            AddressType::Transfer => hd_key.transfer_index,
-            AddressType::Staking => hd_key.staking_index,
+        let index = match account_type {
+            HDAccountType::Transfer => hd_key.transfer_index,
+            HDAccountType::Staking => hd_key.staking_index,
+            HDAccountType::Viewkey => hd_key.viewkey_index,
         };
 
         hd_key
             .seed
-            .derive_key_pair(get_network(), address_type, index)
+            .derive_key_pair(get_network(), account_type.index(), index)
     }
 
     /// Clears all storage
@@ -152,6 +186,7 @@ mod tests {
         let hd_key = HdKey {
             staking_index: 0,
             transfer_index: 0,
+            viewkey_index: 0,
             seed: HDSeed::new(vec![
                 5, 60, 53, 84, 12, 242, 183, 58, 174, 139, 134, 77, 28, 50, 203, 135, 181, 100,
                 155, 234, 4, 110, 57, 243, 155, 154, 44, 159, 112, 255, 130, 44, 171, 107, 46, 195,
@@ -164,10 +199,10 @@ mod tests {
         assert_eq!(
             encoded,
             vec![
-                0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 5, 60, 53, 84, 12, 242, 183, 58, 174, 139, 134, 77,
-                28, 50, 203, 135, 181, 100, 155, 234, 4, 110, 57, 243, 155, 154, 44, 159, 112, 255,
-                130, 44, 171, 107, 46, 195, 115, 216, 81, 144, 7, 21, 109, 237, 40, 136, 91, 227,
-                27, 77, 94, 2, 39, 164, 114, 51, 145, 97, 19, 147, 4, 127, 154, 228,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 5, 60, 53, 84, 12, 242, 183, 58, 174,
+                139, 134, 77, 28, 50, 203, 135, 181, 100, 155, 234, 4, 110, 57, 243, 155, 154, 44,
+                159, 112, 255, 130, 44, 171, 107, 46, 195, 115, 216, 81, 144, 7, 21, 109, 237, 40,
+                136, 91, 227, 27, 77, 94, 2, 39, 164, 114, 51, 145, 97, 19, 147, 4, 127, 154, 228
             ],
             "encode should be backward-compatible"
         );
@@ -235,36 +270,20 @@ mod tests {
             .restore_wallet(&name, &passphrase, &mnemonic)
             .expect("restore wallet");
 
-        assert!(
-            wallet
-                .new_transfer_address(&name, &passphrase)
-                .expect("get new transfer address")
-                .to_string()
-                == "dcro13z2xw689qhpmv7ge9xg428ljg4848rtu5dcpdmxy3m6njdsjtd3sl30d8n"
-        );
-
-        assert!(
-            wallet
-                .new_transfer_address(&name, &passphrase)
-                .expect("get new transfer address")
-                .to_string()
-                == "dcro1fnjq70pf9hvd2tkd3rj7pash6ph7p42qakqt2k39sjqp4m4p25kqclslnt"
-        );
-
-        assert!(
-            wallet
-                .new_transfer_address(&name, &passphrase)
-                .expect("get new transfer address")
-                .to_string()
-                == "dcro1ee3exuxyv5pauameswxureamlvmptjm8tsg4lcwqpx2nclshc6eqt8fanm"
-        );
-
-        assert!(
-            wallet
-                .new_transfer_address(&name, &passphrase)
-                .expect("get new transfer address")
-                .to_string()
-                == "dcro1kl06wz2ytp02zlneqzsmtaecxvqdelkgrp693xk55tj7zs5vns7sjheun0"
-        );
+        for addr in &[
+            "dcro1vjjulckel0jthl8d5vgvjkt9l9jncvgvpnpcwu9680qws44g5ymq5fprcu",
+            "dcro13z2xw689qhpmv7ge9xg428ljg4848rtu5dcpdmxy3m6njdsjtd3sl30d8n",
+            "dcro1fnjq70pf9hvd2tkd3rj7pash6ph7p42qakqt2k39sjqp4m4p25kqclslnt",
+            "dcro1ee3exuxyv5pauameswxureamlvmptjm8tsg4lcwqpx2nclshc6eqt8fanm",
+            "dcro1kl06wz2ytp02zlneqzsmtaecxvqdelkgrp693xk55tj7zs5vns7sjheun0",
+        ] {
+            assert_eq!(
+                wallet
+                    .new_transfer_address(&name, &passphrase)
+                    .expect("get new transfer address")
+                    .to_string(),
+                *addr
+            );
+        }
     }
 }
