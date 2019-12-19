@@ -20,7 +20,7 @@ enclave-protocol = { path = "../enclave-protocol" }
 log = "0.4.8"
 env_logger = "0.7.1"
 bit-vec = { version = "0.6.1", features = ["serde_no_std"] }
-kvdb = "0.1"
+kvdb = "0.2"
 kvdb-rocksdb = "0.2.0"
 kvdb-memorydb = "0.1"
 starling = "3.1.2"
