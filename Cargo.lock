@@ -356,7 +356,7 @@ dependencies = [
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -380,10 +380,10 @@ dependencies = [
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
- "sgx_tstd 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_tstd 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "static_assertions 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -400,8 +400,8 @@ dependencies = [
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)",
- "sgx_tstd 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
+ "sgx_tstd 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
@@ -410,8 +410,8 @@ version = "0.2.0"
 dependencies = [
  "chain-core 0.2.0",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)",
- "sgx_tstd 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
+ "sgx_tstd 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
@@ -505,7 +505,7 @@ dependencies = [
  "log 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -541,7 +541,7 @@ dependencies = [
  "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "ripemd160 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustls 0.16.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -570,7 +570,7 @@ dependencies = [
  "client-core 0.2.0",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=a32cec297d80d240781c9ca2aaa71cace93e7510)",
 ]
@@ -831,8 +831,8 @@ dependencies = [
  "chain-core 0.2.0",
  "chain-tx-validation 0.2.0",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)",
- "sgx_tstd 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
+ "sgx_tstd 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
@@ -2398,12 +2398,12 @@ dependencies = [
 [[package]]
 name = "secp256k1zkp"
 version = "0.13.0"
-source = "git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f#be445f29a96af31fe079611d26c07f1f596d1c5f"
+source = "git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e#0125097a7bf6f939db0ce52e49803c5e0312bf5e"
 dependencies = [
  "cc 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
- "sgx_tstd 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_tstd 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
  "zeroize 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -2479,108 +2479,108 @@ dependencies = [
 [[package]]
 name = "sgx_alloc"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 
 [[package]]
 name = "sgx_backtrace_sys"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 dependencies = [
  "cc 1.0.48 (registry+https://github.com/rust-lang/crates.io-index)",
- "sgx_build_helper 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_libc 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_build_helper 0.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_libc 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
 name = "sgx_build_helper"
 version = "0.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 
 [[package]]
 name = "sgx_demangle"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 
 [[package]]
 name = "sgx_libc"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 dependencies = [
- "sgx_types 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_types 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
 name = "sgx_tcrypto"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 dependencies = [
- "sgx_types 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_types 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
 name = "sgx_tprotected_fs"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 dependencies = [
- "sgx_trts 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_types 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_trts 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_types 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
 name = "sgx_trts"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 dependencies = [
- "sgx_libc 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_types 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_libc 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_types 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
 name = "sgx_tse"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 dependencies = [
- "sgx_types 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_types 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
 name = "sgx_tseal"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 dependencies = [
- "sgx_tcrypto 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_trts 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_tse 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_types 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_tcrypto 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_trts 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_tse 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_types 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
 name = "sgx_tstd"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 dependencies = [
- "sgx_alloc 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_backtrace_sys 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_demangle 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_libc 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_tprotected_fs 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_trts 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_tseal 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_types 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
- "sgx_unwind 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_alloc 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_backtrace_sys 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_demangle 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_libc 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_tprotected_fs 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_trts 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_tseal 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_types 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+ "sgx_unwind 0.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
 name = "sgx_types"
 version = "1.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 
 [[package]]
 name = "sgx_unwind"
 version = "0.1.0"
-source = "git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168#5b5e512abbbfc3030e8cb274989fb372b685b168"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#4508450be2c6e169bc592b9d8c6ab3802eb2d557"
 dependencies = [
- "sgx_build_helper 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)",
+ "sgx_build_helper 0.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
 
 [[package]]
@@ -2906,7 +2906,7 @@ dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)",
+ "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3833,7 +3833,7 @@ dependencies = [
 "checksum scopeguard 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "94258f53601af11e6a49f722422f6e3425c52b06245a5cf9bc09908b174f5e27"
 "checksum scopeguard 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b42e15e59b18a828bbf5c58ea01debb36b9b096346de35d941dcb89009f24a0d"
 "checksum sct 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e3042af939fca8c3453b7af0f1c66e533a15a86169e39de2657310ade8f98d3c"
-"checksum secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=be445f29a96af31fe079611d26c07f1f596d1c5f)" = "<none>"
+"checksum secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)" = "<none>"
 "checksum secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "fb003d53cef244a97516226b01155057c7fa6eb52914933c32f6c98a84182188"
 "checksum security-framework 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "8ef2429d7cefe5fd28bd1d2ed41c944547d4ff84776f5935b456da44593a16df"
 "checksum security-framework-sys 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "e31493fc37615debb8c5090a7aeb4a9730bc61e77ab10b9af59f1a202284f895"
@@ -3842,19 +3842,19 @@ dependencies = [
 "checksum serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)" = "414115f25f818d7dfccec8ee535d76949ae78584fc4f79a6f45a904bf8ab4449"
 "checksum serde_derive 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)" = "128f9e303a5a29922045a830221b8f78ec74a5f544944f3d5984f8ec3895ef64"
 "checksum serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)" = "48c575e0cc52bdd09b47f330f646cf59afc586e9c4e3ccd6fc1f625b8ea1dad7"
-"checksum sgx_alloc 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_backtrace_sys 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_build_helper 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_demangle 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_libc 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_tcrypto 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_tprotected_fs 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_trts 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_tse 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_tseal 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_tstd 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_types 1.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
-"checksum sgx_unwind 0.1.0 (git+https://github.com/baidu/rust-sgx-sdk.git?rev=5b5e512abbbfc3030e8cb274989fb372b685b168)" = "<none>"
+"checksum sgx_alloc 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_backtrace_sys 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_build_helper 0.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_demangle 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_libc 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_tcrypto 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_tprotected_fs 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_trts 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_tse 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_tseal 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_tstd 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_types 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
+"checksum sgx_unwind 0.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)" = "<none>"
 "checksum sha1 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2579985fda508104f7587689507983eadd6a6e84dd35d6d115361f530916fa0d"
 "checksum sha2 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "9eb6be24e4c23a84d7184280d2722f7f2731fcdd4a9d886efbfe4413e4847ea0"
 "checksum sha2 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7b4d8bfd0e469f417657573d8451fb33d16cfe0989359b93baf3a1ffc639543d"
