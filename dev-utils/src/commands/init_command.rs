@@ -76,7 +76,7 @@ impl InitCommand {
         let distribution = &mut self.genesis_dev_config.distribution;
         distribution.insert(RedeemAddress::from_str(&address).unwrap(), amount_coin);
         self.remain_coin = (self.remain_coin - amount_coin).unwrap();
-        self.distribution_addresses.push(address.to_string());
+        self.distribution_addresses.push(address);
     }
 
     fn check_chain_id(&self, chain_id: String) -> Result<()> {
@@ -213,12 +213,11 @@ impl InitCommand {
 
     pub fn get_tendermint_filename() -> String {
         match std::env::var("TENDERMINT_HOME") {
-            Ok(path) => format!("{}/config/genesis.json", path).to_owned(),
+            Ok(path) => format!("{}/config/genesis.json", path),
             Err(_) => format!(
                 "{}/.tendermint/config/genesis.json",
                 dirs::home_dir().unwrap().to_str().unwrap()
-            )
-            .to_owned(),
+            ),
         }
     }
 

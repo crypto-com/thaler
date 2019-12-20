@@ -190,7 +190,7 @@ fn handle_json_response(
     channel_map: Arc<Mutex<HashMap<String, SyncSender<JsonRpcResponse>>>>,
 ) {
     match response {
-        Ok(response) => send_response(response, channel_map.clone()),
+        Ok(response) => send_response(response, channel_map),
         Err(err) => {
             log::error!("{:?}", err);
         }

@@ -55,12 +55,8 @@ where
         return_address: ExtendedAddr,
         attributes: TxAttributes,
     ) -> Result<TxAux> {
-        let mut raw_builder = self.select_and_build(
-            &unspent_transactions,
-            outputs,
-            return_address,
-            attributes.clone(),
-        )?;
+        let mut raw_builder =
+            self.select_and_build(&unspent_transactions, outputs, return_address, attributes)?;
 
         let signer = self.signer_manager.create_signer(name, passphrase);
 

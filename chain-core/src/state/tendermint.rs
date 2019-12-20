@@ -256,14 +256,14 @@ impl TryFrom<&[u8]> for TendermintValidatorAddress {
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
         let length = bytes.len();
 
-        if length == 20 {
-            let mut address_bytes = [0; 20];
-            address_bytes.copy_from_slice(bytes);
-            Ok(Self(address_bytes))
-        } else if length < 20 {
-            Err(TendermintValidatorAddressError::Short)
-        } else {
-            Err(TendermintValidatorAddressError::Long)
+        match length {
+            20 => {
+                let mut address_bytes = [0; 20];
+                address_bytes.copy_from_slice(bytes);
+                Ok(Self(address_bytes))
+            }
+            l if l < 20 => Err(TendermintValidatorAddressError::Short),
+            _ => Err(TendermintValidatorAddressError::Long),
         }
     }
 }

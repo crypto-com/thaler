@@ -193,7 +193,7 @@ impl CroAddress<RedeemAddress> for RedeemAddress {
         let checked_data: Vec<u5> = self.0.to_vec().to_base32();
         let encoded = bech32::encode(get_bech32_human_part_from_network(network), checked_data)
             .expect("bech32 encoding error");
-        Ok(encoded.to_string())
+        Ok(encoded)
     }
 
     fn from_cro(encoded: &str, network: Network) -> Result<Self, CroAddressError> {
