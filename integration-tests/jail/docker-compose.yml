@@ -6,6 +6,7 @@ services:
     volumes:
       - ./disk:/root/disk
       - ./disk/config0:/root/config
+      - /nix:/nix
     image: chain_test0
     ports:
        - ${JAIL_CLIENT_RPC:-9981}:9981
@@ -20,6 +21,7 @@ services:
     volumes:
       - ./disk:/root/disk
       - ./disk/config1:/root/config
+      - /nix:/nix
     image: chain_test1
     command: /root/disk/go_test.sh
     environment:
