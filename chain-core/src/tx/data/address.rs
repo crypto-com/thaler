@@ -36,7 +36,7 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
                 let encoded =
                     bech32::encode(get_bech32_human_part_from_network(network), checked_data)
                         .expect("bech32 encoding error");
-                Ok(encoded.to_string())
+                Ok(encoded)
             }
         }
     }

@@ -156,7 +156,7 @@ impl Node {
             vote_type: vote::Type::Precommit,
             height: header.height,
             round: 0,
-            block_id: block_id.clone(),
+            block_id,
             timestamp: now,
             validator_address: self.validator_address(),
             validator_index: self.index,

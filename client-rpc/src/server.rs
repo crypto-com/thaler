@@ -163,8 +163,7 @@ impl Server {
 
         let sync_rpc = SyncRpcImpl::new(syncer_config);
 
-        let wallet_rpc_wallet_client =
-            self.make_wallet_client(storage.clone(), tendermint_client.clone())?;
+        let wallet_rpc_wallet_client = self.make_wallet_client(storage, tendermint_client)?;
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);
 
         io.extend_with(multisig_rpc.to_delegate());
@@ -196,7 +195,7 @@ impl Server {
             thread::sleep(Duration::from_secs(2));
         }?;
 
-        self.start_client(&mut io, storage.clone(), tendermint_client.clone())
+        self.start_client(&mut io, storage, tendermint_client)
             .unwrap();
 
         let server = ServerBuilder::new(io)
