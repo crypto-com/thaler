@@ -1,9 +1,25 @@
 # Changelog
 
+*December 20, 2019*
+
+This release fixes some of the bugs discovered in deployment of v0.1 and is based on the released 1.1.0 version
+of Rust SGX SDK (0.1.0 used a beta version of 1.1.0).  
+
 ## v0.2.0
 
 ### Breaking changes
-* *client*: HD wallet generate view key with a different account index.
+* *client* [703](https://github.com/crypto-com/chain/pull/703): HD wallet generate view key with a different account index.
+
+### Improvements
+* *dev-utils* [692](https://github.com/crypto-com/chain/pull/692): dev-utils init command logs error when it goes wrong
+* *client* [698](https://github.com/crypto-com/chain/pull/698): watch-only mode
+* *client* [700](https://github.com/crypto-com/chain/pull/700): client prints all environment variables in help
+* *client* [705](https://github.com/crypto-com/chain/pull/705): client rejects weak passphrases based on zxcvbn score 
+
+### Bug Fixes
+* *chain-abci* [704](https://github.com/crypto-com/chain/pull/704): app hash was changing in v0.1 even though app state didn't change
+* *client* [694](https://github.com/crypto-com/chain/pull/694): trusted state serialization is symmetric
+* *dev-utils* [703](https://github.com/crypto-com/chain/pull/703): generating correct app hashes 
 
 *December 17, 2019*
 
