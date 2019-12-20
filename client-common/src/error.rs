@@ -60,11 +60,7 @@ impl Error {
 impl fmt::Display for Error {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}: {}, origin: {:?}",
-            self.kind, self.message, self.origin
-        )
+        write!(f, "{}: {}", self.kind, self.message)
     }
 }
 

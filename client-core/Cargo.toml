@@ -40,6 +40,7 @@ ring = "0.16.9"
 tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "a32cec297d80d240781c9ca2aaa71cace93e7510" }
 thiserror = { version = "1.0", default-features = false }
 non-empty-vec = "0.1"
+zxcvbn = "2.0"
 
 [dev-dependencies]
 hex = "0.4.0"

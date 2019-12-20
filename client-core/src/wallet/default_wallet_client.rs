@@ -3,6 +3,8 @@ use std::collections::BTreeSet;
 use parity_scale_codec::Encode;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
+#[cfg(not(debug_assertions))]
+use zxcvbn::{feedback::Feedback, zxcvbn as estimate_password_strength};
 
 use chain_core::common::{Proof, H256};
 use chain_core::init::address::RedeemAddress;
@@ -102,6 +104,9 @@ where
         passphrase: &SecUtf8,
         wallet_kind: WalletKind,
     ) -> Result<Option<Mnemonic>> {
+        #[cfg(not(debug_assertions))]
+        check_passphrase_strength(name, passphrase)?;
+
         match wallet_kind {
             WalletKind::Basic => {
                 let private_key = PrivateKey::new()?;
@@ -137,6 +142,9 @@ where
     }
 
     fn restore_wallet(&self, name: &str, passphrase: &SecUtf8, mnemonic: &Mnemonic) -> Result<()> {
+        #[cfg(not(debug_assertions))]
+        check_passphrase_strength(name, passphrase)?;
+
         self.hd_key_service
             .add_mnemonic(name, mnemonic, passphrase)?;
 
@@ -664,5 +672,49 @@ where
             SignedTransaction::TransferTransaction(unsigned_transaction, witness);
 
         self.transaction_builder.obfuscate(signed_transaction)
+    }
+}
+
+#[cfg(not(debug_assertions))]
+fn check_passphrase_strength(name: &str, passphrase: &SecUtf8) -> Result<()> {
+    // `estimate_password_strength` returns a score between `0-4`. Any score less than 3 should be considered too
+    // weak.
+    let password_entropy = estimate_password_strength(passphrase.unsecure(), &[name])
+        .chain(|| (ErrorKind::IllegalInput, "Blank passphrase"))?;
+
+    if password_entropy.score() < 3 {
+        return Err(Error::new(
+            ErrorKind::IllegalInput,
+            format!(
+                "Weak passphrase: {}",
+                parse_feedback(password_entropy.feedback().as_ref())
+            ),
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(not(debug_assertions))]
+fn parse_feedback(feedback: Option<&Feedback>) -> String {
+    match feedback {
+        None => "No feedback available!".to_string(),
+        Some(feedback) => {
+            let mut feedbacks = Vec::new();
+
+            if let Some(warning) = feedback.warning() {
+                feedbacks.push(format!("Warning: {}", warning));
+            }
+
+            for suggestion in feedback.suggestions() {
+                feedbacks.push(format!("Suggestion: {}", suggestion));
+            }
+
+            if feedbacks.is_empty() {
+                feedbacks.push("No feedback available!".to_string());
+            }
+
+            feedbacks.join(" | ")
+        }
     }
 }
