@@ -7,23 +7,23 @@ use std::sync::Arc;
 
 // database columns
 /// Column for UTXOs: TxId => BitVec (where each bit indicates whether the output was spent or not, e.g. b[0] == true if output 0 was spent in a given TX)
-pub const COL_TX_META: Option<u32> = Some(0);
+pub const COL_TX_META: u32 = 0;
 /// Column for TX witnesses: TxId => TxWitness
-pub const COL_WITNESS: Option<u32> = Some(1);
+pub const COL_WITNESS: u32 = 1;
 /// Column for TX bodies: TxId => Tx
-pub const COL_BODIES: Option<u32> = Some(2);
+pub const COL_BODIES: u32 = 2;
 /// Column for Extras: stores additional information, mainly retrieved during initialization (e.g. chain_id) -- TODO: better processing of these
-pub const COL_EXTRA: Option<u32> = Some(3);
+pub const COL_EXTRA: u32 = 3;
 /// Column for general information from the local node which can persist (e.g. last height, app hash...).
-pub const COL_NODE_INFO: Option<u32> = Some(4);
+pub const COL_NODE_INFO: u32 = 4;
 /// Column for seriliazed merkle tree: root hash => MerkleTree
-pub const COL_MERKLE_PROOFS: Option<u32> = Some(5);
+pub const COL_MERKLE_PROOFS: u32 = 5;
 /// Column for tracking app hashes: height => app hash
-pub const COL_APP_HASHS: Option<u32> = Some(6);
+pub const COL_APP_HASHS: u32 = 6;
 /// Column for tracking app states: height => ChainNodeState, only available when tx_query_address set
-pub const COL_APP_STATES: Option<u32> = Some(7);
+pub const COL_APP_STATES: u32 = 7;
 /// Number of columns in DB
-pub const NUM_COLUMNS: Option<u32> = Some(8);
+pub const NUM_COLUMNS: u32 = 8;
 
 pub const CHAIN_ID_KEY: &[u8] = b"chain_id";
 pub const GENESIS_APP_HASH_KEY: &[u8] = b"genesis_app_hash";
