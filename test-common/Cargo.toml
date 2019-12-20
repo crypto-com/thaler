@@ -17,7 +17,7 @@ signature = "1.0.0-pre.1"
 abci = "0.6"
 kvdb-memorydb = "0.2.0"
 protobuf = "2.7.0"
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "be445f29a96af31fe079611d26c07f1f596d1c5f", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
 parity-scale-codec = { features = ["derive"], version = "1.1" }
 base64 = "0.11"
 hex = "0.4"
