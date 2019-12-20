@@ -49,14 +49,17 @@ impl Database<H256> for Storage {
     #[inline]
     fn open(path: &PathBuf) -> Result<Self, Exception> {
         Ok(Storage::new_db(Arc::new(
-            kvdb_rocksdb::Database::open_default(path.to_str().expect("invalid account db path"))
-                .map_err(tree::convert_io_err)?,
+            kvdb_rocksdb::Database::open(
+                &kvdb_rocksdb::DatabaseConfig::default(),
+                path.to_str().expect("invalid account db path"),
+            )
+            .map_err(tree::convert_io_err)?,
         )))
     }
 
     #[inline]
     fn get_node(&self, key: H256) -> Result<Option<Self::NodeType>, Exception> {
-        if let Some(buffer) = self.db.get(None, &key).map_err(tree::convert_io_err)? {
+        if let Some(buffer) = self.db.get(0, &key).map_err(tree::convert_io_err)? {
             let data = buffer.to_vec();
             let storage = Self::NodeType::decode(&mut data.as_slice())
                 .map_err(|e| Exception::new(e.what()))?;
@@ -70,7 +73,7 @@ impl Database<H256> for Storage {
     fn insert(&mut self, key: H256, value: Self::NodeType) -> Result<(), Exception> {
         let serialized = value.encode();
         let mut insert_tx = self.db.transaction();
-        insert_tx.put(None, &key, &serialized);
+        insert_tx.put(0, &key, &serialized);
         // this "buffered write" shouldn't persist (persistence done in batch write)
         // but should change it in-memory -- TODO: check
         self.db.write_buffered(insert_tx);
@@ -80,7 +83,7 @@ impl Database<H256> for Storage {
     #[inline]
     fn remove(&mut self, key: &[u8; KEY_LEN]) -> Result<(), Exception> {
         let mut delete_tx = self.db.transaction();
-        delete_tx.delete(None, key);
+        delete_tx.delete(0, key);
         self.db.write_buffered(delete_tx);
         Ok(())
     }

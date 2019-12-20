@@ -90,7 +90,7 @@ pub fn get_enclave_bridge_mock() -> MockClient {
 
 pub fn create_storage() -> (Storage, AccountStorage) {
     (
-        Storage::new_db(Arc::new(create(NUM_COLUMNS.unwrap()))),
+        Storage::new_db(Arc::new(create(NUM_COLUMNS))),
         AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20)
             .expect("Unable to create account storage"),
     )

@@ -23,11 +23,11 @@ fn get_witness_proof_op(witness: &[u8]) -> ProofOp {
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).
-    fn lookup(&self, resp: &mut ResponseQuery, column: Option<u32>, key: &[u8], log_message: &str) {
+    fn lookup(&self, resp: &mut ResponseQuery, column: u32, key: &[u8], log_message: &str) {
         let v = self.storage.db.get(column, key);
         match v {
             Ok(Some(uv)) => {
-                resp.value = uv.into_vec();
+                resp.value = uv.to_vec();
             }
             _ => {
                 resp.log += log_message;

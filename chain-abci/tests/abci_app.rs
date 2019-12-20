@@ -73,7 +73,7 @@ pub fn get_ecdsa_witness<C: Signing>(
 }
 
 fn create_db() -> Arc<dyn KeyValueDB> {
-    Arc::new(create(NUM_COLUMNS.unwrap()))
+    Arc::new(create(NUM_COLUMNS))
 }
 
 fn create_account_db() -> AccountStorage {
