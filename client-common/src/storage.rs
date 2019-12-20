@@ -13,7 +13,7 @@ pub use unauthorized_storage::UnauthorizedStorage;
 use aes_gcm_siv::aead::generic_array::GenericArray;
 use aes_gcm_siv::aead::{Aead, NewAead, Payload};
 use aes_gcm_siv::Aes256GcmSiv;
-use blake2::{Blake2s, Digest};
+use argon2::hash_raw;
 use rand::rngs::OsRng;
 use rand::Rng;
 use secstr::SecUtf8;
@@ -22,6 +22,8 @@ use crate::{Error, ErrorKind, Result, ResultExt};
 
 /// Nonce size in bytes
 const NONCE_SIZE: usize = 12;
+/// Salt size in bytes
+const SALT_SIZE: usize = 8;
 
 /// Interface for a generic key-value storage
 pub trait Storage: Send + Sync + Clone {
@@ -215,13 +217,16 @@ pub fn encrypt_bytes<K: AsRef<[u8]>>(
     bytes: &[u8],
 ) -> Result<Vec<u8>> {
     let mut nonce = [0; NONCE_SIZE];
+    let mut salt = [0; SALT_SIZE];
 
     OsRng.fill(&mut nonce);
+    OsRng.fill(&mut salt);
 
-    let algo = get_algo(passphrase)?;
+    let algo = get_algo(passphrase, &salt)?;
 
     let mut cipher = Vec::new();
     cipher.extend_from_slice(&nonce[..]);
+    cipher.extend_from_slice(&salt[..]);
 
     let payload = Payload {
         msg: bytes,
@@ -243,14 +248,19 @@ pub fn decrypt_bytes<K: AsRef<[u8]>>(
     passphrase: &SecUtf8,
     bytes: &[u8],
 ) -> Result<Vec<u8>> {
-    let algo = get_algo(passphrase)?;
+    let nonce = &bytes[..NONCE_SIZE];
+    let salt = &bytes[NONCE_SIZE..NONCE_SIZE + SALT_SIZE];
+
+    let payload = &bytes[NONCE_SIZE + SALT_SIZE..];
+
+    let algo = get_algo(passphrase, salt)?;
 
     let payload = Payload {
-        msg: &bytes[NONCE_SIZE..],
+        msg: payload,
         aad: key.as_ref(),
     };
 
-    algo.decrypt(GenericArray::from_slice(&bytes[..NONCE_SIZE]), payload)
+    algo.decrypt(GenericArray::from_slice(nonce), payload)
         .map_err(|_| {
             Error::new(
                 ErrorKind::DecryptionError,
@@ -259,10 +269,10 @@ pub fn decrypt_bytes<K: AsRef<[u8]>>(
         })
 }
 
-fn get_algo(passphrase: &SecUtf8) -> Result<Aes256GcmSiv> {
-    let mut hasher = Blake2s::new();
-    hasher.input(passphrase.unsecure());
+fn get_algo(passphrase: &SecUtf8, salt: &[u8]) -> Result<Aes256GcmSiv> {
+    let hash = hash_raw(passphrase.unsecure().as_bytes(), salt, &Default::default())
+        .chain(|| (ErrorKind::HashError, "Unable to hash passphrase"))?;
 
-    let key = GenericArray::clone_from_slice(&hasher.result_reset());
+    let key = GenericArray::clone_from_slice(hash.as_ref());
     Ok(Aes256GcmSiv::new(key))
 }
