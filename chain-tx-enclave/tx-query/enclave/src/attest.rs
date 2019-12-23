@@ -21,6 +21,8 @@ use std::str;
 use std::string::String;
 use std::sync::Arc;
 use std::sync::SgxRwLock;
+use std::thread;
+use std::time::Duration;
 use std::time::SystemTime;
 use std::untrusted::time::SystemTimeEx;
 use std::vec::Vec;
@@ -318,7 +320,8 @@ fn create_attestation_report(
     let mut eg: sgx_epid_group_id_t = sgx_epid_group_id_t::default();
     let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
 
-    let res = unsafe {
+    let mut retries = 0;
+    let mut res = unsafe {
         ocall_sgx_init_quote(
             &mut rt as *mut sgx_status_t,
             &mut ti as *mut sgx_target_info_t,
@@ -329,6 +332,19 @@ fn create_attestation_report(
     // println!("eg = {:?}", eg);
 
     if res != sgx_status_t::SGX_SUCCESS {
+        while res == sgx_status_t::SGX_ERROR_BUSY && retries < 5 {
+            thread::sleep(Duration::from_secs(10));
+
+            retries += 1;
+            res = unsafe {
+                ocall_sgx_init_quote(
+                    &mut rt as *mut sgx_status_t,
+                    &mut ti as *mut sgx_target_info_t,
+                    &mut eg as *mut sgx_epid_group_id_t,
+                )
+            };
+        }
+
         return Err(res);
     }
 
