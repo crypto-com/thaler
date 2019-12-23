@@ -11,7 +11,7 @@ secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", r
 rand = "0.7"
 log = "0.4.8"
 aes-gcm-siv = "0.3"
-blake2 = "0.8"
+rust-argon2 = "0.6"
 hex = "0.4"
 base64 = "0.11"
 secstr = { version = "0.3.2", features = ["serde"] }
