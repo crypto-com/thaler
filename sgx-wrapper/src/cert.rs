@@ -19,6 +19,7 @@ use num_bigint::BigUint;
 use yasna::models::ObjectIdentifier;
 use zeroize::Zeroize;
 
+// FIXME Make it config or paramters.
 const CERTEXPIRYDAYS: i64 = 90i64;
 const ISSUER: &str = "Crypto.com Chain";
 const SUBJECT: &str = "TX Query";

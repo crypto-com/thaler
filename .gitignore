@@ -1,6 +1,5 @@
 # Rust
 /target
-/chain-abci/target
 **/*.rs.bk
 /.cargo
 
@@ -15,6 +14,9 @@
 .vscode
 .idea
 /tags
+/GPATH
+/GRTAGS
+/GTAGS
 
 # TODOR
 .todor
@@ -22,3 +24,7 @@
 # SSH
 id_rsa
 id_ecdsa
+
+# edl generated file
+**/Enclave_t.*
+**/Enclave_u.*

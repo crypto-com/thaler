@@ -7,36 +7,25 @@ readme = "../../README.md"
 edition = "2018"
 
 [lib]
-name = "txqueryenclave"
-crate-type = ["staticlib"]
+name = "tx_query_enclave"
+crate-type = ["lib", "staticlib"]
 
 [features]
-default = []
-sgx-test = []
+default = ["sgx-wrapper/default", "chain-core/default", "enclave-protocol/default", "enclave-t-common/default"]
+sgx-test = ["mesalock_sgx"]
+mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx", "sgx-wrapper/mesalock_sgx", "chain-core/mesalock_sgx", "enclave-protocol/mesalock_sgx", "enclave-t-common/mesalock_sgx"]
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 sgx_types   = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tstd    = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net"] }
-sgx_tcrypto = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tse     = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_rand    = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tseal     = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-parity-scale-codec = { default-features = false, features = ["derive"], version = "1.0" }
-chain-core   = { path = "../../../chain-core", default-features = false, features = ["mesalock_sgx"] }
-enclave-protocol  = {  path = "../../../enclave-protocol", default-features = false, features = ["mesalock_sgx"] }
-enclave-t-common = { path = "../../enclave-t-common" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism", "sgx"] }
+sgx_tstd    = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net"], optional=true }
+sgx-wrapper = { path = "../../../sgx-wrapper", default-features=false}
 
-[dependencies]
-chrono      = { git = "https://github.com/mesalock-linux/chrono-sgx" }
-webpki      = { git = "https://github.com/mesalock-linux/webpki", branch = "mesalock_sgx" }
-base64      = { git = "https://github.com/mesalock-linux/rust-base64-sgx" }
-yasna       = { git = "https://github.com/mesalock-linux/yasna.rs-sgx", features = ["bit-vec", "num-bigint", "chrono"] }
-num-bigint  = { git = "https://github.com/mesalock-linux/num-bigint-sgx" }
-bit-vec     = { version = "0.6.1", default-features = false}
-httparse    = { version = "1.3.2", default-features = false }
-itertools   = { version = "0.8", default-features = false, features = []}
-rustls      = { git = "https://github.com/mesalock-linux/rustls", branch = "mesalock_sgx" }
-webpki-roots= { git = "https://github.com/mesalock-linux/webpki-roots", branch = "mesalock_sgx" }
-lazy_static  = { version = "1.4", features = ["spin_no_std"] }
-zeroize = { version = "1.0", default-features = false, features = ["zeroize_derive"]}
+parity-scale-codec = { default-features = false, version = "1.0" }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
+
+chain-core   = { path = "../../../chain-core", default-features = false }
+enclave-protocol  = {  path = "../../../enclave-protocol", default-features = false }
+enclave-t-common = { path = "../../enclave-t-common", default-features = false }
+
+[build-dependencies]
+cc = "1.0"

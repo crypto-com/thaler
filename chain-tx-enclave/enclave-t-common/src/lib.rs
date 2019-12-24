@@ -1,7 +1,7 @@
-#![cfg_attr(not(target_env = "sgx"), no_std)]
+#![cfg_attr(all(feature = "mesalock_sgx", not(target_env = "sgx")), no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
 
-#[cfg(not(target_env = "sgx"))]
+#[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
 extern crate sgx_tstd as std;
 
 use chain_core::state::account::WithdrawUnbondedTx;
@@ -12,10 +12,7 @@ use chain_core::tx::data::TxId;
 use chain_core::tx::TxWithOutputs;
 use parity_scale_codec::Decode;
 use secp256k1::key::PublicKey;
-use sgx_tseal::SgxSealedData;
-use sgx_types::sgx_sealed_data_t;
-use std::prelude::v1::Vec;
-use zeroize::Zeroize;
+use sgx_wrapper::{SealedData, Vec};
 
 #[inline]
 fn is_allowed_view(
@@ -55,18 +52,9 @@ where
     I: IntoIterator<Item = TxId> + ExactSizeIterator,
 {
     let mut return_result = Vec::with_capacity(sealed_logs.len());
-    for (txid, sealed_log) in txids.into_iter().zip(sealed_logs.iter_mut()) {
-        if sealed_log.len() >= (std::u32::MAX as usize) {
-            return None;
-        }
-        let opt = unsafe {
-            SgxSealedData::<[u8]>::from_raw_sealed_data_t(
-                sealed_log.as_mut_ptr() as *mut sgx_sealed_data_t,
-                sealed_log.len() as u32,
-            )
-        };
-        let sealed_data = match opt {
-            Some(x) => x,
+    for (txid, mut sealed_log) in txids.into_iter().zip(sealed_logs.iter_mut()) {
+        let sealed_data = match SealedData::from_bytes(&mut sealed_log) {
+            Some(data) => data,
             None => {
                 return None;
             }
@@ -79,7 +67,7 @@ where
             }
         };
         if unsealed_data.get_additional_txt() != txid {
-            unsealed_data.decrypt.zeroize();
+            unsealed_data.clear();
             return None;
         }
         let otx = TxWithOutputs::decode(&mut unsealed_data.get_decrypt_txt());
@@ -98,14 +86,14 @@ where
                 push = is_allowed_view(&allowed_view, &view_key, check_allowed_views);
             }
             _ => {
-                unsealed_data.decrypt.zeroize();
+                unsealed_data.clear();
                 return None;
             }
         }
         if push {
             return_result.push(otx.unwrap());
         }
-        unsealed_data.decrypt.zeroize();
+        unsealed_data.clear();
     }
     Some(return_result)
 }

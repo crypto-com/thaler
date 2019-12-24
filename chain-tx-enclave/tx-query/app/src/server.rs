@@ -107,16 +107,6 @@ pub extern "C" fn ocall_encrypt_request(
     })
 }
 
-extern "C" {
-    /// the enclave main function / routine (just gets raw file descriptor of the connection client TCP socket)
-    pub fn run_server(
-        eid: sgx_enclave_id_t,
-        retval: *mut sgx_status_t,
-        socket_fd: c_int,
-        timeout: c_int,
-    ) -> sgx_status_t;
-}
-
 /// Untrusted function called from the enclave -- requests quote (initialization) from Intel SDK's AESM
 #[no_mangle]
 pub extern "C" fn ocall_sgx_init_quote(

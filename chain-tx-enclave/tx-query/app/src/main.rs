@@ -1,33 +1,20 @@
-mod enclave_u;
+extern crate tx_query_app;
 
 #[cfg(feature = "sgx-test")]
 mod test;
 
-use crate::enclave_u::init_connection;
-use enclave_u::run_server;
-use enclave_u_common::enclave_u::init_enclave;
 use log::{error, info, warn};
 use sgx_types::{c_int, sgx_status_t};
-use sgx_urts::SgxEnclave;
 use std::convert::TryInto;
 use std::env;
 use std::net::TcpListener;
 use std::os::unix::io::AsRawFd;
 use std::time::Duration;
+use tx_query_app::server::init_connection;
+use tx_query_app::TxQueryEnclave;
 
 const TIMEOUT_SEC: c_int = 5;
-
-pub fn start_enclave() -> SgxEnclave {
-    match init_enclave(true) {
-        Ok(r) => {
-            info!("[+] Init Query Enclave Successful {}!", r.geteid());
-            r
-        }
-        Err(e) => {
-            panic!("[-] Init Query Enclave Failed {}!", e.as_str());
-        }
-    }
-}
+const ENCLAVE_FILE: &str = "tx_query_enclave.signed.so";
 
 #[cfg(feature = "sgx-test")]
 fn main() {
@@ -49,7 +36,7 @@ fn main() {
     }
     init_connection(&args[2]);
 
-    let enclave = start_enclave();
+    let enclave = TxQueryEnclave::new(ENCLAVE_FILE, true).expect("init query enclave");
 
     info!("Running TX Decryption Query server...");
     let listener = TcpListener::bind(&args[1]).expect("failed to bind the TCP socket");
@@ -63,10 +50,7 @@ fn main() {
                     let _ = stream.set_read_timeout(Some(Duration::new(utimeout, 0)));
                     let _ = stream.set_write_timeout(Some(Duration::new(utimeout, 0)));
                 }
-                let mut retval = sgx_status_t::SGX_SUCCESS;
-                let result = unsafe {
-                    run_server(enclave.geteid(), &mut retval, stream.as_raw_fd(), timeout)
-                };
+                let result = enclave.run_server(stream.as_raw_fd(), timeout);
                 match result {
                     sgx_status_t::SGX_SUCCESS => {
                         info!("client query finished");

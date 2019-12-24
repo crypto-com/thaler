@@ -15,7 +15,7 @@ sleep 1
 # assumes SPID + IAS_API_KEY are set
 
 trap 'kill -TERM $PID' TERM INT
-./tx-query-app 0.0.0.0:${APP_PORT} ${TX_VALIDATION_CONN} ${TX_QUERY_TIMEOUT} &
+tx-query-app 0.0.0.0:${APP_PORT} ${TX_VALIDATION_CONN} ${TX_QUERY_TIMEOUT} &
 PID=$!
 echo "[tx-validation-app] Running in background ..."
 wait $PID

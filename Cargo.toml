@@ -13,10 +13,10 @@ members = [
     "test-common",
     "dev-utils",
     "enclave-protocol",
-]
-
-exclude = [
-    # currently only work on nightly + have a different build process
+    "sgx-wrapper",
+    "chain-tx-enclave/enclave-t-common",
+    "chain-tx-enclave/enclave-u-common",
+    "chain-tx-enclave/enclave-macro",
     "chain-tx-enclave/tx-validation/app",
     "chain-tx-enclave/tx-validation/enclave",
     "chain-tx-enclave/tx-query/app",

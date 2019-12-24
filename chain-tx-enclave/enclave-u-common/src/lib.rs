@@ -1,3 +1,4 @@
+#[cfg(feature = "mesalock_sgx")]
 pub mod enclave_u;
 
 pub fn storage_path() -> String {

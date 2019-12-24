@@ -2,10 +2,8 @@
 !/chain-abci
 !/chain-core
 !/chain-tx-enclave
-/chain-tx-enclave/tx-validation/bin
-!/chain-tx-enclave/tx-validation/bin/.gitignore
-/chain-tx-enclave/tx-validation/lib
-!/chain-tx-enclave/tx-validation/lib/.gitignore
+/chain-tx-enclave/*/app/Enclave_u.*
+/chain-tx-enclave/*/enclave/Enclave_t.*
 !/chain-tx-filter
 !/chain-tx-validation
 !/client-cli
@@ -16,6 +14,7 @@
 !/test-common
 !/dev-utils
 !/enclave-protocol
+!/sgx-wrapper
 !Carog.lock
 !Cargo.toml
 !/docker

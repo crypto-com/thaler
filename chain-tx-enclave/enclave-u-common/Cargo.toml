@@ -11,4 +11,8 @@ hex = "0.3"
 log = "0.4.8"
 env_logger = "0.7.0"
 sgx_types = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_urts = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_urts = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional=true }
+
+[features]
+mesalock_sgx = ["sgx_urts"]
+default = []

@@ -1,18 +1,13 @@
 use log::info;
 use std::net::{IpAddr, SocketAddr};
-#[cfg(not(feature = "mock-validation"))]
-use zmq::{Context, REQ};
+use std::thread;
 
 use chain_abci::app::ChainNodeApp;
-#[cfg(feature = "mock-validation")]
-use chain_abci::enclave_bridge::mock::MockClient;
-#[cfg(not(feature = "mock-validation"))]
-use chain_abci::enclave_bridge::ZmqEnclaveClient;
+use chain_abci::enclave_bridge::EnclaveAppProxy;
 use chain_abci::storage::*;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
-#[cfg(feature = "mock-validation")]
-use log::warn;
 use structopt::StructOpt;
+use tx_validation_app::server::{TxValidationApp, TxValidationServer};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -53,10 +48,12 @@ struct AbciOpt {
         help = "The expected chain id from init chain (the name convention is \"...some-name...-<TWO_HEX_DIGITS>\")"
     )]
     chain_id: String,
+    #[structopt(short = "e", long = "enclave_storage", help = "Enclave storage path")]
+    enclave_storage: String,
     #[structopt(
-        short = "e",
+        short = "s",
         long = "enclave_server",
-        help = "Connection string (e.g. ipc://enclave.socket or tcp://127.0.0.1:25933) for ZeroMQ server wrapper around the transaction validation enclave."
+        help = "Validation enclave server bind address (e.g. ipc://enclave.socket or tcp://127.0.0.1:25933) for ZeroMQ."
     )]
     enclave_server: String,
     #[structopt(
@@ -65,24 +62,6 @@ struct AbciOpt {
         help = "Optional transaction query support for clients (tx query enclave listening address, e.g. mydomain.com:4444)"
     )]
     tx_query: Option<String>,
-}
-
-/// normal
-#[cfg(not(feature = "mock-validation"))]
-fn get_enclave_proxy(opts: &AbciOpt) -> ZmqEnclaveClient {
-    let ctx = Context::new();
-    let socket = ctx.socket(REQ).expect("failed to init zmq context");
-    socket
-        .connect(&opts.enclave_server)
-        .expect("failed to connect to enclave zmq wrapper");
-    ZmqEnclaveClient::new(socket)
-}
-
-/// for development
-#[cfg(feature = "mock-validation")]
-fn get_enclave_proxy(_opts: &AbciOpt) -> MockClient {
-    warn!("Using mock (non-enclave) infrastructure");
-    MockClient::new(get_network_id())
 }
 
 fn main() {
@@ -94,7 +73,16 @@ fn main() {
         get_network(),
         get_network_id()
     );
-    let proxy = get_enclave_proxy(&opt);
+    let app = TxValidationApp::with_path(&opt.enclave_storage).expect("init validation app");
+    let proxy = EnclaveAppProxy::new(app.clone());
+
+    let enclave_server = opt.enclave_server.clone();
+    let child_t = thread::spawn(move || {
+        let mut server = TxValidationServer::new(&enclave_server, app.clone())
+            .expect("could not start a zmq server");
+        info!("starting zmq server");
+        server.execute()
+    });
 
     let addr = SocketAddr::new(opt.host, opt.port);
     info!("starting up");
@@ -109,4 +97,6 @@ fn main() {
             opt.tx_query,
         ),
     );
+
+    child_t.join().expect("server thread failed")
 }

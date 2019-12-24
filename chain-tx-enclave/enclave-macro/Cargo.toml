@@ -11,3 +11,6 @@ proc-macro = true
 
 [dependencies]
 rand = "0.7.2"
+
+[features]
+mesalock_sgx = []

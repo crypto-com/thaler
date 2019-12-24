@@ -2,11 +2,11 @@ use crate::enclave_u::{check_initchain, check_tx, end_block};
 use chain_core::common::MerkleTree;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
+use chain_core::state::account::StakedStateDestination;
 use chain_core::state::account::{
     StakedState, StakedStateAddress, StakedStateOpWitness, WithdrawUnbondedTx,
 };
 use chain_core::tx::fee::Fee;
-use chain_core::state::account::StakedStateDestination;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::PlainTxAux;
@@ -83,11 +83,7 @@ fn get_ecdsa_witness<C: Signing>(
 }
 
 fn get_account(account_address: &RedeemAddress) -> StakedState {
-    StakedState::new_init_unbonded(
-        Coin::one(),
-        0,
-        StakedStateAddress::from(*account_address),
-    )
+    StakedState::new_init_unbonded(Coin::one(), 0, StakedStateAddress::from(*account_address))
 }
 
 const TEST_NETWORK_ID: u8 = 0xab;

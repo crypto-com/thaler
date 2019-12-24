@@ -10,7 +10,6 @@ edition = "2018"
 default = ["serde", "bech32", "hex", "base64", "secp256k1zkp/serde", "secp256k1zkp/std"]
 mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx"]
 
-
 [dependencies]
 digest = { version = "0.8", default-features = false}
 tiny-keccak = { version = "2.0", features = ["keccak"] }

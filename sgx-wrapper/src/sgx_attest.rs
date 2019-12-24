@@ -3,12 +3,12 @@
 //! Copyright (c) 2019, MesaTEE Authors (licensed under the Apache License, Version 2.0)
 //! Modifications Copyright (c) 2019, Foris Limited (licensed under the Apache License, Version 2.0)
 
-use sgx_rand::*;
 use sgx_tcrypto::*;
 use sgx_tse::*;
 use sgx_types::*;
 
-use crate::cert::CertKeyPair;
+use super::cert::CertKeyPair;
+use crate::{os_rng_fill, RwLock};
 use core::hash::{Hash, Hasher};
 use lazy_static::lazy_static;
 use std::collections::hash_map::DefaultHasher;
@@ -20,11 +20,12 @@ use std::ptr;
 use std::str;
 use std::string::String;
 use std::sync::Arc;
-use std::sync::SgxRwLock;
 use std::time::SystemTime;
 use std::untrusted::time::SystemTimeEx;
 use std::vec::Vec;
 use zeroize::Zeroize;
+
+pub use rustls_sgx as rustls;
 
 pub const IAS_HOSTNAME: &'static str = "api.trustedservices.intel.com";
 #[cfg(not(feature = "production"))]
@@ -66,11 +67,11 @@ struct RACache {
 }
 
 lazy_static! {
-    static ref RACACHE: SgxRwLock<RACache> = {
-        SgxRwLock::new(RACache {
+    static ref RACACHE: RwLock<RACache> = {
+        RwLock::new(RACache {
             cert_key: CertKeyPair {
                 cert: Vec::<u8>::new(),
-                private_key: crate::cert::PrivateKey::new(Vec::<u8>::new()),
+                private_key: super::cert::PrivateKey::new(Vec::<u8>::new()),
             },
             gen_time: SystemTime::UNIX_EPOCH,
         })
@@ -87,8 +88,8 @@ lazy_static! {
         Arc::new(config)
     };
 
-    static ref SVRCONFIGCACHE: SgxRwLock<HashMap<u64, Arc<rustls::ServerConfig>>> =
-        { SgxRwLock::new(HashMap::new()) };
+    static ref SVRCONFIGCACHE: RwLock<HashMap<u64, Arc<rustls::ServerConfig>>> =
+        { RwLock::new(HashMap::new()) };
 }
 
 fn is_tls_config_updated(gen_time: &SystemTime) -> bool {
@@ -399,8 +400,7 @@ fn create_attestation_report(
     };
 
     let mut quote_nonce = sgx_quote_nonce_t { rand: [0; 16] };
-    let mut os_rng = os::SgxRng::new().unwrap();
-    os_rng.fill_bytes(&mut quote_nonce.rand);
+    os_rng_fill(&mut quote_nonce.rand);
     // println!("rand finished");
     let mut qe_report = sgx_report_t::default();
     const RET_QUOTE_BUF_LEN: u32 = 2048;
@@ -612,7 +612,7 @@ fn renew_ra_cert(global_ra_cert: &mut RACache) -> Result<(), RAError> {
     };
 
     let payload = attn_report + "|" + &sig + "|" + &cert;
-    let cert_key = match crate::cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
+    let cert_key = match super::cert::gen_ecc_cert(payload, &prv_k, &pub_k, &ecc_handle) {
         Ok(r) => r,
         Err(_e) => {
             #[cfg(not(feature = "production"))]
@@ -631,7 +631,7 @@ fn renew_ra_cert(global_ra_cert: &mut RACache) -> Result<(), RAError> {
 /// Returns the TLS session configuration
 /// fast path: it's in the cache (`SVRCONFIGCACHE` lazy static), so can be returned directly
 /// slow path: needs to generate a key pair, remotely attest the public key and generate the TLS certificate and configuration
-pub(crate) fn get_tls_config() -> Arc<rustls::ServerConfig> {
+pub fn get_tls_config() -> Arc<rustls::ServerConfig> {
     // To re-use existing TLS cache, we need to first check if the server has
     // updated his RA cert
     let (cert_key, invalidate_cache) = get_ra_cert();

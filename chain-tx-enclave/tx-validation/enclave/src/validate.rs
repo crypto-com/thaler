@@ -14,13 +14,11 @@ use enclave_protocol::{
 use enclave_t_common::check_unseal;
 use lazy_static::lazy_static;
 use parity_scale_codec::Encode;
-use sgx_tseal::SgxSealedData;
-use sgx_types::{sgx_sealed_data_t, sgx_status_t};
-use std::prelude::v1::{Box, Vec};
-use std::sync::SgxMutex;
+use sgx_types::sgx_status_t;
+use sgx_wrapper::{Box, Mutex, SealedData, Vec};
 
 lazy_static! {
-    static ref FILTER: SgxMutex<BlockFilter> = SgxMutex::new(BlockFilter::default());
+    static ref FILTER: Mutex<BlockFilter> = Mutex::new(BlockFilter::default());
 }
 
 #[inline]
@@ -70,28 +68,20 @@ fn construct_sealed_response(
     match result {
         Err(e) => Ok(Err(e)),
         Ok(fee) => {
-            let sealing_result = SgxSealedData::<[u8]>::seal_data(txid, &to_seal);
+            let sealing_result = SealedData::seal_data(txid, &to_seal);
             let sealed_data = match sealing_result {
                 Ok(x) => x,
                 Err(ret) => {
                     return Err(ret);
                 }
             };
-            let sealed_log_size = SgxSealedData::<[u8]>::calc_raw_sealed_data_size(
-                sealed_data.get_add_mac_txt_len(),
-                sealed_data.get_encrypt_txt_len(),
-            ) as usize;
-            let mut sealed_log: Vec<u8> = vec![0u8; sealed_log_size];
-
-            unsafe {
-                let sealed_r = sealed_data.to_raw_sealed_data_t(
-                    sealed_log.as_mut_ptr() as *mut sgx_sealed_data_t,
-                    sealed_log_size as u32,
-                );
-                if sealed_r.is_none() {
+            let sealed_log = match sealed_data.to_bytes() {
+                Some(bytes) => bytes,
+                None => {
                     return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
                 }
-            }
+            };
+
             add_view_keys(&to_seal_tx);
             Ok(Ok(IntraEnclaveResponseOk::TxWithOutputs {
                 paid_fee: fee,
@@ -148,7 +138,7 @@ pub(crate) fn handle_validate_tx(
     response_buf: *mut u8,
     response_len: u32,
 ) -> sgx_status_t {
-    if is_basic_valid_tx_request(&request, &tx_inputs, crate::NETWORK_HEX_ID).is_err() {
+    if is_basic_valid_tx_request(&request, &tx_inputs, *crate::NETWORK_HEX_ID).is_err() {
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
     match (tx_inputs, request.tx) {
@@ -176,9 +166,7 @@ pub(crate) fn handle_validate_tx(
                     );
                     write_back_response(response, response_buf, response_len)
                 }
-                _ => {
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-                }
+                _ => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
             }
         }
         (Some(sealed_inputs), TxEnclaveAux::DepositStakeTx { tx, payload }) => {
@@ -190,9 +178,7 @@ pub(crate) fn handle_validate_tx(
                     let response = construct_simple_response(result);
                     write_back_response(response, response_buf, response_len)
                 }
-                _ => {
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-                }
+                _ => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
             }
         }
         (
@@ -224,13 +210,9 @@ pub(crate) fn handle_validate_tx(
                     );
                     write_back_response(response, response_buf, response_len)
                 }
-                _ => {
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-                }
+                _ => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
             }
         }
-        (_, _) => {
-            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-        }
+        (_, _) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     }
 }

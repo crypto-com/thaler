@@ -1,32 +1,26 @@
-use crate::validate::write_back_response;
 use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm_siv::Aes128GcmSiv;
-use chain_core::tx::TransactionId;
-use chain_core::tx::{PlainTxAux, TxObfuscated, TxToObfuscate};
+#[cfg(feature = "sgx-test")]
+use parity_scale_codec::Encode;
+
+use chain_core::tx::{PlainTxAux, TransactionId, TxObfuscated, TxToObfuscate};
 use chain_tx_validation::{
     verify_bonded_deposit_core, verify_transfer, verify_unbonded_withdraw_core,
     witness::verify_tx_recover_address,
 };
-use enclave_macro::mock_key;
 use enclave_protocol::{EncryptionRequest, IntraEncryptRequest};
 use enclave_protocol::{IntraEnclaveResponse, IntraEnclaveResponseOk};
 use enclave_t_common::check_unseal;
 use parity_scale_codec::Decode;
-#[cfg(feature = "sgx-test")]
-use parity_scale_codec::Encode;
-use sgx_rand::{os::SgxRng, Rng};
-use sgx_tseal::SgxSealedData;
-use sgx_types::{sgx_sealed_data_t, sgx_status_t};
-use std::prelude::v1::Box;
-use zeroize::Zeroize;
+use sgx_types::sgx_status_t;
+use sgx_wrapper::{os_rng_fill, Box, SealedData, MOCK_KEY};
 
-const MOCK_KEY: [u8; 16] = mock_key!();
+use crate::validate::write_back_response;
 
 pub(crate) fn encrypt(tx: TxToObfuscate) -> TxObfuscated {
     let mut init_vector = [0u8; 12];
-    let mut os_rng = SgxRng::new().unwrap();
-    os_rng.fill_bytes(&mut init_vector);
-    let key = GenericArray::clone_from_slice(&MOCK_KEY);
+    os_rng_fill(&mut init_vector);
+    let key = GenericArray::clone_from_slice(&*MOCK_KEY);
     let aead = Aes128GcmSiv::new(key);
     let nonce = GenericArray::from_slice(&init_vector);
     let ciphertext = aead.encrypt(nonce, &tx).expect("encryption failure!");
@@ -98,7 +92,7 @@ pub extern "C" fn ecall_test_encrypt(
 }
 
 pub(crate) fn decrypt(tx: &TxObfuscated) -> Result<PlainTxAux, ()> {
-    let key = GenericArray::clone_from_slice(&MOCK_KEY);
+    let key = GenericArray::clone_from_slice(&*MOCK_KEY);
     let aead = Aes128GcmSiv::new(key);
     let nonce = GenericArray::from_slice(&tx.init_vector);
     let plaintext = aead.decrypt(nonce, tx).map_err(|_| ())?;
@@ -108,12 +102,7 @@ pub(crate) fn decrypt(tx: &TxObfuscated) -> Result<PlainTxAux, ()> {
 
 #[inline]
 fn unseal_request(request: &mut IntraEncryptRequest) -> Option<EncryptionRequest> {
-    let opt = unsafe {
-        SgxSealedData::<[u8]>::from_raw_sealed_data_t(
-            request.sealed_enc_request.as_mut_ptr() as *mut sgx_sealed_data_t,
-            request.sealed_enc_request.len() as u32,
-        )
-    };
+    let opt = SealedData::from_bytes(&mut request.sealed_enc_request);
     let sealed_data = match opt {
         Some(x) => x,
         None => {
@@ -128,7 +117,7 @@ fn unseal_request(request: &mut IntraEncryptRequest) -> Option<EncryptionRequest
         }
     };
     if unsealed_data.get_additional_txt() != request.txid {
-        unsealed_data.decrypt.zeroize();
+        unsealed_data.clear();
         return None;
     }
     let otx = EncryptionRequest::decode(&mut unsealed_data.get_decrypt_txt());
@@ -172,7 +161,7 @@ pub(crate) fn handle_encrypt_request(
                 );
                 write_back_response(response, response_buf, response_len)
             } else {
-                return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                sgx_status_t::SGX_ERROR_INVALID_PARAMETER
             }
         }
         (Some(EncryptionRequest::DepositStake(tx, witness)), Some(sealed_inputs)) => {
@@ -188,7 +177,7 @@ pub(crate) fn handle_encrypt_request(
                 );
                 write_back_response(response, response_buf, response_len)
             } else {
-                return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                sgx_status_t::SGX_ERROR_INVALID_PARAMETER
             }
         }
         (Some(EncryptionRequest::WithdrawStake(tx, account, witness)), None) => {
@@ -204,13 +193,9 @@ pub(crate) fn handle_encrypt_request(
                     );
                     write_back_response(response, response_buf, response_len)
                 }
-                _ => {
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-                }
+                _ => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
             }
         }
-        (_, _) => {
-            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-        }
+        (_, _) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     }
 }

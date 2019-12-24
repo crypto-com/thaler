@@ -22,6 +22,7 @@ use enclave_protocol::{
     EncryptionResponse,
 };
 use log::warn;
+use parity_scale_codec::Decode;
 use std::collections::HashMap;
 
 /// TODO: Remove

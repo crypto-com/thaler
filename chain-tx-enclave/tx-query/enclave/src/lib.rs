@@ -1,15 +1,14 @@
-#![crate_name = "txqueryenclave"]
-#![crate_type = "staticlib"]
-#![cfg_attr(not(target_env = "sgx"), no_std)]
+#![cfg_attr(all(feature = "mesalock_sgx", not(target_env = "sgx")), no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
-#![feature(proc_macro_hygiene)]
+#![cfg_attr(features = "mesalock_sgx", feature(proc_macro_hygiene))]
 
-#[cfg(not(target_env = "sgx"))]
+#[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
 #[macro_use]
 extern crate sgx_tstd as std;
 
-use sgx_rand::*;
 use sgx_types::*;
+#[cfg(not(feature = "mesalock_sgx"))]
+use std::os::unix::io::FromRawFd;
 
 use chain_core::tx::{
     data::{input::TxoIndex, TxId},
@@ -23,18 +22,13 @@ use enclave_protocol::{
 use enclave_t_common::check_unseal;
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::Secp256k1;
-use sgx_tseal::SgxSealedData;
+use sgx_wrapper::{attest, attest::rustls, os_rng_fill, SealedData};
 use std::convert::TryInto;
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream};
 use std::prelude::v1::*;
 use std::time::Duration;
 use std::vec::Vec;
-
-/// functionality related to remote attestation (RA)
-mod attest;
-/// utility for generating the TLS cert with the RA payload
-mod cert;
 
 extern "C" {
     pub fn ocall_encrypt_request(
@@ -76,9 +70,9 @@ fn process_decryption_request(body: &DecryptionRequestBody) -> Option<Decryption
     }
     match EnclaveResponse::decode(&mut inputs_buf.as_slice()) {
         Ok(EnclaveResponse::GetSealedTxData(Some(inputs))) => check_unseal(
-            Some(body.view_key),
+            Some(body.view_key.clone()),
             true,
-            body.txs.iter().map(|x| *x),
+            body.txs.iter().copied(),
             inputs,
         )
         .map(|txs| DecryptionResponse { txs }),
@@ -94,9 +88,11 @@ fn handle_decryption_request(
     mut plain: Vec<u8>,
 ) -> sgx_status_t {
     let mut challenge = [0u8; 32];
-    let mut os_rng = os::SgxRng::new().unwrap();
-    os_rng.fill_bytes(&mut challenge);
-    if let Err(_) = tls.write(&TxQueryInitResponse::DecryptChallenge(challenge).encode()[..]) {
+    os_rng_fill(&mut challenge);
+    if tls
+        .write(&TxQueryInitResponse::DecryptChallenge(challenge).encode()[..])
+        .is_err()
+    {
         let _ = tls.sock.shutdown(Shutdown::Both);
         return sgx_status_t::SGX_ERROR_UNEXPECTED;
     }
@@ -134,30 +130,9 @@ fn handle_decryption_request(
 }
 
 fn get_sealed_request(req: &EncryptionRequest, txid: &TxId) -> Option<Vec<u8>> {
-    let to_seal = req.encode();
-    let sealing_result = SgxSealedData::<[u8]>::seal_data(txid, &to_seal);
-    let sealed_data = match sealing_result {
-        Ok(x) => x,
-        Err(_ret) => {
-            return None;
-        }
-    };
-    let sealed_log_size = SgxSealedData::<[u8]>::calc_raw_sealed_data_size(
-        sealed_data.get_add_mac_txt_len(),
-        sealed_data.get_encrypt_txt_len(),
-    ) as usize;
-    let mut sealed_log: Vec<u8> = vec![0u8; sealed_log_size];
-
-    unsafe {
-        let sealed_r = sealed_data.to_raw_sealed_data_t(
-            sealed_log.as_mut_ptr() as *mut sgx_sealed_data_t,
-            sealed_log_size as u32,
-        );
-        if sealed_r.is_none() {
-            return None;
-        }
-    }
-    Some(sealed_log)
+    SealedData::seal_data(txid, &req.encode())
+        .ok()
+        .and_then(|sealed| sealed.to_bytes())
 }
 
 fn construct_request(req: &EncryptionRequest) -> Option<QueryEncryptRequest> {
@@ -195,7 +170,7 @@ fn handle_encryption_request(
     match request {
         None => {
             let _ = tls.sock.shutdown(Shutdown::Both);
-            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            sgx_status_t::SGX_ERROR_UNEXPECTED
         }
         Some(qreq) => {
             let req_enc = EnclaveRequest::EncryptTx(Box::new(qreq)).encode();
@@ -251,12 +226,20 @@ fn handle_encryption_request(
                     let _ = tls.flush();
                     sgx_status_t::SGX_SUCCESS
                 }
-                _ => {
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-                }
+                _ => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
             }
         }
     }
+}
+
+#[cfg(feature = "mesalock_sgx")]
+fn raw_fd_to_tcp(fd: c_int) -> TcpStream {
+    TcpStream::new(fd).unwrap()
+}
+
+#[cfg(not(feature = "mesalock_sgx"))]
+fn raw_fd_to_tcp(fd: c_int) -> TcpStream {
+    unsafe { TcpStream::from_raw_fd(fd) }
 }
 
 /// The main routine:
@@ -274,7 +257,7 @@ fn handle_encryption_request(
 #[no_mangle]
 pub extern "C" fn run_server(socket_fd: c_int, timeout: c_int) -> sgx_status_t {
     let mut sess = rustls::ServerSession::new(&attest::get_tls_config());
-    let mut conn = TcpStream::new(socket_fd).unwrap();
+    let mut conn = raw_fd_to_tcp(socket_fd);
     if timeout > 0 {
         let utimeout = timeout.try_into().unwrap();
         let _ = conn.set_read_timeout(Some(Duration::new(utimeout, 0)));

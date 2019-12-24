@@ -7,7 +7,7 @@ readme = "../README.md"
 edition = "2018"
 
 [features]
-default = []
+default = ["chain-core/default", "chain-tx-validation/default"]
 mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx", "chain-core/mesalock_sgx", "chain-tx-validation/mesalock_sgx"]
 
 [dependencies]

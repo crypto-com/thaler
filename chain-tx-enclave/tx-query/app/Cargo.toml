@@ -7,15 +7,16 @@ readme = "../../README.md"
 edition = "2018"
 
 [features]
-default = []
+default = ["tx-query-enclave"]
 sgx-test = ["client-core", "client-common"]
+mesalock_sgx = ["sgx_urts", "enclave-u-common/mesalock_sgx"]
 
 [dependencies]
 log = "0.4.8"
 env_logger = "0.7.0"
 enclave-u-common = { path = "../../enclave-u-common" }
 sgx_types = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_urts = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_urts = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional=true }
 parity-scale-codec = { features = ["derive"], version = "1.0" }
 chain-core   = { path = "../../../chain-core" }
 enclave-protocol   = { path = "../../../enclave-protocol" }
@@ -23,3 +24,7 @@ secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", r
 zmq = "0.9"
 client-core   = { path = "../../../client-core", optional = true }
 client-common   = { path = "../../../client-common", optional = true }
+tx-query-enclave = { path = "../enclave", optional=true}
+
+[build-dependencies]
+cc = "1.0"

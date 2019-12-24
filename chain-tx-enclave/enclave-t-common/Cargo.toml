@@ -7,10 +7,15 @@ readme = "../../README.md"
 edition = "2018"
 
 [dependencies]
-sgx_tstd    = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-chain-core   = { path = "../../chain-core", default-features = false, features = ["mesalock_sgx"] }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism", "sgx"] }
+sgx_tstd    = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional=true }
+chain-core   = { path = "../../chain-core", default-features = false }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
 zeroize = { version = "1.0", default-features = false }
-sgx_tseal     = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tseal     = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional=true }
 parity-scale-codec = { default-features = false, version = "1.0" }
 sgx_types   = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx-wrapper = { path = "../../sgx-wrapper", default-features = false }
+
+[features]
+mesalock_sgx = ["sgx_tstd", "sgx_tseal", "chain-core/mesalock_sgx", "sgx-wrapper/mesalock_sgx", "secp256k1zkp/sgx"]
+default = ["chain-core/default", "sgx-wrapper/default"]

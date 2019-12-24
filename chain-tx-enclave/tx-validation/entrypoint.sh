@@ -15,7 +15,7 @@ if [ x"${SGX_MODE}" == "xHW" ]; then
 fi
 
 trap 'kill -TERM $PID' TERM INT
-./tx-validation-app tcp://0.0.0.0:${APP_PORT} &
+tx-validation-app tcp://0.0.0.0:${APP_PORT} &
 PID=$!
 echo "[tx-validation-app] Running in background ..."
 wait $PID
