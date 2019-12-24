@@ -503,6 +503,7 @@ impl Command {
             syncer.reset_state()?;
         }
         syncer.sync()?;
+        std::mem::drop(syncer);
         let _ = handle.join();
         Ok(())
     }
