@@ -427,7 +427,11 @@ impl Client for WebsocketRpcClient {
                 } else {
                     Err(Error::new(
                         ErrorKind::InvalidInput,
-                        "abci query return error",
+                        format!(
+                            "abci query fail: {}, {}",
+                            rsp.response.code.value(),
+                            rsp.response.log,
+                        ),
                     ))
                 }
             })
