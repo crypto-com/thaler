@@ -68,12 +68,15 @@ fn construct_sealed_response(
 ) -> Result<IntraEnclaveResponse, sgx_status_t> {
     let to_seal = to_seal_tx.encode();
     match result {
-        Err(e) => Ok(Err(e)),
+        Err(e) => {
+            Ok(Err(e))
+        },
         Ok(fee) => {
             let sealing_result = SgxSealedData::<[u8]>::seal_data(txid, &to_seal);
             let sealed_data = match sealing_result {
                 Ok(x) => x,
                 Err(ret) => {
+                    log::error!("sgx failed to seal data: {:?}", ret);
                     return Err(ret);
                 }
             };
@@ -89,6 +92,7 @@ fn construct_sealed_response(
                     sealed_log_size as u32,
                 );
                 if sealed_r.is_none() {
+                    log::error!("decode sealed data to raw failed");
                     return Err(sgx_status_t::SGX_ERROR_INVALID_PARAMETER);
                 }
             }
@@ -128,6 +132,7 @@ pub(crate) fn write_back_response(
                 }
                 sgx_status_t::SGX_SUCCESS
             } else {
+                log::error!("response length exceeds the limit");
                 sgx_status_t::SGX_ERROR_INVALID_PARAMETER
             }
         }
@@ -148,7 +153,8 @@ pub(crate) fn handle_validate_tx(
     response_buf: *mut u8,
     response_len: u32,
 ) -> sgx_status_t {
-    if is_basic_valid_tx_request(&request, &tx_inputs, crate::NETWORK_HEX_ID).is_err() {
+    if let Err(e) = is_basic_valid_tx_request(&request, &tx_inputs, crate::NETWORK_HEX_ID) {
+        log::error!("check request failed: {}", e);
         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
     }
     match (tx_inputs, request.tx) {
@@ -166,6 +172,7 @@ pub(crate) fn handle_validate_tx(
             match (plaintx, unsealed_inputs) {
                 (Ok(PlainTxAux::TransferTx(tx, witness)), Some(inputs)) => {
                     if tx.id() != payload.txid || tx.outputs.len() as TxoIndex != no_of_outputs {
+                        log::error!("input invalid txid or outputs index not match!");
                         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
                     }
                     let result = verify_transfer(&tx, &witness, request.info, inputs);
@@ -177,6 +184,7 @@ pub(crate) fn handle_validate_tx(
                     write_back_response(response, response_buf, response_len)
                 }
                 _ => {
+                    log::error!("can not find plain transfer transaction or unsealed inputs");
                     return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
                 }
             }
@@ -191,6 +199,7 @@ pub(crate) fn handle_validate_tx(
                     write_back_response(response, response_buf, response_len)
                 }
                 _ => {
+                    log::error!("can not get plain deposit stake transaction or unsealed inputs");
                     return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
                 }
             }
@@ -204,7 +213,8 @@ pub(crate) fn handle_validate_tx(
             },
         ) => {
             let address = verify_tx_recover_address(&witness, &payload.txid);
-            if address.is_err() {
+            if let Err(e) = address {
+                log::error!("get recover address failed: {:?}", e);
                 return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
             }
             let plaintx = decrypt(&payload);
@@ -225,11 +235,13 @@ pub(crate) fn handle_validate_tx(
                     write_back_response(response, response_buf, response_len)
                 }
                 _ => {
+                    log::error!("invalid parameter");
                     return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
                 }
             }
         }
         (_, _) => {
+            log::error!("invalid parameter");
             return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
         }
     }

@@ -96,10 +96,21 @@ pub fn encrypt_tx(
         let response = IntraEnclaveResponse::decode(&mut response_buf.as_slice());
         match response {
             Ok(Ok(IntraEnclaveResponseOk::Encrypt(obftx))) => Ok(obftx),
-            Ok(Err(e)) => Err(e),
-            _ => Err(Error::EnclaveRejected),
+            Ok(Ok(_)) => {
+                log::error!("encrypt unsupported tx");
+                Err(Error::EnclaveRejected)
+            },
+            Ok(Err(e)) => {
+                log::error!("encrypt tx error: {:?}", e);
+                Err(Error::EnclaveRejected)
+            },
+            Err(e) => {
+                log::error!("encrypt tx response failed: {:?}", e);
+                Err(Error::EnclaveRejected)
+            }
         }
     } else {
+        log::error!("sgx status error: retval: {:?}, ecall result: {:?}", retval, result);
         Err(Error::EnclaveRejected)
     }
 }
@@ -136,7 +147,10 @@ pub fn check_tx(
             ) => {
                 let _ = txdb
                     .insert(&request.tx.tx_id(), sealed_tx)
-                    .map_err(|_| Error::IoError)?;
+                    .map_err(|e| {
+                        log::error!("insert tx id to db failed: {:?}", e);
+                        Error::IoError
+                    })?;
                 if let Some(mut account) = request.account {
                     account.withdraw();
                     Ok((paid_fee, Some(account)))
@@ -175,10 +189,17 @@ pub fn check_tx(
                 let fee = request.info.min_fee_computed;
                 Ok((fee, account))
             }
-            (_, Ok(Err(e))) => Err(e),
-            (_, _) => Err(Error::EnclaveRejected),
+            (_, Ok(Err(e))) => {
+                log::error!("get error response: {:?}", e);
+                Err(e)
+            },
+            (_req, _resp) => {
+                log::error!("unsupported or error response");
+                Err(Error::EnclaveRejected)
+            },
         }
     } else {
+        log::error!("sgx status error: retval: {:?}, ecall result: {:?}", retval, result);
         Err(Error::EnclaveRejected)
     }
 }

@@ -7,7 +7,6 @@ use enclave_protocol::IntraEnclaveRequest;
 use enclave_protocol::{
     is_basic_valid_tx_request, EnclaveRequest, EnclaveResponse, IntraEncryptRequest, FLAGS,
 };
-use log::{debug, info};
 use parity_scale_codec::{Decode, Encode};
 use sgx_urts::SgxEnclave;
 use sled::Tree;
@@ -32,7 +31,10 @@ impl TxValidationServer {
         metadb: Tree,
     ) -> Result<TxValidationServer, Error> {
         match metadb.get(LAST_CHAIN_INFO_KEY) {
-            Err(_) => Err(Error::EFAULT),
+            Err(e) => {
+                log::error!("get last chain info failed: {:?}", e);
+                Err(Error::EFAULT)
+            },
             Ok(s) => {
                 let info = s.map(|stored| {
                     ChainInfo::decode(&mut stored.as_ref()).expect("stored chain info corrupted")
@@ -86,19 +88,22 @@ impl TxValidationServer {
     }
 
     pub fn execute(&mut self) {
-        info!("running zmq server");
+        log::info!("running zmq server");
         loop {
             if let Ok(msg) = self.socket.recv_bytes(FLAGS) {
-                debug!("received a message");
+                log::debug!("received a message");
                 let mcmd = EnclaveRequest::decode(&mut msg.as_slice());
                 let resp = match mcmd {
                     Ok(EnclaveRequest::CheckChain {
                         chain_hex_id,
                         last_app_hash,
                     }) => {
-                        debug!("check chain");
+                        log::debug!("check chain");
                         match self.metadb.get(LAST_APP_HASH_KEY) {
-                            Err(_) => EnclaveResponse::CheckChain(Err(None)),
+                            Err(e) => {
+                                log::error!("get last app hash failed: {:?}", e);
+                                EnclaveResponse::CheckChain(Err(None))
+                            },
                             Ok(s) => {
                                 let ss = s.map(|stored| {
                                     let mut app_hash = [0u8; 32];
@@ -112,6 +117,7 @@ impl TxValidationServer {
                                         ss,
                                     ))
                                 } else {
+                                    log::error!("app hash not match");
                                     EnclaveResponse::CheckChain(Err(ss))
                                 }
                             }
@@ -128,14 +134,16 @@ impl TxValidationServer {
                             self.info = Some(info);
                             EnclaveResponse::CommitBlock(Ok(()))
                         } else {
+                            log::error!("flush data failed when commit block");
                             EnclaveResponse::CommitBlock(Err(()))
                         }
                     }
                     Ok(EnclaveRequest::VerifyTx(req)) => {
                         let chid = req.info.chain_hex_id;
                         let mtxins = self.lookup(&req.tx);
-                        if is_basic_valid_tx_request(&req, &mtxins, chid).is_err() {
-                            EnclaveResponse::UnknownRequest
+                        if let Err(e) = is_basic_valid_tx_request(&req, &mtxins, chid) {
+                            log::error!("verify transaction failed: {}", e);
+                                EnclaveResponse::UnknownRequest
                         } else {
                             EnclaveResponse::VerifyTx(check_tx(
                                 self.enclave.geteid(),
@@ -170,12 +178,15 @@ impl TxValidationServer {
                                     IntraEnclaveRequest::Encrypt(Box::new(request)),
                                 )
                             }
-                            _ => Err(chain_tx_validation::Error::EnclaveRejected),
+                            _ => {
+                                log::error!("can not find encrypted transaction");
+                                Err(chain_tx_validation::Error::EnclaveRejected)
+                            },
                         };
                         EnclaveResponse::EncryptTx(result)
                     }
                     Err(e) => {
-                        debug!("unknown request / failed to decode: {}", e);
+                        log::error!("unknown request / failed to decode: {}", e);
                         EnclaveResponse::UnknownRequest
                     }
                 };

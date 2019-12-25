@@ -123,7 +123,8 @@ fn unseal_request(request: &mut IntraEncryptRequest) -> Option<EncryptionRequest
     let result = sealed_data.unseal_data();
     let mut unsealed_data = match result {
         Ok(x) => x,
-        Err(_) => {
+        Err(e) => {
+            log::error!("unsal data failed: {:?}", e);
             return None;
         }
     };
@@ -134,7 +135,10 @@ fn unseal_request(request: &mut IntraEncryptRequest) -> Option<EncryptionRequest
     let otx = EncryptionRequest::decode(&mut unsealed_data.get_decrypt_txt());
     match otx {
         Ok(o) => Some(o),
-        Err(_) => None,
+        Err(e) => {
+            log::error!("decode encryption request failed: {:?}", e);
+            None
+        },
     }
 }
 
