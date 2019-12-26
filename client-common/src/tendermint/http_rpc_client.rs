@@ -279,12 +279,21 @@ impl Client for RpcClient {
             .map(|opt| {
                 let rsp =
                     opt.ok_or(Error::new(ErrorKind::InvalidInput, "chain state not found"))?;
-                if rsp.response.code.is_ok() {
-                    let value = base64
-                        .decode(&rsp.response.value)
-                        .chain(ErrorKind::InvalidInput, "chain state decode failed")?;
-                    let state = serde_json::from_str(String::from_utf8(value))
-                        .chain(ErrorKind::InvalidInput, "chain state decode failed")?;
+                if !rsp.response.code.is_ok() {
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        "abci query return error",
+                    ));
+                }
+
+                if let Some(value) = rsp.response.value {
+                    let value = base64::decode(&value)
+                        .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?;
+                    let state = serde_json::from_str(
+                        &String::from_utf8(value)
+                            .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?,
+                    )
+                    .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?;
                     Ok(state)
                 } else {
                     Err(Error::new(

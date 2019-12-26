@@ -60,6 +60,7 @@ rust: &rust
 
   script:
     - cargo build
+    - cargo build --features http-rpc --manifest-path client-common/Cargo.toml
     - cargo test
     - |
       if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then

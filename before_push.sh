@@ -59,8 +59,8 @@ function command_suite() {
         CMD="${1}"
     else
         CMD="${2}"
-        print_step "${CMD}"
     fi
+    print_step "[RUNNING] ${CMD}"
 
     set +e
     eval "${CMD}"
