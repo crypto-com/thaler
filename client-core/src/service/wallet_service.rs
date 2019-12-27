@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use parity_scale_codec::{Decode, Encode};
 use secstr::SecUtf8;
 
+use crate::service::{load_wallet_state, WalletState};
 use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::state::account::StakedStateAddress;
@@ -104,11 +105,19 @@ where
         WalletService { storage }
     }
 
-    /// Load wallet
+    /// Get the wallet from storage
     pub fn get_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<Wallet> {
         load_wallet(&self.storage, name, passphrase)?.err_kind(ErrorKind::InvalidInput, || {
             format!("Wallet with name ({}) not found", name)
         })
+    }
+
+    /// Get the wallet state from storage
+    pub fn get_wallet_state(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletState> {
+        load_wallet_state(&self.storage, name, passphrase)?
+            .err_kind(ErrorKind::InvalidInput, || {
+                format!("WalletState with name ({}) not found", name)
+            })
     }
 
     fn set_wallet(&self, name: &str, passphrase: &SecUtf8, wallet: Wallet) -> Result<()> {

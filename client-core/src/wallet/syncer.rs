@@ -260,14 +260,19 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
         }
     }
 
-    fn save(&mut self, memento: &WalletStateMemento) -> Result<()> {
-        service::save_sync_state(&self.env.storage, &self.env.name, &self.sync_state)?;
+    fn update_state(&mut self, memento: &WalletStateMemento) -> Result<()> {
         self.wallet_state = service::modify_wallet_state(
             &self.env.storage,
             &self.env.name,
             &self.env.passphrase,
             |state| state.apply_memento(memento),
         )?;
+        Ok(())
+    }
+
+    fn save(&mut self, memento: &WalletStateMemento) -> Result<()> {
+        service::save_sync_state(&self.env.storage, &self.env.name, &self.sync_state)?;
+        self.update_state(memento)?;
         Ok(())
     }
 
@@ -370,7 +375,6 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
                 self.handle_batch(non_empty_batch)?;
             }
         }
-
         Ok(())
     }
 

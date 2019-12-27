@@ -1,3 +1,4 @@
+use bit_vec::BitVec;
 use std::collections::BTreeSet;
 
 use parity_scale_codec::Encode;
@@ -12,26 +13,29 @@ use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::input::TxoPointer;
+use chain_core::tx::data::input::{str2txid, TxoPointer};
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::Tx;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use chain_core::tx::TxAux;
-use client_common::tendermint::types::BroadcastTxResponse;
+use chain_core::tx::{TransactionId, TxAux};
+use client_common::tendermint::types::{AbciQueryExt, BlockExt, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
     Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SignedTransaction, Storage,
+    Transaction, TransactionInfo,
 };
 
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedWalletTransactionBuilder;
 use crate::types::WalletKind;
 use crate::types::{AddressType, BalanceChange, TransactionChange};
+use crate::wallet::syncer_logic::create_transaction_change;
 use crate::{
     InputSelectionStrategy, Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient,
     WalletTransactionBuilder,
 };
+use client_common::tendermint::types::Time;
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Debug, Default, Clone)]
@@ -517,6 +521,88 @@ where
         self.tendermint_client
             .broadcast_transaction(&tx_aux.encode())
     }
+
+    fn export_plain_tx(&self, name: &str, passphrase: &SecUtf8, txid: &str) -> Result<String> {
+        let txid = str2txid(txid).chain(|| (ErrorKind::InvalidInput, "invalid transaction id"))?;
+        let public_key = self.view_key(name, passphrase)?;
+        let private_key = self
+            .private_key(passphrase, &public_key)?
+            .chain(|| (ErrorKind::StorageError, "can not find private key"))?;
+        let tx = self.transaction_builder.decrypt_tx(txid, &private_key)?;
+        // get the block height
+        let tx_change = self
+            .wallet_state_service
+            .get_transaction_history(name, passphrase, false)?
+            .filter(|change| BalanceChange::NoChange != change.balance_change)
+            .find(|tx_change| tx_change.transaction_id == tx.id())
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "no transaction find by transaction id",
+                )
+            })?;
+
+        let tx_info = TransactionInfo {
+            tx,
+            block_height: tx_change.block_height,
+        };
+
+        let tx_str = serde_json::to_string(&tx_info)
+            .chain(|| (ErrorKind::InvalidInput, "invalid transaction id"))?;
+        Ok(base64::encode(&tx_str))
+    }
+
+    /// import a plain base64 encoded plain transaction
+    fn import_plain_tx(&self, name: &str, passphrase: &SecUtf8, tx_str: &str) -> Result<Coin> {
+        let tx_raw = base64::decode(tx_str)
+            .chain(|| (ErrorKind::DecryptionError, "Unable to decrypt transaction"))?;
+        let tx_info: TransactionInfo = serde_json::from_slice(&tx_raw)
+            .chain(|| (ErrorKind::DecryptionError, "Unable to decrypt transaction"))?;
+        // check if the output is spent or not
+        let v = self
+            .tendermint_client
+            .query("meta", &tx_info.tx.id().to_vec())?
+            .bytes()?;
+        let bit_flag = BitVec::from_bytes(&v);
+        let spent_flags: Result<Vec<bool>> = tx_info
+            .tx
+            .outputs()
+            .iter()
+            .enumerate()
+            .map(|(index, _output)| {
+                bit_flag
+                    .get(index)
+                    .chain(|| (ErrorKind::InvalidInput, "check failed in enclave"))
+            })
+            .collect();
+        let mut memento = WalletStateMemento::default();
+        // check if tx belongs to the block
+        let block = self.tendermint_client.block(tx_info.block_height)?;
+        if !block.enclave_transaction_ids()?.contains(&tx_info.tx.id()) {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "block height and transaction not match",
+            ));
+        }
+        let wallet = self.wallet_service.get_wallet(name, passphrase)?;
+
+        let wallet_state = self.wallet_service.get_wallet_state(name, passphrase)?;
+
+        let imported_value = import_transaction(
+            &wallet,
+            &wallet_state,
+            &mut memento,
+            &tx_info.tx,
+            tx_info.block_height,
+            block.header.time,
+            spent_flags?,
+        )
+        .chain(|| (ErrorKind::InvalidInput, "import error"))?;
+
+        self.wallet_state_service
+            .apply_memento(name, passphrase, &memento)?;
+        Ok(imported_value)
+    }
 }
 
 impl<S, C, T> MultiSigWalletClient for DefaultWalletClient<S, C, T>
@@ -717,4 +803,42 @@ fn parse_feedback(feedback: Option<&Feedback>) -> String {
             feedbacks.join(" | ")
         }
     }
+}
+
+fn import_transaction(
+    wallet: &Wallet,
+    wallet_state: &WalletState,
+    memento: &mut WalletStateMemento,
+    transaction: &Transaction,
+    block_height: u64,
+    block_time: Time,
+    spent_flag: Vec<bool>,
+) -> Result<Coin> {
+    let transaction_change =
+        create_transaction_change(wallet, wallet_state, transaction, block_height, block_time)
+            .chain(|| (ErrorKind::InvalidInput, "create transaction change failed"))?;
+    let mut value = Coin::zero();
+    let transfer_addresses = wallet.transfer_addresses();
+    for (i, (output, spent)) in transaction_change
+        .outputs
+        .iter()
+        .zip(spent_flag)
+        .enumerate()
+    {
+        // Only add unspent transaction if output address belongs to current wallet
+        if transfer_addresses.contains(&output.address) && !spent {
+            memento.add_unspent_transaction(
+                TxoPointer::new(transaction_change.transaction_id, i),
+                output.clone(),
+            );
+            value = (value + output.value).chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "invalid coin in outputs of transaction",
+                )
+            })?;
+        }
+    }
+    memento.add_transaction_change(transaction_change);
+    Ok(value)
 }

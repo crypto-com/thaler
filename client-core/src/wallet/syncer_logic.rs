@@ -20,7 +20,7 @@ use crate::types::{BalanceChange, TransactionChange, TransactionInput, Transacti
 use crate::WalletStateMemento;
 
 #[derive(Error, Debug)]
-pub(crate) enum SyncerLogicError {
+pub enum SyncerLogicError {
     #[error("Total input amount exceeds maximum allowed value(txid: {0})")]
     TotalInputOutOfBound(String),
     #[error("Total output amount exceeds maximum allowed value(txid: {0})")]
@@ -76,15 +76,13 @@ pub(crate) fn handle_blocks(
     Ok(memento)
 }
 
-/// Update WalletStateMemento with transaction
-pub(crate) fn handle_transaction(
+pub fn create_transaction_change(
     wallet: &Wallet,
     wallet_state: &WalletState,
-    memento: &mut WalletStateMemento,
     transaction: &Transaction,
     block_height: u64,
     block_time: Time,
-) -> Result<(), SyncerLogicError> {
+) -> Result<TransactionChange, SyncerLogicError> {
     let transaction_id = transaction.id();
     let outputs = transaction.outputs().to_vec();
     let transaction_type = TransactionType::from(transaction);
@@ -100,16 +98,20 @@ pub(crate) fn handle_transaction(
         block_height,
         block_time,
     };
-
-    on_transaction_change(wallet, memento, transaction_change);
-    Ok(())
+    Ok(transaction_change)
 }
 
-fn on_transaction_change(
+/// Update WalletStateMemento with transaction
+pub(crate) fn handle_transaction(
     wallet: &Wallet,
+    wallet_state: &WalletState,
     memento: &mut WalletStateMemento,
-    transaction_change: TransactionChange,
-) {
+    transaction: &Transaction,
+    block_height: u64,
+    block_time: Time,
+) -> Result<(), SyncerLogicError> {
+    let transaction_change =
+        create_transaction_change(wallet, wallet_state, transaction, block_height, block_time)?;
     for input in transaction_change.inputs.iter() {
         memento.remove_unspent_transaction(input.pointer.clone());
     }
@@ -127,6 +129,7 @@ fn on_transaction_change(
     }
 
     memento.add_transaction_change(transaction_change);
+    Ok(())
 }
 
 fn decorate_inputs(
