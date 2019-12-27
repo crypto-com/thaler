@@ -18,7 +18,7 @@ secstr = { version = "0.3.2", features = ["serde"] }
 zeroize = "1.1"
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
-sled = { version = "0.30.1", optional = true }
+sled = { version = "0.30.2", optional = true }
 jsonrpc = { version = "0.11", optional = true }
 serde_json = { version = "1.0", optional = true }
 parity-scale-codec = { features = ["derive"], version = "1.1" }
