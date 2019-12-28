@@ -18,7 +18,6 @@ use starling::traits::{
 };
 use starling::tree::tree_data::TreeData;
 use std::collections::HashMap;
-use std::error::Error;
 
 #[derive(Clone)]
 pub struct Blake2sHasher(Blake2s);
@@ -414,5 +413,5 @@ where
 
 #[inline]
 pub fn convert_io_err(e: std::io::Error) -> Exception {
-    Exception::new(e.description())
+    Exception::new(&e.to_string())
 }
