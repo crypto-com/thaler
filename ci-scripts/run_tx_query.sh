@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
 
-source /root/.docker_bashrc
-
 echo "[Config] SGX_MODE=${SGX_MODE}"
 echo "[Config] TX_QUERY_TIMEOUT=${TX_QUERY_TIMEOUT}"
 
@@ -10,14 +8,19 @@ LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-
 
 echo "[aesm_service] Running in background ..."
 # Wait for aesm_service to initialize
-sleep 1
+sleep 4
 
 # assumes SPID + IAS_API_KEY are set
 
+if [ x"${SPID}" == "x" ]; then
+  echo "the environment SPID should be set"
+  exit 1
+fi
+
+if [ x"${IAS_API_KEY}" == "x" ]; then
+  echo "the environment IAS_API_KEY should be set"
+  exit 1
+fi
+
 trap 'kill -TERM $PID' TERM INT
-./tx-query-app 0.0.0.0:${APP_PORT} ${TX_VALIDATION_CONN} ${TX_QUERY_TIMEOUT} &
-PID=$!
-echo "[tx-validation-app] Running in background ..."
-wait $PID
-wait $PID
-exit $?
+RUST_LOG=${RUST_LOG} ./tx-query-app 0.0.0.0:${APP_PORT_QUERY} ${TX_VALIDATION_CONN} ${TX_QUERY_TIMEOUT}

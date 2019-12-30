@@ -4,41 +4,31 @@ RUN apt-get update && apt-get install -y \
      make \
      libzmq3-dev \
      libssl1.1 \
+     libssl-dev \
      curl \
      libprotobuf-dev \
      libssl-dev && \
      rm -rf /var/lib/apt/lists/*
 
-arg BUILD_MODE
-
-# copy the chain binary file
-COPY ./target/${BUILD_MODE}/client-cli /usr/local/bin/
-COPY ./target/${BUILD_MODE}/chain-abci /usr/local/bin/
-COPY ./target/${BUILD_MODE}/client-rpc /usr/local/bin/
-COPY ./target/${BUILD_MODE}/dev-utils /usr/local/bin/
-COPY ./docker/wait-for-it.sh /usr/local/bin
-
-STOPSIGNAL SIGTERM
-
-# install sgx enclave pws
+ARG DOWNLOAD_URL
 ARG SGX_ENCLAVE=https://download.01.org/intel-sgx/sgx-linux/2.7.1/distro/ubuntu18.04-server/libsgx-enclave-common_2.7.101.3-bionic1_amd64.deb
 
-# install intel sgx sdk
 RUN mkdir -p /opt/intel && \
     cd /opt/intel && \
     set -eux; \
     curl -L  ${SGX_ENCLAVE} -o common.deb &&\
-    dpkg -i common.deb; rm common.deb;
+    dpkg -i common.deb; rm common.deb; \
+    curl -L ${DOWNLOAD_URL} -o /tmp/bin.tar.gz &&\
+    cd /tmp/ && tar -zxvf bin.tar.gz && \
+    bash -c "mv /tmp/{client-cli,chain-abci,client-rpc,dev-utils} /usr/local/bin/" && \
+    mkdir -p /crypto-chain/bin && \
+    mv tx-query* /crypto-chain/bin/query && \
+    mv tx-validation* /crypto-chain/bin/validation
 
-# copy the enclave binary file and script
 COPY ci-scripts/run_tx_query.sh /crypto-chain/bin/query/entrypoint.sh
 COPY ci-scripts/run_tx_validation.sh /crypto-chain/bin/validation/entrypoint.sh
 
-COPY chain-tx-enclave/tx-validation/bin/enclave.signed.so /crypto-chain/bin/validation/
-COPY chain-tx-enclave/tx-validation/bin/tx-validation-app /crypto-chain/bin/validation/
-
-COPY chain-tx-enclave/tx-query/bin/enclave.signed.so /crypto-chain/bin/query/
-COPY chain-tx-enclave/tx-query/bin/tx-query-app /crypto-chain/bin/query/
+STOPSIGNAL SIGTERM
 
 WORKDIR /crypto-chain
 

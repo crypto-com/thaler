@@ -37,37 +37,18 @@ function check_command_exist() {
     set -e
 }
 
-function build_chain_docker_image() {
+function build_docker_image() {
     print_config "SGX_MODE" "${SGX_MODE}"
     print_config "CLIENT_FEATURES" "${CLIENT_FEATURES}"
     print_config "CHAIN_ABCI_FEATURES" "${CHAIN_ABCI_FEATURES}"
-
-    CWD=$(pwd)
-    cd ../ && docker build -t "${CHAIN_DOCKER_IMAGE}" \
-        -f ./docker/Dockerfile . \
-        --build-arg CLIENT_FEATURES="${CLIENT_FEATURES}" \
-        --build-arg CHAIN_ABCI_FEATURES="${CHAIN_ABCI_FEATURES}"
-    cd "${CWD}"
+    cd ..
+    make create-path
+    make clean
+    make build-chain
+    make build-sgx
+    docker build -t ${CHAIN_DOCKER_IMAGE} -f ./docker/Dockerfile  --build-arg BUILD_MODE=debug .
+    cd -
 }
-
-function build_chain_tx_enclave_docker_image() {
-    print_config "SGX_MODE" "${SGX_MODE}"
-    CWD=$(pwd)
-    cd ../ && docker build -t "${CHAIN_TX_ENCLAVE_DOCKER_IMAGE}" \
-        -f ./chain-tx-enclave/tx-validation/Dockerfile . \
-        --build-arg SGX_MODE="${SGX_MODE}" \
-        --build-arg NETWORK_ID="${CHAIN_HEX_ID}"
-    cd "${CWD}"
-}
-
-function build_chain_tx_enclave_query_docker_image() {
-    print_config "SGX_MODE" "${SGX_MODE}"
-    CWD=$(pwd)
-    cd ../ && docker build -t "${CHAIN_TX_ENCLAVE_QUERY_DOCKER_IMAGE}" \
-        -f ./chain-tx-enclave/tx-query/Dockerfile .
-    cd "${CWD}"
-}
-
 
 # @argument Tendermint directory
 function init_tendermint() {
@@ -286,17 +267,9 @@ chmod ug+s ./docker-data
 
 print_step "Build Chain image"
 if [ ! -z "${USE_DOCKER_COMPOSE}" ]; then
-    build_chain_docker_image
+    build_docker_image
 else
     cargo build
-fi
-
-if [ x"${SGX_MODE}" == "xHW" ]; then
-    print_step "Build Chain Transaction Enclave image"
-    build_chain_tx_enclave_docker_image
-
-    print_step "Build Chain Transaction Enclave Query image"
-    build_chain_tx_enclave_query_docker_image
 fi
 
 print_step "Initialize Tendermint"
