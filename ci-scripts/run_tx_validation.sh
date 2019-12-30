@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
 
-source /root/.docker_bashrc
-
 echo "[Config] SGX_MODE=${SGX_MODE}"
 echo "[Config] NETWORK_ID=${NETWORK_ID}"
 
@@ -11,13 +9,9 @@ if [ x"${SGX_MODE}" == "xHW" ]; then
 
   echo "[aesm_service] Running in background ..."
   # Wait for aesm_service to initialize
-  sleep 1
+  sleep 4
 fi
 
 trap 'kill -TERM $PID' TERM INT
-./tx-validation-app tcp://0.0.0.0:${APP_PORT} &
-PID=$!
-echo "[tx-validation-app] Running in background ..."
-wait $PID
-wait $PID
-exit $?
+echo "[Config] start enclave on port ${APP_PORT_VALIDATION}"
+RUST_LOG=${RUST_LOG} ./tx-validation-app tcp://0.0.0.0:${APP_PORT_VALIDATION}
