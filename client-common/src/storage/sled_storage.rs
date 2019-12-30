@@ -31,7 +31,7 @@ impl SledStorage {
                     })?,
             )))
         } else {
-            Ok(Self(Arc::new(Db::open(&path).chain(|| {
+            Ok(Self(Arc::new(sled::open(&path).chain(|| {
                 (
                     ErrorKind::InitializationError,
                     format!(
