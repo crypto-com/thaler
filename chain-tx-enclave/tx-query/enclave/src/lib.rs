@@ -30,22 +30,94 @@ use std::prelude::v1::*;
 use std::time::Duration;
 use std::vec::Vec;
 
-extern "C" {
-    pub fn ocall_encrypt_request(
-        ret_val: *mut sgx_status_t,
+#[cfg(feature = "mesalock_sgx")]
+mod ocall {
+    use super::sgx_status_t;
+    extern "C" {
+        pub fn ocall_encrypt_request(
+            ret_val: *mut sgx_status_t,
+            request: *const u8,
+            request_len: u32,
+            response: *mut u8,
+            response_len: u32,
+        ) -> sgx_status_t;
+
+        pub fn ocall_get_txs(
+            ret_val: *mut sgx_status_t,
+            txids: *const u8,
+            txids_len: u32,
+            txs: *mut u8,
+            txs_len: u32,
+        ) -> sgx_status_t;
+    }
+
+    pub unsafe fn encrypt_request(
         request: *const u8,
         request_len: u32,
         response: *mut u8,
         response_len: u32,
-    ) -> sgx_status_t;
+    ) -> sgx_status_t {
+        let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
+        let result = ocall_encrypt_request(&mut rt, request, request_len, response, response_len);
+        if rt != sgx_status_t::SGX_SUCCESS {
+            rt
+        } else {
+            result
+        }
+    }
 
-    pub fn ocall_get_txs(
-        ret_val: *mut sgx_status_t,
+    pub unsafe fn get_txs(
         txids: *const u8,
         txids_len: u32,
         txs: *mut u8,
         txs_len: u32,
-    ) -> sgx_status_t;
+    ) -> sgx_status_t {
+        let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
+        let result = ocall_get_txs(&mut rt, txids, txids_len, txs, txs_len);
+        if rt != sgx_status_t::SGX_SUCCESS {
+            rt
+        } else {
+            result
+        }
+    }
+}
+
+#[cfg(not(feature = "mesalock_sgx"))]
+mod ocall {
+    use super::sgx_status_t;
+    extern "C" {
+        pub fn ocall_encrypt_request(
+            request: *const u8,
+            request_len: u32,
+            response: *mut u8,
+            response_len: u32,
+        ) -> sgx_status_t;
+
+        pub fn ocall_get_txs(
+            txids: *const u8,
+            txids_len: u32,
+            txs: *mut u8,
+            txs_len: u32,
+        ) -> sgx_status_t;
+    }
+
+    pub unsafe fn encrypt_request(
+        request: *const u8,
+        request_len: u32,
+        response: *mut u8,
+        response_len: u32,
+    ) -> sgx_status_t {
+        ocall_encrypt_request(request, request_len, response, response_len)
+    }
+
+    pub unsafe fn get_txs(
+        txids: *const u8,
+        txids_len: u32,
+        txs: *mut u8,
+        txs_len: u32,
+    ) -> sgx_status_t {
+        ocall_get_txs(txids, txids_len, txs, txs_len)
+    }
 }
 
 fn process_decryption_request(body: &DecryptionRequestBody) -> Option<DecryptionResponse> {
@@ -55,17 +127,15 @@ fn process_decryption_request(body: &DecryptionRequestBody) -> Option<Decryption
     let req = request.encode();
     // TODO: check tx size
     let mut inputs_buf = vec![0u8; body.txs.len() * 8000];
-    let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
     let result = unsafe {
-        ocall_get_txs(
-            &mut rt as *mut sgx_status_t,
+        ocall::get_txs(
             req.as_ptr(),
             req.len() as u32,
             inputs_buf.as_mut_ptr(),
             inputs_buf.len() as u32,
         )
     };
-    if result != sgx_status_t::SGX_SUCCESS || rt != sgx_status_t::SGX_SUCCESS {
+    if result != sgx_status_t::SGX_SUCCESS {
         return None;
     }
     match EnclaveResponse::decode(&mut inputs_buf.as_slice()) {
@@ -175,10 +245,8 @@ fn handle_encryption_request(
         Some(qreq) => {
             let req_enc = EnclaveRequest::EncryptTx(Box::new(qreq)).encode();
             let mut result_buf = vec![0u8; req_enc.len()];
-            let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
             let result = unsafe {
-                ocall_encrypt_request(
-                    &mut rt as *mut sgx_status_t,
+                ocall::encrypt_request(
                     req_enc.as_ptr(),
                     req_enc.len() as u32,
                     result_buf.as_mut_ptr(),
@@ -187,9 +255,6 @@ fn handle_encryption_request(
             };
             if result != sgx_status_t::SGX_SUCCESS {
                 return result;
-            }
-            if rt != sgx_status_t::SGX_SUCCESS {
-                return rt;
             }
             match EnclaveResponse::decode(&mut result_buf.as_slice()) {
                 Ok(EnclaveResponse::EncryptTx(encresp)) => {

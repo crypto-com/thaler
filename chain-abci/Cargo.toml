@@ -8,7 +8,7 @@ edition = "2018"
 
 [features]
 mock-enc-dec = []
-mesalock_sgx = ["tx-validation-app/mesalock_sgx", "enclave-u-common/mesalock_sgx"]
+mesalock_sgx = ["tx-validation-app/mesalock_sgx"]
 mock-validation = []
 default = ["tx-validation-app/default"]
 
@@ -38,7 +38,6 @@ blake2 = "0.8"
 parity-scale-codec = { features = ["derive"], version = "1.1" }
 sled = "0.30.3"
 tx-validation-app = { path = "../chain-tx-enclave/tx-validation/app", default-features=false }
-enclave-u-common = { path = "../chain-tx-enclave/enclave-u-common", default-features=false }
 
 [dev-dependencies]
 quickcheck = "0.9"

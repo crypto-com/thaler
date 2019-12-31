@@ -1,5 +1,6 @@
 use log::info;
 use std::net::{IpAddr, SocketAddr};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use chain_abci::app::ChainNodeApp;
@@ -73,7 +74,9 @@ fn main() {
         get_network(),
         get_network_id()
     );
-    let app = TxValidationApp::with_path(&opt.enclave_storage).expect("init validation app");
+    let app = Arc::new(Mutex::new(
+        TxValidationApp::with_path(&opt.enclave_storage).expect("init validation app"),
+    ));
     let proxy = EnclaveAppProxy::new(app.clone());
 
     let enclave_server = opt.enclave_server.clone();

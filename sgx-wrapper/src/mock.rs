@@ -60,7 +60,7 @@ pub fn os_rng_fill(output: &mut [u8]) {
 }
 
 lazy_static! {
-    pub static ref NETWORK_HEX_ID: u8 = env::var("NETWORK_ID").unwrap().parse().unwrap();
+    pub static ref NETWORK_HEX_ID: u8 = hex::decode(env::var("NETWORK_ID").unwrap()).unwrap()[0];
     pub static ref MOCK_KEY: [u8; 16] = [0u8; 16];
 }
 

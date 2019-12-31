@@ -62,6 +62,13 @@ pub struct Options {
         help = "Number of requests per batch when syncing wallet"
     )]
     pub batch_size: usize,
+    #[structopt(
+        name = "insecure-tx-query",
+        short,
+        long,
+        help = "Don't verify tx-query server's certificate (only use for testing)"
+    )]
+    pub insecure_tx_query: bool,
 }
 
 #[allow(dead_code)]

@@ -54,18 +54,23 @@ pub(crate) struct Server {
     websocket_url: String,
     enable_fast_forward: bool,
     batch_size: usize,
+    verify_tx_query: bool,
 }
 
 /// normal
 #[cfg(not(feature = "mock-enc-dec"))]
-fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
-    DefaultTransactionObfuscation::from_tx_query(&tendermint_client)
+fn get_tx_query(
+    tendermint_client: WebsocketRpcClient,
+    verify: bool,
+) -> Result<DefaultTransactionObfuscation> {
+    DefaultTransactionObfuscation::from_tx_query(&tendermint_client, verify)
 }
 
 /// temporary
 #[cfg(feature = "mock-enc-dec")]
 fn get_tx_query(
     tendermint_client: WebsocketRpcClient,
+    _secure: bool,
 ) -> Result<MockAbciTransactionObfuscation<WebsocketRpcClient>> {
     warn!("{}", "WARNING: Using mock (non-enclave) infrastructure");
     Ok(MockAbciTransactionObfuscation::new(tendermint_client))
@@ -85,6 +90,7 @@ impl Server {
             websocket_url: options.websocket_url,
             enable_fast_forward: !options.disable_fast_forward,
             batch_size: options.batch_size,
+            verify_tx_query: !options.insecure_tx_query,
         })
     }
 
@@ -94,7 +100,7 @@ impl Server {
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppWalletClient> {
         let signer_manager = WalletSignerManager::new(storage.clone());
-        let transaction_cipher = get_tx_query(tendermint_client.clone())?;
+        let transaction_cipher = get_tx_query(tendermint_client.clone(), self.verify_tx_query)?;
         let transaction_builder = DefaultWalletTransactionBuilder::new(
             signer_manager,
             tendermint_client.genesis().unwrap().fee_policy(),
@@ -112,7 +118,7 @@ impl Server {
         storage: SledStorage,
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppOpsClient> {
-        let transaction_cipher = get_tx_query(tendermint_client.clone())?;
+        let transaction_cipher = get_tx_query(tendermint_client.clone(), self.verify_tx_query)?;
         let signer_manager = WalletSignerManager::new(storage.clone());
         let fee_algorithm = tendermint_client.genesis().unwrap().fee_policy();
         let wallet_client = self.make_wallet_client(storage, tendermint_client.clone())?;
@@ -130,7 +136,7 @@ impl Server {
         storage: SledStorage,
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppSyncerConfig> {
-        let transaction_cipher = get_tx_query(tendermint_client.clone())?;
+        let transaction_cipher = get_tx_query(tendermint_client.clone(), self.verify_tx_query)?;
 
         Ok(AppSyncerConfig::new(
             storage,

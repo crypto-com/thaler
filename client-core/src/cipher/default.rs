@@ -1,3 +1,5 @@
+use std::result::Result as StdResult;
+
 use super::sgx::EnclaveAttr;
 use crate::TransactionObfuscation;
 use chain_core::tx::data::TxId;
@@ -32,18 +34,40 @@ fn get_tls_config() -> Arc<rustls::ClientConfig> {
     Arc::new(client_cfg)
 }
 
+struct NoCertificateVerification {}
+impl rustls::ServerCertVerifier for NoCertificateVerification {
+    fn verify_server_cert(
+        &self,
+        _roots: &rustls::RootCertStore,
+        _presented_certs: &[rustls::Certificate],
+        _dns_name: webpki::DNSNameRef<'_>,
+        _ocsp: &[u8],
+    ) -> StdResult<rustls::ServerCertVerified, rustls::TLSError> {
+        Ok(rustls::ServerCertVerified::assertion())
+    }
+}
+fn get_tls_config_insecure() -> Arc<rustls::ClientConfig> {
+    let mut cfg = rustls::ClientConfig::new();
+    cfg.dangerous()
+        .set_certificate_verifier(Arc::new(NoCertificateVerification {}));
+    cfg.versions.clear();
+    cfg.versions.push(rustls::ProtocolVersion::TLSv1_2);
+    Arc::new(cfg)
+}
+
 /// Implementation of transaction obfuscation which directly talks to transaction decryption query and encryption enclaves
 /// TODO: querying from multiple nodes / addresses
 #[derive(Debug, Clone)]
 pub struct DefaultTransactionObfuscation {
     tqe_address: String,
     tqe_hostname: webpki::DNSName,
+    verify: bool,
 }
 
 impl DefaultTransactionObfuscation {
     /// tqe_address: connection string <HOST/IP:PORT>
     /// tqe_hostname: expected hostname (e.g. localhost in testing)
-    pub fn new(tqe_address: String, tqe_hostname: String) -> Self {
+    pub fn new(tqe_address: String, tqe_hostname: String, verify: bool) -> Self {
         // one may just write an ip address instead of a domain name, which isn't a valid DNS name
         // so there's a default case
         // TODO: should TQE enforce valid domain names,
@@ -55,11 +79,23 @@ impl DefaultTransactionObfuscation {
         DefaultTransactionObfuscation {
             tqe_address,
             tqe_hostname: dns_name,
+            verify,
+        }
+    }
+
+    fn tls_config(&self) -> Arc<rustls::ClientConfig> {
+        if self.verify {
+            get_tls_config()
+        } else {
+            get_tls_config_insecure()
         }
     }
 
     /// Get DefaultTransactionObfuscation from txquery call to Tendermint client
-    pub fn from_tx_query<C>(tendermint_client: &C) -> Result<DefaultTransactionObfuscation>
+    pub fn from_tx_query<C>(
+        tendermint_client: &C,
+        verify: bool,
+    ) -> Result<DefaultTransactionObfuscation>
     where
         C: Client,
     {
@@ -70,15 +106,19 @@ impl DefaultTransactionObfuscation {
                 "Unable to decode txquery address",
             )
         })?;
-        DefaultTransactionObfuscation::from_tx_query_address(&address)
+        DefaultTransactionObfuscation::from_tx_query_address(&address, verify)
     }
 
     /// Get DefaultTransactionObfuscation from tx query address
-    pub fn from_tx_query_address(address: &str) -> Result<DefaultTransactionObfuscation> {
+    pub fn from_tx_query_address(
+        address: &str,
+        verify: bool,
+    ) -> Result<DefaultTransactionObfuscation> {
         if let Some(hostname) = address.split(':').next() {
             Ok(DefaultTransactionObfuscation::new(
                 address.to_string(),
                 hostname.to_string(),
+                verify,
             ))
         } else {
             Err(Error::new(
@@ -99,7 +139,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
             return Ok(vec![]);
         }
 
-        let client_config = get_tls_config();
+        let client_config = self.tls_config();
         let dns_name = self.tqe_hostname.as_ref();
         // FIXME: better response from enclave and retry mechanism
         for attempt in 0..3 {
@@ -205,7 +245,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
     }
 
     fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
-        let client_config = get_tls_config();
+        let client_config = self.tls_config();
         let dns_name = self.tqe_hostname.as_ref();
         let mut sess = rustls::ClientSession::new(&client_config, dns_name);
 

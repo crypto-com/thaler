@@ -1,4 +1,11 @@
-use crate::TxValidationEnclave;
+use enclave_u_common::{META_KEYSPACE, TX_KEYSPACE};
+use log::{debug, info};
+use parity_scale_codec::{Decode, Encode};
+use sgx_types::sgx_status_t;
+use sled::Tree;
+use std::sync::{Arc, Mutex};
+use zmq::{Context, Error, Socket, REP};
+
 use chain_core::common::H256;
 use chain_core::state::account::{DepositBondTx, StakedState};
 use chain_core::tx::{data::TxId, fee::Fee, TxEnclaveAux, TxObfuscated};
@@ -7,18 +14,13 @@ use enclave_protocol::{
     is_basic_valid_tx_request, EnclaveRequest, EnclaveResponse, IntraEnclaveRequest,
     IntraEnclaveResponseOk, IntraEncryptRequest, FLAGS,
 };
-use enclave_u_common::{META_KEYSPACE, TX_KEYSPACE};
-use log::{debug, info};
-use parity_scale_codec::{Decode, Encode};
-use sgx_types::sgx_status_t;
-use sled::Tree;
-use zmq::{Context, Error, Socket, REP};
+
+use crate::TxValidationEnclave;
 
 const LAST_APP_HASH_KEY: &[u8] = b"last_apphash";
 const LAST_CHAIN_INFO_KEY: &[u8] = b"chain_info";
 static ENCLAVE_FILE: &str = "tx_validation_enclave.signed.so";
 
-#[derive(Clone)]
 pub struct TxValidationApp {
     enclave: TxValidationEnclave,
     txdb: Tree,
@@ -182,11 +184,14 @@ impl TxValidationApp {
 
 pub struct TxValidationServer {
     socket: Socket,
-    app: TxValidationApp,
+    app: Arc<Mutex<TxValidationApp>>,
 }
 
 impl TxValidationServer {
-    pub fn new(connection_str: &str, app: TxValidationApp) -> Result<TxValidationServer, Error> {
+    pub fn new(
+        connection_str: &str,
+        app: Arc<Mutex<TxValidationApp>>,
+    ) -> Result<TxValidationServer, Error> {
         let ctx = Context::new();
         let socket = ctx.socket(REP)?;
         socket.bind(connection_str)?;
@@ -201,7 +206,7 @@ impl TxValidationServer {
                 debug!("received a message");
                 let mcmd = EnclaveRequest::decode(&mut msg.as_slice());
                 let resp = match mcmd {
-                    Ok(cmd) => self.app.execute(cmd),
+                    Ok(cmd) => self.app.lock().unwrap().execute(cmd),
                     Err(e) => {
                         debug!("unknown request / failed to decode: {}", e);
                         EnclaveResponse::UnknownRequest

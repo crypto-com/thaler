@@ -17,7 +17,6 @@ members = [
     "chain-tx-enclave/enclave-t-common",
     "chain-tx-enclave/enclave-u-common",
     "chain-tx-enclave/enclave-macro",
-    "chain-tx-enclave/tx-validation/app",
     "chain-tx-enclave/tx-validation/enclave",
     "chain-tx-enclave/tx-query/app",
     "chain-tx-enclave/tx-query/enclave"

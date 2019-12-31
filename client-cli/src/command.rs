@@ -40,7 +40,7 @@ use log::warn;
 use self::address_command::AddressCommand;
 use self::transaction_command::TransactionCommand;
 use self::wallet_command::WalletCommand;
-use crate::{ask_passphrase, storage_path, tendermint_url};
+use crate::{ask_passphrase, insecure_tx_query, storage_path, tendermint_url};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -147,6 +147,7 @@ fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransact
         Ok(DefaultTransactionObfuscation::new(
             address.to_string(),
             hostname.to_string(),
+            !insecure_tx_query(),
         ))
     } else {
         Err(client_common::Error::new(

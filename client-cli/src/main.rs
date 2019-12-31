@@ -59,6 +59,13 @@ pub(crate) fn chain_id() -> Option<String> {
     std::env::var("CRYPTO_CHAIN_ID").map(Some).unwrap_or(None)
 }
 
+#[inline]
+pub(crate) fn insecure_tx_query() -> bool {
+    std::env::var("INSECURE_TX_QUERY")
+        .map(|s| s.parse().unwrap())
+        .unwrap_or(false)
+}
+
 pub(crate) fn ask_passphrase(message: Option<&str>) -> Result<SecUtf8> {
     ask(message.unwrap_or("Enter passphrase: "));
     password()
