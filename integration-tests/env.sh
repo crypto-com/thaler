@@ -2,11 +2,6 @@
 set -e
 IFS=
 
-. ./const-env.sh
-
-TENDERMINT_WITHFEE_GENESIS_PATH="${TENDERMINT_WITHFEE_DIRECTORY}/config/genesis.json"
-TENDERMINT_ZEROFEE_GENESIS_PATH="${TENDERMINT_ZEROFEE_DIRECTORY}/config/genesis.json"
-
 # Global function return value
 RET_VALUE=0
 
@@ -33,6 +28,11 @@ CWD=$(pwd)
 cd "$(dirname -- "${BASH_SOURCE[0]}")"
 
 check_command_exist "jq"
+
+. ./const-env.sh
+
+TENDERMINT_WITHFEE_GENESIS_PATH="${TENDERMINT_WITHFEE_DIRECTORY}/config/genesis.json"
+TENDERMINT_ZEROFEE_GENESIS_PATH="${TENDERMINT_ZEROFEE_DIRECTORY}/config/genesis.json"
 
 export CHAIN_ID=$(cat "${TENDERMINT_WITHFEE_GENESIS_PATH}" | jq -r .chain_id)
 export CHAIN_HEX_ID="${CHAIN_ID: -2}"

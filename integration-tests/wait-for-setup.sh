@@ -36,13 +36,14 @@ function check_command_exist() {
 # Test Tendermint is up
 # @argument Tendermint port
 function is_tendermint_up() {
+    echo "Checking Tendermint status (${1}) ..."
     curl -sSf -X POST "127.0.0.1:${1}" \
         -H 'Content-Type: application/json' \
         -d '{
-            "method": "genesis",
+            "method": "block",
             "jsonrpc": "2.0",
-            "params": [],
-            "id": "genesis"
+            "params": [1],
+            "id": "block"
         }' > /dev/null
     RET_VALUE=$?
 }
@@ -50,6 +51,7 @@ function is_tendermint_up() {
 # Test ClientRPC is up
 # @argument ClientRPC port
 function is_client_rpc_up() {
+    echo "Checking ClientRpc status (${1}) ..."
     curl -sSf -X POST "127.0.0.1:${1}" \
         -H 'Content-Type:application/json' \
         -d '{
