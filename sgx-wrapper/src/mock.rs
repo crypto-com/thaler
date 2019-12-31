@@ -27,8 +27,8 @@ pub struct SealedData {
     data: Vec<u8>,
 }
 
-fn xor_byte(b: &u8) -> u8 {
-    *b ^ XOR_KEY
+fn xor_byte(b: u8) -> u8 {
+    b ^ XOR_KEY
 }
 
 impl SealedData {
@@ -42,15 +42,15 @@ impl SealedData {
 
     pub fn unseal_data(&self) -> SgxResult<UnsealedData> {
         Ok(UnsealedData {
-            data: self.data.iter().map(xor_byte).collect(),
-            additional: self.additional.iter().map(xor_byte).collect(),
+            data: self.data.iter().copied().map(xor_byte).collect(),
+            additional: self.additional.iter().copied().map(xor_byte).collect(),
         })
     }
 
     pub fn seal_data(additional: &[u8], data: &[u8]) -> SgxResult<Self> {
         Ok(SealedData {
-            additional: additional.iter().map(xor_byte).collect(),
-            data: data.iter().map(xor_byte).collect(),
+            additional: additional.iter().copied().map(xor_byte).collect(),
+            data: data.iter().copied().map(xor_byte).collect(),
         })
     }
 }

@@ -41,16 +41,19 @@ thread_local! {
 /// Untrusted function called from the enclave -- sends a ZMQ message to
 /// the transaction validation enclave that handles storage
 /// and passes back the reply
+/// # Safety
+///
+/// This function should not be called with null pointer.
 #[no_mangle]
-pub extern "C" fn ocall_get_txs(
+pub unsafe extern "C" fn ocall_get_txs(
     txids: *const u8,
     txids_len: u32,
     txs: *mut u8,
     txs_len: u32,
 ) -> sgx_status_t {
-    let req = unsafe { std::slice::from_raw_parts(txids, txids_len as usize) };
+    let req = std::slice::from_raw_parts(txids, txids_len as usize);
 
-    let r = ZMQ_SOCKET.with(|socket| {
+    ZMQ_SOCKET.with(|socket| {
         let send_r = socket.send(req, FLAGS);
         if send_r.is_err() {
             error!("failed to send a request for obtaining sealed data");
@@ -59,31 +62,31 @@ pub extern "C" fn ocall_get_txs(
         if let Ok(msg) = socket.recv_bytes(FLAGS) {
             if msg.len() > (txs_len as usize) {
                 error!("Not enough allocated space to return the sealed tx data");
-                return sgx_status_t::SGX_ERROR_UNEXPECTED;
+                sgx_status_t::SGX_ERROR_UNEXPECTED
             } else {
-                unsafe {
-                    std::ptr::copy(msg.as_ptr(), txs, msg.len());
-                }
-                return sgx_status_t::SGX_SUCCESS;
+                std::ptr::copy(msg.as_ptr(), txs, msg.len());
+                sgx_status_t::SGX_SUCCESS
             }
         } else {
             error!("failed to receive a response for obtaining sealed data");
-            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            sgx_status_t::SGX_ERROR_UNEXPECTED
         }
-    });
-    r
+    })
 }
 
 /// Untrusted function called from the enclave -- sends a ZMQ message to
 /// the transaction validation enclave that encrypt the sealed payload
+/// # Safety
+///
+/// This function should not be called with null pointer.
 #[no_mangle]
-pub extern "C" fn ocall_encrypt_request(
+pub unsafe extern "C" fn ocall_encrypt_request(
     request: *const u8,
     request_len: u32,
     result: *mut u8,
     result_len: u32,
 ) -> sgx_status_t {
-    let request_slice = unsafe { std::slice::from_raw_parts(request, request_len as usize) };
+    let request_slice = std::slice::from_raw_parts(request, request_len as usize);
     ZMQ_SOCKET.with(|socket| {
         let send_r = socket.send(request_slice, FLAGS);
         if send_r.is_err() {
@@ -93,42 +96,43 @@ pub extern "C" fn ocall_encrypt_request(
         if let Ok(msg) = socket.recv_bytes(FLAGS) {
             if msg.len() > (result_len as usize) {
                 error!("Not enough allocated space to return the sealed tx data");
-                return sgx_status_t::SGX_ERROR_UNEXPECTED;
+                sgx_status_t::SGX_ERROR_UNEXPECTED
             } else {
-                unsafe {
-                    std::ptr::copy(msg.as_ptr(), result, msg.len());
-                }
-                return sgx_status_t::SGX_SUCCESS;
+                std::ptr::copy(msg.as_ptr(), result, msg.len());
+                sgx_status_t::SGX_SUCCESS
             }
         } else {
             error!("failed to send a request for obtaining obfuscated tx");
-            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            sgx_status_t::SGX_ERROR_UNEXPECTED
         }
     })
 }
 
 /// Untrusted function called from the enclave -- requests quote (initialization) from Intel SDK's AESM
+/// # Safety
+///
+/// This function should not be called with null pointer.
 #[no_mangle]
-pub extern "C" fn ocall_sgx_init_quote(
+pub unsafe extern "C" fn ocall_sgx_init_quote(
     ret_ti: *mut sgx_target_info_t,
     ret_gid: *mut sgx_epid_group_id_t,
 ) -> sgx_status_t {
     trace!("Entering ocall_sgx_init_quote");
-    unsafe { sgx_init_quote(ret_ti, ret_gid) }
+    sgx_init_quote(ret_ti, ret_gid)
 }
 
 /// Untrusted function called from the enclave -- gets the IAS API key set as an environment variable
+/// # Safety
+///
+/// This function should not be called with null pointer.
 #[no_mangle]
-pub extern "C" fn ocall_get_ias_key(ias_key: *mut u8, ias_key_len: u32) -> sgx_status_t {
+pub unsafe extern "C" fn ocall_get_ias_key(ias_key: *mut u8, ias_key_len: u32) -> sgx_status_t {
     let ias_key_org = std::env::var("IAS_API_KEY").expect("IAS key not set");
     if ias_key_org.len() != (ias_key_len as usize) {
         error!("invalid ias key length");
         return sgx_status_t::SGX_ERROR_UNEXPECTED;
     }
-    unsafe {
-        std::ptr::copy(ias_key_org.as_ptr(), ias_key, ias_key_len as usize);
-    }
-
+    std::ptr::copy(ias_key_org.as_ptr(), ias_key, ias_key_len as usize);
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -146,25 +150,26 @@ fn lookup_ipv4(host: &str, port: u16) -> SocketAddr {
 }
 
 /// Untrusted function called from the enclave -- gets the TCP socket of Intel Attestation Service
+/// # Safety
+///
+/// This function should not be called with null pointer.
 #[no_mangle]
-pub extern "C" fn ocall_get_ias_socket(ret_fd: *mut c_int) -> sgx_status_t {
+pub unsafe extern "C" fn ocall_get_ias_socket(ret_fd: *mut c_int) -> sgx_status_t {
     let port = 443;
     let hostname = "api.trustedservices.intel.com";
     let addr = lookup_ipv4(hostname, port);
     let sock = TcpStream::connect(&addr).expect("[-] Connect tls server failed!");
-
-    unsafe {
+    if !ret_fd.is_null() {
         *ret_fd = sock.into_raw_fd();
     }
-
     sgx_status_t::SGX_SUCCESS
 }
 
-fn decode_hex_digit(digit: char) -> u8 {
+fn decode_hex_digit(digit: u8) -> u8 {
     match digit {
-        '0'..='9' => digit as u8 - '0' as u8,
-        'a'..='f' => digit as u8 - 'a' as u8 + 10,
-        'A'..='F' => digit as u8 - 'A' as u8 + 10,
+        b'0'..=b'9' => digit - b'0',
+        b'a'..=b'f' => digit - b'a' + 10,
+        b'A'..=b'F' => digit - b'A' + 10,
         _ => panic!(),
     }
 }
@@ -178,22 +183,22 @@ fn get_spid() -> sgx_spid_t {
         panic!("Input spid len ({}) is incorrect!", hex.len());
     }
 
-    let decoded_vec = decode_hex(hex);
+    let decoded_vec = decode_hex(hex.as_bytes());
 
     spid.id.copy_from_slice(&decoded_vec[..16]);
 
     spid
 }
 
-fn decode_hex(hex: &str) -> Vec<u8> {
+fn decode_hex(hex: &[u8]) -> Vec<u8> {
     let mut r: Vec<u8> = Vec::new();
-    let mut chars = hex.chars().enumerate();
+    let mut chars = hex.iter().copied().enumerate();
     loop {
         let (pos, first) = match chars.next() {
             None => break,
             Some(elt) => elt,
         };
-        if first == ' ' {
+        if first == b' ' {
             continue;
         }
         let (_, second) = match chars.next() {
@@ -206,8 +211,11 @@ fn decode_hex(hex: &str) -> Vec<u8> {
 }
 
 /// Untrusted function called from the enclave -- requests quote (gets the payload) from Intel SDK's AESM
+/// # Safety
+///
+/// This function should not be called with null pointer.
 #[no_mangle]
-pub extern "C" fn ocall_get_quote(
+pub unsafe extern "C" fn ocall_get_quote(
     p_sigrl: *const u8,
     sigrl_len: u32,
     p_report: *const sgx_report_t,
@@ -222,7 +230,7 @@ pub extern "C" fn ocall_get_quote(
 
     let mut real_quote_len: u32 = 0;
 
-    let ret = unsafe { sgx_calc_quote_size(p_sigrl, sigrl_len, &mut real_quote_len as *mut u32) };
+    let ret = sgx_calc_quote_size(p_sigrl, sigrl_len, &mut real_quote_len as *mut u32);
 
     if ret != sgx_status_t::SGX_SUCCESS {
         error!("sgx_calc_quote_size returned {}", ret);
@@ -230,43 +238,41 @@ pub extern "C" fn ocall_get_quote(
     }
 
     debug!("quote size = {}", real_quote_len);
-    unsafe {
-        *p_quote_len = real_quote_len;
-    }
+    *p_quote_len = real_quote_len;
 
     let spid: sgx_spid_t = get_spid();
 
     let p_spid = &spid as *const sgx_spid_t;
 
-    let ret = unsafe {
-        sgx_get_quote(
-            p_report,
-            quote_type,
-            p_spid,
-            p_nonce,
-            p_sigrl,
-            sigrl_len,
-            p_qe_report,
-            p_quote as *mut sgx_quote_t,
-            real_quote_len,
-        )
-    };
+    let ret = sgx_get_quote(
+        p_report,
+        quote_type,
+        p_spid,
+        p_nonce,
+        p_sigrl,
+        sigrl_len,
+        p_qe_report,
+        p_quote as *mut sgx_quote_t,
+        real_quote_len,
+    );
 
     if ret != sgx_status_t::SGX_SUCCESS {
         error!("sgx_calc_quote_size returned {}", ret);
-        return ret;
+    } else {
+        debug!("sgx_calc_quote_size returned {}", ret);
     }
-
-    debug!("sgx_calc_quote_size returned {}", ret);
     ret
 }
 
 /// Untrusted function called from the enclave -- checks the platform blob retrieved from IAS
+/// # Safety
+///
+/// This function should not be called with null pointer.
 #[no_mangle]
-pub extern "C" fn ocall_get_update_info(
+pub unsafe extern "C" fn ocall_get_update_info(
     platform_blob: *const sgx_platform_info_t,
     enclave_trusted: i32,
     update_info: *mut sgx_update_info_bit_t,
 ) -> sgx_status_t {
-    unsafe { sgx_report_attestation_status(platform_blob, enclave_trusted, update_info) }
+    sgx_report_attestation_status(platform_blob, enclave_trusted, update_info)
 }
