@@ -1,5 +1,28 @@
 # Changelog
 
+*Unreleased*
+
+## v0.3.0
+### Breaking changes
+* client uses argon2 function for its internal storage key derivation.
+...
+
+*January 3, 2020*
+
+This hotfix release patches the client with the fixes for bugs discovered in the 0.2.0 release
+(the binaries for chain-abci, enclaves, and dev-utils remain the same).
+
+## v0.2.1
+
+### Bug Fixes
+* *client* [734](https://github.com/crypto-com/chain/pull/734): client-cli sync hangs after sync complete
+* *client* [735](https://github.com/crypto-com/chain/pull/735): websocket rpc method id may overlap 
+* *client* [737](https://github.com/crypto-com/chain/pull/737): block id field in vote could be empty
+
+### Improvements
+* *client* [736](https://github.com/crypto-com/chain/pull/736): unclear client error message when tx-query not set
+
+
 *December 20, 2019*
 
 This release fixes some of the bugs discovered in deployment of v0.1 and is based on the released 1.1.0 version

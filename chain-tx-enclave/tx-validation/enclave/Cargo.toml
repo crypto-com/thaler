@@ -1,6 +1,6 @@
 [package]
 name = "tx-validation-enclave"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "The transaction validation enclave."
 readme = "../../README.md"
