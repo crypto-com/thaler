@@ -6,15 +6,12 @@ pub use types::ConnectionState;
 
 use itertools::izip;
 use std::collections::HashMap;
-use std::iter;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
-use std::sync::{Arc, Mutex};
+use std::sync::{atomic::AtomicUsize, atomic::Ordering, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
 use base64;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tendermint::{lite::verifier, validator};
@@ -39,6 +36,7 @@ pub struct WebsocketRpcClient {
     connection_state: Arc<Mutex<ConnectionState>>,
     websocket_writer: Arc<Mutex<Writer<TcpStream>>>,
     channel_map: Arc<Mutex<HashMap<String, SyncSender<JsonRpcResponse>>>>,
+    unique_id: Arc<AtomicUsize>,
 }
 
 impl WebsocketRpcClient {
@@ -72,6 +70,7 @@ impl WebsocketRpcClient {
             connection_state,
             websocket_writer,
             channel_map,
+            unique_id: Arc::new(AtomicUsize::new(0)),
         })
     }
 
@@ -126,7 +125,8 @@ impl WebsocketRpcClient {
         method: &str,
         params: &[Value],
     ) -> Result<(String, Receiver<JsonRpcResponse>)> {
-        let (message, id) = prepare_message(method, params)?;
+        let id = self.unique_id.fetch_add(1, Ordering::Relaxed).to_string();
+        let message = prepare_message(&id, method, params)?;
         let (channel_sender, channel_receiver) = sync_channel::<JsonRpcResponse>(1);
 
         self.channel_map
@@ -427,7 +427,11 @@ impl Client for WebsocketRpcClient {
                 } else {
                     Err(Error::new(
                         ErrorKind::InvalidInput,
-                        "abci query return error",
+                        format!(
+                            "abci query fail: {}, {}",
+                            rsp.response.code.value(),
+                            rsp.response.log,
+                        ),
                     ))
                 }
             })
@@ -435,16 +439,9 @@ impl Client for WebsocketRpcClient {
     }
 }
 
-fn prepare_message(method: &str, params: &[Value]) -> Result<(OwnedMessage, String)> {
-    let mut rng = thread_rng();
-
-    let id: String = iter::repeat(())
-        .map(|()| rng.sample(Alphanumeric))
-        .take(7)
-        .collect();
-
+fn prepare_message(id: &str, method: &str, params: &[Value]) -> Result<OwnedMessage> {
     let request = JsonRpcRequest {
-        id: &id,
+        id,
         jsonrpc: "2.0",
         method,
         params,
@@ -459,5 +456,5 @@ fn prepare_message(method: &str, params: &[Value]) -> Result<(OwnedMessage, Stri
 
     let message = OwnedMessage::Text(request_json);
 
-    Ok((message, id))
+    Ok(message)
 }

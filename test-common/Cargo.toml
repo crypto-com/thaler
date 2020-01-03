@@ -1,6 +1,6 @@
 [package]
 name = "test-common"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["yihuang <yi.codeplayer@gmail.com>"]
 edition = "2018"
 
@@ -22,7 +22,7 @@ parity-scale-codec = { features = ["derive"], version = "1.1" }
 base64 = "0.11"
 hex = "0.4"
 
-tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "a32cec297d80d240781c9ca2aaa71cace93e7510" }
+tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "db982c2437fe72c7a03942fc2bddf490f2332364" }
 chain-core = { path = "../chain-core" }
 chain-abci = { path = "../chain-abci" }
 client-common = { path = "../client-common" }

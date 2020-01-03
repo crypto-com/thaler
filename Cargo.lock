@@ -376,7 +376,7 @@ dependencies = [
  "sha3 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "starling 3.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "structopt 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "test-common 0.2.0",
+ "test-common 0.2.1",
  "zmq 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -481,15 +481,15 @@ dependencies = [
 
 [[package]]
 name = "client-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.2.0",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "cli-table 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "client-common 0.2.0",
- "client-core 0.2.0",
- "client-network 0.2.0",
+ "client-common 0.2.1",
+ "client-core 0.2.1",
+ "client-network 0.2.1",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -504,7 +504,7 @@ dependencies = [
 
 [[package]]
 name = "client-common"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "aes-gcm-siv 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -523,14 +523,14 @@ dependencies = [
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
  "sled 0.30.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=a32cec297d80d240781c9ca2aaa71cace93e7510)",
+ "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=db982c2437fe72c7a03942fc2bddf490f2332364)",
  "websocket 0.24.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zeroize 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "client-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -540,7 +540,7 @@ dependencies = [
  "chain-tx-filter 0.2.0",
  "chain-tx-validation 0.2.0",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "client-common 0.2.0",
+ "client-common 0.2.1",
  "enclave-protocol 0.2.0",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -558,8 +558,8 @@ dependencies = [
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
- "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=a32cec297d80d240781c9ca2aaa71cace93e7510)",
- "test-common 0.2.0",
+ "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=db982c2437fe72c7a03942fc2bddf490f2332364)",
+ "test-common 0.2.1",
  "thiserror 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-bip39 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -574,32 +574,32 @@ dependencies = [
 
 [[package]]
 name = "client-network"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.2.0",
  "chain-tx-validation 0.2.0",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "client-common 0.2.0",
- "client-core 0.2.0",
+ "client-common 0.2.1",
+ "client-core 0.2.1",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=a32cec297d80d240781c9ca2aaa71cace93e7510)",
+ "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=db982c2437fe72c7a03942fc2bddf490f2332364)",
 ]
 
 [[package]]
 name = "client-rpc"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.2.0",
  "chain-tx-filter 0.2.0",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "client-common 0.2.0",
- "client-core 0.2.0",
- "client-network 0.2.0",
+ "client-common 0.2.1",
+ "client-core 0.2.1",
+ "client-network 0.2.1",
  "dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -789,9 +789,9 @@ dependencies = [
  "chain-abci 0.2.0",
  "chain-core 0.2.0",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "client-common 0.2.0",
- "client-core 0.2.0",
- "client-network 0.2.0",
+ "client-common 0.2.1",
+ "client-core 0.2.1",
+ "client-network 0.2.1",
  "dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2914,7 +2914,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.10.0"
-source = "git+https://github.com/crypto-com/tendermint-rs.git?rev=a32cec297d80d240781c9ca2aaa71cace93e7510#a32cec297d80d240781c9ca2aaa71cace93e7510"
+source = "git+https://github.com/crypto-com/tendermint-rs.git?rev=db982c2437fe72c7a03942fc2bddf490f2332364#db982c2437fe72c7a03942fc2bddf490f2332364"
 dependencies = [
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2965,14 +2965,14 @@ dependencies = [
 
 [[package]]
 name = "test-common"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "abci 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-abci 0.2.0",
  "chain-core 0.2.0",
- "client-common 0.2.0",
- "client-core 0.2.0",
+ "client-common 0.2.1",
+ "client-core 0.2.1",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2987,7 +2987,7 @@ dependencies = [
  "signature 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle 2.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle-encoding 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=a32cec297d80d240781c9ca2aaa71cace93e7510)",
+ "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=db982c2437fe72c7a03942fc2bddf490f2332364)",
 ]
 
 [[package]]
@@ -3980,7 +3980,7 @@ dependencies = [
 "checksum synstructure 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)" = "67656ea1dc1b41b1451851562ea232ec2e5a80242139f7e679ceccfb5d61f545"
 "checksum tai64 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4014289c3d2b8168880ae86633247e73712fcc579969aff0ca7c5dcd17456b82"
 "checksum tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "7a6e24d9338a0a5be79593e2fa15a648add6138caa803e2d5bc782c371732ca9"
-"checksum tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=a32cec297d80d240781c9ca2aaa71cace93e7510)" = "<none>"
+"checksum tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=db982c2437fe72c7a03942fc2bddf490f2332364)" = "<none>"
 "checksum termcolor 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)" = "96d6098003bde162e4277c70665bd87c326f5a0c3f3fbfb285787fa482d54e6e"
 "checksum termion 1.5.4 (registry+https://github.com/rust-lang/crates.io-index)" = "818ef3700c2a7b447dca1a1dd28341fe635e6ee103c806c636bb9c929991b2cd"
 "checksum termios 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "72b620c5ea021d75a735c943269bb07d30c9b77d6ac6b236bc8b5c496ef05625"
