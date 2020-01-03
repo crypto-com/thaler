@@ -9,7 +9,9 @@
 
 #[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
 extern crate sgx_tstd as std;
+pub mod error;
 
+use error::Error as PError;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use std::prelude::v1::{Box, Vec};
 
@@ -68,24 +70,24 @@ pub fn is_basic_valid_tx_request(
     request: &VerifyTxRequest,
     tx_inputs: &Option<Vec<SealedLog>>,
     chain_hex_id: u8,
-) -> Result<(), ()> {
+) -> Result<(), PError> {
     if request.info.chain_hex_id != chain_hex_id {
-        return Err(());
+        return Err(PError::HexIdMisMatch);
     }
     match request.tx {
         TxEnclaveAux::DepositStakeTx { .. } => match tx_inputs {
             Some(ref i) if !i.is_empty() => Ok(()),
-            _ => Err(()),
+            _ => Err(PError::EmptySealedLog),
         },
         TxEnclaveAux::TransferTx { .. } => match tx_inputs {
             Some(ref i) if !i.is_empty() => Ok(()),
-            _ => Err(()),
+            _ => Err(PError::EmptySealedLog),
         },
         TxEnclaveAux::WithdrawUnbondedStakeTx { .. } => {
             if request.account.is_some() {
                 Ok(())
             } else {
-                Err(())
+                Err(PError::EmptyRequestAccount)
             }
         }
     }

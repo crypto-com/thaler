@@ -25,6 +25,7 @@ pub extern "C" fn ecall_initchain(chain_hex_id: u8) -> sgx_status_t {
     if chain_hex_id == NETWORK_HEX_ID {
         sgx_status_t::SGX_SUCCESS
     } else {
+        log::error!("network hex id not match");
         sgx_status_t::SGX_ERROR_INVALID_PARAMETER
     }
 }
@@ -45,7 +46,8 @@ pub extern "C" fn ecall_check_tx(
         Ok(IntraEnclaveRequest::Encrypt(request)) => {
             obfuscate::handle_encrypt_request(request, response_buf, response_len)
         }
-        _ => {
+        Err(e) => {
+            log::error!("ecall check tx failed: {:?}", e);
             return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
         }
     }

@@ -169,7 +169,7 @@ fn parse_response_attn_report(resp: &[u8]) -> Result<AttnReport, RAError> {
                     attn_report = str::from_utf8(resp_body)
                         .map_err(|_| RAError::ParseError)?
                         .to_string();
-                    // println!("Attestation report: {}", attn_report);
+                    println!("Attestation report: {}", attn_report);
                 }
             }
             "X-IASReport-Signature" => {
@@ -259,8 +259,8 @@ fn get_sigrl_from_intel(ias_key: &str, fd: c_int, gid: u32) -> Result<Vec<u8>, R
 
     match tls.read_to_end(&mut plaintext) {
         Ok(_) => (),
-        Err(_) => {
-            // println!("get_sigrl_from_intel tls.read_to_end: {:?}", e);
+        Err(e) => {
+            println!("get_sigrl_from_intel tls.read_to_end: {:?}", e);
             return Err(RAError::CommunicationError);
         }
     }
@@ -296,7 +296,10 @@ fn get_report_from_intel(ias_key: &str, fd: c_int, quote: Vec<u8>) -> Result<Att
     // println!("write complete");
 
     tls.read_to_end(&mut plaintext)
-        .map_err(|_| RAError::CommunicationError)?;
+        .map_err(|e| {
+            println!("get report from intel failed to read: {:?}", e);
+            RAError::CommunicationError
+        })?;
     // println!("read_to_end complete");
     parse_response_attn_report(&plaintext)
 }
@@ -366,14 +369,14 @@ fn create_attestation_report(
                 sigrl_acquired = true;
                 break;
             }
-            Err(_) => {
-                //println!("get sirl failed, retry...");
+            Err(e) => {
+                println!("get sirl failed: {:?}, retry...", e);
             }
         }
     }
 
     if !sigrl_acquired {
-        // println!("Cannot acquire sigrl from Intel for three times");
+        println!("Cannot acquire sigrl from Intel for three times");
         return Err(sgx_status_t::SGX_ERROR_UNEXPECTED);
     }
 
@@ -393,7 +396,7 @@ fn create_attestation_report(
             Some(r)
         }
         Err(e) => {
-            // println!("Report creation => failed {:?}", e);
+            println!("Report creation => failed {:?}", e);
             return Err(e);
         }
     };
@@ -461,7 +464,7 @@ fn create_attestation_report(
             // println!("rsgx_verify_report passed!")
         }
         Err(x) => {
-            // println!("rsgx_verify_report failed with {:?}", x);
+            println!("rsgx_verify_report failed with {:?}", x);
             return Err(x);
         }
     }
@@ -471,7 +474,7 @@ fn create_attestation_report(
         || ti.attributes.flags != qe_report.body.attributes.flags
         || ti.attributes.xfrm != qe_report.body.attributes.xfrm
     {
-        // println!("qe_report does not match current target_info!");
+        println!("qe_report does not match current target_info!");
         return Err(sgx_status_t::SGX_ERROR_UNEXPECTED);
     }
 
@@ -501,7 +504,7 @@ fn create_attestation_report(
     // println!("report hs= {:02X}", lhs_hash.iter().format(""));
 
     if rhs_hash != lhs_hash {
-        // println!("Quote is tampered!");
+        println!("Quote is tampered!");
         return Err(sgx_status_t::SGX_ERROR_UNEXPECTED);
     }
 
@@ -655,9 +658,9 @@ pub(crate) fn get_tls_config() -> Arc<rustls::ServerConfig> {
                 //println!("SVRCONFIGCACHE invalidate all config cache!");
                 cfg_cache.clear();
             }
-            Err(_) => {
+            Err(e) => {
                 // Poisoned
-                // println!("SVRCONFIGCACHE invalidate cache failed {}!", x);
+                println!("SVRCONFIGCACHE invalidate cache failed {}!", e);
             }
         }
     }
