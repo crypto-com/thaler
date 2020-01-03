@@ -109,7 +109,7 @@ where
             .ops_client
             .create_deposit_bonded_stake_transaction(
                 &request.name,
-                &request.passphrase,
+                &request.enckey,
                 inputs,
                 addr,
                 attr,
@@ -125,7 +125,7 @@ where
 
     fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState> {
         self.ops_client
-            .get_staked_state(&request.name, &request.passphrase, &address)
+            .get_staked_state(&request.name, &request.enckey, &address)
             .map_err(to_rpc_error)
     }
 
@@ -150,7 +150,7 @@ where
 
         let transaction = self
             .ops_client
-            .create_unbond_stake_transaction(&request.name, &request.passphrase, addr, amount, attr)
+            .create_unbond_stake_transaction(&request.name, &request.enckey, addr, amount, attr)
             .map_err(to_rpc_error)?;
 
         self.client
@@ -191,7 +191,7 @@ where
 
         let view_key = self
             .client
-            .view_key(&request.name, &request.passphrase)
+            .view_key(&request.name, &request.enckey)
             .map_err(to_rpc_error)?;
 
         let mut access_policies = vec![TxAccessPolicy {
@@ -212,7 +212,7 @@ where
             .ops_client
             .create_withdraw_all_unbonded_stake_transaction(
                 &request.name,
-                &request.passphrase,
+                &request.enckey,
                 &from_address,
                 to_address,
                 attributes,
@@ -226,7 +226,7 @@ where
         self.client
             .update_tx_pending_state(
                 &request.name,
-                &request.passphrase,
+                &request.enckey,
                 transaction.tx_id(),
                 tx_pending,
             )
@@ -248,12 +248,7 @@ where
 
         let transaction = self
             .ops_client
-            .create_unjail_transaction(
-                &request.name,
-                &request.passphrase,
-                unjail_address,
-                attributes,
-            )
+            .create_unjail_transaction(&request.name, &request.enckey, unjail_address, attributes)
             .map_err(to_rpc_error)?;
 
         self.client
@@ -285,7 +280,7 @@ where
             .ops_client
             .create_node_join_transaction(
                 &request.name,
-                &request.passphrase,
+                &request.enckey,
                 staking_account_address,
                 attributes,
                 node_metadata,

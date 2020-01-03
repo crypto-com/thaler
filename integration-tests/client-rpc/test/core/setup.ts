@@ -11,6 +11,7 @@ import {
 	asyncMiddleman,
 	newZeroFeeTendermintClient,
 	newWithFeeTendermintClient,
+	DEFAULT_PASSPHRASE,
 } from "./utils";
 import { TendermintClient } from "./tendermint-client";
 
@@ -42,7 +43,7 @@ const unbondAndWithdrawStakeFromClient = async (
 	rpcClient: RpcClient,
 	tendermintClient: TendermintClient,
 ) => {
-	const walletRequest = newWalletRequest("Default", "123456");
+	const walletRequest = await newWalletRequest(rpcClient, "Default", DEFAULT_PASSPHRASE);
 
 	await asyncMiddleman(
 		syncWallet(rpcClient, walletRequest),

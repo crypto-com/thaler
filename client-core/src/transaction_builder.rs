@@ -7,15 +7,13 @@ pub use default_wallet_transaction_builder::DefaultWalletTransactionBuilder;
 pub use raw_transfer_transaction_builder::RawTransferTransactionBuilder;
 pub use unauthorized_wallet_transaction_builder::UnauthorizedWalletTransactionBuilder;
 
-use secstr::SecUtf8;
-
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{PrivateKey, Result, SignedTransaction, Transaction};
+use client_common::{PrivateKey, Result, SecKey, SignedTransaction, Transaction};
 
 use crate::UnspentTransactions;
 use chain_core::tx::data::TxId;
@@ -28,7 +26,7 @@ pub trait WalletTransactionBuilder: Send + Sync {
     /// # Attributes
     ///
     /// - `name`: Name of wallet
-    /// - `passphrase`: Passphrase of wallet
+    /// - `enckey`: Encryption key of wallet
     /// - `unspent_transactions`: Unspent transactions
     /// - `outputs`: Transaction outputs
     /// - `return_address`: Address to which change amount will get returned
@@ -41,7 +39,7 @@ pub trait WalletTransactionBuilder: Send + Sync {
     fn build_transfer_tx(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         unspent_transactions: UnspentTransactions,
         outputs: Vec<TxOut>,
         return_address: ExtendedAddr,

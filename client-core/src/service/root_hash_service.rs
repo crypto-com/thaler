@@ -1,10 +1,9 @@
 use parity_scale_codec::{Decode, Encode};
-use secstr::SecUtf8;
 
 use chain_core::common::{Proof, H256};
 use chain_core::tx::witness::tree::RawPubkey;
 use client_common::MultiSigAddress;
-use client_common::{ErrorKind, PublicKey, Result, ResultExt, SecureStorage, Storage};
+use client_common::{ErrorKind, PublicKey, Result, ResultExt, SecKey, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_root_hash";
 
@@ -30,14 +29,14 @@ where
         public_keys: Vec<PublicKey>,
         self_public_key: PublicKey,
         required_signers: usize,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<(H256, MultiSigAddress)> {
         let multi_sig_address =
             MultiSigAddress::new(public_keys, self_public_key, required_signers)?;
         let root_hash = multi_sig_address.root_hash();
 
         self.storage
-            .set_secure(KEYSPACE, root_hash, multi_sig_address.encode(), passphrase)?;
+            .set_secure(KEYSPACE, root_hash, multi_sig_address.encode(), enckey)?;
 
         Ok((root_hash, multi_sig_address))
     }
@@ -47,9 +46,9 @@ where
         &self,
         root_hash: &H256,
         public_keys: Vec<PublicKey>,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<Proof<RawPubkey>> {
-        let address = self.get_multi_sig_address_from_root_hash(root_hash, passphrase)?;
+        let address = self.get_multi_sig_address_from_root_hash(root_hash, enckey)?;
 
         address
             .generate_proof(public_keys)?
@@ -57,29 +56,29 @@ where
     }
 
     /// Returns the number of required cosigners for given root_hash
-    pub fn required_signers(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<usize> {
-        let address = self.get_multi_sig_address_from_root_hash(root_hash, passphrase)?;
+    pub fn required_signers(&self, root_hash: &H256, enckey: &SecKey) -> Result<usize> {
+        let address = self.get_multi_sig_address_from_root_hash(root_hash, enckey)?;
 
         Ok(address.required_signers())
     }
 
     /// Returns public key of current signer
-    pub fn public_key(&self, root_hash: &H256, passphrase: &SecUtf8) -> Result<PublicKey> {
-        let address = self.get_multi_sig_address_from_root_hash(root_hash, passphrase)?;
+    pub fn public_key(&self, root_hash: &H256, enckey: &SecKey) -> Result<PublicKey> {
+        let address = self.get_multi_sig_address_from_root_hash(root_hash, enckey)?;
 
         Ok(address.self_public_key())
     }
 
     /// Returns MultiSig address from storage with the given root_hash
-    /// decrypted with passphrase
+    /// decrypted with enckey
     fn get_multi_sig_address_from_root_hash(
         &self,
         root_hash: &H256,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<MultiSigAddress> {
         let address_bytes = self
             .storage
-            .get_secure(KEYSPACE, root_hash, passphrase)?
+            .get_secure(KEYSPACE, root_hash, enckey)?
             .chain(|| (ErrorKind::InvalidInput, "Address not found"))?;
 
         MultiSigAddress::decode(&mut address_bytes.as_slice()).chain(|| {
@@ -102,16 +101,17 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secstr::SecUtf8;
 
     use secp256k1::PublicKey as SecpPublicKey;
 
     use client_common::storage::MemoryStorage;
-    use client_common::PrivateKey;
+    use client_common::{seckey::derive_enckey, PrivateKey};
 
     #[test]
     fn check_root_hash_flow() {
         let root_hash_service = RootHashService::new(MemoryStorage::default());
-        let passphrase = SecUtf8::from("passphrase");
+        let enckey = derive_enckey(&SecUtf8::from("passphrase"), "").unwrap();
 
         let public_keys = vec![
             PublicKey::from(&PrivateKey::new().unwrap()),
@@ -122,7 +122,7 @@ mod tests {
         assert_eq!(
             ErrorKind::InvalidInput,
             root_hash_service
-                .new_root_hash(public_keys.clone(), public_keys[0].clone(), 5, &passphrase)
+                .new_root_hash(public_keys.clone(), public_keys[0].clone(), 5, &enckey)
                 .expect_err("Created invalid multi-sig address")
                 .kind(),
             "Should throw error when required signature is larger than total public keys"
@@ -135,7 +135,7 @@ mod tests {
                     public_keys.clone(),
                     PublicKey::from(&PrivateKey::new().unwrap()),
                     2,
-                    &passphrase
+                    &enckey
                 )
                 .expect_err("Created multi-sig address without self public key")
                 .kind(),
@@ -145,35 +145,33 @@ mod tests {
         assert_eq!(
             ErrorKind::InvalidInput,
             root_hash_service
-                .new_root_hash(vec![], public_keys[0].clone(), 0, &passphrase)
+                .new_root_hash(vec![], public_keys[0].clone(), 0, &enckey)
                 .expect_err("Created invalid multi-sig address")
                 .kind(),
             "Should throw error when required signature is 0"
         );
 
         let (root_hash, multi_sig_address) = root_hash_service
-            .new_root_hash(public_keys.clone(), public_keys[0].clone(), 2, &passphrase)
+            .new_root_hash(public_keys.clone(), public_keys[0].clone(), 2, &enckey)
             .unwrap();
 
         assert_eq!(
             2,
             root_hash_service
-                .required_signers(&root_hash, &passphrase)
+                .required_signers(&root_hash, &enckey)
                 .unwrap()
         );
         assert_eq!(root_hash, multi_sig_address.root_hash(),);
 
         assert_eq!(
             public_keys[0].clone(),
-            root_hash_service
-                .public_key(&root_hash, &passphrase)
-                .unwrap()
+            root_hash_service.public_key(&root_hash, &enckey).unwrap()
         );
 
         assert_eq!(
             ErrorKind::InvalidInput,
             root_hash_service
-                .required_signers(&[0u8; 32], &passphrase)
+                .required_signers(&[0u8; 32], &enckey)
                 .expect_err("Found non-existent address")
                 .kind()
         );
@@ -181,7 +179,7 @@ mod tests {
         assert_eq!(
             ErrorKind::InvalidInput,
             root_hash_service
-                .generate_proof(&root_hash, public_keys.clone(), &passphrase)
+                .generate_proof(&root_hash, public_keys.clone(), &enckey)
                 .expect_err("Generated proof for invalid signer count")
                 .kind()
         );
@@ -190,7 +188,7 @@ mod tests {
             .generate_proof(
                 &root_hash,
                 vec![public_keys[0].clone(), public_keys[1].clone()],
-                &passphrase,
+                &enckey,
             )
             .unwrap();
 
@@ -200,7 +198,7 @@ mod tests {
             .generate_proof(
                 &root_hash,
                 vec![public_keys[1].clone(), public_keys[0].clone()],
-                &passphrase,
+                &enckey,
             )
             .unwrap();
 
@@ -215,7 +213,7 @@ mod tests {
                         public_keys[0].clone(),
                         PublicKey::from(&PrivateKey::new().unwrap())
                     ],
-                    &passphrase
+                    &enckey
                 )
                 .expect_err("Generated proof for invalid signer count")
                 .kind()

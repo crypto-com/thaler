@@ -34,6 +34,13 @@ def get_passphrase():
     return phrase
 
 
+def get_enckey():
+    key = config('ENCKEY', None)
+    if key is None:
+        key = getpass.getpass('Input enckey:')
+    return key
+
+
 def call(method, *args, **kwargs):
     rsp = request(CLIENT_RPC_URL, method, *args, **kwargs)
     return rsp.data.result
@@ -53,13 +60,13 @@ def fix_address(addr):
 
 
 class Address:
-    def list(self, name=DEFAULT_WALLET, type='staking'):
+    def list(self, name=DEFAULT_WALLET, type='staking', enckey=None):
         '''list addresses
         :param name: Name of the wallet. [default: Default]
         :params type: [staking|transfer]'''
-        return call('wallet_listStakingAddresses' if type == 'staking' else 'wallet_listTransferAddresses', [name, get_passphrase()])
+        return call('wallet_listStakingAddresses' if type == 'staking' else 'wallet_listTransferAddresses', [name, enckey or get_enckey()])
 
-    def create(self, name=DEFAULT_WALLET, type='staking'):
+    def create(self, name=DEFAULT_WALLET, type='staking', enckey=None):
         '''Create address
         :param name: Name of the wallet
         :param type: Type of address. [staking|transfer]'''
@@ -69,9 +76,9 @@ class Address:
             'wallet_createStakingAddress'
             if type == 'staking'
             else 'wallet_createTransferAddress',
-            [name, get_passphrase()])
+            [name, enckey or get_enckey()])
 
-    def create_watch(self, public_key, name=DEFAULT_WALLET, type='staking'):
+    def create_watch(self, public_key, name=DEFAULT_WALLET, type='staking', enckey=None):
         '''Create watch address for watch only wallet
         :param name: Name of the wallet
         :param type: Type of address. [staking|transfer]
@@ -82,107 +89,112 @@ class Address:
             'wallet_createWatchStakingAddress'
             if type == 'staking'
             else 'wallet_createWatchTransferAddress',
-            [name, get_passphrase()], public_key)
+            [name, enckey or get_enckey()], public_key)
 
 
 class Wallet:
-    def balance(self, name=DEFAULT_WALLET):
-        '''Get balance details of wallet
+    def enckey(self, name=DEFAULT_WALLET):
+        '''Get encryption key of wallet
         :param name: Name of the wallet. [default: Default]'''
-        return call('wallet_balance', [name, get_passphrase()])
+        return call('wallet_getEncKey', [name, get_passphrase()])
+
+    def balance(self, name=DEFAULT_WALLET, enckey=None):
+        '''Get balance of wallet
+        :param name: Name of the wallet. [default: Default]'''
+        return call('wallet_balance', [name, enckey or get_enckey()])
 
     def list(self):
         return call('wallet_list')
 
-    def utxo(self, name=DEFAULT_WALLET):
+    def utxo(self, name=DEFAULT_WALLET, enckey=None):
         '''Get UTxO of wallet
         :param name: Name of the wallet. [default: Default]'''
-        return call('wallet_listUTxO', [name, get_passphrase()])
+        return call('wallet_listUTxO', [name, enckey or get_enckey()])
 
-    def create(self, name=DEFAULT_WALLET, type='Basic'):
+    def create(self, name=DEFAULT_WALLET, type='Basic', passphrase=None):
         '''create wallet
         :param name: Name of the wallet. [defualt: Default]
         :param type: Type of the wallet. [Basic|HD] [default: Basic]
         '''
-        return call('wallet_create', [name, get_passphrase()], type)
+        return call('wallet_create', [name, passphrase or get_passphrase()], type)
 
-    def restore(self, mnemonics, name=DEFAULT_WALLET):
+    def restore(self, mnemonics, name=DEFAULT_WALLET, passphrase=None):
         '''restore wallet
         :param name: Name of the wallet. [defualt: Default]
         :param mnemonics: mnemonics words
         '''
-        return call('wallet_restore', [name, get_passphrase()], mnemonics)
+        return call('wallet_restore', [name, passphrase or get_passphrase()], mnemonics)
 
-    def restore_basic(self, private_view_key, name=DEFAULT_WALLET):
+    def restore_basic(self, private_view_key, name=DEFAULT_WALLET, passphrase=None):
         '''restore wallet
         :param name: Name of the wallet. [defualt: Default]
         :param private_view_key: hex encoded private view key
         '''
-        return call('wallet_restoreBasic', [name, get_passphrase()], private_view_key)
+        return call('wallet_restoreBasic', [name, passphrase or get_passphrase()], private_view_key)
 
-    def view_key(self, name=DEFAULT_WALLET, private=False):
+    def view_key(self, name=DEFAULT_WALLET, private=False, enckey=None):
         return call(
             'wallet_getViewKey',
-            [name, get_passphrase()], private
+            [name, enckey or get_enckey()], private
         )
 
-    def list_pubkey(self, name=DEFAULT_WALLET):
-        return call('wallet_listPublicKeys', [name, get_passphrase()])
+    def list_pubkey(self, name=DEFAULT_WALLET, enckey=None):
+        return call('wallet_listPublicKeys', [name, enckey or get_enckey()])
 
-    def transactions(self, name=DEFAULT_WALLET, offset=0, limit=100, reversed=False):
-        return call('wallet_transactions', [name, get_passphrase()], offset, limit, reversed)
+    def transactions(self, name=DEFAULT_WALLET, offset=0, limit=100, reversed=False, enckey=None):
+        return call('wallet_transactions', [name, enckey or get_enckey()], offset, limit, reversed)
 
-    def send(self, to_address, amount, name=DEFAULT_WALLET, view_keys=None):
+    def send(self, to_address, amount, name=DEFAULT_WALLET, view_keys=None, enckey=None):
         return call(
             'wallet_sendToAddress',
-            [name, get_passphrase()],
+            [name, enckey or get_enckey()],
             to_address, str(amount), view_keys or [])
 
-    def sync(self, name=DEFAULT_WALLET):
-        return call('sync', [name, get_passphrase()])
+    def sync(self, name=DEFAULT_WALLET, enckey=None):
+        return call('sync', [name, enckey or get_enckey()])
 
-    def sync_all(self, name=DEFAULT_WALLET):
-        return call('sync_all', [name, get_passphrase()])
+    def sync_all(self, name=DEFAULT_WALLET, enckey=None):
+        return call('sync_all', [name, enckey or get_enckey()])
 
-    def sync_unlock(self, name=DEFAULT_WALLET):
-        return call('sync_unlockWallet', [name, get_passphrase()])
+    def sync_unlock(self, name=DEFAULT_WALLET, enckey=None):
+        return call('sync_unlockWallet', [name, enckey or get_enckey()])
 
-    def sync_stop(self, name=DEFAULT_WALLET):
-        return call('sync_stop', [name, get_passphrase()])
+    def sync_stop(self, name=DEFAULT_WALLET, enckey=None):
+        return call('sync_stop', [name, enckey or get_enckey()])
 
 
 class Staking:
-    def deposit(self, to_address, inputs, name=DEFAULT_WALLET):
-        return call('staking_depositStake', [name, get_passphrase()], fix_address(to_address), inputs)
+    def deposit(self, to_address, inputs, name=DEFAULT_WALLET, enckey=None):
+        return call('staking_depositStake', [name, enckey or get_enckey()], fix_address(to_address), inputs)
 
-    def state(self, address, name=DEFAULT_WALLET):
-        return call('staking_state', [name, get_passphrase()], fix_address(address))
+    def state(self, address, name=DEFAULT_WALLET, enckey=None):
+        return call('staking_state', [name, enckey or get_enckey()], fix_address(address))
 
-    def unbond(self, address, amount, name=DEFAULT_WALLET):
-        return call('staking_unbondStake', [name, get_passphrase()], fix_address(address), str(amount))
+    def unbond(self, address, amount, name=DEFAULT_WALLET, enckey=None):
+        return call('staking_unbondStake', [name, enckey or get_enckey()], fix_address(address), str(amount))
 
-    def withdraw_all_unbonded(self, from_address, to_address, view_keys=None, name=DEFAULT_WALLET):
+    def withdraw_all_unbonded(self, from_address, to_address, view_keys=None, name=DEFAULT_WALLET, enckey=None):
         return call(
             'staking_withdrawAllUnbondedStake',
-            [name, get_passphrase()],
+            [name, enckey or get_enckey()],
             fix_address(from_address), to_address, view_keys or []
         )
 
-    def unjail(self, address, name=DEFAULT_WALLET):
-        return call('staking_unjail', [name, get_passphrase()], fix_address(address))
+    def unjail(self, address, name=DEFAULT_WALLET, enckey=None):
+        return call('staking_unjail', [name, enckey or get_enckey()], fix_address(address))
 
 
 class MultiSig:
-    def create_address(self, public_keys, self_public_key, required_signatures, name=DEFAULT_WALLET):
+    def create_address(self, public_keys, self_public_key, required_signatures, name=DEFAULT_WALLET, enckey=None):
         return call('multiSig_createAddress',
-                    [name, get_passphrase()],
+                    [name, enckey or get_enckey()],
                     public_keys,
                     self_public_key,
                     required_signatures)
 
-    def new_session(self, message, signer_public_keys, self_public_key, name=DEFAULT_WALLET):
+    def new_session(self, message, signer_public_keys, self_public_key, name=DEFAULT_WALLET, enckey=None):
         return call('multiSig_newSession',
-                    [name, get_passphrase()],
+                    [name, enckey or get_enckey()],
                     message,
                     signer_public_keys,
                     self_public_key)
@@ -208,9 +220,9 @@ class MultiSig:
     def signature(self, session_id, passphrase):
         return call('multiSig_signature', session_id, passphrase)
 
-    def broadcast_with_signature(self, session_id, unsigned_transaction, name=DEFAULT_WALLET):
+    def broadcast_with_signature(self, session_id, unsigned_transaction, name=DEFAULT_WALLET, enckey=None):
         return call('multiSig_broadcastWithSignature',
-                    [name, get_passphrase()],
+                    [name, enckey or get_enckey()],
                     session_id,
                     unsigned_transaction)
 

@@ -1,14 +1,15 @@
 use std::collections::BTreeSet;
 
 use parity_scale_codec::{Decode, Encode};
-use secstr::SecUtf8;
 
 use crate::service::{load_wallet_state, WalletState};
 use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
-use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecureStorage, Storage};
+use client_common::{
+    Error, ErrorKind, PublicKey, Result, ResultExt, SecKey, SecureStorage, Storage,
+};
 
 /// Key space of wallet
 const KEYSPACE: &str = "core_wallet";
@@ -75,19 +76,19 @@ impl Wallet {
 pub fn load_wallet<S: SecureStorage>(
     storage: &S,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
 ) -> Result<Option<Wallet>> {
-    storage.load_secure(KEYSPACE, name, passphrase)
+    storage.load_secure(KEYSPACE, name, enckey)
 }
 
 /// Save wallet to storage
 pub fn save_wallet<S: SecureStorage>(
     storage: &S,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
     wallet: &Wallet,
 ) -> Result<()> {
-    storage.save_secure(KEYSPACE, name, passphrase, wallet)
+    storage.save_secure(KEYSPACE, name, enckey, wallet)
 }
 
 /// Maintains mapping `wallet-name -> wallet-details`
@@ -106,33 +107,32 @@ where
     }
 
     /// Get the wallet from storage
-    pub fn get_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<Wallet> {
-        load_wallet(&self.storage, name, passphrase)?.err_kind(ErrorKind::InvalidInput, || {
+    pub fn get_wallet(&self, name: &str, enckey: &SecKey) -> Result<Wallet> {
+        load_wallet(&self.storage, name, enckey)?.err_kind(ErrorKind::InvalidInput, || {
             format!("Wallet with name ({}) not found", name)
         })
     }
 
     /// Get the wallet state from storage
-    pub fn get_wallet_state(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletState> {
-        load_wallet_state(&self.storage, name, passphrase)?
-            .err_kind(ErrorKind::InvalidInput, || {
-                format!("WalletState with name ({}) not found", name)
-            })
+    pub fn get_wallet_state(&self, name: &str, enckey: &SecKey) -> Result<WalletState> {
+        load_wallet_state(&self.storage, name, enckey)?.err_kind(ErrorKind::InvalidInput, || {
+            format!("WalletState with name ({}) not found", name)
+        })
     }
 
-    fn set_wallet(&self, name: &str, passphrase: &SecUtf8, wallet: Wallet) -> Result<()> {
-        save_wallet(&self.storage, name, passphrase, &wallet)
+    fn set_wallet(&self, name: &str, enckey: &SecKey, wallet: Wallet) -> Result<()> {
+        save_wallet(&self.storage, name, enckey, &wallet)
     }
 
     /// Finds staking key corresponding to given redeem address
     pub fn find_staking_key(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         redeem_address: &RedeemAddress,
     ) -> Result<Option<PublicKey>> {
         Ok(self
-            .get_wallet(name, passphrase)?
+            .get_wallet(name, enckey)?
             .find_staking_key(redeem_address)
             .cloned())
     }
@@ -141,17 +141,17 @@ where
     pub fn find_root_hash(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address: &ExtendedAddr,
     ) -> Result<Option<H256>> {
         Ok(self
-            .get_wallet(name, passphrase)?
+            .get_wallet(name, enckey)?
             .find_root_hash(address)
             .copied())
     }
 
     /// Creates a new wallet and returns wallet ID
-    pub fn create(&self, name: &str, passphrase: &SecUtf8, view_key: PublicKey) -> Result<()> {
+    pub fn create(&self, name: &str, enckey: &SecKey, view_key: PublicKey) -> Result<()> {
         if self.storage.contains_key(KEYSPACE, name)? {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -159,30 +159,30 @@ where
             ));
         }
 
-        self.set_wallet(name, passphrase, Wallet::new(view_key))
+        self.set_wallet(name, enckey, Wallet::new(view_key))
     }
 
     /// Returns view key of wallet
-    pub fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
-        let wallet = self.get_wallet(name, passphrase)?;
+    pub fn view_key(&self, name: &str, enckey: &SecKey) -> Result<PublicKey> {
+        let wallet = self.get_wallet(name, enckey)?;
         Ok(wallet.view_key)
     }
 
     /// Returns all public keys stored in a wallet
-    pub fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>> {
-        let wallet = self.get_wallet(name, passphrase)?;
+    pub fn public_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>> {
+        let wallet = self.get_wallet(name, enckey)?;
         Ok(wallet.public_keys)
     }
 
     /// Returns all public keys corresponding to staking addresses stored in a wallet
-    pub fn staking_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>> {
-        let wallet = self.get_wallet(name, passphrase)?;
+    pub fn staking_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>> {
+        let wallet = self.get_wallet(name, enckey)?;
         Ok(wallet.staking_keys)
     }
 
     /// Returns all multi-sig addresses stored in a wallet
-    pub fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<H256>> {
-        let wallet = self.get_wallet(name, passphrase)?;
+    pub fn root_hashes(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<H256>> {
+        let wallet = self.get_wallet(name, enckey)?;
         Ok(wallet.root_hashes)
     }
 
@@ -190,28 +190,28 @@ where
     pub fn staking_addresses(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<BTreeSet<StakedStateAddress>> {
-        Ok(self.get_wallet(name, passphrase)?.staking_addresses())
+        Ok(self.get_wallet(name, enckey)?.staking_addresses())
     }
 
     /// Returns all tree addresses stored in a wallet
     pub fn transfer_addresses(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<BTreeSet<ExtendedAddr>> {
-        Ok(self.get_wallet(name, passphrase)?.transfer_addresses())
+        Ok(self.get_wallet(name, enckey)?.transfer_addresses())
     }
 
     /// Adds a public key to given wallet
     pub fn add_public_key(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         public_key: &PublicKey,
     ) -> Result<()> {
-        self.modify_wallet(name, passphrase, move |wallet| {
+        self.modify_wallet(name, enckey, move |wallet| {
             wallet.public_keys.insert(public_key.clone());
         })
     }
@@ -220,20 +220,20 @@ where
     pub fn add_staking_key(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         staking_key: &PublicKey,
     ) -> Result<()> {
-        self.modify_wallet(name, passphrase, move |wallet| {
+        self.modify_wallet(name, enckey, move |wallet| {
             wallet.staking_keys.insert(staking_key.clone());
         })
     }
 
-    fn modify_wallet<F>(&self, name: &str, passphrase: &SecUtf8, f: F) -> Result<()>
+    fn modify_wallet<F>(&self, name: &str, enckey: &SecKey, f: F) -> Result<()>
     where
         F: Fn(&mut Wallet),
     {
         self.storage
-            .fetch_and_update_secure(KEYSPACE, name, passphrase, move |value| {
+            .fetch_and_update_secure(KEYSPACE, name, enckey, move |value| {
                 let mut wallet_bytes = value.chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -253,8 +253,8 @@ where
     }
 
     /// Adds a multi-sig address to given wallet
-    pub fn add_root_hash(&self, name: &str, passphrase: &SecUtf8, root_hash: H256) -> Result<()> {
-        self.modify_wallet(name, passphrase, move |wallet| {
+    pub fn add_root_hash(&self, name: &str, enckey: &SecKey, root_hash: H256) -> Result<()> {
+        self.modify_wallet(name, enckey, move |wallet| {
             wallet.root_hashes.insert(root_hash);
         })
     }
@@ -284,45 +284,43 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secstr::SecUtf8;
 
     use client_common::storage::MemoryStorage;
-    use client_common::PrivateKey;
+    use client_common::{seckey::derive_enckey, PrivateKey};
 
     #[test]
     fn check_flow() {
         let wallet_service = WalletService::new(MemoryStorage::default());
 
-        let passphrase = SecUtf8::from("passphrase");
+        let enckey = derive_enckey(&SecUtf8::from("passphrase"), "name").unwrap();
 
         let private_key = PrivateKey::new().unwrap();
         let view_key = PublicKey::from(&private_key);
 
         let error = wallet_service
-            .public_keys("name", &passphrase)
+            .public_keys("name", &enckey)
             .expect_err("Retrieved public keys for non-existent wallet");
 
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
 
         assert!(wallet_service
-            .create("name", &passphrase, view_key.clone())
+            .create("name", &enckey, view_key.clone())
             .is_ok());
 
         let error = wallet_service
-            .create("name", &SecUtf8::from("new_passphrase"), view_key.clone())
+            .create("name", &enckey, view_key.clone())
             .expect_err("Created duplicate wallet");
 
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
 
         assert_eq!(
             0,
-            wallet_service
-                .public_keys("name", &passphrase)
-                .unwrap()
-                .len()
+            wallet_service.public_keys("name", &enckey).unwrap().len()
         );
 
         let error = wallet_service
-            .create("name", &SecUtf8::from("passphrase_new"), view_key)
+            .create("name", &enckey, view_key)
             .expect_err("Able to create wallet with same name as previously created");
 
         assert_eq!(error.kind(), ErrorKind::InvalidInput, "Invalid error kind");
@@ -331,21 +329,18 @@ mod tests {
         let public_key = PublicKey::from(&private_key);
 
         wallet_service
-            .add_public_key("name", &passphrase, &public_key)
+            .add_public_key("name", &enckey, &public_key)
             .unwrap();
 
         assert_eq!(
             1,
-            wallet_service
-                .public_keys("name", &passphrase)
-                .unwrap()
-                .len()
+            wallet_service.public_keys("name", &enckey).unwrap().len()
         );
 
         wallet_service.clear().unwrap();
 
         let error = wallet_service
-            .public_keys("name", &passphrase)
+            .public_keys("name", &enckey)
             .expect_err("Retrieved public keys for non-existent wallet");
 
         assert_eq!(error.kind(), ErrorKind::InvalidInput);

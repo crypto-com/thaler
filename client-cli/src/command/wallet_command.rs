@@ -29,6 +29,11 @@ pub enum WalletCommand {
         #[structopt(name = "name", short, long, help = "Name of wallet")]
         name: String,
     },
+    #[structopt(name = "auth-token", about = "Get authentication token")]
+    AuthToken {
+        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        name: String,
+    },
 }
 
 impl WalletCommand {
@@ -39,6 +44,7 @@ impl WalletCommand {
             }
             WalletCommand::List => Self::list_wallets(wallet_client),
             WalletCommand::Restore { name } => Self::restore_wallet(wallet_client, name),
+            WalletCommand::AuthToken { name } => Self::auth_token(wallet_client, name),
         }
     }
 
@@ -57,16 +63,21 @@ impl WalletCommand {
             ));
         }
 
-        let mnemonic = wallet_client.new_wallet(name, &passphrase, wallet_kind)?;
-
-        success(&format!("Wallet created with name: {}", name));
+        let (enckey, mnemonic) = wallet_client.new_wallet(name, &passphrase, wallet_kind)?;
 
         if let WalletKind::HD = wallet_kind {
             ask("Please store following mnemonic safely to restore your wallet later: ");
             println!();
-            success(&mnemonic.unwrap().unsecure_phrase());
+            success(&format!(
+                "Mnemonic: {}",
+                &mnemonic.unwrap().unsecure_phrase()
+            ));
         }
 
+        success(&format!(
+            "Authentication token: {}",
+            &hex::encode(enckey.unsecure())
+        ));
         Ok(())
     }
 
@@ -91,11 +102,14 @@ impl WalletCommand {
             ));
         }
 
-        wallet_client.restore_wallet(name, &passphrase, &mnemonic)?;
+        let enckey = wallet_client.restore_wallet(name, &passphrase, &mnemonic)?;
 
         mnemonic.zeroize();
 
-        success(&format!("Wallet restored with name: {}", name));
+        success(&format!(
+            "Authentication token: {}",
+            &hex::encode(enckey.unsecure())
+        ));
         Ok(())
     }
 
@@ -111,6 +125,16 @@ impl WalletCommand {
             success("No wallets found!")
         }
 
+        Ok(())
+    }
+
+    fn auth_token<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
+        let passphrase = ask_passphrase(None)?;
+        let enckey = wallet_client.auth_token(name, &passphrase)?;
+        success(&format!(
+            "Authentication token: {}",
+            &hex::encode(enckey.unsecure())
+        ));
         Ok(())
     }
 }

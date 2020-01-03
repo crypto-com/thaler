@@ -1,11 +1,10 @@
 use hex::{decode, encode};
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
-use secstr::SecUtf8;
 
 use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::tx::data::Tx;
-use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt};
+use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt, SecKey};
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{to_rpc_error, WalletRequest};
@@ -31,43 +30,43 @@ pub trait MultiSigRpc: Send + Sync {
     ) -> Result<String>;
 
     #[rpc(name = "multiSig_nonceCommitment")]
-    fn nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    fn nonce_commitment(&self, session_id: String, enckey: SecKey) -> Result<String>;
 
     #[rpc(name = "multiSig_addNonceCommitment")]
     fn add_nonce_commitment(
         &self,
         session_id: String,
-        passphrase: SecUtf8,
+        enckey: SecKey,
         nonce_commitment: String,
         public_key: String,
     ) -> Result<()>;
 
     #[rpc(name = "multiSig_nonce")]
-    fn nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    fn nonce(&self, session_id: String, enckey: SecKey) -> Result<String>;
 
     #[rpc(name = "multiSig_addNonce")]
     fn add_nonce(
         &self,
         session_id: String,
-        passphrase: SecUtf8,
+        enckey: SecKey,
         nonce: String,
         public_key: String,
     ) -> Result<()>;
 
     #[rpc(name = "multiSig_partialSign")]
-    fn partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    fn partial_signature(&self, session_id: String, enckey: SecKey) -> Result<String>;
 
     #[rpc(name = "multiSig_addPartialSignature")]
     fn add_partial_signature(
         &self,
         session_id: String,
-        passphrase: SecUtf8,
+        enckey: SecKey,
         partial_signature: String,
         public_key: String,
     ) -> Result<()>;
 
     #[rpc(name = "multiSig_signature")]
-    fn signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String>;
+    fn signature(&self, session_id: String, enckey: SecKey) -> Result<String>;
 
     #[rpc(name = "multiSig_broadcastWithSignature")]
     fn broadcast_with_signature(
@@ -109,7 +108,7 @@ where
         let self_public_key = parse_public_key(self_public_key).map_err(to_rpc_error)?;
         // Check if self public key belongs to current wallet
         self.client
-            .private_key(&request.passphrase, &self_public_key)
+            .private_key(&request.enckey, &self_public_key)
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -121,7 +120,7 @@ where
             .client
             .new_multisig_transfer_address(
                 &request.name,
-                &request.passphrase,
+                &request.enckey,
                 public_keys,
                 self_public_key,
                 required_signatures,
@@ -149,7 +148,7 @@ where
         self.client
             .new_multi_sig_session(
                 &request.name,
-                &request.passphrase,
+                &request.enckey,
                 message,
                 signer_public_keys,
                 self_public_key,
@@ -158,11 +157,11 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn nonce_commitment(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn nonce_commitment(&self, session_id: String, enckey: SecKey) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
-            .nonce_commitment(&session_id, &passphrase)
+            .nonce_commitment(&session_id, &enckey)
             .map(serialize_hash_256)
             .map_err(to_rpc_error)
     }
@@ -170,7 +169,7 @@ where
     fn add_nonce_commitment(
         &self,
         session_id: String,
-        passphrase: SecUtf8,
+        enckey: SecKey,
         nonce_commitment: String,
         public_key: String,
     ) -> Result<()> {
@@ -179,15 +178,15 @@ where
         let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
 
         self.client
-            .add_nonce_commitment(&session_id, &passphrase, nonce_commitment, &public_key)
+            .add_nonce_commitment(&session_id, &enckey, nonce_commitment, &public_key)
             .map_err(to_rpc_error)
     }
 
-    fn nonce(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn nonce(&self, session_id: String, enckey: SecKey) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
-            .nonce(&session_id, &passphrase)
+            .nonce(&session_id, &enckey)
             .map(serialize_public_key)
             .map_err(to_rpc_error)
     }
@@ -195,7 +194,7 @@ where
     fn add_nonce(
         &self,
         session_id: String,
-        passphrase: SecUtf8,
+        enckey: SecKey,
         nonce: String,
         public_key: String,
     ) -> Result<()> {
@@ -204,15 +203,15 @@ where
         let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
 
         self.client
-            .add_nonce(&session_id, &passphrase, &nonce, &public_key)
+            .add_nonce(&session_id, &enckey, &nonce, &public_key)
             .map_err(to_rpc_error)
     }
 
-    fn partial_signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn partial_signature(&self, session_id: String, enckey: SecKey) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
-            .partial_signature(&session_id, &passphrase)
+            .partial_signature(&session_id, &enckey)
             .map(serialize_hash_256)
             .map_err(to_rpc_error)
     }
@@ -220,7 +219,7 @@ where
     fn add_partial_signature(
         &self,
         session_id: String,
-        passphrase: SecUtf8,
+        enckey: SecKey,
         partial_signature: String,
         public_key: String,
     ) -> Result<()> {
@@ -229,15 +228,15 @@ where
         let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
 
         self.client
-            .add_partial_signature(&session_id, &passphrase, partial_signature, &public_key)
+            .add_partial_signature(&session_id, &enckey, partial_signature, &public_key)
             .map_err(to_rpc_error)
     }
 
-    fn signature(&self, session_id: String, passphrase: SecUtf8) -> Result<String> {
+    fn signature(&self, session_id: String, enckey: SecKey) -> Result<String> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
 
         self.client
-            .signature(&session_id, &passphrase)
+            .signature(&session_id, &enckey)
             .map(|sig| sig.to_string())
             .map_err(to_rpc_error)
     }
@@ -255,7 +254,7 @@ where
             .transaction(
                 &request.name,
                 &session_id,
-                &request.passphrase,
+                &request.enckey,
                 unsigned_transaction,
             )
             .map_err(to_rpc_error)?;
@@ -339,16 +338,20 @@ mod test {
         let multisig_rpc = setup_multisig_rpc();
 
         let name = "Default";
-        let passphrase = SecUtf8::from("123456");
+        let passphrase = SecUtf8::from("passphrase");
 
-        multisig_rpc
+        let (enckey, _) = multisig_rpc
             .client
             .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
+        let wallet_request = WalletRequest {
+            name: "Default".to_owned(),
+            enckey,
+        };
 
         let wallet_public_key = multisig_rpc
             .client
-            .new_public_key(name, &passphrase, None)
+            .new_public_key(name, &wallet_request.enckey, None)
             .unwrap();
         let public_keys = vec![
             wallet_public_key.clone(),
@@ -362,7 +365,7 @@ mod test {
 
         let multisig_address = multisig_rpc
             .create_address(
-                create_wallet_request("Default", "123456"),
+                wallet_request,
                 public_keys,
                 format!("{}", wallet_public_key),
                 2,
@@ -387,17 +390,8 @@ mod test {
 
     fn setup_multisig_rpc() -> MultiSigRpcImpl<TestWalletClient> {
         let storage = MemoryStorage::default();
-
-        let wallet_client = make_test_wallet_client(storage.clone());
-
+        let wallet_client = make_test_wallet_client(storage);
         MultiSigRpcImpl::new(wallet_client)
-    }
-
-    fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
-        WalletRequest {
-            name: name.to_owned(),
-            passphrase: SecUtf8::from(passphrase),
-        }
     }
 
     #[derive(Default, Clone)]

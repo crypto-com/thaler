@@ -1,12 +1,10 @@
-use secstr::SecUtf8;
-
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{ErrorKind, PrivateKey, Result, SignedTransaction, Transaction};
+use client_common::{ErrorKind, PrivateKey, Result, SecKey, SignedTransaction, Transaction};
 
 use crate::{UnspentTransactions, WalletTransactionBuilder};
 use chain_core::tx::data::TxId;
@@ -20,7 +18,7 @@ impl WalletTransactionBuilder for UnauthorizedWalletTransactionBuilder {
     fn build_transfer_tx(
         &self,
         _: &str,
-        _: &SecUtf8,
+        _: &SecKey,
         _: UnspentTransactions,
         _: Vec<TxOut>,
         _: ExtendedAddr,

@@ -10,17 +10,16 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt};
+use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecKey};
 use client_core::types::TransactionPending;
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
 use hex::decode;
 use quest::{ask, success, text, yesno};
-use secstr::SecUtf8;
 use structopt::StructOpt;
 use unicase::eq_ascii;
 
-use crate::{ask_passphrase, coin_from_str};
+use crate::{ask_seckey, coin_from_str};
 
 #[derive(Debug)]
 pub enum TransactionType {
@@ -97,14 +96,14 @@ impl TransactionCommand {
                 transaction_type,
             } => new_transaction(wallet_client, network_ops_client, name, transaction_type),
             TransactionCommand::Export { name, id } => {
-                let passphrase = ask_passphrase(None)?;
-                let tx = wallet_client.export_plain_tx(name, &passphrase, id)?;
+                let enckey = ask_seckey(None)?;
+                let tx = wallet_client.export_plain_tx(name, &enckey, id)?;
                 success(&tx);
                 Ok(())
             }
             TransactionCommand::Import { name, tx } => {
-                let passphrase = ask_passphrase(None)?;
-                let imported_amount = wallet_client.import_plain_tx(name, &passphrase, tx)?;
+                let enckey = ask_seckey(None)?;
+                let imported_amount = wallet_client.import_plain_tx(name, &enckey, tx)?;
                 success(format!("import amount: {}", imported_amount).as_str());
                 Ok(())
             }
@@ -118,44 +117,34 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
     name: &str,
     transaction_type: &TransactionType,
 ) -> Result<()> {
-    let passphrase = ask_passphrase(None)?;
+    let enckey = ask_seckey(None)?;
 
     match transaction_type {
         TransactionType::Transfer => {
-            let (tx_aux, tx_pending) = new_transfer_transaction(wallet_client, name, &passphrase)?;
+            let (tx_aux, tx_pending) = new_transfer_transaction(wallet_client, name, &enckey)?;
             wallet_client.broadcast_transaction(&tx_aux)?;
-            wallet_client.update_tx_pending_state(
-                &name,
-                &passphrase,
-                tx_aux.tx_id(),
-                tx_pending,
-            )?;
+            wallet_client.update_tx_pending_state(&name, &enckey, tx_aux.tx_id(), tx_pending)?;
         }
         TransactionType::Deposit => {
-            let tx_aux = new_deposit_transaction(network_ops_client, name, &passphrase)?;
+            let tx_aux = new_deposit_transaction(network_ops_client, name, &enckey)?;
             wallet_client.broadcast_transaction(&tx_aux)?;
         }
         TransactionType::Unbond => {
-            let tx_aux = new_unbond_transaction(network_ops_client, name, &passphrase)?;
+            let tx_aux = new_unbond_transaction(network_ops_client, name, &enckey)?;
             wallet_client.broadcast_transaction(&tx_aux)?;
         }
         TransactionType::Withdraw => {
             let (tx_aux, tx_pending) =
-                new_withdraw_transaction(wallet_client, network_ops_client, name, &passphrase)?;
+                new_withdraw_transaction(wallet_client, network_ops_client, name, &enckey)?;
             wallet_client.broadcast_transaction(&tx_aux)?;
-            wallet_client.update_tx_pending_state(
-                &name,
-                &passphrase,
-                tx_aux.tx_id(),
-                tx_pending,
-            )?;
+            wallet_client.update_tx_pending_state(&name, &enckey, tx_aux.tx_id(), tx_pending)?;
         }
         TransactionType::Unjail => {
-            let tx_aux = new_unjail_transaction(network_ops_client, name, &passphrase)?;
+            let tx_aux = new_unjail_transaction(network_ops_client, name, &enckey)?;
             wallet_client.broadcast_transaction(&tx_aux)?;
         }
         TransactionType::NodeJoin => {
-            let tx_aux = new_node_join_transaction(network_ops_client, name, &passphrase)?;
+            let tx_aux = new_node_join_transaction(network_ops_client, name, &enckey)?;
             wallet_client.broadcast_transaction(&tx_aux)?;
         }
     };
@@ -166,13 +155,13 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
     wallet_client: &T,
     network_ops_client: &N,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
 ) -> Result<(TxAux, TransactionPending)> {
     let from_address = ask_staking_address()?;
     let to_address = ask_transfer_address()?;
     let view_keys = ask_view_keys()?;
 
-    let self_view_key = wallet_client.view_key(name, passphrase)?;
+    let self_view_key = wallet_client.view_key(name, enckey)?;
 
     let mut access_policies = vec![TxAccessPolicy {
         view_key: self_view_key.into(),
@@ -190,7 +179,7 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
 
     network_ops_client.create_withdraw_all_unbonded_stake_transaction(
         name,
-        &passphrase,
+        &enckey,
         &from_address,
         to_address,
         attributes,
@@ -200,7 +189,7 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
 fn new_unbond_transaction<N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
 ) -> Result<TxAux> {
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let address = ask_staking_address()?;
@@ -209,31 +198,31 @@ fn new_unbond_transaction<N: NetworkOpsClient>(
     let value_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
     let value = coin_from_str(&value_str)?;
 
-    network_ops_client.create_unbond_stake_transaction(name, passphrase, address, value, attributes)
+    network_ops_client.create_unbond_stake_transaction(name, enckey, address, value, attributes)
 }
 
 fn new_deposit_transaction<N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
 ) -> Result<TxAux> {
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let inputs = ask_inputs()?;
     let to_address = ask_staking_address()?;
 
     network_ops_client
-        .create_deposit_bonded_stake_transaction(name, passphrase, inputs, to_address, attributes)
+        .create_deposit_bonded_stake_transaction(name, enckey, inputs, to_address, attributes)
 }
 
 fn new_transfer_transaction<T: WalletClient>(
     wallet_client: &T,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
 ) -> Result<(TxAux, TransactionPending)> {
     let outputs = ask_outputs()?;
     let view_keys = ask_view_keys()?;
 
-    let self_view_key = wallet_client.view_key(name, passphrase)?;
+    let self_view_key = wallet_client.view_key(name, enckey)?;
 
     let mut access_policies = vec![TxAccessPolicy {
         view_key: self_view_key.into(),
@@ -249,11 +238,11 @@ fn new_transfer_transaction<T: WalletClient>(
 
     let attributes = TxAttributes::new_with_access(get_network_id(), access_policies);
 
-    let return_address = wallet_client.new_transfer_address(name, &passphrase)?;
+    let return_address = wallet_client.new_transfer_address(name, &enckey)?;
 
     let (transaction, used_inputs, return_amount) = wallet_client.create_transaction(
         name,
-        &passphrase,
+        &enckey,
         outputs,
         attributes,
         None,
@@ -270,18 +259,18 @@ fn new_transfer_transaction<T: WalletClient>(
 fn new_unjail_transaction<N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
 ) -> Result<TxAux> {
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let address = ask_staking_address()?;
 
-    network_ops_client.create_unjail_transaction(name, passphrase, address, attributes)
+    network_ops_client.create_unjail_transaction(name, enckey, address, attributes)
 }
 
 fn new_node_join_transaction<N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
 ) -> Result<TxAux> {
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let staking_account_address = ask_staking_address()?;
@@ -289,7 +278,7 @@ fn new_node_join_transaction<N: NetworkOpsClient>(
 
     network_ops_client.create_node_join_transaction(
         name,
-        passphrase,
+        enckey,
         staking_account_address,
         attributes,
         node_metadata,

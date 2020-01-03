@@ -23,7 +23,7 @@ use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResponse;
-use client_common::{PrivateKey, PublicKey, Result};
+use client_common::{PrivateKey, PublicKey, Result, SecKey};
 
 use crate::types::{AddressType, TransactionChange, TransactionPending, WalletBalance, WalletKind};
 use crate::{InputSelectionStrategy, Mnemonic, UnspentTransactions};
@@ -33,16 +33,21 @@ pub trait WalletClient: Send + Sync {
     /// Retrieves names of all wallets stored
     fn wallets(&self) -> Result<Vec<String>>;
 
-    /// Creates a new wallet with given name, passphrase and kind. Returns mnemonics if `wallet_kind` was `HD`.
+    /// Creates a new wallet with given name, enckey and kind. Returns mnemonics if `wallet_kind` was `HD`.
     fn new_wallet(
         &self,
         name: &str,
         passphrase: &SecUtf8,
         wallet_kind: WalletKind,
-    ) -> Result<Option<Mnemonic>>;
+    ) -> Result<(SecKey, Option<Mnemonic>)>;
 
     /// Restores a HD wallet from given mnemonic
-    fn restore_wallet(&self, name: &str, passphrase: &SecUtf8, mnemonic: &Mnemonic) -> Result<()>;
+    fn restore_wallet(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        mnemonic: &Mnemonic,
+    ) -> Result<SecKey>;
 
     /// Restore a watch only wallet with view key
     fn restore_basic_wallet(
@@ -50,42 +55,41 @@ pub trait WalletClient: Send + Sync {
         name: &str,
         passphrase: &SecUtf8,
         view_key: &PrivateKey,
-    ) -> Result<()>;
+    ) -> Result<SecKey>;
+
+    /// get auth token client
+    fn auth_token(&self, name: &str, passphrase: &SecUtf8) -> Result<SecKey>;
 
     /// Retrieves view key corresponding to a given wallet
-    fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey>;
+    fn view_key(&self, name: &str, enckey: &SecKey) -> Result<PublicKey>;
 
     /// Retrieves private view key corresponding to a given wallet
-    fn view_key_private(&self, name: &str, passphrase: &SecUtf8) -> Result<PrivateKey>;
+    fn view_key_private(&self, name: &str, enckey: &SecKey) -> Result<PrivateKey>;
 
     /// Retrieves all public keys corresponding to given wallet
-    fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>>;
+    fn public_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>>;
 
     /// Retrieves all public keys corresponding to staking addresses stored in given wallet
-    fn staking_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>>;
+    fn staking_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>>;
 
     /// Retrieves all root hashes corresponding to given wallet
-    fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<H256>>;
+    fn root_hashes(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<H256>>;
 
     /// Returns all staking addresses in current wallet
     fn staking_addresses(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<BTreeSet<StakedStateAddress>>;
 
     /// Returns all the multi-sig transfer addresses in current wallet
-    fn transfer_addresses(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-    ) -> Result<BTreeSet<ExtendedAddr>>;
+    fn transfer_addresses(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<ExtendedAddr>>;
 
     /// Finds staking key corresponding to given redeem address
     fn find_staking_key(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         redeem_address: &RedeemAddress,
     ) -> Result<Option<PublicKey>>;
 
@@ -93,36 +97,32 @@ pub trait WalletClient: Send + Sync {
     fn find_root_hash(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address: &ExtendedAddr,
     ) -> Result<Option<H256>>;
 
     /// Retrieves private key corresponding to given public key
-    fn private_key(
-        &self,
-        passphrase: &SecUtf8,
-        public_key: &PublicKey,
-    ) -> Result<Option<PrivateKey>>;
+    fn private_key(&self, enckey: &SecKey, public_key: &PublicKey) -> Result<Option<PrivateKey>>;
 
     /// Generates a new public key for given wallet
     fn new_public_key(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address_type: Option<AddressType>,
     ) -> Result<PublicKey>;
 
     /// Generates a new redeem address for given wallet
-    fn new_staking_address(&self, name: &str, passphrase: &SecUtf8) -> Result<StakedStateAddress>;
+    fn new_staking_address(&self, name: &str, enckey: &SecKey) -> Result<StakedStateAddress>;
 
     /// Generates a new 1-of-1 transfer address
-    fn new_transfer_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr>;
+    fn new_transfer_address(&self, name: &str, enckey: &SecKey) -> Result<ExtendedAddr>;
 
     /// Add watch only staking address
     fn new_watch_staking_address(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         public_key: &PublicKey,
     ) -> Result<StakedStateAddress>;
 
@@ -130,7 +130,7 @@ pub trait WalletClient: Send + Sync {
     fn new_watch_transfer_address(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         public_key: &PublicKey,
     ) -> Result<ExtendedAddr>;
 
@@ -139,14 +139,14 @@ pub trait WalletClient: Send + Sync {
     /// # Arguments
     ///
     /// `name`: Name of wallet
-    /// `passphrase`: passphrase of wallet
+    /// `enckey`: enckey of wallet
     /// `public_keys`: Public keys of co-signers (including public key of current co-signer)
     /// `self_public_key`: Public key of current co-signer
     /// `m`: Number of required co-signers
     fn new_multisig_transfer_address(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         public_keys: Vec<PublicKey>,
         self_public_key: PublicKey,
         m: usize,
@@ -156,53 +156,47 @@ pub trait WalletClient: Send + Sync {
     fn generate_proof(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address: &ExtendedAddr,
         public_keys: Vec<PublicKey>,
     ) -> Result<Proof<RawPubkey>>;
 
     /// Returns number of cosigners required to sign the transaction
-    fn required_cosigners(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-        root_hash: &H256,
-    ) -> Result<usize>;
+    fn required_cosigners(&self, name: &str, enckey: &SecKey, root_hash: &H256) -> Result<usize>;
 
     /// Retrieves current balance of wallet
-    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletBalance>;
+    fn balance(&self, name: &str, enckey: &SecKey) -> Result<WalletBalance>;
 
     /// Retrieves transaction history of wallet
     fn history(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         limit: usize,
         offset: usize,
         reversed: bool,
     ) -> Result<Vec<TransactionChange>>;
 
     /// Retrieves all unspent transactions of wallet
-    fn unspent_transactions(&self, name: &str, passphrase: &SecUtf8)
-        -> Result<UnspentTransactions>;
+    fn unspent_transactions(&self, name: &str, enckey: &SecKey) -> Result<UnspentTransactions>;
 
     /// Checks if all the provided transaction inputs are present in unspent transaction for given wallet
     fn has_unspent_transactions(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         inputs: &[TxoPointer],
     ) -> Result<bool>;
 
     /// Returns output of transaction with given input details
-    fn output(&self, name: &str, passphrase: &SecUtf8, input: &TxoPointer) -> Result<TxOut>;
+    fn output(&self, name: &str, enckey: &SecKey, input: &TxoPointer) -> Result<TxOut>;
 
     /// Builds a transaction
     ///
     /// # Attributes
     ///
     /// - `name`: Name of wallet
-    /// - `passphrase`: Passphrase of wallet
+    /// - `enckey`: Passphrase of wallet
     /// - `outputs`: Transaction outputs
     /// - `attributes`: Transaction attributes,
     /// - `input_selection_strategy`: Strategy to use while selecting unspent transactions
@@ -210,7 +204,7 @@ pub trait WalletClient: Send + Sync {
     fn create_transaction(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
         input_selection_strategy: Option<InputSelectionStrategy>,
@@ -227,13 +221,13 @@ pub trait WalletClient: Send + Sync {
     /// # Return
     ///
     /// base64 encoded of `Transaction` json string
-    fn export_plain_tx(&self, name: &str, passphras: &SecUtf8, txid: &str) -> Result<String>;
+    fn export_plain_tx(&self, name: &str, passphras: &SecKey, txid: &str) -> Result<String>;
 
     /// import a plain transaction, put the outputs of the transaction into wallet DB
     ///
     /// # Return
     /// the sum of unused outputs coin
-    fn import_plain_tx(&self, name: &str, passphrase: &SecUtf8, tx_str: &str) -> Result<Coin>;
+    fn import_plain_tx(&self, name: &str, enckey: &SecKey, tx_str: &str) -> Result<Coin>;
     /// Get the current block height
     fn get_current_block_height(&self) -> Result<u64>;
 
@@ -241,7 +235,7 @@ pub trait WalletClient: Send + Sync {
     fn update_tx_pending_state(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         tx_id: TxId,
         tx_pending: TransactionPending,
     ) -> Result<()>;
@@ -253,7 +247,7 @@ pub trait MultiSigWalletClient: WalletClient {
     fn schnorr_signature(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         message: &H256,
         public_key: &PublicKey,
     ) -> Result<SchnorrSignature>;
@@ -263,66 +257,66 @@ pub trait MultiSigWalletClient: WalletClient {
     /// # Arguments
     ///
     /// `name`: Name of wallet
-    /// `passphrase`: passphrase of wallet
+    /// `enckey`: enckey of wallet
     /// `message`: Message to be signed,
     /// `signer_public_keys`: Public keys of all co-signers (including current signer)
     /// `self_public_key`: Public key of current signer
     fn new_multi_sig_session(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         message: H256,
         signer_public_keys: Vec<PublicKey>,
         self_public_key: PublicKey,
     ) -> Result<H256>;
 
     /// Returns nonce commitment of current signer
-    fn nonce_commitment(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<H256>;
+    fn nonce_commitment(&self, session_id: &H256, enckey: &SecKey) -> Result<H256>;
 
     /// Adds a nonce commitment from a public key to session with given id
     fn add_nonce_commitment(
         &self,
         session_id: &H256,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         nonce_commitment: H256,
         public_key: &PublicKey,
     ) -> Result<()>;
 
     /// Returns nonce of current signer. This function will fail if nonce commitments from all co-signers are not
     /// received.
-    fn nonce(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<PublicKey>;
+    fn nonce(&self, session_id: &H256, enckey: &SecKey) -> Result<PublicKey>;
 
     /// Adds a nonce from a public key to session with given id
     fn add_nonce(
         &self,
         session_id: &H256,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         nonce: &PublicKey,
         public_key: &PublicKey,
     ) -> Result<()>;
 
     /// Returns partial signature of current signer. This function will fail if nonces from all co-signers are not
     /// received.
-    fn partial_signature(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<H256>;
+    fn partial_signature(&self, session_id: &H256, enckey: &SecKey) -> Result<H256>;
 
     /// Adds a partial signature from a public key to session with given id
     fn add_partial_signature(
         &self,
         session_id: &H256,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         partial_signature: H256,
         public_key: &PublicKey,
     ) -> Result<()>;
 
     /// Returns final signature. This function will fail if partial signatures from all co-signers are not received.
-    fn signature(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<SchnorrSignature>;
+    fn signature(&self, session_id: &H256, enckey: &SecKey) -> Result<SchnorrSignature>;
 
     /// Returns obfuscated transaction by signing given transaction with signature produced by current session id.
     fn transaction(
         &self,
         name: &str,
         session_id: &H256,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         unsigned_transaction: Tx,
     ) -> Result<TxAux>;
 }

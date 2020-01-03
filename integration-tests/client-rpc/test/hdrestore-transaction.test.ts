@@ -10,6 +10,8 @@ import {
 } from "./core/setup";
 import {
 	newWalletRequest,
+	newCreateWalletRequest,
+	rawWalletRequest,
 	generateWalletName,
 	newZeroFeeRpcClient,
 	newWithFeeRpcClient,
@@ -19,6 +21,7 @@ import {
 	newWithFeeTendermintClient,
 	asyncMiddleman,
 	TRANSACTION_HISTORY_LIMIT,
+	DEFAULT_PASSPHRASE,
 } from "./core/utils";
 import { TendermintClient } from "./core/tendermint-client";
 import { waitTxIdConfirmed, syncWallet } from "./core/rpc";
@@ -29,7 +32,7 @@ import {
 } from "./core/transaction-utils";
 chaiUse(chaiAsPromised);
 
-describe("Wallet transaction", () => {
+describe("HDWallet Restore transaction", () => {
 	let zeroFeeRpcClient: RpcClient;
 	let zeroFeeTendermintClient: TendermintClient;
 	let withFeeRpcClient: RpcClient;
@@ -47,7 +50,7 @@ describe("Wallet transaction", () => {
 			return;
 		}
 		it("cannot send funds larger than wallet balance", async () => {
-			const walletRequest = newWalletRequest("Default", "123456");
+			const walletRequest = await newWalletRequest(zeroFeeRpcClient, "Default", DEFAULT_PASSPHRASE);
 
 			const totalCROSupply = "10000000000000000000";
 			return expect(
@@ -64,15 +67,15 @@ describe("Wallet transaction", () => {
 			this.timeout(300000);
 
 			const receiverWalletName = generateWalletName("Receive");
-			const senderWalletRequest = newWalletRequest("Default", "123456");
-			const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
+			const senderWalletRequest = await newWalletRequest(zeroFeeRpcClient, "Default", DEFAULT_PASSPHRASE);
+			const receiverCreateWalletRequest = newCreateWalletRequest(receiverWalletName, DEFAULT_PASSPHRASE);
 			const transferAmount = "1000";
 
-			await asyncMiddleman(
-				zeroFeeRpcClient.request("wallet_restore", [receiverWalletRequest, "benefit motor depth mercy side night winner cube battle sting mandate fly husband beauty walnut beef night stem motion trouble agent degree cricket forest"]),
+			const receiveCreateResponse = await asyncMiddleman(
+				zeroFeeRpcClient.request("wallet_restore", [receiverCreateWalletRequest,"benefit motor depth mercy side night winner cube battle sting mandate fly husband beauty walnut beef night stem motion trouble agent degree cricket forest"]),
 				"Error when recovering receiver hdwallet",
 			);
-
+			const receiverWalletRequest = rawWalletRequest(receiverWalletName, receiveCreateResponse);
 
 			const senderWalletTransactionListBeforeSend = await asyncMiddleman(
 				zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
@@ -236,14 +239,15 @@ describe("Wallet transaction", () => {
 			this.timeout(300000);
 
 			const receiverWalletName = generateWalletName("Receive");
-			const senderWalletRequest = newWalletRequest("Default", "123456");
-			const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
+			const senderWalletRequest = await newWalletRequest(withFeeRpcClient, "Default", DEFAULT_PASSPHRASE);
+			const receiverCreateWalletRequest = newCreateWalletRequest(receiverWalletName, DEFAULT_PASSPHRASE);
 			const transferAmount = "1000";
 
-			await asyncMiddleman(
-				withFeeRpcClient.request("wallet_restore", [receiverWalletRequest, "speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch"]),
+			const receiverCreateResponse = await asyncMiddleman(
+				withFeeRpcClient.request("wallet_restore", [receiverCreateWalletRequest,"speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch"]),
 				"Error when recovering receive hdwallet",
 			);
+			const receiverWalletRequest = rawWalletRequest(receiverWalletName, receiverCreateResponse);
 
 
 

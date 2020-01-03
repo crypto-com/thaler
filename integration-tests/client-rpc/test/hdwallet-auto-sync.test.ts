@@ -7,6 +7,7 @@ import { RpcClient } from "./core/rpc-client";
 import { unbondAndWithdrawStake } from "./core/setup";
 import {
 	newWalletRequest,
+    newCreateWalletRequest,
 	generateWalletName,
 	newZeroFeeRpcClient,
 	sleep,
@@ -15,6 +16,7 @@ import {
 	asyncMiddleman,
 	newZeroFeeTendermintClient,
 	TRANSACTION_HISTORY_LIMIT,
+    DEFAULT_PASSPHRASE,
 } from "./core/utils";
 import { syncWallet, waitTxIdConfirmed } from "./core/rpc";
 import { TendermintClient } from "./core/tendermint-client";
@@ -25,7 +27,7 @@ import {
 } from "./core/transaction-utils";
 chaiUse(chaiAsPromised);
 
-describe("Wallet Auto-sync", () => {
+describe("HDWallet Auto-sync", () => {
 	let zeroFeeRpcClient: RpcClient;
 	let zeroFeeTendermintClient: TendermintClient;
 	before(async () => {
@@ -42,14 +44,18 @@ describe("Wallet Auto-sync", () => {
 		this.timeout(300000);
 
 		const receiverWalletName = generateWalletName("Receive");
-		const senderWalletRequest = newWalletRequest("Default", "123456");
-		const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
+		const senderWalletRequest = await newWalletRequest(zeroFeeRpcClient, "Default", DEFAULT_PASSPHRASE);
+		const receiverCreateWalletRequest = newCreateWalletRequest(receiverWalletName, DEFAULT_PASSPHRASE);
 		const transferAmount = "1000";
 
-		await asyncMiddleman(
-			zeroFeeRpcClient.request("wallet_create", [receiverWalletRequest, "HD"]),
+		let enckey = (await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_create", [receiverCreateWalletRequest, "HD"]),
 			"Error when creating receiver wallet",
-		);
+		))[0];
+        let receiverWalletRequest = {
+            name: receiverWalletName,
+            enckey
+        };
 
 		await asyncMiddleman(
 			syncWallet(zeroFeeRpcClient, senderWalletRequest),

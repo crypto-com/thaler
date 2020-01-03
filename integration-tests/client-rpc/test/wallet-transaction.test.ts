@@ -10,6 +10,7 @@ import {
 } from "./core/setup";
 import {
 	newWalletRequest,
+	newCreateWalletRequest,
 	generateWalletName,
 	newZeroFeeRpcClient,
 	newWithFeeRpcClient,
@@ -19,6 +20,7 @@ import {
 	newWithFeeTendermintClient,
 	asyncMiddleman,
 	TRANSACTION_HISTORY_LIMIT,
+	DEFAULT_PASSPHRASE,
 } from "./core/utils";
 import { TendermintClient } from "./core/tendermint-client";
 import { waitTxIdConfirmed, syncWallet } from "./core/rpc";
@@ -47,7 +49,7 @@ describe("Wallet transaction", () => {
 			return;
 		}
 		it("cannot send funds larger than wallet balance", async () => {
-			const walletRequest = newWalletRequest("Default", "123456");
+			const walletRequest = await newWalletRequest(zeroFeeRpcClient, "Default", DEFAULT_PASSPHRASE);
 
 			const totalCROSupply = "10000000000000000000";
 			return expect(
@@ -64,14 +66,18 @@ describe("Wallet transaction", () => {
 			this.timeout(300000);
 
 			const receiverWalletName = generateWalletName("Receive");
-			const senderWalletRequest = newWalletRequest("Default", "123456");
-			const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
+			const senderWalletRequest = await newWalletRequest(zeroFeeRpcClient, "Default", DEFAULT_PASSPHRASE);
+			const receiverCreateWalletRequest = newCreateWalletRequest(receiverWalletName, DEFAULT_PASSPHRASE);
 			const transferAmount = "1000";
 
-			await asyncMiddleman(
-				zeroFeeRpcClient.request("wallet_create", [receiverWalletRequest, "Basic"]),
+			const enckey = (await asyncMiddleman(
+				zeroFeeRpcClient.request("wallet_create", [receiverCreateWalletRequest, "Basic"]),
 				"Error when creating receiver wallet",
-			);
+			))[0];
+			const receiverWalletRequest = {
+				name: receiverWalletName,
+				enckey,
+			};
 
 			const senderWalletTransactionListBeforeSend = await asyncMiddleman(
 				zeroFeeRpcClient.request("wallet_transactions", [senderWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),
@@ -232,14 +238,18 @@ describe("Wallet transaction", () => {
 			this.timeout(300000);
 
 			const receiverWalletName = generateWalletName("Receive");
-			const senderWalletRequest = newWalletRequest("Default", "123456");
-			const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
+			const senderWalletRequest = await newWalletRequest(withFeeRpcClient, "Default", DEFAULT_PASSPHRASE);
+			const receiverCreateWalletRequest = newCreateWalletRequest(receiverWalletName, DEFAULT_PASSPHRASE);
 			const transferAmount = "1000";
 
-			await asyncMiddleman(
-				withFeeRpcClient.request("wallet_create", [receiverWalletRequest, "Basic"]),
-				"Error when creating receive wallet",
-			);
+			const enckey = (await asyncMiddleman(
+				withFeeRpcClient.request("wallet_create", [receiverCreateWalletRequest, "Basic"]),
+				"Error when creating receiver wallet",
+			))[0];
+			const receiverWalletRequest = {
+				name: receiverWalletName,
+				enckey
+			};
 
 			const senderWalletTransactionListBeforeSend = await asyncMiddleman(
 				withFeeRpcClient.request("wallet_transactions", [senderWalletRequest, 0, TRANSACTION_HISTORY_LIMIT, true]),

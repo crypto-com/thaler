@@ -1,12 +1,13 @@
 use parity_scale_codec::{Decode, Encode};
-use secstr::SecUtf8;
 use std::collections::BTreeMap;
 
-use chain_core::tx::data::{input::TxoPointer, output::TxOut, TxId};
-use client_common::{Error, ErrorKind, Result, ResultExt, SecureStorage, Storage};
+use chain_core::{
+    init::coin::{sum_coins, CoinError},
+    tx::data::{input::TxoPointer, output::TxOut, TxId},
+};
+use client_common::{Error, ErrorKind, Result, ResultExt, SecKey, SecureStorage, Storage};
 
 use crate::types::{TransactionChange, TransactionPending, WalletBalance};
-use chain_core::init::coin::{sum_coins, CoinError};
 
 /// key space of wallet state
 const KEYSPACE: &str = "core_wallet_state";
@@ -40,10 +41,10 @@ where
     pub fn has_unspent_transactions(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         inputs: &[TxoPointer],
     ) -> Result<bool> {
-        let unspent_transactions = self.get_unspent_transactions(name, passphrase, false)?;
+        let unspent_transactions = self.get_unspent_transactions(name, enckey, false)?;
 
         Ok(inputs
             .iter()
@@ -56,10 +57,10 @@ where
     pub fn get_unspent_transactions(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         include_pending: bool,
     ) -> Result<BTreeMap<TxoPointer, TxOut>> {
-        let wallet_state = self.get_wallet_state(name, passphrase)?;
+        let wallet_state = self.get_wallet_state(name, enckey)?;
         if include_pending {
             Ok(wallet_state.unspent_transactions)
         } else {
@@ -72,10 +73,10 @@ where
     pub fn get_transaction_history(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         reversed: bool,
     ) -> Result<Box<dyn Iterator<Item = TransactionChange>>> {
-        let mut state = self.get_wallet_state(name, passphrase)?;
+        let mut state = self.get_wallet_state(name, enckey)?;
         let mut history = std::mem::replace(&mut state.transaction_history, BTreeMap::new());
         let get_tx = move |txid| history.remove(&txid);
         let iter = state.transaction_log.into_iter();
@@ -91,11 +92,11 @@ where
     pub fn get_transaction_change(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         transaction_id: &TxId,
     ) -> Result<Option<TransactionChange>> {
         Ok(self
-            .get_wallet_state(name, passphrase)?
+            .get_wallet_state(name, enckey)?
             .get_transaction_change(transaction_id))
     }
 
@@ -103,27 +104,27 @@ where
     pub fn get_output(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         input: &TxoPointer,
     ) -> Result<Option<TxOut>> {
-        self.get_wallet_state(name, passphrase)?.get_output(input)
+        self.get_wallet_state(name, enckey)?.get_output(input)
     }
 
     /// Returns currently stored balance for given wallet
-    pub fn get_balance(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletBalance> {
-        let wallet_state = self.get_wallet_state(name, passphrase)?;
+    pub fn get_balance(&self, name: &str, enckey: &SecKey) -> Result<WalletBalance> {
+        let wallet_state = self.get_wallet_state(name, enckey)?;
         let balance = wallet_state
             .get_balance()
             .chain(|| (ErrorKind::StorageError, "Calculate balance error"))?;
         Ok(balance)
     }
 
-    fn modify_state<F>(&self, name: &str, passphrase: &SecUtf8, f: F) -> Result<()>
+    fn modify_state<F>(&self, name: &str, enckey: &SecKey, f: F) -> Result<()>
     where
         F: Fn(&mut WalletState) -> Result<()>,
     {
         self.storage
-            .fetch_and_update_secure(KEYSPACE, name, passphrase, |bytes_optional| {
+            .fetch_and_update_secure(KEYSPACE, name, enckey, |bytes_optional| {
                 let mut wallet_state = parse_wallet_state(name, bytes_optional)?;
                 f(&mut wallet_state)?;
                 Ok(Some(wallet_state.encode()))
@@ -135,23 +136,23 @@ where
     pub fn apply_memento(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         memento: &WalletStateMemento,
     ) -> Result<()> {
-        self.modify_state(name, passphrase, |state| state.apply_memento(memento))
+        self.modify_state(name, enckey, |state| state.apply_memento(memento))
     }
 
     /// Deletes all the state data corresponding to a wallet
     #[inline]
-    pub fn delete_wallet_state(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
-        // Check if the passphrase is correct
-        let _ = self.get_wallet_state(name, passphrase)?;
+    pub fn delete_wallet_state(&self, name: &str, enckey: &SecKey) -> Result<()> {
+        // Check if the enckey is correct
+        let _ = self.get_wallet_state(name, enckey)?;
         self.storage.delete(KEYSPACE, name).map(|_| ())
     }
 
     #[inline]
-    fn get_wallet_state(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletState> {
-        Ok(load_wallet_state(&self.storage, name, passphrase)?.unwrap_or_default())
+    fn get_wallet_state(&self, name: &str, enckey: &SecKey) -> Result<WalletState> {
+        Ok(load_wallet_state(&self.storage, name, enckey)?.unwrap_or_default())
     }
 }
 
@@ -179,39 +180,39 @@ fn parse_wallet_state<T: AsRef<[u8]>>(
 pub fn load_wallet_state<S: SecureStorage>(
     storage: &S,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
 ) -> Result<Option<WalletState>> {
-    storage.load_secure(KEYSPACE, name, passphrase)
+    storage.load_secure(KEYSPACE, name, enckey)
 }
 
 /// Save wallet state to storage
 pub fn save_wallet_state<S: SecureStorage>(
     storage: &S,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
     state: &WalletState,
 ) -> Result<()> {
-    storage.save_secure(KEYSPACE, name, passphrase, state)
+    storage.save_secure(KEYSPACE, name, enckey, state)
 }
 
 /// Modify wallet state atomically, and returns the new one.
 pub fn modify_wallet_state<S, F>(
     storage: &S,
     name: &str,
-    passphrase: &SecUtf8,
+    enckey: &SecKey,
     f: F,
 ) -> Result<WalletState>
 where
     S: SecureStorage,
     F: Fn(&mut WalletState) -> Result<()>,
 {
-    storage.fetch_and_update_secure(KEYSPACE, name, passphrase, |bytes_optional| {
+    storage.fetch_and_update_secure(KEYSPACE, name, enckey, |bytes_optional| {
         let mut wallet_state = parse_wallet_state(name, bytes_optional)?;
         f(&mut wallet_state)?;
         Ok(Some(wallet_state.encode()))
     })?;
     // FIXME need to modify the storage trait to save this extra loading.
-    Ok(load_wallet_state(storage, name, passphrase)?.unwrap())
+    Ok(load_wallet_state(storage, name, enckey)?.unwrap())
 }
 
 /// Delete wallet state from storage
@@ -431,11 +432,12 @@ impl WalletStateMemento {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secstr::SecUtf8;
     use std::str::FromStr;
 
     use chain_core::tx::data::address::ExtendedAddr;
-    use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::Time;
+    use client_common::{seckey::derive_enckey, storage::MemoryStorage};
 
     use crate::types::{BalanceChange, TransactionType};
     use chain_core::init::coin::Coin;
@@ -446,14 +448,14 @@ mod tests {
         let wallet_state_service = WalletStateService::new(storage);
 
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let enckey = &derive_enckey(&SecUtf8::from("passphrase"), name).unwrap();
 
         // Check empty state
 
         assert_eq!(
             0,
             wallet_state_service
-                .get_unspent_transactions(name, passphrase, false)
+                .get_unspent_transactions(name, enckey, false)
                 .unwrap()
                 .len()
         );
@@ -461,19 +463,19 @@ mod tests {
         assert_eq!(
             0,
             wallet_state_service
-                .get_transaction_history(name, passphrase, false)
+                .get_transaction_history(name, enckey, false)
                 .unwrap()
                 .count()
         );
 
         assert!(wallet_state_service
-            .get_transaction_change(name, passphrase, &[0; 32])
+            .get_transaction_change(name, enckey, &[0; 32])
             .unwrap()
             .is_none());
 
         assert_eq!(
             WalletBalance::default(),
-            wallet_state_service.get_balance(name, passphrase).unwrap()
+            wallet_state_service.get_balance(name, enckey).unwrap()
         );
 
         // Add an unspent transaction and check if it is added
@@ -485,13 +487,13 @@ mod tests {
         );
 
         assert!(wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .is_ok());
 
         assert_eq!(
             1,
             wallet_state_service
-                .get_unspent_transactions(name, passphrase, false)
+                .get_unspent_transactions(name, enckey, false)
                 .unwrap()
                 .len()
         );
@@ -500,13 +502,13 @@ mod tests {
         let mut memento = WalletStateMemento::default();
         memento.remove_unspent_transaction(TxoPointer::new([0; 32], 0));
         assert!(wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .is_ok());
 
         assert_eq!(
             0,
             wallet_state_service
-                .get_unspent_transactions(name, passphrase, false)
+                .get_unspent_transactions(name, enckey, false)
                 .unwrap()
                 .len()
         );
@@ -523,17 +525,15 @@ mod tests {
             },
         );
         assert!(wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .is_ok());
         // remove the previous added pending transaction
         let mut memento = WalletStateMemento::default();
         memento.remove_pending_transaction([0; 32]);
         assert!(wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .is_ok());
-        let wallet_state = wallet_state_service
-            .get_wallet_state(name, passphrase)
-            .unwrap();
+        let wallet_state = wallet_state_service.get_wallet_state(name, enckey).unwrap();
         assert_eq!(0, wallet_state.pending_transactions.len());
 
         // Add a transaction change (with incoming balance) and check if it is added and also new wallet balance
@@ -553,24 +553,24 @@ mod tests {
         });
 
         assert!(wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .is_ok());
 
         assert_eq!(
             1,
             wallet_state_service
-                .get_transaction_history(name, passphrase, false)
+                .get_transaction_history(name, enckey, false)
                 .unwrap()
                 .count()
         );
 
         assert!(wallet_state_service
-            .get_transaction_change(name, passphrase, &[0; 32])
+            .get_transaction_change(name, enckey, &[0; 32])
             .unwrap()
             .is_some());
 
         assert!(wallet_state_service
-            .get_transaction_change(name, passphrase, &[1; 32])
+            .get_transaction_change(name, enckey, &[1; 32])
             .unwrap()
             .is_none());
 
@@ -592,24 +592,24 @@ mod tests {
         });
 
         assert!(wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .is_ok());
 
         assert_eq!(
             2,
             wallet_state_service
-                .get_transaction_history(name, passphrase, false)
+                .get_transaction_history(name, enckey, false)
                 .unwrap()
                 .count()
         );
 
         assert!(wallet_state_service
-            .get_transaction_change(name, passphrase, &[1; 32])
+            .get_transaction_change(name, enckey, &[1; 32])
             .unwrap()
             .is_some());
     }
 
-    fn prepare_wallet_storage(name: &str, passphrase: &SecUtf8) -> MemoryStorage {
+    fn prepare_wallet_storage(name: &str, enckey: &SecKey) -> MemoryStorage {
         let storage = MemoryStorage::default();
         let wallet_state_service = WalletStateService::new(storage.clone());
 
@@ -621,10 +621,10 @@ mod tests {
         memento.add_unspent_transaction(tx_pointer(0, 0), output(0, 100));
         memento.add_unspent_transaction(tx_pointer(0, 1), output(0, 40));
         wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .unwrap();
         assert_eq!(
-            wallet_state_service.get_balance(name, passphrase).unwrap(),
+            wallet_state_service.get_balance(name, enckey).unwrap(),
             WalletBalance {
                 total: Coin::new(140).unwrap(),
                 available: Coin::new(140).unwrap(),
@@ -643,11 +643,11 @@ mod tests {
             },
         );
         wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .unwrap();
 
         assert_eq!(
-            wallet_state_service.get_balance(name, passphrase).unwrap(),
+            wallet_state_service.get_balance(name, enckey).unwrap(),
             WalletBalance {
                 total: Coin::new(90).unwrap(),
                 available: Coin::new(40).unwrap(),
@@ -657,7 +657,7 @@ mod tests {
 
         // now the available utxo is only the second one
         let unspent_tx = wallet_state_service
-            .get_unspent_transactions(name, passphrase, false)
+            .get_unspent_transactions(name, enckey, false)
             .unwrap();
         let mut target = BTreeMap::new();
         target.insert(tx_pointer(0, 1), output(0, 40));
@@ -668,8 +668,8 @@ mod tests {
     #[test]
     fn test_sync_and_get_balance() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
-        let storage = prepare_wallet_storage(name, passphrase);
+        let enckey = &derive_enckey(&SecUtf8::from("passphrase"), name).unwrap();
+        let storage = prepare_wallet_storage(name, enckey);
         let wallet_state_service = WalletStateService::new(storage);
         let tx_pointer = |n: u8, i: usize| TxoPointer::new([n; 32], i);
         let output =
@@ -681,11 +681,11 @@ mod tests {
         // and add the returned utxo
         memento.add_unspent_transaction(tx_pointer(1, 0), output(0, 50));
         wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .unwrap();
         // now, we can get the balance
         assert_eq!(
-            wallet_state_service.get_balance(name, passphrase).unwrap(),
+            wallet_state_service.get_balance(name, enckey).unwrap(),
             WalletBalance {
                 total: Coin::new(90).unwrap(),
                 available: Coin::new(90).unwrap(),
@@ -693,7 +693,7 @@ mod tests {
             }
         );
         let unspent_tx = wallet_state_service
-            .get_unspent_transactions(name, passphrase, false)
+            .get_unspent_transactions(name, enckey, false)
             .unwrap();
         assert_eq!(unspent_tx.len(), 2);
     }
@@ -702,14 +702,12 @@ mod tests {
     fn test_rollback_and_get_balance() {
         let block_height_ensure = 50;
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
-        let storage = prepare_wallet_storage(name, passphrase);
+        let enckey = &derive_enckey(&SecUtf8::from("passphrase"), name).unwrap();
+        let storage = prepare_wallet_storage(name, enckey);
         let wallet_state_service = WalletStateService::new(storage);
         // assume that broadcast failed, then we should rollback
         let current_height = 2 + block_height_ensure;
-        let wallet_state = wallet_state_service
-            .get_wallet_state(name, passphrase)
-            .unwrap();
+        let wallet_state = wallet_state_service.get_wallet_state(name, enckey).unwrap();
         let rollback_txids =
             wallet_state.get_rollback_pending_tx(current_height, block_height_ensure);
         assert_eq!(rollback_txids, vec![[1; 32]]);
@@ -718,10 +716,10 @@ mod tests {
             memento.remove_pending_transaction(txid);
         }
         wallet_state_service
-            .apply_memento(name, passphrase, &memento)
+            .apply_memento(name, enckey, &memento)
             .unwrap();
         assert_eq!(
-            wallet_state_service.get_balance(name, passphrase).unwrap(),
+            wallet_state_service.get_balance(name, enckey).unwrap(),
             WalletBalance {
                 total: Coin::new(140).unwrap(),
                 available: Coin::new(140).unwrap(),

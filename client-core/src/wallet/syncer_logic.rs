@@ -239,19 +239,19 @@ mod tests {
 
     fn create_test_wallet(n: usize) -> Result<Vec<Wallet>> {
         let storage = MemoryStorage::default();
-        let passphrase = &SecUtf8::from("passphrase");
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
 
         (0..n)
             .map(|i| {
                 let name = format!("name{}", i);
-                wallet
-                    .new_wallet(&name, passphrase, WalletKind::Basic)
+                let passphrase = SecUtf8::from("passphrase");
+                let (enckey, _) = wallet
+                    .new_wallet(&name, &passphrase, WalletKind::Basic)
                     .expect("new wallet");
                 wallet
-                    .new_transfer_address(&name, passphrase)
+                    .new_transfer_address(&name, &enckey)
                     .expect("new transfer address");
-                Ok(load_wallet(&storage, &name, &passphrase)?.unwrap())
+                Ok(load_wallet(&storage, &name, &enckey)?.unwrap())
             })
             .collect()
     }

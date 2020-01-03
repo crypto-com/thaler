@@ -17,6 +17,8 @@ import toml
 import nacl.signing
 from nacl.encoding import HexEncoder
 
+PASSPHRASE = '123456'
+
 
 class SigningKey:
     def __init__(self, seed):
@@ -162,6 +164,10 @@ def node_key(seed):
             'value': sk.priv_key_base64(),
         }
     }
+
+
+def extract_enckey(s):
+    return re.search(rb'Authentication token: ([0-9a-fA-F]+)', s).group(1).decode()
 
 
 def app_state_cfg(cfg):
@@ -315,16 +321,19 @@ async def gen_wallet_addr(mnemonic, type='Staking', count=1):
             os.environ,
             CRYPTO_CLIENT_STORAGE=dirname,
         )
-        await interact(
+        stdout = await interact(
             f'client-cli wallet restore --name Default',
-            ('123456\n123456\n%s\n%s\n' % (mnemonic, mnemonic)).encode(),
+            ('%s\n%s\n%s\n%s\n' % (
+                PASSPHRASE, PASSPHRASE, mnemonic, mnemonic
+            )).encode(),
             env=env,
         )
+        enckey = extract_enckey(stdout)
         addrs = []
         for i in range(count):
             result = (await interact(
                 f'client-cli address new --name Default --type {type}',
-                b'123456\n',
+                ('%s\n' % enckey).encode(),
                 env=env,
             )).decode()
             addrs.append(re.search(prefix + r'[0-9a-zA-Z]+', result).group())
@@ -405,21 +414,24 @@ async def init_wallet(wallet_root, mnemonic, chain_id):
         CRYPTO_CLIENT_STORAGE=wallet_root,
         CRYPTO_CHAIN_ID=chain_id
     )
-    await interact(
+    stdout = await interact(
         f'client-cli wallet restore --name Default',
-        ('123456\n123456\n%s\n%s\n' % (mnemonic, mnemonic)).encode(),
+        ('%s\n%s\n%s\n%s\n' % (
+            PASSPHRASE, PASSPHRASE, mnemonic, mnemonic
+        )).encode(),
         env=env,
     )
+    enckey = extract_enckey(stdout)
     for i in range(2):
         await interact(
             f'client-cli address new --name Default --type Staking',
-            b'123456\n',
+            ('%s\n' % enckey).encode(),
             env=env,
         )
     for i in range(2):
         await interact(
             f'client-cli address new --name Default --type Transfer',
-            b'123456\n',
+            ('%s\n' % enckey).encode(),
             env=env,
         )
 

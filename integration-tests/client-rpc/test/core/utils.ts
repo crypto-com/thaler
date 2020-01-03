@@ -42,19 +42,46 @@ export const sleep = (ms: number = 1000) => {
 	});
 };
 
-export interface WalletRequest {
+export interface CreateWalletRequest {
 	name: string;
 	passphrase: string;
+}
+
+export interface WalletRequest {
+	name: string;
+	enckey: string;
 }
 
 export const generateWalletName = (prefix: string = "NewWallet"): string => {
 	return `${prefix}_${Date.now()}`;
 };
 
-export const newWalletRequest = (
+export const newWalletRequest = async (
+	client: RpcClient,
 	name: string,
 	passphrase: string,
+): Promise<WalletRequest> => {
+	let enckey = await client.request("wallet_getEncKey", [newCreateWalletRequest(name, passphrase)]);
+	return {
+		name,
+		enckey,
+	};
+};
+
+export const rawWalletRequest = (
+	name: string,
+	enckey: string,
 ): WalletRequest => {
+	return {
+		name,
+		enckey
+	}
+};
+
+export const newCreateWalletRequest = (
+	name: string,
+	passphrase: string,
+): CreateWalletRequest => {
 	return {
 		name,
 		passphrase,
@@ -83,3 +110,4 @@ export const asyncMiddleman = async (
 };
 
 export const TRANSACTION_HISTORY_LIMIT = 1000;
+export const DEFAULT_PASSPHRASE = '123456';

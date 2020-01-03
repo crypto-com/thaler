@@ -6,6 +6,8 @@ import { unbondAndWithdrawStake } from "./core/setup";
 import {
 	generateWalletName,
 	newWalletRequest,
+	newCreateWalletRequest,
+	rawWalletRequest,
 	newZeroFeeRpcClient,
 	sleep,
 	shouldTest,
@@ -13,6 +15,7 @@ import {
 	asyncMiddleman,
 	newZeroFeeTendermintClient,
 	WalletRequest,
+	DEFAULT_PASSPHRASE,
 } from "./core/utils";
 import BigNumber from "bignumber.js";
 import { waitTxIdConfirmed, syncWallet } from "./core/rpc";
@@ -129,11 +132,12 @@ describe("Staking", () => {
 		tendermintClient: TendermintClient,
 		rpcClient: RpcClient,
 	): Promise<WalletContext> => {
-		const defaultWalletRequest = newWalletRequest("Default", "123456");
+		const defaultWalletRequest = await newWalletRequest(rpcClient, "Default", DEFAULT_PASSPHRASE);
 
 		const walletName = generateWalletName();
-		const walletRequest = newWalletRequest(walletName, "123456");
-		await rpcClient.request("wallet_create", [walletRequest, "Basic"]);
+		const walletCreateRequest = newCreateWalletRequest(walletName, DEFAULT_PASSPHRASE);
+		const walletCreateResponse = await rpcClient.request("wallet_create", [walletCreateRequest, "Basic"]);
+		const walletRequest = rawWalletRequest(walletName, walletCreateResponse[0])
 		const stakingAddress = await asyncMiddleman(
 			rpcClient.request("wallet_createStakingAddress", [walletRequest]),
 			"Error when creating staking address",
