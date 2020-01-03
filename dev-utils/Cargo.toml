@@ -1,6 +1,6 @@
 [package]
 name = "dev-utils"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Basic CLI for development purposes (e.g. generation of genesis.json parameters)"
 edition = "2018"
