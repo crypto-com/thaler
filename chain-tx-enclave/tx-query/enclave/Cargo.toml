@@ -16,7 +16,7 @@ sgx-test = []
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 sgx_types   = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tstd    = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net"] }
+sgx_tstd    = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net", "thread"] }
 sgx_tcrypto = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tse     = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_rand    = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }

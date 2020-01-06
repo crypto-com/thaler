@@ -601,16 +601,29 @@ fn renew_ra_cert(global_ra_cert: &mut RACache) -> Result<(), RAError> {
         .create_key_pair()
         .map_err(|_| RAError::CertGeneration)?;
 
-    let (attn_report, sig, cert) = match create_attestation_report(
-        &pub_k,
-        &ias_key,
-        sgx_quote_sign_type_t::SGX_UNLINKABLE_SIGNATURE,
-    ) {
-        Ok(r) => r,
-        Err(_e) => {
-            #[cfg(not(feature = "production"))]
-            println!("Error in create_attestation_report: {:?}", _e);
-            return Err(RAError::CertGeneration);
+    // https://software.intel.com/en-us/node/802449
+    // when there are some network connection errors, SGX_ERROR_BUSY will return
+    // we should wait (typically several seconds to tens of seconds) and retry again
+    let mut retry = 3;
+    let (attn_report, sig, cert) = loop {
+        match create_attestation_report(
+            &pub_k,
+            &ias_key,
+            sgx_quote_sign_type_t::SGX_UNLINKABLE_SIGNATURE,
+        ) {
+            Ok(r) => break r,
+            Err(e) => {
+                // if network error, try again
+                if e == sgx_status_t::SGX_ERROR_BUSY && retry > 0{
+                    retry -= 1;
+                    println!("create attestation report failed, retry...");
+                    let sleep_time = std::time::Duration::from_secs(5);
+                    sgx_tstd::thread::sleep(sleep_time);
+                    continue
+                }
+                println!("Error in create_attestation_report: {:?}", e);
+                return Err(RAError::CertGeneration);
+            }
         }
     };
 
