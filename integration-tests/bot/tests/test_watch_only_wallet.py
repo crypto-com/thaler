@@ -26,4 +26,5 @@ def test_watch_only_wallet(addresses):
     time.sleep(1)  # wait the block to pop up
     rpc.wallet.sync()
     rpc.wallet.sync(name)
-    assert rpc.wallet.balance(name) == amount
+    assert int(rpc.wallet.balance(name)["total"])== amount
+    assert int(rpc.wallet.balance(name)["available"])== amount

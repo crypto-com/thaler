@@ -78,7 +78,7 @@ describe("Wallet management", () => {
 			walletRequest
 			, "HD"
 		]);
-		let res= walletCreateResult.split(" ");
+		let res = walletCreateResult.split(" ");
 		expect(res.length).to.deep.eq(24);
 
 		const walletList = await client.request("wallet_list");
@@ -90,9 +90,9 @@ describe("Wallet management", () => {
 		const walletRequest = newWalletRequest(walletName, "123456");
 
 		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest, "HD"  
+			walletRequest, "HD"
 		]);
-		let res= walletCreateResponse.split(" ");
+		let res = walletCreateResponse.split(" ");
 		expect(res.length).to.deep.eq(24);
 
 
@@ -111,19 +111,19 @@ describe("Wallet management", () => {
 		expect(walletTransferAddresses.length).to.eq(1);
 	});
 
-	
+
 	it("cannot create duplicated wallet", async () => {
 		const walletName = generateWalletName();
 		const walletRequest = newWalletRequest(walletName, "123456");
 
 		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest,"HD"
+			walletRequest, "HD"
 		]);
-		let res= walletCreateResponse.split(" ");
+		let res = walletCreateResponse.split(" ");
 		expect(res.length).to.deep.eq(24);
 
 		return expect(
-			client.request("wallet_create", [walletRequest,"HD"]),
+			client.request("wallet_create", [walletRequest, "HD"]),
 		).to.eventually.rejectedWith(
 			`HD Key with given name already exists`,
 		);
@@ -135,9 +135,9 @@ describe("Wallet management", () => {
 		const walletRequest = newWalletRequest(walletName, walletPassphrase);
 
 		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest,"HD"
+			walletRequest, "HD"
 		]);
-		let res= walletCreateResponse.split(" ");
+		let res = walletCreateResponse.split(" ");
 		expect(res.length).to.deep.eq(24);
 
 
@@ -167,11 +167,11 @@ describe("Wallet management", () => {
 		const walletPassphrase = "passphrase";
 		const walletRequest = newWalletRequest(walletName, walletPassphrase);
 
-		
+
 		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest,"HD"
+			walletRequest, "HD"
 		]);
-		let res= walletCreateResponse.split(" ");
+		let res = walletCreateResponse.split(" ");
 		expect(res.length).to.deep.eq(24);
 
 		const transferAddress = await client.request("wallet_createTransferAddress", [
@@ -186,17 +186,16 @@ describe("Wallet management", () => {
 		expect(transferAddressList).to.include(transferAddress);
 	});
 
-	
+
 	it("Create a staking address and then list it", async () => {
 		const walletName = generateWalletName();
 		const walletPassphrase = "passphrase";
 		const walletRequest = newWalletRequest(walletName, walletPassphrase);
 
-		
 		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest,"HD"
+			walletRequest, "HD"
 		]);
-		let res= walletCreateResponse.split(" ");
+		let res = walletCreateResponse.split(" ");
 		expect(res.length).to.deep.eq(24);
 
 		const stakingAddress = await client.request("wallet_createStakingAddress", [
@@ -210,5 +209,5 @@ describe("Wallet management", () => {
 		expect(stakingAddressList).to.be.an("array");
 		expect(stakingAddressList).to.include(stakingAddress);
 	});
-	
+
 });

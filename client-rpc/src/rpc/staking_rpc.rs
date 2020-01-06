@@ -208,7 +208,7 @@ where
 
         let attributes = TxAttributes::new_with_access(self.network_id, access_policies);
 
-        let transaction = self
+        let (transaction, tx_pending) = self
             .ops_client
             .create_withdraw_all_unbonded_stake_transaction(
                 &request.name,
@@ -222,7 +222,15 @@ where
         self.client
             .broadcast_transaction(&transaction)
             .map_err(to_rpc_error)?;
-
+        // update the wallet pending transaction state
+        self.client
+            .update_tx_pending_state(
+                &request.name,
+                &request.passphrase,
+                transaction.tx_id(),
+                tx_pending,
+            )
+            .map_err(to_rpc_error)?;
         Ok(hex::encode(transaction.tx_id()))
     }
 

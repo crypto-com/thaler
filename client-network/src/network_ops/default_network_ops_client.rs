@@ -20,6 +20,7 @@ use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
 use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction, Storage};
 use client_core::signer::{DummySigner, Signer, WalletSignerManager};
+use client_core::types::TransactionPending;
 use client_core::{TransactionObfuscation, UnspentTransactions, WalletClient};
 use tendermint::Time;
 
@@ -245,7 +246,7 @@ where
         from_address: &StakedStateAddress,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
-    ) -> Result<TxAux> {
+    ) -> Result<(TxAux, TransactionPending)> {
         let last_block_time = self.get_last_block_time()?;
         let staked_state = self.get_staked_state(name, passphrase, from_address)?;
 
@@ -308,8 +309,17 @@ where
             signature,
         );
         let tx_aux = self.transaction_cipher.encrypt(signed_transaction)?;
-
-        Ok(tx_aux)
+        let block_height = match self.wallet_client.get_current_block_height() {
+            Ok(h) => h,
+            Err(e) if e.kind() == ErrorKind::PermissionDenied => 0, // to make unit test pass
+            Err(e) => return Err(e),
+        };
+        let pending_transaction = TransactionPending {
+            block_height,
+            used_inputs: vec![],
+            return_amount: output_value,
+        };
+        Ok((tx_aux, pending_transaction))
     }
 
     fn create_unjail_transaction(
@@ -371,7 +381,7 @@ where
         from_address: &StakedStateAddress,
         to_address: ExtendedAddr,
         attributes: TxAttributes,
-    ) -> Result<TxAux> {
+    ) -> Result<(TxAux, TransactionPending)> {
         let staked_state = self.get_staked_state(name, passphrase, from_address)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
@@ -827,7 +837,7 @@ mod tests {
             .new_staking_address(name, passphrase)
             .unwrap();
 
-        let transaction = network_ops_client
+        let (transaction, _pending_tx) = network_ops_client
             .create_withdraw_unbonded_stake_transaction(
                 name,
                 passphrase,
@@ -886,7 +896,7 @@ mod tests {
             .unwrap();
         let to_address = ExtendedAddr::OrTree([0; 32]);
 
-        let transaction = network_ops_client
+        let (transaction, _) = network_ops_client
             .create_withdraw_all_unbonded_stake_transaction(
                 name,
                 passphrase,

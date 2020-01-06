@@ -1,15 +1,12 @@
-use std::collections::BTreeMap;
-
 use parity_scale_codec::{Decode, Encode};
 use secstr::SecUtf8;
+use std::collections::BTreeMap;
 
-use chain_core::{
-    init::coin::Coin,
-    tx::data::{input::TxoPointer, output::TxOut, TxId},
-};
+use chain_core::tx::data::{input::TxoPointer, output::TxOut, TxId};
 use client_common::{Error, ErrorKind, Result, ResultExt, SecureStorage, Storage};
 
-use crate::types::TransactionChange;
+use crate::types::{TransactionChange, TransactionPending, WalletBalance};
+use chain_core::init::coin::{sum_coins, CoinError};
 
 /// key space of wallet state
 const KEYSPACE: &str = "core_wallet_state";
@@ -46,7 +43,7 @@ where
         passphrase: &SecUtf8,
         inputs: &[TxoPointer],
     ) -> Result<bool> {
-        let unspent_transactions = self.get_unspent_transactions(name, passphrase)?;
+        let unspent_transactions = self.get_unspent_transactions(name, passphrase, false)?;
 
         Ok(inputs
             .iter()
@@ -54,14 +51,20 @@ where
     }
 
     /// Returns currently stored unspent transactions for given wallet
+    /// if include_pending is true, get all the unspent transactions, else just available transactions
     #[inline]
     pub fn get_unspent_transactions(
         &self,
         name: &str,
         passphrase: &SecUtf8,
+        include_pending: bool,
     ) -> Result<BTreeMap<TxoPointer, TxOut>> {
-        self.get_wallet_state(name, passphrase)
-            .map(|wallet_state| wallet_state.unspent_transactions)
+        let wallet_state = self.get_wallet_state(name, passphrase)?;
+        if include_pending {
+            Ok(wallet_state.unspent_transactions)
+        } else {
+            Ok(wallet_state.get_available_transactions())
+        }
     }
 
     /// Returns currently stored transaction history for given wallet
@@ -107,9 +110,12 @@ where
     }
 
     /// Returns currently stored balance for given wallet
-    #[inline]
-    pub fn get_balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin> {
-        Ok(self.get_wallet_state(name, passphrase)?.balance)
+    pub fn get_balance(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletBalance> {
+        let wallet_state = self.get_wallet_state(name, passphrase)?;
+        let balance = wallet_state
+            .get_balance()
+            .chain(|| (ErrorKind::StorageError, "Calculate balance error"))?;
+        Ok(balance)
     }
 
     fn modify_state<F>(&self, name: &str, passphrase: &SecUtf8, f: F) -> Result<()>
@@ -219,12 +225,12 @@ pub fn delete_wallet_state<S: Storage>(storage: &S, name: &str) -> Result<()> {
 pub struct WalletState {
     /// UTxO
     pub unspent_transactions: BTreeMap<TxoPointer, TxOut>,
+    /// Transaction pending information indexed by txid
+    pub pending_transactions: BTreeMap<TxId, TransactionPending>,
     /// Transaction history indexed by txid
     pub transaction_history: BTreeMap<TxId, TransactionChange>,
     /// Transaction ids ordered by insert order.
     pub transaction_log: Vec<TxId>,
-    /// Balance
-    pub balance: Coin,
 }
 
 impl Default for WalletState {
@@ -232,14 +238,80 @@ impl Default for WalletState {
     fn default() -> WalletState {
         WalletState {
             unspent_transactions: Default::default(),
+            pending_transactions: Default::default(),
             transaction_history: Default::default(),
             transaction_log: vec![],
-            balance: Coin::zero(),
         }
     }
 }
 
 impl WalletState {
+    /// if the txid can not be found in the latest `block_height_ensure` blocks after it broadcast
+    /// we need to rollback
+    pub fn get_rollback_pending_tx(
+        &self,
+        current_block_height: u64,
+        block_height_ensure: u64,
+    ) -> Vec<TxId> {
+        self.pending_transactions
+            .iter()
+            .filter_map(|(key, value)| {
+                if value.block_height + block_height_ensure < current_block_height {
+                    Some(*key)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn get_pending_inputs(&self) -> Vec<TxoPointer> {
+        self.pending_transactions
+            .values()
+            .map(|value| value.used_inputs.clone())
+            .flatten()
+            .collect()
+    }
+    /// get transactions which in unspent_transactions and not in pending_transactions
+    pub fn get_available_transactions(&self) -> BTreeMap<TxoPointer, TxOut> {
+        let pending_inputs = self.get_pending_inputs();
+        let mut result = BTreeMap::new();
+        let _ = self
+            .unspent_transactions
+            .iter()
+            .filter(|(key, _value)| !pending_inputs.contains(key))
+            .map(|(key, value)| result.insert(key.clone(), value.clone()))
+            .collect::<Vec<_>>();
+        result
+    }
+    /// get the balance info
+    pub fn get_balance(&self) -> std::result::Result<WalletBalance, CoinError> {
+        // pending amount
+        let pending_coins = self
+            .pending_transactions
+            .values()
+            .map(|value| value.return_amount);
+        let amount_pending = sum_coins(pending_coins)?;
+
+        // unavailable amount
+        let pending_inputs = self.get_pending_inputs();
+        let available_coins = self
+            .unspent_transactions
+            .iter()
+            .filter(|(key, _value)| !pending_inputs.contains(key))
+            .map(|(_key, value)| value.value);
+        let amount_available = sum_coins(available_coins)?;
+
+        // total amount
+        let amount_total = (amount_pending + amount_available)?;
+
+        let wallet_balances = WalletBalance {
+            total: amount_total,
+            available: amount_available,
+            pending: amount_pending,
+        };
+        Ok(wallet_balances)
+    }
     /// Applies memento to wallet state
     pub fn apply_memento(&mut self, memento: &WalletStateMemento) -> Result<()> {
         for operation in memento.0.iter() {
@@ -258,7 +330,6 @@ impl WalletState {
         match memento_operation {
             MementoOperation::AddTransactionChange(ref transaction_id, ref transaction_change) => {
                 if !self.transaction_history.contains_key(transaction_id) {
-                    self.balance = (self.balance + transaction_change.balance_change)?;
                     self.add_transaction_change(transaction_id.clone(), transaction_change.clone());
                 }
             }
@@ -268,6 +339,16 @@ impl WalletState {
             }
             MementoOperation::RemoveUnspentTransaction(ref input) => {
                 self.unspent_transactions.remove(input);
+            }
+            MementoOperation::AddPendingTransaction(ref transaction_id, ref pending_info) => {
+                if !self.pending_transactions.contains_key(transaction_id) {
+                    let _ = self
+                        .pending_transactions
+                        .insert(*transaction_id, pending_info.clone());
+                }
+            }
+            MementoOperation::RemovePendingTransaction(ref transaction_id) => {
+                self.pending_transactions.remove(transaction_id);
             }
         }
         Ok(())
@@ -303,6 +384,8 @@ pub struct WalletStateMemento(Vec<MementoOperation>);
 enum MementoOperation {
     AddTransactionChange(TxId, TransactionChange),
     AddUnspentTransaction(TxoPointer, TxOut),
+    AddPendingTransaction(TxId, TransactionPending),
+    RemovePendingTransaction(TxId),
     RemoveUnspentTransaction(TxoPointer),
 }
 
@@ -314,6 +397,13 @@ impl WalletStateMemento {
             transaction_change.transaction_id,
             transaction_change,
         ))
+    }
+
+    /// Adds transaction pending info to memento
+    #[inline]
+    pub fn add_pending_transaction(&mut self, tx_id: TxId, tx_pending: TransactionPending) {
+        self.0
+            .push(MementoOperation::AddPendingTransaction(tx_id, tx_pending))
     }
 
     /// Adds unspent transaction to memento
@@ -329,6 +419,13 @@ impl WalletStateMemento {
         self.0
             .push(MementoOperation::RemoveUnspentTransaction(input))
     }
+
+    /// Removes pending transaction from memento
+    #[inline]
+    pub fn remove_pending_transaction(&mut self, tx_id: TxId) {
+        self.0
+            .push(MementoOperation::RemovePendingTransaction(tx_id))
+    }
 }
 
 #[cfg(test)]
@@ -341,6 +438,7 @@ mod tests {
     use client_common::tendermint::types::Time;
 
     use crate::types::{BalanceChange, TransactionType};
+    use chain_core::init::coin::Coin;
 
     #[test]
     fn check_wallet_state_service_flow() {
@@ -355,7 +453,7 @@ mod tests {
         assert_eq!(
             0,
             wallet_state_service
-                .get_unspent_transactions(name, passphrase)
+                .get_unspent_transactions(name, passphrase, false)
                 .unwrap()
                 .len()
         );
@@ -374,14 +472,13 @@ mod tests {
             .is_none());
 
         assert_eq!(
-            Coin::zero(),
+            WalletBalance::default(),
             wallet_state_service.get_balance(name, passphrase).unwrap()
         );
 
         // Add an unspent transaction and check if it is added
 
         let mut memento = WalletStateMemento::default();
-
         memento.add_unspent_transaction(
             TxoPointer::new([0; 32], 0),
             TxOut::new(ExtendedAddr::OrTree([0; 32]), Coin::zero()),
@@ -394,17 +491,14 @@ mod tests {
         assert_eq!(
             1,
             wallet_state_service
-                .get_unspent_transactions(name, passphrase)
+                .get_unspent_transactions(name, passphrase, false)
                 .unwrap()
                 .len()
         );
 
         // Remove previously added unspent transaction and check if it is removed
-
         let mut memento = WalletStateMemento::default();
-
         memento.remove_unspent_transaction(TxoPointer::new([0; 32], 0));
-
         assert!(wallet_state_service
             .apply_memento(name, passphrase, &memento)
             .is_ok());
@@ -412,10 +506,35 @@ mod tests {
         assert_eq!(
             0,
             wallet_state_service
-                .get_unspent_transactions(name, passphrase)
+                .get_unspent_transactions(name, passphrase, false)
                 .unwrap()
                 .len()
         );
+
+        // Add a pending transaction
+
+        let mut memento = WalletStateMemento::default();
+        memento.add_pending_transaction(
+            [0; 32],
+            TransactionPending {
+                used_inputs: vec![],
+                block_height: 0,
+                return_amount: Coin::unit(),
+            },
+        );
+        assert!(wallet_state_service
+            .apply_memento(name, passphrase, &memento)
+            .is_ok());
+        // remove the previous added pending transaction
+        let mut memento = WalletStateMemento::default();
+        memento.remove_pending_transaction([0; 32]);
+        assert!(wallet_state_service
+            .apply_memento(name, passphrase, &memento)
+            .is_ok());
+        let wallet_state = wallet_state_service
+            .get_wallet_state(name, passphrase)
+            .unwrap();
+        assert_eq!(0, wallet_state.pending_transactions.len());
 
         // Add a transaction change (with incoming balance) and check if it is added and also new wallet balance
 
@@ -436,11 +555,6 @@ mod tests {
         assert!(wallet_state_service
             .apply_memento(name, passphrase, &memento)
             .is_ok());
-
-        assert_eq!(
-            Coin::new(50).unwrap(),
-            wallet_state_service.get_balance(name, passphrase).unwrap()
-        );
 
         assert_eq!(
             1,
@@ -482,11 +596,6 @@ mod tests {
             .is_ok());
 
         assert_eq!(
-            Coin::zero(),
-            wallet_state_service.get_balance(name, passphrase).unwrap()
-        );
-
-        assert_eq!(
             2,
             wallet_state_service
                 .get_transaction_history(name, passphrase, false)
@@ -498,5 +607,126 @@ mod tests {
             .get_transaction_change(name, passphrase, &[1; 32])
             .unwrap()
             .is_some());
+    }
+
+    fn prepare_wallet_storage(name: &str, passphrase: &SecUtf8) -> MemoryStorage {
+        let storage = MemoryStorage::default();
+        let wallet_state_service = WalletStateService::new(storage.clone());
+
+        let mut memento = WalletStateMemento::default();
+        let tx_pointer = |n: u8, i: usize| TxoPointer::new([n; 32], i);
+        let output =
+            |n: u8, m: u64| TxOut::new(ExtendedAddr::OrTree([n; 32]), Coin::new(m).unwrap());
+        // Add two unspent transaction
+        memento.add_unspent_transaction(tx_pointer(0, 0), output(0, 100));
+        memento.add_unspent_transaction(tx_pointer(0, 1), output(0, 40));
+        wallet_state_service
+            .apply_memento(name, passphrase, &memento)
+            .unwrap();
+        assert_eq!(
+            wallet_state_service.get_balance(name, passphrase).unwrap(),
+            WalletBalance {
+                total: Coin::new(140).unwrap(),
+                available: Coin::new(140).unwrap(),
+                pending: Coin::zero(),
+            }
+        );
+
+        // spent the first utxo and return 50 coin
+        let mut memento = WalletStateMemento::default();
+        memento.add_pending_transaction(
+            [1; 32],
+            TransactionPending {
+                used_inputs: vec![tx_pointer(0, 0)],
+                block_height: 1,
+                return_amount: Coin::new(50).unwrap(),
+            },
+        );
+        wallet_state_service
+            .apply_memento(name, passphrase, &memento)
+            .unwrap();
+
+        assert_eq!(
+            wallet_state_service.get_balance(name, passphrase).unwrap(),
+            WalletBalance {
+                total: Coin::new(90).unwrap(),
+                available: Coin::new(40).unwrap(),
+                pending: Coin::new(50).unwrap(),
+            }
+        );
+
+        // now the available utxo is only the second one
+        let unspent_tx = wallet_state_service
+            .get_unspent_transactions(name, passphrase, false)
+            .unwrap();
+        let mut target = BTreeMap::new();
+        target.insert(tx_pointer(0, 1), output(0, 40));
+        assert_eq!(unspent_tx, target);
+        storage
+    }
+
+    #[test]
+    fn test_sync_and_get_balance() {
+        let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
+        let storage = prepare_wallet_storage(name, passphrase);
+        let wallet_state_service = WalletStateService::new(storage);
+        let tx_pointer = |n: u8, i: usize| TxoPointer::new([n; 32], i);
+        let output =
+            |n: u8, m: u64| TxOut::new(ExtendedAddr::OrTree([n; 32]), Coin::new(m).unwrap());
+        let mut memento = WalletStateMemento::default();
+        // if the broadcast transaction success, then we should remove the pending transaction and the unspent transaction
+        memento.remove_pending_transaction([1; 32]);
+        memento.remove_unspent_transaction(tx_pointer(0, 0));
+        // and add the returned utxo
+        memento.add_unspent_transaction(tx_pointer(1, 0), output(0, 50));
+        wallet_state_service
+            .apply_memento(name, passphrase, &memento)
+            .unwrap();
+        // now, we can get the balance
+        assert_eq!(
+            wallet_state_service.get_balance(name, passphrase).unwrap(),
+            WalletBalance {
+                total: Coin::new(90).unwrap(),
+                available: Coin::new(90).unwrap(),
+                pending: Coin::zero(),
+            }
+        );
+        let unspent_tx = wallet_state_service
+            .get_unspent_transactions(name, passphrase, false)
+            .unwrap();
+        assert_eq!(unspent_tx.len(), 2);
+    }
+
+    #[test]
+    fn test_rollback_and_get_balance() {
+        let block_height_ensure = 50;
+        let name = "name";
+        let passphrase = &SecUtf8::from("passphrase");
+        let storage = prepare_wallet_storage(name, passphrase);
+        let wallet_state_service = WalletStateService::new(storage);
+        // assume that broadcast failed, then we should rollback
+        let current_height = 2 + block_height_ensure;
+        let wallet_state = wallet_state_service
+            .get_wallet_state(name, passphrase)
+            .unwrap();
+        let rollback_txids =
+            wallet_state.get_rollback_pending_tx(current_height, block_height_ensure);
+        assert_eq!(rollback_txids, vec![[1; 32]]);
+        let mut memento = WalletStateMemento::default();
+        for txid in rollback_txids {
+            memento.remove_pending_transaction(txid);
+        }
+        wallet_state_service
+            .apply_memento(name, passphrase, &memento)
+            .unwrap();
+        assert_eq!(
+            wallet_state_service.get_balance(name, passphrase).unwrap(),
+            WalletBalance {
+                total: Coin::new(140).unwrap(),
+                available: Coin::new(140).unwrap(),
+                pending: Coin::new(0).unwrap(),
+            }
+        );
     }
 }

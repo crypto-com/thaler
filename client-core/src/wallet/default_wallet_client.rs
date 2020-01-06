@@ -15,7 +15,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::{str2txid, TxoPointer};
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::Tx;
+use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{TransactionId, TxAux};
@@ -28,8 +28,9 @@ use client_common::{
 
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedWalletTransactionBuilder;
-use crate::types::WalletKind;
-use crate::types::{AddressType, BalanceChange, TransactionChange};
+use crate::types::{
+    AddressType, BalanceChange, TransactionChange, TransactionPending, WalletBalance, WalletKind,
+};
 use crate::wallet::syncer_logic::create_transaction_change;
 use crate::{
     InputSelectionStrategy, Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient,
@@ -419,7 +420,7 @@ where
     }
 
     #[inline]
-    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<Coin> {
+    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletBalance> {
         // Check if wallet exists
         self.wallet_service.view_key(name, passphrase)?;
         self.wallet_state_service.get_balance(name, passphrase)
@@ -457,7 +458,7 @@ where
 
         let unspent_transactions = self
             .wallet_state_service
-            .get_unspent_transactions(name, passphrase)?;
+            .get_unspent_transactions(name, passphrase, false)?;
 
         Ok(UnspentTransactions::new(
             unspent_transactions.into_iter().collect(),
@@ -502,7 +503,7 @@ where
         attributes: TxAttributes,
         input_selection_strategy: Option<InputSelectionStrategy>,
         return_address: ExtendedAddr,
-    ) -> Result<TxAux> {
+    ) -> Result<(TxAux, Vec<TxoPointer>, Coin)> {
         let mut unspent_transactions = self.unspent_transactions(name, passphrase)?;
         unspent_transactions.apply_all(input_selection_strategy.unwrap_or_default().as_ref());
 
@@ -602,6 +603,25 @@ where
         self.wallet_state_service
             .apply_memento(name, passphrase, &memento)?;
         Ok(imported_value)
+    }
+
+    fn get_current_block_height(&self) -> Result<u64> {
+        let status = self.tendermint_client.status()?;
+        let current_block_height = status.sync_info.latest_block_height.value();
+        Ok(current_block_height)
+    }
+
+    fn update_tx_pending_state(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        tx_id: TxId,
+        tx_pending: TransactionPending,
+    ) -> Result<()> {
+        let mut wallet_state_memento = WalletStateMemento::default();
+        wallet_state_memento.add_pending_transaction(tx_id, tx_pending);
+        self.wallet_state_service
+            .apply_memento(name, passphrase, &wallet_state_memento)
     }
 }
 

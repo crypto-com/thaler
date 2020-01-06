@@ -1,4 +1,5 @@
 import pytest
+import time
 from chainrpc import RPC
 
 
@@ -14,7 +15,7 @@ def addresses():
     rpc = RPC()
     rpc.wallet.sync()
     addrs = TestAddresses(
-        rpc.address.list(type='staking')[1],
+        rpc.address.list(type='staking')[0],
         rpc.address.list(type='transfer')[0],
         rpc.address.list(type='transfer')[1],
     )
@@ -24,5 +25,14 @@ def addresses():
         rpc.staking.withdraw_all_unbonded(addrs.staking,
                                           addrs.transfer1)
         rpc.wallet.sync()
-        assert rpc.wallet.balance() > 0
+        balance = rpc.wallet.balance()
+        assert int(balance["total"]) > 0
+    # wait for the pending amount become available
+    loop = 0
+    while int(balance["pending"]) != 0 and loop < 60:
+        rpc.wallet.sync()
+        balance = rpc.wallet.balance()
+        time.sleep(1)
+        loop += 1
+    assert int(balance["available"]) > 0
     return addrs

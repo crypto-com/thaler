@@ -54,7 +54,7 @@ const unbondAndWithdrawStakeFromClient = async (
 		"Error when retrieving Default wallet balance",
 	);
 	console.info(`[Info] Wallet balance: ${walletBalance}`);
-	if (new BigNumber(walletBalance).isGreaterThan("0")) {
+	if (new BigNumber(walletBalance.total).isGreaterThan("0")) {
 		console.info("[Init] Bonded funds already withdrew");
 		return;
 	}

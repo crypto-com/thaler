@@ -69,7 +69,7 @@ describe("Wallet transaction", () => {
 			const transferAmount = "1000";
 
 			await asyncMiddleman(
-				zeroFeeRpcClient.request("wallet_create", [receiverWalletRequest,"HD"]),
+				zeroFeeRpcClient.request("wallet_create", [receiverWalletRequest, "HD"]),
 				"Error when creating receiver wallet",
 			);
 
@@ -114,6 +114,23 @@ describe("Wallet transaction", () => {
 				64,
 				"wallet_sendToAddress should return transaction id",
 			);
+			// after send and before sync, the sender's return amount will be pending
+			const returnAmount = new BigNumber(senderWalletBalanceBeforeSend.total)
+				.minus(transferAmount)
+				.toString(10);
+			const expectedBalanceBeforeSync = {
+				total: returnAmount,
+				pending: returnAmount,
+				available: "0",
+			};
+			const senderWalletBalanceBeforeSync = await asyncMiddleman(
+				zeroFeeRpcClient.request("wallet_balance", [senderWalletRequest]),
+				"Error when retrieving sender wallet balance after send",
+			);
+			expect(senderWalletBalanceBeforeSync).to.deep.eq(
+				expectedBalanceBeforeSync,
+				"Sender balance should be deducted by transfer amount",
+			);
 
 			await asyncMiddleman(
 				waitTxIdConfirmed(zeroFeeTendermintClient, txId),
@@ -151,14 +168,18 @@ describe("Wallet transaction", () => {
 				"Sender should have one Outgoing transaction",
 			);
 
-			const senderWalletBalanceAfterSend = await asyncMiddleman(
+			const senderWalletBalanceAfterSync = await asyncMiddleman(
 				zeroFeeRpcClient.request("wallet_balance", [senderWalletRequest]),
 				"Error when retrieving sender wallet balance after send",
 			);
-			expect(senderWalletBalanceAfterSend).to.eq(
-				new BigNumber(senderWalletBalanceBeforeSend)
-					.minus(transferAmount)
-					.toString(10),
+			// after sync, the pending balance will become available
+			const expectedBalanceAfterSync = {
+				total: returnAmount,
+				pending: "0",
+				available: returnAmount,
+			};
+			expect(senderWalletBalanceAfterSync).to.deep.eq(
+				expectedBalanceAfterSync,
 				"Sender balance should be deducted by transfer amount",
 			);
 
@@ -187,10 +208,16 @@ describe("Wallet transaction", () => {
 				zeroFeeRpcClient.request("wallet_balance", [receiverWalletRequest]),
 				"Error when retrieving receiver wallet balance after receive",
 			);
-			expect(receiverWalletBalanceAfterReceive).to.eq(
-				new BigNumber(receiverWalletBalanceBeforeReceive)
-					.plus(transferAmount)
-					.toString(10),
+			const receiverTotalAmount = new BigNumber(receiverWalletBalanceBeforeReceive.total)
+				.plus(transferAmount)
+				.toString(10);
+			const expectedBalanceAfterReceive = {
+				total: receiverTotalAmount,
+				available: receiverTotalAmount,
+				pending: "0",
+			}
+			expect(receiverWalletBalanceAfterReceive).to.deep.eq(
+				expectedBalanceAfterReceive,
 				"Receiver balance should be increased by transfer amount",
 			);
 		});
@@ -209,7 +236,7 @@ describe("Wallet transaction", () => {
 			const transferAmount = "1000";
 
 			await asyncMiddleman(
-				withFeeRpcClient.request("wallet_create", [receiverWalletRequest,"HD"]),
+				withFeeRpcClient.request("wallet_create", [receiverWalletRequest, "HD"]),
 				"Error when creating receive wallet",
 			);
 
@@ -300,8 +327,8 @@ describe("Wallet transaction", () => {
 				"Error when retrieving sender wallet balance after send",
 			);
 			expect(
-				new BigNumber(senderWalletBalanceAfterSend).isLessThan(
-					new BigNumber(senderWalletBalanceBeforeSend).minus(transferAmount),
+				new BigNumber(senderWalletBalanceAfterSend.total).isLessThan(
+					new BigNumber(senderWalletBalanceBeforeSend.available).minus(transferAmount),
 				),
 			).to.eq(
 				true,
@@ -333,10 +360,16 @@ describe("Wallet transaction", () => {
 				withFeeRpcClient.request("wallet_balance", [receiverWalletRequest]),
 				"Error when retrieving receiver wallet balance after receive",
 			);
-			expect(receiverWalletBalanceAfterReceive).to.eq(
-				new BigNumber(receiverWalletBalanceBeforeReceive)
-					.plus(transferAmount)
-					.toString(10),
+			const receiverTotalAmount = new BigNumber(receiverWalletBalanceBeforeReceive.total)
+				.plus(transferAmount)
+				.toString(10);
+			const expectedBalanceAfterReceive = {
+				total: receiverTotalAmount,
+				available: receiverTotalAmount,
+				pending: "0",
+			};
+			expect(receiverWalletBalanceAfterReceive).to.deep.eq(
+				expectedBalanceAfterReceive,
 				"Receiver balance should be increased by the exact transfer amount",
 			);
 		});

@@ -11,6 +11,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
 use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt};
+use client_core::types::TransactionPending;
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
 use hex::decode;
@@ -119,21 +120,45 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
 ) -> Result<()> {
     let passphrase = ask_passphrase(None)?;
 
-    let transaction = match transaction_type {
-        TransactionType::Transfer => new_transfer_transaction(wallet_client, name, &passphrase),
-        TransactionType::Deposit => new_deposit_transaction(network_ops_client, name, &passphrase),
-        TransactionType::Unbond => new_unbond_transaction(network_ops_client, name, &passphrase),
+    match transaction_type {
+        TransactionType::Transfer => {
+            let (tx_aux, tx_pending) = new_transfer_transaction(wallet_client, name, &passphrase)?;
+            wallet_client.broadcast_transaction(&tx_aux)?;
+            wallet_client.update_tx_pending_state(
+                &name,
+                &passphrase,
+                tx_aux.tx_id(),
+                tx_pending,
+            )?;
+        }
+        TransactionType::Deposit => {
+            let tx_aux = new_deposit_transaction(network_ops_client, name, &passphrase)?;
+            wallet_client.broadcast_transaction(&tx_aux)?;
+        }
+        TransactionType::Unbond => {
+            let tx_aux = new_unbond_transaction(network_ops_client, name, &passphrase)?;
+            wallet_client.broadcast_transaction(&tx_aux)?;
+        }
         TransactionType::Withdraw => {
-            new_withdraw_transaction(wallet_client, network_ops_client, name, &passphrase)
+            let (tx_aux, tx_pending) =
+                new_withdraw_transaction(wallet_client, network_ops_client, name, &passphrase)?;
+            wallet_client.broadcast_transaction(&tx_aux)?;
+            wallet_client.update_tx_pending_state(
+                &name,
+                &passphrase,
+                tx_aux.tx_id(),
+                tx_pending,
+            )?;
         }
-        TransactionType::Unjail => new_unjail_transaction(network_ops_client, name, &passphrase),
+        TransactionType::Unjail => {
+            let tx_aux = new_unjail_transaction(network_ops_client, name, &passphrase)?;
+            wallet_client.broadcast_transaction(&tx_aux)?;
+        }
         TransactionType::NodeJoin => {
-            new_node_join_transaction(network_ops_client, name, &passphrase)
+            let tx_aux = new_node_join_transaction(network_ops_client, name, &passphrase)?;
+            wallet_client.broadcast_transaction(&tx_aux)?;
         }
-    }?;
-
-    wallet_client.broadcast_transaction(&transaction)?;
-
+    };
     Ok(())
 }
 
@@ -142,7 +167,7 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
     passphrase: &SecUtf8,
-) -> Result<TxAux> {
+) -> Result<(TxAux, TransactionPending)> {
     let from_address = ask_staking_address()?;
     let to_address = ask_transfer_address()?;
     let view_keys = ask_view_keys()?;
@@ -204,7 +229,7 @@ fn new_transfer_transaction<T: WalletClient>(
     wallet_client: &T,
     name: &str,
     passphrase: &SecUtf8,
-) -> Result<TxAux> {
+) -> Result<(TxAux, TransactionPending)> {
     let outputs = ask_outputs()?;
     let view_keys = ask_view_keys()?;
 
@@ -226,7 +251,20 @@ fn new_transfer_transaction<T: WalletClient>(
 
     let return_address = wallet_client.new_transfer_address(name, &passphrase)?;
 
-    wallet_client.create_transaction(name, &passphrase, outputs, attributes, None, return_address)
+    let (transaction, used_inputs, return_amount) = wallet_client.create_transaction(
+        name,
+        &passphrase,
+        outputs,
+        attributes,
+        None,
+        return_address,
+    )?;
+    let tx_pending = TransactionPending {
+        block_height: wallet_client.get_current_block_height()?,
+        used_inputs,
+        return_amount,
+    };
+    Ok((transaction, tx_pending))
 }
 
 fn new_unjail_transaction<N: NetworkOpsClient>(

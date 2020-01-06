@@ -5,6 +5,7 @@ use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 use secstr::SecUtf8;
 
+use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -15,14 +16,13 @@ use chain_core::tx::{TxAux, TxEnclaveAux};
 use client_common::{PrivateKey, PublicKey, Result as CommonResult};
 use client_core::types::WalletKind;
 use client_core::types::{AddressType, TransactionChange};
+use client_core::types::{TransactionPending, WalletBalance};
 use client_core::{Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient};
-
-use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
 
 #[rpc]
 pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_balance")]
-    fn balance(&self, request: WalletRequest) -> Result<Coin>;
+    fn balance(&self, request: WalletRequest) -> Result<WalletBalance>;
 
     #[rpc(name = "wallet_create")]
     fn create(&self, request: WalletRequest, walletkind: WalletKind) -> Result<String>;
@@ -120,11 +120,10 @@ impl<T> WalletRpc for WalletRpcImpl<T>
 where
     T: WalletClient + MultiSigWalletClient + 'static,
 {
-    fn balance(&self, request: WalletRequest) -> Result<Coin> {
-        match self.client.balance(&request.name, &request.passphrase) {
-            Ok(balance) => Ok(balance),
-            Err(e) => Err(to_rpc_error(e)),
-        }
+    fn balance(&self, request: WalletRequest) -> Result<WalletBalance> {
+        self.client
+            .balance(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)
     }
 
     fn create(&self, request: WalletRequest, kind: WalletKind) -> Result<String> {
@@ -282,6 +281,11 @@ where
         amount: Coin,
         view_keys: Vec<String>,
     ) -> Result<String> {
+        let current_block_height = self
+            .client
+            .get_current_block_height()
+            .map_err(to_rpc_error)?;
+
         let address = to_address
             .parse::<ExtendedAddr>()
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
@@ -317,7 +321,7 @@ where
             .new_transfer_address(&request.name, &request.passphrase)
             .map_err(to_rpc_error)?;
 
-        let transaction = self
+        let (transaction, selected_inputs, return_amount) = self
             .client
             .create_transaction(
                 &request.name,
@@ -331,6 +335,21 @@ where
 
         self.client
             .broadcast_transaction(&transaction)
+            .map_err(to_rpc_error)?;
+        //update the wallet state
+        let tx_pending = TransactionPending {
+            used_inputs: selected_inputs,
+            block_height: current_block_height,
+            return_amount,
+        };
+
+        self.client
+            .update_tx_pending_state(
+                &request.name,
+                &request.passphrase,
+                transaction.tx_id(),
+                tx_pending,
+            )
             .map_err(to_rpc_error)?;
 
         if let TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
@@ -590,7 +609,7 @@ pub mod tests {
             )
             .unwrap();
         assert_eq!(
-            Coin::zero(),
+            WalletBalance::default(),
             wallet_rpc
                 .balance(create_wallet_request("Default", "123456"))
                 .unwrap()

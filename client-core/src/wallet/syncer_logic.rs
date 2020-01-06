@@ -128,6 +128,7 @@ pub(crate) fn handle_transaction(
         }
     }
 
+    memento.remove_pending_transaction(transaction_change.transaction_id);
     memento.add_transaction_change(transaction_change);
     Ok(())
 }
@@ -370,7 +371,6 @@ mod tests {
                 .expect("handle block for wallet2");
             states[1].apply_memento(&memento).expect("apply memento2");
         }
-        assert_eq!(states[0].balance, Coin::new(100).unwrap());
         assert_eq!(states[0].transaction_history.len(), 1);
         assert_eq!(states[0].unspent_transactions.len(), 1);
 
@@ -389,11 +389,17 @@ mod tests {
             states[1].apply_memento(&memento).expect("apply memento2");
         }
 
-        assert_eq!(states[0].balance, Coin::new(0).unwrap());
+        assert_eq!(
+            states[0].get_balance().unwrap().total,
+            Coin::new(0).unwrap()
+        );
         assert_eq!(states[0].transaction_history.len(), 2);
         assert_eq!(states[0].unspent_transactions.len(), 0);
 
-        assert_eq!(states[1].balance, Coin::new(100).unwrap());
+        assert_eq!(
+            states[1].get_balance().unwrap().total,
+            Coin::new(100).unwrap()
+        );
         assert_eq!(states[1].transaction_history.len(), 1);
         assert_eq!(states[1].unspent_transactions.len(), 1);
     }

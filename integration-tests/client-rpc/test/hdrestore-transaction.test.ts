@@ -69,7 +69,7 @@ describe("Wallet transaction", () => {
 			const transferAmount = "1000";
 
 			await asyncMiddleman(
-				zeroFeeRpcClient.request("wallet_restore", [receiverWalletRequest,"benefit motor depth mercy side night winner cube battle sting mandate fly husband beauty walnut beef night stem motion trouble agent degree cricket forest"]),
+				zeroFeeRpcClient.request("wallet_restore", [receiverWalletRequest, "benefit motor depth mercy side night winner cube battle sting mandate fly husband beauty walnut beef night stem motion trouble agent degree cricket forest"]),
 				"Error when recovering receiver hdwallet",
 			);
 
@@ -116,11 +116,31 @@ describe("Wallet transaction", () => {
 				"wallet_sendToAddress should return transaction id",
 			);
 
+			// before sync, the sender's balance is pending
+			const senderWalletBalanceBeforeSync = await asyncMiddleman(
+				zeroFeeRpcClient.request("wallet_balance", [senderWalletRequest]),
+				"Error when retrieving sender wallet balance before sync",
+			);
+			const returnAmount = new BigNumber(senderWalletBalanceBeforeSend.total)
+				.minus(transferAmount)
+				.toString(10);
+			const expectedBalanceBeforeSync = {
+				total: returnAmount,
+				pending: returnAmount,
+				available: "0",
+			};
+			expect(senderWalletBalanceBeforeSync).to.deep.eq(
+				expectedBalanceBeforeSync,
+				"Sender balance should be deducted by transfer amount before sync",
+			);
+
+
 			await asyncMiddleman(
 				waitTxIdConfirmed(zeroFeeTendermintClient, txId),
 				"Error when waiting for transaction confirmation",
 			);
 
+			// sync
 			await asyncMiddleman(
 				syncWallet(zeroFeeRpcClient, senderWalletRequest),
 				"Error when synchronizing sender wallet",
@@ -152,15 +172,19 @@ describe("Wallet transaction", () => {
 				"Sender should have one Outgoing transaction",
 			);
 
-			const senderWalletBalanceAfterSend = await asyncMiddleman(
+			// after sync, the pending balance will become available
+			const senderWalletBalanceAfterSync = await asyncMiddleman(
 				zeroFeeRpcClient.request("wallet_balance", [senderWalletRequest]),
 				"Error when retrieving sender wallet balance after send",
 			);
-			expect(senderWalletBalanceAfterSend).to.eq(
-				new BigNumber(senderWalletBalanceBeforeSend)
-					.minus(transferAmount)
-					.toString(10),
-				"Sender balance should be deducted by transfer amount",
+			const expectedBalanceAfterSync = {
+				total: returnAmount,
+				pending: "0",
+				available: returnAmount,
+			};
+			expect(senderWalletBalanceAfterSync).to.deep.eq(
+				expectedBalanceAfterSync,
+				"Sender balance should be deducted by transfer amount after sync",
 			);
 
 			const receiverWalletTransactionListAfterReceive = await asyncMiddleman(
@@ -188,10 +212,17 @@ describe("Wallet transaction", () => {
 				zeroFeeRpcClient.request("wallet_balance", [receiverWalletRequest]),
 				"Error when retrieving receiver wallet balance after receive",
 			);
-			expect(receiverWalletBalanceAfterReceive).to.eq(
-				new BigNumber(receiverWalletBalanceBeforeReceive)
-					.plus(transferAmount)
-					.toString(10),
+			// after sync, the receive's balance will be increased
+			const expectedreceiverWalletBalanceAfterReceive = new BigNumber(receiverWalletBalanceBeforeReceive.total)
+				.plus(transferAmount)
+				.toString(10);
+			const expectedBalanceAfterReceive = {
+				total: transferAmount,
+				pending: "0",
+				available: transferAmount,
+			};
+			expect(receiverWalletBalanceAfterReceive).to.deep.eq(
+				expectedBalanceAfterReceive,
 				"Receiver balance should be increased by transfer amount",
 			);
 		});
@@ -210,11 +241,11 @@ describe("Wallet transaction", () => {
 			const transferAmount = "1000";
 
 			await asyncMiddleman(
-				withFeeRpcClient.request("wallet_restore", [receiverWalletRequest,"speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch"]),
+				withFeeRpcClient.request("wallet_restore", [receiverWalletRequest, "speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch"]),
 				"Error when recovering receive hdwallet",
 			);
 
-	
+
 
 
 			const senderWalletTransactionListBeforeSend = await asyncMiddleman(
@@ -304,8 +335,8 @@ describe("Wallet transaction", () => {
 				"Error when retrieving sender wallet balance after send",
 			);
 			expect(
-				new BigNumber(senderWalletBalanceAfterSend).isLessThan(
-					new BigNumber(senderWalletBalanceBeforeSend).minus(transferAmount),
+				new BigNumber(senderWalletBalanceAfterSend.total).isLessThan(
+					new BigNumber(senderWalletBalanceBeforeSend.available).minus(transferAmount),
 				),
 			).to.eq(
 				true,
@@ -337,10 +368,16 @@ describe("Wallet transaction", () => {
 				withFeeRpcClient.request("wallet_balance", [receiverWalletRequest]),
 				"Error when retrieving receiver wallet balance after receive",
 			);
-			expect(receiverWalletBalanceAfterReceive).to.eq(
-				new BigNumber(receiverWalletBalanceBeforeReceive)
-					.plus(transferAmount)
-					.toString(10),
+			const receiverTotalAmount = new BigNumber(receiverWalletBalanceBeforeReceive.total)
+				.plus(transferAmount)
+				.toString(10);
+			const expectedBalanceAfterReceive = {
+				total: receiverTotalAmount,
+				available: receiverTotalAmount,
+				pending: "0",
+			};
+			expect(receiverWalletBalanceAfterReceive).to.deep.eq(
+				expectedBalanceAfterReceive,
 				"Receiver balance should be increased by the exact transfer amount",
 			);
 		});
