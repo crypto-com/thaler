@@ -366,7 +366,7 @@ dependencies = [
  "kvdb-memorydb 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-rocksdb 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
@@ -391,7 +391,7 @@ dependencies = [
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "fixed 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -411,7 +411,7 @@ dependencies = [
  "chain-core 0.3.0",
  "ethbloom 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "sgx_tstd 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
@@ -422,7 +422,7 @@ name = "chain-tx-validation"
 version = "0.3.0"
 dependencies = [
  "chain-core 0.3.0",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "sgx_tstd 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
@@ -515,7 +515,7 @@ dependencies = [
  "itertools 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust-argon2 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
@@ -549,7 +549,7 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "non-empty-vec 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-bigint 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "ripemd160 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -583,7 +583,7 @@ dependencies = [
  "client-common 0.3.0",
  "client-core 0.3.0",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=db982c2437fe72c7a03942fc2bddf490f2332364)",
@@ -608,7 +608,7 @@ dependencies = [
  "jsonrpc-derive 14.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-http-server 14.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.44 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -891,7 +891,7 @@ version = "0.3.0"
 dependencies = [
  "chain-core 0.3.0",
  "chain-tx-validation 0.3.0",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "sgx_tstd 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
 ]
@@ -1864,7 +1864,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "parity-scale-codec"
-version = "1.1.0"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "arrayvec 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3021,7 +3021,7 @@ dependencies = [
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "protobuf 2.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "secstr 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3902,7 +3902,7 @@ dependencies = [
 "checksum openssl-sys 0.9.53 (registry+https://github.com/rust-lang/crates.io-index)" = "465d16ae7fc0e313318f7de5cecf57b2fbe7511fd213978b457e1c96ff46736f"
 "checksum owning_ref 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "49a4b8ea2179e6a2e27411d3bca09ca6dd630821cf6894c6c7c8467a8ee7ef13"
 "checksum parity-bytes 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)" = "0c276d76c5333b8c2579e02d49a06733a55b8282d2d9b13e8d53b6406bd7e30a"
-"checksum parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f9f9d99dae413590a5f37e43cd99b94d4e62a244160562899126913ea7108673"
+"checksum parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f747c06d9f3b2ad387ac881b9667298c81b1243aa9833f086e05996937c35507"
 "checksum parity-scale-codec-derive 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "492ac3aa93d6caa5d20e4e3e0b75d08e2dcd9dd8a50d19529548b6fe11b3f295"
 "checksum parking_lot 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)" = "92e98c49ab0b7ce5b222f2cc9193fc4efe11c6d0bd4f648e374684a6857b1cfc"
 "checksum parking_lot 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ab41b4aed082705d1056416ae4468b6ea99d52599ecf3169b00088d43113e337"
