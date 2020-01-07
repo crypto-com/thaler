@@ -381,6 +381,29 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             let data = last_app_state.to_vec();
             let last_state =
                 ChainNodeState::decode(&mut data.as_slice()).expect("deserialize app state");
+
+            // if tx-query address wasn't provided first time,
+            // then it shouldn't be provided on another run, and vice versa
+            let last_stored_height = storage
+                .db
+                .get(
+                    COL_APP_STATES,
+                    &i64::encode_var_vec(last_state.last_block_height),
+                )
+                .expect("app last block height look up");
+
+            if last_stored_height.is_some() {
+                info!("historical data is stored");
+                if tx_query_address.is_none() {
+                    panic!("tx-query address is needed, or delete chain-abci data and tx-validation data before run");
+                }
+            } else {
+                info!("no historical data is stored");
+                if tx_query_address.is_some() {
+                    panic!("tx-query address is not needed, or delete chain-abci data and tx-validation data before run");
+                }
+            }
+
             // TODO: genesis app hash check when embedded in enclave binary
             let enclave_sanity_check = tx_validator.process_request(EnclaveRequest::CheckChain {
                 chain_hex_id,
