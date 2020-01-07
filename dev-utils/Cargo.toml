@@ -16,7 +16,7 @@ hex = "0.4"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 chrono = { version = "0.4", features = ["serde"] }
-kvdb-memorydb = "0.2.0"
+kvdb-memorydb = "0.3"
 dirs = "2.0.1"
 quest = "0.3"
 secstr = "0.3.2"
