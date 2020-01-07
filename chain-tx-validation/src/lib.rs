@@ -126,7 +126,7 @@ impl fmt::Display for Error {
             // FIXME: IoError(ref err) => write!(f, "IO error: {}", err),
             IoError => write!(f, "database lookup error"),
             EnclaveRejected => write!(f, "enclave error or invalid TX"),
-            AccountNotFound => write!(f, "account not found"),
+            AccountNotFound => write!(f, "account does not exist for given staking address on blockchain"),
             AccountNotUnbonded => write!(f, "account not unbonded for withdrawal"),
             AccountWithdrawOutputNotLocked => write!(
                 f,
