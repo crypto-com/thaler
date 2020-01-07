@@ -14,7 +14,7 @@ use crate::common::H264;
 
 /// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
 /// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode, PartialOrd, Ord)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum TxAccess {
     AllData,
@@ -31,7 +31,7 @@ impl Default for TxAccess {
 }
 
 /// Specifies who can access what -- TODO: revisit when enforced by HW encryption / enclaves
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxAccessPolicy {
     #[cfg_attr(

@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::str::FromStr;
 
 use chain_core::common::{Timespec, HASH_SIZE_256};
@@ -174,19 +175,21 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
 
     let self_view_key = wallet_client.view_key(name, passphrase)?;
 
-    let mut access_policies = vec![TxAccessPolicy {
+    let mut access_policies = BTreeSet::new();
+    access_policies.insert(TxAccessPolicy {
         view_key: self_view_key.into(),
         access: TxAccess::AllData,
-    }];
+    });
 
     for key in view_keys.iter() {
-        access_policies.push(TxAccessPolicy {
+        access_policies.insert(TxAccessPolicy {
             view_key: key.into(),
             access: TxAccess::AllData,
         });
     }
 
-    let attributes = TxAttributes::new_with_access(get_network_id(), access_policies);
+    let attributes =
+        TxAttributes::new_with_access(get_network_id(), access_policies.into_iter().collect());
 
     network_ops_client.create_withdraw_all_unbonded_stake_transaction(
         name,
@@ -235,19 +238,21 @@ fn new_transfer_transaction<T: WalletClient>(
 
     let self_view_key = wallet_client.view_key(name, passphrase)?;
 
-    let mut access_policies = vec![TxAccessPolicy {
+    let mut access_policies = BTreeSet::new();
+    access_policies.insert(TxAccessPolicy {
         view_key: self_view_key.into(),
         access: TxAccess::AllData,
-    }];
+    });
 
     for key in view_keys.iter() {
-        access_policies.push(TxAccessPolicy {
+        access_policies.insert(TxAccessPolicy {
             view_key: key.into(),
             access: TxAccess::AllData,
         });
     }
 
-    let attributes = TxAttributes::new_with_access(get_network_id(), access_policies);
+    let attributes =
+        TxAttributes::new_with_access(get_network_id(), access_policies.into_iter().collect());
 
     let return_address = wallet_client.new_transfer_address(name, &passphrase)?;
 
