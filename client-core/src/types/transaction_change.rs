@@ -1,4 +1,5 @@
 //! Types for tracking balance change in a wallet
+use std::fmt;
 use std::ops::Add;
 use std::str::FromStr;
 
@@ -77,6 +78,17 @@ pub enum TransactionType {
     Unbond,
     /// Deposit transaction
     Deposit,
+}
+
+impl fmt::Display for TransactionType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TransactionType::Transfer => write!(f, "Transfer"),
+            TransactionType::Withdraw => write!(f, "Withdraw"),
+            TransactionType::Unbond => write!(f, "Unbond"),
+            TransactionType::Deposit => write!(f, "Deposit"),
+        }
+    }
 }
 
 /// Balance change a transaction has caused

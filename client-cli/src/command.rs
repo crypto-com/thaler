@@ -131,8 +131,9 @@ pub enum Command {
         )]
         disable_fast_forward: bool,
         #[structopt(
-            name = "block_height_ensure",
+            name = "block-height-ensure",
             long,
+            default_value = "50",
             help = "Number of block height to rollback the utxos in pending transactions"
         )]
         block_height_ensure: u64,
@@ -436,6 +437,7 @@ impl Command {
                 Cell::new("In/Out", bold),
                 Cell::new("Amount", bold),
                 Cell::new("Fee", bold),
+                Cell::new("Transaction Type", bold),
                 Cell::new("Block Height", bold),
                 Cell::new("Block Time", bold),
             ]));
@@ -469,6 +471,7 @@ impl Command {
                             .unwrap_or_else(|| "-".to_owned()),
                         right_justify,
                     ),
+                    Cell::new(&change.transaction_type, Default::default()),
                     Cell::new(&change.block_height, right_justify),
                     Cell::new(&change.block_time, Default::default()),
                 ]));
