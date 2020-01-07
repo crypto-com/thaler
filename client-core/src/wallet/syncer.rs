@@ -303,6 +303,12 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
 
     fn sync(&mut self) -> Result<()> {
         let status = self.env.client.status()?;
+        if status.sync_info.catching_up {
+            return Err(Error::new(
+                ErrorKind::TendermintRpcError,
+                "Tendermint node is catching up with full node (retry after some time)",
+            ));
+        }
         let current_block_height = status.sync_info.latest_block_height.value();
         self.init_progress(current_block_height);
 
