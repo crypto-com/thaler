@@ -5,16 +5,14 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time;
 
-use secstr::SecUtf8;
-
 use client_common::tendermint::Client;
-use client_common::Storage;
+use client_common::{SecKey, Storage};
 
 use crate::wallet::syncer::{ObfuscationSyncerConfig, ProgressReport, WalletSyncer};
 use crate::TransactionObfuscation;
 
 type WalletName = String;
-type WalletPassphrase = SecUtf8;
+type WalletPassphrase = SecKey;
 
 /// Synchronizer for transaction index which keeps polling for updates
 #[derive(Default)]
@@ -25,9 +23,9 @@ pub struct PollingSynchronizer {
 
 impl PollingSynchronizer {
     /// Adds a wallet to polling synchronizer
-    pub fn add_wallet(&self, wallet_name: String, wallet_passphrase: SecUtf8) {
+    pub fn add_wallet(&self, wallet_name: String, wallet_seckey: SecKey) {
         let mut wallets = self.wallets.lock().unwrap();
-        wallets.insert(wallet_name, wallet_passphrase);
+        wallets.insert(wallet_name, wallet_seckey);
     }
 
     /// Removes wallet from polling synchronizer
@@ -54,12 +52,12 @@ impl PollingSynchronizer {
                 .expect("Unable to acquire lock on wallets to synchronize in polling synchronizer")
                 .clone();
 
-            for (name, passphrase) in wallets_to_synchronize.iter() {
+            for (name, enckey) in wallets_to_synchronize.iter() {
                 let result = WalletSyncer::with_obfuscation_config(
                     config.clone(),
                     Some(sender.clone()),
                     name.clone(),
-                    passphrase.clone(),
+                    enckey.clone(),
                 )
                 .and_then(|syncer| syncer.sync());
                 if let Err(e) = result {

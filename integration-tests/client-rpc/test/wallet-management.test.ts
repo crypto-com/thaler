@@ -6,11 +6,14 @@ import { unbondAndWithdrawStake } from "./core/setup";
 import {
 	generateWalletName,
 	newWalletRequest,
+	rawWalletRequest,
+	newCreateWalletRequest,
 	newZeroFeeRpcClient,
 	shouldTest,
 	FEE_SCHEMA,
 	newWithFeeRpcClient,
 	TRANSACTION_HISTORY_LIMIT,
+	DEFAULT_PASSPHRASE,
 } from "./core/utils";
 chaiUse(chaiAsPromised);
 
@@ -27,9 +30,10 @@ describe("Wallet management", () => {
 
 	it("cannot access un-existing wallet", async () => {
 		const nonExistingWalletName = generateWalletName();
-		const nonExistingWalletRequest = newWalletRequest(
+		const dummyWalletEncKey = "0000000000000000000000000000000000000000000000000000000000000000";
+		const nonExistingWalletRequest = rawWalletRequest(
 			nonExistingWalletName,
-			"123456",
+			dummyWalletEncKey,
 		);
 
 		await expect(
@@ -56,13 +60,12 @@ describe("Wallet management", () => {
 
 	it("can create wallet with specified name", async () => {
 		const walletName = generateWalletName();
-		const walletRequest = newWalletRequest(walletName, "123456");
+		const walletRequest = newCreateWalletRequest(walletName, DEFAULT_PASSPHRASE);
 
-		const walletCreateResult = await client.request("wallet_create", [
+		await client.request("wallet_create", [
 			walletRequest
 			, "Basic"
 		]);
-		expect(walletCreateResult).to.deep.eq(walletName);
 
 		const walletList = await client.request("wallet_list");
 		expect(walletList).to.include(walletName);
@@ -70,12 +73,12 @@ describe("Wallet management", () => {
 
 	it("Newly created wallet has a staking and transfer address associated", async () => {
 		const walletName = generateWalletName();
-		const walletRequest = newWalletRequest(walletName, "123456");
+		const walletCreateRequest = newCreateWalletRequest(walletName, DEFAULT_PASSPHRASE);
 
 		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest, "Basic"
+			walletCreateRequest, "Basic"
 		]);
-		expect(walletCreateResponse).to.deep.eq(walletName);
+		const walletRequest = rawWalletRequest(walletName, walletCreateResponse[0]);
 
 		const walletStakingAddresses = await client.request(
 			"wallet_listStakingAddresses",
@@ -94,12 +97,11 @@ describe("Wallet management", () => {
 
 	it("cannot create duplicated wallet", async () => {
 		const walletName = generateWalletName();
-		const walletRequest = newWalletRequest(walletName, "123456");
+		const walletRequest = newCreateWalletRequest(walletName, DEFAULT_PASSPHRASE);
 
-		const walletCreateResponse = await client.request("wallet_create", [
-			walletRequest, "Basic"
+		await client.request("wallet_create", [
+			walletRequest,"Basic"
 		]);
-		expect(walletCreateResponse).to.deep.eq(walletName);
 
 		return expect(
 			client.request("wallet_create", [walletRequest, "Basic"]),
@@ -110,17 +112,14 @@ describe("Wallet management", () => {
 
 	it("User cannot access wallet with incorrect passphrase", async () => {
 		const walletName = generateWalletName();
-		const walletPassphrase = "passphrase";
-		const walletRequest = newWalletRequest(walletName, walletPassphrase);
+		const walletRequest = newCreateWalletRequest(walletName, DEFAULT_PASSPHRASE);
 
-		await expect(
-			client.request("wallet_create", [walletRequest, "Basic"]),
-		).to.eventually.deep.eq(walletName);
+		await client.request("wallet_create", [walletRequest,"Basic"]);
 
-		const incorrectWalletPassphrase = "different_passphrase";
-		const incorrectWalletRequest = newWalletRequest(
+		const incorrectWalletEncKey = "0000000000000000000000000000000000000000000000000000000000000000";
+		const incorrectWalletRequest = rawWalletRequest(
 			walletName,
-			incorrectWalletPassphrase,
+			incorrectWalletEncKey,
 		);
 
 		await expect(
@@ -139,10 +138,10 @@ describe("Wallet management", () => {
 
 	it("Create a transfer address and then list it", async () => {
 		const walletName = generateWalletName();
-		const walletPassphrase = "passphrase";
-		const walletRequest = newWalletRequest(walletName, walletPassphrase);
+		const walletCreateRequest = newCreateWalletRequest(walletName, DEFAULT_PASSPHRASE);
 
-		await client.request("wallet_create", [walletRequest, "Basic"]);
+		const walletCreateResponse = await client.request("wallet_create", [walletCreateRequest, "Basic"]);
+		const walletRequest = rawWalletRequest(walletName, walletCreateResponse[0]);
 
 		const transferAddress = await client.request("wallet_createTransferAddress", [
 			walletRequest,
@@ -158,10 +157,10 @@ describe("Wallet management", () => {
 
 	it("Create a staking address and then list it", async () => {
 		const walletName = generateWalletName();
-		const walletPassphrase = "passphrase";
-		const walletRequest = newWalletRequest(walletName, walletPassphrase);
+		const walletCreateRequest = newCreateWalletRequest(walletName, DEFAULT_PASSPHRASE);
 
-		await client.request("wallet_create", [walletRequest, "Basic"]);
+		const walletCreateResponse = await client.request("wallet_create", [walletCreateRequest,"Basic"]);
+		const walletRequest = rawWalletRequest(walletName, walletCreateResponse[0]);
 
 		const stakingAddress = await client.request("wallet_createStakingAddress", [
 			walletRequest,

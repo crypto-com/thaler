@@ -1,10 +1,9 @@
 use parity_scale_codec::{Decode, Encode};
-use secstr::SecUtf8;
 
 use chain_core::init::network::get_network;
 use client_common::storage::decrypt_bytes;
 use client_common::{
-    Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecureStorage, Storage,
+    Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecKey, SecureStorage, Storage,
 };
 
 use crate::types::AddressType;
@@ -72,12 +71,7 @@ where
     }
 
     /// Adds a new mnemonic in storage and sets its index to zero
-    pub fn add_mnemonic(
-        &self,
-        name: &str,
-        mnemonic: &Mnemonic,
-        passphrase: &SecUtf8,
-    ) -> Result<()> {
+    pub fn add_mnemonic(&self, name: &str, mnemonic: &Mnemonic, enckey: &SecKey) -> Result<()> {
         if self.storage.get(KEYSPACE, name)?.is_some() {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -95,7 +89,7 @@ where
         };
 
         self.storage
-            .set_secure(KEYSPACE, name, hd_key.encode(), passphrase)
+            .set_secure(KEYSPACE, name, hd_key.encode(), enckey)
             .map(|_| ())
     }
 
@@ -113,12 +107,12 @@ where
     pub fn generate_keypair(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         account_type: HDAccountType,
     ) -> Result<(PublicKey, PrivateKey)> {
         let bytes = self
             .storage
-            .fetch_and_update_secure(KEYSPACE, name, passphrase, |bytes| {
+            .fetch_and_update_secure(KEYSPACE, name, enckey, |bytes| {
                 let mut hd_key_bytes = bytes.chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -148,7 +142,7 @@ where
                 )
             })?;
 
-        let hd_key_bytes = decrypt_bytes(name, passphrase, &bytes)?;
+        let hd_key_bytes = decrypt_bytes(name, enckey, &bytes)?;
         let hd_key = HdKey::decode(&mut hd_key_bytes.as_slice()).chain(|| {
             (
                 ErrorKind::DeserializationError,
@@ -178,6 +172,7 @@ where
 mod tests {
     use super::*;
     use crate::wallet::{DefaultWalletClient, WalletClient};
+    use secstr::SecUtf8;
 
     use client_common::storage::MemoryStorage;
 
@@ -214,19 +209,19 @@ mod tests {
     #[test]
     fn check_deterministic_hdkey_staking() {
         let storage = MemoryStorage::default();
-        let passphrase = SecUtf8::from("passphrase");
         let name = "testhdwallet";
+        let passphrase = SecUtf8::from("passphrase");
         let mnemonic =
             Mnemonic::from_secstr(&SecUtf8::from("speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch")).unwrap();
 
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
-        wallet
+        let enckey = wallet
             .restore_wallet(&name, &passphrase, &mnemonic)
             .expect("restore wallet");
 
         assert!(
             wallet
-                .new_staking_address(&name, &passphrase)
+                .new_staking_address(&name, &enckey)
                 .expect("get new staking address")
                 .to_string()
                 == "0x83fe11feb0887183eb62c30994bdd9e303497e3d"
@@ -234,7 +229,7 @@ mod tests {
 
         assert!(
             wallet
-                .new_staking_address(&name, &passphrase)
+                .new_staking_address(&name, &enckey)
                 .expect("get new staking address")
                 .to_string()
                 == "0xe5b4b42406a061752c78bf5c4d6d6fccca0b575f"
@@ -242,7 +237,7 @@ mod tests {
 
         assert!(
             wallet
-                .new_staking_address(&name, &passphrase)
+                .new_staking_address(&name, &enckey)
                 .expect("get new staking address")
                 .to_string()
                 == "0x7310a0328e446df02cb4fb668a7a6790cea8c96e"
@@ -250,7 +245,7 @@ mod tests {
 
         assert!(
             wallet
-                .new_staking_address(&name, &passphrase)
+                .new_staking_address(&name, &enckey)
                 .expect("get new staking address")
                 .to_string()
                 == "0x56cbf4a74f59dcf1e0064f0daff3b1cf177ea972"
@@ -260,13 +255,13 @@ mod tests {
     #[test]
     fn check_deterministic_hdkey_transfer() {
         let storage = MemoryStorage::default();
-        let passphrase = SecUtf8::from("passphrase");
         let name = "testhdwallet";
+        let passphrase = SecUtf8::from("passphrase");
         let mnemonic =
             Mnemonic::from_secstr(&SecUtf8::from("speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch")).unwrap();
 
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
-        wallet
+        let enckey = wallet
             .restore_wallet(&name, &passphrase, &mnemonic)
             .expect("restore wallet");
 
@@ -279,7 +274,7 @@ mod tests {
         ] {
             assert_eq!(
                 wallet
-                    .new_transfer_address(&name, &passphrase)
+                    .new_transfer_address(&name, &enckey)
                     .expect("get new transfer address")
                     .to_string(),
                 *addr

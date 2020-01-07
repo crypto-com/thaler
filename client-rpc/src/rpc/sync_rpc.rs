@@ -52,7 +52,7 @@ where
     #[inline]
     fn sync_unlock_wallet(&self, request: WalletRequest) -> Result<()> {
         self.polling_synchronizer
-            .add_wallet(request.name, request.passphrase);
+            .add_wallet(request.name, request.enckey);
         Ok(())
     }
 
@@ -84,7 +84,7 @@ where
             self.config.clone(),
             None,
             request.name,
-            request.passphrase,
+            request.enckey,
         )
         .map_err(to_rpc_error)?;
         if reset {

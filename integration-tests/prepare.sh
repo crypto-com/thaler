@@ -112,6 +112,7 @@ function create_wallet() {
     else
         RET_VALUE=$(printf "${2}\n${2}\n" | docker run -i --rm -v "$(pwd)/${3}:/.storage" --env CRYPTO_CLIENT_STORAGE=/.storage --user "$(id -u):$(id -g)" "${CHAIN_DOCKER_IMAGE}" client-cli wallet new --name "${1}" --type basic)
     fi
+    RET_VALUE=$(echo "${RET_VALUE}" | sed -En "s/^.*Authentication token: ([0-9a-fA-F]+).*$/\1/p")
 }
 
 # Create wallet staking address
@@ -309,9 +310,10 @@ clone_tendermint_config "${TENDERMINT_TEMP_DIRECTORY}" "${TENDERMINT_ZEROFEE_DIR
 print_step "Generate wallet and addresses"
 rm -rf "${WALLET_STORAGE_TEMP_DIRECTORY}"
 create_wallet "Default" "${WALLET_PASSPHRASE}" "${WALLET_STORAGE_TEMP_DIRECTORY}"
-create_wallet_staking_address "Default" "${WALLET_PASSPHRASE}" "${WALLET_STORAGE_TEMP_DIRECTORY}"; STAKING_ADDRESS="${RET_VALUE}"
-create_wallet_transfer_address "Default" "${WALLET_PASSPHRASE}" "${WALLET_STORAGE_TEMP_DIRECTORY}"; TRANSFER_ADDRESS_1="${RET_VALUE}"
-create_wallet_transfer_address "Default" "${WALLET_PASSPHRASE}" "${WALLET_STORAGE_TEMP_DIRECTORY}"; TRANSFER_ADDRESS_2="${RET_VALUE}"
+AUTH_TOKEN=$RET_VALUE
+create_wallet_staking_address "Default" "${AUTH_TOKEN}" "${WALLET_STORAGE_TEMP_DIRECTORY}"; STAKING_ADDRESS="${RET_VALUE}"
+create_wallet_transfer_address "Default" "${AUTH_TOKEN}" "${WALLET_STORAGE_TEMP_DIRECTORY}"; TRANSFER_ADDRESS_1="${RET_VALUE}"
+create_wallet_transfer_address "Default" "${AUTH_TOKEN}" "${WALLET_STORAGE_TEMP_DIRECTORY}"; TRANSFER_ADDRESS_2="${RET_VALUE}"
 print_config "STAKING_ADDRESS" "${STAKING_ADDRESS}"
 print_config "TRANSFER_ADDRESS_1" "${TRANSFER_ADDRESS_1}"
 print_config "TRANSFER_ADDRESS_2" "${TRANSFER_ADDRESS_2}"

@@ -1,14 +1,14 @@
 #![deny(missing_docs, unsafe_code, unstable_features)]
 //! CLI for interacting with Crypto.com Chain
+use std::str::FromStr;
+
 mod command;
 use quest::{ask, error, password};
 use secstr::SecUtf8;
 use structopt::StructOpt;
 
-use std::str::FromStr;
-
 use chain_core::init::{coin::Coin, network::init_chain_id};
-use client_common::{Error, ErrorKind, Result, ResultExt};
+use client_common::{seckey::parse_hex_enckey, Error, ErrorKind, Result, ResultExt, SecKey};
 
 use crate::command::Command;
 
@@ -64,6 +64,12 @@ pub(crate) fn ask_passphrase(message: Option<&str>) -> Result<SecUtf8> {
     password()
         .map(Into::into)
         .chain(|| (ErrorKind::IoError, "Unable to read password"))
+}
+
+pub(crate) fn ask_seckey(message: Option<&str>) -> Result<SecKey> {
+    ask(message.unwrap_or("Enter authentication token: "));
+    let key = password().err_kind(ErrorKind::InvalidInput, || "Unable to read enckey")?;
+    parse_hex_enckey(&key)
 }
 
 pub(crate) fn coin_from_str(coin_str: &str) -> Result<Coin> {

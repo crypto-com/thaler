@@ -1,10 +1,8 @@
 //! Wallet signer responsible for signing as wallet
-use secstr::SecUtf8;
-
 use chain_core::common::H256;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use client_common::{Error, ErrorKind, Result, ResultExt, Storage};
+use client_common::{Error, ErrorKind, Result, ResultExt, SecKey, Storage};
 
 use crate::service::{KeyService, RootHashService, WalletService};
 use crate::{SelectedUnspentTransactions, SignCondition, Signer};
@@ -34,14 +32,10 @@ where
     }
 
     /// Create an instance of wallet signer
-    pub fn create_signer<'a>(
-        &'a self,
-        name: &'a str,
-        passphrase: &'a SecUtf8,
-    ) -> WalletSigner<'a, S> {
+    pub fn create_signer<'a>(&'a self, name: &'a str, enckey: &'a SecKey) -> WalletSigner<'a, S> {
         WalletSigner::new(
             name,
-            passphrase,
+            enckey,
             &self.key_service,
             &self.root_hash_service,
             &self.wallet_service,
@@ -55,7 +49,7 @@ where
     S: Storage,
 {
     name: &'a str,
-    passphrase: &'a SecUtf8,
+    enckey: &'a SecKey,
     key_service: &'a KeyService<S>,
     root_hash_service: &'a RootHashService<S>,
     wallet_service: &'a WalletService<S>,
@@ -68,14 +62,14 @@ where
     /// Create an instance of wallet signer
     pub fn new(
         name: &'a str,
-        passphrase: &'a SecUtf8,
+        enckey: &'a SecKey,
         key_service: &'a KeyService<S>,
         root_hash_service: &'a RootHashService<S>,
         wallet_service: &'a WalletService<S>,
     ) -> Self {
         WalletSigner {
             name,
-            passphrase,
+            enckey,
             key_service,
             root_hash_service,
             wallet_service,
@@ -102,7 +96,7 @@ where
     fn schnorr_sign_condition(&self, signing_addr: &ExtendedAddr) -> Result<SignCondition> {
         let maybe_root_hash =
             self.wallet_service
-                .find_root_hash(self.name, self.passphrase, signing_addr)?;
+                .find_root_hash(self.name, self.enckey, signing_addr)?;
         if None == maybe_root_hash {
             Ok(SignCondition::Impossible)
         } else {
@@ -117,7 +111,7 @@ where
     ) -> Result<TxInWitness> {
         let root_hash = self
             .wallet_service
-            .find_root_hash(self.name, self.passphrase, signing_addr)?
+            .find_root_hash(self.name, self.enckey, signing_addr)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -144,7 +138,7 @@ where
     ) -> Result<TxInWitness> {
         if self
             .root_hash_service
-            .required_signers(&root_hash, self.passphrase)?
+            .required_signers(&root_hash, self.enckey)?
             != 1
         {
             return Err(Error::new(
@@ -153,12 +147,10 @@ where
             ));
         }
 
-        let public_key = self
-            .root_hash_service
-            .public_key(&root_hash, self.passphrase)?;
+        let public_key = self.root_hash_service.public_key(&root_hash, self.enckey)?;
         let private_key = self
             .key_service
-            .private_key(&public_key, self.passphrase)?
+            .private_key(&public_key, self.enckey)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -171,7 +163,7 @@ where
 
         let proof =
             self.root_hash_service
-                .generate_proof(&root_hash, vec![public_key], self.passphrase)?;
+                .generate_proof(&root_hash, vec![public_key], self.enckey)?;
 
         Ok(TxInWitness::TreeSig(
             private_key.schnorr_sign(&message)?,
@@ -183,6 +175,7 @@ where
 #[cfg(test)]
 mod wallet_signer_tests {
     use super::*;
+    use secstr::SecUtf8;
 
     use chain_core::tx::data::Tx;
     use chain_core::tx::TransactionId;
@@ -195,33 +188,27 @@ mod wallet_signer_tests {
     #[test]
     fn check_1_of_n_signing_flow() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
         let message = Tx::new().id();
 
         let storage = MemoryStorage::default();
 
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client
-            .new_wallet(name, passphrase, WalletKind::Basic)
+        let (enckey, _) = wallet_client
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let public_keys = vec![
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
         ];
 
         let tree_address = wallet_client
             .new_multisig_transfer_address(
                 name,
-                passphrase,
+                &enckey,
                 public_keys.clone(),
                 public_keys[0].clone(),
                 1,
@@ -229,7 +216,7 @@ mod wallet_signer_tests {
             .unwrap();
 
         let signer_manager = WalletSignerManager::new(storage);
-        let signer = signer_manager.create_signer(name, passphrase);
+        let signer = signer_manager.create_signer(name, &enckey);
 
         let witness = signer
             .schnorr_sign(message, &tree_address)
@@ -241,33 +228,27 @@ mod wallet_signer_tests {
     #[test]
     fn check_2_of_3_invalid_signing_flow() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
         let message = Tx::new().id();
 
         let storage = MemoryStorage::default();
 
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client
-            .new_wallet(name, passphrase, WalletKind::Basic)
+        let (enckey, _) = wallet_client
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let public_keys = vec![
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
         ];
 
         let tree_address = wallet_client
             .new_multisig_transfer_address(
                 name,
-                passphrase,
+                &enckey,
                 public_keys.clone(),
                 public_keys[0].clone(),
                 2,
@@ -275,7 +256,7 @@ mod wallet_signer_tests {
             .unwrap();
 
         let signer_manager = WalletSignerManager::new(storage);
-        let signer = signer_manager.create_signer(name, passphrase);
+        let signer = signer_manager.create_signer(name, &enckey);
 
         assert_eq!(
             ErrorKind::IllegalInput,

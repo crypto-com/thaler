@@ -7,6 +7,7 @@ import { RpcClient } from "./core/rpc-client";
 import { unbondAndWithdrawStake } from "./core/setup";
 import {
 	newWalletRequest,
+	newCreateWalletRequest,
 	generateWalletName,
 	newZeroFeeRpcClient,
 	sleep,
@@ -15,6 +16,7 @@ import {
 	asyncMiddleman,
 	newZeroFeeTendermintClient,
 	TRANSACTION_HISTORY_LIMIT,
+	DEFAULT_PASSPHRASE,
 } from "./core/utils";
 import { syncWallet, waitTxIdConfirmed } from "./core/rpc";
 import { TendermintClient } from "./core/tendermint-client";
@@ -25,7 +27,7 @@ import {
 } from "./core/transaction-utils";
 chaiUse(chaiAsPromised);
 
-describe("Wallet Auto-sync", () => {
+describe("HDWallet Restore Auto-sync", () => {
 	let zeroFeeRpcClient: RpcClient;
 	let zeroFeeTendermintClient: TendermintClient;
 	before(async () => {
@@ -42,15 +44,19 @@ describe("Wallet Auto-sync", () => {
 		this.timeout(300000);
 
 		const receiverWalletName = generateWalletName("Receive");
-		const senderWalletRequest = newWalletRequest("Default", "123456");
-		const receiverWalletRequest = newWalletRequest(receiverWalletName, "123456");
+		const senderWalletRequest = await newWalletRequest(zeroFeeRpcClient, "Default", DEFAULT_PASSPHRASE);
+		const createReceiverWalletRequest = newCreateWalletRequest(receiverWalletName, DEFAULT_PASSPHRASE);
 		const transferAmount = "1000";
 
-		await asyncMiddleman(
-			zeroFeeRpcClient.request("wallet_restore", [receiverWalletRequest, "blind heavy warrior off power high lab trend diagram happy bargain level demise safe image pride napkin example wolf adjust pistol spatial eight audit"]),
+		const enckey = await asyncMiddleman(
+			zeroFeeRpcClient.request("wallet_restore", [createReceiverWalletRequest, "blind heavy warrior off power high lab trend diagram happy bargain level demise safe image pride napkin example wolf adjust pistol spatial eight audit"]),
 			"Error when recovering receiver hdwallet",
 		);
-
+		const receiverWalletRequest = {
+			name: receiverWalletName,
+			enckey,
+		};
+		console.log('receiverWalletRequest', receiverWalletRequest);
 
 		await asyncMiddleman(
 			syncWallet(zeroFeeRpcClient, senderWalletRequest),

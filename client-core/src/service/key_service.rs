@@ -1,8 +1,7 @@
-use secstr::SecUtf8;
 use zeroize::Zeroize;
 
 use client_common::Result;
-use client_common::{PrivateKey, PublicKey, SecureStorage, Storage};
+use client_common::{PrivateKey, PublicKey, SecKey, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_key";
 
@@ -27,14 +26,14 @@ where
         &self,
         private_key: &PrivateKey,
         public_key: &PublicKey,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<()> {
         self.storage
             .set_secure(
                 KEYSPACE,
                 public_key.serialize(),
                 private_key.serialize(),
-                passphrase,
+                enckey,
             )
             .map(|_| ())
     }
@@ -43,11 +42,11 @@ where
     pub fn private_key(
         &self,
         public_key: &PublicKey,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<Option<PrivateKey>> {
         let private_key_bytes =
             self.storage
-                .get_secure(KEYSPACE, public_key.serialize(), passphrase)?;
+                .get_secure(KEYSPACE, public_key.serialize(), enckey)?;
 
         private_key_bytes
             .map(|mut private_key_bytes| {
@@ -68,32 +67,34 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secstr::SecUtf8;
 
     use client_common::storage::MemoryStorage;
-    use client_common::ErrorKind;
+    use client_common::{seckey::derive_enckey, ErrorKind};
 
     #[test]
     fn check_flow() {
         let key_service = KeyService::new(MemoryStorage::default());
-        let passphrase = SecUtf8::from("passphrase");
+        let enckey = derive_enckey(&SecUtf8::from("passphrase"), "").unwrap();
+        let incorrect_enckey = derive_enckey(&SecUtf8::from("passphrase1"), "").unwrap();
 
         let private_key = PrivateKey::new().unwrap();
         let public_key = PublicKey::from(&private_key);
 
         key_service
-            .add_keypair(&private_key, &public_key, &passphrase)
+            .add_keypair(&private_key, &public_key, &enckey)
             .expect("Unable to generate private key");
 
         let retrieved_private_key = key_service
-            .private_key(&public_key, &passphrase)
+            .private_key(&public_key, &enckey)
             .unwrap()
             .unwrap();
 
         assert_eq!(private_key, retrieved_private_key);
 
         let error = key_service
-            .private_key(&public_key, &SecUtf8::from("incorrect_passphrase"))
-            .expect_err("Decryption worked with incorrect passphrase");
+            .private_key(&public_key, &incorrect_enckey)
+            .expect_err("Decryption worked with incorrect enckey");
 
         assert_eq!(
             error.kind(),

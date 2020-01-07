@@ -325,23 +325,25 @@ impl InitCommand {
         let name = self.ask_string("please enter wallet name=", "my");
 
         let passphrase = InitCommand::ask_passphrase()?;
-        match wallet_client.new_wallet(&name.as_str(), &passphrase, WalletKind::Basic) {
-            Ok(_a) => {}
+        let enckey = match wallet_client.new_wallet(&name.as_str(), &passphrase, WalletKind::Basic)
+        {
+            Ok((enckey, _)) => enckey,
             Err(b) => {
                 println!("new wallet fail={}", b.to_string());
+                return Ok(());
             }
-        }
+        };
         success(&format!("Wallet created with name: {}", name));
 
         // main validator staking
-        let address = wallet_client.new_staking_address(&name.as_str(), &passphrase)?;
+        let address = wallet_client.new_staking_address(&name.as_str(), &enckey)?;
         success(&format!("New address: {}", address));
         self.staking_account_address = address.to_string().trim().to_string();
         println!("staking address={}", self.staking_account_address);
         assert!(address.to_string().trim().to_string().len() == 42);
 
         for i in 0..6 {
-            let address = wallet_client.new_staking_address(&name.as_str(), &passphrase)?;
+            let address = wallet_client.new_staking_address(&name.as_str(), &enckey)?;
             self.other_staking_accounts
                 .push(address.to_string().trim().to_string());
             success(&format!("Other New address {}: {}", i + 1, address));

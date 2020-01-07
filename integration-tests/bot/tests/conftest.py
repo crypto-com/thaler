@@ -1,5 +1,6 @@
-import pytest
+import os
 import time
+import pytest
 from chainrpc import RPC
 
 
@@ -13,6 +14,8 @@ class TestAddresses:
 @pytest.fixture
 def addresses():
     rpc = RPC()
+    enckey = rpc.wallet.enckey()
+    os.environ['ENCKEY'] = enckey
     rpc.wallet.sync()
     addrs = TestAddresses(
         rpc.address.list(type='staking')[0],
@@ -24,6 +27,7 @@ def addresses():
     if int(state['unbonded']) > 0:
         rpc.staking.withdraw_all_unbonded(addrs.staking,
                                           addrs.transfer1)
+        time.sleep(2)
         rpc.wallet.sync()
         balance = rpc.wallet.balance()
         assert int(balance["total"]) > 0

@@ -1,5 +1,3 @@
-use secstr::SecUtf8;
-
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
@@ -8,7 +6,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::TxAux;
 use client_common::{
-    ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Storage, Transaction,
+    ErrorKind, PrivateKey, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction,
 };
 
 use crate::signer::WalletSignerManager;
@@ -53,7 +51,7 @@ where
     fn build_transfer_tx(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         unspent_transactions: UnspentTransactions,
         outputs: Vec<TxOut>,
         return_address: ExtendedAddr,
@@ -76,7 +74,7 @@ where
             .map(|output| output.value)
             .unwrap_or_default();
 
-        let signer = self.signer_manager.create_signer(name, passphrase);
+        let signer = self.signer_manager.create_signer(name, enckey);
 
         raw_builder.sign_all(signer)?;
 
@@ -191,10 +189,10 @@ where
 
 #[cfg(test)]
 mod default_wallet_transaction_builder_tests {
-    use super::*;
-
     use parity_scale_codec::{Decode, Encode};
+    use secstr::SecUtf8;
 
+    use super::*;
     use chain_core::tx::data::input::{TxoIndex, TxoPointer};
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{LinearFee, Milli};
@@ -244,41 +242,29 @@ mod default_wallet_transaction_builder_tests {
     #[test]
     fn check_transaction_building_flow() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client
-            .new_wallet(name, passphrase, WalletKind::Basic)
+        let (enckey, _) = wallet_client
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let public_keys = vec![
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
         ];
 
         let addresses = vec![
-            wallet_client
-                .new_transfer_address(name, passphrase)
-                .unwrap(),
-            wallet_client
-                .new_transfer_address(name, passphrase)
-                .unwrap(),
-            wallet_client
-                .new_transfer_address(name, passphrase)
-                .unwrap(),
+            wallet_client.new_transfer_address(name, &enckey).unwrap(),
+            wallet_client.new_transfer_address(name, &enckey).unwrap(),
+            wallet_client.new_transfer_address(name, &enckey).unwrap(),
             wallet_client
                 .new_multisig_transfer_address(
                     name,
-                    passphrase,
+                    &enckey,
                     public_keys.clone(),
                     public_keys[0].clone(),
                     1,
@@ -306,9 +292,7 @@ mod default_wallet_transaction_builder_tests {
         ]);
         unspent_transactions.apply_all(&[Operation::Sort(Sorter::HighestValueFirst)]);
 
-        let return_address = wallet_client
-            .new_transfer_address(name, passphrase)
-            .unwrap();
+        let return_address = wallet_client.new_transfer_address(name, &enckey).unwrap();
 
         let signer_manager = WalletSignerManager::new(storage.clone());
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
@@ -320,9 +304,7 @@ mod default_wallet_transaction_builder_tests {
         );
 
         let outputs = vec![TxOut::new(
-            wallet_client
-                .new_transfer_address(name, passphrase)
-                .unwrap(),
+            wallet_client.new_transfer_address(name, &enckey).unwrap(),
             Coin::new(1000).unwrap(),
         )];
         let attributes = TxAttributes::new(171);
@@ -330,7 +312,7 @@ mod default_wallet_transaction_builder_tests {
         let (tx_aux, _selected_inputs, _return_amount) = transaction_builder
             .build_transfer_tx(
                 name,
-                passphrase,
+                &enckey,
                 unspent_transactions.clone(),
                 outputs,
                 return_address,
@@ -393,35 +375,27 @@ mod default_wallet_transaction_builder_tests {
     #[test]
     fn check_insufficient_balance_flow() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client
-            .new_wallet(name, passphrase, WalletKind::Basic)
+        let (enckey, _) = wallet_client
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let public_keys = vec![
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
-            wallet_client
-                .new_public_key(name, passphrase, None)
-                .unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
+            wallet_client.new_public_key(name, &enckey, None).unwrap(),
         ];
 
         let addresses = vec![
-            wallet_client
-                .new_transfer_address(name, passphrase)
-                .unwrap(),
+            wallet_client.new_transfer_address(name, &enckey).unwrap(),
             wallet_client
                 .new_multisig_transfer_address(
                     name,
-                    passphrase,
+                    &enckey,
                     public_keys.clone(),
                     public_keys[0].clone(),
                     1,
@@ -441,9 +415,7 @@ mod default_wallet_transaction_builder_tests {
         ]);
         unspent_transactions.apply_all(&[Operation::Sort(Sorter::HighestValueFirst)]);
 
-        let return_address = wallet_client
-            .new_transfer_address(name, passphrase)
-            .unwrap();
+        let return_address = wallet_client.new_transfer_address(name, &enckey).unwrap();
 
         let signer_manager = WalletSignerManager::new(storage.clone());
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
@@ -455,9 +427,7 @@ mod default_wallet_transaction_builder_tests {
         );
 
         let outputs = vec![TxOut::new(
-            wallet_client
-                .new_transfer_address(name, passphrase)
-                .unwrap(),
+            wallet_client.new_transfer_address(name, &enckey).unwrap(),
             Coin::new(1700).unwrap(),
         )];
         let attributes = TxAttributes::new(171);
@@ -467,7 +437,7 @@ mod default_wallet_transaction_builder_tests {
             transaction_builder
                 .build_transfer_tx(
                     name,
-                    passphrase,
+                    &enckey,
                     unspent_transactions.clone(),
                     outputs,
                     return_address,

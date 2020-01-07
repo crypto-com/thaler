@@ -10,20 +10,17 @@ pub use memory_storage::MemoryStorage;
 pub use sled_storage::SledStorage;
 pub use unauthorized_storage::UnauthorizedStorage;
 
+use crate::SecKey;
 use aes_gcm_siv::aead::generic_array::GenericArray;
 use aes_gcm_siv::aead::{Aead, NewAead, Payload};
 use aes_gcm_siv::Aes256GcmSiv;
-use argon2::hash_raw;
 use rand::rngs::OsRng;
 use rand::Rng;
-use secstr::SecUtf8;
 
 use crate::{Error, ErrorKind, Result, ResultExt};
 
 /// Nonce size in bytes
 const NONCE_SIZE: usize = 12;
-/// Salt size in bytes
-const SALT_SIZE: usize = 8;
 
 /// Interface for a generic key-value storage
 pub trait Storage: Send + Sync + Clone {
@@ -91,7 +88,7 @@ pub trait SecureStorage: Storage {
         &self,
         keyspace: S,
         key: K,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<Option<Vec<u8>>>;
 
     /// Set a key to a new value (after encryption) in given keyspace and return old value.
@@ -100,7 +97,7 @@ pub trait SecureStorage: Storage {
         keyspace: S,
         key: K,
         value: Vec<u8>,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<Option<Vec<u8>>>;
 
     /// Fetches a value, applies a function (after decryption) and returns the previous value.
@@ -108,7 +105,7 @@ pub trait SecureStorage: Storage {
         &self,
         keyspace: S,
         key: K,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         f: F,
     ) -> Result<Option<Vec<u8>>>
     where
@@ -121,9 +118,9 @@ pub trait SecureStorage: Storage {
         &self,
         keyspace: &str,
         key: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<Option<T>> {
-        if let Some(bytes) = self.get_secure(keyspace, key, passphrase)? {
+        if let Some(bytes) = self.get_secure(keyspace, key, enckey)? {
             Ok(Some(
                 T::decode(&mut bytes.as_slice())
                     .err_kind(ErrorKind::DeserializationError, || {
@@ -140,10 +137,10 @@ pub trait SecureStorage: Storage {
         &self,
         keyspace: &str,
         key: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         value: &T,
     ) -> Result<()> {
-        self.set_secure(keyspace, key, value.encode(), passphrase)
+        self.set_secure(keyspace, key, value.encode(), enckey)
             .map(|_| ())
     }
 }
@@ -156,10 +153,10 @@ where
         &self,
         keyspace: S,
         key: K,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<Option<Vec<u8>>> {
         self.get(keyspace, &key)?
-            .map(|value| decrypt_bytes(&key, passphrase, &value))
+            .map(|value| decrypt_bytes(&key, enckey, &value))
             .transpose()
     }
 
@@ -168,11 +165,11 @@ where
         keyspace: S,
         key: K,
         value: Vec<u8>,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<Option<Vec<u8>>> {
-        let old_value = self.get_secure(&keyspace, &key, passphrase)?;
+        let old_value = self.get_secure(&keyspace, &key, enckey)?;
 
-        let cipher = encrypt_bytes(&key, passphrase, &value)?;
+        let cipher = encrypt_bytes(&key, enckey, &value)?;
         self.set(keyspace, &key, cipher)?;
 
         Ok(old_value)
@@ -182,7 +179,7 @@ where
         &self,
         keyspace: S,
         key: K,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         f: F,
     ) -> Result<Option<Vec<u8>>>
     where
@@ -192,41 +189,34 @@ where
     {
         self.fetch_and_update(keyspace, &key, |current| {
             let opened = current
-                .map(|current| decrypt_bytes(&key, passphrase, current))
+                .map(|current| decrypt_bytes(&key, enckey, current))
                 .transpose()
                 .chain(|| {
                     (
                         ErrorKind::DecryptionError,
-                        "Incorrect passphrase: Unable to unlock stored values",
+                        "Incorrect enckey: Unable to unlock stored values",
                     )
                 })?;
 
             let next = f(opened.as_ref().map(AsRef::as_ref))?;
 
             next.as_ref()
-                .map(|next| encrypt_bytes(&key, passphrase, next))
+                .map(|next| encrypt_bytes(&key, enckey, next))
                 .transpose()
         })
     }
 }
 
-/// Encrypts bytes with given passphrase
-pub fn encrypt_bytes<K: AsRef<[u8]>>(
-    key: K,
-    passphrase: &SecUtf8,
-    bytes: &[u8],
-) -> Result<Vec<u8>> {
+/// Encrypts bytes with given enckey
+pub fn encrypt_bytes<K: AsRef<[u8]>>(key: K, enckey: &SecKey, bytes: &[u8]) -> Result<Vec<u8>> {
     let mut nonce = [0; NONCE_SIZE];
-    let mut salt = [0; SALT_SIZE];
 
     OsRng.fill(&mut nonce);
-    OsRng.fill(&mut salt);
 
-    let algo = get_algo(passphrase, &salt)?;
+    let algo = get_algo(enckey);
 
     let mut cipher = Vec::new();
     cipher.extend_from_slice(&nonce[..]);
-    cipher.extend_from_slice(&salt[..]);
 
     let payload = Payload {
         msg: bytes,
@@ -242,37 +232,24 @@ pub fn encrypt_bytes<K: AsRef<[u8]>>(
     Ok(cipher)
 }
 
-/// Decrypts bytes with given passphrase
-pub fn decrypt_bytes<K: AsRef<[u8]>>(
-    key: K,
-    passphrase: &SecUtf8,
-    bytes: &[u8],
-) -> Result<Vec<u8>> {
-    let nonce = &bytes[..NONCE_SIZE];
-    let salt = &bytes[NONCE_SIZE..NONCE_SIZE + SALT_SIZE];
-
-    let payload = &bytes[NONCE_SIZE + SALT_SIZE..];
-
-    let algo = get_algo(passphrase, salt)?;
+/// Decrypts bytes with given enckey
+pub fn decrypt_bytes<K: AsRef<[u8]>>(key: K, enckey: &SecKey, bytes: &[u8]) -> Result<Vec<u8>> {
+    let algo = get_algo(enckey);
 
     let payload = Payload {
-        msg: payload,
+        msg: &bytes[NONCE_SIZE..],
         aad: key.as_ref(),
     };
 
-    algo.decrypt(GenericArray::from_slice(nonce), payload)
+    algo.decrypt(GenericArray::from_slice(&bytes[..NONCE_SIZE]), payload)
         .map_err(|_| {
             Error::new(
                 ErrorKind::DecryptionError,
-                "Incorrect passphrase: Unable to unlock stored values",
+                "Incorrect enckey: Unable to unlock stored values",
             )
         })
 }
 
-fn get_algo(passphrase: &SecUtf8, salt: &[u8]) -> Result<Aes256GcmSiv> {
-    let hash = hash_raw(passphrase.unsecure().as_bytes(), salt, &Default::default())
-        .chain(|| (ErrorKind::HashError, "Unable to hash passphrase"))?;
-
-    let key = GenericArray::clone_from_slice(hash.as_ref());
-    Ok(Aes256GcmSiv::new(key))
+fn get_algo(enckey: &SecKey) -> Aes256GcmSiv {
+    Aes256GcmSiv::new(*enckey.unsecure())
 }

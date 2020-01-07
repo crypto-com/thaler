@@ -1,5 +1,4 @@
 use parity_scale_codec::Decode;
-use secstr::SecUtf8;
 
 use crate::NetworkOpsClient;
 use chain_core::common::Timespec;
@@ -18,7 +17,7 @@ use chain_core::tx::{TransactionId, TxAux};
 use chain_tx_validation::{check_inputs_basic, check_outputs_basic, verify_unjailed};
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
-use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction, Storage};
+use client_common::{Error, ErrorKind, Result, ResultExt, SecKey, SignedTransaction, Storage};
 use client_core::signer::{DummySigner, Signer, WalletSignerManager};
 use client_core::types::TransactionPending;
 use client_core::{TransactionObfuscation, UnspentTransactions, WalletClient};
@@ -140,14 +139,14 @@ where
     fn create_deposit_bonded_stake_transaction<'a>(
         &'a self,
         name: &'a str,
-        passphrase: &'a SecUtf8,
+        enckey: &'a SecKey,
         inputs: Vec<TxoPointer>,
         to_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
         if !self
             .wallet_client
-            .has_unspent_transactions(name, passphrase, &inputs)?
+            .has_unspent_transactions(name, enckey, &inputs)?
         {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -160,12 +159,12 @@ where
         let transactions = inputs
             .into_iter()
             .map(|txo_pointer| {
-                let output = self.wallet_client.output(name, passphrase, &txo_pointer)?;
+                let output = self.wallet_client.output(name, enckey, &txo_pointer)?;
                 Ok((txo_pointer, output))
             })
             .collect::<Result<Vec<(TxoPointer, TxOut)>>>()?;
         let unspent_transactions = UnspentTransactions::new(transactions);
-        let signer = self.signer_manager.create_signer(name, passphrase);
+        let signer = self.signer_manager.create_signer(name, enckey);
 
         let witness = signer
             .schnorr_sign_transaction(transaction.id(), &unspent_transactions.select_all())?;
@@ -186,12 +185,12 @@ where
     fn create_unbond_stake_transaction(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address: StakedStateAddress,
         value: Coin,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(name, passphrase, &address)?;
+        let staked_state = self.get_staked_state(name, enckey, &address)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -214,7 +213,7 @@ where
         let public_key = match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
-                .find_staking_key(name, passphrase, redeem_address)?
+                .find_staking_key(name, enckey, redeem_address)?
                 .chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -224,7 +223,7 @@ where
         };
         let private_key = self
             .wallet_client
-            .private_key(passphrase, &public_key)?
+            .private_key(enckey, &public_key)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -242,13 +241,13 @@ where
     fn create_withdraw_unbonded_stake_transaction(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         from_address: &StakedStateAddress,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
     ) -> Result<(TxAux, TransactionPending)> {
         let last_block_time = self.get_last_block_time()?;
-        let staked_state = self.get_staked_state(name, passphrase, from_address)?;
+        let staked_state = self.get_staked_state(name, enckey, from_address)?;
 
         if staked_state.unbonded_from > last_block_time {
             return Err(Error::new(
@@ -281,7 +280,7 @@ where
         let public_key = match from_address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
-                .find_staking_key(name, passphrase, redeem_address)?
+                .find_staking_key(name, enckey, redeem_address)?
                 .chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -291,7 +290,7 @@ where
         };
         let private_key = self
             .wallet_client
-            .private_key(passphrase, &public_key)?
+            .private_key(enckey, &public_key)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -325,11 +324,11 @@ where
     fn create_unjail_transaction(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(name, passphrase, &address)?;
+        let staked_state = self.get_staked_state(name, enckey, &address)?;
 
         if !staked_state.is_jailed() {
             return Err(Error::new(
@@ -349,7 +348,7 @@ where
         let public_key = match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
-                .find_staking_key(name, passphrase, redeem_address)?
+                .find_staking_key(name, enckey, redeem_address)?
                 .chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -359,7 +358,7 @@ where
         };
         let private_key = self
             .wallet_client
-            .private_key(passphrase, &public_key)?
+            .private_key(enckey, &public_key)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -377,12 +376,12 @@ where
     fn create_withdraw_all_unbonded_stake_transaction(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         from_address: &StakedStateAddress,
         to_address: ExtendedAddr,
         attributes: TxAttributes,
     ) -> Result<(TxAux, TransactionPending)> {
-        let staked_state = self.get_staked_state(name, passphrase, from_address)?;
+        let staked_state = self.get_staked_state(name, enckey, from_address)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -415,7 +414,7 @@ where
 
         self.create_withdraw_unbonded_stake_transaction(
             name,
-            passphrase,
+            enckey,
             from_address,
             outputs,
             attributes,
@@ -425,12 +424,12 @@ where
     fn create_node_join_transaction(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         staking_account_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
         node_metadata: CouncilNode,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(name, passphrase, &staking_account_address)?;
+        let staked_state = self.get_staked_state(name, enckey, &staking_account_address)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -449,7 +448,7 @@ where
         let public_key = match staking_account_address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
                 .wallet_client
-                .find_staking_key(name, passphrase, redeem_address)?
+                .find_staking_key(name, enckey, redeem_address)?
                 .chain(|| {
                     (
                         ErrorKind::InvalidInput,
@@ -459,7 +458,7 @@ where
         };
         let private_key = self
             .wallet_client
-            .private_key(passphrase, &public_key)?
+            .private_key(enckey, &public_key)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -477,14 +476,14 @@ where
     fn get_staked_state(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address: &StakedStateAddress,
     ) -> Result<StakedState> {
         // Verify if `address` belongs to current wallet
         match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => {
                 self.wallet_client
-                    .find_staking_key(name, passphrase, redeem_address)?;
+                    .find_staking_key(name, enckey, redeem_address)?;
             }
         }
 
@@ -495,6 +494,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secstr::SecUtf8;
 
     use parity_scale_codec::Encode;
 
@@ -514,7 +514,7 @@ mod tests {
     use client_common::tendermint::lite;
     use client_common::tendermint::mock;
     use client_common::tendermint::types::*;
-    use client_common::{PrivateKey, PublicKey, Transaction};
+    use client_common::{seckey::derive_enckey, PrivateKey, PublicKey, Transaction};
     use client_core::signer::WalletSignerManager;
     use client_core::types::WalletKind;
     use client_core::wallet::DefaultWalletClient;
@@ -724,7 +724,7 @@ mod tests {
     #[test]
     fn check_create_deposit_bonded_stake_transaction() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
         let signer_manager = WalletSignerManager::new(storage.clone());
@@ -733,8 +733,8 @@ mod tests {
 
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client
-            .new_wallet(name, passphrase, WalletKind::Basic)
+        let (enckey, _) = wallet_client
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let tendermint_client = MockClient::default();
@@ -749,7 +749,7 @@ mod tests {
         let inputs: Vec<TxoPointer> = vec![TxoPointer::new([0; 32], 0)];
         let to_staked_account = network_ops_client
             .get_wallet_client()
-            .new_staking_address(name, passphrase)
+            .new_staking_address(name, &enckey)
             .unwrap();
 
         let attributes = StakedStateOpAttributes::new(0);
@@ -759,7 +759,7 @@ mod tests {
             network_ops_client
                 .create_deposit_bonded_stake_transaction(
                     name,
-                    passphrase,
+                    &enckey,
                     inputs,
                     to_staked_account,
                     attributes,
@@ -772,7 +772,7 @@ mod tests {
     #[test]
     fn check_create_unbond_stake_transaction() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
         let signer_manager = WalletSignerManager::new(storage.clone());
@@ -781,8 +781,8 @@ mod tests {
 
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
-        wallet_client
-            .new_wallet(name, passphrase, WalletKind::Basic)
+        let (enckey, _) = wallet_client
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let tendermint_client = MockClient::default();
@@ -797,19 +797,19 @@ mod tests {
         let value = Coin::new(0).unwrap();
         let address = network_ops_client
             .get_wallet_client()
-            .new_staking_address(name, passphrase)
+            .new_staking_address(name, &enckey)
             .unwrap();
         let attributes = StakedStateOpAttributes::new(0);
 
         assert!(network_ops_client
-            .create_unbond_stake_transaction(name, passphrase, address, value, attributes)
+            .create_unbond_stake_transaction(name, &enckey, address, value, attributes)
             .is_ok());
     }
 
     #[test]
     fn check_withdraw_unbonded_stake_transaction() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
         let signer_manager = WalletSignerManager::new(storage.clone());
@@ -827,20 +827,20 @@ mod tests {
             MockTransactionCipher,
         );
 
-        network_ops_client
+        let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let from_address = network_ops_client
             .get_wallet_client()
-            .new_staking_address(name, passphrase)
+            .new_staking_address(name, &enckey)
             .unwrap();
 
         let (transaction, _pending_tx) = network_ops_client
             .create_withdraw_unbonded_stake_transaction(
                 name,
-                passphrase,
+                &enckey,
                 &from_address,
                 vec![TxOut::new(ExtendedAddr::OrTree([0; 32]), Coin::unit())],
                 TxAttributes::new(171),
@@ -867,7 +867,7 @@ mod tests {
     #[test]
     fn check_withdraw_all_unbonded_stake_transaction() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
         let signer_manager = WalletSignerManager::new(storage.clone());
@@ -885,21 +885,21 @@ mod tests {
             MockTransactionCipher,
         );
 
-        network_ops_client
+        let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let from_address = network_ops_client
             .get_wallet_client()
-            .new_staking_address(name, passphrase)
+            .new_staking_address(name, &enckey)
             .unwrap();
         let to_address = ExtendedAddr::OrTree([0; 32]);
 
         let (transaction, _) = network_ops_client
             .create_withdraw_all_unbonded_stake_transaction(
                 name,
-                passphrase,
+                &enckey,
                 &from_address,
                 to_address,
                 TxAttributes::new(171),
@@ -935,7 +935,7 @@ mod tests {
     #[test]
     fn check_withdraw_unbonded_stake_transaction_address_not_found() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
         let signer_manager = WalletSignerManager::new(storage.clone());
@@ -953,9 +953,9 @@ mod tests {
             MockTransactionCipher,
         );
 
-        network_ops_client
+        let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         assert_eq!(
@@ -963,7 +963,7 @@ mod tests {
             network_ops_client
                 .create_withdraw_unbonded_stake_transaction(
                     name,
-                    passphrase,
+                    &enckey,
                     &StakedStateAddress::BasicRedeem(RedeemAddress::from(&PublicKey::from(
                         &PrivateKey::new().unwrap()
                     ))),
@@ -978,7 +978,7 @@ mod tests {
     #[test]
     fn check_withdraw_unbonded_stake_transaction_wallet_not_found() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let enckey = &derive_enckey(&SecUtf8::from("passphrase"), name).unwrap();
 
         let storage = MemoryStorage::default();
         let signer_manager = WalletSignerManager::new(storage.clone());
@@ -1001,7 +1001,7 @@ mod tests {
             network_ops_client
                 .create_withdraw_unbonded_stake_transaction(
                     name,
-                    passphrase,
+                    enckey,
                     &StakedStateAddress::BasicRedeem(RedeemAddress::from(&PublicKey::from(
                         &PrivateKey::new().unwrap()
                     ))),
@@ -1016,7 +1016,7 @@ mod tests {
     #[test]
     fn check_unjail_transaction_wallet_not_found() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let enckey = &derive_enckey(&SecUtf8::from("passphrase"), name).unwrap();
 
         let storage = MemoryStorage::default();
         let signer_manager = WalletSignerManager::new(storage.clone());
@@ -1039,7 +1039,7 @@ mod tests {
             network_ops_client
                 .create_unjail_transaction(
                     name,
-                    passphrase,
+                    enckey,
                     StakedStateAddress::BasicRedeem(RedeemAddress::from(&PublicKey::from(
                         &PrivateKey::new().unwrap()
                     ))),
@@ -1053,7 +1053,7 @@ mod tests {
     #[test]
     fn check_unjail_transaction() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
         let signer_manager = WalletSignerManager::new(storage.clone());
@@ -1071,20 +1071,20 @@ mod tests {
             MockTransactionCipher,
         );
 
-        network_ops_client
+        let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let from_address = network_ops_client
             .get_wallet_client()
-            .new_staking_address(name, passphrase)
+            .new_staking_address(name, &enckey)
             .unwrap();
 
         let transaction = network_ops_client
             .create_unjail_transaction(
                 name,
-                passphrase,
+                &enckey,
                 from_address,
                 StakedStateOpAttributes::new(171),
             )
@@ -1103,7 +1103,7 @@ mod tests {
     #[test]
     fn check_node_join_transaction() {
         let name = "name";
-        let passphrase = &SecUtf8::from("passphrase");
+        let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
         let signer_manager = WalletSignerManager::new(storage.clone());
@@ -1121,14 +1121,14 @@ mod tests {
             MockTransactionCipher,
         );
 
-        network_ops_client
+        let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
 
         let staking_account_address = network_ops_client
             .get_wallet_client()
-            .new_staking_address(name, passphrase)
+            .new_staking_address(name, &enckey)
             .unwrap();
 
         let mut validator_pubkey = [0; 32];
@@ -1145,7 +1145,7 @@ mod tests {
         let transaction = network_ops_client
             .create_node_join_transaction(
                 name,
-                passphrase,
+                &enckey,
                 staking_account_address,
                 StakedStateOpAttributes::new(171),
                 node_metadata,

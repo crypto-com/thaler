@@ -1,10 +1,8 @@
-use secstr::SecUtf8;
-
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{ErrorKind, Result, SignedTransaction};
+use client_common::{ErrorKind, Result, SecKey, SignedTransaction};
 
 use crate::{TransactionBuilder, UnspentTransactions};
 
@@ -16,7 +14,7 @@ impl TransactionBuilder for UnauthorizedTransactionBuilder {
     fn build(
         &self,
         _: &str,
-        _: &SecUtf8,
+        _: &SecKey,
         _: Vec<TxOut>,
         _: TxAttributes,
         _: UnspentTransactions,

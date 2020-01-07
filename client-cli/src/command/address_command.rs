@@ -7,7 +7,7 @@ use unicase::eq_ascii;
 use client_common::{Error, ErrorKind, Result};
 use client_core::WalletClient;
 
-use crate::ask_passphrase;
+use crate::ask_seckey;
 
 #[derive(Debug)]
 pub enum AddressType {
@@ -77,16 +77,16 @@ impl AddressCommand {
         name: &str,
         address_type: &AddressType,
     ) -> Result<()> {
-        let passphrase = ask_passphrase(None)?;
+        let enckey = ask_seckey(None)?;
 
         match address_type {
             AddressType::Staking => {
-                let address = wallet_client.new_staking_address(name, &passphrase)?;
+                let address = wallet_client.new_staking_address(name, &enckey)?;
                 success(&format!("New address: {}", address));
                 Ok(())
             }
             AddressType::Transfer => {
-                let address = wallet_client.new_transfer_address(name, &passphrase)?;
+                let address = wallet_client.new_transfer_address(name, &enckey)?;
                 success(&format!("New address: {}", address));
                 Ok(())
             }
@@ -98,11 +98,11 @@ impl AddressCommand {
         name: &str,
         address_type: &AddressType,
     ) -> Result<()> {
-        let passphrase = ask_passphrase(None)?;
+        let enckey = ask_seckey(None)?;
 
         match address_type {
             AddressType::Staking => {
-                let addresses = wallet_client.staking_addresses(name, &passphrase)?;
+                let addresses = wallet_client.staking_addresses(name, &enckey)?;
 
                 if !addresses.is_empty() {
                     for address in addresses {
@@ -114,7 +114,7 @@ impl AddressCommand {
                 }
             }
             AddressType::Transfer => {
-                let addresses = wallet_client.transfer_addresses(name, &passphrase)?;
+                let addresses = wallet_client.transfer_addresses(name, &enckey)?;
 
                 if !addresses.is_empty() {
                     for address in addresses {
@@ -135,11 +135,11 @@ impl AddressCommand {
         name: &str,
         address_type: &AddressType,
     ) -> Result<()> {
-        let passphrase = ask_passphrase(None)?;
+        let enckey = ask_seckey(None)?;
 
         let pub_keys = match address_type {
-            AddressType::Staking => wallet_client.staking_keys(name, &passphrase)?,
-            AddressType::Transfer => wallet_client.public_keys(name, &passphrase)?,
+            AddressType::Staking => wallet_client.staking_keys(name, &enckey)?,
+            AddressType::Transfer => wallet_client.public_keys(name, &enckey)?,
         };
         for pubkey in pub_keys.iter() {
             println!("{}", pubkey);

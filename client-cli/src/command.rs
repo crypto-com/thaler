@@ -12,7 +12,6 @@ use cli_table::{Cell, Row, Table};
 use hex::encode;
 use pbr::ProgressBar;
 use quest::success;
-use secstr::SecUtf8;
 use structopt::StructOpt;
 
 use chain_core::init::coin::Coin;
@@ -22,7 +21,7 @@ use client_common::storage::SledStorage;
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
-use client_common::{ErrorKind, Result, ResultExt, Storage};
+use client_common::{ErrorKind, Result, ResultExt, SecKey, Storage};
 #[cfg(not(feature = "mock-enc-dec"))]
 use client_core::cipher::DefaultTransactionObfuscation;
 #[cfg(feature = "mock-enc-dec")]
@@ -40,7 +39,7 @@ use log::warn;
 use self::address_command::AddressCommand;
 use self::transaction_command::TransactionCommand;
 use self::wallet_command::WalletCommand;
-use crate::{ask_passphrase, storage_path, tendermint_url};
+use crate::{ask_seckey, storage_path, tendermint_url};
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -269,7 +268,7 @@ impl Command {
             } => {
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
                 let tx_obfuscation = get_tx_query(tendermint_client.clone())?;
-                let passphrase = ask_passphrase(None)?;
+                let enckey = ask_seckey(None)?;
                 let config = ObfuscationSyncerConfig::new(
                     SledStorage::new(storage_path())?,
                     tendermint_client,
@@ -278,7 +277,7 @@ impl Command {
                     *batch_size,
                     *block_height_ensure,
                 );
-                Self::resync(config, name.clone(), passphrase, *force)
+                Self::resync(config, name.clone(), enckey, *force)
             }
         }
     }
@@ -288,8 +287,8 @@ impl Command {
         name: &str,
         address: &StakedStateAddress,
     ) -> Result<()> {
-        let passphrase = ask_passphrase(None)?;
-        let staked_state = network_ops_client.get_staked_state(name, &passphrase, address)?;
+        let enckey = ask_seckey(None)?;
+        let staked_state = network_ops_client.get_staked_state(name, &enckey, address)?;
 
         let bold = CellFormat::builder().bold(true).build();
         let justify_right = CellFormat::builder().justify(Justify::Right).build();
@@ -370,15 +369,11 @@ impl Command {
     }
 
     fn get_view_key<T: WalletClient>(wallet_client: T, name: &str, private: bool) -> Result<()> {
-        let passphrase = ask_passphrase(None)?;
+        let enckey = ask_seckey(None)?;
         let view_key = if private {
-            encode(
-                &wallet_client
-                    .view_key_private(name, &passphrase)?
-                    .serialize(),
-            )
+            encode(&wallet_client.view_key_private(name, &enckey)?.serialize())
         } else {
-            wallet_client.view_key(name, &passphrase)?.to_string()
+            wallet_client.view_key(name, &enckey)?.to_string()
         };
 
         success(&format!("View Key: {}", view_key));
@@ -386,8 +381,8 @@ impl Command {
     }
 
     fn get_balance<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
-        let passphrase = ask_passphrase(None)?;
-        let balance = wallet_client.balance(name, &passphrase)?;
+        let enckey = ask_seckey(None)?;
+        let balance = wallet_client.balance(name, &enckey)?;
 
         let rows = vec![
             Row::new(vec![
@@ -423,8 +418,8 @@ impl Command {
         limit: usize,
         reversed: bool,
     ) -> Result<()> {
-        let passphrase = ask_passphrase(None)?;
-        let history = wallet_client.history(name, &passphrase, offset, limit, reversed)?;
+        let enckey = ask_seckey(None)?;
+        let history = wallet_client.history(name, &enckey, offset, limit, reversed)?;
 
         if !history.is_empty() {
             let bold = CellFormat::builder().bold(true).build();
@@ -489,7 +484,7 @@ impl Command {
     fn resync<S: Storage, C: Client, O: TransactionObfuscation>(
         config: ObfuscationSyncerConfig<S, C, O>,
         name: String,
-        passphrase: SecUtf8,
+        enckey: SecKey,
         force: bool,
     ) -> Result<()> {
         let (sender, receiver) = channel();
@@ -529,7 +524,7 @@ impl Command {
             }
         });
 
-        let syncer = WalletSyncer::with_obfuscation_config(config, Some(sender), name, passphrase)?;
+        let syncer = WalletSyncer::with_obfuscation_config(config, Some(sender), name, enckey)?;
         if force {
             syncer.reset_state()?;
         }

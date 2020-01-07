@@ -1,7 +1,6 @@
 #![allow(missing_docs)]
 use itertools::{izip, Itertools};
 use non_empty_vec::NonEmpty;
-use secstr::SecUtf8;
 use std::collections::BTreeSet;
 use std::sync::mpsc::Sender;
 
@@ -11,7 +10,9 @@ use chain_core::tx::data::TxId;
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::{Block, BlockExt, BlockResults, Status, Time};
 use client_common::tendermint::Client;
-use client_common::{Error, ErrorKind, PrivateKey, Result, ResultExt, SecureStorage, Transaction};
+use client_common::{
+    Error, ErrorKind, PrivateKey, Result, ResultExt, SecKey, SecureStorage, Transaction,
+};
 
 use super::syncer_logic::handle_blocks;
 use crate::service;
@@ -118,7 +119,7 @@ pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor> {
     // wallet
     decryptor: D,
     name: String,
-    passphrase: SecUtf8,
+    enckey: SecKey,
 }
 
 impl<S, C, D> WalletSyncer<S, C, D>
@@ -133,7 +134,7 @@ where
         decryptor: D,
         progress_reporter: Option<Sender<ProgressReport>>,
         name: String,
-        passphrase: SecUtf8,
+        enckey: SecKey,
     ) -> WalletSyncer<S, C, D> {
         Self {
             storage: config.storage,
@@ -141,7 +142,7 @@ where
             decryptor,
             progress_reporter,
             name,
-            passphrase,
+            enckey,
             enable_fast_forward: config.enable_fast_forward,
             batch_size: config.batch_size,
             block_height_ensure: config.block_height_ensure,
@@ -161,17 +162,13 @@ where
     }
 }
 
-fn load_view_key<S: SecureStorage>(
-    storage: &S,
-    name: &str,
-    passphrase: &SecUtf8,
-) -> Result<PrivateKey> {
-    let wallet = service::load_wallet(storage, name, passphrase)?
+fn load_view_key<S: SecureStorage>(storage: &S, name: &str, enckey: &SecKey) -> Result<PrivateKey> {
+    let wallet = service::load_wallet(storage, name, enckey)?
         .err_kind(ErrorKind::InvalidInput, || {
             format!("wallet not found: {}", name)
         })?;
     KeyService::new(storage.clone())
-        .private_key(&wallet.view_key, passphrase)?
+        .private_key(&wallet.view_key, enckey)?
         .err_kind(ErrorKind::InvalidInput, || {
             format!("wallet private view key not found: {}", name)
         })
@@ -188,14 +185,14 @@ where
         config: ObfuscationSyncerConfig<S, C, O>,
         progress_reporter: Option<Sender<ProgressReport>>,
         name: String,
-        passphrase: SecUtf8,
+        enckey: SecKey,
     ) -> Result<WalletSyncer<S, C, TxObfuscationDecryptor<O>>>
     where
         O: TransactionObfuscation,
     {
         let decryptor = TxObfuscationDecryptor::new(
             config.obfuscation,
-            load_view_key(&config.storage, &name, &passphrase)?,
+            load_view_key(&config.storage, &name, &enckey)?,
         );
         Ok(Self::with_config(
             SyncerConfig {
@@ -208,7 +205,7 @@ where
             decryptor,
             progress_reporter,
             name,
-            passphrase,
+            enckey,
         ))
     }
 }
@@ -225,7 +222,7 @@ struct WalletSyncerImpl<'a, S: SecureStorage, C: Client, D: TxDecryptor> {
 
 impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C, D> {
     fn new(env: &'a WalletSyncer<S, C, D>) -> Result<Self> {
-        let wallet = service::load_wallet(&env.storage, &env.name, &env.passphrase)?
+        let wallet = service::load_wallet(&env.storage, &env.name, &env.enckey)?
             .err_kind(ErrorKind::InvalidInput, || {
                 format!("wallet not found: {}", env.name)
             })?;
@@ -237,8 +234,8 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
             SyncState::genesis(env.client.genesis()?.validators)
         };
 
-        let wallet_state = service::load_wallet_state(&env.storage, &env.name, &env.passphrase)?
-            .unwrap_or_default();
+        let wallet_state =
+            service::load_wallet_state(&env.storage, &env.name, &env.enckey)?.unwrap_or_default();
 
         Ok(Self {
             env,
@@ -271,7 +268,7 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
         self.wallet_state = service::modify_wallet_state(
             &self.env.storage,
             &self.env.name,
-            &self.env.passphrase,
+            &self.env.enckey,
             |state| state.apply_memento(memento),
         )?;
         Ok(())
@@ -395,7 +392,7 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
     fn rollback_pending_tx(&mut self, current_block_height: u64) -> Result<()> {
         let mut memento = WalletStateMemento::default();
         let state =
-            service::load_wallet_state(&self.env.storage, &self.env.name, &self.env.passphrase)?
+            service::load_wallet_state(&self.env.storage, &self.env.name, &self.env.enckey)?
                 .chain(|| (ErrorKind::StorageError, "get wallet state failed"))?;
         for tx_id in
             state.get_rollback_pending_tx(current_block_height, self.env.block_height_ensure)
@@ -549,6 +546,7 @@ fn filter_staking_transactions(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use secstr::SecUtf8;
 
     use client_common::storage::MemoryStorage;
     use test_common::block_generator::{BlockGenerator, GeneratorClient};
@@ -564,9 +562,9 @@ mod tests {
 
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
 
-        assert!(wallet
+        let (enckey, _) = wallet
             .new_wallet(name, &passphrase, WalletKind::Basic)
-            .is_ok());
+            .unwrap();
 
         let client = GeneratorClient::new(BlockGenerator::one_node());
         {
@@ -587,7 +585,7 @@ mod tests {
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
             None,
             name.to_owned(),
-            passphrase,
+            enckey,
         );
         syncer.sync().expect("Unable to synchronize");
     }

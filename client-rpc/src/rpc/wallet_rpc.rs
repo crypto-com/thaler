@@ -5,7 +5,6 @@ use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 use secstr::SecUtf8;
 
-use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -13,11 +12,13 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{TxAux, TxEnclaveAux};
-use client_common::{PrivateKey, PublicKey, Result as CommonResult};
+use client_common::{PrivateKey, PublicKey, Result as CommonResult, SecKey};
 use client_core::types::WalletKind;
 use client_core::types::{AddressType, TransactionChange};
 use client_core::types::{TransactionPending, WalletBalance};
 use client_core::{Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient};
+
+use crate::server::{rpc_error_from_string, to_rpc_error, CreateWalletRequest, WalletRequest};
 
 #[rpc]
 pub trait WalletRpc: Send + Sync {
@@ -25,13 +26,17 @@ pub trait WalletRpc: Send + Sync {
     fn balance(&self, request: WalletRequest) -> Result<WalletBalance>;
 
     #[rpc(name = "wallet_create")]
-    fn create(&self, request: WalletRequest, walletkind: WalletKind) -> Result<String>;
+    fn create(
+        &self,
+        request: CreateWalletRequest,
+        walletkind: WalletKind,
+    ) -> Result<(SecKey, Option<String>)>;
 
     #[rpc(name = "wallet_restore")]
-    fn restore(&self, request: WalletRequest, mnemonics: Mnemonic) -> Result<String>;
+    fn restore(&self, request: CreateWalletRequest, mnemonics: Mnemonic) -> Result<SecKey>;
 
     #[rpc(name = "wallet_restoreBasic")]
-    fn restore_basic(&self, request: WalletRequest, view_key: SecUtf8) -> Result<String>;
+    fn restore_basic(&self, request: CreateWalletRequest, view_key: SecUtf8) -> Result<SecKey>;
 
     #[rpc(name = "wallet_newMultiSigAddressPublicKey")]
     fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String>;
@@ -97,6 +102,9 @@ pub trait WalletRpc: Send + Sync {
 
     #[rpc(name = "wallet_importTransaction")]
     fn import_plain_tx(&self, request: WalletRequest, tx: String) -> Result<Coin>;
+
+    #[rpc(name = "wallet_getEncKey")]
+    fn get_enc_key(&self, request: CreateWalletRequest) -> Result<SecKey>;
 }
 
 pub struct WalletRpcImpl<T>
@@ -122,73 +130,77 @@ where
 {
     fn balance(&self, request: WalletRequest) -> Result<WalletBalance> {
         self.client
-            .balance(&request.name, &request.passphrase)
+            .balance(&request.name, &request.enckey)
             .map_err(to_rpc_error)
     }
 
-    fn create(&self, request: WalletRequest, kind: WalletKind) -> Result<String> {
-        let mnemonic = self
+    fn create(
+        &self,
+        request: CreateWalletRequest,
+        kind: WalletKind,
+    ) -> Result<(SecKey, Option<String>)> {
+        let (enckey, mnemonic) = self
             .client
             .new_wallet(&request.name, &request.passphrase, kind)
             .map_err(to_rpc_error)?;
 
         self.client
-            .new_staking_address(&request.name, &request.passphrase)
+            .new_staking_address(&request.name, &enckey)
             .map_err(to_rpc_error)?;
         self.client
-            .new_transfer_address(&request.name, &request.passphrase)
+            .new_transfer_address(&request.name, &enckey)
             .map_err(to_rpc_error)?;
 
         match (kind, mnemonic) {
-            (WalletKind::Basic, None) => Ok(request.name),
-            (WalletKind::HD, Some(mnemonic)) => Ok(mnemonic.unsecure_phrase().to_string()),
+            (WalletKind::Basic, None) => Ok((enckey, None)),
+            (WalletKind::HD, Some(mnemonic)) => {
+                Ok((enckey, Some(mnemonic.unsecure_phrase().to_string())))
+            }
             _ => Err(rpc_error_from_string(
                 "Internal Error: Invalid mnemonic for given wallet kind".to_owned(),
             )),
         }
     }
 
-    fn restore(&self, request: WalletRequest, mnemonic: Mnemonic) -> Result<String> {
-        self.client
+    fn restore(&self, request: CreateWalletRequest, mnemonic: Mnemonic) -> Result<SecKey> {
+        let enckey = self
+            .client
             .restore_wallet(&request.name, &request.passphrase, &mnemonic)
             .map_err(to_rpc_error)?;
 
         mnemonic.zeroize();
 
         self.client
-            .new_staking_address(&request.name, &request.passphrase)
+            .new_staking_address(&request.name, &enckey)
             .map_err(to_rpc_error)?;
         self.client
-            .new_transfer_address(&request.name, &request.passphrase)
+            .new_transfer_address(&request.name, &enckey)
             .map_err(to_rpc_error)?;
-        Ok(request.name)
+        Ok(enckey)
     }
 
-    fn restore_basic(&self, request: WalletRequest, view_key: SecUtf8) -> Result<String> {
+    fn restore_basic(&self, request: CreateWalletRequest, view_key: SecUtf8) -> Result<SecKey> {
         let view_key =
             PrivateKey::deserialize_from(&hex::decode(view_key.unsecure()).map_err(to_rpc_error)?)
                 .map_err(to_rpc_error)?;
-        self.client
+        let enckey = self
+            .client
             .restore_basic_wallet(&request.name, &request.passphrase, &view_key)
             .map_err(to_rpc_error)?;
 
-        Ok(request.name)
+        Ok(enckey)
     }
 
     fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String> {
         self.client
-            .new_public_key(
-                &request.name,
-                &request.passphrase,
-                Some(AddressType::Transfer),
-            )
+            .new_public_key(&request.name, &request.enckey, Some(AddressType::Transfer))
             .map(|public_key| public_key.to_string())
             .map_err(to_rpc_error)
     }
 
     fn create_staking_address(&self, request: WalletRequest) -> Result<String> {
         self.client
-            .new_staking_address(&request.name, &request.passphrase)
+            .new_staking_address(&request.name, &request.enckey)
             .map(|staked_state_addr| staked_state_addr.to_string())
             .map_err(to_rpc_error)
     }
@@ -199,7 +211,7 @@ where
         public_key: PublicKey,
     ) -> Result<String> {
         self.client
-            .new_watch_staking_address(&request.name, &request.passphrase, &public_key)
+            .new_watch_staking_address(&request.name, &request.enckey, &public_key)
             .map(|staked_state_addr| staked_state_addr.to_string())
             .map_err(to_rpc_error)
     }
@@ -207,7 +219,7 @@ where
     fn create_transfer_address(&self, request: WalletRequest) -> Result<String> {
         let extended_address = self
             .client
-            .new_transfer_address(&request.name, &request.passphrase)
+            .new_transfer_address(&request.name, &request.enckey)
             .map_err(to_rpc_error)?;
 
         Ok(extended_address.to_string())
@@ -220,7 +232,7 @@ where
     ) -> Result<String> {
         let extended_address = self
             .client
-            .new_watch_transfer_address(&request.name, &request.passphrase, &public_key)
+            .new_watch_transfer_address(&request.name, &request.enckey, &public_key)
             .map_err(to_rpc_error)?;
 
         Ok(extended_address.to_string())
@@ -231,13 +243,13 @@ where
             hex::encode(
                 &self
                     .client
-                    .view_key_private(&request.name, &request.passphrase)
+                    .view_key_private(&request.name, &request.enckey)
                     .map_err(to_rpc_error)?
                     .serialize(),
             )
         } else {
             self.client
-                .view_key(&request.name, &request.passphrase)
+                .view_key(&request.name, &request.enckey)
                 .map_err(to_rpc_error)?
                 .to_string()
         };
@@ -250,27 +262,27 @@ where
 
     fn list_public_keys(&self, request: WalletRequest) -> Result<BTreeSet<PublicKey>> {
         self.client
-            .public_keys(&request.name, &request.passphrase)
+            .public_keys(&request.name, &request.enckey)
             .map_err(to_rpc_error)
     }
 
     fn list_staking_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>> {
         self.client
-            .staking_addresses(&request.name, &request.passphrase)
+            .staking_addresses(&request.name, &request.enckey)
             .map(|addresses| addresses.iter().map(ToString::to_string).collect())
             .map_err(to_rpc_error)
     }
 
     fn list_transfer_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>> {
         self.client
-            .transfer_addresses(&request.name, &request.passphrase)
+            .transfer_addresses(&request.name, &request.enckey)
             .map(|addresses| addresses.iter().map(ToString::to_string).collect())
             .map_err(to_rpc_error)
     }
 
     fn list_utxo(&self, request: WalletRequest) -> Result<UnspentTransactions> {
         self.client
-            .unspent_transactions(&request.name, &request.passphrase)
+            .unspent_transactions(&request.name, &request.enckey)
             .map_err(to_rpc_error)
     }
 
@@ -299,7 +311,7 @@ where
 
         let view_key = self
             .client
-            .view_key(&request.name, &request.passphrase)
+            .view_key(&request.name, &request.enckey)
             .map_err(to_rpc_error)?;
 
         let mut access_policies = vec![TxAccessPolicy {
@@ -318,14 +330,14 @@ where
 
         let return_address = self
             .client
-            .new_transfer_address(&request.name, &request.passphrase)
+            .new_transfer_address(&request.name, &request.enckey)
             .map_err(to_rpc_error)?;
 
         let (transaction, selected_inputs, return_amount) = self
             .client
             .create_transaction(
                 &request.name,
-                &request.passphrase,
+                &request.enckey,
                 vec![tx_out],
                 attributes,
                 None,
@@ -346,7 +358,7 @@ where
         self.client
             .update_tx_pending_state(
                 &request.name,
-                &request.passphrase,
+                &request.enckey,
                 transaction.tx_id(),
                 tx_pending,
             )
@@ -367,13 +379,13 @@ where
 
     fn export_plain_tx(&self, request: WalletRequest, txid: String) -> Result<String> {
         self.client
-            .export_plain_tx(&request.name, &request.passphrase, &txid)
+            .export_plain_tx(&request.name, &request.enckey, &txid)
             .map_err(to_rpc_error)
     }
 
     fn import_plain_tx(&self, request: WalletRequest, tx: String) -> Result<Coin> {
         self.client
-            .import_plain_tx(&request.name, &request.passphrase, &tx)
+            .import_plain_tx(&request.name, &request.enckey, &tx)
             .map_err(to_rpc_error)
     }
 
@@ -385,7 +397,13 @@ where
         reversed: bool,
     ) -> Result<Vec<TransactionChange>> {
         self.client
-            .history(&request.name, &request.passphrase, offset, limit, reversed)
+            .history(&request.name, &request.enckey, offset, limit, reversed)
+            .map_err(to_rpc_error)
+    }
+
+    fn get_enc_key(&self, request: CreateWalletRequest) -> Result<SecKey> {
+        self.client
+            .auth_token(&request.name, &request.passphrase)
             .map_err(to_rpc_error)
     }
 }
@@ -410,7 +428,8 @@ pub mod tests {
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
     use client_common::{
-        Error, ErrorKind, PrivateKey, Result as CommonResult, SignedTransaction, Transaction,
+        seckey::derive_enckey, Error, ErrorKind, PrivateKey, Result as CommonResult,
+        SignedTransaction, Transaction,
     };
     use client_core::signer::WalletSignerManager;
     use client_core::transaction_builder::DefaultWalletTransactionBuilder;
@@ -601,18 +620,14 @@ pub mod tests {
     #[test]
     fn balance_should_return_wallet_balance() {
         let wallet_rpc = setup_wallet_rpc();
+        let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(
-                create_wallet_request("Default", "123456"),
-                WalletKind::Basic,
-            )
+            .create(create_request, WalletKind::Basic)
             .unwrap();
         assert_eq!(
             WalletBalance::default(),
-            wallet_rpc
-                .balance(create_wallet_request("Default", "123456"))
-                .unwrap()
+            wallet_rpc.balance(wallet_request).unwrap()
         )
     }
 
@@ -622,12 +637,10 @@ pub mod tests {
         #[test]
         fn create_duplicated_wallet_should_throw_error() {
             let wallet_rpc = setup_wallet_rpc();
+            let (create_request, _) = create_wallet_request("Default", "123456");
 
             wallet_rpc
-                .create(
-                    create_wallet_request("Default", "123456"),
-                    WalletKind::Basic,
-                )
+                .create(create_request.clone(), WalletKind::Basic)
                 .unwrap();
 
             assert_eq!(
@@ -636,10 +649,7 @@ pub mod tests {
                     "Wallet with name (Default) already exists"
                 )),
                 wallet_rpc
-                    .create(
-                        create_wallet_request("Default", "123456"),
-                        WalletKind::Basic
-                    )
+                    .create(create_request, WalletKind::Basic)
                     .unwrap_err()
             );
         }
@@ -648,15 +658,12 @@ pub mod tests {
         fn create_should_create_named_wallet() {
             let wallet_rpc = setup_wallet_rpc();
 
-            assert_eq!(
-                "Default".to_owned(),
-                wallet_rpc
-                    .create(
-                        create_wallet_request("Default", "123456"),
-                        WalletKind::Basic
-                    )
-                    .unwrap()
-            );
+            wallet_rpc
+                .create(
+                    create_wallet_request("Default", "123456").0,
+                    WalletKind::Basic,
+                )
+                .unwrap();
 
             assert_eq!(vec!["Default"], wallet_rpc.list().unwrap());
         }
@@ -664,10 +671,10 @@ pub mod tests {
         #[test]
         fn create_should_create_staking_and_transfer_address_for_the_wallet() {
             let wallet_rpc = setup_wallet_rpc();
-            let wallet_request = create_wallet_request("Default", "123456");
+            let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
             wallet_rpc
-                .create(wallet_request.clone(), WalletKind::Basic)
+                .create(create_request, WalletKind::Basic)
                 .unwrap();
 
             assert_eq!(
@@ -690,10 +697,10 @@ pub mod tests {
     #[test]
     fn create_staking_address_should_work() {
         let wallet_rpc = setup_wallet_rpc();
-        let wallet_request = create_wallet_request("Default", "123456");
+        let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(wallet_request.clone(), WalletKind::Basic)
+            .create(create_request, WalletKind::Basic)
             .unwrap();
         assert_eq!(
             1,
@@ -719,10 +726,10 @@ pub mod tests {
     #[test]
     fn create_transfer_address_should_work() {
         let wallet_rpc = setup_wallet_rpc();
-        let wallet_request = create_wallet_request("Default", "123456");
+        let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(wallet_request.clone(), WalletKind::Basic)
+            .create(create_request, WalletKind::Basic)
             .unwrap();
 
         assert_eq!(
@@ -749,10 +756,10 @@ pub mod tests {
     #[test]
     fn get_view_key_should_return_public_key() {
         let wallet_rpc = setup_wallet_rpc();
-        let wallet_request = create_wallet_request("Default", "123456");
+        let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(wallet_request.clone(), WalletKind::Basic)
+            .create(create_request, WalletKind::Basic)
             .unwrap();
 
         assert_eq!(
@@ -772,7 +779,7 @@ pub mod tests {
 
         wallet_rpc
             .create(
-                create_wallet_request("Default", "123456"),
+                create_wallet_request("Default", "123456").0,
                 WalletKind::Basic,
             )
             .unwrap();
@@ -781,7 +788,7 @@ pub mod tests {
 
         wallet_rpc
             .create(
-                create_wallet_request("Personal", "123456"),
+                create_wallet_request("Personal", "123456").0,
                 WalletKind::Basic,
             )
             .unwrap();
@@ -795,10 +802,10 @@ pub mod tests {
     #[test]
     fn transactions_should_return_list_of_wallet_transactions() {
         let wallet_rpc = setup_wallet_rpc();
-        let wallet_request = create_wallet_request("Default", "123456");
+        let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(wallet_request.clone(), WalletKind::Basic)
+            .create(create_request, WalletKind::Basic)
             .unwrap();
         assert_eq!(
             0,
@@ -828,11 +835,18 @@ pub mod tests {
         WalletRpcImpl::new(wallet_client, chain_id)
     }
 
-    fn create_wallet_request(name: &str, passphrase: &str) -> WalletRequest {
-        WalletRequest {
-            name: name.to_owned(),
-            passphrase: SecUtf8::from(passphrase),
-        }
+    fn create_wallet_request(name: &str, passphrase: &str) -> (CreateWalletRequest, WalletRequest) {
+        let passphrase = SecUtf8::from(passphrase);
+        (
+            CreateWalletRequest {
+                name: name.to_owned(),
+                passphrase: passphrase.clone(),
+            },
+            WalletRequest {
+                name: name.to_owned(),
+                enckey: derive_enckey(&passphrase, name).unwrap(),
+            },
+        )
     }
 
     #[test]
@@ -840,7 +854,7 @@ pub mod tests {
         let wallet_rpc = setup_wallet_rpc();
 
         wallet_rpc
-            .create(create_wallet_request("Default", "123456"), WalletKind::HD)
+            .create(create_wallet_request("Default", "123456").0, WalletKind::HD)
             .unwrap();
     }
 
@@ -848,28 +862,25 @@ pub mod tests {
     fn hdwallet_should_recover_hd_wallet() {
         let wallet_rpc = setup_wallet_rpc();
 
-        let result=wallet_rpc
+        wallet_rpc
             .restore(
-                create_wallet_request("Default", "123456"),
+                create_wallet_request("Default", "123456").0,
                 Mnemonic::from_secstr(&SecUtf8::from("online hire print other clock like betray vote hollow bus insect meadow replace two tape worry quality disease cabin girl tree pudding issue radar")).unwrap()
             )
             .unwrap();
-        assert!("Default" == result);
     }
 
     #[test]
     fn wallet_can_send_amount_should_fail_with_insufficient_amount() {
         let wallet_rpc = setup_wallet_rpc();
+        let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
-        let result = wallet_rpc
+        wallet_rpc
             .restore(
-                create_wallet_request("Default", "123456"),
+                create_request,
                 Mnemonic::from_secstr(&SecUtf8::from("speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch")).unwrap()
             )
             .unwrap();
-        assert_eq!("Default", result);
-
-        let wallet_request = create_wallet_request("Default", "123456");
 
         let expect_addrs = [
             "dcro13z2xw689qhpmv7ge9xg428ljg4848rtu5dcpdmxy3m6njdsjtd3sl30d8n",

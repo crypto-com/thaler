@@ -4,7 +4,6 @@ use std::collections::BTreeSet;
 use parity_scale_codec::Encode;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
-#[cfg(not(debug_assertions))]
 use zxcvbn::{feedback::Feedback, zxcvbn as estimate_password_strength};
 
 use chain_core::common::{Proof, H256};
@@ -22,8 +21,8 @@ use chain_core::tx::{TransactionId, TxAux};
 use client_common::tendermint::types::{AbciQueryExt, BlockExt, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
-    Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SignedTransaction, Storage,
-    Transaction, TransactionInfo,
+    seckey::derive_enckey, Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecKey,
+    SignedTransaction, Storage, Transaction, TransactionInfo,
 };
 
 use crate::service::*;
@@ -108,9 +107,12 @@ where
         name: &str,
         passphrase: &SecUtf8,
         wallet_kind: WalletKind,
-    ) -> Result<Option<Mnemonic>> {
-        #[cfg(not(debug_assertions))]
+    ) -> Result<(SecKey, Option<Mnemonic>)> {
         check_passphrase_strength(name, passphrase)?;
+
+        let enckey = derive_enckey(passphrase, name).err_kind(ErrorKind::InvalidInput, || {
+            "unable to derive encryption key from passphrase"
+        })?;
 
         match wallet_kind {
             WalletKind::Basic => {
@@ -118,49 +120,54 @@ where
                 let view_key = PublicKey::from(&private_key);
 
                 self.key_service
-                    .add_keypair(&private_key, &view_key, passphrase)?;
+                    .add_keypair(&private_key, &view_key, &enckey)?;
 
-                self.wallet_service
-                    .create(name, passphrase, view_key)
-                    .map(|_| None)
+                self.wallet_service.create(name, &enckey, view_key)?;
+
+                Ok((enckey, None))
             }
             WalletKind::HD => {
                 let mnemonic = Mnemonic::new();
 
-                self.hd_key_service
-                    .add_mnemonic(name, &mnemonic, passphrase)?;
+                self.hd_key_service.add_mnemonic(name, &mnemonic, &enckey)?;
 
-                let (public_key, private_key) = self.hd_key_service.generate_keypair(
-                    name,
-                    passphrase,
-                    HDAccountType::Viewkey,
-                )?;
+                let (public_key, private_key) =
+                    self.hd_key_service
+                        .generate_keypair(name, &enckey, HDAccountType::Viewkey)?;
 
                 self.key_service
-                    .add_keypair(&private_key, &public_key, passphrase)?;
+                    .add_keypair(&private_key, &public_key, &enckey)?;
 
-                self.wallet_service.create(name, passphrase, public_key)?;
+                self.wallet_service.create(name, &enckey, public_key)?;
 
-                Ok(Some(mnemonic))
+                Ok((enckey, Some(mnemonic)))
             }
         }
     }
 
-    fn restore_wallet(&self, name: &str, passphrase: &SecUtf8, mnemonic: &Mnemonic) -> Result<()> {
-        #[cfg(not(debug_assertions))]
+    fn restore_wallet(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        mnemonic: &Mnemonic,
+    ) -> Result<SecKey> {
         check_passphrase_strength(name, passphrase)?;
 
-        self.hd_key_service
-            .add_mnemonic(name, mnemonic, passphrase)?;
+        let enckey = derive_enckey(passphrase, name).err_kind(ErrorKind::InvalidInput, || {
+            "unable to derive encryption key from passphrase"
+        })?;
+
+        self.hd_key_service.add_mnemonic(name, mnemonic, &enckey)?;
 
         let (public_key, private_key) =
             self.hd_key_service
-                .generate_keypair(name, passphrase, HDAccountType::Viewkey)?;
+                .generate_keypair(name, &enckey, HDAccountType::Viewkey)?;
 
         self.key_service
-            .add_keypair(&private_key, &public_key, passphrase)?;
+            .add_keypair(&private_key, &public_key, &enckey)?;
 
-        self.wallet_service.create(name, passphrase, public_key)
+        self.wallet_service.create(name, &enckey, public_key)?;
+        Ok(enckey)
     }
 
     fn restore_basic_wallet(
@@ -168,99 +175,107 @@ where
         name: &str,
         passphrase: &SecUtf8,
         view_key_priv: &PrivateKey,
-    ) -> Result<()> {
+    ) -> Result<SecKey> {
+        check_passphrase_strength(name, passphrase)?;
+
+        let enckey = derive_enckey(passphrase, name).err_kind(ErrorKind::InvalidInput, || {
+            "unable to derive encryption key from passphrase"
+        })?;
+
         let view_key = PublicKey::from(view_key_priv);
         self.key_service
-            .add_keypair(&view_key_priv, &view_key, passphrase)?;
-        self.wallet_service.create(name, passphrase, view_key)
+            .add_keypair(&view_key_priv, &view_key, &enckey)?;
+        self.wallet_service.create(name, &enckey, view_key)?;
+        Ok(enckey)
+    }
+
+    fn auth_token(&self, name: &str, passphrase: &SecUtf8) -> Result<SecKey> {
+        let enckey = derive_enckey(passphrase, name).err_kind(ErrorKind::InvalidInput, || {
+            "unable to derive encryption key from passphrase"
+        })?;
+
+        // test validity of enckey
+        self.view_key(name, &enckey)?;
+        Ok(enckey)
     }
 
     #[inline]
-    fn view_key(&self, name: &str, passphrase: &SecUtf8) -> Result<PublicKey> {
-        self.wallet_service.view_key(name, passphrase)
+    fn view_key(&self, name: &str, enckey: &SecKey) -> Result<PublicKey> {
+        self.wallet_service.view_key(name, enckey)
     }
 
     #[inline]
-    fn view_key_private(&self, name: &str, passphrase: &SecUtf8) -> Result<PrivateKey> {
+    fn view_key_private(&self, name: &str, enckey: &SecKey) -> Result<PrivateKey> {
         self.key_service
-            .private_key(&self.wallet_service.view_key(name, passphrase)?, passphrase)?
+            .private_key(&self.wallet_service.view_key(name, enckey)?, enckey)?
             .err_kind(ErrorKind::InvalidInput, || "private view key not found")
     }
 
     #[inline]
-    fn public_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>> {
-        self.wallet_service.public_keys(name, passphrase)
+    fn public_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>> {
+        self.wallet_service.public_keys(name, enckey)
     }
 
     #[inline]
-    fn staking_keys(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<PublicKey>> {
-        self.wallet_service.staking_keys(name, passphrase)
+    fn staking_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>> {
+        self.wallet_service.staking_keys(name, enckey)
     }
 
     #[inline]
-    fn root_hashes(&self, name: &str, passphrase: &SecUtf8) -> Result<BTreeSet<H256>> {
-        self.wallet_service.root_hashes(name, passphrase)
+    fn root_hashes(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<H256>> {
+        self.wallet_service.root_hashes(name, enckey)
     }
 
     #[inline]
     fn staking_addresses(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
     ) -> Result<BTreeSet<StakedStateAddress>> {
-        self.wallet_service.staking_addresses(name, passphrase)
+        self.wallet_service.staking_addresses(name, enckey)
     }
 
     #[inline]
-    fn transfer_addresses(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-    ) -> Result<BTreeSet<ExtendedAddr>> {
-        self.wallet_service.transfer_addresses(name, passphrase)
+    fn transfer_addresses(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<ExtendedAddr>> {
+        self.wallet_service.transfer_addresses(name, enckey)
     }
 
     #[inline]
     fn find_staking_key(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         redeem_address: &RedeemAddress,
     ) -> Result<Option<PublicKey>> {
         self.wallet_service
-            .find_staking_key(name, passphrase, redeem_address)
+            .find_staking_key(name, enckey, redeem_address)
     }
 
     #[inline]
     fn find_root_hash(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address: &ExtendedAddr,
     ) -> Result<Option<H256>> {
-        self.wallet_service
-            .find_root_hash(name, passphrase, address)
+        self.wallet_service.find_root_hash(name, enckey, address)
     }
 
     #[inline]
-    fn private_key(
-        &self,
-        passphrase: &SecUtf8,
-        public_key: &PublicKey,
-    ) -> Result<Option<PrivateKey>> {
-        self.key_service.private_key(public_key, passphrase)
+    fn private_key(&self, enckey: &SecKey, public_key: &PublicKey) -> Result<Option<PrivateKey>> {
+        self.key_service.private_key(public_key, enckey)
     }
 
     fn new_public_key(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address_type: Option<AddressType>,
     ) -> Result<PublicKey> {
         let (public_key, private_key) = if self.hd_key_service.has_wallet(name)? {
             self.hd_key_service.generate_keypair(
                 name,
-                passphrase,
+                enckey,
                 address_type
                     .chain(|| {
                         (
@@ -278,18 +293,18 @@ where
         };
 
         self.key_service
-            .add_keypair(&private_key, &public_key, passphrase)?;
+            .add_keypair(&private_key, &public_key, enckey)?;
 
         self.wallet_service
-            .add_public_key(name, passphrase, &public_key)?;
+            .add_public_key(name, enckey, &public_key)?;
 
         Ok(public_key)
     }
 
-    fn new_staking_address(&self, name: &str, passphrase: &SecUtf8) -> Result<StakedStateAddress> {
+    fn new_staking_address(&self, name: &str, enckey: &SecKey) -> Result<StakedStateAddress> {
         let (staking_key, private_key) = if self.hd_key_service.has_wallet(name)? {
             self.hd_key_service
-                .generate_keypair(name, passphrase, HDAccountType::Staking)?
+                .generate_keypair(name, enckey, HDAccountType::Staking)?
         } else {
             let private_key = PrivateKey::new()?;
             let public_key = PublicKey::from(&private_key);
@@ -298,20 +313,20 @@ where
         };
 
         self.key_service
-            .add_keypair(&private_key, &staking_key, passphrase)?;
+            .add_keypair(&private_key, &staking_key, enckey)?;
 
         self.wallet_service
-            .add_staking_key(name, passphrase, &staking_key)?;
+            .add_staking_key(name, enckey, &staking_key)?;
 
         Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from(
             &staking_key,
         )))
     }
 
-    fn new_transfer_address(&self, name: &str, passphrase: &SecUtf8) -> Result<ExtendedAddr> {
+    fn new_transfer_address(&self, name: &str, enckey: &SecKey) -> Result<ExtendedAddr> {
         let (public_key, private_key) = if self.hd_key_service.has_wallet(name)? {
             self.hd_key_service
-                .generate_keypair(name, passphrase, HDAccountType::Transfer)?
+                .generate_keypair(name, enckey, HDAccountType::Transfer)?
         } else {
             let private_key = PrivateKey::new()?;
             let public_key = PublicKey::from(&private_key);
@@ -320,28 +335,22 @@ where
         };
 
         self.key_service
-            .add_keypair(&private_key, &public_key, passphrase)?;
+            .add_keypair(&private_key, &public_key, enckey)?;
 
         self.wallet_service
-            .add_public_key(name, passphrase, &public_key)?;
+            .add_public_key(name, enckey, &public_key)?;
 
-        self.new_multisig_transfer_address(
-            name,
-            passphrase,
-            vec![public_key.clone()],
-            public_key,
-            1,
-        )
+        self.new_multisig_transfer_address(name, enckey, vec![public_key.clone()], public_key, 1)
     }
 
     fn new_watch_staking_address(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         public_key: &PublicKey,
     ) -> Result<StakedStateAddress> {
         self.wallet_service
-            .add_staking_key(name, passphrase, public_key)?;
+            .add_staking_key(name, enckey, public_key)?;
 
         Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from(
             public_key,
@@ -351,12 +360,12 @@ where
     fn new_watch_transfer_address(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         public_key: &PublicKey,
     ) -> Result<ExtendedAddr> {
         self.new_multisig_transfer_address(
             name,
-            passphrase,
+            enckey,
             vec![public_key.clone()],
             public_key.clone(),
             1,
@@ -366,7 +375,7 @@ where
     fn new_multisig_transfer_address(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         public_keys: Vec<PublicKey>,
         self_public_key: PublicKey,
         m: usize,
@@ -380,10 +389,9 @@ where
 
         let (root_hash, multi_sig_address) =
             self.root_hash_service
-                .new_root_hash(public_keys, self_public_key, m, passphrase)?;
+                .new_root_hash(public_keys, self_public_key, m, enckey)?;
 
-        self.wallet_service
-            .add_root_hash(name, passphrase, root_hash)?;
+        self.wallet_service.add_root_hash(name, enckey, root_hash)?;
 
         Ok(multi_sig_address.into())
     }
@@ -391,55 +399,49 @@ where
     fn generate_proof(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         address: &ExtendedAddr,
         public_keys: Vec<PublicKey>,
     ) -> Result<Proof<RawPubkey>> {
-        // To verify if the passphrase is correct or not
-        self.wallet_service.view_key(name, passphrase)?;
+        // To verify if the enckey is correct or not
+        self.wallet_service.view_key(name, enckey)?;
 
         match address {
             ExtendedAddr::OrTree(ref address) => {
                 self.root_hash_service
-                    .generate_proof(address, public_keys, passphrase)
+                    .generate_proof(address, public_keys, enckey)
             }
         }
     }
 
-    fn required_cosigners(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-        root_hash: &H256,
-    ) -> Result<usize> {
-        // To verify if the passphrase is correct or not
-        self.wallet_service.view_key(name, passphrase)?;
+    fn required_cosigners(&self, name: &str, enckey: &SecKey, root_hash: &H256) -> Result<usize> {
+        // To verify if the enckey is correct or not
+        self.wallet_service.view_key(name, enckey)?;
 
-        self.root_hash_service
-            .required_signers(root_hash, passphrase)
+        self.root_hash_service.required_signers(root_hash, enckey)
     }
 
     #[inline]
-    fn balance(&self, name: &str, passphrase: &SecUtf8) -> Result<WalletBalance> {
+    fn balance(&self, name: &str, enckey: &SecKey) -> Result<WalletBalance> {
         // Check if wallet exists
-        self.wallet_service.view_key(name, passphrase)?;
-        self.wallet_state_service.get_balance(name, passphrase)
+        self.wallet_service.view_key(name, enckey)?;
+        self.wallet_state_service.get_balance(name, enckey)
     }
 
     fn history(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         offset: usize,
         limit: usize,
         reversed: bool,
     ) -> Result<Vec<TransactionChange>> {
         // Check if wallet exists
-        self.wallet_service.view_key(name, passphrase)?;
+        self.wallet_service.view_key(name, enckey)?;
 
         let history = self
             .wallet_state_service
-            .get_transaction_history(name, passphrase, reversed)?
+            .get_transaction_history(name, enckey, reversed)?
             .filter(|change| BalanceChange::NoChange != change.balance_change)
             .skip(offset)
             .take(limit)
@@ -448,17 +450,13 @@ where
         Ok(history)
     }
 
-    fn unspent_transactions(
-        &self,
-        name: &str,
-        passphrase: &SecUtf8,
-    ) -> Result<UnspentTransactions> {
+    fn unspent_transactions(&self, name: &str, enckey: &SecKey) -> Result<UnspentTransactions> {
         // Check if wallet exists
-        self.wallet_service.view_key(name, passphrase)?;
+        self.wallet_service.view_key(name, enckey)?;
 
         let unspent_transactions = self
             .wallet_state_service
-            .get_unspent_transactions(name, passphrase, false)?;
+            .get_unspent_transactions(name, enckey, false)?;
 
         Ok(UnspentTransactions::new(
             unspent_transactions.into_iter().collect(),
@@ -468,23 +466,23 @@ where
     fn has_unspent_transactions(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         inputs: &[TxoPointer],
     ) -> Result<bool> {
         // Check if wallet exists
-        self.wallet_service.view_key(name, passphrase)?;
+        self.wallet_service.view_key(name, enckey)?;
 
         self.wallet_state_service
-            .has_unspent_transactions(name, passphrase, inputs)
+            .has_unspent_transactions(name, enckey, inputs)
     }
 
     #[inline]
-    fn output(&self, name: &str, passphrase: &SecUtf8, input: &TxoPointer) -> Result<TxOut> {
+    fn output(&self, name: &str, enckey: &SecKey, input: &TxoPointer) -> Result<TxOut> {
         // Check if wallet exists
-        self.wallet_service.view_key(name, passphrase)?;
+        self.wallet_service.view_key(name, enckey)?;
 
         self.wallet_state_service
-            .get_output(name, passphrase, input)
+            .get_output(name, enckey, input)
             .and_then(|optional| {
                 optional.chain(|| {
                     (
@@ -498,18 +496,18 @@ where
     fn create_transaction(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
         input_selection_strategy: Option<InputSelectionStrategy>,
         return_address: ExtendedAddr,
     ) -> Result<(TxAux, Vec<TxoPointer>, Coin)> {
-        let mut unspent_transactions = self.unspent_transactions(name, passphrase)?;
+        let mut unspent_transactions = self.unspent_transactions(name, enckey)?;
         unspent_transactions.apply_all(input_selection_strategy.unwrap_or_default().as_ref());
 
         self.transaction_builder.build_transfer_tx(
             name,
-            passphrase,
+            enckey,
             unspent_transactions,
             outputs,
             return_address,
@@ -523,17 +521,17 @@ where
             .broadcast_transaction(&tx_aux.encode())
     }
 
-    fn export_plain_tx(&self, name: &str, passphrase: &SecUtf8, txid: &str) -> Result<String> {
+    fn export_plain_tx(&self, name: &str, enckey: &SecKey, txid: &str) -> Result<String> {
         let txid = str2txid(txid).chain(|| (ErrorKind::InvalidInput, "invalid transaction id"))?;
-        let public_key = self.view_key(name, passphrase)?;
+        let public_key = self.view_key(name, enckey)?;
         let private_key = self
-            .private_key(passphrase, &public_key)?
+            .private_key(enckey, &public_key)?
             .chain(|| (ErrorKind::StorageError, "can not find private key"))?;
         let tx = self.transaction_builder.decrypt_tx(txid, &private_key)?;
         // get the block height
         let tx_change = self
             .wallet_state_service
-            .get_transaction_history(name, passphrase, false)?
+            .get_transaction_history(name, enckey, false)?
             .filter(|change| BalanceChange::NoChange != change.balance_change)
             .find(|tx_change| tx_change.transaction_id == tx.id())
             .chain(|| {
@@ -554,7 +552,7 @@ where
     }
 
     /// import a plain base64 encoded plain transaction
-    fn import_plain_tx(&self, name: &str, passphrase: &SecUtf8, tx_str: &str) -> Result<Coin> {
+    fn import_plain_tx(&self, name: &str, enckey: &SecKey, tx_str: &str) -> Result<Coin> {
         let tx_raw = base64::decode(tx_str)
             .chain(|| (ErrorKind::DecryptionError, "Unable to decrypt transaction"))?;
         let tx_info: TransactionInfo = serde_json::from_slice(&tx_raw)
@@ -585,9 +583,9 @@ where
                 "block height and transaction not match",
             ));
         }
-        let wallet = self.wallet_service.get_wallet(name, passphrase)?;
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
 
-        let wallet_state = self.wallet_service.get_wallet_state(name, passphrase)?;
+        let wallet_state = self.wallet_service.get_wallet_state(name, enckey)?;
 
         let imported_value = import_transaction(
             &wallet,
@@ -601,7 +599,7 @@ where
         .chain(|| (ErrorKind::InvalidInput, "import error"))?;
 
         self.wallet_state_service
-            .apply_memento(name, passphrase, &memento)?;
+            .apply_memento(name, enckey, &memento)?;
         Ok(imported_value)
     }
 
@@ -614,14 +612,14 @@ where
     fn update_tx_pending_state(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         tx_id: TxId,
         tx_pending: TransactionPending,
     ) -> Result<()> {
         let mut wallet_state_memento = WalletStateMemento::default();
         wallet_state_memento.add_pending_transaction(tx_id, tx_pending);
         self.wallet_state_service
-            .apply_memento(name, passphrase, &wallet_state_memento)
+            .apply_memento(name, enckey, &wallet_state_memento)
     }
 }
 
@@ -634,14 +632,14 @@ where
     fn schnorr_signature(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         message: &H256,
         public_key: &PublicKey,
     ) -> Result<SchnorrSignature> {
-        // To verify if the passphrase is correct or not
-        self.transfer_addresses(name, passphrase)?;
+        // To verify if the enckey is correct or not
+        self.transfer_addresses(name, enckey)?;
 
-        let private_key = self.private_key(passphrase, public_key)?.chain(|| {
+        let private_key = self.private_key(enckey, public_key)?.chain(|| {
             (
                 ErrorKind::InvalidInput,
                 format!("Public key ({}) is not owned by current wallet", public_key),
@@ -653,15 +651,15 @@ where
     fn new_multi_sig_session(
         &self,
         name: &str,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         message: H256,
         signer_public_keys: Vec<PublicKey>,
         self_public_key: PublicKey,
     ) -> Result<H256> {
-        // To verify if the passphrase is correct or not
-        self.transfer_addresses(name, passphrase)?;
+        // To verify if the enckey is correct or not
+        self.transfer_addresses(name, enckey)?;
 
-        let self_private_key = self.private_key(passphrase, &self_public_key)?.chain(|| {
+        let self_private_key = self.private_key(enckey, &self_public_key)?.chain(|| {
             (
                 ErrorKind::InvalidInput,
                 format!(
@@ -676,19 +674,19 @@ where
             signer_public_keys,
             self_public_key,
             self_private_key,
-            passphrase,
+            enckey,
         )
     }
 
-    fn nonce_commitment(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<H256> {
+    fn nonce_commitment(&self, session_id: &H256, enckey: &SecKey) -> Result<H256> {
         self.multi_sig_session_service
-            .nonce_commitment(session_id, passphrase)
+            .nonce_commitment(session_id, enckey)
     }
 
     fn add_nonce_commitment(
         &self,
         session_id: &H256,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         nonce_commitment: H256,
         public_key: &PublicKey,
     ) -> Result<()> {
@@ -696,34 +694,34 @@ where
             session_id,
             nonce_commitment,
             public_key,
-            passphrase,
+            enckey,
         )
     }
 
-    fn nonce(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<PublicKey> {
-        self.multi_sig_session_service.nonce(session_id, passphrase)
+    fn nonce(&self, session_id: &H256, enckey: &SecKey) -> Result<PublicKey> {
+        self.multi_sig_session_service.nonce(session_id, enckey)
     }
 
     fn add_nonce(
         &self,
         session_id: &H256,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         nonce: &PublicKey,
         public_key: &PublicKey,
     ) -> Result<()> {
         self.multi_sig_session_service
-            .add_nonce(session_id, &nonce, public_key, passphrase)
+            .add_nonce(session_id, &nonce, public_key, enckey)
     }
 
-    fn partial_signature(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<H256> {
+    fn partial_signature(&self, session_id: &H256, enckey: &SecKey) -> Result<H256> {
         self.multi_sig_session_service
-            .partial_signature(session_id, passphrase)
+            .partial_signature(session_id, enckey)
     }
 
     fn add_partial_signature(
         &self,
         session_id: &H256,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         partial_signature: H256,
         public_key: &PublicKey,
     ) -> Result<()> {
@@ -731,20 +729,19 @@ where
             session_id,
             partial_signature,
             public_key,
-            passphrase,
+            enckey,
         )
     }
 
-    fn signature(&self, session_id: &H256, passphrase: &SecUtf8) -> Result<SchnorrSignature> {
-        self.multi_sig_session_service
-            .signature(session_id, passphrase)
+    fn signature(&self, session_id: &H256, enckey: &SecKey) -> Result<SchnorrSignature> {
+        self.multi_sig_session_service.signature(session_id, enckey)
     }
 
     fn transaction(
         &self,
         name: &str,
         session_id: &H256,
-        passphrase: &SecUtf8,
+        enckey: &SecKey,
         unsigned_transaction: Tx,
     ) -> Result<TxAux> {
         if unsigned_transaction.inputs.len() != 1 {
@@ -754,10 +751,10 @@ where
             ));
         }
 
-        let output_to_spend = self.output(name, passphrase, &unsigned_transaction.inputs[0])?;
+        let output_to_spend = self.output(name, enckey, &unsigned_transaction.inputs[0])?;
         let root_hash = self
             .wallet_service
-            .find_root_hash(name, passphrase, &output_to_spend.address)?
+            .find_root_hash(name, enckey, &output_to_spend.address)?
             .chain(|| {
                 (
                     ErrorKind::IllegalInput,
@@ -766,12 +763,12 @@ where
             })?;
         let public_keys = self
             .multi_sig_session_service
-            .public_keys(session_id, passphrase)?;
+            .public_keys(session_id, enckey)?;
 
         let proof = self
             .root_hash_service
-            .generate_proof(&root_hash, public_keys, passphrase)?;
-        let signature = self.signature(session_id, passphrase)?;
+            .generate_proof(&root_hash, public_keys, enckey)?;
+        let signature = self.signature(session_id, enckey)?;
 
         let witness = TxWitness::from(vec![TxInWitness::TreeSig(signature, proof)]);
         let signed_transaction =
@@ -781,14 +778,18 @@ where
     }
 }
 
-#[cfg(not(debug_assertions))]
 fn check_passphrase_strength(name: &str, passphrase: &SecUtf8) -> Result<()> {
     // `estimate_password_strength` returns a score between `0-4`. Any score less than 3 should be considered too
     // weak.
     let password_entropy = estimate_password_strength(passphrase.unsecure(), &[name])
         .chain(|| (ErrorKind::IllegalInput, "Blank passphrase"))?;
 
-    if password_entropy.score() < 3 {
+    #[cfg(debug_assertions)]
+    let entropy_score = 0;
+    #[cfg(not(debug_assertions))]
+    let entropy_score = 3;
+
+    if password_entropy.score() < entropy_score {
         return Err(Error::new(
             ErrorKind::IllegalInput,
             format!(
@@ -801,7 +802,6 @@ fn check_passphrase_strength(name: &str, passphrase: &SecUtf8) -> Result<()> {
     Ok(())
 }
 
-#[cfg(not(debug_assertions))]
 fn parse_feedback(feedback: Option<&Feedback>) -> String {
     match feedback {
         None => "No feedback available!".to_string(),
