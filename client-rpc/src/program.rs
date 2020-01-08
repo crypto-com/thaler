@@ -63,7 +63,7 @@ pub struct Options {
     )]
     pub batch_size: usize,
     #[structopt(
-        name = "block_height_ensure",
+        name = "block-height-ensure",
         long,
         default_value = "50",
         help = "Number of block height to rollback the utxos in the pending transactions"
