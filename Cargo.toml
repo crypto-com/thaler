@@ -13,12 +13,23 @@ members = [
     "test-common",
     "dev-utils",
     "enclave-protocol",
-]
-
-exclude = [
-    # currently only work on nightly + have a different build process
     "chain-tx-enclave/tx-validation/app",
     "chain-tx-enclave/tx-validation/enclave",
     "chain-tx-enclave/tx-query/app",
-    "chain-tx-enclave/tx-query/enclave"
+    "chain-tx-enclave/tx-query/enclave",
+]
+
+default-members = [
+    "chain-abci",
+    "chain-core",
+    "chain-tx-filter",
+    "chain-tx-validation",
+    "client-cli",
+    "client-common",
+    "client-core",
+    "client-network",
+    "client-rpc",
+    "test-common",
+    "dev-utils",
+    "enclave-protocol",
 ]

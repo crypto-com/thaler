@@ -1,46 +1,44 @@
-// Copyright (C) 2017-2019 Baidu, Inc. All Rights Reserved.
-//
-// Redistribution and use in source and binary forms, with or without
-// modification, are permitted provided that the following conditions
-// are met:
-//
-//  * Redistributions of source code must retain the above copyright
-//    notice, this list of conditions and the following disclaimer.
-//  * Redistributions in binary form must reproduce the above copyright
-//    notice, this list of conditions and the following disclaimer in
-//    the documentation and/or other materials provided with the
-//    distribution.
-//  * Neither the name of Baidu, Inc., nor the names of its
-//    contributors may be used to endorse or promote products derived
-//    from this software without specific prior written permission.
-//
-// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
-// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
-// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
-// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
-// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-//
-// Modifications Copyright 2019 Foris Limited (licensed under the Apache License, Version 2.0)
-
 use std::env;
+use std::process::Command;
 
 fn main() {
     let sdk_dir = env::var("SGX_SDK").unwrap_or_else(|_| "/opt/intel/sgxsdk".to_string());
     let is_sim = env::var("SGX_MODE").unwrap_or_else(|_| "HW".to_string());
 
-    println!("cargo:rustc-link-search=native=../lib");
-    println!("cargo:rustc-link-lib=static=Enclave_u");
+    #[cfg(target_arch = "x86")]
+    let edger8r = format!("{}/bin/x86/sgx_edger8r", sdk_dir);
+    #[cfg(not(target_arch = "x86"))]
+    let edger8r = format!("{}/bin/x64/sgx_edger8r", sdk_dir);
 
+    Command::new(edger8r)
+        .args(&[
+            "--untrusted",
+            "../enclave/Enclave.edl",
+            "--search-path",
+            &format!("{}/include", sdk_dir),
+            "--search-path",
+            "../../rust-sgx-sdk/edl",
+            "--untrusted-dir",
+            ".",
+        ])
+        .status()
+        .unwrap();
+
+    cc::Build::new()
+        .file("Enclave_u.c")
+        .include(&format!("{}/include", sdk_dir))
+        .include("../../rust-sgx-sdk/edl")
+        .compile("enclave.a");
+
+    #[cfg(target_arch = "x86")]
+    println!("cargo:rustc-link-search=native={}/lib", sdk_dir);
+    #[cfg(not(target_arch = "x86"))]
     println!("cargo:rustc-link-search=native={}/lib64", sdk_dir);
+
     match is_sim.as_ref() {
         "SW" => println!("cargo:rustc-link-lib=dylib=sgx_urts_sim"),
-        "HW" => println!("cargo:rustc-link-lib=dylib=sgx_urts"),
-        _ => println!("cargo:rustc-link-lib=dylib=sgx_urts"), // Treat undefined as HW
+        _ => println!("cargo:rustc-link-lib=dylib=sgx_urts"), // default to HW
     }
+
+    println!("cargo:rerun-if-changed=../enclave/Enclave.edl");
 }

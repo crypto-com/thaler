@@ -2,6 +2,5 @@
 set -e
 
 source /root/.docker_bashrc
-cd ./chain-tx-enclave/tx-validation
-make clean
-make
+cargo build -p tx-validation-app
+make -C chain-tx-enclave/tx-validation

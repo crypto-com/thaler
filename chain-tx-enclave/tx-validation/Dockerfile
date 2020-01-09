@@ -18,8 +18,8 @@ ENV TX_ENCLAVE_STORAGE=/enclave-storage
 
 COPY . .
 
-RUN ./chain-tx-enclave/tx-validation/make.sh
+RUN ./chain-tx-enclave/tx-validation/make.sh && cp ./chain-tx-enclave/tx-validation/entrypoint.sh ./target/debug/
 
-WORKDIR /root/chain-tx-enclave/tx-validation/bin
+WORKDIR ./target/debug
 
-CMD ["../entrypoint.sh"]
+CMD ["./entrypoint.sh"]

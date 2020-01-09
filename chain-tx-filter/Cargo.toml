@@ -7,7 +7,7 @@ readme = "../README.md"
 edition = "2018"
 
 [features]
-default = ["bit-vec/std"]
+default = ["bit-vec/std", "chain-core/default"]
 mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx", "chain-core/mesalock_sgx"]
 
 [dependencies]

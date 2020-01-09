@@ -68,9 +68,7 @@ fn construct_sealed_response(
 ) -> Result<IntraEnclaveResponse, sgx_status_t> {
     let to_seal = to_seal_tx.encode();
     match result {
-        Err(e) => {
-            Ok(Err(e))
-        },
+        Err(e) => Ok(Err(e)),
         Ok(fee) => {
             let sealing_result = SgxSealedData::<[u8]>::seal_data(txid, &to_seal);
             let sealed_data = match sealing_result {

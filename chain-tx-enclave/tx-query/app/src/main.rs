@@ -16,9 +16,10 @@ use std::os::unix::io::AsRawFd;
 use std::time::Duration;
 
 const TIMEOUT_SEC: c_int = 5;
+const TX_QUERY_ENCLAVE_FILE: &str = "tx_query_enclave.signed.so";
 
 pub fn start_enclave() -> SgxEnclave {
-    match init_enclave(true) {
+    match init_enclave(TX_QUERY_ENCLAVE_FILE, true) {
         Ok(r) => {
             info!("[+] Init Query Enclave Successful {}!", r.geteid());
             r

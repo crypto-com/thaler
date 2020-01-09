@@ -295,11 +295,10 @@ fn get_report_from_intel(ias_key: &str, fd: c_int, quote: Vec<u8>) -> Result<Att
 
     // println!("write complete");
 
-    tls.read_to_end(&mut plaintext)
-        .map_err(|e| {
-            println!("get report from intel failed to read: {:?}", e);
-            RAError::CommunicationError
-        })?;
+    tls.read_to_end(&mut plaintext).map_err(|e| {
+        println!("get report from intel failed to read: {:?}", e);
+        RAError::CommunicationError
+    })?;
     // println!("read_to_end complete");
     parse_response_attn_report(&plaintext)
 }
@@ -614,12 +613,12 @@ fn renew_ra_cert(global_ra_cert: &mut RACache) -> Result<(), RAError> {
             Ok(r) => break r,
             Err(e) => {
                 // if network error, try again
-                if e == sgx_status_t::SGX_ERROR_BUSY && retry > 0{
+                if e == sgx_status_t::SGX_ERROR_BUSY && retry > 0 {
                     retry -= 1;
                     println!("create attestation report failed, retry...");
                     let sleep_time = std::time::Duration::from_secs(5);
                     sgx_tstd::thread::sleep(sleep_time);
-                    continue
+                    continue;
                 }
                 println!("Error in create_attestation_report: {:?}", e);
                 return Err(RAError::CertGeneration);

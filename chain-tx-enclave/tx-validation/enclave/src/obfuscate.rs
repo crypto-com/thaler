@@ -138,7 +138,7 @@ fn unseal_request(request: &mut IntraEncryptRequest) -> Option<EncryptionRequest
         Err(e) => {
             log::error!("decode encryption request failed: {:?}", e);
             None
-        },
+        }
     }
 }
 

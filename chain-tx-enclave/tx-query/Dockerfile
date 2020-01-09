@@ -18,8 +18,8 @@ ENV APP_PORT=25944
 
 COPY . .
 
-RUN ./chain-tx-enclave/tx-query/make.sh
+RUN ./chain-tx-enclave/tx-query/make.sh && cp ./chain-tx-enclave/tx-query/entrypoint.sh ./target/debug/
 
-WORKDIR /root/chain-tx-enclave/tx-query/bin
+WORKDIR ./target/debug
 
-CMD ["../entrypoint.sh"]
+CMD ["./entrypoint.sh"]
