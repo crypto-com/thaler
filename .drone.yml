@@ -1,51 +1,83 @@
 ---
 kind: pipeline
-name: rust
-
-steps:
-- name: Build and Test
-  image: cryptocom/chain:latest
-  commands:
-  - export RUST_BACKTRACE=1
-  - export RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3
-  - export LD_LIBRARY_PATH=$HOME/lib
-  - export LIBRARY_PATH=$HOME/lib
-  - export PATH=$HOME/.cargo/bin:$HOME/.local/bin:$PATH
-  - export PKG_CONFIG_PATH=$HOME/lib/pkgconfig
-  - cargo build
-  - cargo test
-  - echo "HOME FOLDER = " $HOME
-
----
-kind: pipeline
-type: exec
-name: integration-tests
+name: default
 
 platform:
   os: linux
   arch: amd64
 
 steps:
-- name: Build and Test
+- name: restore-cache
+  image: drillster/drone-volume-cache
+  volumes:
+  - name: cache
+    path: /cache
+  settings:
+    restore: true
+    mount:
+      - ./drone
+
+- name: build
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export CARGO_HOME=$PWD/drone/cargo
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - ./docker/build.sh
+
+- name: unit-tests
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export CARGO_HOME=$PWD/drone/cargo
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - cargo test
+
+- name: integration-tests
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  privileged: true
+  volumes:
+  - name: sgx
+    path: /dev/sgx
   environment:
     SPID:
-      from_secret: dev_spid
+      from_secret: SPID
     IAS_API_KEY:
-      from_secret: dev_ias_key
+      from_secret: IAS_API_KEY
   commands:
-  - export NIX_REMOTE=daemon
-  - export DOCKER_COMPOSE_PREFIX="${DRONE_BRANCH}"
-  - export SGX_MODE=HW
-  - . /etc/profile.d/nix.sh
-  - nix-shell ci-scripts/drone.nix --run "./ci-scripts/run-integration-tests.sh"
-- name: Teardown
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export PYTHON_VENV_DIR=$PWD/drone/venv
+  - LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service
+  - ./integration-tests/run.sh
+
+- name: rebuild-cache
+  image: drillster/drone-volume-cache
+  volumes:
+  - name: cache
+    path: /cache
+  settings:
+    rebuild: true
+    mount:
+      - ./drone
+
+- name: teardown
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
   commands:
-  - cd integration-tests
-  - docker-compose -p "${DRONE_BRANCH}" down || exit 0
+  - ./integration-tests/cleanup.sh
   when:
     status:
       - success
       - failure
+
+volumes:
+  - name: cache
+    host:
+      path: /tmp/drone-cache
+  - name: sgx
+    host:
+      path: /dev/sgx
 
 trigger:
   branch:
@@ -72,10 +104,10 @@ steps:
   - docker run --name hw1-${DRONE_COMMIT_SHA} --rm -v $PWD:/chain --device /dev/sgx cryptocom/chain:latest /bin/bash /chain/ci-scripts/tx-validation-hw-test.sh
 - name: Teardown
   commands:
-   - docker stop hw1-${DRONE_COMMIT_SHA} || exit 0		
+   - docker stop hw1-${DRONE_COMMIT_SHA} || exit 0
   when:
     status:
-      - success		
+      - success
       - failure
 
 trigger:
@@ -99,19 +131,19 @@ steps:
 - name: Build and Test
   environment:
     SPID:
-      from_secret: dev_spid
+      from_secret: SPID
     IAS_API_KEY:
-      from_secret: dev_ias_key
+      from_secret: IAS_API_KEY
   commands:
   - ls -l /dev/sgx
   - ls -l /var/run/aesmd/aesm.socket
   - docker run --name hw2-${DRONE_COMMIT_SHA} --rm --env SPID=$SPID --env IAS_API_KEY=$IAS_API_KEY -v $PWD:/chain --device /dev/sgx cryptocom/chain:latest /bin/bash /chain/ci-scripts/tx-query-hw-test.sh
 - name: Teardown
   commands:
-   - docker stop hw2-${DRONE_COMMIT_SHA} || exit 0		
+   - docker stop hw2-${DRONE_COMMIT_SHA} || exit 0
   when:
     status:
-      - success		
+      - success
       - failure
 
 trigger:
@@ -121,41 +153,6 @@ trigger:
   - trying
   event:
   - push
-
-
-# FIMXE: 1) no need for this to be exec pipeline (can run in docker -- unjailtx doesn't ever touch enclave)
-# FIXME: 2) proper cleanup -- this thing took over 100gb of 1 day of running
-# FIXME: 3) it runs `cargo build` inside docker compose service and happily continue even if the compilation fails, wtf 
-# ---
-# kind: pipeline
-# type: exec
-# name: integration-tests-jail-unjail
-
-# platform:
-#   os: linux
-#   arch: amd64
-
-# steps:
-# - name: integration-tests
-#   commands:
-#   - cd integration-tests/jail
-#   - ./run.sh
-# - name: teardown
-#   commands:
-#   - cd integration-tests/jail
-#   - ./shutdown.sh
-#   when:
-#     status:
-#      - success
-#      - failure
-
-# trigger:
-#   branch:
-#     - master
-#     - staging
-#     - trying
-#   event:
-#     - push
 
 ---
 kind: signature
