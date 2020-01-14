@@ -183,6 +183,9 @@ class Staking:
     def unjail(self, address, name=DEFAULT_WALLET, enckey=None):
         return call('staking_unjail', [name, enckey or get_enckey()], fix_address(address))
 
+    def join(self, node_name, node_pubkey, node_staking_address, name=DEFAULT_WALLET, enckey=None):
+        return call('staking_validatorNodeJoin', [name, enckey or get_enckey()], node_name, node_pubkey,  fix_address(node_staking_address))
+
 
 class MultiSig:
     def create_address(self, public_keys, self_public_key, required_signatures, name=DEFAULT_WALLET, enckey=None):

@@ -15,6 +15,7 @@ import jsonpatch
 import fire
 import toml
 import nacl.signing
+import copy
 from nacl.encoding import HexEncoder
 
 PASSPHRASE = '123456'
@@ -340,7 +341,16 @@ async def gen_wallet_addr(mnemonic, type='Staking', count=1):
         return addrs
 
 
-async def gen_genesis(cfg):
+async def gen_genesis(cfg_orig):
+    cfg = copy.deepcopy(cfg_orig)
+    newnodes= []
+    for n in cfg["nodes"]:
+        print(n)
+        if n["bonded_coin"]> 0:
+            newnodes.append(n)
+    cfg["nodes"]= newnodes
+         
+
     genesis = {
         "genesis_time": cfg['genesis_time'],
         "chain_id": cfg['chain_id'],

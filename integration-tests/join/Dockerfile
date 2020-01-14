@@ -13,5 +13,3 @@ ENV PATH=$HOME/bin:$PATH
 ENV LD_LIBRARY_PATH=$HOME/lib
 ENV PKG_CONFIG_PATH=$HOME/lib/pkgconfig
 RUN mkdir /root/bin
-
-
