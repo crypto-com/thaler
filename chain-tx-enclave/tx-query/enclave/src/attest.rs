@@ -26,13 +26,13 @@ use std::untrusted::time::SystemTimeEx;
 use std::vec::Vec;
 use zeroize::Zeroize;
 
-pub const IAS_HOSTNAME: &'static str = "api.trustedservices.intel.com";
+pub const IAS_HOSTNAME: &str = "api.trustedservices.intel.com";
 #[cfg(not(feature = "production"))]
-pub const API_SUFFIX: &'static str = "/sgx/dev";
+pub const API_SUFFIX: &str = "/sgx/dev";
 #[cfg(feature = "production")]
-pub const API_SUFFIX: &'static str = "/sgx";
-pub const SIGRL_SUFFIX: &'static str = "/attestation/v3/sigrl/";
-pub const REPORT_SUFFIX: &'static str = "/attestation/v3/report";
+pub const API_SUFFIX: &str = "/sgx";
+pub const SIGRL_SUFFIX: &str = "/attestation/v3/sigrl/";
+pub const REPORT_SUFFIX: &str = "/attestation/v3/report";
 
 extern "C" {
     pub fn ocall_sgx_init_quote(
@@ -382,9 +382,9 @@ fn create_attestation_report(
     // (2) Generate the report
     // Fill ecc256 public key into report_data
     let mut report_data: sgx_report_data_t = sgx_report_data_t::default();
-    let mut pub_k_gx = pub_k.gx.clone();
+    let mut pub_k_gx = pub_k.gx;
     pub_k_gx.reverse();
-    let mut pub_k_gy = pub_k.gy.clone();
+    let mut pub_k_gy = pub_k.gy;
     pub_k_gy.reverse();
     report_data.d[..32].clone_from_slice(&pub_k_gx);
     report_data.d[32..].clone_from_slice(&pub_k_gy);
@@ -420,7 +420,7 @@ fn create_attestation_report(
     //       7. [out]p_qe_report need further check
     //       8. [out]p_quote
     //       9. quote_size
-    let (p_sigrl, sigrl_len) = if sigrl_vec.len() == 0 {
+    let (p_sigrl, sigrl_len) = if sigrl_vec.is_empty() {
         (ptr::null(), 0)
     } else {
         (sigrl_vec.as_ptr(), sigrl_vec.len() as u32)

@@ -130,7 +130,7 @@ impl TxValidationServer {
                     Ok(EnclaveRequest::CommitBlock { app_hash, info }) => {
                         let _ = self.metadb.insert(LAST_APP_HASH_KEY, &app_hash);
                         let _ = self.metadb.insert(LAST_CHAIN_INFO_KEY, &info.encode()[..]);
-                        if let Ok(_) = self.flush_all() {
+                        if self.flush_all().is_ok() {
                             self.info = Some(info);
                             EnclaveResponse::CommitBlock(Ok(()))
                         } else {
@@ -156,9 +156,7 @@ impl TxValidationServer {
                         }
                     }
                     Ok(EnclaveRequest::GetSealedTxData { txids }) => {
-                        EnclaveResponse::GetSealedTxData(
-                            self.lookup_txids(txids.iter().map(|x| *x)),
-                        )
+                        EnclaveResponse::GetSealedTxData(self.lookup_txids(txids.iter().copied()))
                     }
                     Ok(EnclaveRequest::EncryptTx(req)) => {
                         let result = match self.info {

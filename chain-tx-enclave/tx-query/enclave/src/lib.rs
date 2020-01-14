@@ -75,13 +75,10 @@ fn process_decryption_request(body: &DecryptionRequestBody) -> Option<Decryption
         return None;
     }
     match EnclaveResponse::decode(&mut inputs_buf.as_slice()) {
-        Ok(EnclaveResponse::GetSealedTxData(Some(inputs))) => check_unseal(
-            Some(body.view_key),
-            true,
-            body.txs.iter().map(|x| *x),
-            inputs,
-        )
-        .map(|txs| DecryptionResponse { txs }),
+        Ok(EnclaveResponse::GetSealedTxData(Some(inputs))) => {
+            check_unseal(Some(body.view_key), true, body.txs.iter().copied(), inputs)
+                .map(|txs| DecryptionResponse { txs })
+        }
         _ => {
             // println!("failed to decode a response for obtaining sealed data");
             None
@@ -96,7 +93,10 @@ fn handle_decryption_request(
     let mut challenge = [0u8; 32];
     let mut os_rng = os::SgxRng::new().unwrap();
     os_rng.fill_bytes(&mut challenge);
-    if let Err(_) = tls.write(&TxQueryInitResponse::DecryptChallenge(challenge).encode()[..]) {
+    if tls
+        .write(&TxQueryInitResponse::DecryptChallenge(challenge).encode()[..])
+        .is_err()
+    {
         let _ = tls.sock.shutdown(Shutdown::Both);
         return sgx_status_t::SGX_ERROR_UNEXPECTED;
     }
@@ -149,13 +149,12 @@ fn get_sealed_request(req: &EncryptionRequest, txid: &TxId) -> Option<Vec<u8>> {
     let mut sealed_log: Vec<u8> = vec![0u8; sealed_log_size];
 
     unsafe {
-        let sealed_r = sealed_data.to_raw_sealed_data_t(
+        // TODO check alignment correctness
+        #[allow(clippy::cast_ptr_alignment)]
+        sealed_data.to_raw_sealed_data_t(
             sealed_log.as_mut_ptr() as *mut sgx_sealed_data_t,
             sealed_log_size as u32,
-        );
-        if sealed_r.is_none() {
-            return None;
-        }
+        )?;
     }
     Some(sealed_log)
 }
@@ -195,7 +194,7 @@ fn handle_encryption_request(
     match request {
         None => {
             let _ = tls.sock.shutdown(Shutdown::Both);
-            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            sgx_status_t::SGX_ERROR_UNEXPECTED
         }
         Some(qreq) => {
             let req_enc = EnclaveRequest::EncryptTx(Box::new(qreq)).encode();
@@ -251,9 +250,7 @@ fn handle_encryption_request(
                     let _ = tls.flush();
                     sgx_status_t::SGX_SUCCESS
                 }
-                _ => {
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-                }
+                _ => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
             }
         }
     }

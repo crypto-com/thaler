@@ -50,7 +50,7 @@ pub extern "C" fn ocall_get_txs(
 ) -> sgx_status_t {
     let req = unsafe { std::slice::from_raw_parts(txids, txids_len as usize) };
 
-    let r = ZMQ_SOCKET.with(|socket| {
+    ZMQ_SOCKET.with(|socket| {
         let send_r = socket.send(req, FLAGS);
         if send_r.is_err() {
             error!("failed to send a request for obtaining sealed data");
@@ -59,19 +59,18 @@ pub extern "C" fn ocall_get_txs(
         if let Ok(msg) = socket.recv_bytes(FLAGS) {
             if msg.len() > (txs_len as usize) {
                 error!("Not enough allocated space to return the sealed tx data");
-                return sgx_status_t::SGX_ERROR_UNEXPECTED;
+                sgx_status_t::SGX_ERROR_UNEXPECTED
             } else {
                 unsafe {
                     std::ptr::copy(msg.as_ptr(), txs, msg.len());
                 }
-                return sgx_status_t::SGX_SUCCESS;
+                sgx_status_t::SGX_SUCCESS
             }
         } else {
             error!("failed to receive a response for obtaining sealed data");
-            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            sgx_status_t::SGX_ERROR_UNEXPECTED
         }
-    });
-    r
+    })
 }
 
 /// Untrusted function called from the enclave -- sends a ZMQ message to
@@ -93,16 +92,16 @@ pub extern "C" fn ocall_encrypt_request(
         if let Ok(msg) = socket.recv_bytes(FLAGS) {
             if msg.len() > (result_len as usize) {
                 error!("Not enough allocated space to return the sealed tx data");
-                return sgx_status_t::SGX_ERROR_UNEXPECTED;
+                sgx_status_t::SGX_ERROR_UNEXPECTED
             } else {
                 unsafe {
                     std::ptr::copy(msg.as_ptr(), result, msg.len());
                 }
-                return sgx_status_t::SGX_SUCCESS;
+                sgx_status_t::SGX_SUCCESS
             }
         } else {
             error!("failed to send a request for obtaining obfuscated tx");
-            return sgx_status_t::SGX_ERROR_UNEXPECTED;
+            sgx_status_t::SGX_ERROR_UNEXPECTED
         }
     })
 }
@@ -170,11 +169,11 @@ pub extern "C" fn ocall_get_ias_socket(ret_fd: *mut c_int) -> sgx_status_t {
     sgx_status_t::SGX_SUCCESS
 }
 
-fn decode_hex_digit(digit: char) -> u8 {
+fn decode_hex_digit(digit: u8) -> u8 {
     match digit {
-        '0'..='9' => digit as u8 - '0' as u8,
-        'a'..='f' => digit as u8 - 'a' as u8 + 10,
-        'A'..='F' => digit as u8 - 'A' as u8 + 10,
+        b'0'..=b'9' => digit - b'0',
+        b'a'..=b'f' => digit - b'a' + 10,
+        b'A'..=b'F' => digit - b'A' + 10,
         _ => panic!(),
     }
 }
@@ -197,13 +196,13 @@ fn get_spid() -> sgx_spid_t {
 
 fn decode_hex(hex: &str) -> Vec<u8> {
     let mut r: Vec<u8> = Vec::new();
-    let mut chars = hex.chars().enumerate();
+    let mut chars = hex.as_bytes().iter().copied().enumerate();
     loop {
         let (pos, first) = match chars.next() {
             None => break,
             Some(elt) => elt,
         };
-        if first == ' ' {
+        if b' ' == first {
             continue;
         }
         let (_, second) = match chars.next() {

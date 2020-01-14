@@ -85,6 +85,8 @@ fn construct_sealed_response(
             let mut sealed_log: Vec<u8> = vec![0u8; sealed_log_size];
 
             unsafe {
+                // TODO check alignment correctness
+                #[allow(clippy::cast_ptr_alignment)]
                 let sealed_r = sealed_data.to_raw_sealed_data_t(
                     sealed_log.as_mut_ptr() as *mut sgx_sealed_data_t,
                     sealed_log_size as u32,
@@ -183,7 +185,7 @@ pub(crate) fn handle_validate_tx(
                 }
                 _ => {
                     log::error!("can not find plain transfer transaction or unsealed inputs");
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
                 }
             }
         }
@@ -198,7 +200,7 @@ pub(crate) fn handle_validate_tx(
                 }
                 _ => {
                     log::error!("can not get plain deposit stake transaction or unsealed inputs");
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
                 }
             }
         }
@@ -234,13 +236,13 @@ pub(crate) fn handle_validate_tx(
                 }
                 _ => {
                     log::error!("invalid parameter");
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                    sgx_status_t::SGX_ERROR_INVALID_PARAMETER
                 }
             }
         }
         (_, _) => {
             log::error!("invalid parameter");
-            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+            sgx_status_t::SGX_ERROR_INVALID_PARAMETER
         }
     }
 }

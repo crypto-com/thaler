@@ -109,6 +109,8 @@ pub(crate) fn decrypt(tx: &TxObfuscated) -> Result<PlainTxAux, ()> {
 #[inline]
 fn unseal_request(request: &mut IntraEncryptRequest) -> Option<EncryptionRequest> {
     let opt = unsafe {
+        // TODO check alignment correctness
+        #[allow(clippy::cast_ptr_alignment)]
         SgxSealedData::<[u8]>::from_raw_sealed_data_t(
             request.sealed_enc_request.as_mut_ptr() as *mut sgx_sealed_data_t,
             request.sealed_enc_request.len() as u32,
@@ -176,7 +178,7 @@ pub(crate) fn handle_encrypt_request(
                 );
                 write_back_response(response, response_buf, response_len)
             } else {
-                return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                sgx_status_t::SGX_ERROR_INVALID_PARAMETER
             }
         }
         (Some(EncryptionRequest::DepositStake(tx, witness)), Some(sealed_inputs)) => {
@@ -192,7 +194,7 @@ pub(crate) fn handle_encrypt_request(
                 );
                 write_back_response(response, response_buf, response_len)
             } else {
-                return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                sgx_status_t::SGX_ERROR_INVALID_PARAMETER
             }
         }
         (Some(EncryptionRequest::WithdrawStake(tx, account, witness)), None) => {
@@ -208,13 +210,9 @@ pub(crate) fn handle_encrypt_request(
                     );
                     write_back_response(response, response_buf, response_len)
                 }
-                _ => {
-                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-                }
+                _ => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
             }
         }
-        (_, _) => {
-            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-        }
+        (_, _) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
     }
 }
