@@ -30,14 +30,17 @@ pub extern "C" fn ecall_initchain(chain_hex_id: u8) -> sgx_status_t {
     }
 }
 
+/// # Safety
+///
+/// This function should not be called with null pointer.
 #[no_mangle]
-pub extern "C" fn ecall_check_tx(
+pub unsafe extern "C" fn ecall_check_tx(
     tx_request: *const u8,
     tx_request_len: usize,
     response_buf: *mut u8,
     response_len: u32,
 ) -> sgx_status_t {
-    let mut tx_request_slice = unsafe { slice::from_raw_parts(tx_request, tx_request_len) };
+    let mut tx_request_slice = slice::from_raw_parts(tx_request, tx_request_len);
     match IntraEnclaveRequest::decode(&mut tx_request_slice) {
         Ok(IntraEnclaveRequest::ValidateTx { request, tx_inputs }) => {
             validate::handle_validate_tx(request, tx_inputs, response_buf, response_len)
@@ -48,7 +51,7 @@ pub extern "C" fn ecall_check_tx(
         }
         Err(e) => {
             log::error!("ecall check tx failed: {:?}", e);
-            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+            sgx_status_t::SGX_ERROR_INVALID_PARAMETER
         }
     }
 }

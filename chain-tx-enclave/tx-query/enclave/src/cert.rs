@@ -64,9 +64,9 @@ pub fn gen_ecc_cert(
 ) -> Result<CertKeyPair, sgx_status_t> {
     // Generate public key bytes since both DER will use it
     let mut pub_key_bytes: Vec<u8> = vec![4];
-    let mut pk_gx = pub_k.gx.clone();
+    let mut pk_gx = pub_k.gx;
     pk_gx.reverse();
-    let mut pk_gy = pub_k.gy.clone();
+    let mut pk_gy = pub_k.gy;
     pk_gy.reverse();
     pub_key_bytes.extend_from_slice(&pk_gx);
     pub_key_bytes.extend_from_slice(&pk_gy);
@@ -148,7 +148,7 @@ pub fn gen_ecc_cert(
                         writer.write_sequence(|writer| {
                             writer.next().write_sequence(|writer| {
                                 writer.next().write_oid(&ObjectIdentifier::from_slice(&[
-                                    2, 16, 840, 1, 113730, 1, 13,
+                                    2, 16, 840, 1, 113_730, 1, 13,
                                 ]));
                                 writer.next().write_bytes(&payload.into_bytes());
                             });
@@ -168,9 +168,9 @@ pub fn gen_ecc_cert(
             };
             let sig_der = yasna::construct_der(|writer| {
                 writer.write_sequence(|writer| {
-                    let mut sig_x = sig.x.clone();
+                    let mut sig_x = sig.x;
                     sig_x.reverse();
-                    let mut sig_y = sig.y.clone();
+                    let mut sig_y = sig.y;
                     sig_y.reverse();
                     writer.next().write_biguint(&BigUint::from_slice(&sig_x));
                     writer.next().write_biguint(&BigUint::from_slice(&sig_y));
@@ -195,7 +195,7 @@ pub fn gen_ecc_cert(
             let inner_key_der = yasna::construct_der(|writer| {
                 writer.write_sequence(|writer| {
                     writer.next().write_u8(1);
-                    let mut prv_k_r = prv_k.r.clone();
+                    let mut prv_k_r = prv_k.r;
                     prv_k_r.reverse();
                     writer.next().write_bytes(&prv_k_r);
                     prv_k_r.zeroize();

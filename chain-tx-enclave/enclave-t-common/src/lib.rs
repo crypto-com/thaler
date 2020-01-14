@@ -60,6 +60,8 @@ where
             return None;
         }
         let opt = unsafe {
+            // TODO check alignment correctness
+            #[allow(clippy::cast_ptr_alignment)]
             SgxSealedData::<[u8]>::from_raw_sealed_data_t(
                 sealed_log.as_mut_ptr() as *mut sgx_sealed_data_t,
                 sealed_log.len() as u32,
