@@ -22,3 +22,6 @@ chain-tx-validation   = { path = "../../../chain-tx-validation" }
 enclave-protocol   = { path = "../../../enclave-protocol" }
 parity-scale-codec = { version = "1.0" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
+
+[build-dependencies]
+cc = "1.0"

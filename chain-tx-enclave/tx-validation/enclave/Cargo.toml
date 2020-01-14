@@ -7,7 +7,6 @@ readme = "../../README.md"
 edition = "2018"
 
 [lib]
-name = "txvalidationenclave"
 crate-type = ["staticlib"]
 
 [features]
@@ -35,3 +34,6 @@ aes-gcm-siv = "0.3"
 aead = "0.2"
 log = "0.4.8"
 zeroize = { version = "1.0", default-features = false }
+
+[build-dependencies]
+cc = "1.0"

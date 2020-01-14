@@ -11,31 +11,29 @@ fn main() {
 
     Command::new(edger8r)
         .args(&[
-            "--untrusted",
-            "../enclave/Enclave.edl",
+            "--trusted",
+            "Enclave.edl",
             "--search-path",
             &format!("{}/include", sdk_dir),
             "--search-path",
             "../../rust-sgx-sdk/edl",
-            "--untrusted-dir",
+            "--trusted-dir",
             ".",
         ])
         .status()
         .unwrap();
 
     cc::Build::new()
-        .file("Enclave_u.c")
-        .include(&format!("{}/include", sdk_dir))
+        .file("Enclave_t.c")
+        .include("../../rust-sgx-sdk/common/inc")
         .include("../../rust-sgx-sdk/edl")
+        .include(&format!("{}/include", sdk_dir))
+        .include(&format!("{}/include/tlibc", sdk_dir))
+        .flag("-nostdinc")
+        .flag("-fvisibility=hidden")
+        .flag("-fpie")
+        .flag("-fstack-protector")
         .compile("enclave.a");
 
-    #[cfg(target_arch = "x86")]
-    println!("cargo:rustc-link-search=native={}/lib", sdk_dir);
-    #[cfg(not(target_arch = "x86"))]
-    println!("cargo:rustc-link-search=native={}/lib64", sdk_dir);
-
-    println!("cargo:rustc-link-lib=dylib=sgx_urts");
-    println!("cargo:rustc-link-lib=dylib=sgx_uae_service");
-
-    println!("cargo:rerun-if-changed=../enclave/Enclave.edl");
+    println!("cargo:rerun-if-changed=Enclave.edl");
 }

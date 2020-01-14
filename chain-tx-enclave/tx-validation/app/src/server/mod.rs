@@ -34,7 +34,7 @@ impl TxValidationServer {
             Err(e) => {
                 log::error!("get last chain info failed: {:?}", e);
                 Err(Error::EFAULT)
-            },
+            }
             Ok(s) => {
                 let info = s.map(|stored| {
                     ChainInfo::decode(&mut stored.as_ref()).expect("stored chain info corrupted")
@@ -103,7 +103,7 @@ impl TxValidationServer {
                             Err(e) => {
                                 log::error!("get last app hash failed: {:?}", e);
                                 EnclaveResponse::CheckChain(Err(None))
-                            },
+                            }
                             Ok(s) => {
                                 let ss = s.map(|stored| {
                                     let mut app_hash = [0u8; 32];
@@ -143,7 +143,7 @@ impl TxValidationServer {
                         let mtxins = self.lookup(&req.tx);
                         if let Err(e) = is_basic_valid_tx_request(&req, &mtxins, chid) {
                             log::error!("verify transaction failed: {}", e);
-                                EnclaveResponse::UnknownRequest
+                            EnclaveResponse::UnknownRequest
                         } else {
                             EnclaveResponse::VerifyTx(check_tx(
                                 self.enclave.geteid(),
@@ -181,7 +181,7 @@ impl TxValidationServer {
                             _ => {
                                 log::error!("can not find encrypted transaction");
                                 Err(chain_tx_validation::Error::EnclaveRejected)
-                            },
+                            }
                         };
                         EnclaveResponse::EncryptTx(result)
                     }

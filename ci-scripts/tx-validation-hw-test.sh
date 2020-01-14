@@ -18,9 +18,9 @@ echo "[aesm_service] Running in background ..."
 # Wait for aesm_service to initialize
 sleep 1
 
-
 cd /chain/chain-tx-enclave/tx-validation
 make clean
 make
-cd bin
+cargo build -p tx-validation-app
+cd ../../target/debug
 ./tx-validation-app

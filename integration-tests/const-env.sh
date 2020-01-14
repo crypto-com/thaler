@@ -37,7 +37,7 @@ if [ x"${SGX_MODE}" = "xHW" ]; then
     export CHAIN_ABCI_FEATURES=""
     export CHAIN_TX_ENCLAVE_DOCKER_IMAGE="integration-tests-chain-tx-enclave"
     export CHAIN_TX_ENCLAVE_QUERY_DOCKER_IMAGE="integration-tests-chain-tx-enclave-query"
-    export TX_ENCLAVE_ENTRY_POINT="../entrypoint.sh"
+    export TX_ENCLAVE_ENTRY_POINT="./entrypoint.sh"
     export DOCKER_SGX_DEVICE_BINDING="${SGX_DEVICE:-"/dev/sgx"}:/dev/sgx"
     # Listen to tx-query
     export ZERO_FEE_CLIENT_RPC_WAIT_URL="chain-tx-query-enclave-zerofee:25944"

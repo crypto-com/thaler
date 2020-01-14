@@ -26,9 +26,10 @@ export SGX_TEST=1
 cd /chain/chain-tx-enclave/tx-query
 make clean
 make
+cargo build -p tx-query-app
 
-export TX_VALIDATION_BIN_DIR=/chain/chain-tx-enclave/tx-validation/bin/
+export TX_VALIDATION_BIN_DIR=/chain/target/debug
 export TX_QUERY_APP_PORT=`/chain/ci-scripts/find-free-port.sh`
-cd bin
+cd ../../target/debug
 # assumes SPID + IAS_API_KEY environment variables are set from outside / docker
 ./tx-query-app

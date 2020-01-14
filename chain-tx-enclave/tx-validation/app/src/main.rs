@@ -10,6 +10,8 @@ use log::{error, info};
 use std::env;
 use std::thread;
 
+pub const TX_VALIDATION_ENCLAVE_FILE: &str = "tx_validation_enclave.signed.so";
+
 #[cfg(feature = "sgx-test")]
 fn main() {
     test::test_sealing();
@@ -30,7 +32,7 @@ fn main() {
     let txdb = db
         .open_tree(TX_KEYSPACE)
         .expect("failed to open a tx keyspace");
-    let enclave = match init_enclave(true) {
+    let enclave = match init_enclave(TX_VALIDATION_ENCLAVE_FILE, true) {
         Ok(r) => {
             info!("[+] Init Enclave Successful {}!", r.geteid());
             r

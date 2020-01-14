@@ -31,10 +31,8 @@
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
-static ENCLAVE_FILE: &'static str = "enclave.signed.so";
-
 /// returns the initialized enclave
-pub fn init_enclave(debug: bool) -> SgxResult<SgxEnclave> {
+pub fn init_enclave(name: &str, debug: bool) -> SgxResult<SgxEnclave> {
     // call sgx_create_enclave to initialize an enclave instance
     // Debug Support: set 2nd parameter to 1
     let debug = if debug { 1 } else { 0 };
@@ -43,11 +41,5 @@ pub fn init_enclave(debug: bool) -> SgxResult<SgxEnclave> {
         misc_select: 0,
     };
     // TODO: remove the launch token-related args when they are removed from SDK
-    SgxEnclave::create(
-        ENCLAVE_FILE,
-        debug,
-        &mut [0; 1024],
-        &mut 0,
-        &mut misc_attr,
-    )
+    SgxEnclave::create(name, debug, &mut [0; 1024], &mut 0, &mut misc_attr)
 }

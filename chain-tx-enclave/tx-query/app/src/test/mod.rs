@@ -48,9 +48,9 @@ use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::process::Child;
 use std::process::Command;
+use std::sync::mpsc::channel;
 use std::thread;
 use std::time;
-use std::sync::mpsc::channel;
 
 pub fn get_ecdsa_witness<C: Signing>(
     secp: &Secp256k1<C>,
@@ -94,7 +94,7 @@ pub fn test_integration() {
         .spawn()
         .expect("failed to start tx validation");
     init_connection(&connection_socket);
-    let (tx,rx) = channel();
+    let (tx, rx) = channel();
     let t = thread::spawn(move || {
         info!("Trying to launch TX Query server...");
         let enclave = start_enclave();
