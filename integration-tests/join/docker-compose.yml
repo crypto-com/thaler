@@ -8,7 +8,6 @@ services:
       - ./disk/config0:/root/config
       - /nix:/nix
     devices:
-      - /dev/isgx
       - /dev/sgx
     image: chain_test0
     ports:
@@ -33,7 +32,6 @@ services:
       - ./disk/config1:/root/config
       - /nix:/nix
     devices:
-      - /dev/isgx
       - /dev/sgx
     image: chain_test1
     command: /root/disk/go_test.sh
@@ -55,7 +53,6 @@ services:
       - ./disk/config2:/root/config
       - /nix:/nix
     devices:
-      - /dev/isgx
       - /dev/sgx
     image: chain_test2
     command: /root/disk/go_test.sh
