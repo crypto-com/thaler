@@ -1,0 +1,21 @@
+[package]
+name = "cro-clib"
+version = "0.1.0"
+authors = ["jongwhan lee <jonghwan@crypto.com>"]
+edition = "2018"
+
+[lib]
+name = "cro_clib"
+crate-type =["cdylib"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+hex="0.4.0"
+chain-core = { path = "../chain-core" }
+client-common = { path = "../client-common" }
+client-core = { path = "../client-core" }
+secstr = { version = "0.3.2", features = ["serde"] }
+
+[build-dependencies]
+bindgen = "0.52.0"
