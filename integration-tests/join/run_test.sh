@@ -12,7 +12,7 @@ export CURRENT_HASH=$(git rev-parse HEAD)
 echo "run CURRENT_HASH=" $CURRENT_HASH
 docker-compose -p $CURRENT_HASH up -d  
 echo "docker compose ok"
-nix-shell ./jail.nix  --run "export PASSPHRASE=1 && python3 ../bot/jail_test.py"
+nix-shell ../jail/jail.nix  --run "export PASSPHRASE=1 && python3 ../bot/join_test.py"
 ret=$?
 if [ $ret -ne 0 ]; then
     exit -1
