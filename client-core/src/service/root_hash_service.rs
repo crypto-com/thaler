@@ -41,6 +41,13 @@ where
         Ok((root_hash, multi_sig_address))
     }
 
+    /// delete root hash
+    pub fn delete_root_hash(&self, root_hash: &H256, enckey: &SecKey) -> Result<()> {
+        self.storage.get_secure(KEYSPACE, root_hash, enckey)?;
+        self.storage.delete(KEYSPACE, root_hash)?;
+        Ok(())
+    }
+
     /// Generates inclusion proof for set of public keys in merkle root hash
     pub fn generate_proof(
         &self,

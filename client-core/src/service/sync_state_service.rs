@@ -48,7 +48,7 @@ pub fn delete_sync_state<S: Storage>(storage: &S, name: &str) -> Result<()> {
 /// Exposes functionalities for managing client's global state (for synchronization)
 ///
 /// Stores `wallet-name -> global-state`
-#[derive(Default, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct SyncStateService<S>
 where
     S: Storage,

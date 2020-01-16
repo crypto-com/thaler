@@ -57,6 +57,9 @@ pub trait WalletClient: Send + Sync {
         view_key: &PrivateKey,
     ) -> Result<SecKey>;
 
+    /// Remove a wallet
+    fn delete_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()>;
+
     /// get auth token client
     fn auth_token(&self, name: &str, passphrase: &SecUtf8) -> Result<SecKey>;
 

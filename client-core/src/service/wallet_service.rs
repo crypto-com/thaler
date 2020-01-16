@@ -279,6 +279,13 @@ where
     pub fn clear(&self) -> Result<()> {
         self.storage.clear(KEYSPACE)
     }
+
+    /// Delete the key
+    pub fn delete(&self, name: &str, enckey: &SecKey) -> Result<Wallet> {
+        let wallet = self.get_wallet(name, enckey)?;
+        self.storage.delete(KEYSPACE, name)?;
+        Ok(wallet)
+    }
 }
 
 #[cfg(test)]

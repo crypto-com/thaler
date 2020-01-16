@@ -132,6 +132,9 @@ class Wallet:
         '''
         return call('wallet_restoreBasic', [name, passphrase or get_passphrase()], private_view_key)
 
+    def delete(self, name=DEFAULT_WALLET, passphrase=None):
+        return call('wallet_delete', [name, passphrase or get_passphrase()])
+
     def view_key(self, name=DEFAULT_WALLET, private=False, enckey=None):
         return call(
             'wallet_getViewKey',

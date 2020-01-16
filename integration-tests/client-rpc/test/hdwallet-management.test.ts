@@ -213,4 +213,26 @@ describe("HDWallet management", () => {
 		expect(stakingAddressList).to.include(stakingAddress);
 	});
 
+	it("Delete hd wallet", async () => {
+		const words = "aisle debris what lunar patrol dial two patrol toe brisk uncover castle cherry girl hand";
+		const walletName = "hd-delete-test";
+		const walletRequest = newCreateWalletRequest(walletName, DEFAULT_PASSPHRASE);
+
+		await client.request("wallet_restore", [
+			walletRequest, words
+		]);
+
+		await client.request("wallet_delete", [
+			walletRequest,
+		]);
+
+		await client.request("wallet_restore", [
+			walletRequest, words
+		]);
+
+		await client.request("wallet_delete", [
+			walletRequest,
+		]);
+	})
+
 });

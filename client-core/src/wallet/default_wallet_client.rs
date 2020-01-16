@@ -49,6 +49,7 @@ where
     hd_key_service: HdKeyService<S>,
     wallet_service: WalletService<S>,
     wallet_state_service: WalletStateService<S>,
+    sync_state_service: SyncStateService<S>,
     root_hash_service: RootHashService<S>,
     multi_sig_session_service: MultiSigSessionService<S>,
 
@@ -69,6 +70,7 @@ where
             hd_key_service: HdKeyService::new(storage.clone()),
             wallet_service: WalletService::new(storage.clone()),
             wallet_state_service: WalletStateService::new(storage.clone()),
+            sync_state_service: SyncStateService::new(storage.clone()),
             root_hash_service: RootHashService::new(storage.clone()),
             multi_sig_session_service: MultiSigSessionService::new(storage),
             tendermint_client,
@@ -187,6 +189,34 @@ where
             .add_keypair(&view_key_priv, &view_key, &enckey)?;
         self.wallet_service.create(name, &enckey, view_key)?;
         Ok(enckey)
+    }
+
+    fn delete_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
+        // remove from wallet/sync_state/wallet_state/key_service
+        let enckey = derive_enckey(passphrase, name).err_kind(ErrorKind::InvalidInput, || {
+            "unable to derive encryption key from passphrase"
+        })?;
+
+        // the passphrase is verified here.
+        let wallet = self.wallet_service.delete(name, &enckey)?;
+        self.sync_state_service.delete_global_state(name)?;
+        self.wallet_state_service
+            .delete_wallet_state(name, &enckey)?;
+        if self.hd_key_service.has_wallet(name)? {
+            self.hd_key_service.delete_wallet(name, &enckey)?;
+        }
+        self.key_service.delete_key(&wallet.view_key, &enckey)?;
+        for pubkey in wallet.public_keys.iter() {
+            self.key_service.delete_key(pubkey, &enckey)?;
+        }
+        for pubkey in wallet.staking_keys.iter() {
+            self.key_service.delete_key(pubkey, &enckey)?;
+        }
+        for root_hash in wallet.root_hashes.iter() {
+            self.root_hash_service
+                .delete_root_hash(root_hash, &enckey)?;
+        }
+        Ok(())
     }
 
     fn auth_token(&self, name: &str, passphrase: &SecUtf8) -> Result<SecKey> {
@@ -861,4 +891,32 @@ fn import_transaction(
     }
     memento.add_transaction_change(transaction_change);
     Ok(value)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Mnemonic;
+    use client_common::storage::MemoryStorage;
+
+    #[test]
+    fn check_delete_wallet() {
+        let words = Mnemonic::from_secstr(&SecUtf8::from("pony thank pluck sweet bless tuna couple eight stove fluid essay debate cinnamon elite only")).unwrap();
+        let passphrase = SecUtf8::from("123456");
+        let wrong_passphrase = SecUtf8::from("123457");
+        let client = DefaultWalletClient::new_read_only(MemoryStorage::default());
+        client
+            .restore_wallet("Default", &passphrase, &words)
+            .expect("restore wallet");
+        // FIXME this failure will leave storage in an inconsistant state
+        // assert!(client.restore_wallet("test", &passphrase, &words).is_err());
+        assert!(client.delete_wallet("Default", &wrong_passphrase).is_err());
+        assert!(client.delete_wallet("Default1", &passphrase).is_err());
+        client
+            .delete_wallet("Default", &passphrase)
+            .expect("delete wallet");
+        client
+            .restore_wallet("test", &passphrase, &words)
+            .expect("restore wallet");
+    }
 }
