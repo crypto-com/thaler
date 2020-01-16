@@ -15,12 +15,10 @@ import jsonpatch
 import fire
 import toml
 import nacl.signing
-import copy
 from nacl.encoding import HexEncoder
 
 PASSPHRASE = '123456'
-IAS_API_KEY = os.environ['IAS_API_KEY']
-SPID = os.environ['SPID']
+
 
 class SigningKey:
     def __init__(self, seed):
@@ -207,7 +205,7 @@ def app_state_cfg(cfg):
                     'value': SigningKey(node['validator_seed']).pub_key_base64(),
                 }
             ]
-            for node in cfg['nodes']
+            for node in cfg['nodes'] if node['bonded_coin'] > 0
         },
         "genesis_time": cfg['genesis_time'],
     }
@@ -224,17 +222,30 @@ def programs(node, app_hash, root_path, cfg):
     def_env = {
         'RUST_BACKTRACE': '1',
         'RUST_LOG': 'info',
+        'SGX_MODE': 'HW',
     }
-    commands = [
-        ('tx-validation', f"tx-validation-app tcp://0.0.0.0:{tx_validation_port}",
-         dict(def_env, SGX_MODE='HW', TX_ENCLAVE_STORAGE=node_path / Path('tx-validation'))),
-        ('tx-query', f"tx-query-app 0.0.0.0:{tx_query_port} tcp://127.0.0.1:{tx_validation_port}",
-         dict(def_env, SGX_MODE='HW', IAS_API_KEY=IAS_API_KEY, SPID=SPID, TX_ENCLAVE_STORAGE=node_path / Path('tx-query'))),
-        ('chain-abci', f"chain-abci -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{tx_validation_port} --data {node_path / Path('chain')} -p {chain_abci_port} --tx_query 127.0.0.1:{tx_query_port}",
+    commands = []
+    if not cfg['mock_mode']:
+        commands += [
+            ('tx-validation', f"tx-validation-app tcp://0.0.0.0:{tx_validation_port}",
+             dict(def_env,
+                  TX_ENCLAVE_STORAGE=node_path / Path('tx-validation'))),
+            ('tx-query', f"tx-query-app 0.0.0.0:{tx_query_port} tcp://127.0.0.1:{tx_validation_port}",
+             dict(def_env,
+                  IAS_API_KEY=os.environ['IAS_API_KEY'],
+                  SPID=os.environ['SPID'],
+                  TX_ENCLAVE_STORAGE=node_path / Path('tx-query'))),
+        ]
+    commands += [
+        ('chain-abci',
+         f"chain-abci -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{tx_validation_port} --data {node_path / Path('chain')}"
+         f" -p {chain_abci_port} --tx_query 127.0.0.1:{tx_query_port}",
          def_env),
         ('tendermint', f"tendermint node --home={node_path / Path('tendermint')}",
          def_env),
-        ('client-rpc', f"client-rpc --port={client_rpc_port} --chain-id={cfg['chain_id']} --storage-dir={node_path / Path('wallet')} --websocket-url=ws://127.0.0.1:{tendermint_rpc_port}/websocket",
+        ('client-rpc',
+         f"client-rpc --port={client_rpc_port} --chain-id={cfg['chain_id']} --storage-dir={node_path / Path('wallet')} "
+         f"--websocket-url=ws://127.0.0.1:{tendermint_rpc_port}/websocket",
          def_env),
     ]
 
@@ -357,16 +368,7 @@ async def gen_wallet_addr(mnemonic, type='Staking', count=1):
         return addrs
 
 
-async def gen_genesis(cfg_orig):
-    cfg = copy.deepcopy(cfg_orig)
-    newnodes= []
-    for n in cfg["nodes"]:
-        print(n)
-        if n["bonded_coin"]> 0:
-            newnodes.append(n)
-    cfg["nodes"]= newnodes
-         
-
+async def gen_genesis(cfg):
     genesis = {
         "genesis_time": cfg['genesis_time'],
         "chain_id": cfg['chain_id'],
@@ -553,7 +555,7 @@ class CLI:
              dist=1000000000000000000,
              genesis_time="2019-11-20T08:56:48.618137Z",
              base_fee='0.0', per_byte_fee='0.0',
-             base_port=26650,
+             base_port=26650, mock_mode=False,
              chain_id='test-chain-y3m1e6-AB', root_path='./data', hostname='127.0.0.1'):
         '''Generate testnet node specification
         :param count: Number of nodes, [default: 1].
@@ -564,6 +566,7 @@ class CLI:
             'chain_id': chain_id,
             'genesis_time': genesis_time,
             'expansion_cap': expansion_cap,
+            'mock_mode': mock_mode,
             'nodes': [
                 {
                     'name': 'node%d' % i,
@@ -592,28 +595,40 @@ class CLI:
             dist=1000000000000000000,
             genesis_time="2019-11-20T08:56:48.618137Z",
             base_fee='0.0', per_byte_fee='0.0',
-            base_port=26650,
+            base_port=26650, mock_mode=False,
             chain_id='test-chain-y3m1e6-AB', root_path='./data', hostname='127.0.0.1'):
         cfg = self._gen(
-            count, expansion_cap, dist, genesis_time,
-            base_fee, per_byte_fee, base_port,
+            count, expansion_cap,
+            dist,
+            genesis_time,
+            base_fee, per_byte_fee,
+            base_port, mock_mode,
             chain_id, root_path, hostname
         )
         return json.dumps(cfg, indent=4)
 
-    def _prepare(self, cfg):
-        asyncio.run(init_cluster(cfg))
+    def _prepare(self, cfg, base_port=None, mock_mode=None):
+        if base_port is not None:
+            for i, node in enumerate(cfg['nodes']):
+                node['base_port'] = base_port + i * 10
 
-    def prepare(self, spec=None, base_port=None):
+        if mock_mode is not None:
+            cfg['mock_mode'] = mock_mode
+
+        asyncio.run(init_cluster(cfg))
+        return cfg
+
+    def prepare(self, spec=None, base_port=None, mock_mode=None):
         '''Prepare tendermint testnet based on specification
         :param spec: Path of specification file, [default: stdin]
         '''
         cfg = json.load(open(spec) if spec else sys.stdin)
-        if base_port is not None:
-            for i, node in enumerate(cfg['nodes']):
-                node['base_port'] = base_port + i * 10
-        self._prepare(cfg)
-        print('Prepared succesfully', cfg['root_path'], cfg['nodes'][0]['base_port'])
+        cfg = self._prepare(cfg, base_port, mock_mode)
+        return {
+            'root path': cfg['root_path'],
+            'base port': cfg['nodes'][0]['base_port'],
+            'mock mode': cfg['mock_mode']
+        }
 
 
 if __name__ == '__main__':

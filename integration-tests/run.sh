@@ -23,6 +23,13 @@ export TENDERMINT_RPC_PORT=$(($BASE_PORT + 7))
 export CLIENT_RPC_ZEROFEE_PORT=$CLIENT_RPC_PORT
 export TENDERMINT_ZEROFEE_RPC_PORT=$TENDERMINT_RPC_PORT
 
+MOCK_CHAIN=${MOCK_CHAIN:-"0"}
+if [ "x$MOCK_CHAIN" = "x1" ]; then
+    PREPARE_ARG="--mock_mode=True"
+else
+    PREPARE_ARG="--mock_mode=False"
+fi
+
 function wait_http() {
     for i in $(seq 0 10);
     do
@@ -38,7 +45,7 @@ function wait_http() {
 function runtest() {
     echo "Preparing... $1"
     LOWERED_TYPE=`echo $1 | tr "[:upper:]" "[:lower:]"`
-    chainbot.py prepare ${LOWERED_TYPE}_cluster.json --base_port $BASE_PORT
+    chainbot.py prepare ${LOWERED_TYPE}_cluster.json --base_port $BASE_PORT $PREPARE_ARG
 
     echo "Startup..."
     supervisord -n -c data/tasks.ini &

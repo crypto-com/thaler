@@ -91,6 +91,80 @@ trigger:
 
 ---
 kind: pipeline
+name: mock-mode
+
+steps:
+- name: restore-cache
+  image: drillster/drone-volume-cache
+  volumes:
+  - name: cache
+    path: /cache
+  settings:
+    restore: true
+    ttl: 1
+    mount:
+      - ./drone
+
+- name: build
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export CARGO_HOME=$PWD/drone/cargo
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - MOCK_CHAIN=1 ./docker/build.sh
+
+- name: unit-tests
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export CARGO_HOME=$PWD/drone/cargo
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - cargo test
+
+- name: integration-tests
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export PYTHON_VENV_DIR=$PWD/drone/venv
+  - MOCK_CHAIN=1 ./integration-tests/run.sh
+
+- name: rebuild-cache
+  image: drillster/drone-volume-cache
+  volumes:
+  - name: cache
+    path: /cache
+  settings:
+    rebuild: true
+    ttl: 1
+    mount:
+      - ./drone
+
+- name: teardown
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - ./integration-tests/cleanup.sh
+  when:
+    status:
+      - success
+      - failure
+
+volumes:
+  - name: cache
+    host:
+      path: /tmp/drone-cache
+
+trigger:
+  branch:
+  - master
+  - staging
+  - trying
+  event:
+  - push
+
+---
+kind: pipeline
 type: exec
 name: sgx-cargo-1804-hw1
 

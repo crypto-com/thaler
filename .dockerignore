@@ -4,6 +4,7 @@
 !/chain-core
 !/chain-tx-filter
 !/chain-tx-validation
+!/chain-tx-enclave
 !/client-cli
 !/client-common
 !/client-core
