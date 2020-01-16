@@ -17,7 +17,8 @@ ln -sf $CARGO_TARGET_DIR/debug/tx_validation_enclave.signed.so .
 export PATH=$CARGO_TARGET_DIR/debug:$PATH
 
 # environment variables for integration tests
-BASE_PORT=${BASE_PORT:-26650}
+export PASSPHRASE=123456
+export BASE_PORT=${BASE_PORT:-26650}
 export CLIENT_RPC_PORT=$(($BASE_PORT + 9))
 export TENDERMINT_RPC_PORT=$(($BASE_PORT + 7))
 export CLIENT_RPC_ZEROFEE_PORT=$CLIENT_RPC_PORT
@@ -47,10 +48,19 @@ function runtest() {
         cat data/logs/*.log
         RETCODE=1
     else
-        set +e; pushd client-rpc;
+        set +e
+
+        pushd client-rpc
         TEST_ONLY=$1 npm run test
         RETCODE=$?
-        popd; set -e;
+        popd
+
+        if [ $RETCODE -eq 0 ]; then
+            pytest pytests
+            RETCODE=$?
+        fi
+
+        set -e
     fi
 
     echo "Quit supervisord..."
@@ -59,7 +69,7 @@ function runtest() {
     rm -r data
     rm supervisord.log
 
-    [ $RETCODE -eq 0 ] || exit $RETCODE
+    return $RETCODE
 }
 
 if [ -d data ]; then
