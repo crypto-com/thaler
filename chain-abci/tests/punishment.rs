@@ -10,7 +10,10 @@ use test_common::chain_env::{get_account, ChainEnv};
 #[test]
 fn end_block_should_update_liveness_tracker() {
     // Init Chain
-    let (env, storage, account_storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
+    let (env, storage, account_storage) =
+        ChainEnv::new_with_customizer(Coin::max(), Coin::zero(), 1, |parameters| {
+            parameters.required_council_node_stake = Coin::max();
+        });
     let mut app = env.chain_node(storage, account_storage);
     let _rsp = app.init_chain(&env.req_init_chain());
 
@@ -18,7 +21,7 @@ fn end_block_should_update_liveness_tracker() {
     app.begin_block(&env.req_begin_block(1, 0));
 
     // Unbond Transaction (this'll change voting power to zero)
-    let tx_aux = env.unbond_tx(Coin::new(10_000_000_000).unwrap(), 0);
+    let tx_aux = env.unbond_tx(Coin::new(10_000_000_000).unwrap(), 0, 0);
     let rsp_tx = app.deliver_tx(&RequestDeliverTx {
         tx: tx_aux.encode(),
         ..Default::default()

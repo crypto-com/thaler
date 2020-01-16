@@ -387,12 +387,15 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                             .get(&account.address)
                             .copied()
                             .unwrap_or_else(TendermintVotePower::zero);
-                        if new_power > old_power && new_power >= min_power {
-                            self.power_changed_in_block
-                                .insert(account.address, new_power);
-                        } else if old_power >= min_power && new_power < old_power {
-                            self.power_changed_in_block
-                                .insert(account.address, TendermintVotePower::zero());
+
+                        if new_power != old_power {
+                            if new_power >= min_power {
+                                self.power_changed_in_block
+                                    .insert(account.address, new_power);
+                            } else {
+                                self.power_changed_in_block
+                                    .insert(account.address, TendermintVotePower::zero());
+                            }
                         }
                     }
                 }
