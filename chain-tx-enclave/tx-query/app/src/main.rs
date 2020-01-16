@@ -46,7 +46,7 @@ fn main() {
     };
     if args.len() < 3 {
         error!("Please provide the address:port to listen on (e.g. \"0.0.0.0:3443\") as the first argument and the ZMQ connection string (e.g. \"ipc://enclave.ipc\" or \"tcp://127.0.0.1:25933\") of the tx-validation server as the second");
-        return;
+        std::process::exit(1);
     }
     init_connection(&args[2]);
 
