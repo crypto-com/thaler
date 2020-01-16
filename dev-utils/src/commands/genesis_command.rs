@@ -47,9 +47,16 @@ pub enum GenesisCommand {
             name = "in_place",
             short,
             long,
-            help = "Replace Tendermint genesis.json file in place, saving backups with .bak.json extension"
+            help = "Replace Tendermint genesis.json file in place"
         )]
         in_place: bool,
+        #[structopt(
+            name = "no_backup",
+            short,
+            long,
+            help = "Don't create backup file when modify in place, default is creating backup file genesis.bak.json in the same directory"
+        )]
+        no_backup: bool,
     },
 }
 
@@ -60,10 +67,12 @@ impl GenesisCommand {
                 tendermint_genesis_path,
                 genesis_dev_config_path,
                 in_place,
+                no_backup,
             } => generate_genesis_command(
                 tendermint_genesis_path,
                 genesis_dev_config_path,
                 *in_place,
+                *no_backup,
             )
             .map(|_| ()),
         }
@@ -74,6 +83,7 @@ fn generate_genesis_command(
     tendermint_genesis_path: &Option<PathBuf>,
     genesis_dev_config_path: &PathBuf,
     in_place: bool,
+    no_backup: bool,
 ) -> Result<()> {
     let tendermint_genesis_path = match tendermint_genesis_path {
         Some(path) => path.clone(),
@@ -155,7 +165,9 @@ fn generate_genesis_command(
         })?;
 
     if in_place {
-        backup_tendermint_genesis(&tendermint_genesis_path)?;
+        if !no_backup {
+            backup_tendermint_genesis(&tendermint_genesis_path)?;
+        }
         write_tendermint_genesis(&tendermint_genesis_path, &tendermint_genesis_string)?;
     } else {
         println!("{}", tendermint_genesis_string);

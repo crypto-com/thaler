@@ -320,7 +320,11 @@ async def fix_genesis(genesis, cfg):
         with tempfile.NamedTemporaryFile('w') as fp_cfg:
             json.dump(cfg, fp_cfg)
             fp_cfg.flush()
-            await run(f'dev-utils genesis generate -i -g "{fp_cfg.name}" -t "{fp_genesis.name}"')
+            await run(
+                f'dev-utils genesis generate --in_place --no_backup '
+                f'--genesis_dev_config_path "{fp_cfg.name}" '
+                f'--tendermint_genesis_path "{fp_genesis.name}"'
+            )
         return json.load(open(fp_genesis.name))
 
 
