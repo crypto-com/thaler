@@ -21,6 +21,7 @@ sleep 1
 cd /chain/chain-tx-enclave/tx-validation
 make clean
 make
-cargo build -p tx-validation-app
-cd ../../target/debug
+cd app
+cargo build --features sgx-test
+cd ../../../target/debug
 ./tx-validation-app

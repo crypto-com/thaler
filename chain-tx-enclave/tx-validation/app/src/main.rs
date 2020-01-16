@@ -23,7 +23,7 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         error!("Please provide the ZMQ connection string (e.g. \"tcp://127.0.0.1:25933\") as the first argument");
-        return;
+        std::process::exit(1);
     }
     let db = sled::open(storage_path()).expect("failed to open a storage path");
     let metadb = db
