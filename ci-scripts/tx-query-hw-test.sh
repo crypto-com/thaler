@@ -9,7 +9,17 @@ export RUST_LOG=debug
 export RUST_BACKTRACE=1
 export RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3
 
-ls /dev/sgx
+# check if the sgx device exist
+if [ -e '/dev/sgx' ]; then
+  echo "found sgx device /dev/sgx"
+elif [ -e '/dev/isgx' ]; then
+  echo "found sgx device /dev/isgx"
+elif [ -e ${SGX_DEVICE} ] && [ ${SGX_DEVICE}x != x ]; then
+  echo "found sgx device ${SGX_DEVICE}"
+else
+  echo "can not find sgx device ${SGX_DEVICE}"
+  exit 1
+fi
 
 LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service &
 

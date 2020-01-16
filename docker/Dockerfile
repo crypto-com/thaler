@@ -1,31 +1,49 @@
-FROM rust:1.39.0 AS builder
-LABEL maintainer="calvin@crypto.com"
+From ubuntu:18.04
 
-ARG CHAIN_ABCI_FEATURES
-ARG CLIENT_FEATURES
+RUN apt-get update && apt-get install -y \
+     make \
+     libzmq3-dev \
+     libssl1.1 \
+     curl \
+     libprotobuf-dev \
+     libssl-dev && \
+     rm -rf /var/lib/apt/lists/*
 
-ENV RUSTFLAGS "-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3"
+arg BUILD_MODE
 
-RUN apt-get update -y && \
-    apt-get install cmake libgflags-dev libzmq3-dev pkg-config clang -y
+# copy the binary file
+COPY ./target/${BUILD_MODE}/client-cli /usr/local/bin/
+COPY ./target/${BUILD_MODE}/chain-abci /usr/local/bin/
+COPY ./target/${BUILD_MODE}/client-rpc /usr/local/bin/
+COPY ./target/${BUILD_MODE}/dev-utils /usr/local/bin/
+# copy sgx binary file
+COPY ./target/${BUILD_MODE}/tx-query-app /usr/local/bin
+COPY ./target/${BUILD_MODE}/tx_query_enclave.signed.so /usr/local/bin
+COPY ./target/${BUILD_MODE}/tx-validation-app /usr/local/bin
+COPY ./target/${BUILD_MODE}/tx_validation_enclave.signed.so /usr/local/bin
+# copy scripts
+COPY ./docker/wait-for-it.sh /usr/local/bin
+COPY ci-scripts/run_tx_query.sh /usr/local/bin
+COPY ci-scripts/run_tx_validation.sh /usr/local/bin
 
-COPY . .
+# install sgx enclave pws
+ARG SGX_ENCLAVE=https://download.01.org/intel-sgx/sgx-linux/2.7.1/distro/ubuntu18.04-server/libsgx-enclave-common_2.7.101.3-bionic1_amd64.deb
+RUN mkdir -p /opt/intel && \
+    cd /opt/intel && \
+    set -eux; \
+    curl -L  ${SGX_ENCLAVE} -o common.deb &&\
+    dpkg -i common.deb; rm common.deb;
 
-RUN cargo build --bin dev-utils
-RUN cd chain-abci && cargo build --features "${CHAIN_ABCI_FEATURES}"
-RUN cd client-cli && cargo build --features "${CLIENT_FEATURES}"
-RUN cd client-rpc && cargo build --features "${CLIENT_FEATURES}"
-RUN mkdir -p /output/bin && \
-    for bin in chain-abci client-cli client-rpc dev-utils; do mv "target/debug/${bin}" /output/bin/; done && \
-    mv docker/wait-for-it.sh /output/bin/
-
-
-FROM debian:buster
-
-RUN apt-get update -y && \
-    apt-get install --no-install-recommends libssl-dev libzmq3-dev -y && \
-    rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /output/bin/. /usr/bin/
-
+WORKDIR /usr/local/bin
 STOPSIGNAL SIGTERM
+
+ENV RUST_LOG=info
+ENV TX_ENCLAVE_STORAGE=/crypto-chain/enclave-storage
+
+ENV SGX_MODE=${SGX_MODE}
+ENV NETWORK_ID=${NETWORK_ID}
+
+ENV APP_PORT_VALIDATION=26650
+ENV APP_PORT_QUERY=26651
+ENV TX_QUERY_TIMEOUT=10
+ENV TX_VALIDATION_CONN=${TX_VALIDATION_CONN}
