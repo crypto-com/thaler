@@ -4,6 +4,10 @@
 **/*.rs.bk
 /.cargo
 
+# Python
+__pycache__
+*.egg-info
+
 # Storage
 /.storage
 /.cro-storage
@@ -22,3 +26,10 @@
 # SSH
 id_rsa
 id_ecdsa
+
+# drone cache
+/drone
+
+# integration tests temparary artifacts
+/integration-tests/*.so
+/integration-tests/bot/.venv

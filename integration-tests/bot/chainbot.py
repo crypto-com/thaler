@@ -19,7 +19,8 @@ import copy
 from nacl.encoding import HexEncoder
 
 PASSPHRASE = '123456'
-
+IAS_API_KEY = os.environ['IAS_API_KEY']
+SPID = os.environ['SPID']
 
 class SigningKey:
     def __init__(self, seed):
@@ -215,22 +216,33 @@ def app_state_cfg(cfg):
 def programs(node, app_hash, root_path, cfg):
     node_path = root_path / Path(node['name'])
     base_port = node['base_port']
+    tx_validation_port = base_port + 0
+    tx_query_port = base_port + 1
     chain_abci_port = base_port + 8
     tendermint_rpc_port = base_port + 7
     client_rpc_port = base_port + 9
-    sgx_device = cfg.get('sgx_device')
+    def_env = {
+        'RUST_BACKTRACE': '1',
+        'RUST_LOG': 'info',
+    }
     commands = [
-        ('tx-enclave', f'''docker run --rm -p {base_port}:25933 --env RUST_BACKTRACE=1 --env RUST_LOG=info -v {node_path / Path('enclave')}:/enclave-storage {'--device ' + sgx_device if sgx_device else ''} {cfg['enclave_docker_image']}'''),
-        ('chain-abci', f'''chain-abci -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{base_port} --data {node_path / Path('chain')} -p {chain_abci_port} --tx_query tcp://127.0.0.1:{base_port}'''),
-        ('tendermint', f'''tendermint node --home={node_path / Path('tendermint')}'''),
-        ('client-rpc', f'''client-rpc --port={client_rpc_port} --chain-id={cfg['chain_id']} --storage-dir={node_path / Path('wallet')} --websocket-url=ws://127.0.0.1:{tendermint_rpc_port}/websocket'''),
+        ('tx-validation', f"tx-validation-app tcp://0.0.0.0:{tx_validation_port}",
+         dict(def_env, SGX_MODE='HW', TX_ENCLAVE_STORAGE=node_path / Path('tx-validation'))),
+        ('tx-query', f"tx-query-app 0.0.0.0:{tx_query_port} tcp://127.0.0.1:{tx_validation_port}",
+         dict(def_env, SGX_MODE='HW', IAS_API_KEY=IAS_API_KEY, SPID=SPID, TX_ENCLAVE_STORAGE=node_path / Path('tx-query'))),
+        ('chain-abci', f"chain-abci -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{tx_validation_port} --data {node_path / Path('chain')} -p {chain_abci_port} --tx_query 127.0.0.1:{tx_query_port}",
+         def_env),
+        ('tendermint', f"tendermint node --home={node_path / Path('tendermint')}",
+         def_env),
+        ('client-rpc', f"client-rpc --port={client_rpc_port} --chain-id={cfg['chain_id']} --storage-dir={node_path / Path('wallet')} --websocket-url=ws://127.0.0.1:{tendermint_rpc_port}/websocket",
+         def_env),
     ]
 
     return {
         'program:%s-%s' % (name, node['name']): {
             'command': cmd,
             'stdout_logfile': f"%(here)s/logs/{name}-%(group_name)s.log",
-            'environment': 'RUST_BACKTRACE=1,RUST_LOG=info',
+            'environment': ','.join(f'{k}={v}' for k, v in env.items()),
             'autostart': 'true',
             'autorestart': 'true',
             'redirect_stderr': 'true',
@@ -238,7 +250,7 @@ def programs(node, app_hash, root_path, cfg):
             'startsecs': '1',
             'startretries': '10',
         }
-        for priority, (name, cmd) in enumerate(commands)
+        for priority, (name, cmd, env) in enumerate(commands)
     }
 
 
@@ -537,18 +549,15 @@ class CLI:
              dist=1000000000000000000,
              genesis_time="2019-11-20T08:56:48.618137Z",
              base_fee='0.0', per_byte_fee='0.0',
-             base_port=26650, sgx_device=None,
+             base_port=26650,
              chain_id='test-chain-y3m1e6-AB', root_path='./data', hostname='127.0.0.1'):
         '''Generate testnet node specification
         :param count: Number of nodes, [default: 1].
         '''
         share = int(dist / count / 2)
-        sgx_mode = '' if sgx_device else '-sw'
         cfg = {
             'root_path': root_path,
             'chain_id': chain_id,
-            'sgx_device': sgx_device,
-            'enclave_docker_image': 'integration-tests-chain-tx-enclave' + sgx_mode,
             'genesis_time': genesis_time,
             'expansion_cap': expansion_cap,
             'nodes': [
@@ -579,25 +588,28 @@ class CLI:
             dist=1000000000000000000,
             genesis_time="2019-11-20T08:56:48.618137Z",
             base_fee='0.0', per_byte_fee='0.0',
-            base_port=26650, sgx_device=None,
+            base_port=26650,
             chain_id='test-chain-y3m1e6-AB', root_path='./data', hostname='127.0.0.1'):
         cfg = self._gen(
             count, expansion_cap, dist, genesis_time,
             base_fee, per_byte_fee, base_port,
-            sgx_device, chain_id, root_path, hostname
+            chain_id, root_path, hostname
         )
         return json.dumps(cfg, indent=4)
 
     def _prepare(self, cfg):
         asyncio.run(init_cluster(cfg))
 
-    def prepare(self, spec=None):
+    def prepare(self, spec=None, base_port=None):
         '''Prepare tendermint testnet based on specification
         :param spec: Path of specification file, [default: stdin]
         '''
         cfg = json.load(open(spec) if spec else sys.stdin)
+        if base_port is not None:
+            for i, node in enumerate(cfg['nodes']):
+                node['base_port'] = base_port + i * 10
         self._prepare(cfg)
-        print('Prepared succesfully', cfg['root_path'])
+        print('Prepared succesfully', cfg['root_path'], cfg['nodes'][0]['base_port'])
 
 
 if __name__ == '__main__':

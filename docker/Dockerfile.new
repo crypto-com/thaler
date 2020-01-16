@@ -1,0 +1,96 @@
+ARG SGX_MODE=HW
+ARG NETWORK_ID=AB
+
+FROM ubuntu:18.04 AS RUNTIME_BASE
+LABEL maintainer="blockchain@crypto.com"
+
+ARG SGX_ENCLAVE=https://download.01.org/intel-sgx/sgx-linux/2.7.1/distro/ubuntu18.04-server/libsgx-enclave-common_2.7.101.3-bionic1_amd64.deb
+RUN set -e; \
+    apt-get update; \
+    apt-get install -y libzmq3-dev libssl1.1 libprotobuf10; \
+    apt-get install -y curl; \
+    mkdir -p /opt/intel; \
+    curl ${SGX_ENCLAVE} -o /tmp/sgx.deb; \
+    dpkg -i /tmp/sgx.deb; \
+    rm /tmp/sgx.deb; \
+    apt-get purge --auto-remove -y curl; \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=tendermint/tendermint:v0.32.9 /usr/bin/tendermint /usr/bin/tendermint
+
+FROM baiduxlab/sgx-rust:1804-1.1.0 AS BUILDER_BASE
+LABEL maintainer="blockchain@crypto.com"
+
+ARG SGX_MODE
+ARG NETWORK_ID
+
+ENV SGX_SDK=/opt/sgxsdk
+ENV PATH=/root/.cargo/bin:/root/.local/bin:$PATH
+ENV RUST_BACKTRACE=1
+ENV RUSTFLAGS "-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3"
+ENV SGX_MODE=$SGX_MODE
+ENV NETWORK_ID=$NETWORK_ID
+
+RUN set -e; \
+    apt-get update -y; \
+    apt-get install -y \
+      cmake \
+      libgflags-dev \
+      libzmq3-dev \
+      pkg-config \
+      clang; \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=tendermint/tendermint:v0.32.9 /usr/bin/tendermint /usr/bin/tendermint
+
+FROM BUILDER_BASE AS TEST
+LABEL maintainer="blockchain@crypto.com"
+
+ARG SGX_MODE
+ARG NETWORK_ID
+
+ENV SGX_MODE=$SGX_MODE
+ENV NETWORK_ID=$NETWORK_ID
+
+RUN set -e; \
+    apt-get update -y; \
+    apt-get install -y software-properties-common; \
+    add-apt-repository -y ppa:deadsnakes/ppa; \
+    apt-get install -y python3.8 python3-distutils; \
+    curl -sL https://deb.nodesource.com/setup_10.x | bash; \
+    apt-get install -y nodejs; \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1; \
+    apt-get purge --auto-remove -y software-properties-common; \
+    rm -r /var/lib/apt/lists/*
+
+FROM BUILDER_BASE AS BUILDER
+LABEL maintainer="blockchain@crypto.com"
+
+ARG SGX_MODE
+ARG NETWORK_ID
+
+ENV SGX_MODE=$SGX_MODE
+ENV NETWORK_ID=$NETWORK_ID
+
+COPY . /src 
+WORKDIR /src
+RUN set -e; \
+    ./docker/build.sh; \
+    mkdir /output; \
+    for bin in \
+      chain-abci \
+      client-cli \
+      client-rpc \
+      dev-utils \
+      tx-validation-app \
+      tx-query-app \
+      tx_query_enclave.signed.so \
+      tx_validation_enclave.signed.so ; \
+    do mv "./target/debug/${bin}" /output; done; \
+    cargo clean;
+
+FROM RUNTIME_BASE
+
+COPY --from=BUILDER /output/. /crypto-chain
+ENV PATH=/crypto-chain:$PATH
+WORKDIR /crypto-chain

@@ -1,0 +1,50 @@
+{
+    "root_path": "./data",
+    "chain_id": "test-chain-y3m1e6-AB",
+    "mock_tx_query": true,
+    "sgx_device": null,
+    "enclave_docker_image": "integration-tests-chain-tx-enclave-sw",
+    "genesis_time": "2019-11-20T08:56:48.618137Z",
+    "expansion_cap": 1000000000000000000,
+    "nodes": [
+        {
+            "name": "node0",
+            "hostname": "127.0.0.1",
+            "mnemonic": "pony thank pluck sweet bless tuna couple eight stove fluid essay debate cinnamon elite only",
+            "validator_seed": "e7e45e74517c02a5f30bfb56c05993086d79191d503125db079b7565c67c7802",
+            "node_seed": "95356c3c5791cdd1601087c6448aa2a3b1f6f01ecce89b601194e0d6f27fdd7b",
+            "bonded_coin": 500000000000000000,
+            "unbonded_coin": 500000000000000000,
+            "base_port": 16650
+        }
+    ],
+    "chain_config_patch": [
+        {
+            "op": "replace",
+            "path": "/initial_fee_policy/base_fee",
+            "value": "0.0"
+        },
+        {
+            "op": "replace",
+            "path": "/initial_fee_policy/per_byte_fee",
+            "value": "0.0"
+        },
+        {
+            "op": "replace",
+            "path": "/unbonding_period",
+            "value": 15
+        }
+    ],
+    "tendermint_config_patch": [
+        {
+            "op": "replace",
+            "path": "/consensus/create_empty_blocks",
+            "value": true
+        },
+        {
+            "op": "add",
+            "path": "/consensus/create_empty_blocks_interval",
+            "value": "0s"
+        }
+    ]
+}

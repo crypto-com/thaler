@@ -1,135 +1,51 @@
 # Crypto.com Chain Client Integration Tests Suite
 
-## Prerequisites
+## Run locally
 
-- [Docker](https://www.docker.com/get-started)
-- [jq](https://stedolan.github.io/jq/)
+Prerequisite:
 
-## Prepare Integration Test
+* Linux with sgx device and `aesm_service` started
+* chain binaries in `PATH`, `./target/debug` directory will be added to `PATH` atomatically.
+* python3.7+ and npm.
 
-### Initialize Tendermint and genesis
+Run:
 
-Note: This step is needed only in local environment. TravisCI will initialize the data and build automatically.
-
-1\. Build the [Crypto.com chain](https://www.github.com/crypto-com/chain) project.
-
-2\. Go to the `integration-tests` folder, run
-
-```bash
-$ ./prepare.sh
+```shell
+./integration-tests/run.sh
 ```
 
-## Start Local Integration Tests environment
+## Run locally with drone
 
-There are two ways you can start the local integration tests environment for testing:
+> We assume the name of sgx device is `/dev/sgx`, if you have a different device name, you need to rename it by creating permanent symbolic link like this:
+>
+> ```shell
+> $ cat > /etc/udev/rules.d/99_sgx.rules << EOF
+> KERNEL=="isgx", SYMLINK+="sgx"
+> EOF
+> $ reboot
+> ```
 
-### 1. Start using your local chain code
+Prerequisite:
 
-The environment used your local build, which is suitable when you are under active development.
+* Linux with sgx device
 
-- **When to use**: Under active development
-- **Advantages**: Using your local build gives faster build time and feedback loop
-- **Disadvantages**: Takes more steps to setup
+* [drone-cli](https://docs.drone.io/cli/install/)
 
-#### Howto
+- [docker](https://www.docker.com/get-started)
 
-You have to start each component one-by-one using the provided script, each component has normal (With fee) mode and zero-fee mode. Suffix the component name with `-zerofee` for zero-fee mode.
+Prepare secret file with `SPID` and `IAS_API_KEY` inside.
 
-When a component is started, it will create a new "workspace" for the component. It will contain only the initialized wallet and genesis funds distribution. Any data you have in previous session, such as transactions data are gone.
+Run:
 
-e.g. `tendermint` to `tendermint-zerofee`
-
-#### Start Chain Tx Enclave
-
-```bash
-$ ./integration-tests/start-local.sh chain-tx-enclave
-# Or
-$ ./integration-tests/start-local.sh chain-tx-enclave-zerofee
+```shell
+drone exec --secret-file secretfile --trusted
 ```
 
-#### Start Tendermint
+You can also use `--exclude` to choose to run unit test or integration test (refer to docs of drone-cli for more detail):
 
-```bash
-$ ./integration-tests/start-local.sh tendermint
-# Or
-$ ./integration-tests/start-local.sh tendermint-zerofee
+```shell
+# run integration tests only
+drone exec --secret-file secretfile --trusted --exclude unit-tests
+# run unit tests only
+drone exec --secret-file secretfile --trusted --exclude integration-tests
 ```
-
-#### Start Chain ABCI
-
-```bash
-$ ./integration-tests/start-local.sh chain-abci
-# Or
-$ ./integration-tests/start-local.sh chain-abci-zerofee
-```
-
-#### Start ClientRPC
-
-```bash
-$ ./integration-tests/start-local.sh client-rpc
-# Or
-$ ./integration-tests/start-local.sh client-rpc-zerofee
-```
-
-### 2. Start using Docker Compose
-
-The environment will be built on-the-fly on docker-compose, which does not require much human intervention but has to be re-built from scratch whenever code changes.
-
-- **When to use**: One-off running of integration tests
-- **Advantages**: The whole environment is built and started with one command
-- **Disadvantages**: Since docker manages the build for you, docker has to re-build on every code changes
-
-#### Howto
-
-```bash
-$ . ./integration-tests/env.sh
-$ docker-compose -f ./integration-tests/docker-compose.yml up
-```
-
-## List of Integration Tests
-
-| Integration Test Suite | Description                                                    |
-| ---------------------- | -------------------------------------------------------------- |
-| run-test.sh            | Test Tendermint, Chain ABCI and ClientRPC are connect together |
-| client-rpc             | Test related to client RPC server operations                   |
-
-## How to run `client-rpc` Integration Tests Suite
-
-Go to `client-rpc` directory, run
-
-```bash
-$ yarn
-$ yarn test
-```
-
-If you are running local mode, depending on which fee schema environment you are running:
-
-```bash
-$ yarn
-$ TEST_ONLY=<WITH_FEE|ZERO_FEE> yarn test
-```
-
-## Appendix
-
-### Initialized Wallet
-
-The wallet initialized by the prepare script contains a wallet named `Default` with passpharse `123456`. An initial genesis funds of `2500000000000000000` basic unit of CRO is bonded to the first address of the wallet.
-
-### Update Tendermint version
-
-There are two places specifying Tendermint version to build and run:
-
-- integration-tests/constant-env.sh
-- integration-tests/docker-compose.yml
-
-If you want to specify your Tendermint version, you can also set environment `TENDERMINT_VERSION` to your desired version before prepare, build and start.
-
-### Use crypto official docker-image
-Librocksdb-sys compiling fails on baidu docker image.  
-It is by out-dated clang version.  
-Use crypto official docker image to compile.  
-
-
-### Using correct local host
-In azure, 127.0.0.1 doesn't represent localhost anymore  
-So use localhost as ip address for connecting local processes
