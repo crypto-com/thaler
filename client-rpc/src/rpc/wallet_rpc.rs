@@ -38,6 +38,9 @@ pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_restoreBasic")]
     fn restore_basic(&self, request: CreateWalletRequest, view_key: SecUtf8) -> Result<SecKey>;
 
+    #[rpc(name = "wallet_delete")]
+    fn delete(&self, request: CreateWalletRequest) -> Result<()>;
+
     #[rpc(name = "wallet_newMultiSigAddressPublicKey")]
     fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String>;
 
@@ -189,6 +192,12 @@ where
             .map_err(to_rpc_error)?;
 
         Ok(enckey)
+    }
+
+    fn delete(&self, request: CreateWalletRequest) -> Result<()> {
+        self.client
+            .delete_wallet(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)
     }
 
     fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String> {

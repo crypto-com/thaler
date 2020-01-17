@@ -34,6 +34,11 @@ pub enum WalletCommand {
         #[structopt(name = "name", short, long, help = "Name of wallet")]
         name: String,
     },
+    #[structopt(name = "delete", about = "Delete wallet")]
+    Delete {
+        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        name: String,
+    },
 }
 
 impl WalletCommand {
@@ -45,6 +50,7 @@ impl WalletCommand {
             WalletCommand::List => Self::list_wallets(wallet_client),
             WalletCommand::Restore { name } => Self::restore_wallet(wallet_client, name),
             WalletCommand::AuthToken { name } => Self::auth_token(wallet_client, name),
+            WalletCommand::Delete { name } => Self::delete(wallet_client, name),
         }
     }
 
@@ -135,6 +141,12 @@ impl WalletCommand {
             "Authentication token: {}",
             &hex::encode(enckey.unsecure())
         ));
+        Ok(())
+    }
+
+    fn delete<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
+        let passphrase = ask_passphrase(None)?;
+        wallet_client.delete_wallet(name, &passphrase)?;
         Ok(())
     }
 }

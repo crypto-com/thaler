@@ -70,6 +70,17 @@ where
         self.storage.contains_key(KEYSPACE, name)
     }
 
+    /// Delete wallet
+    pub fn delete_wallet(&self, name: &str, enckey: &SecKey) -> Result<()> {
+        self.storage
+            .get_secure(KEYSPACE, name, enckey)?
+            .err_kind(ErrorKind::InvalidInput, || {
+                format!("Wallet with name {} not found in hd key service", name)
+            })?;
+        self.storage.delete(KEYSPACE, name)?;
+        Ok(())
+    }
+
     /// Adds a new mnemonic in storage and sets its index to zero
     pub fn add_mnemonic(&self, name: &str, mnemonic: &Mnemonic, enckey: &SecKey) -> Result<()> {
         if self.storage.get(KEYSPACE, name)?.is_some() {

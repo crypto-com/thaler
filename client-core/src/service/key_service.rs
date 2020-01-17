@@ -1,7 +1,7 @@
 use zeroize::Zeroize;
 
 use client_common::Result;
-use client_common::{PrivateKey, PublicKey, SecKey, SecureStorage, Storage};
+use client_common::{ErrorKind, PrivateKey, PublicKey, ResultExt, SecKey, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_key";
 
@@ -55,6 +55,16 @@ where
                 Ok(private_key)
             })
             .transpose()
+    }
+
+    /// Delete key pair
+    pub fn delete_key(&self, public_key: &PublicKey, enckey: &SecKey) -> Result<()> {
+        let serialized = public_key.serialize();
+        self.storage
+            .get_secure(KEYSPACE, &serialized, enckey)?
+            .err_kind(ErrorKind::InvalidInput, || "public key not found")?;
+        self.storage.delete(KEYSPACE, &serialized)?;
+        Ok(())
     }
 
     /// Clears all storage

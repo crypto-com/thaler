@@ -5,7 +5,6 @@ import { RpcClient } from "./core/rpc-client";
 import { unbondAndWithdrawStake } from "./core/setup";
 import {
 	generateWalletName,
-	newWalletRequest,
 	rawWalletRequest,
 	newCreateWalletRequest,
 	newZeroFeeRpcClient,
@@ -173,4 +172,25 @@ describe("Wallet management", () => {
 		expect(stakingAddressList).to.be.an("array");
 		expect(stakingAddressList).to.include(stakingAddress);
 	});
+
+	it("Delete wallet", async () => {
+		const walletName = "delete-test";
+		const walletRequest = newCreateWalletRequest(walletName, DEFAULT_PASSPHRASE);
+
+		await client.request("wallet_create", [
+			walletRequest, "Basic"
+		]);
+
+		await client.request("wallet_delete", [
+			walletRequest,
+		]);
+
+		await client.request("wallet_create", [
+			walletRequest, "Basic"
+		]);
+
+		await client.request("wallet_delete", [
+			walletRequest,
+		]);
+	})
 });
