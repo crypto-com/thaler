@@ -5,8 +5,9 @@ from chainrpc import RPC
 
 
 class TestAddresses:
-    def __init__(self, staking, transfer1, transfer2):
-        self.staking = staking
+    def __init__(self, staking1, staking2, transfer1, transfer2):
+        self.bonded_staking = staking1
+        self.unbonded_staking = staking2
         self.transfer1 = transfer1
         self.transfer2 = transfer2
 
@@ -17,13 +18,14 @@ def addresses():
     enckey = rpc.wallet.enckey()
     os.environ['ENCKEY'] = enckey
     rpc.wallet.sync()
+    stakings = rpc.address.list(type='staking')
+    transfers = rpc.address.list(type='transfer')
     addrs = TestAddresses(
-        rpc.address.list(type='staking')[0],
-        rpc.address.list(type='transfer')[0],
-        rpc.address.list(type='transfer')[1],
+        stakings[0], stakings[1],
+        transfers[0], transfers[1],
     )
 
-    state = rpc.staking.state(addrs.staking)
+    state = rpc.staking.state(addrs.unbonded_staking)
     if int(state['unbonded']) > 0:
         rpc.staking.withdraw_all_unbonded(addrs.staking,
                                           addrs.transfer1)
