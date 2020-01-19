@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 sha2 = { version = "0.8", default-features = false }
 signatory = { version = "0.17", features = ["ed25519", "ecdsa"] }
-signatory-dalek = "0.17"
+signatory-dalek = "0.18"
 serde_json = { version = "1.0" }
 subtle = "2"
 subtle-encoding = { version = "0.5", features = ["bech32-preview"] }
