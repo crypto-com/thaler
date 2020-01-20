@@ -31,6 +31,8 @@ def addresses():
         rpc.wallet.sync()
         balance = rpc.wallet.balance()
         assert int(balance["total"]) > 0
+    else:
+        balance = rpc.wallet.balance()
     # wait for the pending amount become available
     loop = 0
     while int(balance["pending"]) != 0 and loop < 60:
