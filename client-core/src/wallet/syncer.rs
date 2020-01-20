@@ -1,7 +1,6 @@
 #![allow(missing_docs)]
 use itertools::{izip, Itertools};
 use non_empty_vec::NonEmpty;
-use std::collections::BTreeSet;
 use std::sync::mpsc::Sender;
 
 use chain_core::common::H256;
@@ -508,7 +507,7 @@ impl FilteredBlock {
         let block_filter = block_result.block_filter()?;
 
         let staking_transactions =
-            filter_staking_transactions(&block_result, &wallet.staking_addresses(), block)?;
+            filter_staking_transactions(&block_result, wallet.staking_addresses().iter(), block)?;
 
         let enclave_transaction_ids =
             if block_filter.check_view_key(&wallet.view_key.clone().into()) {
@@ -529,9 +528,9 @@ impl FilteredBlock {
     }
 }
 
-fn filter_staking_transactions(
+fn filter_staking_transactions<'a>(
     block_results: &BlockResults,
-    staking_addresses: &BTreeSet<StakedStateAddress>,
+    staking_addresses: impl Iterator<Item = &'a StakedStateAddress>,
     block: &Block,
 ) -> Result<Vec<Transaction>> {
     for staking_address in staking_addresses {

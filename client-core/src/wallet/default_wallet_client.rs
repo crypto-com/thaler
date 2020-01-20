@@ -1,6 +1,5 @@
 use bit_vec::BitVec;
-use std::collections::BTreeSet;
-
+use indexmap::IndexSet;
 use parity_scale_codec::Encode;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
@@ -242,17 +241,17 @@ where
     }
 
     #[inline]
-    fn public_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>> {
+    fn public_keys(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<PublicKey>> {
         self.wallet_service.public_keys(name, enckey)
     }
 
     #[inline]
-    fn staking_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>> {
+    fn staking_keys(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<PublicKey>> {
         self.wallet_service.staking_keys(name, enckey)
     }
 
     #[inline]
-    fn root_hashes(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<H256>> {
+    fn root_hashes(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<H256>> {
         self.wallet_service.root_hashes(name, enckey)
     }
 
@@ -261,12 +260,12 @@ where
         &self,
         name: &str,
         enckey: &SecKey,
-    ) -> Result<BTreeSet<StakedStateAddress>> {
+    ) -> Result<IndexSet<StakedStateAddress>> {
         self.wallet_service.staking_addresses(name, enckey)
     }
 
     #[inline]
-    fn transfer_addresses(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<ExtendedAddr>> {
+    fn transfer_addresses(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<ExtendedAddr>> {
         self.wallet_service.transfer_addresses(name, enckey)
     }
 

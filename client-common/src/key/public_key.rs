@@ -14,7 +14,7 @@ use chain_core::tx::witness::tree::RawPubkey;
 use crate::{Error, ErrorKind, Result, ResultExt, SECP};
 
 /// Public key used in Crypto.com Chain
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
 pub struct PublicKey(SecpPublicKey);
 
 impl Serialize for PublicKey {
