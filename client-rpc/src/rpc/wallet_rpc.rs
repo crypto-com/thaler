@@ -6,16 +6,11 @@ use jsonrpc_derive::rpc;
 use secstr::SecUtf8;
 
 use chain_core::init::coin::Coin;
-use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
-use chain_core::tx::data::attribute::TxAttributes;
-use chain_core::tx::data::output::TxOut;
-use chain_core::tx::TxObfuscated;
-use chain_core::tx::{TxAux, TxEnclaveAux};
 use client_common::{PrivateKey, PublicKey, Result as CommonResult, SecKey};
+use client_core::types::WalletBalance;
 use client_core::types::WalletKind;
 use client_core::types::{AddressType, TransactionChange};
-use client_core::types::{TransactionPending, WalletBalance};
 use client_core::{Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error, CreateWalletRequest, WalletRequest};
@@ -302,94 +297,34 @@ where
         amount: Coin,
         view_keys: Vec<String>,
     ) -> Result<String> {
-        let current_block_height = self
-            .client
-            .get_current_block_height()
-            .map_err(to_rpc_error)?;
-
         let address = to_address
             .parse::<ExtendedAddr>()
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
-        let tx_out = TxOut::new(address, amount);
-
         let view_keys = view_keys
             .iter()
             .map(|view_key| PublicKey::from_str(view_key))
             .collect::<CommonResult<Vec<PublicKey>>>()
             .map_err(to_rpc_error)?;
-
-        let view_key = self
+        let tx_id = self
             .client
-            .view_key(&request.name, &request.enckey)
-            .map_err(to_rpc_error)?;
-
-        let mut access_policies = vec![TxAccessPolicy {
-            view_key: view_key.into(),
-            access: TxAccess::AllData,
-        }];
-
-        for key in view_keys.iter() {
-            access_policies.push(TxAccessPolicy {
-                view_key: key.into(),
-                access: TxAccess::AllData,
-            });
-        }
-
-        let attributes = TxAttributes::new_with_access(self.network_id, access_policies);
-
-        let return_address = self
-            .client
-            .new_transfer_address(&request.name, &request.enckey)
-            .map_err(to_rpc_error)?;
-
-        let (transaction, selected_inputs, return_amount) = self
-            .client
-            .create_transaction(
+            .send_to_address(
                 &request.name,
                 &request.enckey,
-                vec![tx_out],
-                attributes,
-                None,
-                return_address,
+                amount,
+                address,
+                view_keys,
+                self.network_id,
             )
             .map_err(to_rpc_error)?;
-
-        self.client
-            .broadcast_transaction(&transaction)
-            .map_err(to_rpc_error)?;
-        //update the wallet state
-        let tx_pending = TransactionPending {
-            used_inputs: selected_inputs,
-            block_height: current_block_height,
-            return_amount,
-        };
-
-        self.client
-            .update_tx_pending_state(
-                &request.name,
-                &request.enckey,
-                transaction.tx_id(),
-                tx_pending,
-            )
-            .map_err(to_rpc_error)?;
-
-        if let TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
-            payload: TxObfuscated { txid, .. },
-            ..
-        }) = transaction
-        {
-            Ok(hex::encode(txid))
-        } else {
-            Err(rpc_error_from_string(String::from(
-                "Transaction is not transfer transaction",
-            )))
-        }
+        Ok(hex::encode(tx_id))
     }
 
     fn export_plain_tx(&self, request: WalletRequest, txid: String) -> Result<String> {
-        self.client
+        let tx_info = self
+            .client
             .export_plain_tx(&request.name, &request.enckey, &txid)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error)?;
+        tx_info.encode().map_err(to_rpc_error)
     }
 
     fn import_plain_tx(&self, request: WalletRequest, tx: String) -> Result<Coin> {
@@ -430,7 +365,7 @@ pub mod tests {
     use chain_core::tx::data::input::TxoIndex;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
-    use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxObfuscated};
+    use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::lite;
     use client_common::tendermint::mock;
@@ -832,7 +767,7 @@ pub mod tests {
             ZeroFeeAlgorithm::default(),
             MockTransactionCipher,
         );
-        DefaultWalletClient::new(storage, MockRpcClient, transaction_builder)
+        DefaultWalletClient::new(storage, MockRpcClient, transaction_builder, None)
     }
 
     fn setup_wallet_rpc() -> WalletRpcImpl<TestWalletClient> {

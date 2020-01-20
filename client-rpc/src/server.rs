@@ -106,6 +106,7 @@ impl Server {
             storage,
             tendermint_client,
             transaction_builder,
+            Some(self.block_height_ensure),
         ))
     }
 

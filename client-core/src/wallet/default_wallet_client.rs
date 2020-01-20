@@ -17,7 +17,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use chain_core::tx::{TransactionId, TxAux};
+use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
 use client_common::tendermint::types::{AbciQueryExt, BlockExt, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
@@ -35,7 +35,9 @@ use crate::{
     InputSelectionStrategy, Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient,
     WalletTransactionBuilder,
 };
+use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use client_common::tendermint::types::Time;
+use std::time::Duration;
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Debug, Default, Clone)]
@@ -55,6 +57,7 @@ where
 
     tendermint_client: C,
     transaction_builder: T,
+    block_height_ensure: Option<u64>,
 }
 
 impl<S, C, T> DefaultWalletClient<S, C, T>
@@ -64,7 +67,12 @@ where
     T: WalletTransactionBuilder,
 {
     /// Creates a new instance of `DefaultWalletClient`
-    pub fn new(storage: S, tendermint_client: C, transaction_builder: T) -> Self {
+    pub fn new(
+        storage: S,
+        tendermint_client: C,
+        transaction_builder: T,
+        block_height_ensure: Option<u64>,
+    ) -> Self {
         Self {
             key_service: KeyService::new(storage.clone()),
             hd_key_service: HdKeyService::new(storage.clone()),
@@ -75,6 +83,7 @@ where
             multi_sig_session_service: MultiSigSessionService::new(storage),
             tendermint_client,
             transaction_builder,
+            block_height_ensure,
         }
     }
 }
@@ -89,6 +98,7 @@ where
             storage,
             UnauthorizedClient,
             UnauthorizedWalletTransactionBuilder,
+            None,
         )
     }
 }
@@ -99,6 +109,105 @@ where
     C: Client,
     T: WalletTransactionBuilder,
 {
+    fn get_transaction(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<Transaction> {
+        let public_key = self.view_key(name, enckey)?;
+        let private_key = self
+            .private_key(enckey, &public_key)?
+            .chain(|| (ErrorKind::StorageError, "can not find private key"))?;
+        let tx = self.transaction_builder.decrypt_tx(txid, &private_key)?;
+        Ok(tx)
+    }
+
+    fn send_to_address(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        amount: Coin,
+        address: ExtendedAddr,
+        view_keys: Vec<PublicKey>,
+        network_id: u8,
+    ) -> Result<TxId> {
+        let current_block_height = self.get_current_block_height()?;
+        let tx_out = TxOut::new(address, amount);
+
+        let view_key = self.view_key(name, enckey)?;
+
+        let mut access_policies = vec![TxAccessPolicy {
+            view_key: view_key.into(),
+            access: TxAccess::AllData,
+        }];
+
+        for key in view_keys.iter() {
+            access_policies.push(TxAccessPolicy {
+                view_key: key.into(),
+                access: TxAccess::AllData,
+            });
+        }
+
+        let attributes = TxAttributes::new_with_access(network_id, access_policies);
+
+        let return_address = self.new_transfer_address(name, enckey)?;
+        let (transaction, selected_inputs, return_amount) =
+            self.create_transaction(name, enckey, vec![tx_out], attributes, None, return_address)?;
+
+        self.broadcast_transaction(&transaction)?;
+        //update the wallet state
+        let tx_pending = TransactionPending {
+            used_inputs: selected_inputs,
+            block_height: current_block_height,
+            return_amount,
+        };
+
+        self.update_tx_pending_state(name, enckey, transaction.tx_id(), tx_pending)?;
+
+        if let TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
+            payload: TxObfuscated { txid, .. },
+            ..
+        }) = transaction
+        {
+            Ok(txid)
+        } else {
+            Err(Error::new(
+                ErrorKind::IllegalInput,
+                "Transaction is not transfer transaction",
+            ))
+        }
+    }
+
+    /// broadcast transaction and waiting it confiremed
+    fn send_to_address_commit(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        amount: Coin,
+        address: ExtendedAddr,
+        view_keys: Vec<PublicKey>,
+        network_id: u8,
+    ) -> Result<TxId> {
+        let tx_id = self.send_to_address(name, enckey, amount, address, view_keys, network_id)?;
+        let block_height = self.get_current_block_height()?;
+        loop {
+            // query tx_id from tendermint
+            let confirmed = self
+                .tendermint_client
+                .query("meta", &tx_id.to_vec())
+                .is_ok();
+            if !confirmed {
+                std::thread::sleep(Duration::from_secs(1));
+                let current_block_height = self.get_current_block_height()?;
+                if current_block_height - block_height >= self.block_height_ensure.unwrap_or(50) {
+                    return Err(Error::new(
+                        ErrorKind::TendermintRpcError,
+                        "waiting for transaction confirmed timeout",
+                    ));
+                }
+                continue;
+            }
+            break;
+        }
+        Ok(tx_id)
+    }
+
     #[inline]
     fn wallets(&self) -> Result<Vec<String>> {
         self.wallet_service.names()
@@ -551,13 +660,9 @@ where
             .broadcast_transaction(&tx_aux.encode())
     }
 
-    fn export_plain_tx(&self, name: &str, enckey: &SecKey, txid: &str) -> Result<String> {
+    fn export_plain_tx(&self, name: &str, enckey: &SecKey, txid: &str) -> Result<TransactionInfo> {
         let txid = str2txid(txid).chain(|| (ErrorKind::InvalidInput, "invalid transaction id"))?;
-        let public_key = self.view_key(name, enckey)?;
-        let private_key = self
-            .private_key(enckey, &public_key)?
-            .chain(|| (ErrorKind::StorageError, "can not find private key"))?;
-        let tx = self.transaction_builder.decrypt_tx(txid, &private_key)?;
+        let tx = self.get_transaction(name, enckey, txid)?;
         // get the block height
         let tx_change = self
             .wallet_state_service
@@ -575,18 +680,12 @@ where
             tx,
             block_height: tx_change.block_height,
         };
-
-        let tx_str = serde_json::to_string(&tx_info)
-            .chain(|| (ErrorKind::InvalidInput, "invalid transaction id"))?;
-        Ok(base64::encode(&tx_str))
+        Ok(tx_info)
     }
 
     /// import a plain base64 encoded plain transaction
     fn import_plain_tx(&self, name: &str, enckey: &SecKey, tx_str: &str) -> Result<Coin> {
-        let tx_raw = base64::decode(tx_str)
-            .chain(|| (ErrorKind::DecryptionError, "Unable to decrypt transaction"))?;
-        let tx_info: TransactionInfo = serde_json::from_slice(&tx_raw)
-            .chain(|| (ErrorKind::DecryptionError, "Unable to decrypt transaction"))?;
+        let tx_info = TransactionInfo::decode(tx_str)?;
         // check if the output is spent or not
         let v = self
             .tendermint_client

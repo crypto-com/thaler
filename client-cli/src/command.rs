@@ -223,6 +223,7 @@ impl Command {
                     storage,
                     tendermint_client.clone(),
                     transaction_builder,
+                    None,
                 );
                 let network_ops_client = DefaultNetworkOpsClient::new(
                     wallet_client,
@@ -249,6 +250,7 @@ impl Command {
                     storage,
                     tendermint_client.clone(),
                     transaction_builder,
+                    None,
                 );
 
                 let network_ops_client = DefaultNetworkOpsClient::new(

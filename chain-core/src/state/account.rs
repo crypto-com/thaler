@@ -436,7 +436,7 @@ impl StakedState {
 }
 
 /// attributes in StakedState-related transactions
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct StakedStateOpAttributes {
     pub chain_hex_id: u8,

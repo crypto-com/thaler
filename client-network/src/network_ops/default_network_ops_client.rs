@@ -136,33 +136,37 @@ where
     F: FeeAlgorithm,
     E: TransactionObfuscation,
 {
+    fn calculate_deposit_fee(&self) -> Result<Coin> {
+        let dummy_signer = DummySigner();
+        let tx_aux = dummy_signer
+            .mock_txaux_for_deposit(1)
+            .chain(|| (ErrorKind::ValidationError, "Calculated fee failed"))?;
+        let fee = self
+            .fee_algorithm
+            .calculate_for_txaux(&tx_aux)
+            .chain(|| {
+                (
+                    ErrorKind::IllegalInput,
+                    "Calculated fee is more than the maximum allowed value",
+                )
+            })?
+            .to_coin();
+        Ok(fee)
+    }
+
     fn create_deposit_bonded_stake_transaction<'a>(
         &'a self,
         name: &'a str,
         enckey: &'a SecKey,
-        inputs: Vec<TxoPointer>,
+        transactions: Vec<(TxoPointer, TxOut)>,
         to_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
-        if !self
-            .wallet_client
-            .has_unspent_transactions(name, enckey, &inputs)?
-        {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                "Given transaction inputs are not present in unspent transactions (synchronizing your wallet may help)",
-            ));
-        }
-
-        let transaction = DepositBondTx::new(inputs.clone(), to_address, attributes);
-
-        let transactions = inputs
-            .into_iter()
-            .map(|txo_pointer| {
-                let output = self.wallet_client.output(name, enckey, &txo_pointer)?;
-                Ok((txo_pointer, output))
-            })
-            .collect::<Result<Vec<(TxoPointer, TxOut)>>>()?;
+        let inputs = transactions
+            .iter()
+            .map(|(input, _)| input.clone())
+            .collect();
+        let transaction = DepositBondTx::new(inputs, to_address, attributes);
         let unspent_transactions = UnspentTransactions::new(transactions);
         let signer = self.signer_manager.create_signer(name, enckey);
 
@@ -733,6 +737,14 @@ mod tests {
 
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
+        let input = TxoPointer::new([0; 32], 0);
+        let output = TxOut {
+            address: ExtendedAddr::OrTree([0; 32]),
+            value: Coin::new(10).unwrap(),
+            valid_from: None,
+        };
+        let transactions = vec![(input, output)];
+
         let (enckey, _) = wallet_client
             .new_wallet(name, &passphrase, WalletKind::Basic)
             .unwrap();
@@ -746,7 +758,6 @@ mod tests {
             MockTransactionCipher,
         );
 
-        let inputs: Vec<TxoPointer> = vec![TxoPointer::new([0; 32], 0)];
         let to_staked_account = network_ops_client
             .get_wallet_client()
             .new_staking_address(name, &enckey)
@@ -760,7 +771,7 @@ mod tests {
                 .create_deposit_bonded_stake_transaction(
                     name,
                     &enckey,
-                    inputs,
+                    transactions,
                     to_staked_account,
                     attributes,
                 )

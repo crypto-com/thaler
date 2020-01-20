@@ -3,6 +3,7 @@ use std::str::FromStr;
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
+use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
     CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
@@ -12,11 +13,10 @@ use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
-use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt};
+use chain_core::tx::data::output::TxOut;
+use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt, Transaction};
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_network::NetworkOpsClient;
-
-use crate::server::{to_rpc_error, WalletRequest};
 
 #[rpc]
 pub trait StakingRpc: Send + Sync {
@@ -26,6 +26,14 @@ pub trait StakingRpc: Send + Sync {
         request: WalletRequest,
         to_address: String,
         inputs: Vec<TxoPointer>,
+    ) -> Result<String>;
+
+    #[rpc(name = "staking_depositAmountStake")]
+    fn deposit_amount_stake(
+        &self,
+        request: WalletRequest,
+        to_address: String,
+        amount: Coin,
     ) -> Result<String>;
 
     #[rpc(name = "staking_state")]
@@ -96,7 +104,7 @@ where
         to_address: String,
         inputs: Vec<TxoPointer>,
     ) -> Result<String> {
-        let addr = StakedStateAddress::from_str(&to_address)
+        let to_address = StakedStateAddress::from_str(&to_address)
             .chain(|| {
                 (
                     ErrorKind::DeserializationError,
@@ -104,15 +112,36 @@ where
                 )
             })
             .map_err(to_rpc_error)?;
-        let attr = StakedStateOpAttributes::new(self.network_id);
+        let attributes = StakedStateOpAttributes::new(self.network_id);
+
+        if !self
+            .client
+            .has_unspent_transactions(&request.name, &request.enckey, &inputs)
+            .map_err(to_rpc_error)?
+        {
+            return Err( rpc_error_from_string("Given transaction inputs are not present in unspent transactions (synchronizing your wallet may help)".into()));
+        }
+
+        let transactions = inputs
+            .into_iter()
+            .map(|txo_pointer| {
+                let output = self
+                    .client
+                    .output(&request.name, &request.enckey, &txo_pointer)
+                    .map_err(to_rpc_error)?;
+                Ok((txo_pointer, output))
+            })
+            .collect::<Result<Vec<(TxoPointer, TxOut)>>>()
+            .map_err(to_rpc_error)?;
+
         let transaction = self
             .ops_client
             .create_deposit_bonded_stake_transaction(
                 &request.name,
                 &request.enckey,
-                inputs,
-                addr,
-                attr,
+                transactions,
+                to_address,
+                attributes,
             )
             .map_err(to_rpc_error)?;
 
@@ -121,6 +150,83 @@ where
             .map_err(to_rpc_error)?;
 
         Ok(hex::encode(transaction.tx_id()))
+    }
+
+    /// deposit amount coin to a deposit address
+    /// 1. build a transfer transaction to make a UTXO which amount is `deposit_amount + fee`
+    /// 2. send to a self created transfer address, waiting it confirmed
+    /// 3. use the `outputs[0]` of the transfer transaction to deposit
+    /// 4. broadcast the deposit transaction, return tx_id
+    fn deposit_amount_stake(
+        &self,
+        request: WalletRequest,
+        to_address: String,
+        amount: Coin,
+    ) -> Result<String> {
+        let to_staking_address = StakedStateAddress::from_str(&to_address)
+            .chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    format!("Unable to deserialize to_staking_address ({})", to_address),
+                )
+            })
+            .map_err(to_rpc_error)?;
+        let attr = StakedStateOpAttributes::new(self.network_id);
+        let fee = self
+            .ops_client
+            .calculate_deposit_fee()
+            .map_err(to_rpc_error)?;
+        let total_amount = (amount + fee).map_err(to_rpc_error)?;
+        // 1. build a transfer transaction to make a UTXO which amount is `deposit_amount + fee`
+        let to_transfer_address = self
+            .client
+            .new_transfer_address(&request.name, &request.enckey)
+            .map_err(to_rpc_error)?;
+        let tx_id = self
+            .client
+            .send_to_address_commit(
+                &request.name,
+                &request.enckey,
+                total_amount,
+                to_transfer_address,
+                vec![],
+                self.network_id,
+            )
+            .map_err(to_rpc_error)?;
+
+        // 2. use the outputs[0] to deposit
+        let transaction = self
+            .client
+            .get_transaction(&request.name, &request.enckey, tx_id)
+            .map_err(to_rpc_error)?;
+        let output = match transaction {
+            Transaction::TransferTransaction(tx) => {
+                if tx.outputs.is_empty() {
+                    return Err(rpc_error_from_string("invalid transaction".into()));
+                }
+                tx.outputs[0].clone()
+            }
+            _ => return Err(rpc_error_from_string("invalid transaction type".into())),
+        };
+        let txo_pointer = TxoPointer::new(tx_id, 0);
+        let transactions = vec![(txo_pointer, output)];
+        let transaction = self
+            .ops_client
+            .create_deposit_bonded_stake_transaction(
+                &request.name,
+                &request.enckey,
+                transactions,
+                to_staking_address,
+                attr,
+            )
+            .map_err(to_rpc_error)?;
+
+        // 4. broadcast the deposit transaction and waiting it confirmed
+        self.client
+            .broadcast_transaction(&transaction)
+            .map_err(to_rpc_error)?;
+
+        Ok(hex::encode(tx_id))
     }
 
     fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState> {

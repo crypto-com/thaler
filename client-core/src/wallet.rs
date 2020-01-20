@@ -23,13 +23,38 @@ use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResponse;
-use client_common::{PrivateKey, PublicKey, Result, SecKey};
+use client_common::{PrivateKey, PublicKey, Result, SecKey, Transaction, TransactionInfo};
 
 use crate::types::{AddressType, TransactionChange, TransactionPending, WalletBalance, WalletKind};
 use crate::{InputSelectionStrategy, Mnemonic, UnspentTransactions};
 
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {
+    /// if the view key included in the transaction, return the Transaction
+    fn get_transaction(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<Transaction>;
+
+    /// Send balance to a transfer address, return the transaction id directly
+    fn send_to_address(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        amount: Coin,
+        address: ExtendedAddr,
+        view_keys: Vec<PublicKey>,
+        network_id: u8,
+    ) -> Result<TxId>;
+
+    /// send balance to a transfer address, waiting it transaction confirmed then return transaction id
+    fn send_to_address_commit(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        amount: Coin,
+        address: ExtendedAddr,
+        view_keys: Vec<PublicKey>,
+        network_id: u8,
+    ) -> Result<TxId>;
+
     /// Retrieves names of all wallets stored
     fn wallets(&self) -> Result<Vec<String>>;
 
@@ -220,17 +245,19 @@ pub trait WalletClient: Send + Sync {
     /// When receiver's view key not included in the transaction, the receiver can't collect the outputs.
     /// The sender have to get the plain transaction and send it to the receiver by email or something
     /// so that the receiver can sync it into the wallet DB and get the outputs.
-    ///
-    /// # Return
-    ///
-    /// base64 encoded of `Transaction` json string
-    fn export_plain_tx(&self, name: &str, passphras: &SecKey, txid: &str) -> Result<String>;
+    fn export_plain_tx(
+        &self,
+        name: &str,
+        passphras: &SecKey,
+        txid: &str,
+    ) -> Result<TransactionInfo>;
 
     /// import a plain transaction, put the outputs of the transaction into wallet DB
     ///
     /// # Return
     /// the sum of unused outputs coin
     fn import_plain_tx(&self, name: &str, enckey: &SecKey, tx_str: &str) -> Result<Coin>;
+
     /// Get the current block height
     fn get_current_block_height(&self) -> Result<u64>;
 
