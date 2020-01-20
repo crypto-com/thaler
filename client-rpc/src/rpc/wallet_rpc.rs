@@ -1,4 +1,3 @@
-use std::collections::BTreeSet;
 use std::str::FromStr;
 
 use jsonrpc_core::Result;
@@ -71,13 +70,13 @@ pub trait WalletRpc: Send + Sync {
     fn list(&self) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_listPublicKeys")]
-    fn list_public_keys(&self, request: WalletRequest) -> Result<BTreeSet<PublicKey>>;
+    fn list_public_keys(&self, request: WalletRequest) -> Result<Vec<PublicKey>>;
 
     #[rpc(name = "wallet_listStakingAddresses")]
-    fn list_staking_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>>;
+    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_listTransferAddresses")]
-    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>>;
+    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_listUTxO")]
     fn list_utxo(&self, request: WalletRequest) -> Result<UnspentTransactions>;
@@ -269,20 +268,21 @@ where
         self.client.wallets().map_err(to_rpc_error)
     }
 
-    fn list_public_keys(&self, request: WalletRequest) -> Result<BTreeSet<PublicKey>> {
+    fn list_public_keys(&self, request: WalletRequest) -> Result<Vec<PublicKey>> {
         self.client
             .public_keys(&request.name, &request.enckey)
+            .map(|keys| keys.into_iter().collect())
             .map_err(to_rpc_error)
     }
 
-    fn list_staking_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>> {
+    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
         self.client
             .staking_addresses(&request.name, &request.enckey)
             .map(|addresses| addresses.iter().map(ToString::to_string).collect())
             .map_err(to_rpc_error)
     }
 
-    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<BTreeSet<String>> {
+    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
         self.client
             .transfer_addresses(&request.name, &request.enckey)
             .map(|addresses| addresses.iter().map(ToString::to_string).collect())

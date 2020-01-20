@@ -1,6 +1,5 @@
-use std::collections::BTreeSet;
-
-use parity_scale_codec::{Decode, Encode};
+use indexmap::IndexSet;
+use parity_scale_codec::{Decode, Encode, Input, Output};
 
 use crate::service::{load_wallet_state, WalletState};
 use chain_core::common::H256;
@@ -15,16 +14,65 @@ use client_common::{
 const KEYSPACE: &str = "core_wallet";
 
 /// Wallet meta data
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug)]
 pub struct Wallet {
     /// view key to decrypt enclave transactions
     pub view_key: PublicKey,
     /// public keys to construct transfer addresses
-    pub public_keys: BTreeSet<PublicKey>,
+    pub public_keys: IndexSet<PublicKey>,
     /// public keys of staking addresses
-    pub staking_keys: BTreeSet<PublicKey>,
+    pub staking_keys: IndexSet<PublicKey>,
     /// root hashes of multi-sig transfer addresses
-    pub root_hashes: BTreeSet<H256>,
+    pub root_hashes: IndexSet<H256>,
+}
+
+impl Encode for Wallet {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        self.view_key.encode_to(dest);
+        (self.public_keys.len() as u64).encode_to(dest);
+        for key in self.public_keys.iter() {
+            key.encode_to(dest);
+        }
+        (self.staking_keys.len() as u64).encode_to(dest);
+        for key in self.staking_keys.iter() {
+            key.encode_to(dest);
+        }
+        (self.root_hashes.len() as u64).encode_to(dest);
+        for hash in self.root_hashes.iter() {
+            hash.encode_to(dest);
+        }
+    }
+}
+
+impl Decode for Wallet {
+    fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, parity_scale_codec::Error> {
+        let view_key = PublicKey::decode(input)?;
+
+        let len = u64::decode(input)?;
+        let mut public_keys = IndexSet::with_capacity(len as usize);
+        for _ in 0..len {
+            public_keys.insert(PublicKey::decode(input)?);
+        }
+
+        let len = u64::decode(input)?;
+        let mut staking_keys = IndexSet::with_capacity(len as usize);
+        for _ in 0..len {
+            staking_keys.insert(PublicKey::decode(input)?);
+        }
+
+        let len = u64::decode(input)?;
+        let mut root_hashes = IndexSet::with_capacity(len as usize);
+        for _ in 0..len {
+            root_hashes.insert(H256::decode(input)?);
+        }
+
+        Ok(Wallet {
+            view_key,
+            public_keys,
+            staking_keys,
+            root_hashes,
+        })
+    }
 }
 
 impl Wallet {
@@ -39,7 +87,7 @@ impl Wallet {
     }
 
     /// Returns all staking addresses stored in a wallet
-    pub fn staking_addresses(&self) -> BTreeSet<StakedStateAddress> {
+    pub fn staking_addresses(&self) -> IndexSet<StakedStateAddress> {
         self.staking_keys
             .iter()
             .map(|public_key| StakedStateAddress::BasicRedeem(RedeemAddress::from(public_key)))
@@ -47,7 +95,7 @@ impl Wallet {
     }
 
     /// Returns all tree addresses stored in a wallet
-    pub fn transfer_addresses(&self) -> BTreeSet<ExtendedAddr> {
+    pub fn transfer_addresses(&self) -> IndexSet<ExtendedAddr> {
         self.root_hashes
             .iter()
             .cloned()
@@ -169,19 +217,19 @@ where
     }
 
     /// Returns all public keys stored in a wallet
-    pub fn public_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>> {
+    pub fn public_keys(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<PublicKey>> {
         let wallet = self.get_wallet(name, enckey)?;
         Ok(wallet.public_keys)
     }
 
     /// Returns all public keys corresponding to staking addresses stored in a wallet
-    pub fn staking_keys(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<PublicKey>> {
+    pub fn staking_keys(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<PublicKey>> {
         let wallet = self.get_wallet(name, enckey)?;
         Ok(wallet.staking_keys)
     }
 
     /// Returns all multi-sig addresses stored in a wallet
-    pub fn root_hashes(&self, name: &str, enckey: &SecKey) -> Result<BTreeSet<H256>> {
+    pub fn root_hashes(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<H256>> {
         let wallet = self.get_wallet(name, enckey)?;
         Ok(wallet.root_hashes)
     }
@@ -191,7 +239,7 @@ where
         &self,
         name: &str,
         enckey: &SecKey,
-    ) -> Result<BTreeSet<StakedStateAddress>> {
+    ) -> Result<IndexSet<StakedStateAddress>> {
         Ok(self.get_wallet(name, enckey)?.staking_addresses())
     }
 
@@ -200,7 +248,7 @@ where
         &self,
         name: &str,
         enckey: &SecKey,
-    ) -> Result<BTreeSet<ExtendedAddr>> {
+    ) -> Result<IndexSet<ExtendedAddr>> {
         Ok(self.get_wallet(name, enckey)?.transfer_addresses())
     }
 
