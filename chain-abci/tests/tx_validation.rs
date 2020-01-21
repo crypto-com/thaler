@@ -1699,9 +1699,12 @@ fn test_nodejoin_fail() {
     }
     // DuplicateValidator
     {
-        let addresses = BTreeMap::new();
+        let tendermint_validator_address = tx.node_meta.get_tendermint_validator_address();
+
+        let mut addresses = BTreeMap::new();
+        addresses.insert(tendermint_validator_address, addr);
         let mut powers = BTreeMap::new();
-        powers.insert(addr, TendermintVotePower::zero());
+        powers.insert(addr, TendermintVotePower::new(10).unwrap());
         let node_info = NodeInfo {
             minimal_stake: Coin::one(),
             tendermint_validator_addresses: &addresses,

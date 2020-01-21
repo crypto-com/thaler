@@ -44,7 +44,7 @@ fn check_unbonding_without_removing_validator() {
     );
 
     // End block
-    // Note: This should not remove validator from validator set. This should only change voting power of validator 1
+    // Note: This should not remove validator from validator set. This should only change voting power of validator
     let response_end_block = app.end_block(&RequestEndBlock {
         height: 1,
         ..Default::default()
@@ -59,7 +59,7 @@ fn check_unbonding_without_removing_validator() {
     );
 }
 
-/// Scenario 2: Unbond stake from validator 2 so that the remaining bonded amount becomes less than
+/// Scenario 2: Unbond stake from a validator so that the remaining bonded amount becomes less than
 /// `required_council_node_stake`. This should remove validator from validator set.
 #[test]
 fn check_unbonding_with_removing_validator() {
@@ -96,7 +96,7 @@ fn check_unbonding_with_removing_validator() {
     );
 
     // End block
-    // Note: This should not remove validator from validator set. This should only change voting power of validator 1
+    // Note: This should not remove validator from validator set. This should only change voting power of validator
     let response_end_block = app.end_block(&RequestEndBlock {
         height: 1,
         ..Default::default()
@@ -104,7 +104,4 @@ fn check_unbonding_with_removing_validator() {
 
     assert_eq!(1, response_end_block.validator_updates.to_vec().len());
     assert_eq!(0, response_end_block.validator_updates.to_vec()[0].power);
-
-    // Scenario 3: Unbond some stake from validator 2. Since validator 2 was already removed from validator set in
-    // scenario 2, this should not trigger and `power_changed_in_block`.
 }

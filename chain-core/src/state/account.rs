@@ -20,7 +20,9 @@ use std::str::FromStr;
 // TODO: switch to normal signatures + explicit public key
 #[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::address::ErrorAddress;
-use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
+use crate::state::tendermint::{
+    TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
+};
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::From;
 #[cfg(not(feature = "mesalock_sgx"))]
@@ -197,6 +199,11 @@ impl CouncilNode {
             security_contact,
             consensus_pubkey,
         }
+    }
+
+    #[inline]
+    pub fn get_tendermint_validator_address(&self) -> TendermintValidatorAddress {
+        TendermintValidatorAddress::from(&self.consensus_pubkey)
     }
 }
 

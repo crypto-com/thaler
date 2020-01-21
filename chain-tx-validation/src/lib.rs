@@ -493,15 +493,35 @@ pub fn verify_node_join(
         return Err(Error::NotEnoughStake);
     }
     let validator_address = TendermintValidatorAddress::from(&maintx.node_meta.consensus_pubkey);
-    // checks that validator hasn't joined yet
+
+    // checks that validator hasn't joined yet. If the validator has joined earlier, they can only rejoin if their
+    // voting power is zero.
     if node_info
-        .validator_voting_power
-        .contains_key(&maintx.address)
-        || node_info
-            .tendermint_validator_addresses
-            .contains_key(&validator_address)
+        .tendermint_validator_addresses
+        .contains_key(&validator_address)
     {
-        return Err(Error::DuplicateValidator);
+        // Checks if given staking account address is same as provided earlier
+        if maintx.address
+            != *node_info
+                .tendermint_validator_addresses
+                .get(&validator_address)
+                .unwrap()
+        {
+            return Err(Error::DuplicateValidator);
+        }
+
+        // Checks if current voting power is set to zero (i.e., it is not currently a validator)
+        if node_info
+            .validator_voting_power
+            .contains_key(&maintx.address)
+            && *node_info
+                .validator_voting_power
+                .get(&maintx.address)
+                .unwrap()
+                != TendermintVotePower::zero()
+        {
+            return Err(Error::DuplicateValidator);
+        }
     }
 
     account.join_node(maintx.node_meta.clone());

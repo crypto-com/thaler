@@ -81,8 +81,8 @@ pub fn get_bip44_coin_type() -> u32 {
 }
 
 /// Returns bip44 cointype of the provided network
-/// 1     	0x80000001 	    	Testnet (all coins)
-/// 394 	0x8000018a 	CRO 	Crypto.com Chain
+/// 1         0x80000001             Testnet (all coins)
+/// 394       0x8000018a     CRO     Crypto.com Chain
 pub fn get_bip44_coin_type_from_network(network: Network) -> u32 {
     match network {
         Network::Mainnet => 394,
