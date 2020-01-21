@@ -288,9 +288,9 @@ impl ChainEnv {
         )
     }
 
-    pub fn unbond_tx(&self, coin: Coin, nonce: u64) -> TxAux {
+    pub fn unbond_tx(&self, coin: Coin, nonce: u64, account_index: usize) -> TxAux {
         let tx = UnbondTx::new(
-            self.accounts[0].staking_address(),
+            self.accounts[account_index].staking_address(),
             nonce,
             coin,
             StakedStateOpAttributes::new(0),
@@ -299,7 +299,7 @@ impl ChainEnv {
         let witness = StakedStateOpWitness::new(get_ecdsa_witness(
             &secp,
             &tx.id(),
-            &self.accounts[0].secret_key,
+            &self.accounts[account_index].secret_key,
         ));
         TxAux::UnbondStakeTx(tx, witness)
     }
