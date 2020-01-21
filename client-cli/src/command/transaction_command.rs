@@ -11,7 +11,7 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecKey};
+use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecKey, Transaction};
 use client_core::types::TransactionPending;
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
@@ -25,7 +25,11 @@ use crate::{ask_seckey, coin_from_str};
 #[derive(Debug)]
 pub enum TransactionType {
     Transfer,
+    // deposit inputs in the wallet to a staking address
     Deposit,
+    // deposit any amount of Coins you want to a staking address
+    // it will build an UTXO worth that amount and then deposit to the staking address
+    DepositAmount,
     Unbond,
     Withdraw,
     Unjail,
@@ -40,6 +44,8 @@ impl FromStr for TransactionType {
             Ok(TransactionType::Transfer)
         } else if eq_ascii(s, "deposit") {
             Ok(TransactionType::Deposit)
+        } else if eq_ascii(s, "deposit-amount") {
+            Ok(TransactionType::DepositAmount)
         } else if eq_ascii(s, "unbond") {
             Ok(TransactionType::Unbond)
         } else if eq_ascii(s, "withdraw") {
@@ -98,8 +104,9 @@ impl TransactionCommand {
             } => new_transaction(wallet_client, network_ops_client, name, transaction_type),
             TransactionCommand::Export { name, id } => {
                 let enckey = ask_seckey(None)?;
-                let tx = wallet_client.export_plain_tx(name, &enckey, id)?;
-                success(&tx);
+                let tx_info = wallet_client.export_plain_tx(name, &enckey, id)?;
+                let tx_info_str = tx_info.encode()?;
+                success(&tx_info_str);
                 Ok(())
             }
             TransactionCommand::Import { name, tx } => {
@@ -127,8 +134,11 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
             wallet_client.update_tx_pending_state(&name, &enckey, tx_aux.tx_id(), tx_pending)?;
         }
         TransactionType::Deposit => {
-            let tx_aux = new_deposit_transaction(network_ops_client, name, &enckey)?;
+            let tx_aux = new_deposit_transaction(wallet_client, network_ops_client, name, &enckey)?;
             wallet_client.broadcast_transaction(&tx_aux)?;
+        }
+        TransactionType::DepositAmount => {
+            new_deposit_amount_transaction(wallet_client, network_ops_client, name, &enckey)?;
         }
         TransactionType::Unbond => {
             let tx_aux = new_unbond_transaction(network_ops_client, name, &enckey)?;
@@ -204,7 +214,8 @@ fn new_unbond_transaction<N: NetworkOpsClient>(
     network_ops_client.create_unbond_stake_transaction(name, enckey, address, value, attributes)
 }
 
-fn new_deposit_transaction<N: NetworkOpsClient>(
+fn new_deposit_transaction<T: WalletClient, N: NetworkOpsClient>(
+    wallet_client: &T,
     network_ops_client: &N,
     name: &str,
     enckey: &SecKey,
@@ -212,9 +223,92 @@ fn new_deposit_transaction<N: NetworkOpsClient>(
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let inputs = ask_inputs()?;
     let to_address = ask_staking_address()?;
+    if !wallet_client.has_unspent_transactions(name, enckey, &inputs)? {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "Given transaction inputs are not present in unspent transactions (synchronizing your wallet may help)",
+        ));
+    }
+    let transactions = inputs
+        .into_iter()
+        .map(|txo_pointer| {
+            let output = wallet_client.output(name, enckey, &txo_pointer)?;
+            Ok((txo_pointer, output))
+        })
+        .collect::<Result<Vec<(TxoPointer, TxOut)>>>()?;
+    network_ops_client.create_deposit_bonded_stake_transaction(
+        name,
+        enckey,
+        transactions,
+        to_address,
+        attributes,
+    )
+}
 
-    network_ops_client
-        .create_deposit_bonded_stake_transaction(name, enckey, inputs, to_address, attributes)
+fn new_deposit_amount_transaction<T: WalletClient, N: NetworkOpsClient>(
+    wallet_client: &T,
+    network_ops_client: &N,
+    name: &str,
+    enckey: &SecKey,
+) -> Result<()> {
+    let to_staking_address = ask_staking_address()?;
+    let attr = StakedStateOpAttributes::new(get_network_id());
+    ask("Enter deposit amount (in CRO): ");
+    let amount_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
+    let amount = coin_from_str(&amount_str)?;
+    let fee = network_ops_client.calculate_deposit_fee()?;
+    let total_amount = (amount + fee).chain(|| (ErrorKind::InvalidInput, "invalid amount"))?;
+    success(&format!(
+        "create a transfer transaction to make a UTXO with {} amount(fee is {})",
+        total_amount, fee
+    ));
+    let to_transfer_address = wallet_client.new_transfer_address(name, enckey)?;
+    let tx_id = wallet_client.send_to_address_commit(
+        name,
+        enckey,
+        total_amount,
+        to_transfer_address,
+        vec![],
+        get_network_id(),
+    )?;
+
+    success("broadcast transfer transaction");
+    success("create deposit transaction");
+    let transaction = wallet_client.get_transaction(name, enckey, tx_id)?;
+    let output = match transaction {
+        Transaction::TransferTransaction(tx) => {
+            if tx.outputs.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "transfer transaction outputs is empty",
+                ));
+            }
+            tx.outputs[0].clone()
+        }
+        _ => {
+            return Err(Error::new(
+                ErrorKind::InternalError,
+                "expect transfer transaction type",
+            ));
+        }
+    };
+    let txo_pointer = TxoPointer::new(tx_id, 0);
+    let transactions = vec![(txo_pointer, output)];
+
+    let transaction = network_ops_client.create_deposit_bonded_stake_transaction(
+        name,
+        enckey,
+        transactions,
+        to_staking_address,
+        attr,
+    )?;
+    let tx_id = transaction.tx_id();
+    success(&format!(
+        "deposit success, transaction id is: {}",
+        hex::encode(tx_id)
+    ));
+    wallet_client.broadcast_transaction(&transaction)?;
+    Ok(())
 }
 
 fn new_transfer_transaction<T: WalletClient>(

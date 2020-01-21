@@ -1,8 +1,12 @@
 use chain_core::common::MerkleTree;
 use chain_core::common::H264;
-use chain_core::state::account::{StakedStateOpWitness, WithdrawUnbondedTx};
-use chain_core::tx::data::input::TxoIndex;
-use chain_core::tx::data::Tx;
+use chain_core::init::address::RedeemAddress;
+use chain_core::state::account::{
+    DepositBondTx, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
+    WithdrawUnbondedTx,
+};
+use chain_core::tx::data::input::{TxoIndex, TxoPointer};
+use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
@@ -75,6 +79,33 @@ impl DummySigner {
             },
         };
         TxAux::EnclaveTx(tx_enclave_aux)
+    }
+
+    /// Mock the txaux for withdraw transactions
+    pub fn mock_txaux_for_deposit(&self, input_len: usize) -> Result<TxAux> {
+        let total_pubkeys_len = 2;
+        let witness = self.schnorr_sign_inputs_len(total_pubkeys_len, input_len)?;
+        let plain_payload = PlainTxAux::DepositStakeTx(witness);
+        let padded_payload = self.pad_payload(plain_payload);
+        let deposit_bond_tx = DepositBondTx {
+            inputs: vec![TxoPointer {
+                id: TxId::default(),
+                index: TxoIndex::default(),
+            }],
+            to_staked_account: StakedStateAddress::BasicRedeem(RedeemAddress::default()),
+            attributes: StakedStateOpAttributes::default(),
+        };
+        let payload = TxObfuscated {
+            txid: TxId::default(),
+            key_from: 0,
+            init_vector: [0u8; 12],
+            txpayload: padded_payload,
+        };
+        let tx_deposit_aux = TxEnclaveAux::DepositStakeTx {
+            tx: deposit_bond_tx,
+            payload,
+        };
+        Ok(TxAux::EnclaveTx(tx_deposit_aux))
     }
 
     /// Mock the txaux for withdraw transactions

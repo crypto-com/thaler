@@ -167,8 +167,8 @@ class Wallet:
 
 
 class Staking:
-    def deposit(self, to_address, inputs, name=DEFAULT_WALLET, enckey=None):
-        return call('staking_depositStake', [name, enckey or get_enckey()], fix_address(to_address), inputs)
+    def deposit(self, to_address, amount, name=DEFAULT_WALLET, enckey=None):
+        return call('staking_depositStake', [name, enckey or get_enckey()], fix_address(to_address), str(amount))
 
     def state(self, address, name=DEFAULT_WALLET, enckey=None):
         return call('staking_state', [name, enckey or get_enckey()], fix_address(address))

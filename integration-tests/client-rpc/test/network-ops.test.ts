@@ -52,7 +52,7 @@ describe("Staking", () => {
 		console.info(
 			`[Info] Transfer Address: "${firstWalletContext.transferAddress}"`,
 		);
-		const firstDepositStakeTxId = await testTransferAndStakeBaseUnit(
+		const firstDepositStakeTxId = await testTransferAndStakeAmountBaseUnit(
 			firstWalletContext,
 			stakingAmount,
 		);
@@ -161,6 +161,77 @@ describe("Staking", () => {
 			tendermintClient,
 			rpcClient,
 		};
+	};
+
+	const testTransferAndStakeAmountBaseUnit = async (
+		walletContext: WalletContext,
+		stakingAmount: string,
+	): Promise<string> => {
+		const {
+			walletName,
+			stakingAddress,
+			transferAddress,
+			viewKey,
+			defaultWalletRequest,
+			walletRequest,
+			tendermintClient,
+			rpcClient,
+		} = walletContext;
+
+		console.log(
+			`[Log] Transfer ${stakingAmount} base unit from Default wallet to new wallet ${walletName}`,
+		);
+		await asyncMiddleman(
+			syncWallet(rpcClient, defaultWalletRequest),
+			"Error when synchronizing default wallet",
+		);
+		let txId = await asyncMiddleman(
+			rpcClient.request("wallet_sendToAddress", [
+				defaultWalletRequest,
+				transferAddress,
+				stakingAmount,
+				[viewKey],
+			]),
+			"Error when funding wallet with staking amount",
+		);
+		console.info(`[Info] Transaction ID: "${txId}"`);
+
+		await asyncMiddleman(
+			waitTxIdConfirmed(tendermintClient, txId),
+			"Error when waiting transfer transaction confirmation",
+		);
+
+		await asyncMiddleman(
+			syncWallet(rpcClient, walletRequest),
+			"Error when synchronizing wallet",
+		);
+
+		// after sync
+		const expectedWalletBalanceAfterSync = {
+			total: stakingAmount,
+			pending: "0",
+			available: stakingAmount,
+		}
+		await expect(
+			rpcClient.request("wallet_balance", [walletRequest]),
+		).to.eventually.deep.eq(
+			expectedWalletBalanceAfterSync,
+			"Wallet should be funded with staking amount for staking deposit",
+		);
+
+		console.log(
+			`[Log] Deposit ${stakingAmount} base unit stake to staking address "${stakingAddress}"`,
+		);
+		const depositStakeTxId = await asyncMiddleman(
+			rpcClient.request("staking_depositAmountStake", [
+				walletRequest,
+				stakingAddress,
+				stakingAmount,
+			]),
+			"Deposit stake should work",
+		);
+
+		return depositStakeTxId;
 	};
 
 	const testTransferAndStakeBaseUnit = async (
@@ -461,6 +532,7 @@ describe("Staking", () => {
 		expectedState: ExpectedStakingState,
 	) => {
 		while (true) {
+			await sleep(2000);
 			console.log(`[Log] Checking latest staking state`);
 			const stakingState = await asyncMiddleman(
 				rpcClient.request("staking_state", [walletRequest, stakingAddress]),
@@ -470,8 +542,6 @@ describe("Staking", () => {
 			if (isStakingStateMatch(stakingState, expectedState)) {
 				break;
 			}
-
-			await sleep(1000);
 		}
 	};
 

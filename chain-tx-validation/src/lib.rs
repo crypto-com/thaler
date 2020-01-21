@@ -366,7 +366,7 @@ pub fn verify_unbonding(
     Ok((extra_info.min_fee_computed, Some(account)))
 }
 
-/// checks wihdrawing from a staked state -- TODO: this will be moved to an enclave
+/// checks withdrawing from a staked state -- TODO: this will be moved to an enclave
 /// NOTE: witness is assumed to be checked in chain-abci
 pub fn verify_unbonded_withdraw_core(
     maintx: &WithdrawUnbondedTx,

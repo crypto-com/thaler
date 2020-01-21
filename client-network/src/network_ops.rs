@@ -17,12 +17,15 @@ use client_core::types::TransactionPending;
 
 /// Interface for performing network operations on Crypto.com Chain
 pub trait NetworkOpsClient: Send + Sync {
+    /// calculate the deposit fee
+    fn calculate_deposit_fee(&self) -> Result<Coin>;
+
     /// creates a new transaction for bonding stake transaction with utxos
     fn create_deposit_bonded_stake_transaction(
         &self,
         name: &str,
         enckey: &SecKey,
-        inputs: Vec<TxoPointer>,
+        transaction: Vec<(TxoPointer, TxOut)>,
         to_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux>;

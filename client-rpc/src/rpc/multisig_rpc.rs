@@ -385,7 +385,7 @@ mod test {
             ZeroFeeAlgorithm::default(),
             MockTransactionCipher,
         );
-        DefaultWalletClient::new(storage, MockRpcClient, transaction_builder)
+        DefaultWalletClient::new(storage, MockRpcClient, transaction_builder, None)
     }
 
     fn setup_multisig_rpc() -> MultiSigRpcImpl<TestWalletClient> {

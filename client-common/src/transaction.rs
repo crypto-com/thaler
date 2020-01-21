@@ -1,6 +1,7 @@
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
+use super::{ErrorKind, Result, ResultExt};
 use chain_core::state::account::{
     DepositBondTx, StakedState, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
 };
@@ -17,6 +18,39 @@ pub struct TransactionInfo {
     pub tx: Transaction,
     /// block height when the tx broadcast
     pub block_height: u64,
+}
+
+impl TransactionInfo {
+    /// encode with serde_json and base64
+    pub fn encode(&self) -> Result<String> {
+        let s1 = serde_json::to_string(self).chain(|| {
+            (
+                ErrorKind::EncryptionError,
+                "Unable to encrypt transaction info",
+            )
+        })?;
+        let s2 = base64::encode(&s1);
+        Ok(s2)
+    }
+
+    /// decoded from a string
+    pub fn decode(tx_str: &str) -> Result<Self> {
+        base64::decode(tx_str)
+            .map(|raw| {
+                serde_json::from_slice(&raw).chain(|| {
+                    (
+                        ErrorKind::DecryptionError,
+                        "Unable to decrypt transaction info",
+                    )
+                })
+            })
+            .chain(|| {
+                (
+                    ErrorKind::DecryptionError,
+                    "Unable to decrypt transaction info",
+                )
+            })?
+    }
 }
 
 /// Enum containing different types of transactions
