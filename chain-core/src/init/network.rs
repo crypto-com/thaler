@@ -2,6 +2,7 @@ use std::sync::Once;
 static INIT_NETWORK: Once = Once::new();
 static INIT_NETWORK_ID: Once = Once::new();
 
+#[repr(C)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Network {
     Mainnet,
@@ -54,8 +55,9 @@ pub fn get_network_id() -> u8 {
     unsafe { chosen_network::NETWORK_ID }
 }
 
+#[no_mangle]
 /// Returns the chosen network type
-pub fn get_network() -> Network {
+pub extern "C" fn get_network() -> Network {
     unsafe { chosen_network::NETWORK }
 }
 
