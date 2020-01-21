@@ -1,0 +1,69 @@
+language = "C"
+include_version = false
+namespaces = []
+using_namespaces = []
+sys_includes = []
+includes = []
+no_includes = false
+braces = "SameLine"
+line_length = 100
+tab_width = 2
+documentation_style = "auto"
+style = "both"
+
+[defines]
+
+[export]
+include = []
+exclude = []
+item_types = []
+renaming_overrides_prefixing = false
+
+[export.rename]
+
+[export.body]
+
+[fn]
+rename_args = "None"
+args = "auto"
+
+[struct]
+rename_fields = "None"
+derive_constructor = false
+derive_eq = false
+derive_neq = false
+derive_lt = false
+derive_lte = false
+derive_gt = false
+derive_gte = false
+
+[enum]
+rename_variants = "None"
+add_sentinel = false
+prefix_with_name = false
+derive_helper_methods = false
+derive_const_casts = false
+derive_mut_casts = false
+derive_tagged_enum_destructor = false
+derive_tagged_enum_copy_constructor = false
+enum_class = true
+private_default_tagged_enum_constructor = false
+
+[const]
+allow_static_const = true
+
+[macro_expansion]
+bitflags = false
+
+[parse]
+parse_deps = false
+exclude = []
+clean = false
+extra_bindings = []
+
+[parse.expand]
+crates = []
+all_features = false
+default_features = true
+features = []
+

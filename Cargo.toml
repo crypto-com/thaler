@@ -17,6 +17,7 @@ members = [
     "chain-tx-enclave/tx-validation/enclave",
     "chain-tx-enclave/tx-query/app",
     "chain-tx-enclave/tx-query/enclave",
+    "cro-clib",
 ]
 
 default-members = [
