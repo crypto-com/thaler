@@ -8,9 +8,9 @@
             "name": "node0",
             "hostname": "127.0.0.1",
             "mnemonic": "must sunny destroy cousin ladder survey wrong employ illness thing divert under ready purpose elegant",
-            "validator_seed": "9f06b6bb885d0143092aad7a6df2f1cae7690fcbfa1edb8727542372085ade8b",
+            "validator_seed": "3d96c3c476e463bdcd751c9bf1715b7da37229ac00be33f34496797ca892b68a",
             "node_seed": "208ff2032ea90646cecee2b21de3488593f8c3a0b9c78ab02bfbf9aa15ab35b4",
-            "bonded_coin": 100000000000000000,
+            "bonded_coin": 0,
             "unbonded_coin": 100000000000000000,
             "base_port": 26650
         },
@@ -20,7 +20,7 @@
             "mnemonic": "push main gun wish camera tree unaware name season hospital ripple account beef invest dwarf",
             "validator_seed": "3d96c3c476e463bdcd751c9bf1715b7da37229ac00be33f34496797ca892b68a",
             "node_seed": "9f36cc1f8a2b08895394fd093f3c4b5583b57993c080942145f46a3737c83630",
-            "bonded_coin": 100000000000000000,
+            "bonded_coin": 0,
             "unbonded_coin": 100000000000000000,
             "base_port": 26660
         },

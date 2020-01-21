@@ -68,7 +68,8 @@ if [ -d data ]; then
     exit 1;
 fi
 
-runtest "jail"
-runtest "join"
+# runtest "jail"
+# runtest "join"
+runtest "byzantine"
 
 ./cleanup.sh
