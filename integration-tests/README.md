@@ -49,3 +49,74 @@ drone exec --secret-file secretfile --trusted --exclude unit-tests
 # run unit tests only
 drone exec --secret-file secretfile --trusted --exclude integration-tests
 ```
+
+## Run manually
+
+> In development or debugging, you may want run the test manually.
+
+Prerequisite:
+* Linux with sgx device and `aesm_service` started.
+* All the development dependencies.
+* Environment variables: `SGX_SDK`/`NETWORK_ID`/`SPID`/`IAS_API_KEY`.
+
+```
+$ cd integration-tests
+```
+
+#### Build
+
+```
+$ ../docker/build.sh
+```
+
+#### First time preparation
+
+> Only needs to run this at the first time.
+
+```
+$ ./deps.sh
+```
+
+#### Environment setup
+
+```
+$ source bot/.venv/bin/activate
+$ export PATH=../target/debug:$PATH
+$ ln -s ../target/debug/tx_query_enclave.signed.so .
+$ ln -s ../target/debug/tx_validation_enclave.signed.so .
+```
+
+#### Chain preparation
+
+> Choose an unique base port when using shared machine.
+
+- Single node testnet:
+
+  ```
+  $ chainbot.py prepare zerofee_cluster.json --base_port=27750
+  ```
+
+- Multiple nodes testnet:
+
+  ```
+  $ chainbot.py prepare multinode/jail_cluster.json --base_port=27750
+  ```
+
+#### Run testnet
+
+```
+$ supervisord -n -c data/tasks.ini
+$
+$ # wait for nodes startup and test
+$ BASE_PORT=27750 chainrpc.py wallet list
+```
+
+#### Clean up
+
+```
+$ ./cleanup.sh
+```
+
+
+
+
