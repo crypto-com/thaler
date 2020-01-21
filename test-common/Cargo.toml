@@ -16,7 +16,7 @@ lazy_static  = { version = "1.4", features = ["spin_no_std"] }
 signature = "1.0.0-pre.1"
 abci = "0.6"
 kvdb-memorydb = "0.3"
-protobuf = "2.7.0"
+protobuf = "2.10.1"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
 parity-scale-codec = { features = ["derive"], version = "1.1" }
 base64 = "0.11"
