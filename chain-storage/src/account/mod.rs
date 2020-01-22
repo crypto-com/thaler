@@ -12,9 +12,54 @@ use starling::constants::KEY_LEN;
 use starling::merkle_bit::BinaryMerkleTreeResult;
 use starling::traits::{Database, Decode, Encode, Exception};
 
-use crate::storage::Storage;
+use crate::Storage;
 use chain_core::common::H256;
-use chain_core::state::account::StakedState;
+use chain_core::state::account::{to_stake_key, StakedState, StakedStateAddress};
+
+/// key type for looking up accounts/staked states in the merkle tree storage
+pub type StarlingFixedKey = [u8; KEY_LEN];
+
+pub enum StakedStateError {
+    NotFound,
+    IoError(std::io::Error),
+}
+
+/// checks that the staked state can be retrieved from the trie storage
+pub fn get_staked_state(
+    account_address: &StakedStateAddress,
+    last_root: &StarlingFixedKey,
+    accounts: &AccountStorage,
+) -> Result<StakedState, StakedStateError> {
+    let account_key = to_stake_key(account_address);
+    let account = accounts.get_one(last_root, &account_key);
+    match account {
+        Err(e) => Err(StakedStateError::IoError(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            e,
+        ))),
+        Ok(None) => Err(StakedStateError::NotFound),
+        Ok(Some(AccountWrapper(a))) => Ok(a),
+    }
+}
+
+/// Given the Account state storage and the current / uncommitted account storage root,
+/// it inserts the updated account state into the account storage and returns the new root hash of the account state trie.
+pub fn update_staked_state(
+    account: StakedState,
+    account_root_hash: &StarlingFixedKey,
+    accounts: &mut AccountStorage,
+) -> (StarlingFixedKey, Option<StakedState>) {
+    (
+        accounts
+            .insert_one(
+                Some(account_root_hash),
+                &account.key(),
+                &AccountWrapper(account.clone()),
+            )
+            .expect("update account"),
+        Some(account),
+    )
+}
 
 pub type AccountStorage = tree::HashTree<AccountWrapper, Storage>;
 

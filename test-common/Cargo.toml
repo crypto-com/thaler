@@ -25,5 +25,6 @@ hex = "0.4"
 tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "db982c2437fe72c7a03942fc2bddf490f2332364" }
 chain-core = { path = "../chain-core" }
 chain-abci = { path = "../chain-abci" }
+chain-storage = { path = "../chain-storage" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }

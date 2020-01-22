@@ -5,9 +5,10 @@ use chain_core::init::{coin::Coin, params::NetworkParameters};
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
 
-use crate::app::{update_account, ChainNodeApp};
+use crate::app::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::tx::get_account;
+use crate::storage::get_account;
+use chain_storage::account::update_staked_state;
 
 pub fn monetary_expansion(
     tau: u64,
@@ -99,7 +100,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
                 let amount = (share * count).unwrap();
                 let balance = state.add_reward(amount).unwrap();
-                root = update_account(state, &root, &mut self.accounts).0;
+                root = update_staked_state(state, &root, &mut self.accounts).0;
                 distributed.push((*addr, amount));
                 self.power_changed_in_block
                     .insert(*addr, TendermintVotePower::from(balance));

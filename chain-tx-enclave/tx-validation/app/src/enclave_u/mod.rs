@@ -3,11 +3,12 @@ use sgx_types::*;
 use chain_core::common::H256;
 use chain_core::state::account::DepositBondTx;
 use chain_core::state::account::StakedState;
-use chain_core::tx::fee::Fee;
 use chain_core::tx::TxEnclaveAux;
 use chain_core::tx::TxObfuscated;
 use chain_tx_validation::Error;
-use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponse, IntraEnclaveResponseOk};
+use enclave_protocol::{
+    IntraEnclaveRequest, IntraEnclaveResponse, IntraEnclaveResponseOk, VerifyOk,
+};
 use parity_scale_codec::{Decode, Encode};
 use sled::Tree;
 use std::mem::size_of;
@@ -123,7 +124,7 @@ pub fn check_tx(
     eid: sgx_enclave_id_t,
     request: IntraEnclaveRequest,
     txdb: &mut Tree,
-) -> Result<(Fee, Option<StakedState>), Error> {
+) -> Result<VerifyOk, Error> {
     let request_buf: Vec<u8> = request.encode();
     let response_len = size_of::<sgx_sealed_data_t>() + request_buf.len();
     let mut response_buf: Vec<u8> = vec![0u8; response_len];
@@ -149,15 +150,17 @@ pub fn check_tx(
                     sealed_tx,
                 })),
             ) => {
-                let _ = txdb.insert(&request.tx.tx_id(), sealed_tx).map_err(|e| {
-                    log::error!("insert tx id to db failed: {:?}", e);
-                    Error::IoError
-                })?;
+                let _ = txdb
+                    .insert(&request.tx.tx_id(), sealed_tx.clone())
+                    .map_err(|e| {
+                        log::error!("insert tx id to db failed: {:?}", e);
+                        Error::IoError
+                    })?;
                 if let Some(mut account) = request.account {
                     account.withdraw();
-                    Ok((paid_fee, Some(account)))
+                    Ok((paid_fee, Some(account), Some(Box::new(sealed_tx))))
                 } else {
-                    Ok((paid_fee, None))
+                    Ok((paid_fee, None, Some(Box::new(sealed_tx))))
                 }
             }
             (
@@ -189,7 +192,7 @@ pub fn check_tx(
                     (_, _) => unreachable!("one shouldn't call this with other variants"),
                 };
                 let fee = request.info.min_fee_computed;
-                Ok((fee, account))
+                Ok((fee, account, None))
             }
             (_, Ok(Err(e))) => {
                 log::error!("get error response: {:?}", e);

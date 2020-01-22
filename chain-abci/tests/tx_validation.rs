@@ -1,11 +1,7 @@
 use bit_vec::BitVec;
 /// FIXME: organize better / refactor (group by tx, less duplication or unneeded arguments)
 use chain_abci::enclave_bridge::mock::MockClient;
-use chain_abci::storage::account::AccountStorage;
-use chain_abci::storage::account::AccountWrapper;
-use chain_abci::storage::tx::StarlingFixedKey;
-use chain_abci::storage::tx::{verify_enclave_tx, verify_public_tx};
-use chain_abci::storage::{Storage, COL_TX_META, NUM_COLUMNS};
+use chain_abci::storage::{verify_enclave_tx, verify_public_tx};
 use chain_core::common::{MerkleTree, Timespec};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
@@ -36,6 +32,10 @@ use chain_core::tx::PlainTxAux;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{TxAux, TxEnclaveAux};
+use chain_storage::account::AccountStorage;
+use chain_storage::account::AccountWrapper;
+use chain_storage::account::StarlingFixedKey;
+use chain_storage::{Storage, COL_TX_META, NUM_COLUMNS};
 use chain_tx_validation::{
     verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw, ChainInfo, Error, NodeInfo,
     TxWithOutputs,
@@ -78,6 +78,10 @@ pub fn get_account_op_witness<C: Signing>(
 
 fn create_db() -> Arc<dyn KeyValueDB> {
     Arc::new(create(NUM_COLUMNS))
+}
+
+fn create_storage() -> Storage {
+    Storage::new_db(create_db())
 }
 
 fn get_enclave_bridge_mock() -> MockClient {
@@ -409,7 +413,7 @@ fn existing_account_withdraw_tx_should_verify() {
         &txaux,
         extra_info,
         &last_account_root_hash,
-        create_db(),
+        &mut create_storage(),
         &accounts,
     );
     assert!(result.is_ok());
@@ -417,7 +421,7 @@ fn existing_account_withdraw_tx_should_verify() {
 
 #[test]
 fn test_account_withdraw_verify_fail() {
-    let db = create_db();
+    let storage = create_storage();
     let (txaux, tx, _, account, secret_key, accounts, last_account_root_hash) =
         prepare_app_valid_withdraw_tx(0);
     let extra_info = get_chain_info_enc(&txaux);
@@ -431,7 +435,7 @@ fn test_account_withdraw_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -454,7 +458,7 @@ fn test_account_withdraw_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -477,7 +481,7 @@ fn test_account_withdraw_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -502,7 +506,7 @@ fn test_account_withdraw_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -528,7 +532,7 @@ fn test_account_withdraw_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -542,7 +546,7 @@ fn test_account_withdraw_verify_fail() {
             &txaux,
             extra_info,
             &[0; 32],
-            db.clone(),
+            &storage,
             &accounts,
         );
         expect_error(&result, Error::AccountNotFound);
@@ -563,7 +567,7 @@ fn test_account_withdraw_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -586,7 +590,7 @@ fn test_account_withdraw_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -602,7 +606,7 @@ fn test_account_withdraw_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -649,7 +653,7 @@ fn prepare_app_valid_deposit_tx(
         tx.clone(),
         witness.into(),
         secret_key,
-        AccountStorage::new(Storage::new_db(create_db()), 20).expect("account db"),
+        AccountStorage::new(create_storage(), 20).expect("account db"),
     )
 }
 
@@ -659,6 +663,7 @@ const DEFAULT_CHAIN_ID: u8 = 0;
 fn existing_utxo_input_tx_should_verify() {
     let mut mock_bridge = get_enclave_bridge_mock();
     let (db, txaux, _, _, _, _, accounts) = prepare_app_valid_transfer_tx(false, &mut mock_bridge);
+    let storage = Storage::new_db(db);
     let extra_info = get_chain_info_enc(&txaux);
     let last_account_root_hash = [0u8; 32];
     let result = verify_enclave_tx(
@@ -666,17 +671,18 @@ fn existing_utxo_input_tx_should_verify() {
         &txaux,
         extra_info,
         &last_account_root_hash,
-        db,
+        &storage,
         &accounts,
     );
     assert!(result.is_ok());
     let (db, txaux, _, _, _, accounts) = prepare_app_valid_deposit_tx(false, &mut mock_bridge);
+    let storage = Storage::new_db(db);
     let result = verify_enclave_tx(
         &mut mock_bridge,
         &txaux,
         extra_info,
         &last_account_root_hash,
-        db,
+        &storage,
         &accounts,
     );
     assert!(result.is_ok());
@@ -698,6 +704,7 @@ fn test_deposit_verify_fail() {
     let mut mock_bridge = get_enclave_bridge_mock();
     let (db, txaux, tx, witness, secret_key, accounts) =
         prepare_app_valid_deposit_tx(false, &mut mock_bridge);
+    let storage = Storage::new_db(db.clone());
     let extra_info = get_chain_info_enc(&txaux);
     let last_account_root_hash = [0u8; 32];
     // WrongChainHexId
@@ -709,7 +716,7 @@ fn test_deposit_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -731,7 +738,7 @@ fn test_deposit_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -754,7 +761,7 @@ fn test_deposit_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -777,7 +784,7 @@ fn test_deposit_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -797,7 +804,7 @@ fn test_deposit_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -819,7 +826,7 @@ fn test_deposit_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         expect_error(&result, Error::InputSpent);
@@ -873,7 +880,7 @@ fn test_deposit_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -885,7 +892,7 @@ fn test_deposit_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            create_db(),
+            &mut create_storage(),
             &accounts,
         );
         expect_error(&result, Error::InvalidInput);
@@ -899,7 +906,7 @@ fn test_deposit_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -987,6 +994,7 @@ fn test_transfer_verify_fail() {
     let mut mock_bridge = get_enclave_bridge_mock();
     let (db, txaux, tx, witness, merkle_tree, secret_key, accounts) =
         prepare_app_valid_transfer_tx(false, &mut mock_bridge);
+    let storage = Storage::new_db(db.clone());
     let extra_info = get_chain_info_enc(&txaux);
     let last_account_root_hash = [0u8; 32];
     // WrongChainHexId
@@ -998,7 +1006,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1020,7 +1028,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         expect_error(&result, Error::NoInputs);
@@ -1042,7 +1050,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1065,7 +1073,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1087,7 +1095,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1110,7 +1118,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1128,7 +1136,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1159,7 +1167,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1179,7 +1187,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         expect_error(&result, Error::InputSpent);
@@ -1232,7 +1240,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1244,7 +1252,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            create_db(),
+            &mut create_storage(),
             &accounts,
         );
         expect_error(&result, Error::InvalidInput);
@@ -1269,7 +1277,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1278,6 +1286,7 @@ fn test_transfer_verify_fail() {
     {
         let (db, txaux, tx, witness, _, _, accounts) =
             prepare_app_valid_transfer_tx(true, &mut mock_bridge);
+        let storage = Storage::new_db(db);
         let addr = get_address(&Secp256k1::new(), &secret_key).0;
         let input_tx = get_old_tx(addr, true);
         let result = verify_transfer(
@@ -1292,7 +1301,7 @@ fn test_transfer_verify_fail() {
             &txaux,
             extra_info,
             &last_account_root_hash,
-            db.clone(),
+            &storage,
             &accounts,
         );
         assert!(result.is_err());
@@ -1417,7 +1426,7 @@ fn prepare_unjail_transaction(
 fn check_verify_fail_for_jailed_account() {
     let mut mock_bridge = get_enclave_bridge_mock();
     let (db, accounts, secret_key, address, merkle_tree, root) = prepare_jailed_accounts();
-
+    let storage = Storage::new_db(db);
     // Withdraw transaction
 
     let txaux = prepare_withdraw_transaction(&secret_key);
@@ -1429,7 +1438,7 @@ fn check_verify_fail_for_jailed_account() {
             &txaux,
             extra_info,
             &root,
-            db.clone(),
+            &storage,
             &accounts,
         ),
         Error::AccountJailed,
@@ -1446,7 +1455,7 @@ fn check_verify_fail_for_jailed_account() {
             &txaux,
             extra_info,
             &root,
-            db.clone(),
+            &storage,
             &accounts,
         ),
         Error::AccountJailed,

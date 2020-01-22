@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 ///! TODO: feature-guard when workspaces can be built with --features flag: https://github.com/rust-lang/cargo/issues/5015
 use super::*;
-use crate::storage::Storage;
 #[cfg(feature = "mock-enc-dec")]
 use crate::storage::COL_BODIES;
 use abci::{RequestQuery, ResponseQuery};
@@ -14,6 +13,7 @@ use chain_core::tx::TransactionId;
 use chain_core::tx::TxEnclaveAux;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::TxWithOutputs;
+use chain_storage::Storage;
 use chain_tx_filter::BlockFilter;
 use chain_tx_validation::{verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw};
 #[cfg(feature = "mock-enc-dec")]
@@ -107,7 +107,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
             }) = request
             {
                 let mut resp_txs = Vec::with_capacity(txs.len());
-                let looked_up = txs.iter().map(|txid| storage.db.get(COL_BODIES, txid));
+                let looked_up = txs.iter().map(|txid| self.storage.get_sealed_log(txid));
                 for found in looked_up {
                     if let Ok(Some(uv)) = found {
                         let tx = TxWithOutputs::decode(&mut uv.to_vec().as_slice());
@@ -218,20 +218,23 @@ impl EnclaveProxy for MockClient {
                 match (tx, plain_tx) {
                     (_, Ok(PlainTxAux::TransferTx(maintx, witness))) => {
                         let result = verify_transfer(&maintx, &witness, info, inputs);
-                        if result.is_ok() {
+                        let fakesealed = if result.is_ok() {
                             let txid = maintx.id();
                             let txwo = TxWithOutputs::Transfer(maintx);
                             self.add_view_keys(&txwo);
-                            self.local_tx_store.insert(txid, txwo);
-                        }
-                        EnclaveResponse::VerifyTx(result.map(|x| (x, None)))
+                            self.local_tx_store.insert(txid, txwo.clone());
+                            Some(Box::new(txwo.encode()))
+                        } else {
+                            None
+                        };
+                        EnclaveResponse::VerifyTx(result.map(|x| (x, None, fakesealed)))
                     }
                     (
                         TxEnclaveAux::DepositStakeTx { tx, .. },
                         Ok(PlainTxAux::DepositStakeTx(witness)),
                     ) => {
                         let result = verify_bonded_deposit(&tx, &witness, info, inputs, account);
-                        EnclaveResponse::VerifyTx(result)
+                        EnclaveResponse::VerifyTx(result.map(|(x, y)| (x, y, None)))
                     }
                     (_, Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx))) => {
                         let result = verify_unbonded_withdraw(
@@ -239,13 +242,16 @@ impl EnclaveProxy for MockClient {
                             info,
                             account.expect("account exists in withdraw"),
                         );
-                        if result.is_ok() {
+                        let fakesealed = if result.is_ok() {
                             let txid = tx.id();
                             let txwo = TxWithOutputs::StakeWithdraw(tx);
                             self.add_view_keys(&txwo);
-                            self.local_tx_store.insert(txid, txwo);
-                        }
-                        EnclaveResponse::VerifyTx(result)
+                            self.local_tx_store.insert(txid, txwo.clone());
+                            Some(Box::new(txwo.encode()))
+                        } else {
+                            None
+                        };
+                        EnclaveResponse::VerifyTx(result.map(|(x, y)| (x, y, fakesealed)))
                     }
                     _ => EnclaveResponse::UnknownRequest,
                 }

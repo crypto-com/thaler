@@ -18,7 +18,6 @@ use tendermint::{
 };
 
 use chain_abci::app::{compute_accounts_root, ChainNodeState, ValidatorState};
-use chain_abci::storage::account::{pure_account_storage, AccountStorage};
 use chain_abci::{liveness::LivenessTracker, punishment::ValidatorPunishment};
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
@@ -33,6 +32,7 @@ use chain_core::state::tendermint::{
 use chain_core::state::ChainState;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::TxAux;
+use chain_storage::account::{pure_account_storage, AccountStorage};
 use client_common::tendermint::types::{
     AbciQuery, BlockResults, BroadcastTxResponse, Genesis, Results,
 };

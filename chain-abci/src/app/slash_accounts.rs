@@ -9,9 +9,10 @@ use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::fee::Milli;
 use chain_tx_validation::Error;
 
-use crate::app::{update_account, ChainNodeApp};
+use crate::app::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::tx::get_account;
+use crate::storage::get_account;
+use chain_storage::account::update_staked_state;
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Slashes all the eligible accounts currently in slashing queue
@@ -73,7 +74,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     .map_err(|_| Error::InvalidSum)?;
             self.rewards_pool_updated = true;
 
-            let (new_root, _) = update_account(
+            let (new_root, _) = update_staked_state(
                 account,
                 &self.uncommitted_account_root_hash,
                 &mut self.accounts,

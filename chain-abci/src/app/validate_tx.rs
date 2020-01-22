@@ -1,6 +1,6 @@
 use super::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::tx::{verify_enclave_tx, verify_public_tx};
+use crate::storage::{verify_enclave_tx, verify_public_tx};
 use abci::*;
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::Fee;
@@ -11,17 +11,24 @@ use parity_scale_codec::Decode;
 /// Wrapper to abstract over CheckTx and DeliverTx requests
 pub trait RequestWithTx {
     fn tx(&self) -> &[u8];
+    fn store_valid(&self) -> bool;
 }
 
 impl RequestWithTx for RequestCheckTx {
     fn tx(&self) -> &[u8] {
         &self.tx[..]
     }
+    fn store_valid(&self) -> bool {
+        false
+    }
 }
 
 impl RequestWithTx for RequestDeliverTx {
     fn tx(&self) -> &[u8] {
         &self.tx[..]
+    }
+    fn store_valid(&self) -> bool {
+        true
     }
 }
 
@@ -56,6 +63,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         &mut self,
         txaux: &TxAux,
         tx_len: usize,
+        store_valid: bool,
     ) -> Result<(Fee, Option<StakedState>), Error> {
         let state = self.last_state.as_ref().expect("the app state is expected");
         let min_fee = state
@@ -70,14 +78,25 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             unbonding_period: state.top_level.network_params.get_unbonding_period(),
         };
         match txaux {
-            TxAux::EnclaveTx(tx) => verify_enclave_tx(
-                &mut self.tx_validator,
-                &tx,
-                extra_info,
-                &self.uncommitted_account_root_hash,
-                self.storage.db.clone(),
-                &self.accounts,
-            ),
+            TxAux::EnclaveTx(tx) => {
+                let r = verify_enclave_tx(
+                    &mut self.tx_validator,
+                    &tx,
+                    extra_info,
+                    &self.uncommitted_account_root_hash,
+                    &self.storage,
+                    &self.accounts,
+                );
+                match (r, store_valid) {
+                    (Err(e), _) => Err(e),
+                    (Ok((fee, acc, _)), false) => Ok((fee, acc)),
+                    (Ok((fee, acc, None)), _) => Ok((fee, acc)),
+                    (Ok((fee, acc, Some(log))), true) => {
+                        self.storage.store_sealed_log(&txaux.tx_id(), &log);
+                        Ok((fee, acc))
+                    }
+                }
+            }
             _ => {
                 let node_info = NodeInfo {
                     minimal_stake: state
@@ -116,7 +135,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 None
             }
             Ok(txaux) => {
-                let fee_paid = self.handle_tx(&txaux, _req.tx().len());
+                let fee_paid = self.handle_tx(&txaux, _req.tx().len(), _req.store_valid());
                 match fee_paid {
                     Ok(fee) => {
                         resp.set_code(0);

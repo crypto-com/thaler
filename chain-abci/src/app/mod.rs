@@ -16,56 +16,12 @@ pub use self::app_init::{
 };
 use crate::enclave_bridge::EnclaveProxy;
 use crate::slashing::SlashingSchedule;
-use crate::storage::account::AccountStorage;
-use crate::storage::account::AccountWrapper;
-use crate::storage::tx::StarlingFixedKey;
-use crate::storage::COL_TX_META;
-use bit_vec::BitVec;
 use chain_core::common::{TendermintEventKey, TendermintEventType};
-use chain_core::state::account::{PunishmentKind, StakedState};
+use chain_core::state::account::PunishmentKind;
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
-use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::{TxAux, TxEnclaveAux};
-use kvdb::{DBTransaction, KeyValueDB};
-use std::collections::BTreeMap;
+use chain_storage::account::update_staked_state;
 use std::convert::{TryFrom, TryInto};
-use std::sync::Arc;
-
-/// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
-/// in the TX_META storage.
-pub fn spend_utxos(txins: &[TxoPointer], db: Arc<dyn KeyValueDB>, dbtx: &mut DBTransaction) {
-    let mut updated_txs = BTreeMap::new();
-    for txin in txins.iter() {
-        updated_txs
-            .entry(txin.id)
-            .or_insert_with(|| {
-                BitVec::from_bytes(&db.get(COL_TX_META, &txin.id[..]).unwrap().unwrap())
-            })
-            .set(txin.index as usize, true);
-    }
-    for (txid, bv) in &updated_txs {
-        dbtx.put(COL_TX_META, &txid[..], &bv.to_bytes());
-    }
-}
-
-/// Given the Account state storage and the current / uncommitted account storage root,
-/// it inserts the updated account state into the account storage and returns the new root hash of the account state trie.
-pub fn update_account(
-    account: StakedState,
-    account_root_hash: &StarlingFixedKey,
-    accounts: &mut AccountStorage,
-) -> (StarlingFixedKey, Option<StakedState>) {
-    (
-        accounts
-            .insert_one(
-                Some(account_root_hash),
-                &account.key(),
-                &AccountWrapper(account.clone()),
-            )
-            .expect("update account"),
-        Some(account),
-    )
-}
 
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
 impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
@@ -294,17 +250,16 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         let mut resp = ResponseDeliverTx::new();
         let mtxaux = ChainNodeApp::validate_tx_req(self, _req, &mut resp);
         if let (0, Some((txaux, fee_acc))) = (resp.code, mtxaux) {
-            let mut inittx = self.storage.db.transaction();
             let (next_account_root, maccount) = match &txaux {
                 TxAux::EnclaveTx(TxEnclaveAux::TransferTx { inputs, .. }) => {
                     // here the original idea was "conservative" that it "spent" utxos here
                     // but it didn't create utxos for this TX (they are created in commit)
-                    spend_utxos(&inputs, self.storage.db.clone(), &mut inittx);
+                    self.storage.spend_utxos(&inputs);
                     (self.uncommitted_account_root_hash, None)
                 }
                 TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx { tx, .. }) => {
-                    spend_utxos(&tx.inputs, self.storage.db.clone(), &mut inittx);
-                    update_account(
+                    self.storage.spend_utxos(&tx.inputs);
+                    update_staked_state(
                         fee_acc
                             .1
                             .expect("account returned in deposit stake verification"),
@@ -312,21 +267,23 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                         &mut self.accounts,
                     )
                 }
-                TxAux::UnbondStakeTx(_, _) => update_account(
+                TxAux::UnbondStakeTx(_, _) => update_staked_state(
                     fee_acc
                         .1
                         .expect("account returned in unbond stake verification"),
                     &self.uncommitted_account_root_hash,
                     &mut self.accounts,
                 ),
-                TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx { .. }) => update_account(
-                    fee_acc
-                        .1
-                        .expect("account returned in withdraw unbonded stake verification"),
-                    &self.uncommitted_account_root_hash,
-                    &mut self.accounts,
-                ),
-                TxAux::UnjailTx(_, _) => update_account(
+                TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx { .. }) => {
+                    update_staked_state(
+                        fee_acc
+                            .1
+                            .expect("account returned in withdraw unbonded stake verification"),
+                        &self.uncommitted_account_root_hash,
+                        &mut self.accounts,
+                    )
+                }
+                TxAux::UnjailTx(_, _) => update_staked_state(
                     fee_acc.1.expect("account returned in unjail verification"),
                     &self.uncommitted_account_root_hash,
                     &mut self.accounts,
@@ -344,7 +301,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     );
                     let power = TendermintVotePower::from(state.bonded);
                     self.power_changed_in_block.insert(state.address, power);
-                    update_account(
+                    update_staked_state(
                         state,
                         &self.uncommitted_account_root_hash,
                         &mut self.accounts,
@@ -426,9 +383,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 .expect("rewards pool + fee greater than max coin?");
             rewards_pool.period_bonus = new_remaining;
             self.rewards_pool_updated = true;
-            // this "buffered write" shouldn't persist (persistence done in commit)
-            // but should change it in-memory -- TODO: check
-            self.storage.db.write_buffered(inittx);
+            self.storage.write_buffered();
         }
         resp
     }

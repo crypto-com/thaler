@@ -36,7 +36,7 @@ use secp256k1::{
 pub const ENCRYPTION_REQUEST_SIZE: usize = 1024 * 60; // 60 KB
 
 /// raw sgx_sealed_data_t
-type SealedLog = Vec<u8>;
+pub type SealedLog = Vec<u8>;
 
 /// tx filter
 type TxFilter = [u8; 256];
@@ -160,14 +160,16 @@ impl EnclaveRequest {
     }
 }
 
-/// reponses sent from enclave wrapper server to chain-abci app
+pub type VerifyOk = (Fee, Option<StakedState>, Option<Box<SealedLog>>);
+
+/// responses sent from enclave wrapper server to chain-abci app
 /// TODO: better error responses?
 #[derive(Encode, Decode)]
 pub enum EnclaveResponse {
     /// returns OK if chain_hex_id matches the one embedded in enclave and last_app_hash matches (returns the last app hash if any)
     CheckChain(Result<(), Option<H256>>),
     /// returns the affected (account) state (if any) and paid fee if the TX is valid
-    VerifyTx(Result<(Fee, Option<StakedState>), chain_tx_validation::Error>),
+    VerifyTx(Result<VerifyOk, chain_tx_validation::Error>),
     /// returns the transaction filter for the current block
     EndBlock(Result<Option<Box<TxFilter>>, ()>),
     /// returns if the data was successfully persisted in the enclave's local storage

@@ -13,9 +13,6 @@ use secp256k1::{
 
 use chain_abci::app::ChainNodeApp;
 use chain_abci::enclave_bridge::mock::MockClient;
-use chain_abci::storage::account::{AccountStorage, AccountWrapper};
-use chain_abci::storage::tx::StarlingFixedKey;
-use chain_abci::storage::*;
 use chain_core::common::{MerkleTree, H256};
 use chain_core::compute_app_hash;
 use chain_core::init::address::RedeemAddress;
@@ -35,6 +32,9 @@ use chain_core::state::tendermint::{
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::{data::TxId, TransactionId, TxAux};
+use chain_storage::account::StarlingFixedKey;
+use chain_storage::account::{AccountStorage, AccountWrapper};
+use chain_storage::{Storage, NUM_COLUMNS};
 
 const TEST_CHAIN_ID: &str = "test-00";
 

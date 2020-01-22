@@ -1,0 +1,21 @@
+[package]
+name = "chain-storage"
+version = "0.3.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Storage of Crypto.com Chain node (Merkle trie, transaction metadata etc.)"
+readme = "README.md"
+edition = "2018"
+
+[dependencies]
+blake2 = "0.8"
+kvdb = "0.3"
+kvdb-rocksdb = "0.4"
+kvdb-memorydb = "0.3"
+chain-core = { path = "../chain-core" }
+bit-vec = { version = "0.6.1", features = ["serde_no_std"] }
+starling = "3.1.2"
+parity-scale-codec = { features = ["derive"], version = "1.1" }
+integer-encoding = "1.0.7"
+
+[dev-dependencies]
+quickcheck = "0.9"

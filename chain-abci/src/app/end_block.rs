@@ -185,7 +185,6 @@ mod tests {
     use super::*;
     use crate::app::app_init::ValidatorState;
     use crate::punishment::ValidatorPunishment;
-    use crate::storage::tx::StarlingFixedKey;
     use chain_core::common::H256;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
@@ -196,6 +195,7 @@ mod tests {
     use chain_core::state::tendermint::TendermintValidatorPubKey;
     use chain_core::state::RewardsPoolState;
     use chain_core::tx::fee::{LinearFee, Milli};
+    use chain_storage::account::StarlingFixedKey;
     use std::str::FromStr;
 
     fn get_initial_state() -> (
