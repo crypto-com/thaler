@@ -10,6 +10,7 @@ __pycache__
 
 # Storage
 /.storage
+/.storage.bak
 /.cro-storage
 
 # OS

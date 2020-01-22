@@ -66,19 +66,34 @@ pub enum Command {
     },
     #[structopt(name = "view-key", about = "Shows the view key of a wallet")]
     ViewKey {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
         #[structopt(name = "private", short, long, help = "Show private key instead")]
         private: bool,
     },
     #[structopt(name = "balance", about = "Get balance of a wallet")]
     Balance {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
     },
     #[structopt(name = "history", about = "Get transaction history of a wallet")]
     History {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
         #[structopt(name = "offset", short, long, help = "Offset", default_value = "0")]
         offset: usize,
@@ -99,14 +114,29 @@ pub enum Command {
     },
     #[structopt(name = "state", about = "Get staked state of an address")]
     StakedState {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
-        #[structopt(name = "address", short, long, help = "Staking address")]
+        #[structopt(
+            name = "staking address",
+            short = "a",
+            long = "address",
+            help = "Staking address"
+        )]
         address: StakedStateAddress,
     },
     #[structopt(name = "sync", about = "Synchronize client with Crypto.com Chain")]
     Sync {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
         #[structopt(
             name = "batch-size",
@@ -410,7 +440,6 @@ impl Command {
             .print_stdout()
             .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
 
-        success(&format!("Wallet balance: \n {:?}", balance));
         Ok(())
     }
 
@@ -519,7 +548,7 @@ impl Command {
                     } => {
                         if let Some(ref mut pb) = progress_bar {
                             if current_block_height == final_block_height {
-                                pb.finish_println("Synchronization complete!");
+                                pb.finish_println("Synchronization complete!\n");
                             } else {
                                 pb.set(current_block_height - init_block_height);
                             }

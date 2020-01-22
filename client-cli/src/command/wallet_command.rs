@@ -8,17 +8,26 @@ use client_core::{Mnemonic, WalletClient};
 
 use crate::ask_passphrase;
 
+const WALLET_KIND_VARIANTS: [&str; 2] = ["basic", "hd"];
+
 #[derive(Debug, StructOpt)]
 pub enum WalletCommand {
     #[structopt(name = "new", about = "New wallet")]
     New {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
         #[structopt(
-            name = "type",
-            short,
-            long,
-            help = "Type of wallet to create (hd, basic)"
+            name = "wallet type",
+            short = "t",
+            long = "type",
+            help = "Type of wallet to create (hd, basic)",
+            possible_values = &WALLET_KIND_VARIANTS,
+            case_insensitive = true
         )]
         wallet_type: WalletKind,
     },
@@ -26,17 +35,32 @@ pub enum WalletCommand {
     List,
     #[structopt(name = "restore", about = "Restore HD Wallet")]
     Restore {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
     },
     #[structopt(name = "auth-token", about = "Get authentication token")]
     AuthToken {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
     },
     #[structopt(name = "delete", about = "Delete wallet")]
     Delete {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
     },
 }
