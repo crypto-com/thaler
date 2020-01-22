@@ -52,6 +52,24 @@ steps:
   - LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service
   - ./integration-tests/run.sh
 
+- name: multinode-tests
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  privileged: true
+  volumes:
+  - name: sgx
+    path: /dev/sgx
+  environment:
+    SPID:
+      from_secret: SPID
+    IAS_API_KEY:
+      from_secret: IAS_API_KEY
+  commands:
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export PYTHON_VENV_DIR=$PWD/drone/venv
+  - LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service
+  - ./integration-tests/run_multinode.sh
+
 - name: rebuild-cache
   image: drillster/drone-volume-cache
   volumes:
@@ -158,6 +176,6 @@ trigger:
 
 ---
 kind: signature
-hmac: d3631077bca617f42c0eedd82c5fd79ad14c9c3c5318d64ae6610d54211d7422
+hmac: b3d2d3f98f9e404b8ef183e8574a21d69c0dbfe389730ddc5100e8ec7eb05cb7
 
 ...

@@ -15,12 +15,10 @@ import jsonpatch
 import fire
 import toml
 import nacl.signing
-import copy
 from nacl.encoding import HexEncoder
 
 PASSPHRASE = '123456'
-IAS_API_KEY = os.environ['IAS_API_KEY']
-SPID = os.environ['SPID']
+
 
 class SigningKey:
     def __init__(self, seed):
@@ -207,7 +205,7 @@ def app_state_cfg(cfg):
                     'value': SigningKey(node['validator_seed']).pub_key_base64(),
                 }
             ]
-            for node in cfg['nodes']
+            for node in cfg['nodes'] if node['bonded_coin'] > 0
         },
         "genesis_time": cfg['genesis_time'],
     }
@@ -229,7 +227,7 @@ def programs(node, app_hash, root_path, cfg):
         ('tx-validation', f"tx-validation-app tcp://0.0.0.0:{tx_validation_port}",
          dict(def_env, SGX_MODE='HW', TX_ENCLAVE_STORAGE=node_path / Path('tx-validation'))),
         ('tx-query', f"tx-query-app 0.0.0.0:{tx_query_port} tcp://127.0.0.1:{tx_validation_port}",
-         dict(def_env, SGX_MODE='HW', IAS_API_KEY=IAS_API_KEY, SPID=SPID, TX_ENCLAVE_STORAGE=node_path / Path('tx-query'))),
+         dict(def_env, SGX_MODE='HW', IAS_API_KEY=os.environ['IAS_API_KEY'], SPID=os.environ['SPID'], TX_ENCLAVE_STORAGE=node_path / Path('tx-query'))),
         ('chain-abci', f"chain-abci -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{tx_validation_port} --data {node_path / Path('chain')} -p {chain_abci_port} --tx_query 127.0.0.1:{tx_query_port}",
          def_env),
         ('tendermint', f"tendermint node --home={node_path / Path('tendermint')}",
@@ -357,16 +355,7 @@ async def gen_wallet_addr(mnemonic, type='Staking', count=1):
         return addrs
 
 
-async def gen_genesis(cfg_orig):
-    cfg = copy.deepcopy(cfg_orig)
-    newnodes= []
-    for n in cfg["nodes"]:
-        print(n)
-        if n["bonded_coin"]> 0:
-            newnodes.append(n)
-    cfg["nodes"]= newnodes
-         
-
+async def gen_genesis(cfg):
     genesis = {
         "genesis_time": cfg['genesis_time'],
         "chain_id": cfg['chain_id'],
@@ -578,8 +567,8 @@ class CLI:
                 for i in range(count)
             ],
             'chain_config_patch': [
-                {'op': 'replace', 'path': '/initial_fee_policy/base_fee', 'value': '0.0'},
-                {'op': 'replace', 'path': '/initial_fee_policy/per_byte_fee', 'value': '0.0'},
+                {'op': 'replace', 'path': '/initial_fee_policy/base_fee', 'value': base_fee},
+                {'op': 'replace', 'path': '/initial_fee_policy/per_byte_fee', 'value': per_byte_fee},
             ],
             'tendermint_config_patch': [
                 {'op': 'replace', 'path': '/consensus/create_empty_blocks', 'value': True},

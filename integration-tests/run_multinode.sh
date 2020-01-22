@@ -20,9 +20,6 @@ export PATH=$CARGO_TARGET_DIR/debug:$PATH
 export PASSPHRASE=123456
 export BASE_PORT=${BASE_PORT:-26650}
 export CLIENT_RPC_PORT=$(($BASE_PORT + 9))
-export TENDERMINT_RPC_PORT=$(($BASE_PORT + 7))
-export CLIENT_RPC_ZEROFEE_PORT=$CLIENT_RPC_PORT
-export TENDERMINT_ZEROFEE_RPC_PORT=$TENDERMINT_RPC_PORT
 
 function wait_http() {
     for i in $(seq 0 10);
@@ -38,28 +35,18 @@ function wait_http() {
 
 function runtest() {
     echo "Preparing... $1"
-    LOWERED_TYPE=`echo $1 | tr "[:upper:]" "[:lower:]"`
-    chainbot.py prepare ${LOWERED_TYPE}_cluster.json --base_port $BASE_PORT
+    chainbot.py prepare multinode/$1_cluster.json --base_port $BASE_PORT
 
     echo "Startup..."
     supervisord -n -c data/tasks.ini &
     if ! wait_http $CLIENT_RPC_PORT; then
-        echo 'client-rpc still not ready, giveup.'
+        echo 'client-rpc of first node still not ready, giveup.'
         cat data/logs/*.log
         RETCODE=1
     else
         set +e
-
-        pushd client-rpc
-        TEST_ONLY=$1 npm run test
+        python -u ./multinode/$1_test.py
         RETCODE=$?
-        popd
-
-        if [ $RETCODE -eq 0 ]; then
-            pytest pytests
-            RETCODE=$?
-        fi
-
         set -e
     fi
 
@@ -81,7 +68,7 @@ if [ -d data ]; then
     exit 1;
 fi
 
-runtest "WITH_FEE"
-runtest "ZERO_FEE"
+runtest "jail"
+runtest "join"
 
 ./cleanup.sh
