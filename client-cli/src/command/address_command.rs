@@ -9,6 +9,8 @@ use client_core::WalletClient;
 
 use crate::ask_seckey;
 
+const ADDRESS_TYPE_VARIANTS: [&str; 2] = ["transfer", "staking"];
+
 #[derive(Debug)]
 pub enum AddressType {
     Transfer,
@@ -34,25 +36,61 @@ impl FromStr for AddressType {
 
 #[derive(Debug, StructOpt)]
 pub enum AddressCommand {
-    #[structopt(name = "new", about = "New address")]
+    #[structopt(name = "new", about = "Creates a new address")]
     New {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
-        #[structopt(name = "type", short, long, help = "Type of address to create")]
+        #[structopt(
+            name = "address type",
+            short = "t",
+            long = "type",
+            help = "Type of address to create",
+            possible_values = &ADDRESS_TYPE_VARIANTS,
+            case_insensitive = true
+        )]
         address_type: AddressType,
     },
     #[structopt(name = "list", about = "List all addresses for a wallet")]
     List {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
-        #[structopt(name = "type", short, long, help = "Type of address to create")]
+        #[structopt(
+            name = "address type",
+            short = "t",
+            long = "type",
+            help = "Type of address to create",
+            possible_values = &ADDRESS_TYPE_VARIANTS,
+            case_insensitive = true
+        )]
         address_type: AddressType,
     },
-    #[structopt(name = "list_pub_key", about = "Shows the public keys of a wallet")]
+    #[structopt(name = "list-pub-key", about = "Shows the public keys of a wallet")]
     ListPubKey {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
-        #[structopt(name = "type", short, long, help = "Type of public keys to show")]
+        #[structopt(
+            name = "address type",
+            short = "t",
+            long = "type",
+            help = "Type of public keys to show",
+            possible_values = &ADDRESS_TYPE_VARIANTS,
+            case_insensitive = true
+        )]
         address_type: AddressType,
     },
 }

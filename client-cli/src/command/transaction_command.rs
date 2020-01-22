@@ -22,6 +22,16 @@ use unicase::eq_ascii;
 
 use crate::{ask_seckey, coin_from_str};
 
+const TRANSACTION_TYPE_VARIANTS: [&str; 7] = [
+    "transfer",
+    "deposit",
+    "deposit-amount",
+    "unbond",
+    "withdraw",
+    "unjail",
+    "node-join",
+];
+
 #[derive(Debug)]
 pub enum TransactionType {
     Transfer,
@@ -64,9 +74,21 @@ impl FromStr for TransactionType {
 pub enum TransactionCommand {
     #[structopt(name = "new", about = "New transaction")]
     New {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
-        #[structopt(name = "type", short, long, help = "Type of transaction to create")]
+        #[structopt(
+            name = "transaction type",
+            short = "t",
+            long = "type",
+            help = "Type of transaction to create",
+            possible_values = &TRANSACTION_TYPE_VARIANTS,
+            case_insensitive = true
+        )]
         transaction_type: TransactionType,
     },
     #[structopt(
@@ -74,9 +96,19 @@ pub enum TransactionCommand {
         about = "Export a plain transaction by a given transaction id"
     )]
     Export {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
-        #[structopt(name = "id", short, long, help = "transaction id")]
+        #[structopt(
+            name = "transaction id",
+            short = "i",
+            long = "id",
+            help = "Transaction ID"
+        )]
         id: String,
     },
     #[structopt(
@@ -84,9 +116,19 @@ pub enum TransactionCommand {
         about = "Export a plain transaction by a given transaction id"
     )]
     Import {
-        #[structopt(name = "name", short, long, help = "Name of wallet")]
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
         name: String,
-        #[structopt(name = "tx", short, long, help = "base64 encoded plain transaction")]
+        #[structopt(
+            name = "transaction",
+            short = "t",
+            long = "tx",
+            help = "base64 encoded plain transaction"
+        )]
         tx: String,
     },
 }
@@ -159,6 +201,9 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
             wallet_client.broadcast_transaction(&tx_aux)?;
         }
     };
+
+    success("Transaction successfully created!");
+
     Ok(())
 }
 
