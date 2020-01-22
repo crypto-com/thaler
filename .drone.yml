@@ -14,7 +14,7 @@ steps:
     path: /cache
   settings:
     restore: true
-    ttl: 1
+    # ttl: 1
     mount:
       - ./drone
 
@@ -77,7 +77,7 @@ steps:
     path: /cache
   settings:
     rebuild: true
-    ttl: 1
+    # ttl: 1
     mount:
       - ./drone
 
@@ -176,6 +176,6 @@ trigger:
 
 ---
 kind: signature
-hmac: b3d2d3f98f9e404b8ef183e8574a21d69c0dbfe389730ddc5100e8ec7eb05cb7
+hmac: 7a9c0c146be1e59a7a5f2a1af22f9bbcb238b2dfec553b8c8eb235df01c13d52
 
 ...
