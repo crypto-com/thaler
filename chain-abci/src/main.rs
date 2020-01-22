@@ -10,8 +10,8 @@ use chain_abci::app::ChainNodeApp;
 use chain_abci::enclave_bridge::mock::MockClient;
 #[cfg(not(feature = "mock-validation"))]
 use chain_abci::enclave_bridge::ZmqEnclaveClient;
-use chain_abci::storage::*;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
+use chain_storage::{StorageConfig, StorageType};
 #[cfg(feature = "mock-validation")]
 use log::warn;
 use serde::Deserialize;

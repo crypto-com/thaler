@@ -1,13 +1,12 @@
 use super::ChainNodeApp;
 use crate::enclave_bridge::{mock::handle_enc_dec, EnclaveProxy};
-use crate::storage::tx::get_account;
-use crate::storage::*;
+use crate::storage::get_account;
 use abci::*;
 use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
 use chain_core::state::account::{CouncilNodeMetadata, StakedStateAddress};
 use chain_core::state::ChainState;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
-use integer_encoding::VarInt;
+use chain_storage::LookupItem;
 use parity_scale_codec::{Decode, Encode};
 use serde_json;
 use std::convert::TryFrom;
@@ -21,19 +20,53 @@ fn get_witness_proof_op(witness: &[u8]) -> ProofOp {
     op
 }
 
+fn get_key(resp: &mut ResponseQuery, data_key: &[u8]) -> Option<H256> {
+    if data_key.len() != HASH_SIZE_256 {
+        resp.log += "invalid txid or app hash length";
+        resp.code = 4;
+        None
+    } else {
+        let mut key = H256::default();
+        key.copy_from_slice(&data_key[..]);
+        Some(key)
+    }
+}
+
 impl<T: EnclaveProxy> ChainNodeApp<T> {
-    /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).
-    fn lookup(&self, resp: &mut ResponseQuery, column: u32, key: &[u8], log_message: &str) {
-        let v = self.storage.db.get(column, key);
+    fn lookup_key(
+        &self,
+        resp: &mut ResponseQuery,
+        item: LookupItem,
+        key: &H256,
+        log_message: &str,
+    ) {
+        let v = self.storage.lookup_item(item, &key);
         match v {
-            Ok(Some(uv)) => {
-                resp.value = uv.to_vec();
+            Some(uv) => {
+                resp.value = uv;
             }
             _ => {
                 resp.log += log_message;
                 resp.code = 1;
             }
         }
+    }
+
+    /// Helper to find a key under a column in KV DB, or log an error (both stored in the response).
+    fn lookup(
+        &self,
+        resp: &mut ResponseQuery,
+        item: LookupItem,
+        data_key: &[u8],
+        log_message: &str,
+    ) -> Option<H256> {
+        if let Some(key) = get_key(resp, data_key) {
+            self.lookup_key(resp, item, &key, log_message);
+            if resp.code == 0 {
+                return Some(key);
+            }
+        }
+        None
     }
 
     /// Responds to query requests -- note that path is hex-encoded in the original request on the client side
@@ -69,67 +102,67 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 }
             },
             "store" => {
-                self.lookup(&mut resp, COL_BODIES, &_req.data[..], "tx not found");
-                if _req.prove && resp.code == 0 {
-                    let mwitness = self.storage.db.get(COL_WITNESS, &_req.data[..]);
-                    match mwitness {
-                        Ok(Some(witness)) => {
-                            let last_height: i64 =
-                                self.last_state.as_ref().map_or(0, |x| x.last_block_height);
-                            let height = if _req.height == 0 || _req.height > last_height {
-                                last_height
-                            } else {
-                                _req.height
-                            };
-                            let app_hash = self
-                                .storage
-                                .db
-                                .get(COL_APP_HASHS, &i64::encode_var_vec(height))
-                                .unwrap()
-                                .unwrap();
-                            let data = self
-                                .storage
-                                .db
-                                .get(COL_MERKLE_PROOFS, &app_hash)
-                                .unwrap()
-                                .unwrap()
-                                .to_vec();
-                            let tree =
-                                MerkleTree::decode(&mut data.as_slice()).expect("merkle tree");
+                let key = self.lookup(
+                    &mut resp,
+                    LookupItem::TxBody,
+                    &_req.data[..],
+                    "tx not found",
+                );
+                if let (Some(txid), true) = (key, _req.prove) {
+                    let mwitness = self.storage.lookup_item(LookupItem::TxWitness, &txid);
+                    if let Some(witness) = mwitness {
+                        let last_height: i64 =
+                            self.last_state.as_ref().map_or(0, |x| x.last_block_height);
+                        let height = if _req.height == 0 || _req.height > last_height {
+                            last_height
+                        } else {
+                            _req.height
+                        };
+                        let app_hash = self.storage.get_historical_app_hash(height).unwrap();
+                        let data = self
+                            .storage
+                            .lookup_item(LookupItem::TxsMerkle, &app_hash)
+                            .unwrap();
+                        let tree = MerkleTree::decode(&mut data.as_slice()).expect("merkle tree");
 
-                            let mut txid = [0u8; HASH_SIZE_256];
-                            txid.copy_from_slice(&_req.data[..]);
+                        // TODO: Change this in future to include individual ops?
+                        let proof_ops = match tree.generate_proof(txid) {
+                            None => vec![get_witness_proof_op(&witness[..])],
+                            Some(merkle_proof) => vec![
+                                into_proof_op(tree.root_hash(), merkle_proof),
+                                get_witness_proof_op(&witness[..]),
+                            ],
+                        };
 
-                            // TODO: Change this in future to include individual ops?
-                            let proof_ops = match tree.generate_proof(txid) {
-                                None => vec![get_witness_proof_op(&witness[..])],
-                                Some(merkle_proof) => vec![
-                                    into_proof_op(tree.root_hash(), merkle_proof),
-                                    get_witness_proof_op(&witness[..]),
-                                ],
-                            };
-
-                            let mut proof = Proof::new();
-                            proof.set_ops(proof_ops.into());
-                            resp.set_proof(proof);
-                        }
-                        _ => {
-                            resp.log += "proof error: witness not found";
-                            resp.code = 2;
-                        }
+                        let mut proof = Proof::new();
+                        proof.set_ops(proof_ops.into());
+                        resp.set_proof(proof);
+                    } else {
+                        resp.log += "proof error: witness not found";
+                        resp.code = 2;
                     }
                 }
             }
             "meta" => {
-                self.lookup(&mut resp, COL_TX_META, &_req.data[..], "tx not found");
+                self.lookup(
+                    &mut resp,
+                    LookupItem::TxMetaSpent,
+                    &_req.data[..],
+                    "tx not found",
+                );
             }
             "witness" => {
-                self.lookup(&mut resp, COL_WITNESS, &_req.data[..], "tx not found");
+                self.lookup(
+                    &mut resp,
+                    LookupItem::TxWitness,
+                    &_req.data[..],
+                    "tx not found",
+                );
             }
             "merkle" => {
                 self.lookup(
                     &mut resp,
-                    COL_MERKLE_PROOFS,
+                    LookupItem::TxsMerkle,
                     &_req.data[..],
                     "app state not found",
                 );
@@ -157,14 +190,11 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             "state" => {
                 if self.tx_query_address.is_none() {
                     resp.code = 1;
-                    resp.log += "tx query address not set";
+                    resp.log += "tx query address not set / state is not persisted";
                 } else {
-                    let value = self
-                        .storage
-                        .db
-                        .get(COL_APP_STATES, &i64::encode_var_vec(_req.height));
+                    let value = self.storage.get_historical_state(_req.height);
                     match value {
-                        Ok(Some(value)) => {
+                        Some(value) => {
                             if let Ok(state) = ChainState::decode(&mut value.to_vec().as_slice()) {
                                 resp.value = serde_json::to_string(&state).unwrap().into_bytes();
                             } else {

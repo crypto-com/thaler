@@ -3,10 +3,6 @@ use bit_vec::BitVec;
 use chain_abci::app::*;
 use chain_abci::enclave_bridge::mock::MockClient;
 use chain_abci::punishment::ValidatorPunishment;
-use chain_abci::storage::account::AccountStorage;
-use chain_abci::storage::account::AccountWrapper;
-use chain_abci::storage::tx::StarlingFixedKey;
-use chain_abci::storage::*;
 use chain_core::common::{MerkleTree, Proof, H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
 use chain_core::init::address::RedeemAddress;
@@ -44,6 +40,12 @@ use chain_core::tx::{
     },
     witness::{TxInWitness, TxWitness},
     TxAux, TxEnclaveAux,
+};
+use chain_storage::account::AccountStorage;
+use chain_storage::account::AccountWrapper;
+use chain_storage::account::StarlingFixedKey;
+use chain_storage::{
+    LookupItem, Storage, COL_NODE_INFO, GENESIS_APP_HASH_KEY, LAST_STATE_KEY, NUM_COLUMNS,
 };
 use chain_tx_filter::BlockFilter;
 use chain_tx_validation::TxWithOutputs;
@@ -86,7 +88,7 @@ const TEST_CHAIN_ID: &str = "test-00";
 fn proper_hash_and_chainid_should_be_stored() {
     let db = create_db();
     let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
-    let _app = ChainNodeApp::new_with_storage(
+    let app = ChainNodeApp::new_with_storage(
         get_enclave_bridge_mock(),
         example_hash,
         TEST_CHAIN_ID,
@@ -95,14 +97,9 @@ fn proper_hash_and_chainid_should_be_stored() {
         None,
     );
     let decoded_gah = decode(example_hash).unwrap();
-    let stored_gah = db
-        .get(COL_NODE_INFO, GENESIS_APP_HASH_KEY)
-        .unwrap()
-        .unwrap();
-    let mut stored_genesis = [0u8; HASH_SIZE_256];
-    stored_genesis.copy_from_slice(&stored_gah[..]);
+    let stored_genesis = app.storage.get_genesis_app_hash();
     assert_eq!(decoded_gah, stored_genesis);
-    let chain_id = db.get(COL_EXTRA, CHAIN_ID_KEY).unwrap().unwrap();
+    let chain_id = app.storage.get_stored_chain_id();
     assert_eq!(chain_id, TEST_CHAIN_ID.as_bytes());
 }
 
@@ -316,16 +313,8 @@ fn init_chain_should_create_db_items() {
         .unwrap();
     let app = init_chain_for(address);
     let genesis_app_hash = app.genesis_app_hash;
-    let db = app.storage.db;
-    let state = ChainNodeState::decode(
-        &mut db
-            .get(COL_NODE_INFO, LAST_STATE_KEY)
-            .unwrap()
-            .unwrap()
-            .to_vec()
-            .as_slice(),
-    )
-    .unwrap();
+    let state =
+        ChainNodeState::decode(&mut app.storage.get_last_app_state().unwrap().as_slice()).unwrap();
 
     assert_eq!(genesis_app_hash, state.last_apphash);
     let key = to_stake_key(&address.into());
@@ -685,42 +674,25 @@ fn valid_commit_should_persist() {
 
     assert!(app
         .storage
-        .db
-        .get(COL_BODIES, &tx.id()[..])
-        .unwrap()
+        .lookup_item(LookupItem::TxBody, &tx.id())
         .is_none());
     assert!(app
         .storage
-        .db
-        .get(COL_WITNESS, &tx.id()[..])
-        .unwrap()
+        .lookup_item(LookupItem::TxWitness, &tx.id())
         .is_none());
-    let persisted_state = ChainNodeState::decode(
-        &mut app
-            .storage
-            .db
-            .get(COL_NODE_INFO, LAST_STATE_KEY)
-            .unwrap()
-            .unwrap()
-            .to_vec()
-            .as_slice(),
-    )
-    .unwrap();
+    let persisted_state =
+        ChainNodeState::decode(&mut app.storage.get_last_app_state().unwrap().as_slice()).unwrap();
     assert_ne!(10, persisted_state.last_block_height);
     assert_ne!(10, persisted_state.top_level.rewards_pool.last_block_height);
     let cresp = app.commit(&RequestCommit::default());
     assert_eq!(0, app.delivered_txs.len());
     assert!(app
         .storage
-        .db
-        .get(COL_BODIES, &tx.id()[..])
-        .unwrap()
+        .lookup_item(LookupItem::TxBody, &tx.id())
         .is_some());
     assert!(app
         .storage
-        .db
-        .get(COL_WITNESS, &tx.id()[..])
-        .unwrap()
+        .lookup_item(LookupItem::TxWitness, &tx.id())
         .is_some());
     assert_eq!(10, app.last_state.as_ref().unwrap().last_block_height);
     assert_eq!(
@@ -739,18 +711,16 @@ fn valid_commit_should_persist() {
     );
     assert!(app
         .storage
-        .db
-        .get(COL_MERKLE_PROOFS, &cresp.data[..])
-        .unwrap()
+        .lookup_item(
+            LookupItem::TxsMerkle,
+            &app.last_state.as_ref().unwrap().last_apphash
+        )
         .is_some());
     // TODO: check account
     let new_utxos = BitVec::from_bytes(
         &app.storage
-            .db
-            .get(COL_TX_META, &tx.id()[..])
-            .unwrap()
-            .unwrap()
-            .to_vec(),
+            .lookup_item(LookupItem::TxMetaSpent, &tx.id())
+            .unwrap(),
     );
     assert!(!new_utxos.any());
 }
@@ -873,7 +843,11 @@ pub fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp<MockClien
 }
 
 fn get_tx_meta(txid: &TxId, app: &ChainNodeApp<MockClient>) -> BitVec {
-    BitVec::from_bytes(&app.storage.db.get(COL_TX_META, &txid[..]).unwrap().unwrap())
+    BitVec::from_bytes(
+        &app.storage
+            .lookup_item(LookupItem::TxMetaSpent, txid)
+            .unwrap(),
+    )
 }
 
 #[test]

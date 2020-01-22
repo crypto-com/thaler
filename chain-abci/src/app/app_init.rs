@@ -3,8 +3,6 @@ use std::convert::TryInto;
 
 use abci::*;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse};
-use integer_encoding::VarInt;
-use kvdb::DBTransaction;
 use log::{info, warn};
 use parity_scale_codec::{Decode, Encode};
 use protobuf::Message;
@@ -13,11 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::enclave_bridge::EnclaveProxy;
 use crate::liveness::LivenessTracker;
 use crate::punishment::ValidatorPunishment;
-use crate::storage::account::AccountWrapper;
-use crate::storage::account::{pure_account_storage, AccountStorage};
-use crate::storage::tx::get_account;
-use crate::storage::tx::StarlingFixedKey;
-use crate::storage::*;
+use crate::storage::get_account;
 use chain_core::common::MerkleTree;
 use chain_core::common::Timespec;
 use chain_core::common::{H256, HASH_SIZE_256};
@@ -31,6 +25,10 @@ use chain_core::state::account::{CouncilNode, StakedState, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::state::{ChainState, RewardsPoolState};
 use chain_core::tx::TxAux;
+use chain_storage::account::AccountWrapper;
+use chain_storage::account::StarlingFixedKey;
+use chain_storage::account::{pure_account_storage, AccountStorage};
+use chain_storage::{Storage, StorageConfig, StoredChainState};
 
 /// Validator state tracking
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, Encode, Decode, Default)]
@@ -99,6 +97,20 @@ pub struct ChainNodeState {
 
     /// The parts of states which involved in computing app_hash
     pub top_level: ChainState,
+}
+
+impl StoredChainState for ChainNodeState {
+    fn get_encoded(&self) -> Vec<u8> {
+        self.encode()
+    }
+
+    fn get_encoded_top_level(&self) -> Vec<u8> {
+        self.top_level.encode()
+    }
+
+    fn get_last_app_hash(&self) -> H256 {
+        self.last_apphash
+    }
 }
 
 impl ChainNodeState {
@@ -216,7 +228,7 @@ fn check_and_store_consensus_params(
     init_consensus_params: Option<&ConsensusParams>,
     _validators: &[(StakedStateAddress, CouncilNode)],
     _network_params: &NetworkParameters,
-    inittx: &mut DBTransaction,
+    storage: &mut Storage,
 ) {
     match init_consensus_params {
         Some(cp) => {
@@ -226,9 +238,7 @@ fn check_and_store_consensus_params(
             // but it should be migrated to "time", in which case this check will make sense
             // (as unbonding time is in seconds, not blocks)
             warn!("consensus parameters not checked (TODO)");
-            inittx.put(
-                COL_EXTRA,
-                b"init_chain_consensus_params",
+            storage.store_consensus_params(
                 &(cp as &dyn Message)
                     .write_to_bytes()
                     .expect("consensus params"),
@@ -246,23 +256,6 @@ fn get_voting_power(
 ) -> TendermintVotePower {
     match node_address {
         StakedStateAddress::BasicRedeem(a) => TendermintVotePower::from(distribution[a].1),
-    }
-}
-
-fn store_valid_genesis_state(
-    genesis_state: &ChainNodeState,
-    inittx: &mut DBTransaction,
-    write_history_states: bool,
-) {
-    inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &genesis_state.encode());
-    let encoded_height = i64::encode_var_vec(0);
-    inittx.put(COL_APP_HASHS, &encoded_height, &genesis_state.last_apphash);
-    if write_history_states {
-        inittx.put(
-            COL_APP_STATES,
-            &encoded_height,
-            &genesis_state.top_level.encode(),
-        );
     }
 }
 
@@ -300,13 +293,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         accounts: AccountStorage,
         tx_query_address: Option<String>,
     ) -> Self {
-        let stored_gah = storage
-            .db
-            .get(COL_NODE_INFO, GENESIS_APP_HASH_KEY)
-            .expect("genesis hash lookup")
-            .expect("last app state found, but genesis app hash not stored");
-        let mut stored_genesis = [0u8; HASH_SIZE_256];
-        stored_genesis.copy_from_slice(&stored_gah[..]);
+        let stored_genesis = storage.get_genesis_app_hash();
 
         if stored_genesis != genesis_app_hash {
             panic!(
@@ -315,11 +302,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 hex::encode(genesis_app_hash)
             );
         }
-        let stored_chain_id = storage
-            .db
-            .get(COL_EXTRA, CHAIN_ID_KEY)
-            .expect("chain id lookup")
-            .expect("last app state found, but no chain id stored");
+        let stored_chain_id = storage.get_stored_chain_id();
         if stored_chain_id != chain_id.as_bytes() {
             panic!(
                 "stored chain id: {:?} does not match the provided chain id: {:?}",
@@ -362,7 +345,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         mut tx_validator: T,
         gah: &str,
         chain_id: &str,
-        storage: Storage,
+        mut storage: Storage,
         accounts: AccountStorage,
         tx_query_address: Option<String>,
     ) -> Self {
@@ -372,25 +355,14 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
 
-        if let Some(last_app_state) = storage
-            .db
-            .get(COL_NODE_INFO, LAST_STATE_KEY)
-            .expect("app state lookup")
-        {
+        if let Some(data) = storage.get_last_app_state() {
             info!("last app state stored");
-            let data = last_app_state.to_vec();
             let last_state =
                 ChainNodeState::decode(&mut data.as_slice()).expect("deserialize app state");
 
             // if tx-query address wasn't provided first time,
             // then it shouldn't be provided on another run, and vice versa
-            let last_stored_height = storage
-                .db
-                .get(
-                    COL_APP_STATES,
-                    &i64::encode_var_vec(last_state.last_block_height),
-                )
-                .expect("app last block height look up");
+            let last_stored_height = storage.get_historical_state(last_state.last_block_height);
 
             if last_stored_height.is_some() {
                 info!("historical data is stored");
@@ -454,13 +426,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 }
                 _ => unreachable!("unexpected enclave response"),
             }
-            let mut inittx = storage.db.transaction();
-            inittx.put(COL_NODE_INFO, GENESIS_APP_HASH_KEY, &genesis_app_hash);
-            inittx.put(COL_EXTRA, CHAIN_ID_KEY, chain_id.as_bytes());
-            storage
-                .db
-                .write(inittx)
-                .expect("genesis app hash should be stored");
+            storage.write_genesis_chain_id(&genesis_app_hash, chain_id);
             ChainNodeApp {
                 storage,
                 accounts,
@@ -511,7 +477,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// should validate initial genesis distribution, initialize everything in the key-value DB and check it matches the expected values
     /// provided as arguments.
     pub fn init_chain_handler(&mut self, req: &RequestInitChain) -> ResponseInitChain {
-        let db = &self.storage.db;
         let conf: InitConfig =
             serde_json::from_slice(&req.app_state_bytes).expect("failed to parse initial config");
 
@@ -526,10 +491,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             .validate_config_get_genesis(genesis_time)
             .expect("distribution validation error");
 
-        let stored_chain_id = db
-            .get(COL_EXTRA, CHAIN_ID_KEY)
-            .unwrap()
-            .expect("last app hash found, but no chain id stored");
+        let stored_chain_id = self.storage.get_stored_chain_id();
         if stored_chain_id != req.chain_id.as_bytes() {
             panic!(
                 "stored chain id: {} does not match the provided chain id: {}",
@@ -551,12 +513,11 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             panic!("initchain resulting genesis app hash: {} does not match the expected genesis app hash: {}", hex::encode(genesis_app_hash), hex::encode(self.genesis_app_hash));
         }
 
-        let mut inittx = db.transaction();
         check_and_store_consensus_params(
             req.consensus_params.as_ref(),
             &nodes,
             &network_params,
-            &mut inittx,
+            &mut self.storage,
         );
 
         let mut validators = Vec::with_capacity(nodes.len());
@@ -613,11 +574,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 },
             },
         );
-        store_valid_genesis_state(&genesis_state, &mut inittx, self.tx_query_address.is_some());
+        self.storage
+            .store_genesis_state(&genesis_state, self.tx_query_address.is_some());
 
-        let wr = self.storage.db.write(inittx);
-        if wr.is_err() {
-            panic!("db write error: {}", wr.err().unwrap());
+        let wr = self.storage.persist_write();
+        if let Err(e) = wr {
+            panic!("db write error: {}", e);
         } else {
             self.uncommitted_account_root_hash = genesis_state.top_level.account_root;
             self.last_state = Some(genesis_state);

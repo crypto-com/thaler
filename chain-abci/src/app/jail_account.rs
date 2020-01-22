@@ -2,9 +2,10 @@ use chain_core::state::account::{PunishmentKind, StakedStateAddress};
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_tx_validation::Error;
 
-use crate::app::{update_account, ChainNodeApp};
+use crate::app::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::tx::get_account;
+use crate::storage::get_account;
+use chain_storage::account::update_staked_state;
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Jails staking account with given address
@@ -34,7 +35,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         account.jail_until(block_time + jail_duration, punishment_kind);
 
-        let (new_root, _) = update_account(
+        let (new_root, _) = update_staked_state(
             account,
             &self.uncommitted_account_root_hash,
             &mut self.accounts,
