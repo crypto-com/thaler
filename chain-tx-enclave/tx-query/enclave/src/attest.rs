@@ -1,7 +1,9 @@
 //! # Remote Attestation utilities
-//! portions of code adapted from https://github.com/mesalock-linux/mesatee (MesaTEE)
-//! Copyright (c) 2019, MesaTEE Authors (licensed under the Apache License, Version 2.0)
-//! Modifications Copyright (c) 2019, Foris Limited (licensed under the Apache License, Version 2.0)
+//! portions of code adapted from https://github.com/apache/incubator-teaclave (Apache Teaclave)
+//!
+//! Copyright (c) 2019-2020 Apache Teaclave Authors (licensed under the Apache License, Version 2.0)
+//!
+//! Modifications Copyright 2019-2020 Foris Limited (licensed under the Apache License, Version 2.0)
 
 use sgx_rand::*;
 use sgx_tcrypto::*;

@@ -1,7 +1,7 @@
 //! # Value with associated properties (e.g. min/max bounds)
 //! adapted from https://github.com/ChosunOne/merkle_bit examples (Merkle-BIT)
 //! Copyright (c) 2019, Josiah Evans (licensed under the MIT License and the Apache License, Version 2.0)
-//! Modifications Copyright (c) 2019, Foris Limited (licensed under the Apache License, Version 2.0)
+//! Modifications Copyright (c) 2019-2020, Foris Limited (licensed under the Apache License, Version 2.0)
 //!
 
 use blake2::{Blake2s, Digest};

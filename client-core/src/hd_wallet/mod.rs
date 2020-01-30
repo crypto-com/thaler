@@ -1,7 +1,7 @@
 //! # HD Wallet
 //! adapted from https://github.com/jjyr/hdwallet (HDWallet)
-//! Copyright (c) 2018, Jiang Jinyang (licensed under the MIT License)
-//! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
+//! Copyright (c) 2018 - 2020, Jiang Jinyang (licensed under the MIT License)
+//! Modifications Copyright (c) 2018 - 2020, Foris Limited (licensed under the Apache License, Version 2.0)
 //!
 /// error code for hdwallet
 pub mod error;

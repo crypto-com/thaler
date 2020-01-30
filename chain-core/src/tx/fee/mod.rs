@@ -1,7 +1,7 @@
 //! # Fee calculation and fee algorithms
 //! adapted from https://github.com/input-output-hk/rust-cardano (Cardano Rust)
 //! Copyright (c) 2018, Input Output HK (licensed under the MIT License)
-//! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
+//! Modifications Copyright (c) 2018 - 2020, Foris Limited (licensed under the Apache License, Version 2.0)
 
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::TxAux;

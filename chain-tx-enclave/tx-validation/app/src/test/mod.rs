@@ -94,7 +94,7 @@ fn cleanup(db: &mut Db) {
     db.drop_tree(crate::TX_KEYSPACE).expect("test cleanup tx");
 }
 
-/// Unfortunately the usual Rust unit-test facility can't be used with Baidu SGX SDK,
+/// Unfortunately the usual Rust unit-test facility can't be used with Apache Teaclave SGX SDK,
 /// so this has to be run as a normal app
 pub fn test_sealing() {
     let mut builder = Builder::new();
