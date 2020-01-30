@@ -1,5 +1,5 @@
 Crypto.com Chain
-Copyright 2018 - 2019, Foris Limited ("Crypto.com"). 
+Copyright 2018 - 2020, Foris Limited ("Crypto.com"). 
 
 This project contains portions of code derived from the following libraries:
 
@@ -13,10 +13,20 @@ This project contains portions of code derived from the following libraries:
  * License: Apache License 2.0
  * Repository: https://github.com/ETCDEVTeam/emerald-rs
 
-* MesaTEE
- * Copyright: Copyright (c) 2019 Baidu, Inc.
+* Apache Teaclave SGX SDK
+ * Copyright: Copyright (c) 2017-2020 Apache Teaclave Authors
+ * License: Apache 2
+ * Repository: https://github.com/apache/incubator-teaclave-sgx-sdk/
+
+* substraTEE worker
+ * Copyright: Copyright (c) 2019-2020 Supercomputing Systems AG
  * License: Apache License 2.0
- * Repository: https://github.com/mesalock-linux/mesatee
+ * Repository: https://github.com/scs/substraTEE-worker
+
+* Apache Teaclave
+ * Copyright: Copyright (c) 2019-2020 Apache Teaclave Authors
+ * License: Apache License 2.0
+ * Repository: https://github.com/apache/incubator-teaclave
 
 * Etcommon
  * Copyright: Copyright (c) 2018 ETCDEV
@@ -24,6 +34,11 @@ This project contains portions of code derived from the following libraries:
  * Repository: https://github.com/ETCDEVTeam/etcommon-rs
 
 * BIP44 HDWallet
- * Copyright: Jiang Jinyang <jjyruby@gmail.com>
+ * Copyright: Copyright (c) 2018-2020 Jiang Jinyang <jjyruby@gmail.com>
  * License: The MIT License (MIT)
  * Repository: https://github.com/jjyr/hdwallet
+
+* random-port-generator
+ * Copyright: Copyright (c) 2019 Vishwa
+ * License: The MIT License (MIT)
+ * Repository: https://github.com/v1shwa/random-port-generator 

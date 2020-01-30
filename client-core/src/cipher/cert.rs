@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 #![allow(clippy::needless_lifetimes)]
-// Copyright 2019 MesaTEE Authors
+// Copyright 2019-2020 Apache Teaclave Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
-// Modifications Copyright (c) 2019, Foris Limited (licensed under the Apache License, Version 2.0)
+// Modifications Copyright (c) 2019-2020, Foris Limited (licensed under the Apache License, Version 2.0)
 // TODO: document ASN1 parsing
 // TODO: check the needless lifetimes
 use yasna::ASN1Result;

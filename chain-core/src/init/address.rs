@@ -1,7 +1,7 @@
 //! # Eth-style Account address (20 bytes)
 //! adapted from https://github.com/ETCDEVTeam/emerald-rs (Emerald Vault)
 //! Copyright (c) 2018, ETCDEV (licensed under the Apache License, Version 2.0)
-//! Modifications Copyright (c) 2018 - 2019, Foris Limited (licensed under the Apache License, Version 2.0)
+//! Modifications Copyright (c) 2018 - 2020, Foris Limited (licensed under the Apache License, Version 2.0)
 //!
 //! ### Generating Address
 //! There are three main steps to obtain chain address from public keys
