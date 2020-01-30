@@ -9,6 +9,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use chain_core::{
     init::coin::{Coin, CoinError},
     tx::data::{input::TxoPointer, output::TxOut, TxId},
+    tx::fee::Fee,
 };
 use client_common::tendermint::types::Time;
 use client_common::{ErrorKind, Result, ResultExt, Transaction};
@@ -46,6 +47,9 @@ pub struct TransactionChange {
     pub inputs: Vec<TransactionInput>,
     /// Transaction outputs
     pub outputs: Vec<TxOut>,
+    /// Fee that was paid
+    #[serde(rename = "fee")]
+    pub fee_paid: Fee,
     /// Balance change caused by transaction
     #[serde(flatten)]
     pub balance_change: BalanceChange,
@@ -104,8 +108,6 @@ pub enum BalanceChange {
     Outgoing {
         /// Value of outgoing balance change
         value: Coin,
-        /// Fee paid for transaction with outgoing amount
-        fee: Coin,
     },
     /// No change in balance
     NoChange,
@@ -143,6 +145,7 @@ impl Encode for TransactionChange {
         self.transaction_id.encode_to(dest);
         self.inputs.encode_to(dest);
         self.outputs.encode_to(dest);
+        self.fee_paid.encode_to(dest);
         self.balance_change.encode_to(dest);
         self.transaction_type.encode_to(dest);
         self.block_height.encode_to(dest);
@@ -153,6 +156,7 @@ impl Encode for TransactionChange {
         self.transaction_id.size_hint()
             + self.inputs.size_hint()
             + self.outputs.size_hint()
+            + self.fee_paid.size_hint()
             + self.balance_change.size_hint()
             + self.block_height.size_hint()
             + self.block_time.to_rfc3339().as_bytes().size_hint()
@@ -164,6 +168,7 @@ impl Decode for TransactionChange {
         let transaction_id = TxId::decode(input)?;
         let inputs = <Vec<TransactionInput>>::decode(input)?;
         let outputs = <Vec<TxOut>>::decode(input)?;
+        let fee_paid = Fee::decode(input)?;
         let balance_change = BalanceChange::decode(input)?;
         let transaction_type = TransactionType::decode(input)?;
         let block_height = u64::decode(input)?;
@@ -173,6 +178,7 @@ impl Decode for TransactionChange {
             transaction_id,
             inputs,
             outputs,
+            fee_paid,
             balance_change,
             transaction_type,
             block_height,
@@ -196,15 +202,10 @@ impl Add<BalanceChange> for Coin {
                     )
                 })
             }
-            BalanceChange::Outgoing { value, fee } => {
-                let new_value = (self - value).chain(|| {
-                    (
-                        ErrorKind::IllegalInput,
-                        "Balance became negative while adding",
-                    )
-                })?;
+            BalanceChange::Outgoing { value } => {
+                let new_value = self - value;
 
-                (new_value - fee).chain(|| {
+                new_value.chain(|| {
                     (
                         ErrorKind::IllegalInput,
                         "Balance became negative while adding",
@@ -242,6 +243,7 @@ mod tests {
                 value: Coin::zero(),
             },
             transaction_type: TransactionType::Transfer,
+            fee_paid: Fee::new(Coin::one()),
             block_height: 0,
             block_time: Time::now(),
         };
@@ -281,11 +283,10 @@ mod tests {
         let coin = Coin::new(40).expect("Unable to create new coin")
             + BalanceChange::Outgoing {
                 value: Coin::new(25).expect("Unable to create new coin"),
-                fee: Coin::new(5).expect("Unable to create new coin"),
             };
 
         assert_eq!(
-            Coin::new(10).expect("Unable to create new coin"),
+            Coin::new(15).expect("Unable to create new coin"),
             coin.expect("Unable to add coins"),
             "Coins does not match"
         );
@@ -296,7 +297,6 @@ mod tests {
         let coin = Coin::zero()
             + BalanceChange::Outgoing {
                 value: Coin::new(25).expect("Unable to create new coin"),
-                fee: Coin::new(5).expect("Unable to create new coin"),
             };
 
         assert!(coin.is_err(), "Created negative coin")

@@ -14,10 +14,11 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::{str2txid, TxoPointer};
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
+use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
-use client_common::tendermint::types::{AbciQueryExt, BlockExt, BroadcastTxResponse};
+use client_common::tendermint::types::{AbciQueryExt, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
     seckey::derive_enckey, Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecKey,
@@ -705,7 +706,10 @@ where
         let mut memento = WalletStateMemento::default();
         // check if tx belongs to the block
         let block = self.tendermint_client.block(tx_info.block_height)?;
-        if !block.enclave_transaction_ids()?.contains(&tx_info.tx.id()) {
+        let block_result = self.tendermint_client.block_results(tx_info.block_height)?;
+        let fees = block_result.fees()?;
+        let paid_fee = fees.get(&tx_info.tx.id());
+        if paid_fee.is_none() {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
                 "block height and transaction not match",
@@ -719,8 +723,8 @@ where
             &wallet,
             &wallet_state,
             &mut memento,
-            &tx_info.tx,
-            tx_info.block_height,
+            &tx_info,
+            *paid_fee.expect("tx fee checked above"),
             block.header.time,
             spent_flags?,
         )
@@ -957,14 +961,20 @@ fn import_transaction(
     wallet: &Wallet,
     wallet_state: &WalletState,
     memento: &mut WalletStateMemento,
-    transaction: &Transaction,
-    block_height: u64,
+    transaction_info: &TransactionInfo,
+    paid_fee: Fee,
     block_time: Time,
     spent_flag: Vec<bool>,
 ) -> Result<Coin> {
-    let transaction_change =
-        create_transaction_change(wallet, wallet_state, transaction, block_height, block_time)
-            .chain(|| (ErrorKind::InvalidInput, "create transaction change failed"))?;
+    let transaction_change = create_transaction_change(
+        wallet,
+        wallet_state,
+        &transaction_info.tx,
+        paid_fee,
+        transaction_info.block_height,
+        block_time,
+    )
+    .chain(|| (ErrorKind::InvalidInput, "create transaction change failed"))?;
     let mut value = Coin::zero();
     let transfer_addresses = wallet.transfer_addresses();
     for (i, (output, spent)) in transaction_change

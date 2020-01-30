@@ -6,6 +6,7 @@ use std::sync::mpsc::Sender;
 use chain_core::common::H256;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::TxId;
+use chain_core::tx::fee::Fee;
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::{Block, BlockExt, BlockResults, Status, Time};
 use client_common::tendermint::Client;
@@ -17,6 +18,7 @@ use super::syncer_logic::handle_blocks;
 use crate::service;
 use crate::service::{KeyService, SyncState, Wallet, WalletState, WalletStateMemento};
 use crate::TransactionObfuscation;
+use std::collections::BTreeMap;
 
 /// Transaction decryptor interface for wallet synchronizer
 pub trait TxDecryptor: Clone + Send + Sync {
@@ -364,8 +366,11 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
                 app_hash = Some(
                     state.compute_app_hash(
                         block_result
-                            .transaction_ids()
-                            .chain(|| (ErrorKind::VerifyError, "verify block results"))?,
+                            .fees()
+                            .chain(|| (ErrorKind::VerifyError, "verify block results"))?
+                            .keys()
+                            .cloned()
+                            .collect(),
                     ),
                 );
                 if self.env.enable_fast_forward {
@@ -478,8 +483,8 @@ pub(crate) struct FilteredBlock {
     pub block_height: u64,
     /// Block time
     pub block_time: Time,
-    /// List of successfully committed transaction ids in this block
-    pub valid_transaction_ids: Vec<TxId>,
+    /// List of successfully committed transaction ids in this block and their fees
+    pub valid_transaction_fees: BTreeMap<TxId, Fee>,
     /// Bloom filter for view keys and staking addresses
     pub block_filter: BlockFilter,
     /// List of successfully committed transaction of transactions that may need to be queried against
@@ -503,11 +508,12 @@ impl FilteredBlock {
         let block_height = block.header.height.value();
         let block_time = block.header.time;
 
-        let valid_transaction_ids = block_result.transaction_ids()?;
         let block_filter = block_result.block_filter()?;
 
         let staking_transactions =
             filter_staking_transactions(&block_result, wallet.staking_addresses().iter(), block)?;
+
+        let valid_transaction_fees = block_result.fees()?;
 
         let enclave_transaction_ids =
             if block_filter.check_view_key(&wallet.view_key.clone().into()) {
@@ -520,7 +526,7 @@ impl FilteredBlock {
             app_hash,
             block_height,
             block_time,
-            valid_transaction_ids,
+            valid_transaction_fees,
             enclave_transaction_ids,
             block_filter,
             staking_transactions,

@@ -1,14 +1,17 @@
 #![allow(missing_docs)]
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
-use std::str::FromStr;
+use std::str::{from_utf8, FromStr};
 
 use base64;
 use serde::Deserialize;
 
 use chain_core::common::{TendermintEventKey, TendermintEventType};
 use chain_core::init::address::RedeemAddress;
+use chain_core::init::{coin::Coin, MAX_COIN_DECIMALS};
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::TxId;
+use chain_core::tx::fee::Fee;
 use chain_tx_filter::BlockFilter;
 
 use crate::tendermint::types::Height;
@@ -52,25 +55,26 @@ pub struct Attribute {
 }
 
 impl BlockResults {
-    /// Returns transaction ids in block results
-    pub fn transaction_ids(&self) -> Result<Vec<TxId>> {
+    /// Returns transaction ids and the corresponding fees in block results
+    pub fn fees(&self) -> Result<BTreeMap<TxId, Fee>> {
         match &self.results.deliver_tx {
-            None => Ok(Vec::default()),
+            None => Ok(BTreeMap::default()),
             Some(deliver_tx) => {
-                let mut transactions: Vec<TxId> = Vec::with_capacity(deliver_tx.len());
+                let mut fees: BTreeMap<TxId, Fee> = BTreeMap::new();
 
                 for transaction in deliver_tx.iter() {
                     for event in transaction.events.iter() {
                         if event.event_type == TendermintEventType::ValidTransactions.to_string() {
                             let tx_id = find_tx_id_from_event_attributes(&event.attributes)?;
-                            if let Some(id) = tx_id {
-                                transactions.push(id);
+                            let fee = find_fee_from_event_attributes(&event.attributes)?;
+                            if let (Some(tx_id), Some(fee)) = (tx_id, fee) {
+                                fees.insert(tx_id, fee);
                             }
                         }
                     }
                 }
 
-                Ok(transactions)
+                Ok(fees)
             }
         }
     }
@@ -146,6 +150,37 @@ fn find_event_attribute_by_key(
     }
 
     Ok(None)
+}
+
+fn find_fee_from_event_attributes(attributes: &[Attribute]) -> Result<Option<Fee>> {
+    let maybe_attribute = find_event_attribute_by_key(attributes, TendermintEventKey::Fee)?;
+    match maybe_attribute {
+        None => Ok(None),
+        Some(attribute) => {
+            let raw_fee_text = base64::decode(&attribute.value).chain(|| {
+                (
+                    ErrorKind::DeserializationError,
+                    "Unable to decode base64 bytes of fee in block results",
+                )
+            })?;
+            let fee_text = from_utf8(&raw_fee_text)
+                .chain(|| (ErrorKind::DeserializationError, "Invalid fee text encoding"))?;
+            let mut parts = fee_text.split_terminator('.').map(|s| s.parse::<u64>());
+            match (parts.next(), parts.next()) {
+                (Some(Ok(a)), Some(Ok(b))) => {
+                    let base_fee = Fee::new(
+                        Coin::new(a * MAX_COIN_DECIMALS + b)
+                            .chain(|| (ErrorKind::DeserializationError, "Invalid fee amount"))?,
+                    );
+                    Ok(Some(base_fee))
+                }
+                _ => Err(Error::new(
+                    ErrorKind::DeserializationError,
+                    "Invalid fee text",
+                )),
+            }
+        }
+    }
 }
 
 fn find_tx_id_from_event_attributes(attributes: &[Attribute]) -> Result<Option<[u8; 32]>> {
@@ -444,13 +479,18 @@ mod tests {
                         attributes: vec![Attribute {
                             key: TendermintEventKey::TxId.to_base64_string(),
                             value: "MDc2NmQ0ZTFjMDkxMjRhZjlhZWI0YTdlZDk5ZDgxNjU0YTg0NDczZjEzMzk0OGNlYTA1MGRhYTE3ZmYwZTdmZg==".to_owned(),
-                        }],
+                        },
+                        Attribute {
+                            key: TendermintEventKey::Fee.to_base64_string(),
+                            value: "MC4wMDAwMDU3OA==".to_owned(),
+                        }
+                        ],
                     }],
                 }]),
                 end_block: None,
             },
         };
-        assert_eq!(1, block_results.transaction_ids().unwrap().len());
+        assert_eq!(1, block_results.fees().unwrap().len());
     }
 
     #[test]
@@ -491,7 +531,7 @@ mod tests {
             },
         };
 
-        assert!(block_results.transaction_ids().is_err());
+        assert!(block_results.fees().is_err());
     }
 
     #[test]
@@ -503,7 +543,7 @@ mod tests {
                 end_block: None,
             },
         };
-        assert_eq!(0, block_results.transaction_ids().unwrap().len());
+        assert_eq!(0, block_results.fees().unwrap().len());
     }
 
     mod find_event_attribute_by_key {
