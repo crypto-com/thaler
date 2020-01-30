@@ -436,6 +436,7 @@ mod tests {
     use std::str::FromStr;
 
     use chain_core::tx::data::address::ExtendedAddr;
+    use chain_core::tx::fee::Fee;
     use client_common::tendermint::types::Time;
     use client_common::{seckey::derive_enckey, storage::MemoryStorage};
 
@@ -549,6 +550,7 @@ mod tests {
             },
             transaction_type: TransactionType::Transfer,
             block_height: 0,
+            fee_paid: Fee::new(Coin::new(10).unwrap()),
             block_time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
         });
 
@@ -584,10 +586,10 @@ mod tests {
             outputs: Vec::new(),
             balance_change: BalanceChange::Outgoing {
                 value: Coin::new(40).unwrap(),
-                fee: Coin::new(10).unwrap(),
             },
             transaction_type: TransactionType::Transfer,
             block_height: 0,
+            fee_paid: Fee::new(Coin::new(10).unwrap()),
             block_time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
         });
 

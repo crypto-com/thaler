@@ -482,21 +482,22 @@ impl Command {
                 let right_justify = CellFormat::builder().justify(Justify::Right).build();
 
                 let (amount, fee, in_out, format) = match change.balance_change {
-                    BalanceChange::Incoming { value } => (value, None, "IN", green),
-                    BalanceChange::Outgoing { value, fee } => (value, Some(fee), "OUT", red),
-                    BalanceChange::NoChange => (Coin::zero(), None, "NO CHANGE", blue),
+                    BalanceChange::Incoming { value } => {
+                        (value, change.fee_paid.to_coin(), "IN", green)
+                    }
+                    BalanceChange::Outgoing { value } => {
+                        (value, change.fee_paid.to_coin(), "OUT", red)
+                    }
+                    BalanceChange::NoChange => {
+                        (Coin::zero(), change.fee_paid.to_coin(), "NO CHANGE", blue)
+                    }
                 };
 
                 rows.push(Row::new(vec![
                     Cell::new(&encode(&change.transaction_id), Default::default()),
                     Cell::new(in_out, format),
                     Cell::new(&amount, right_justify),
-                    Cell::new(
-                        &fee.as_ref()
-                            .map(ToString::to_string)
-                            .unwrap_or_else(|| "-".to_owned()),
-                        right_justify,
-                    ),
+                    Cell::new(&format!("{}", fee), right_justify),
                     Cell::new(&change.transaction_type, Default::default()),
                     Cell::new(&change.block_height, right_justify),
                     Cell::new(&change.block_time, Default::default()),

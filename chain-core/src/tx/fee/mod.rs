@@ -16,6 +16,8 @@ use std::{error, fmt};
 
 /// A fee value that represent either a fee to pay, or a fee paid.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Encode, Decode)]
+#[cfg_attr(not(feature = "mesalock_sgx"), serde(transparent))]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct Fee(Coin);
 
 impl Fee {

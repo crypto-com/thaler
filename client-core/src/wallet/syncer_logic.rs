@@ -9,6 +9,7 @@ use chain_core::tx::{
         output::TxOut,
         TxId,
     },
+    fee::Fee,
     TransactionId,
 };
 use client_common::tendermint::types::Time;
@@ -21,16 +22,12 @@ use crate::WalletStateMemento;
 
 #[derive(Error, Debug)]
 pub enum SyncerLogicError {
-    #[error("Total input amount exceeds maximum allowed value(txid: {0})")]
-    TotalInputOutOfBound(String),
     #[error("Total output amount exceeds maximum allowed value(txid: {0})")]
     TotalOutputOutOfBound(String),
     #[error("Input index is invalid(txid: {0}, index: {1})")]
     InputIndexInvalid(String, TxoIndex),
     #[error("Inputs come from multiple wallets(txid: {0})")]
     InputFromMultipleWallets(String),
-    #[error("Output amount is greater than input amount(txid: {0})")]
-    OutputGreaterThanInput(String),
 }
 
 /// Update wallet state with batch blocks
@@ -48,12 +45,13 @@ pub(crate) fn handle_blocks(
 
     for block in blocks {
         for tx in block.staking_transactions.iter() {
-            if block.valid_transaction_ids.contains(&tx.id()) {
+            if let Some(fee) = block.valid_transaction_fees.get(&tx.id()) {
                 handle_transaction(
                     wallet,
                     wallet_state,
                     &mut memento,
                     tx,
+                    *fee,
                     block.block_height,
                     block.block_time,
                 )?;
@@ -61,12 +59,16 @@ pub(crate) fn handle_blocks(
         }
 
         for txid in block.enclave_transaction_ids.iter() {
-            if let Some(tx) = enclave_transactions.get(txid) {
+            if let (Some(tx), Some(fee)) = (
+                enclave_transactions.get(txid),
+                block.valid_transaction_fees.get(txid),
+            ) {
                 handle_transaction(
                     wallet,
                     wallet_state,
                     &mut memento,
                     tx,
+                    *fee,
                     block.block_height,
                     block.block_time,
                 )?;
@@ -80,6 +82,7 @@ pub fn create_transaction_change(
     wallet: &Wallet,
     wallet_state: &WalletState,
     transaction: &Transaction,
+    fee_paid: Fee,
     block_height: u64,
     block_time: Time,
 ) -> Result<TransactionChange, SyncerLogicError> {
@@ -93,6 +96,7 @@ pub fn create_transaction_change(
         transaction_id,
         inputs,
         outputs,
+        fee_paid,
         balance_change,
         transaction_type,
         block_height,
@@ -107,11 +111,18 @@ pub(crate) fn handle_transaction(
     wallet_state: &WalletState,
     memento: &mut WalletStateMemento,
     transaction: &Transaction,
+    fee_paid: Fee,
     block_height: u64,
     block_time: Time,
 ) -> Result<(), SyncerLogicError> {
-    let transaction_change =
-        create_transaction_change(wallet, wallet_state, transaction, block_height, block_time)?;
+    let transaction_change = create_transaction_change(
+        wallet,
+        wallet_state,
+        transaction,
+        fee_paid,
+        block_height,
+        block_time,
+    )?;
     for input in transaction_change.inputs.iter() {
         memento.remove_unspent_transaction(input.pointer.clone());
     }
@@ -207,15 +218,10 @@ fn calculate_balance_change<'a>(
                 })
             }
         }
-        Some(spent_outputs) => {
-            let total_input = sum_outputs(spent_outputs.iter().cloned())
-                .map_err(|_| SyncerLogicError::TotalInputOutOfBound(encode_txid()))?;
-            let fee = (total_input - total_output)
-                .map_err(|_| SyncerLogicError::OutputGreaterThanInput(encode_txid()))?;
-            // (total_input - fee) - total_output_ours
+        Some(_spent_outputs) => {
             // panic is impossible because total_output_ours is subset of total_output
             let value = (total_output - total_output_ours).expect("impossible");
-            Ok(BalanceChange::Outgoing { fee, value })
+            Ok(BalanceChange::Outgoing { value })
         }
     }
 }
@@ -228,6 +234,7 @@ mod tests {
     use chain_core::init::{address::RedeemAddress, coin::Coin};
     use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes, UnbondTx};
     use chain_core::tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
+    use chain_core::tx::fee::Fee;
     use chain_core::tx::TransactionId;
     use chain_tx_filter::BlockFilter;
     use client_common::{storage::MemoryStorage, PublicKey, Result, Transaction};
@@ -236,6 +243,7 @@ mod tests {
     use crate::service::load_wallet;
     use crate::types::WalletKind;
     use crate::wallet::{DefaultWalletClient, WalletClient};
+    use std::collections::BTreeMap;
 
     fn create_test_wallet(n: usize) -> Result<Vec<Wallet>> {
         let storage = MemoryStorage::default();
@@ -289,16 +297,20 @@ mod tests {
             block_filter.add_view_key(&view_key.into());
         }
 
-        let valid_transaction_ids = enclave_txs
+        let valid_transaction_ids: Vec<TxId> = enclave_txs
             .iter()
             .map(|tx| tx.id())
             .chain(other_txs.iter().map(|tx| tx.id()))
             .collect();
+        let mut valid_transaction_fees = BTreeMap::new();
+        for txid in valid_transaction_ids.iter() {
+            valid_transaction_fees.insert(*txid, Fee::new(Coin::one()));
+        }
         FilteredBlock {
             app_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C".to_owned(),
             block_height: 1,
             block_time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
-            valid_transaction_ids,
+            valid_transaction_fees,
             enclave_transaction_ids: enclave_txs.iter().map(|tx| tx.id()).collect(),
             block_filter,
             staking_transactions: other_txs.to_vec(),

@@ -7,6 +7,9 @@
 * client uses argon2 function for its internal storage key derivation.
 ...
 
+### Bug Fixes
+* *client* [969](https://github.com/crypto-com/chain/pull/969): client-cli incorrect fee display in history
+
 *January 3, 2020*
 
 This hotfix release patches the client with the fixes for bugs discovered in the 0.2.0 release
