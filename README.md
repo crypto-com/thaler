@@ -70,7 +70,7 @@ Technical documentation can be found in this [Github repository](https://github.
 
 Crypto.com chain requires the following to be installed before build.
 - [Homebrew](https://brew.sh/)
-- [Tendermint](https://tendermint.com/docs/introduction/install.html#from-binary)
+- [Tendermint](https://docs.tendermint.com/master/introduction/install.html#from-binary)
 - [Rust and Cargo](https://rustup.rs) (cargo version: 1.36 onwards)
 - [cmake](https://cmake.org/install/)
   ```bash
