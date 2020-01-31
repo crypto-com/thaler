@@ -36,7 +36,7 @@ tokio = { version = "0.1.22", default-features = false, features = ["rt-full"] }
 tiny-bip39 = { version = "0.7", default-features = false }
 unicase = "2.6.0"
 lazy_static = "1.4.0"
-ring = "0.16.9"
+ring = "0.16.10"
 tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "db982c2437fe72c7a03942fc2bddf490f2332364" }
 thiserror = { version = "1.0", default-features = false }
 non-empty-vec = "0.1"
