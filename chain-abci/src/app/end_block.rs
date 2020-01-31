@@ -224,7 +224,7 @@ mod tests {
             },
             rewards_config: RewardsParameters {
                 monetary_expansion_cap: Coin::new(1_0000_0000).unwrap(),
-                distribution_period: 24 * 60 * 60, // distribute each block
+                reward_period_seconds: 24 * 60 * 60, // distribute reward each day
                 monetary_expansion_r0: "0.5".parse().unwrap(),
                 monetary_expansion_tau: 166666600,
                 monetary_expansion_decay: 999860,

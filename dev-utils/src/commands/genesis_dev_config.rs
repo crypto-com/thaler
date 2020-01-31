@@ -47,7 +47,7 @@ impl GenesisDevConfig {
             },
             rewards_config: RewardsParameters {
                 monetary_expansion_cap: expansion_cap,
-                distribution_period: 24 * 60 * 60,
+                reward_period_seconds: 24 * 60 * 60,
                 monetary_expansion_r0: "0.45".parse().unwrap(),
                 monetary_expansion_tau: 1_4500_0000_0000_0000,
                 monetary_expansion_decay: 999_860,

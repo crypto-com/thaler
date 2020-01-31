@@ -58,7 +58,7 @@
       "max_validators": 50,
       "required_council_node_stake": "625000000000000000",
       "rewards_config": {
-        "distribution_period": 86400,
+        "reward_period_seconds": 86400,
         "monetary_expansion_cap": "6250000000000000000",
         "monetary_expansion_decay": 999860,
         "monetary_expansion_r0": 450,
