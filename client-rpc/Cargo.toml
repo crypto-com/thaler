@@ -16,7 +16,7 @@ chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 client-network = { path= "../client-network"}
-serde_json = "1.0.45"
+serde_json = "1.0.46"
 jsonrpc-http-server = "14.0"
 jsonrpc-core = "14.0"
 jsonrpc-core-client = "14.0"
