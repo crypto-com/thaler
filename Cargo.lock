@@ -420,7 +420,7 @@ dependencies = [
  "bech32 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "fixed 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "fixed 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "quickcheck 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1085,7 +1085,7 @@ dependencies = [
 
 [[package]]
 name = "fixed"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "typenum 1.11.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4147,7 +4147,7 @@ dependencies = [
 "checksum failure_derive 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)" = "0bc225b78e0391e4b8683440bf2e63c2deeeb2ce5189eab46e2b68c6d3725d08"
 "checksum fake-simd 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)" = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 "checksum fancy-regex 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "5f0ced127890355caf05abf5e2dfa9200a61f2e8b6c553f30230490214552ae9"
-"checksum fixed 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "265f0d0a7b19f384a2e599a31d92ab6a94ddfc354f92fbf53a2818af09c98c4c"
+"checksum fixed 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "03ad808bcc4bd75ba1f5173e5bb9570f990f47749cf6bc282a6a62e6bd46db03"
 "checksum fixed-hash 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "3367952ceb191f4ab95dd5685dc163ac539e36202f9fcfd0cb22f9f9c542fefc"
 "checksum fnv 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "2fad85553e09a6f881f739c29f0b00b0f01357c743266d478b68951ce23285f3"
 "checksum foreign-types 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f6f339eb8adc052cd2ca78910fda869aefa38d22d5cb648e6485e4d3fc06f3b1"
