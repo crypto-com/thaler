@@ -584,7 +584,7 @@ dependencies = [
  "serde 1.0.104 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.46 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "sled 0.30.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sled 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tendermint 0.10.0 (git+https://github.com/crypto-com/tendermint-rs.git?rev=db982c2437fe72c7a03942fc2bddf490f2332364)",
  "websocket 0.24.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zeroize 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2981,7 +2981,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "sled"
-version = "0.30.3"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "crc32fast 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3600,7 +3600,7 @@ dependencies = [
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=0125097a7bf6f939db0ce52e49803c5e0312bf5e)",
  "sgx_types 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
  "sgx_urts 1.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
- "sled 0.30.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sled 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zmq 0.9.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -4359,7 +4359,7 @@ dependencies = [
 "checksum signatory-dalek 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)" = "37e71296303f2f04a00ef9a3133627db900805a41de2c944cc64a31039afa366"
 "checksum signature 1.0.0-pre.1 (registry+https://github.com/rust-lang/crates.io-index)" = "a0cfcdc45066661979294e965c21b60355da35eb5d638af8143e5aa83fdfce53"
 "checksum slab 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
-"checksum sled 0.30.3 (registry+https://github.com/rust-lang/crates.io-index)" = "2eb8c32cb0e34e67ad74fae1a77f4635d0cc7ffc873088a0136f3c4849336d71"
+"checksum sled 0.31.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8fb6824dde66ad33bf20c6e8476f5b82b871bc8bc3c129a10ea2f7dae5060fa3"
 "checksum smallvec 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)" = "f7b0758c52e15a8b5e3691eae6cc559f08eee9406e548a4477ba4e67770a82b6"
 "checksum smallvec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5c2fb2ec9bcd216a5b0d0ccf31ab17b5ed1d627960edff65bbe95d3ce221cefc"
 "checksum sourcefile 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "4bf77cb82ba8453b42b6ae1d692e4cdc92f9a47beaf89a847c8be83f4e328ad3"
