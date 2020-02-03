@@ -7,7 +7,6 @@ use chain_core::tx::data::address::ExtendedAddr;
 use client_common::MultiSigAddress;
 use client_core::{HDSeed, Mnemonic};
 use secstr::SecUtf8;
-use std::ffi::CString;
 use std::os::raw::c_char;
 use std::ptr;
 
@@ -22,9 +21,10 @@ pub unsafe extern "C" fn cro_create_hdwallet(
 ) -> CroResult {
     let mnemonic = Mnemonic::new();
     let phrase = mnemonic.unsecure_phrase();
-    if phrase.as_bytes().len() > mnemonics_length as usize {
-        CroResult::fail();
+    if phrase.as_bytes().len() >= mnemonics_length as usize {
+        return CroResult::fail();
     }
+    ptr::write_bytes(mnemonics, 0, mnemonics_length as usize);
     let wallet = CroHDWallet {
         seed: HDSeed::from(&mnemonic),
     };
@@ -90,63 +90,6 @@ pub unsafe extern "C" fn cro_create_staking_address(
             CroResult::success()
         }
     }
-}
-
-/// print address information
-#[no_mangle]
-/// # Safety
-pub unsafe extern "C" fn cro_print_address(address_ptr: CroAddressPtr) -> CroResult {
-    let address = address_ptr.as_mut().expect("get address");
-    println!("{}", address.address.to_string());
-    CroResult::success()
-}
-
-/// print address information
-/// minimum byte length 100 is necessary
-#[no_mangle]
-/// # Safety
-pub unsafe extern "C" fn cro_get_printed_address(
-    address_ptr: CroAddressPtr,
-    address_output: *mut u8,
-    address_output_length: u32,
-) -> CroResult {
-    let address = address_ptr.as_mut().expect("get address");
-    let src_string = CString::new(address.address.as_bytes()).expect("get cstring");
-    let src = src_string.to_bytes_with_nul();
-    if src.len() > address_output_length as usize {
-        return CroResult::fail();
-    }
-    ptr::copy_nonoverlapping(src.as_ptr(), address_output, src.len());
-    CroResult::success()
-}
-
-/// print address information
-/// minimum 32 length is necessary
-#[no_mangle]
-/// # Safety
-pub unsafe extern "C" fn cro_get_raw_address(
-    address_ptr: CroAddressPtr,
-    address_output: *mut u8,
-    address_output_length: *mut u32,
-) -> CroResult {
-    if address_output.is_null() {
-        return CroResult::fail();
-    }
-    if address_output_length.is_null() {
-        return CroResult::fail();
-    }
-    let address = address_ptr.as_mut().expect("get address");
-
-    let src_bytes = address.raw.clone();
-
-    let src = &src_bytes[..];
-    if src.len() > address_output_length as usize {
-        return CroResult::fail();
-    }
-    ptr::copy_nonoverlapping(src.as_ptr(), address_output, src.len());
-    *address_output_length = src.len() as u32;
-
-    CroResult::success()
 }
 
 /// create utxo address from bip44 wallet, which is for withdrawal, transfer amount
