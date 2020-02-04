@@ -49,7 +49,7 @@ impl Storage {
         self.temp_sealed_tx_store.insert(*txid, sealed_log.to_vec());
     }
 
-    pub fn get_sealed_log(&mut self, txid: &TxId) -> Option<Vec<u8>> {
+    pub fn get_sealed_log(&self, txid: &TxId) -> Option<Vec<u8>> {
         // FIXME
         match self.temp_sealed_tx_store.get(txid) {
             None => self.lookup_item(LookupItem::TxBody, txid),
