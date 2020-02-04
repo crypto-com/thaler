@@ -605,7 +605,7 @@ fn gen_network_params(
         },
         rewards_config: params::RewardsParameters {
             monetary_expansion_cap: expansion_cap,
-            distribution_period: 24 * 60 * 60, // distribute once per day
+            reward_period_seconds: 24 * 60 * 60, // distribute once per day
             monetary_expansion_r0: "0.5".parse().unwrap(),
             monetary_expansion_tau: 166_666_600,
             monetary_expansion_decay: 999_860,

@@ -113,7 +113,7 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
         },
         rewards_config: RewardsParameters {
             monetary_expansion_cap: expansion_cap,
-            distribution_period: 24 * 60 * 60, // distribute once per day
+            reward_period_seconds: 24 * 60 * 60, // distribute once per day
             monetary_expansion_r0: "0.5".parse().unwrap(),
             monetary_expansion_tau: 1_4500_0000_0000_0000,
             monetary_expansion_decay: 999_860,

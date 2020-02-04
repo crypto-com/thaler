@@ -107,9 +107,9 @@ impl NetworkParameters {
         }
     }
 
-    pub fn get_rewards_distribution_period(&self) -> u32 {
+    pub fn get_rewards_reward_period_seconds(&self) -> u64 {
         match self {
-            NetworkParameters::Genesis(params) => params.rewards_config.distribution_period,
+            NetworkParameters::Genesis(params) => params.rewards_config.reward_period_seconds,
         }
     }
 
@@ -125,7 +125,7 @@ impl NetworkParameters {
         }
     }
 
-    pub fn get_rewards_monetary_expansion_decay(&self) -> u32 {
+    pub fn get_rewards_monetary_expansion_decay(&self) -> u64 {
         match self {
             NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_decay,
         }
@@ -176,13 +176,13 @@ pub struct RewardsParameters {
     /// Maximum monetary expansion for rewards.
     pub monetary_expansion_cap: Coin,
     /// Time inteval in seconds to do rewards distribution
-    pub distribution_period: u32,
+    pub reward_period_seconds: u64,
     /// Monetary expansion formula parameter
     pub monetary_expansion_r0: Milli,
     /// Monetary expansion formula parameter
     pub monetary_expansion_tau: u64,
     /// Monetary expansion formula parameter
-    pub monetary_expansion_decay: u32,
+    pub monetary_expansion_decay: u64,
 }
 
 impl RewardsParameters {
@@ -192,6 +192,9 @@ impl RewardsParameters {
         }
         if self.monetary_expansion_tau == 0 {
             return Err("tau can't == 0");
+        }
+        if self.monetary_expansion_tau > 100_00000000_00000000_u64 {
+            return Err("tau too big");
         }
         if self.monetary_expansion_decay > 1_000_000 {
             return Err("decay can't > 1_000_000");

@@ -3,8 +3,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#define EXP_LOWER_BOUND -20
-
 #define HASH_SIZE_256 32
 
 #define KECCAK256_BYTES 32

@@ -165,7 +165,7 @@ fn get_dummy_network_params() -> NetworkParameters {
         },
         rewards_config: RewardsParameters {
             monetary_expansion_cap: Coin::zero(),
-            distribution_period: 24 * 60 * 60,
+            reward_period_seconds: 24 * 60 * 60,
             monetary_expansion_r0: "0.5".parse().unwrap(),
             monetary_expansion_tau: 166_666_600,
             monetary_expansion_decay: 999_860,
@@ -358,7 +358,7 @@ fn init_chain_panics_with_different_app_hash() {
         },
         rewards_config: RewardsParameters {
             monetary_expansion_cap: expansion_cap,
-            distribution_period: 24 * 60 * 60,
+            reward_period_seconds: 24 * 60 * 60,
             monetary_expansion_r0: "0.5".parse().unwrap(),
             monetary_expansion_tau: 166_666_600,
             monetary_expansion_decay: 999_860,

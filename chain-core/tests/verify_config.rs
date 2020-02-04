@@ -67,7 +67,7 @@ fn test_verify_test_example_snapshot() {
         },
         rewards_config: RewardsParameters {
             monetary_expansion_cap: expansion_cap,
-            distribution_period: 24 * 60 * 60,
+            reward_period_seconds: 24 * 60 * 60,
             monetary_expansion_r0: "0.5".parse().unwrap(),
             monetary_expansion_tau: 166666600,
             monetary_expansion_decay: 999860,

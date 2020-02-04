@@ -69,7 +69,7 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
             },
             "rewards_config": {
                 "monetary_expansion_cap": "6250000000000000000",
-                "distribution_period": 86400,
+                "reward_period_seconds": 86400,
                 "monetary_expansion_r0": 500,
                 "monetary_expansion_tau": 14500000000000000,
                 "monetary_expansion_decay": 999860
