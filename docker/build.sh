@@ -2,11 +2,34 @@
 set -e
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-source $SGX_SDK/environment
+if [ -f $SGX_SDK/environment ]; then
+    source $SGX_SDK/environment
+fi
+
+BUILD_PROFILE=${BUILD_PROFILE:-debug}
+
+if [ $BUILD_PROFILE == "debug" ]; then
+    export SGX_DEBUG=1
+    CARGO_ARGS=
+else
+    export SGX_DEBUG=0
+    CARGO_ARGS=--release
+fi
+
 
 cd ..
-cargo build
-cargo build -p tx-validation-app
-cargo build -p tx-query-app
-make -C chain-tx-enclave/tx-validation
-make -C chain-tx-enclave/tx-query
+
+if [ ${1:-""} == "mock" ]; then
+    echo "Build mock"
+    cargo build $CARGO_ARGS --features mock-enc-dec --features mock-validation --manifest-path chain-abci/Cargo.toml
+    cargo build $CARGO_ARGS --features mock-enc-dec  --manifest-path client-rpc/Cargo.toml
+    cargo build $CARGO_ARGS --features mock-enc-dec  --manifest-path client-cli/Cargo.toml
+    cargo build $CARGO_ARGS -p dev-utils
+else
+    echo "Build sgx"
+    cargo build $CARGO_ARGS
+    cargo build $CARGO_ARGS -p tx-validation-app
+    cargo build $CARGO_ARGS -p tx-query-app
+    make -C chain-tx-enclave/tx-validation
+    make -C chain-tx-enclave/tx-query
+fi
