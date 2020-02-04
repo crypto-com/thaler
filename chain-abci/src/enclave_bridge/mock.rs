@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 ///! TODO: feature-guard when workspaces can be built with --features flag: https://github.com/rust-lang/cargo/issues/5015
 use super::*;
-#[cfg(feature = "mock-enc-dec")]
-use crate::storage::COL_BODIES;
 use abci::{RequestQuery, ResponseQuery};
 use chain_core::state::account::DepositBondTx;
 #[cfg(feature = "mock-enc-dec")]
@@ -107,12 +105,11 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
             }) = request
             {
                 let mut resp_txs = Vec::with_capacity(txs.len());
-                let looked_up = txs.iter().map(|txid| self.storage.get_sealed_log(txid));
+                let looked_up = txs.iter().map(|txid| storage.get_sealed_log(txid));
                 for found in looked_up {
-                    if let Ok(Some(uv)) = found {
-                        let tx = TxWithOutputs::decode(&mut uv.to_vec().as_slice());
-                        if let Ok(ttx) = tx {
-                            resp_txs.push(ttx);
+                    if let Some(uv) = found {
+                        if let Ok(tx) = TxWithOutputs::decode(&mut uv.to_vec().as_slice()) {
+                            resp_txs.push(tx);
                         }
                     }
                 }

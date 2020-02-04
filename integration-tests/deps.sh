@@ -8,7 +8,7 @@ if [ ! -d $PYTHON_VENV_DIR ];
 then
     python3 -mvenv --without-pip $PYTHON_VENV_DIR
     source $PYTHON_VENV_DIR/bin/activate
-    curl https://bootstrap.pypa.io/get-pip.py | python
+    curl -sL https://bootstrap.pypa.io/get-pip.py | python
 else
     source $PYTHON_VENV_DIR/bin/activate
 fi
