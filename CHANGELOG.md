@@ -5,6 +5,8 @@
 ## v0.3.0
 ### Breaking changes
 * client uses argon2 function for its internal storage key derivation.
+* *client* [976](https://github.com/crypto-com/chain/pull/976) Missing MultiSig pubkey methods in ClientRPC and ClientCLI
+ -- Rename client-rpc method `wallet_newMultiSigAddressPublicKey` to  `multiSig_newAddressPublicKey`
 ...
 
 ### Bug Fixes

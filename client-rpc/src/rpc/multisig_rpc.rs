@@ -5,12 +5,20 @@ use jsonrpc_derive::rpc;
 use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::tx::data::Tx;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt, SecKey};
+use client_core::types::AddressType;
 use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::{to_rpc_error, WalletRequest};
 
 #[rpc]
 pub trait MultiSigRpc: Send + Sync {
+    #[rpc(name = "multiSig_newAddressPublicKey")]
+    fn new_address_public_key(&self, request: WalletRequest) -> Result<String>;
+
+    /// Alias of wallet_listPublicKeys
+    #[rpc(name = "multiSig_listAddressPublicKeys")]
+    fn list_address_public_keys(&self, request: WalletRequest) -> Result<Vec<PublicKey>>;
+
     #[rpc(name = "multiSig_createAddress")]
     fn create_address(
         &self,
@@ -97,6 +105,20 @@ impl<T> MultiSigRpc for MultiSigRpcImpl<T>
 where
     T: WalletClient + MultiSigWalletClient + 'static,
 {
+    fn new_address_public_key(&self, request: WalletRequest) -> Result<String> {
+        self.client
+            .new_public_key(&request.name, &request.enckey, Some(AddressType::Transfer))
+            .map(|public_key| public_key.to_string())
+            .map_err(to_rpc_error)
+    }
+
+    fn list_address_public_keys(&self, request: WalletRequest) -> Result<Vec<PublicKey>> {
+        self.client
+            .public_keys(&request.name, &request.enckey)
+            .map(|keys| keys.into_iter().collect())
+            .map_err(to_rpc_error)
+    }
+
     fn create_address(
         &self,
         request: WalletRequest,

@@ -7,9 +7,7 @@ use secstr::SecUtf8;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::{PrivateKey, PublicKey, Result as CommonResult, SecKey};
-use client_core::types::WalletBalance;
-use client_core::types::WalletKind;
-use client_core::types::{AddressType, TransactionChange};
+use client_core::types::{TransactionChange, WalletBalance, WalletKind};
 use client_core::{Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient};
 
 use crate::server::{rpc_error_from_string, to_rpc_error, CreateWalletRequest, WalletRequest};
@@ -34,9 +32,6 @@ pub trait WalletRpc: Send + Sync {
 
     #[rpc(name = "wallet_delete")]
     fn delete(&self, request: CreateWalletRequest) -> Result<()>;
-
-    #[rpc(name = "wallet_newMultiSigAddressPublicKey")]
-    fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String>;
 
     #[rpc(name = "wallet_createStakingAddress")]
     fn create_staking_address(&self, request: WalletRequest) -> Result<String>;
@@ -191,13 +186,6 @@ where
     fn delete(&self, request: CreateWalletRequest) -> Result<()> {
         self.client
             .delete_wallet(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)
-    }
-
-    fn new_multi_sig_address_public_key(&self, request: WalletRequest) -> Result<String> {
-        self.client
-            .new_public_key(&request.name, &request.enckey, Some(AddressType::Transfer))
-            .map(|public_key| public_key.to_string())
             .map_err(to_rpc_error)
     }
 

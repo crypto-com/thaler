@@ -9,9 +9,8 @@ __pycache__
 *.egg-info
 
 # Storage
-/.storage
-/.storage.bak
-/.cro-storage
+/.storage*
+/.cro-storage*
 
 # OS
 .DS_Store
