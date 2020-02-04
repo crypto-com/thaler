@@ -56,7 +56,11 @@ function runtest() {
         popd
 
         if [ $RETCODE -eq 0 ]; then
-            pytest pytests
+			if [ $1 == "WITH_FEE" ]; then
+				pytest pytests -m "not zerofee"
+			else
+				pytest pytests -m "not withfee"
+			fi
             RETCODE=$?
         fi
 

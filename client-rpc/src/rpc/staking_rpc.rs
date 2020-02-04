@@ -134,7 +134,7 @@ where
             .collect::<Result<Vec<(TxoPointer, TxOut)>>>()
             .map_err(to_rpc_error)?;
 
-        let transaction = self
+        let (transaction, tx_pending) = self
             .ops_client
             .create_deposit_bonded_stake_transaction(
                 &request.name,
@@ -147,6 +147,16 @@ where
 
         self.client
             .broadcast_transaction(&transaction)
+            .map_err(to_rpc_error)?;
+
+        // update the wallet pending transaction state
+        self.client
+            .update_tx_pending_state(
+                &request.name,
+                &request.enckey,
+                transaction.tx_id(),
+                tx_pending,
+            )
             .map_err(to_rpc_error)?;
 
         Ok(hex::encode(transaction.tx_id()))
@@ -210,7 +220,7 @@ where
         };
         let txo_pointer = TxoPointer::new(tx_id, 0);
         let transactions = vec![(txo_pointer, output)];
-        let transaction = self
+        let (transaction, tx_pending) = self
             .ops_client
             .create_deposit_bonded_stake_transaction(
                 &request.name,
@@ -225,7 +235,15 @@ where
         self.client
             .broadcast_transaction(&transaction)
             .map_err(to_rpc_error)?;
-
+        // update the wallet pending transaction state
+        self.client
+            .update_tx_pending_state(
+                &request.name,
+                &request.enckey,
+                transaction.tx_id(),
+                tx_pending,
+            )
+            .map_err(to_rpc_error)?;
         Ok(hex::encode(tx_id))
     }
 

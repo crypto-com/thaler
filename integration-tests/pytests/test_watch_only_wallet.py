@@ -6,6 +6,13 @@ rpc = RPC()
 
 
 def test_watch_only_wallet(addresses):
+    '''
+    - create temp wallet with unique name
+    - read view key and transfer address, then delete it
+    - recover watch-only wallet with above keys
+    - transfer coins from default wallet into the watch-only wallet
+    - sync the wallet-only wallet and check the balance
+    '''
     name = str(uuid1())
     print('name', name)
 

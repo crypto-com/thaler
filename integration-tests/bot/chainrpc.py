@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import getpass
 import logging
+import base64
+import binascii
 
 import fire
 from jsonrpcclient import request
@@ -41,7 +43,7 @@ def get_enckey():
 def fix_address(addr):
     'fire convert staking addr to int automatically, fix it.'
     if isinstance(addr, int):
-        return hex(addr)
+        return '0x%040x' % addr
     else:
         return addr
 
@@ -285,8 +287,12 @@ class Blockchain(BaseService):
     def broadcast_tx_async(self, tx):
         return self.call_chain('broadcast_tx_async', tx)
 
-    def tx(self, txid):
-        return self.call_chain('tx', txid)
+    def tx(self, txid, include_proof=False):
+        txid = base64.b64encode(binascii.unhexlify(txid)).decode()
+        return self.call_chain('tx', txid, include_proof)
+
+    def tx_search(self, query, include_proof=False, page=1, per_page=100):
+        return self.call_chain('tx_search', query, include_proof, str(page), str(per_page))
 
 
 class RPC:
