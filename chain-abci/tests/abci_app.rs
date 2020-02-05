@@ -2,7 +2,6 @@ use abci::*;
 use bit_vec::BitVec;
 use chain_abci::app::*;
 use chain_abci::enclave_bridge::mock::MockClient;
-use chain_abci::punishment::ValidatorPunishment;
 use chain_core::common::{MerkleTree, Proof, H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
 use chain_core::init::address::RedeemAddress;
@@ -181,15 +180,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         last_apphash: app_hash,
         block_time: 0,
         genesis_time: 0,
-        proposer_stats: BTreeMap::new(),
-        validators: ValidatorState {
-            council_nodes_by_power: BTreeMap::new(),
-            tendermint_validator_addresses: BTreeMap::new(),
-            punishment: ValidatorPunishment {
-                validator_liveness: BTreeMap::new(),
-                slashing_schedule: Default::default(),
-            },
-        },
+        validators: ValidatorState::default(),
         top_level: ChainState {
             account_root: [0u8; 32],
             rewards_pool: RewardsPoolState::new(0, params.get_rewards_monetary_expansion_tau()),
@@ -480,16 +471,11 @@ fn two_beginblocks_should_panic() {
 }
 
 fn get_block_proposer(app: &ChainNodeApp<MockClient>) -> TendermintValidatorAddress {
-    let (addr, _) = app
-        .last_state
+    app.last_state
         .as_ref()
         .unwrap()
         .validators
-        .tendermint_validator_addresses
-        .iter()
-        .next()
-        .unwrap();
-    addr.clone()
+        .get_first_tm_validator_address()
 }
 
 fn begin_block(app: &mut ChainNodeApp<MockClient>) {

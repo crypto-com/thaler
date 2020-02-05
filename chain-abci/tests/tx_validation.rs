@@ -37,8 +37,8 @@ use chain_storage::account::AccountWrapper;
 use chain_storage::account::StarlingFixedKey;
 use chain_storage::{Storage, COL_TX_META, NUM_COLUMNS};
 use chain_tx_validation::{
-    verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw, ChainInfo, Error, NodeInfo,
-    TxWithOutputs,
+    verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw, ChainInfo, Error,
+    NodeChecker, TxWithOutputs,
 };
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
@@ -124,19 +124,39 @@ fn get_chain_info_enc(txaux: &TxEnclaveAux) -> ChainInfo {
     get_chain_info(&TxAux::EnclaveTx(txaux.clone()))
 }
 
-#[derive(Default)]
 struct NodeInfoWrap(
+    Coin,
     BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
     BTreeMap<StakedStateAddress, TendermintVotePower>,
 );
 
+impl Default for NodeInfoWrap {
+    fn default() -> Self {
+        Self(Coin::one(), BTreeMap::default(), BTreeMap::default())
+    }
+}
+
 impl NodeInfoWrap {
-    fn get_node_info(&self) -> NodeInfo {
-        NodeInfo {
-            minimal_stake: Coin::one(),
-            tendermint_validator_addresses: &self.0,
-            validator_voting_power: &self.1,
-        }
+    pub fn custom(
+        stake: Coin,
+        validators: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
+        stakes: BTreeMap<StakedStateAddress, TendermintVotePower>,
+    ) -> Self {
+        NodeInfoWrap(stake, validators, stakes)
+    }
+}
+
+impl NodeChecker for NodeInfoWrap {
+    fn minimum_effective_stake(&self) -> Coin {
+        self.0
+    }
+
+    fn is_current_validator(&self, address: &TendermintValidatorAddress) -> bool {
+        self.1.contains_key(address)
+    }
+
+    fn is_current_validator_stake(&self, address: &StakedStateAddress) -> bool {
+        self.2.contains_key(address)
     }
 }
 
@@ -251,7 +271,7 @@ fn existing_account_unbond_tx_should_verify() {
     let result = verify_public_tx(
         &txaux,
         extra_info,
-        NodeInfoWrap::default().get_node_info(),
+        NodeInfoWrap::default(),
         &last_account_root_hash,
         &accounts,
     );
@@ -269,7 +289,7 @@ fn test_account_unbond_verify_fail() {
         let result = verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &last_account_root_hash,
             &accounts,
         );
@@ -280,7 +300,7 @@ fn test_account_unbond_verify_fail() {
         let result = verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &[0; 32],
             &accounts,
         );
@@ -297,7 +317,7 @@ fn test_account_unbond_verify_fail() {
         let result = verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &last_account_root_hash,
             &accounts,
         );
@@ -314,7 +334,7 @@ fn test_account_unbond_verify_fail() {
         let result = verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &last_account_root_hash,
             &accounts,
         );
@@ -331,7 +351,7 @@ fn test_account_unbond_verify_fail() {
         let result = verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &last_account_root_hash,
             &accounts,
         );
@@ -1473,7 +1493,7 @@ fn check_verify_fail_for_jailed_account() {
         &verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &root,
             &accounts,
         ),
@@ -1492,7 +1512,7 @@ fn check_verify_fail_for_jailed_account() {
         &verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &root,
             &accounts,
         ),
@@ -1517,7 +1537,7 @@ fn check_unjail_transaction() {
         &verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &root,
             &accounts,
         ),
@@ -1537,7 +1557,7 @@ fn check_unjail_transaction() {
         &verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &root,
             &accounts,
         ),
@@ -1563,7 +1583,7 @@ fn check_unjail_transaction() {
     let (fee, new_account) = verify_public_tx(
         &txaux,
         extra_info,
-        NodeInfoWrap::default().get_node_info(),
+        NodeInfoWrap::default(),
         &root,
         &accounts,
     )
@@ -1626,7 +1646,7 @@ fn test_nodejoin_success() {
     let (fee, new_account) = verify_public_tx(
         &txaux,
         extra_info,
-        NodeInfoWrap::default().get_node_info(),
+        NodeInfoWrap::default(),
         &root,
         &accounts,
     )
@@ -1647,7 +1667,7 @@ fn test_nodejoin_fail() {
         let result = verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &root,
             &accounts,
         );
@@ -1658,7 +1678,7 @@ fn test_nodejoin_fail() {
         let result = verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &[0; 32],
             &accounts,
         );
@@ -1675,7 +1695,7 @@ fn test_nodejoin_fail() {
         let result = verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &root,
             &accounts,
         );
@@ -1692,7 +1712,7 @@ fn test_nodejoin_fail() {
         let result = verify_public_tx(
             &txaux,
             extra_info,
-            NodeInfoWrap::default().get_node_info(),
+            NodeInfoWrap::default(),
             &root,
             &accounts,
         );
@@ -1700,10 +1720,12 @@ fn test_nodejoin_fail() {
     }
     // NotEnoughStake
     {
-        let wrap = NodeInfoWrap::default();
-        let mut node_info = wrap.get_node_info();
-        node_info.minimal_stake = (Coin::one() + Coin::one()).unwrap();
-        let result = verify_public_tx(&txaux, extra_info, node_info, &root, &accounts);
+        let wrap = NodeInfoWrap::custom(
+            (Coin::one() + Coin::one()).unwrap(),
+            BTreeMap::default(),
+            BTreeMap::default(),
+        );
+        let result = verify_public_tx(&txaux, extra_info, wrap, &root, &accounts);
         expect_error(&result, Error::NotEnoughStake);
     }
     // DuplicateValidator
@@ -1711,12 +1733,9 @@ fn test_nodejoin_fail() {
         let addresses = BTreeMap::new();
         let mut powers = BTreeMap::new();
         powers.insert(addr, TendermintVotePower::zero());
-        let node_info = NodeInfo {
-            minimal_stake: Coin::one(),
-            tendermint_validator_addresses: &addresses,
-            validator_voting_power: &powers,
-        };
-        let result = verify_public_tx(&txaux, extra_info, node_info, &root, &accounts);
+        let wrap = NodeInfoWrap::custom(Coin::one(), addresses, powers);
+
+        let result = verify_public_tx(&txaux, extra_info, wrap, &root, &accounts);
         expect_error(&result, Error::DuplicateValidator);
     }
 }

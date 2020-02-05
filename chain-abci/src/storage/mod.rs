@@ -12,7 +12,7 @@ use chain_storage::tx::{InputError, InputStatus};
 use chain_storage::Storage;
 use chain_tx_validation::{
     verify_node_join, verify_unbonding, verify_unjailed, verify_unjailing,
-    witness::verify_tx_recover_address, ChainInfo, Error, NodeInfo,
+    witness::verify_tx_recover_address, ChainInfo, Error, NodeChecker,
 };
 use enclave_protocol::{EnclaveRequest, EnclaveResponse, VerifyOk};
 
@@ -158,7 +158,7 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
 pub fn verify_public_tx(
     txaux: &TxAux,
     extra_info: ChainInfo,
-    node_info: NodeInfo,
+    node_info: impl NodeChecker,
     last_account_root_hash: &StarlingFixedKey,
     accounts: &AccountStorage,
 ) -> Result<(Fee, Option<StakedState>), Error> {

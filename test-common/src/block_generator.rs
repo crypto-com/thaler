@@ -18,7 +18,6 @@ use tendermint::{
 };
 
 use chain_abci::app::{compute_accounts_root, ChainNodeState, ValidatorState};
-use chain_abci::{liveness::LivenessTracker, punishment::ValidatorPunishment};
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::init::config::NetworkParameters;
@@ -307,29 +306,17 @@ impl TestnetSpec {
             app_state: config,
         };
 
-        let mut validator_liveness = BTreeMap::new();
-        let mut validator_by_voting_power = BTreeMap::new();
-        let mut tendermint_validator_addresses = BTreeMap::new();
         let power = TendermintVotePower::from(self.share());
+        let mut validator_set = ValidatorState::default();
         for node in self.nodes.iter() {
             let staking_address = node.staking_address(0);
-            let validator_address = node.tendermint_validator_address();
-
-            validator_by_voting_power.insert((power, staking_address), node.council_node());
-            tendermint_validator_addresses.insert(validator_address.clone(), staking_address);
-            validator_liveness.insert(
-                validator_address.clone(),
-                LivenessTracker::new(network_params.get_block_signing_window()),
+            validator_set.add_initial_validator(
+                staking_address,
+                power,
+                node.council_node(),
+                network_params.get_block_signing_window(),
             );
         }
-        let validator_set = ValidatorState {
-            council_nodes_by_power: validator_by_voting_power,
-            tendermint_validator_addresses,
-            punishment: ValidatorPunishment {
-                validator_liveness,
-                slashing_schedule: Default::default(),
-            },
-        };
 
         let state = ChainNodeState::genesis(
             app_hash,

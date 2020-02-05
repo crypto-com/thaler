@@ -3,6 +3,7 @@ use std::convert::TryInto;
 use abci::{Event, KVPair};
 
 use chain_core::common::{TendermintEventKey, TendermintEventType};
+use chain_core::init::coin::Coin;
 use chain_core::init::config::SlashRatio;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::tendermint::TendermintVotePower;
@@ -26,17 +27,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         let accounts_to_slash: Vec<StakedStateAddress> = last_state
             .validators
-            .punishment
-            .slashing_schedule
-            .iter()
-            .filter_map(|(address, schedule)| {
-                if schedule.can_slash(current_time) {
-                    Some(*address)
-                } else {
-                    None
-                }
-            })
-            .collect();
+            .get_accounts_to_be_slashed(current_time);
 
         let mut slashing_event = Event::new();
         slashing_event.field_type = TendermintEventType::SlashValidators.to_string();
@@ -60,10 +51,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
             let schedule = last_state
                 .validators
-                .punishment
-                .slashing_schedule
-                .remove(&staking_address)
-                .unwrap();
+                .remove_slash_schedule(&staking_address);
 
             let slashed_amount = account
                 .slash(schedule.slash_ratio, schedule.punishment_kind)
@@ -84,55 +72,31 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         Ok(slashing_event)
     }
+}
 
-    // TODO: maintain this value rather than recomputing it
-    fn get_total_vote_power(&self) -> Milli {
-        Milli::new(
-            self.validator_voting_power
-                .values()
-                .map(|x| i64::from(*x))
-                .sum::<i64>() as u64,
-            0,
-        )
-    }
+pub fn get_vote_power_in_milli(total_bonded: Coin) -> Milli {
+    Milli::new(TendermintVotePower::from(total_bonded).into(), 0)
+}
 
-    // This is based on: https://github.com/cosmos/cosmos-sdk/blob/sunny/prop-slashing-adr/docs/architecture/adt-014-proportional-slashing.md
-    pub fn get_slashing_proportion<I: Iterator<Item = StakedStateAddress>>(
-        &self,
-        accounts_to_slash: I,
-    ) -> SlashRatio {
-        let total_vote_power = self.get_total_vote_power();
-        let last_state = self
-            .last_state
-            .as_ref()
-            .expect("Last state is not present, init_chain was not called");
+/// This is based on: https://github.com/cosmos/cosmos-sdk/blob/sunny/prop-slashing-adr/docs/architecture/adt-014-proportional-slashing.md
+pub fn get_slashing_proportion<I: Iterator<Item = (StakedStateAddress, Coin)>>(
+    accounts_to_slash: I,
+    total_vote_power: Milli,
+) -> SlashRatio {
+    // TODO: no need to pass StakedStateAddress ?
+    let slashing_proportion = Milli::from_millis(
+        accounts_to_slash
+            .map(|(_address, vp)| {
+                let validator_voting_power = get_vote_power_in_milli(vp);
 
-        let slashing_proportion = Milli::from_millis(
-            accounts_to_slash
-                .map(|address| {
-                    let validator_voting_power = Milli::new(
-                        TendermintVotePower::from(
-                            get_account(
-                                &address,
-                                &last_state.top_level.account_root,
-                                &self.accounts,
-                            )
-                            .expect("Voting power for a validator not found")
-                            .bonded,
-                        )
-                        .into(),
-                        0,
-                    );
+                let validator_voting_percent = validator_voting_power / total_vote_power;
 
-                    let validator_voting_percent = validator_voting_power / total_vote_power;
+                validator_voting_percent.sqrt().as_millis()
+            })
+            .sum(),
+    );
 
-                    validator_voting_percent.sqrt().as_millis()
-                })
-                .sum(),
-        );
-
-        std::cmp::min(Milli::new(1, 0), slashing_proportion * slashing_proportion)
-            .try_into()
-            .unwrap() // This will never panic because input is always lower than 1.0
-    }
+    std::cmp::min(Milli::new(1, 0), slashing_proportion * slashing_proportion)
+        .try_into()
+        .unwrap() // This will never panic because input is always lower than 1.0
 }
