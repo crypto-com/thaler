@@ -176,8 +176,10 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
             wallet_client.update_tx_pending_state(&name, &enckey, tx_aux.tx_id(), tx_pending)?;
         }
         TransactionType::Deposit => {
-            let tx_aux = new_deposit_transaction(wallet_client, network_ops_client, name, &enckey)?;
+            let (tx_aux, tx_pending) =
+                new_deposit_transaction(wallet_client, network_ops_client, name, &enckey)?;
             wallet_client.broadcast_transaction(&tx_aux)?;
+            wallet_client.update_tx_pending_state(&name, &enckey, tx_aux.tx_id(), tx_pending)?;
         }
         TransactionType::DepositAmount => {
             new_deposit_amount_transaction(wallet_client, network_ops_client, name, &enckey)?;
@@ -264,7 +266,7 @@ fn new_deposit_transaction<T: WalletClient, N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
     enckey: &SecKey,
-) -> Result<TxAux> {
+) -> Result<(TxAux, TransactionPending)> {
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let inputs = ask_inputs()?;
     let to_address = ask_staking_address()?;
@@ -340,7 +342,7 @@ fn new_deposit_amount_transaction<T: WalletClient, N: NetworkOpsClient>(
     let txo_pointer = TxoPointer::new(tx_id, 0);
     let transactions = vec![(txo_pointer, output)];
 
-    let transaction = network_ops_client.create_deposit_bonded_stake_transaction(
+    let (transaction, tx_pending) = network_ops_client.create_deposit_bonded_stake_transaction(
         name,
         enckey,
         transactions,
@@ -353,6 +355,7 @@ fn new_deposit_amount_transaction<T: WalletClient, N: NetworkOpsClient>(
         hex::encode(tx_id)
     ));
     wallet_client.broadcast_transaction(&transaction)?;
+    wallet_client.update_tx_pending_state(&name, &enckey, transaction.tx_id(), tx_pending)?;
     Ok(())
 }
 

@@ -15,6 +15,34 @@ use client_common::tendermint::types::Time;
 use client_common::{ErrorKind, Result, ResultExt, Transaction};
 
 /// Wallet balance info
+///
+/// The semantic of `WalletBalance` is like this:
+///
+/// ```plain
+/// total = available + pending
+/// pending = sum(incoming coins of pending tx)
+/// available = sum(synced utxo - spent by pending tx)
+/// ```
+///
+/// For pending tx with n incoming coins (transfer from other wallet to our wallet or withdraw):
+///
+/// ```plain
+/// total = original + n
+/// pending = n
+/// available = original
+/// ```
+///
+/// For pending tx spend n coins (transfer to other wallet or deposit):
+///
+/// ```plain
+/// total = original - n
+/// pending = 0
+/// available = original - n
+///
+/// For transfer tx with both incoming and outgoing coins:
+///
+/// mix of above
+/// ```
 #[derive(Debug, Default, PartialEq, Clone, Serialize, Deserialize, Encode, Decode)]
 pub struct WalletBalance {
     /// The total amount balance

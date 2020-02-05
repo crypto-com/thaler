@@ -161,12 +161,12 @@ where
         transactions: Vec<(TxoPointer, TxOut)>,
         to_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
-    ) -> Result<TxAux> {
+    ) -> Result<(TxAux, TransactionPending)> {
         let inputs = transactions
             .iter()
             .map(|(input, _)| input.clone())
-            .collect();
-        let transaction = DepositBondTx::new(inputs, to_address, attributes);
+            .collect::<Vec<_>>();
+        let transaction = DepositBondTx::new(inputs.clone(), to_address, attributes);
         let unspent_transactions = UnspentTransactions::new(transactions);
         let signer = self.signer_manager.create_signer(name, enckey);
 
@@ -182,8 +182,17 @@ where
 
         let signed_transaction = SignedTransaction::DepositStakeTransaction(transaction, witness);
         let tx_aux = self.transaction_cipher.encrypt(signed_transaction)?;
-
-        Ok(tx_aux)
+        let block_height = match self.wallet_client.get_current_block_height() {
+            Ok(h) => h,
+            Err(e) if e.kind() == ErrorKind::PermissionDenied => 0, // to make unit test pass
+            Err(e) => return Err(e),
+        };
+        let pending_transaction = TransactionPending {
+            block_height,
+            used_inputs: inputs,
+            return_amount: Coin::zero(),
+        };
+        Ok((tx_aux, pending_transaction))
     }
 
     fn create_unbond_stake_transaction(

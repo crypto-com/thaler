@@ -28,7 +28,7 @@ pub trait NetworkOpsClient: Send + Sync {
         transaction: Vec<(TxoPointer, TxOut)>,
         to_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
-    ) -> Result<TxAux>;
+    ) -> Result<(TxAux, TransactionPending)>;
 
     /// creates a new transaction for unbonding stake transaction
     fn create_unbond_stake_transaction(

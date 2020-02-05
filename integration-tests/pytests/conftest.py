@@ -4,6 +4,15 @@ import pytest
 from chainrpc import RPC
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "zerofee: mark test to run only on zerofee env"
+    )
+    config.addinivalue_line(
+        "markers", "withfee: mark test to run only on withfee env"
+    )
+
+
 class TestAddresses:
     def __init__(self, staking1, staking2, transfer1, transfer2):
         self.bonded_staking = staking1
@@ -27,8 +36,10 @@ def addresses():
 
     state = rpc.staking.state(addrs.unbonded_staking)
     if int(state['unbonded']) > 0:
-        rpc.staking.withdraw_all_unbonded(addrs.staking,
-                                          addrs.transfer1)
+        rpc.staking.withdraw_all_unbonded(
+            addrs.unbonded_staking,
+            addrs.transfer1
+        )
         time.sleep(2)
         rpc.wallet.sync()
         balance = rpc.wallet.balance()
