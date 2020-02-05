@@ -1,4 +1,5 @@
 mod address_command;
+mod multisig_command;
 mod transaction_command;
 mod wallet_command;
 
@@ -37,6 +38,7 @@ use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 use log::warn;
 
 use self::address_command::AddressCommand;
+use self::multisig_command::MultiSigCommand;
 use self::transaction_command::TransactionCommand;
 use self::wallet_command::WalletCommand;
 use crate::{ask_seckey, storage_path, tendermint_url};
@@ -166,6 +168,11 @@ pub enum Command {
             help = "Number of block height to rollback the utxos in pending transactions"
         )]
         block_height_ensure: u64,
+    },
+    #[structopt(name = "multisig", about = "MultiSig operations")]
+    MultiSig {
+        #[structopt(subcommand)]
+        multisig_command: MultiSigCommand,
     },
 }
 
@@ -311,6 +318,11 @@ impl Command {
                     *block_height_ensure,
                 );
                 Self::resync(config, name.clone(), enckey, *force)
+            }
+            Command::MultiSig { multisig_command } => {
+                let storage = SledStorage::new(storage_path())?;
+                let wallet_client = DefaultWalletClient::new_read_only(storage);
+                multisig_command.execute(wallet_client)
             }
         }
     }
