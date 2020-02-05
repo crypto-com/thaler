@@ -5,7 +5,7 @@ use abci::*;
 use chain_core::state::account::StakedState;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::TxAux;
-use chain_tx_validation::{ChainInfo, Error, NodeInfo};
+use chain_tx_validation::{ChainInfo, Error};
 use parity_scale_codec::Decode;
 
 /// Wrapper to abstract over CheckTx and DeliverTx requests
@@ -97,25 +97,13 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     }
                 }
             }
-            _ => {
-                let node_info = NodeInfo {
-                    minimal_stake: state
-                        .top_level
-                        .network_params
-                        .get_required_council_node_stake(),
-                    tendermint_validator_addresses: &state
-                        .validators
-                        .tendermint_validator_addresses,
-                    validator_voting_power: &self.validator_voting_power,
-                };
-                verify_public_tx(
-                    &txaux,
-                    extra_info,
-                    node_info,
-                    &self.uncommitted_account_root_hash,
-                    &self.accounts,
-                )
-            }
+            _ => verify_public_tx(
+                &txaux,
+                extra_info,
+                state,
+                &self.uncommitted_account_root_hash,
+                &self.accounts,
+            ),
         }
     }
 

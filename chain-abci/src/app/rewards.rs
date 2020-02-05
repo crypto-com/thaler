@@ -7,8 +7,6 @@ use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePo
 
 use crate::app::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::get_account;
-use chain_storage::account::update_staked_state;
 
 // rate < 1_000_000, no overflow.
 fn mul_micro(n: u64, rate: u64) -> u64 {
@@ -18,7 +16,8 @@ fn mul_micro(n: u64, rate: u64) -> u64 {
     div * rate + rem * rate / 1_000_000
 }
 
-type RewardsDistribution = Vec<(StakedStateAddress, Coin)>;
+pub type RewardsDistribution = Vec<(StakedStateAddress, Coin)>;
+
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Distribute rewards pool
     pub fn rewards_try_distribute(&mut self) -> Option<(RewardsDistribution, Coin)> {
@@ -41,12 +40,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         top_level.rewards_pool.last_distribution_time = state.block_time;
         self.rewards_pool_updated = true;
 
-        let mut total_staking = Coin::zero();
-        for (addr, _) in self.validator_voting_power.iter() {
-            let account = get_account(addr, &top_level.account_root, &self.accounts)
-                .expect("io error or validator account not exists");
-            total_staking = (total_staking + account.bonded).expect("coin overflow");
-        }
+        let total_staking = state
+            .validators
+            .validator_state_helper
+            .get_validator_total_bonded(&top_level.account_root, &self.accounts);
 
         let minted = if let Ok(can_mint) =
             params.get_rewards_monetary_expansion_cap() - top_level.rewards_pool.minted
@@ -74,43 +71,29 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let total_rewards = (top_level.rewards_pool.period_bonus + minted).unwrap();
         top_level.rewards_pool.minted = (top_level.rewards_pool.minted + minted).unwrap();
 
-        let total_blocks = state.proposer_stats.iter().map(|(_, count)| count).sum();
+        let total_blocks = state.validators.get_total_blocks();
         let share = (total_rewards / total_blocks).unwrap();
         top_level.rewards_pool.period_bonus = (total_rewards % total_blocks).unwrap();
 
-        let mut root = self.uncommitted_account_root_hash;
-        let mut distributed: RewardsDistribution = vec![];
-        if share > Coin::zero() {
-            for (addr, &count) in state.proposer_stats.iter() {
-                let mut state = get_account(addr, &root, &self.accounts)
-                    .expect("io error or validator account not exists");
-
-                let amount = (share * count).unwrap();
-                let balance = state.add_reward(amount).unwrap();
-                root = update_staked_state(state, &root, &mut self.accounts).0;
-                distributed.push((*addr, amount));
-                self.power_changed_in_block
-                    .insert(*addr, TendermintVotePower::from(balance));
-            }
-        }
+        let (root, distributed) = state.validators.distribute_rewards(
+            share,
+            &self.uncommitted_account_root_hash,
+            &mut self.accounts,
+            TendermintVotePower::from(
+                state
+                    .top_level
+                    .network_params
+                    .get_required_council_node_stake(),
+            ),
+        );
 
         self.uncommitted_account_root_hash = root;
-        state.proposer_stats.clear();
         Some((distributed, minted))
     }
 
     pub fn rewards_record_proposer(&mut self, addr: &TendermintValidatorAddress) {
         let state = self.last_state.as_mut().unwrap();
-        let staking_address = state
-            .validators
-            .tendermint_validator_addresses
-            .get(addr)
-            .expect("block proposer is not found");
-        state
-            .proposer_stats
-            .entry(*staking_address)
-            .and_modify(|count| *count += 1)
-            .or_insert_with(|| 1);
+        state.validators.record_proposed_block(addr);
     }
 }
 
@@ -158,11 +141,7 @@ mod tests {
         // check the rewards
         let state = app.last_state.as_ref().unwrap();
         let top_level = &state.top_level;
-        let staking = state
-            .validators
-            .tendermint_validator_addresses
-            .get(&env.validator_address(0))
-            .unwrap();
+        let staking = state.validators.lookup_address(&env.validator_address(0));
         let acct = get_account(staking, &app);
         assert_eq!(acct.bonded, (env.share() + reward1).unwrap());
 
@@ -184,11 +163,7 @@ mod tests {
 
         // check the rewards
         let state = app.last_state.as_ref().unwrap();
-        let staking = state
-            .validators
-            .tendermint_validator_addresses
-            .get(&env.validator_address(1))
-            .unwrap();
+        let staking = state.validators.lookup_address(&env.validator_address(1));
         let acct = get_account(staking, &app);
         assert_eq!(acct.bonded, (env.share() + reward2).unwrap());
 

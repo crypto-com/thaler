@@ -1,5 +1,4 @@
 use chain_core::state::account::{PunishmentKind, StakedStateAddress};
-use chain_core::state::tendermint::TendermintVotePower;
 use chain_tx_validation::Error;
 
 use crate::app::ChainNodeApp;
@@ -9,6 +8,7 @@ use chain_storage::account::update_staked_state;
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Jails staking account with given address
+    /// TODO: isolate from ChainNodeApp
     pub fn jail_account(
         &mut self,
         staking_address: StakedStateAddress,
@@ -27,7 +27,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         let last_state = self
             .last_state
-            .as_ref()
+            .as_mut()
             .expect("Last state not found. Init chain was not called.");
 
         let block_time = last_state.block_time;
@@ -41,8 +41,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             &mut self.accounts,
         );
         self.uncommitted_account_root_hash = new_root;
-        self.power_changed_in_block
-            .insert(staking_address, TendermintVotePower::zero());
+        last_state
+            .validators
+            .validator_state_helper
+            .punish_update(staking_address);
 
         Ok(())
     }

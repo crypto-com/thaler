@@ -1,8 +1,7 @@
 use abci::*;
-use parity_scale_codec::Encode;
-
 use chain_core::init::coin::Coin;
 use chain_core::state::tendermint::TendermintVotePower;
+use parity_scale_codec::Encode;
 use test_common::chain_env::ChainEnv;
 
 /// Scenario 1: Unbond stake from a validator so that remaining bonded amount is still greater than
@@ -34,14 +33,6 @@ fn check_unbonding_without_removing_validator() {
     });
 
     assert_eq!(0, rsp_tx.code);
-    assert_eq!(
-        TendermintVotePower::from(
-            ((Coin::max() / 2).unwrap() - (Coin::max() / 10).unwrap()).unwrap()
-        ),
-        *app.power_changed_in_block
-            .get(&env.accounts[0].staking_address())
-            .expect("Power did not change after unbonding funds")
-    );
 
     // End block
     // Note: This should not remove validator from validator set. This should only change voting power of validator 1
@@ -86,14 +77,6 @@ fn check_unbonding_with_removing_validator() {
     });
 
     assert_eq!(0, rsp_tx.code);
-    assert_eq!(
-        0,
-        i64::from(
-            *app.power_changed_in_block
-                .get(&env.accounts[0].staking_address())
-                .expect("Power did not change after unbonding funds")
-        )
-    );
 
     // End block
     // Note: This should not remove validator from validator set. This should only change voting power of validator 1
