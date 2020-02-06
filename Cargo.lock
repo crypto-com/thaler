@@ -437,7 +437,7 @@ dependencies = [
  "env_logger 0.7.1",
  "hex 0.4.0",
  "integer-encoding",
- "kvdb",
+ "kvdb 0.3.1",
  "kvdb-memorydb",
  "kvdb-rocksdb",
  "log 0.4.8",
@@ -487,7 +487,7 @@ dependencies = [
  "blake2",
  "chain-core",
  "integer-encoding",
- "kvdb",
+ "kvdb 0.3.1",
  "kvdb-memorydb",
  "kvdb-rocksdb",
  "parity-scale-codec",
@@ -1802,19 +1802,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8396be0e5561ccd1bf7ff0b2007487cdd7a87a056873fe6ea906b35d4dbf7ed8"
 dependencies = [
  "parity-bytes",
- "parity-util-mem",
+ "parity-util-mem 0.4.2",
+ "smallvec 1.2.0",
+]
+
+[[package]]
+name = "kvdb"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03080afe6f42cd996da9f568d6add5d7fb5ee2ea7fb7802d2d2cbd836958fd87"
+dependencies = [
+ "parity-bytes",
+ "parity-util-mem 0.5.0",
  "smallvec 1.2.0",
 ]
 
 [[package]]
 name = "kvdb-memorydb"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d25ef14155e418515c4839e9144c839de3506e68946f255a32b7f166095493d"
+checksum = "b9355274e5a9e0a7e8ef43916950eae3949024de2a8dffe4d5a6c13974a37c8e"
 dependencies = [
- "kvdb",
- "parity-util-mem",
- "parking_lot 0.9.0",
+ "kvdb 0.4.0",
+ "parity-util-mem 0.5.0",
+ "parking_lot 0.10.0",
 ]
 
 [[package]]
@@ -1825,11 +1836,11 @@ checksum = "5a1053e90a54421a842b6bf5d0e4a5cb5364c0bf570f713c58e44a9906f501d9"
 dependencies = [
  "fs-swap",
  "interleaved-ordered",
- "kvdb",
+ "kvdb 0.3.1",
  "log 0.4.8",
  "num_cpus",
  "owning_ref",
- "parity-util-mem",
+ "parity-util-mem 0.4.2",
  "parking_lot 0.9.0",
  "regex",
  "rocksdb",
@@ -2230,6 +2241,19 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.9.0",
  "smallvec 1.2.0",
+ "winapi 0.3.8",
+]
+
+[[package]]
+name = "parity-util-mem"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5326ed0dad4159b71b802166f63c310d327dad105d90eb00093f49613aa9e5cb"
+dependencies = [
+ "cfg-if",
+ "impl-trait-for-tuples",
+ "parity-util-mem-derive",
+ "parking_lot 0.10.0",
  "winapi 0.3.8",
 ]
 
