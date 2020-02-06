@@ -64,6 +64,7 @@ rust: &rust
     - cargo test
     - |
       if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+        ./ci-scripts/check-docker-app-hash.sh || travis_terminate 1
         (rustfmt --version || rustup component add rustfmt)
         cargo fmt -- --check --color=auto || travis_terminate 1
         (cargo-clippy --version || rustup component add clippy)

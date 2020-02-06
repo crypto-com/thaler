@@ -1,121 +1,100 @@
 {
-  "app_hash": "0CDD5B695D02FBA286B0E2629CA81A18DA3A9F8B57FA9FDC12BE459B33305F81",
+  "app_hash": "94BB489D59D26358F4EBF8A024F3000DCBFA1F5D040BD0C88B18C64B45EABBAB",
   "app_state": {
-    "council_nodes": {
-      "0x1258b72ef5ed591266381872aeb5a54dadb80070": [
-        "westeurope2",
-        "security@crypto.com",
-        {
-          "type": "tendermint/PubKeyEd25519",
-          "value": "Qe/lSYciR1HGPsIHZEOMa0+CihAhPmVTjjJ5l3XBPYg="
-        }
-      ],
-      "0x143ea2afb5a607d49ff4e122623f87e0d4d73357": [
-        "westeurope1",
-        "security@crypto.com",
-        {
-          "type": "tendermint/PubKeyEd25519",
-          "value": "Fey9OC7k0hstZEUreJBsDGZvGOasrfKep7SJBKskOWo="
-        }
-      ],
-      "0xeda3f99ab1ad7a6149055d3cafe6661c94b935a8": [
-        "eastus",
-        "security@crypto.com",
-        {
-          "type": "tendermint/PubKeyEd25519",
-          "value": "OHzEmWd6hIseswKI0GijH1bnJlq3YMcKJe/819d0gKk="
-        }
-      ]
-    },
-    "distribution": {
-      "0x1258b72ef5ed591266381872aeb5a54dadb80070": [
-        "Bonded",
-        "625000000000000000"
-      ],
-      "0x143ea2afb5a607d49ff4e122623f87e0d4d73357": [
-        "Bonded",
-        "1250000000000000000"
-      ],
-      "0xa861a0869c02ab8b74c7cb4f450bcbeb1e472b9a": [
-        "UnbondedFromGenesis",
-        "1250000000000000000"
-      ],
-      "0xeda3f99ab1ad7a6149055d3cafe6661c94b935a8": [
-        "Bonded",
-        "625000000000000000"
-      ]
-    },
-    "network_params": {
-      "initial_fee_policy": {
-        "coefficient": 1250,
-        "constant": 1100
+      "council_nodes": {
+          "0x6fc1e3124a7ed07f3710378b68f7046c7300179d": [
+              "eastus",
+              "security@crypto.com",
+              {
+                  "type": "tendermint/PubKeyEd25519",
+                  "value": "PbzRZG6PgXr6UzHh3wcRMQd689bbEz28K4ZaMAqZDtQ="
+              }
+          ],
+          "0xb8c6886da09e12db8aebfc8108c67ce2ba086ac6": [
+              "westeurope1",
+              "security@crypto.com",
+              {
+                  "type": "tendermint/PubKeyEd25519",
+                  "value": "82/BWttvHOTmZ9sQlVQKkalijwCu/RJIEZDUURTEkc0="
+              }
+          ]
       },
-      "jailing_config": {
-        "block_signing_window": 6000,
-        "jail_duration": 86400,
-        "missed_block_threshold": 3000
+      "distribution": {
+          "0x4b75f275dde0a8c8e70fb84243adc97a3afb78f2": [
+              "UnbondedFromGenesis",
+              "7850000000000000000"
+          ],
+          "0x6fc1e3124a7ed07f3710378b68f7046c7300179d": [
+              "Bonded",
+              "100000000000000000"
+          ],
+          "0xb8c6886da09e12db8aebfc8108c67ce2ba086ac6": [
+              "Bonded",
+              "50000000000000000"
+          ]
       },
-      "max_validators": 50,
-      "required_council_node_stake": "625000000000000000",
-      "rewards_config": {
-        "reward_period_seconds": 86400,
-        "monetary_expansion_cap": "6250000000000000000",
-        "monetary_expansion_decay": 999860,
-        "monetary_expansion_r0": 450,
-        "monetary_expansion_tau": 14500000000000000
-      },
-      "slashing_config": {
-        "byzantine_slash_percent": "0.200",
-        "liveness_slash_percent": "0.100",
-        "slash_wait_period": 10800
-      },
-      "unbonding_period": 3600
-    }
+      "network_params": {
+          "initial_fee_policy": {
+              "coefficient": 1250,
+              "constant": 1100
+          },
+          "jailing_config": {
+              "block_signing_window": 360,
+              "jail_duration": 86400,
+              "missed_block_threshold": 180
+          },
+          "max_validators": 50,
+          "required_council_node_stake": "5000000000000000",
+          "rewards_config": {
+              "distribution_period": 86400,
+              "monetary_expansion_cap": "2000000000000000000",
+              "monetary_expansion_decay": 999860,
+              "monetary_expansion_r0": 350,
+              "monetary_expansion_tau": 14500000000000000
+          },
+          "slashing_config": {
+              "byzantine_slash_percent": "0.200",
+              "liveness_slash_percent": "0.100",
+              "slash_wait_period": 10800
+          },
+          "unbonding_period": 3600
+      }
   },
   "chain_id": "testnet-thaler-crypto-com-chain-42",
   "consensus_params": {
-    "block": {
-      "max_bytes": "22020096",
-      "max_gas": "-1",
-      "time_iota_ms": "1000"
-    },
-    "evidence": {
-      "max_age": "100000"
-    },
-    "validator": {
-      "pub_key_types": [
-        "ed25519"
-      ]
-    }
+      "block": {
+          "max_bytes": "22020096",
+          "max_gas": "-1",
+          "time_iota_ms": "1000"
+      },
+      "evidence": {
+          "max_age": "100000"
+      },
+      "validator": {
+          "pub_key_types": [
+              "ed25519"
+          ]
+      }
   },
-  "genesis_time": "2019-03-21T02:26:51.366017Z",
+  "genesis_time": "2020-01-16T07:14:14.924984Z",
   "validators": [
-    {
-      "address": "140060A2745E2F992BF70C095F10623C7397B8CD",
-      "name": "westeurope2",
-      "power": "6250000000",
-      "pub_key": {
-        "type": "tendermint/PubKeyEd25519",
-        "value": "Qe/lSYciR1HGPsIHZEOMa0+CihAhPmVTjjJ5l3XBPYg="
+      {
+          "address": "801B1708949EA320741F226782018E396F96A8CB",
+          "name": "eastus",
+          "power": "1000000000",
+          "pub_key": {
+              "type": "tendermint/PubKeyEd25519",
+              "value": "PbzRZG6PgXr6UzHh3wcRMQd689bbEz28K4ZaMAqZDtQ="
+          }
+      },
+      {
+          "address": "6712A23B73B44D2EF274105E90483B335E4F74E7",
+          "name": "westeurope1",
+          "power": "500000000",
+          "pub_key": {
+              "type": "tendermint/PubKeyEd25519",
+              "value": "82/BWttvHOTmZ9sQlVQKkalijwCu/RJIEZDUURTEkc0="
+          }
       }
-    },
-    {
-      "address": "5BCC03D719C2AA1623564328B681F8514E619952",
-      "name": "westeurope1",
-      "power": "12500000000",
-      "pub_key": {
-        "type": "tendermint/PubKeyEd25519",
-        "value": "Fey9OC7k0hstZEUreJBsDGZvGOasrfKep7SJBKskOWo="
-      }
-    },
-    {
-      "address": "0537A39E8C03DC11887854FDF272F7E4F5FFABBD",
-      "name": "eastus",
-      "power": "6250000000",
-      "pub_key": {
-        "type": "tendermint/PubKeyEd25519",
-        "value": "OHzEmWd6hIseswKI0GijH1bnJlq3YMcKJe/819d0gKk="
-      }
-    }
   ]
 }

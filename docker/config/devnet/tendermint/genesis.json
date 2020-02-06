@@ -1,83 +1,83 @@
 {
-    "app_hash": "F618D20BDEAA5B03B76BD9930B6C1F7FC911ED6B45018772F8445F6B097B8179",
+    "app_hash": "BBEC64534DF5461E42A21BD1417CE841E2F5F70A8D541011F36E8B95D750A64E",
     "app_state": {
-        "council_nodes": {
-            "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
-                "node0",
-                "node0@example.com",
-                {
-                    "type": "tendermint/PubKeyEd25519",
-                    "value": "FF5JxhRrCUNLj6UZmYdjv/AWgSWUeiomeOMeJG71owE="
-                }
-            ]
+      "council_nodes": {
+        "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
+          "node0",
+          "node0@example.com",
+          {
+            "type": "tendermint/PubKeyEd25519",
+            "value": "FF5JxhRrCUNLj6UZmYdjv/AWgSWUeiomeOMeJG71owE="
+          }
+        ]
+      },
+      "distribution": {
+        "0x0000000000000000000000000000000000000000": [
+          "UnbondedFromGenesis",
+          "8000000000000000000"
+        ],
+        "0x2dfde2178daa679508828242119dcf2114038ea8": [
+          "UnbondedFromGenesis",
+          "500000000000000000"
+        ],
+        "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
+          "Bonded",
+          "500000000000000000"
+        ]
+      },
+      "network_params": {
+        "initial_fee_policy": {
+          "coefficient": 0,
+          "constant": 0
         },
-        "distribution": {
-            "0x0000000000000000000000000000000000000000": [
-                "UnbondedFromGenesis",
-                "8000000000000000000"
-            ],
-            "0x2dfde2178daa679508828242119dcf2114038ea8": [
-                "UnbondedFromGenesis",
-                "500000000000000000"
-            ],
-            "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
-                "Bonded",
-                "500000000000000000"
-            ]
+        "jailing_config": {
+          "block_signing_window": 100,
+          "jail_duration": 86400,
+          "missed_block_threshold": 50
         },
-        "network_params": {
-            "initial_fee_policy": {
-                "coefficient": 0,
-                "constant": 0
-            },
-            "jailing_config": {
-                "block_signing_window": 100,
-                "jail_duration": 86400,
-                "missed_block_threshold": 50
-            },
-            "max_validators": 50,
-            "required_council_node_stake": "1",
-            "rewards_config": {
-                "reward_period_seconds": 86400,
-                "monetary_expansion_cap": "1000000000000000000",
-                "monetary_expansion_decay": 999860,
-                "monetary_expansion_r0": 450,
-                "monetary_expansion_tau": 145000000000000000
-            },
-            "slashing_config": {
-                "byzantine_slash_percent": "0.200",
-                "liveness_slash_percent": "0.100",
-                "slash_wait_period": 10800
-            },
-            "unbonding_period": 15
-        }
+        "max_validators": 50,
+        "required_council_node_stake": "1",
+        "rewards_config": {
+          "monetary_expansion_cap": "1000000000000000000",
+          "monetary_expansion_decay": 999860,
+          "monetary_expansion_r0": 450,
+          "monetary_expansion_tau": 14500000000000000,
+          "reward_period_seconds": 86400
+        },
+        "slashing_config": {
+          "byzantine_slash_percent": "0.200",
+          "liveness_slash_percent": "0.100",
+          "slash_wait_period": 10800
+        },
+        "unbonding_period": 86400
+      }
     },
     "chain_id": "test-chain-y3m1e6-AB",
     "consensus_params": {
-        "block": {
-            "max_bytes": "22020096",
-            "max_gas": "-1",
-            "time_iota_ms": "1000"
-        },
-        "evidence": {
-            "max_age": "100000"
-        },
-        "validator": {
-            "pub_key_types": [
-                "ed25519"
-            ]
-        }
+      "block": {
+        "max_bytes": "22020096",
+        "max_gas": "-1",
+        "time_iota_ms": "1000"
+      },
+      "evidence": {
+        "max_age": "100000"
+      },
+      "validator": {
+        "pub_key_types": [
+          "ed25519"
+        ]
+      }
     },
     "genesis_time": "2019-11-20T08:56:48.618137Z",
     "validators": [
-        {
-            "address": "0D8912E96DAAE332E7393EC1DC4BA2D249A44445",
-            "name": "node0",
-            "power": "5000000000",
-            "pub_key": {
-                "type": "tendermint/PubKeyEd25519",
-                "value": "FF5JxhRrCUNLj6UZmYdjv/AWgSWUeiomeOMeJG71owE="
-            }
+      {
+        "address": "0D8912E96DAAE332E7393EC1DC4BA2D249A44445",
+        "name": "node0",
+        "power": "5000000000",
+        "pub_key": {
+          "type": "tendermint/PubKeyEd25519",
+          "value": "FF5JxhRrCUNLj6UZmYdjv/AWgSWUeiomeOMeJG71owE="
         }
+      }
     ]
-}
+  }
