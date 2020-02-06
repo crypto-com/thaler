@@ -14,6 +14,7 @@ pub mod hd_seed;
 pub mod hd_wallet;
 pub mod input_selection;
 pub mod mnemonic;
+pub mod multi_sig;
 pub mod service;
 pub mod signer;
 pub mod synchronizer;
