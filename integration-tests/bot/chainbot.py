@@ -173,17 +173,17 @@ def extract_enckey(s):
 def app_state_cfg(cfg):
     return {
         "distribution": gen_distribution(cfg),
-        "unbonding_period": 60,
+        "unbonding_period": 20,
         "required_council_node_stake": "1",
         "jailing_config": {
-            "jail_duration": 86400,
+            "jail_duration": 18,
             "block_signing_window": 100,
             "missed_block_threshold": 50
         },
         "slashing_config": {
             "liveness_slash_percent": "0.1",
             "byzantine_slash_percent": "0.2",
-            "slash_wait_period": 10800
+            "slash_wait_period": 15
         },
         "rewards_config": {
             "monetary_expansion_cap": str(cfg['expansion_cap']),

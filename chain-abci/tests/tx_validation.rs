@@ -158,6 +158,14 @@ impl NodeChecker for NodeInfoWrap {
     fn is_current_validator_stake(&self, address: &StakedStateAddress) -> bool {
         self.2.contains_key(address)
     }
+
+    fn is_current_previous_unbond(
+        &self,
+        _address: &StakedStateAddress,
+        _tm_address: &TendermintValidatorAddress,
+    ) -> bool {
+        false
+    }
 }
 
 fn prepate_init_tx(

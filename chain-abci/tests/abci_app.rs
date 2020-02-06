@@ -151,7 +151,7 @@ fn get_dummy_network_params() -> NetworkParameters {
     NetworkParameters::Genesis(InitNetworkParameters {
         initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
         required_council_node_stake: Coin::unit(),
-        unbonding_period: 1,
+        unbonding_period: 86400,
         jailing_config: JailingParameters {
             jail_duration: 86400,
             block_signing_window: 100,
@@ -169,7 +169,7 @@ fn get_dummy_network_params() -> NetworkParameters {
             monetary_expansion_tau: 166_666_600,
             monetary_expansion_decay: 999_860,
         },
-        max_validators: 1,
+        max_validators: 2,
     })
 }
 

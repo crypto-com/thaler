@@ -56,21 +56,26 @@ pub struct ChainNodeState {
 impl NodeChecker for &ChainNodeState {
     /// minimal required stake
     fn minimum_effective_stake(&self) -> Coin {
-        // FIXME: minimal effective
-        self.top_level
-            .network_params
-            .get_required_council_node_stake()
+        self.minimum_effective()
     }
-    /// if the TM pubkey/address is already used in the consensus
+    /// if the TM pubkey/address was/is already used in the consensus
     fn is_current_validator(&self, address: &TendermintValidatorAddress) -> bool {
         self.validators.is_current_validator(address)
     }
-    /// if the TM pubkey/address is already used in the consensus
+    /// if the staking address was/is already used in the consensus
     fn is_current_validator_stake(&self, address: &StakedStateAddress) -> bool {
         self.validators
             .validator_state_helper
             .validator_voting_power
             .contains_key(address)
+    }
+    /// if that combo is to be removed
+    fn is_current_previous_unbond(
+        &self,
+        address: &StakedStateAddress,
+        tm_address: &TendermintValidatorAddress,
+    ) -> bool {
+        self.validators.is_scheduled_for_delete(address, tm_address)
     }
 }
 
@@ -89,6 +94,18 @@ impl StoredChainState for ChainNodeState {
 }
 
 impl ChainNodeState {
+    pub fn minimum_effective(&self) -> Coin {
+        if self.validators.number_validators() < self.top_level.network_params.get_max_validators()
+        {
+            self.top_level
+                .network_params
+                .get_required_council_node_stake()
+        } else {
+            (self.validators.lowest_vote_power().as_non_base_coin() + Coin::one())
+                .expect("range of TM vote power < Coin")
+        }
+    }
+
     pub fn genesis(
         genesis_apphash: H256,
         genesis_time: Timespec,

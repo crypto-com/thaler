@@ -4,7 +4,6 @@ use protobuf::well_known_types::Timestamp;
 
 use chain_core::init::coin::Coin;
 use chain_core::state::account::PunishmentKind;
-use chain_core::state::tendermint::TendermintVotePower;
 use test_common::chain_env::{get_account, ChainEnv};
 
 #[test]
@@ -49,14 +48,6 @@ fn end_block_should_update_liveness_tracker() {
         .validator_state_helper
         .validator_voting_power
         .contains_key(&env.accounts[0].staking_address()));
-    let zero_key = (
-        TendermintVotePower::zero(),
-        env.accounts[0].staking_address(),
-    );
-    assert!(state
-        .validators
-        .council_nodes_by_power
-        .contains_key(&zero_key));
     assert!(!state.validators.is_tracked(&validator_address));
 }
 

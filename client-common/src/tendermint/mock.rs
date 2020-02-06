@@ -56,7 +56,7 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
                 "coefficient": 0
             },
             "required_council_node_stake": "1250000000000000000",
-            "unbonding_period": 15,
+            "unbonding_period": 86400,
             "jailing_config": {
                 "jail_duration": 86400,
                 "block_signing_window": 100,

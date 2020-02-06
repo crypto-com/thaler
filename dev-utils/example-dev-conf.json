@@ -3,7 +3,7 @@
         "0x9ca76144cbea76bc47d47a8a016d215eb2831885": "2500000000000000000",
         "0x3ae55c16800dc4bd0e3397a9d7806fb1f11639de": "1250000000000000000"
     },
-    "unbonding_period": 60,
+    "unbonding_period": 86400,
     "required_council_node_stake": "1250000000000000000",
     "jailing_config": {
         "jail_duration": 86400,

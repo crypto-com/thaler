@@ -95,7 +95,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
 
         last_state.block_time = block_time.try_into().expect("invalid block time");
-
+        last_state.validators.metadata_clean(last_state.block_time);
         if block_height > 1 {
             if let Some(last_commit_info) = req.last_commit_info.as_ref() {
                 // liveness will always be updated for previous block, i.e., `block_height - 1`
@@ -286,10 +286,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     let state = fee_acc
                         .1
                         .expect("staked state returned in node join verification");
-                    last_state
-                        .validators
-                        .validator_state_helper
-                        .new_valid_node_join_update(&state);
+                    last_state.validators.new_valid_node_join_update(&state);
                     update_staked_state(
                         state,
                         &self.uncommitted_account_root_hash,

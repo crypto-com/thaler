@@ -1,3 +1,5 @@
+use crate::init::coin::Coin;
+use crate::init::MAX_COIN_DECIMALS;
 use parity_scale_codec::{Decode, Encode};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{
@@ -341,5 +343,24 @@ impl TendermintVotePower {
     /// create a voting power of value `0` / disabled / jailed validator
     pub fn zero() -> Self {
         TendermintVotePower(0)
+    }
+
+    /// note TendermintVotePower::from(c).as_non_base_coin() != c if c had a fractional part
+    pub fn as_non_base_coin(self) -> Coin {
+        Coin::new(self.0 as u64 * MAX_COIN_DECIMALS)
+            .expect("TM vote power should be convertible to Coin, see the compile-time checks")
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use quickcheck::quickcheck;
+
+    quickcheck! {
+        // test a non-base coin corresponds to the same coin without a fractional part
+        fn vote_power_coin(v: u32) -> bool {
+            TendermintVotePower::from(Coin::from(v)).as_non_base_coin() == Coin::from(v - (v % MAX_COIN_DECIMALS as u32))
+        }
     }
 }

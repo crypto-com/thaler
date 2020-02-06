@@ -29,6 +29,7 @@ use chain_core::state::account::{
 use chain_core::state::tendermint::{
     TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
+use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::{data::TxId, TransactionId, TxAux};
@@ -100,7 +101,7 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
     InitNetworkParameters {
         initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
         required_council_node_stake: Coin::unit(),
-        unbonding_period: 1,
+        unbonding_period: 61,
         jailing_config: JailingParameters {
             jail_duration: 60,
             block_signing_window: 5,
@@ -288,6 +289,22 @@ impl ChainEnv {
         )
     }
 
+    pub fn join_tx(&self, nonce: u64, account_index: usize) -> TxAux {
+        let tx = NodeJoinRequestTx::new(
+            nonce,
+            self.accounts[account_index].staking_address(),
+            StakedStateOpAttributes::new(0),
+            self.council_nodes[account_index].1.clone(),
+        );
+        let secp = Secp256k1::new();
+        let witness = StakedStateOpWitness::new(get_ecdsa_witness(
+            &secp,
+            &tx.id(),
+            &self.accounts[account_index].secret_key,
+        ));
+        TxAux::NodeJoinTx(tx, witness)
+    }
+
     pub fn unbond_tx(&self, coin: Coin, nonce: u64, account_index: usize) -> TxAux {
         let tx = UnbondTx::new(
             self.accounts[account_index].staking_address(),
@@ -366,18 +383,46 @@ impl ChainEnv {
         }
     }
 
-    pub fn last_commit_info(&self, index: usize, signed_last_block: bool) -> LastCommitInfo {
-        LastCommitInfo {
-            votes: vec![VoteInfo {
-                validator: Some(Validator {
-                    address: <[u8; 20]>::from(&self.validator_address(index)).to_vec(),
+    pub fn req_begin_block_with_time(
+        &self,
+        height: i64,
+        proposed_by: usize,
+        time_sec: i64,
+    ) -> RequestBeginBlock {
+        RequestBeginBlock {
+            header: Some(Header {
+                time: Some(Timestamp {
+                    seconds: time_sec,
                     ..Default::default()
                 })
                 .into(),
-                signed_last_block: signed_last_block,
+                chain_id: TEST_CHAIN_ID.to_owned(),
+                height,
+                proposer_address: Into::<[u8; 20]>::into(&self.validator_address(proposed_by))
+                    .to_vec(),
                 ..Default::default()
-            }]
+            })
             .into(),
+            ..Default::default()
+        }
+    }
+
+    pub fn last_commit_info(&self, index: usize, signed_last_block: bool) -> LastCommitInfo {
+        LastCommitInfo {
+            votes: self
+                .accounts
+                .iter()
+                .enumerate()
+                .map(|(i, _)| VoteInfo {
+                    validator: Some(Validator {
+                        address: <[u8; 20]>::from(&self.validator_address(i)).to_vec(),
+                        ..Default::default()
+                    })
+                    .into(),
+                    signed_last_block: if i == index { signed_last_block } else { true },
+                    ..Default::default()
+                })
+                .collect(),
             ..Default::default()
         }
     }

@@ -33,7 +33,8 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         self.last_state.as_mut().map(|mut state| {
         if let Some(validators) = state.validators.get_validator_updates(
             state.top_level.network_params.get_block_signing_window(),
-            state.top_level.network_params.get_max_validators()) {
+            state.top_level.network_params.get_max_validators(),
+            state.block_time + (state.top_level.network_params.get_unbonding_period() as u64)) {
             resp.set_validator_updates(RepeatedField::from(validators));
         }
         state.last_block_height = _req.height;

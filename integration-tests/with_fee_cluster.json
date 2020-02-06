@@ -28,11 +28,6 @@
             "op": "replace",
             "path": "/initial_fee_policy/per_byte_fee",
             "value": "1.25"
-        },
-        {
-            "op": "replace",
-            "path": "/unbonding_period",
-            "value": 15
         }
     ],
     "tendermint_config_patch": [

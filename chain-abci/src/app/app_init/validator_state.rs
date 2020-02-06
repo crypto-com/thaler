@@ -14,18 +14,16 @@ use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePo
 use chain_storage::account::update_staked_state;
 use chain_storage::account::AccountStorage;
 use chain_storage::account::StarlingFixedKey;
-use parity_scale_codec::{Decode, Encode};
-use std::collections::BTreeMap;
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+use std::collections::{BTreeMap, BTreeSet};
 
 /// Validator state tracking (needs to be persisted / a part of node state)
-#[derive(PartialEq, Debug, Clone, Encode, Decode, Default)]
+#[derive(PartialEq, Debug, Clone, Default)]
 pub struct ValidatorState {
-    /// all nodes (current validator set + pending): TendermintVotePower == coin bonded amount if >= minimal
-    /// or TendermintVotePower == 0 if < minimal or was jailed
-    /// FIXME: delete node metadata if voting power == 0 for longer than unbonding time
+    /// all nodes (current validator set): TendermintVotePower == coin bonded amount if >= minimal effective
+    /// TODO: pending validators / waitlist TendermintVotePower == 0 if < minimal effective?
     pub council_nodes_by_power: BTreeMap<(TendermintVotePower, StakedStateAddress), CouncilNode>,
     /// stores staking account address corresponding to tendermint validator addresses
-    /// FIXME: delete node metadata if voting power == 0 for longer than unbonding time
     tendermint_validator_addresses: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
     /// Runtime state for computing and executing validator punishment
     punishment: ValidatorPunishment,
@@ -35,12 +33,261 @@ pub struct ValidatorState {
     /// FIXME: fairness -- use lastcommitinfo for stats
     proposer_stats: BTreeMap<StakedStateAddress, u64>,
 
+    after_unbond_delete: DeleteScheduleMap,
+
     /// various lookups for handling validator updates, rewards, punishments
-    #[codec(skip)]
     pub validator_state_helper: ValidatorStateHelper,
 }
 
+#[derive(PartialEq, Debug, Clone, Default)]
+struct DeleteScheduleMap {
+    ordered_by_time: BTreeMap<(Timespec, StakedStateAddress), TendermintValidatorAddress>,
+    lookup_time: BTreeMap<(TendermintValidatorAddress, StakedStateAddress), Timespec>,
+} //= IndexMap<StakedStateAddress, (Timespec, TendermintValidatorAddress)>;
+type DeleteSchedule = ((Timespec, StakedStateAddress), TendermintValidatorAddress);
+
+impl DeleteScheduleMap {
+    pub fn iter(
+        &self,
+    ) -> impl Iterator<Item = (&(Timespec, StakedStateAddress), &TendermintValidatorAddress)> {
+        self.ordered_by_time.iter()
+    }
+
+    pub fn len(&self) -> usize {
+        self.ordered_by_time.len()
+    }
+
+    pub fn from_vec(inputs: Vec<DeleteSchedule>) -> Self {
+        let mut schedule = DeleteScheduleMap::default();
+        for ((time, address), tm_address) in inputs.iter() {
+            schedule.insert(*time, *address, tm_address.clone());
+        }
+        schedule
+    }
+
+    pub fn insert(
+        &mut self,
+        time: Timespec,
+        address: StakedStateAddress,
+        tm_address: TendermintValidatorAddress,
+    ) {
+        if self
+            .ordered_by_time
+            .insert((time, address), tm_address.clone())
+            .is_some()
+        {
+            log::warn!("node already scheduled for metadata deletion: {}", address);
+        }
+        if self
+            .lookup_time
+            .insert((tm_address, address), time)
+            .is_some()
+        {
+            log::warn!("node already scheduled for metadata deletion: {}", address);
+        }
+    }
+
+    pub fn check_first_time(&self) -> Option<Timespec> {
+        self.ordered_by_time.keys().next().map(|key| key.0)
+    }
+
+    pub fn peek(&self) -> Option<((Timespec, StakedStateAddress), TendermintValidatorAddress)> {
+        self.ordered_by_time
+            .iter()
+            .next()
+            .map(|(x, y)| (*x, y.clone()))
+    }
+
+    pub fn deleted(
+        &mut self,
+        time: Timespec,
+        address: StakedStateAddress,
+        tm_address: TendermintValidatorAddress,
+    ) {
+        self.ordered_by_time.remove(&(time, address));
+        self.lookup_time.remove(&(tm_address, address));
+    }
+
+    pub fn is_scheduled(
+        &self,
+        addresses: &(TendermintValidatorAddress, StakedStateAddress),
+    ) -> bool {
+        self.lookup_time.contains_key(addresses)
+    }
+
+    pub fn cancel(
+        &mut self,
+        address: StakedStateAddress,
+        tm_address: TendermintValidatorAddress,
+    ) -> bool {
+        if let Some(time) = self
+            .lookup_time
+            .get(&(tm_address.clone(), address))
+            .cloned()
+        {
+            self.deleted(time, address, tm_address);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Encode for ValidatorState {
+    fn size_hint(&self) -> usize {
+        let mut unbond_schedule_iter = self.after_unbond_delete.iter();
+        let ub_size = self.after_unbond_delete.len();
+        let ub_item_size = if ub_size > 0 {
+            unbond_schedule_iter.next().size_hint()
+        } else {
+            0
+        };
+
+        self.council_nodes_by_power.size_hint()
+            + self.tendermint_validator_addresses.size_hint()
+            + self.punishment.size_hint()
+            + self.proposer_stats.size_hint()
+            + ub_size * ub_item_size
+    }
+
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        self.council_nodes_by_power.encode_to(dest);
+        self.tendermint_validator_addresses.encode_to(dest);
+        self.punishment.encode_to(dest);
+        self.proposer_stats.encode_to(dest);
+        let unbond_schedule: Vec<DeleteSchedule> = self
+            .after_unbond_delete
+            .iter()
+            .map(|x| (*x.0, x.1.clone()))
+            .collect();
+        unbond_schedule.encode_to(dest);
+    }
+}
+
+impl Decode for ValidatorState {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let council_nodes_by_power =
+            BTreeMap::<(TendermintVotePower, StakedStateAddress), CouncilNode>::decode(input)?;
+        let tendermint_validator_addresses =
+            BTreeMap::<TendermintValidatorAddress, StakedStateAddress>::decode(input)?;
+        let punishment = ValidatorPunishment::decode(input)?;
+        let proposer_stats = BTreeMap::<StakedStateAddress, u64>::decode(input)?;
+        let unbond_schedule: Vec<DeleteSchedule> = Vec::decode(input)?;
+        let after_unbond_delete = DeleteScheduleMap::from_vec(unbond_schedule);
+        let mut validator_state_helper = ValidatorStateHelper::default();
+        for key in council_nodes_by_power.keys() {
+            validator_state_helper
+                .validator_voting_power
+                .insert(key.1, key.0);
+        }
+        Ok(ValidatorState {
+            council_nodes_by_power,
+            tendermint_validator_addresses,
+            punishment,
+            proposer_stats,
+            after_unbond_delete,
+            validator_state_helper,
+        })
+    }
+}
+
 impl ValidatorState {
+    pub fn lowest_vote_power(&self) -> TendermintVotePower {
+        self.council_nodes_by_power
+            .keys()
+            .next()
+            .expect("at least one validator")
+            .0
+    }
+
+    /// number of current validators
+    pub fn number_validators(&self) -> usize {
+        self.council_nodes_by_power.len()
+    }
+
+    /// Removal of council node metadata at the begin block
+    pub fn metadata_clean(&mut self, current_time: Timespec) {
+        match self.after_unbond_delete.check_first_time() {
+            Some(t) if t <= current_time => {
+                log::info!("Cleaning metadata of removed council nodes");
+                let mut item = self.after_unbond_delete.peek();
+                while let Some(((time, address), tm_address)) = item {
+                    if time > current_time {
+                        item = None;
+                    } else {
+                        log::info!("Removing metadata of node: {} ({})", address, tm_address);
+                        if let Some(vp) = self
+                            .validator_state_helper
+                            .validator_voting_power
+                            .remove(&address)
+                        {
+                            log::info!("Removed validator data from validator state helper (vote power: {})", vp);
+                            if self.council_nodes_by_power.remove(&(vp, address)).is_some() {
+                                log::info!("Removed validator data from council node data ordered by vote power");
+                            }
+                        }
+                        if self
+                            .tendermint_validator_addresses
+                            .remove(&tm_address)
+                            .is_some()
+                        {
+                            log::info!("Removed tendermint address mapping ({})", tm_address);
+                        } else {
+                            log::warn!("Did not find tendermint address mapping");
+                        }
+                        self.after_unbond_delete.deleted(time, address, tm_address);
+                        item = self.after_unbond_delete.peek();
+                    }
+                }
+                log::info!("Cleaning metadata of removed council nodes finished");
+            }
+            _ => {}
+        }
+    }
+
+    /// Removal of council node metadata at the end of block end
+    pub fn metadata_clean_schedule(
+        &mut self,
+        address: StakedStateAddress,
+        node: CouncilNode,
+        time_to_remove: Timespec,
+        is_infraction: bool,
+    ) {
+        log::info!("node removed -- {}", node);
+        if is_infraction {
+            log::info!("(first time infraction)");
+        } else {
+            log::info!("(other reason -- effective bonded stake not enough or explicit unbonding)");
+        }
+        // rewards
+        if is_infraction && self.proposer_stats.remove(&address).is_some() {
+            log::info!("removed reward stats for: {}", address);
+        }
+        let tendermint_address = node.consensus_pubkey.into();
+        // liveness tracking
+        if self
+            .punishment
+            .validator_liveness
+            .remove(&tendermint_address)
+            .is_some()
+        {
+            log::info!(
+                "liveness tracking removed for: {} ({})",
+                address,
+                &tendermint_address
+            );
+        } else {
+            log::warn!(
+                "liveness tracking not found during removal: {} ({})",
+                address,
+                &tendermint_address
+            );
+        }
+        // everything else -- lookups may be needed for detecting later infractions during slash period
+        self.after_unbond_delete
+            .insert(time_to_remove, address, tendermint_address);
+    }
+
     /// used in tests/ only -- TODO: rewrite checking/probing
     pub fn get_first_tm_validator_address(&self) -> TendermintValidatorAddress {
         self.tendermint_validator_addresses
@@ -246,14 +493,28 @@ impl ValidatorState {
         }
     }
 
-    /// remove from tracking liveness
-    pub fn remove_validator_from_tracking(
-        &mut self,
-        tendermint_address: &TendermintValidatorAddress,
-    ) {
-        self.punishment
-            .validator_liveness
-            .remove(tendermint_address);
+    pub fn new_valid_node_join_update(&mut self, state: &StakedState) {
+        let new_address: TendermintValidatorAddress = state
+            .council_node
+            .as_ref()
+            .expect("node join state should have council node")
+            .consensus_pubkey
+            .clone()
+            .into();
+        if self.after_unbond_delete.cancel(state.address, new_address) {
+            log::info!("node {} joins with the same consensus public key, cancelling previous delete schedule", state.address);
+        }
+        self.validator_state_helper
+            .new_valid_node_join_update(state);
+    }
+
+    pub fn is_scheduled_for_delete(
+        &self,
+        address: &StakedStateAddress,
+        tm_address: &TendermintValidatorAddress,
+    ) -> bool {
+        self.after_unbond_delete
+            .is_scheduled(&(tm_address.clone(), *address))
     }
 }
 
@@ -266,9 +527,15 @@ pub struct ValidatorStateHelper {
     power_changed_in_block: BTreeMap<StakedStateAddress, TendermintVotePower>,
     /// new nodes proposed in the block
     new_nodes_in_block: BTreeMap<StakedStateAddress, CouncilNode>,
+    /// (first-time) punished nodes in the block
+    punished_nodes_in_block: BTreeSet<StakedStateAddress>,
 }
 
 impl ValidatorStateHelper {
+    pub fn caused_infraction(&self, address: &StakedStateAddress) -> bool {
+        self.punished_nodes_in_block.contains(address)
+    }
+
     pub fn get_validator_total_bonded(
         &self,
         last_root: &StarlingFixedKey,
@@ -313,7 +580,7 @@ impl ValidatorStateHelper {
         }
     }
 
-    pub fn new_valid_node_join_update(&mut self, state: &StakedState) {
+    fn new_valid_node_join_update(&mut self, state: &StakedState) {
         self.new_nodes_in_block.insert(
             state.address,
             state
@@ -328,11 +595,13 @@ impl ValidatorStateHelper {
     pub fn punish_update(&mut self, address: StakedStateAddress) {
         self.power_changed_in_block
             .insert(address, TendermintVotePower::zero());
+        self.punished_nodes_in_block.insert(address);
     }
 
     pub fn clear(&mut self) {
         self.power_changed_in_block.clear();
         self.new_nodes_in_block.clear();
+        self.punished_nodes_in_block.clear();
     }
 
     pub fn get_new_node(&self, address: &StakedStateAddress) -> CouncilNode {
@@ -355,6 +624,7 @@ impl ValidatorStateHelper {
             validator_voting_power,
             power_changed_in_block: BTreeMap::new(),
             new_nodes_in_block: BTreeMap::new(),
+            punished_nodes_in_block: BTreeSet::new(),
         }
     }
 
