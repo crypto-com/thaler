@@ -15,7 +15,7 @@ hex="0.4.0"
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
-secstr = { version = "0.3.2", features = ["serde"] }
+secstr = { version = "0.4.0", features = ["serde"] }
 
 [build-dependencies]
 cbindgen = "0.13.0"

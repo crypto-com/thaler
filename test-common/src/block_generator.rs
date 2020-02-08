@@ -42,7 +42,7 @@ use client_core::{service::HDAccountType, HDSeed, Mnemonic};
 lazy_static! {
     static ref DEFAULT_NODES: Vec<Node> = vec![Node::new(
         0,
-        &b"zone fiber glory option pause arrive buyer stone match neutral obvious already deer equip depth".to_vec().into(),
+        &"zone fiber glory option pause arrive buyer stone match neutral obvious already deer equip depth".into(),
         &hex::decode("c3f4422e8c21a6ebb03d45ce17a06c575f966a69aac1262900c08be4a5452ac4").unwrap(),
         &hex::decode("8bd612e59683b7c05a9dcd2e91ef277118327f1b93fb78ac3319bcd1587a1c0b").unwrap()
     )];
