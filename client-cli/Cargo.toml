@@ -15,7 +15,7 @@ client-core = { path = "../client-core" }
 client-network = { path = "../client-network" }
 structopt = "0.3"
 quest = "0.3"
-secstr = { version = "0.3.2", features = ["serde"] }
+secstr = { version = "0.4.0", features = ["serde"] }
 hex = "0.4"
 unicase = "2.6"
 chrono = "0.4"

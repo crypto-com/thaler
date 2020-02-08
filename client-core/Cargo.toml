@@ -18,7 +18,7 @@ rand = "0.7"
 hex = "0.4"
 zeroize = "1.1"
 byteorder = "1.3"
-secstr = { version = "0.3.2", features = ["serde"] }
+secstr = { version = "0.4.0", features = ["serde"] }
 itertools = "0.8"
 base64 = "0.11"
 webpki = "0.21"
