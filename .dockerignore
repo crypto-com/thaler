@@ -4,6 +4,8 @@
 !/chain-core
 !/chain-tx-filter
 !/chain-tx-validation
+!/chain-tx-enclave
+!/chain-storage
 !/client-cli
 !/client-common
 !/client-core
@@ -12,6 +14,7 @@
 !/test-common
 !/dev-utils
 !/enclave-protocol
+!/cro-clib
 !Carog.lock
 !Cargo.toml
 !/docker

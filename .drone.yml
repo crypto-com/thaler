@@ -175,6 +175,30 @@ trigger:
   - push
 
 ---
+kind: pipeline
+name: publish
+
+steps:
+- name: docker
+  image: plugins/docker
+  settings:
+    dockerfile: docker/Dockerfile.new
+    auto_tag: true
+    repo:
+      from_secret: DOCKER_REPO
+    username:
+      from_secret: DOCKER_USERNAME
+    password:
+      from_secret: DOCKER_PASSWORD
+
+trigger:
+  branch:
+    - master
+  event:
+    - push
+    - tag
+
+---
 kind: signature
 hmac: 7a9c0c146be1e59a7a5f2a1af22f9bbcb238b2dfec553b8c8eb235df01c13d52
 

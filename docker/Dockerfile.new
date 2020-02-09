@@ -88,7 +88,7 @@ RUN set -e; \
       tx-query-app \
       tx_query_enclave.signed.so \
       tx_validation_enclave.signed.so ; \
-    do mv "./target/debug/${bin}" /output; done; \
+    do mv "./target/${BUILD_PROFILE}/${bin}" /output; done; \
     cargo clean;
 
 FROM RUNTIME_BASE
