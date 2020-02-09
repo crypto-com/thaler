@@ -78,7 +78,7 @@ pub fn get_vote_power_in_milli(total_bonded: Coin) -> Milli {
     Milli::new(TendermintVotePower::from(total_bonded).into(), 0)
 }
 
-/// This is based on: https://github.com/cosmos/cosmos-sdk/blob/sunny/prop-slashing-adr/docs/architecture/adt-014-proportional-slashing.md
+/// This is based on: https://github.com/cosmos/cosmos-sdk/blob/master/docs/architecture/adt-014-proportional-slashing.md
 pub fn get_slashing_proportion<I: Iterator<Item = (StakedStateAddress, Coin)>>(
     accounts_to_slash: I,
     total_vote_power: Milli,
