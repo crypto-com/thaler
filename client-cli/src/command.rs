@@ -117,13 +117,6 @@ pub enum Command {
     #[structopt(name = "state", about = "Get staked state of an address")]
     StakedState {
         #[structopt(
-            name = "wallet name",
-            short = "n",
-            long = "name",
-            help = "Name of wallet"
-        )]
-        name: String,
-        #[structopt(
             name = "staking address",
             short = "a",
             long = "address",
@@ -272,7 +265,7 @@ impl Command {
                 transaction_command
                     .execute(network_ops_client.get_wallet_client(), &network_ops_client)
             }
-            Command::StakedState { name, address } => {
+            Command::StakedState { address } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
                 let signer_manager = WalletSignerManager::new(storage.clone());
@@ -297,7 +290,7 @@ impl Command {
                     fee_algorithm,
                     transaction_obfuscation,
                 );
-                Self::get_staked_stake(&network_ops_client, name, address)
+                Self::get_staked_stake(&network_ops_client, address)
             }
             Command::Sync {
                 name,
@@ -329,11 +322,9 @@ impl Command {
 
     fn get_staked_stake<N: NetworkOpsClient>(
         network_ops_client: &N,
-        name: &str,
         address: &StakedStateAddress,
     ) -> Result<()> {
-        let enckey = ask_seckey(None)?;
-        let staked_state = network_ops_client.get_staked_state(name, &enckey, address)?;
+        let staked_state = network_ops_client.get_staked_state(address)?;
 
         let bold = CellFormat::builder().bold(true).build();
         let justify_right = CellFormat::builder().justify(Justify::Right).build();

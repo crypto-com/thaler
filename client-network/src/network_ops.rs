@@ -80,10 +80,5 @@ pub trait NetworkOpsClient: Send + Sync {
     ) -> Result<TxAux>;
 
     /// Returns staked stake corresponding to given address
-    fn get_staked_state(
-        &self,
-        name: &str,
-        enckey: &SecKey,
-        address: &StakedStateAddress,
-    ) -> Result<StakedState>;
+    fn get_staked_state(&self, address: &StakedStateAddress) -> Result<StakedState>;
 }

@@ -53,7 +53,7 @@ wait_for_blocks(rpc, MISSED_BLOCK_THRESHOLD + 3)
 assert len(rpc.chain.validators()['validators']) == 2
 
 addr = rpc.address.list(enckey=enckey, name='target')[0]
-punishment = rpc.staking.state(addr, enckey=enckey, name='target')['punishment']
+punishment = rpc.staking.state(addr)['punishment']
 print('punishment', punishment)
 assert punishment['kind'] == 'NonLive'
 print('slash amount', punishment['slash_amount'])

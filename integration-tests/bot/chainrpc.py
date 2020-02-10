@@ -177,8 +177,8 @@ class Staking(BaseService):
     def deposit_amount(self, to_address, amount, name=DEFAULT_WALLET, enckey=None):
         return self.call('staking_depositAmountStake', [name, enckey or get_enckey()], fix_address(to_address), str(amount))
 
-    def state(self, address, name=DEFAULT_WALLET, enckey=None):
-        return self.call('staking_state', [name, enckey or get_enckey()], fix_address(address))
+    def state(self, address):
+        return self.call('staking_state', fix_address(address))
 
     def unbond(self, address, amount, name=DEFAULT_WALLET, enckey=None):
         return self.call('staking_unbondStake', [name, enckey or get_enckey()], fix_address(address), str(amount))

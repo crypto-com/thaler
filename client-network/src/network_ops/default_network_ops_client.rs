@@ -203,7 +203,7 @@ where
         value: Coin,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(name, enckey, &address)?;
+        let staked_state = self.get_staked_state(&address)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -260,7 +260,7 @@ where
         attributes: TxAttributes,
     ) -> Result<(TxAux, TransactionPending)> {
         let last_block_time = self.get_last_block_time()?;
-        let staked_state = self.get_staked_state(name, enckey, from_address)?;
+        let staked_state = self.get_staked_state(from_address)?;
 
         if staked_state.unbonded_from > last_block_time {
             return Err(Error::new(
@@ -341,7 +341,7 @@ where
         address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(name, enckey, &address)?;
+        let staked_state = self.get_staked_state(&address)?;
 
         if !staked_state.is_jailed() {
             return Err(Error::new(
@@ -394,7 +394,7 @@ where
         to_address: ExtendedAddr,
         attributes: TxAttributes,
     ) -> Result<(TxAux, TransactionPending)> {
-        let staked_state = self.get_staked_state(name, enckey, from_address)?;
+        let staked_state = self.get_staked_state(from_address)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -442,7 +442,7 @@ where
         attributes: StakedStateOpAttributes,
         node_metadata: CouncilNode,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(name, enckey, &staking_account_address)?;
+        let staked_state = self.get_staked_state(&staking_account_address)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -486,20 +486,8 @@ where
         Ok(TxAux::NodeJoinTx(transaction, signature))
     }
 
-    fn get_staked_state(
-        &self,
-        name: &str,
-        enckey: &SecKey,
-        address: &StakedStateAddress,
-    ) -> Result<StakedState> {
-        // Verify if `address` belongs to current wallet
-        match address {
-            StakedStateAddress::BasicRedeem(ref redeem_address) => {
-                self.wallet_client
-                    .find_staking_key(name, enckey, redeem_address)?;
-            }
-        }
-
+    #[inline]
+    fn get_staked_state(&self, address: &StakedStateAddress) -> Result<StakedState> {
         self.get_staked_state_account(address)
     }
 }
@@ -1027,43 +1015,6 @@ mod tests {
                     ))),
                     Vec::new(),
                     TxAttributes::new(171),
-                )
-                .unwrap_err()
-                .kind()
-        );
-    }
-
-    #[test]
-    fn check_unjail_transaction_wallet_not_found() {
-        let name = "name";
-        let enckey = &derive_enckey(&SecUtf8::from("passphrase"), name).unwrap();
-
-        let storage = MemoryStorage::default();
-        let signer_manager = WalletSignerManager::new(storage.clone());
-
-        let fee_algorithm = UnitFeeAlgorithm::default();
-
-        let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
-        let tendermint_client = MockClient::default();
-
-        let network_ops_client = DefaultNetworkOpsClient::new(
-            wallet_client,
-            signer_manager,
-            tendermint_client,
-            fee_algorithm,
-            MockTransactionCipher,
-        );
-
-        assert_eq!(
-            ErrorKind::InvalidInput,
-            network_ops_client
-                .create_unjail_transaction(
-                    name,
-                    enckey,
-                    StakedStateAddress::BasicRedeem(RedeemAddress::from(&PublicKey::from(
-                        &PrivateKey::new().unwrap()
-                    ))),
-                    StakedStateOpAttributes::new(0),
                 )
                 .unwrap_err()
                 .kind()

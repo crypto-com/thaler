@@ -35,7 +35,7 @@ rpc.wallet.sync(enckey=enckey)
 
 assert len(rpc.chain.validators()['validators']) == 2
 
-unbonded_from = rpc.staking.state(bonded_staking, enckey=enckey)['unbonded_from']
+unbonded_from = rpc.staking.state(bonded_staking)['unbonded_from']
 print('Wait until unbonded_from', unbonded_from)
 wait_for_blocktime(rpc, unbonded_from)
 
@@ -57,7 +57,7 @@ print('Wait for transaction', txid)
 wait_for_tx(rpc, txid)
 rpc.wallet.sync(enckey=enckey)
 
-print('Bonded state:', rpc.staking.state(bonded_staking, enckey=enckey))
+print('Bonded state:', rpc.staking.state(bonded_staking))
 
 print('Join node0')
 txid = rpc.staking.join(
