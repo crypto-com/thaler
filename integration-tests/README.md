@@ -5,7 +5,7 @@
 Prerequisite:
 
 * Linux with sgx device and `aesm_service` started
-* chain binaries in `PATH`, `./target/debug` directory will be added to `PATH` atomatically.
+* chain binaries in `PATH`, `./target/debug` directory will be added to `PATH` automatically.
 * python3.7+ and npm.
 
 Run:
