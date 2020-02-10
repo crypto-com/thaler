@@ -12,9 +12,17 @@ source $PYTHON_VENV_DIR/bin/activate
 
 # prepare chain binaries
 CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"../target"}
-ln -sf $CARGO_TARGET_DIR/debug/tx_query_enclave.signed.so .
-ln -sf $CARGO_TARGET_DIR/debug/tx_validation_enclave.signed.so .
-export PATH=$CARGO_TARGET_DIR/debug:$PATH
+BUILD_PROFILE=${BUILD_PROFILE:-debug}
+BUILD_MODE=${BUILD_MODE:-sgx}
+ln -sf $CARGO_TARGET_DIR/$BUILD_PROFILE/tx_query_enclave.signed.so .
+ln -sf $CARGO_TARGET_DIR/$BUILD_PROFILE/tx_validation_enclave.signed.so .
+export PATH=$CARGO_TARGET_DIR/$BUILD_PROFILE:$PATH
+
+if [ $BUILD_MODE == "sgx" ]; then
+    CHAINBOT_ARGS=
+else
+    CHAINBOT_ARGS="--mock-mode"
+fi
 
 # environment variables for integration tests
 export PASSPHRASE=123456
@@ -35,7 +43,7 @@ function wait_http() {
 
 function runtest() {
     echo "Preparing... $1"
-    chainbot.py prepare multinode/$1_cluster.json --base_port $BASE_PORT
+    chainbot.py prepare multinode/$1_cluster.json --base_port $BASE_PORT $CHAINBOT_ARGS
 
     echo "Startup..."
     supervisord -n -c data/tasks.ini &
