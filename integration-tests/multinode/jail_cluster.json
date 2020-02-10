@@ -45,26 +45,6 @@
             "op": "replace",
             "path": "/initial_fee_policy/per_byte_fee",
             "value": "0.0"
-        },
-        {
-            "op": "replace",
-            "path": "/slashing_config/slash_wait_period",
-            "value": 15
-        },
-        {
-            "op": "replace",
-            "path": "/jailing_config/jail_duration",
-            "value": 20
-        },
-        {
-            "op": "replace",
-            "path": "/jailing_config/block_signing_window",
-            "value": 20
-        },
-        {
-            "op": "replace",
-            "path": "/jailing_config/missed_block_threshold",
-            "value": 10
         }
     ],
     "tendermint_config_patch": [

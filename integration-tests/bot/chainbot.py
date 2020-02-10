@@ -129,7 +129,7 @@ def tendermint_cfg(moniker, app_port, rpc_port, p2p_port, peers):
         },
         'tx_index': {
             'indexer': 'kv',
-            'index_tags': '',
+            # 'index_tags': '',
             'index_all_tags': True
         },
         'instrumentation': {
@@ -177,8 +177,8 @@ def app_state_cfg(cfg):
         "required_council_node_stake": "1",
         "jailing_config": {
             "jail_duration": 18,
-            "block_signing_window": 100,
-            "missed_block_threshold": 50
+            "block_signing_window": 20,
+            "missed_block_threshold": 10
         },
         "slashing_config": {
             "liveness_slash_percent": "0.1",

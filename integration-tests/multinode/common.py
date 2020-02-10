@@ -1,7 +1,9 @@
 import time
+from datetime import datetime
 import http.client
 import socket
 import xmlrpc.client
+import iso8601
 
 
 def wait_for_port(port, host='127.0.0.1', timeout=15.0):
@@ -17,14 +19,14 @@ def wait_for_port(port, host='127.0.0.1', timeout=15.0):
                                    'connections.'.format(port, host)) from ex
 
 
-def wait_for_pending(rpc, enckey=None, timeout=10):
+def wait_for_tx(rpc, txid, timeout=10):
     for i in range(timeout):
         time.sleep(1)
-        rpc.wallet.sync(enckey=enckey)
-        if int(rpc.wallet.balance(enckey=enckey)['pending']) == 0:
+        rsp = rpc.chain.tx_search("valid_txs.txid='%s'" % txid)
+        if rsp['txs'] and rsp['txs'][0]['tx_result']:
             break
     else:
-        raise TimeoutError('Waited too long for the wallet to sync')
+        raise TimeoutError('Waited too long for the transaction to success: ' + txid)
 
 
 def wait_for_validators(rpc, count, timeout=10):
@@ -48,12 +50,19 @@ def wait_for_blocks(rpc, n):
 
 
 def stop_node(supervisor, name):
-    for prg in ['tendermint', 'chain-abci']:
-        print('stop', prg, name)
-        supervisor.supervisor.stopProcess('%s:%s-%s' % (name, prg, name))
-    print('Wait 5 seconds before stoppint other processes[FIXME]')
-    time.sleep(5)
+    supervisor.supervisor.stopProcess('%s:%s-%s' % (name, 'tendermint', name))
+    print('Wait 3 seconds before stop other processes[FIXME, remove after adr-001]')
+    time.sleep(3)
     supervisor.supervisor.stopProcessGroup(name)
+
+
+def wait_for_blocktime(rpc, t):
+    while True:
+        time.sleep(1)
+        block_time = datetime.timestamp(iso8601.parse_date(rpc.chain.status()['sync_info']['latest_block_time']))
+        print('block_time:', block_time)
+        if block_time > t:
+            break
 
 
 class UnixStreamHTTPConnection(http.client.HTTPConnection):
