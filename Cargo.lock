@@ -2951,9 +2951,9 @@ dependencies = [
 
 [[package]]
 name = "secstr"
-version = "0.3.2"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb003d53cef244a97516226b01155057c7fa6eb52914933c32f6c98a84182188"
+checksum = "cce2c726741c320e5b8f1edd9a21b3c2c292ae94514afd001d41d81ba143dafc"
 dependencies = [
  "libc",
  "serde",

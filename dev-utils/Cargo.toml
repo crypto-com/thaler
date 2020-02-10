@@ -19,4 +19,4 @@ chrono = { version = "0.4", features = ["serde"] }
 kvdb-memorydb = "0.3"
 dirs = "2.0.1"
 quest = "0.3"
-secstr = "0.3.2"
+secstr = "0.4.0"
