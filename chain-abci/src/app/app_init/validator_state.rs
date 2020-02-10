@@ -337,6 +337,13 @@ impl ValidatorState {
                 let mut state = get_account(addr, &root, &accounts)
                     .expect("io error or validator account not exists");
 
+                if state.is_jailed() {
+                    log::error!(
+                        "Jailed validator should not have reward stats, will cause coins burned"
+                    );
+                    continue;
+                }
+
                 let amount = (share * count).unwrap();
                 let _balance = state.add_reward(amount).unwrap();
                 root = update_staked_state(state.clone(), &root, accounts).0;
