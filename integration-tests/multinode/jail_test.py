@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 import iso8601
 from chainrpc import RPC
-# from chainbot import SigningKey
+from chainbot import SigningKey
 from common import UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, stop_node
 
 '''
@@ -76,18 +76,17 @@ print('Unjail', TARGET_NODE)
 print(rpc.staking.unjail(addr, name='target', enckey=enckey))
 wait_for_blocks(rpc, 1)
 
-# FIXME after #930 fixed
-# print('Join', TARGET_NODE)
-# txid = rpc.staking.join(
-#     TARGET_NODE,
-#     SigningKey(TARGET_NODE_VALIDATOR_SEED).pub_key_base64(),
-#     addr,
-#     enckey=enckey,
-#     name='target',
-# )
-# 
-# print('Wait for 3 blocks')
-# wait_for_blocks(rpc, 3)
-# 
-# print('validators', len(rpc.chain.validators()['validators']))
-# assert len(rpc.chain.validators()['validators']) == 3
+print('Join', TARGET_NODE)
+txid = rpc.staking.join(
+    TARGET_NODE,
+    SigningKey(TARGET_NODE_VALIDATOR_SEED).pub_key_base64(),
+    addr,
+    enckey=enckey,
+    name='target',
+)
+
+print('Wait for 3 blocks')
+wait_for_blocks(rpc, 3)
+
+print('validators', len(rpc.chain.validators()['validators']))
+assert len(rpc.chain.validators()['validators']) == 3

@@ -33,7 +33,7 @@ impl GenesisDevConfig {
     pub fn new(expansion_cap: Coin) -> Self {
         GenesisDevConfig {
             distribution: BTreeMap::new(),
-            unbonding_period: 60,
+            unbonding_period: 86400,
             required_council_node_stake: Coin::new(1_250_000_000_000_000_000).unwrap(),
             jailing_config: JailingParameters {
                 jail_duration: 86400,

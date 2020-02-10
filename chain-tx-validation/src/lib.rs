@@ -460,14 +460,19 @@ pub fn verify_unjailed(account: &StakedState) -> Result<(), Error> {
 pub trait NodeChecker {
     /// minimal required stake
     fn minimum_effective_stake(&self) -> Coin;
-    /// if the TM pubkey/address is already used in the consensus
+    /// if the TM pubkey/address was/is already used in the consensus
     fn is_current_validator(&self, address: &TendermintValidatorAddress) -> bool;
-    /// if the TM pubkey/address is already used in the consensus
+    /// if the staking address was/is already used in the consensus
     fn is_current_validator_stake(&self, address: &StakedStateAddress) -> bool;
+    /// if the same TM pubkey/address + staking address were used in the consensus, but are to be removed
+    fn is_current_previous_unbond(
+        &self,
+        address: &StakedStateAddress,
+        tm_address: &TendermintValidatorAddress,
+    ) -> bool;
 }
 
 /// Verifies if a new council node can be added
-/// FIXME: effective minimum
 pub fn verify_node_join(
     maintx: &NodeJoinRequestTx,
     extra_info: ChainInfo,
@@ -493,8 +498,9 @@ pub fn verify_node_join(
     }
     let validator_address = TendermintValidatorAddress::from(&maintx.node_meta.consensus_pubkey);
     // checks that validator hasn't joined yet
-    if node_info.is_current_validator_stake(&maintx.address)
-        || node_info.is_current_validator(&validator_address)
+    if (node_info.is_current_validator_stake(&maintx.address)
+        || node_info.is_current_validator(&validator_address))
+        && !(node_info.is_current_previous_unbond(&maintx.address, &validator_address))
     {
         return Err(Error::DuplicateValidator);
     }

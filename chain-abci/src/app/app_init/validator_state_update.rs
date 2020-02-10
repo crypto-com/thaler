@@ -1,16 +1,13 @@
 use crate::app::app_init::{get_validator_key, validator_state::ValidatorState};
 use abci::ValidatorUpdate;
+use chain_core::common::Timespec;
 use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
-
 impl ValidatorState {
     pub fn get_validator_updates(
         &mut self,
-        // validators_state: &mut ValidatorState,
         block_signing_window: u16,
         max_validators: usize,
-        // validator_voting_power: &mut BTreeMap<StakedStateAddress, TendermintVotePower>,
-        // power_changed_in_block: &BTreeMap<StakedStateAddress, TendermintVotePower>,
-        // new_nodes_in_block: &BTreeMap<StakedStateAddress, CouncilNode>,
+        time_to_delete: Timespec,
     ) -> Option<Vec<ValidatorUpdate>> {
         let changed_nodes_len = self.validator_state_helper.changed_nodes();
         if changed_nodes_len > 0 {
@@ -103,11 +100,12 @@ impl ValidatorState {
             for (address, voting_power) in remaining_validators.iter() {
                 let key = (*voting_power, *address);
                 let alt_key = (zero, *address);
-                let node = self
-                    .council_nodes_by_power
-                    .get(&key)
-                    .cloned()
-                    .unwrap_or_else(|| self.council_nodes_by_power[&alt_key].clone());
+                // TODO: not remove for "waitlist"-like fun (+ fees for NodeJoinTx, so that one doesn't spam?)
+                let node = self.council_nodes_by_power.remove(&key).unwrap_or_else(|| {
+                    self.council_nodes_by_power
+                        .remove(&alt_key)
+                        .expect("zero vp should temporarily be there")
+                });
                 let mut validator = ValidatorUpdate::default();
                 // even if voting_power > 0 (bonded amount >= minimal and not jailed),
                 // it may have been < lowest stake/voting power
@@ -120,12 +118,12 @@ impl ValidatorState {
                     .validator_voting_power
                     .remove(address);
 
-                let validator_address: TendermintValidatorAddress =
-                    node.consensus_pubkey.clone().into();
-                self.remove_validator_from_tracking(&validator_address);
-
-                // FIXME: if voting_power == 0, schedule removal from tendermint_validator_addresses +
-                // council_nodes_by_power after unbonding period
+                self.metadata_clean_schedule(
+                    *address,
+                    node,
+                    time_to_delete,
+                    self.validator_state_helper.caused_infraction(address),
+                );
             }
             self.validator_state_helper.clear();
             Some(validators)
@@ -187,14 +185,12 @@ mod tests {
         assert!(!validator_state.is_current_validator(&v2_keyaddress));
         let v2_node = CouncilNode::new(v2_key);
 
-        validator_state
-            .validator_state_helper
-            .new_valid_node_join_update(&StakedState::new_init_bonded(
-                power,
-                0,
-                v2_address,
-                Some(v2_node.clone()),
-            ));
+        validator_state.new_valid_node_join_update(&StakedState::new_init_bonded(
+            power,
+            0,
+            v2_address,
+            Some(v2_node.clone()),
+        ));
         (v2_node, v2_address, v2_keyaddress)
     }
 
@@ -230,7 +226,7 @@ mod tests {
             add_node([1u8; 20], [1u8; 32], Coin::one(), &mut last_state);
 
         let updates = last_state
-            .get_validator_updates(1, 2)
+            .get_validator_updates(1, 2, 1)
             .expect("there are updates");
         assert_eq!(updates.len(), 1);
         assert_eq!(updates[0].get_power(), 1);
@@ -248,7 +244,7 @@ mod tests {
             add_node([2u8; 20], [2u8; 32], two, &mut last_state);
 
         let updates = last_state
-            .get_validator_updates(1, 2)
+            .get_validator_updates(1, 2, 1)
             .expect("there are updates");
         assert_eq!(updates.len(), 3);
         for update in updates.iter() {
@@ -280,7 +276,7 @@ mod tests {
         last_state.validator_state_helper.punish_update(v1_address);
 
         let updates = last_state
-            .get_validator_updates(1, 2)
+            .get_validator_updates(1, 2, 1)
             .expect("there are updates");
 
         assert_eq!(updates.len(), 2);

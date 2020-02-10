@@ -1,12 +1,11 @@
 use std::cmp::min;
 
+use crate::app::ChainNodeApp;
+use crate::enclave_bridge::EnclaveProxy;
 use chain_core::common::fixed::monetary_expansion;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
-
-use crate::app::ChainNodeApp;
-use crate::enclave_bridge::EnclaveProxy;
 
 // rate < 1_000_000, no overflow.
 fn mul_micro(n: u64, rate: u64) -> u64 {
@@ -79,12 +78,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             share,
             &self.uncommitted_account_root_hash,
             &mut self.accounts,
-            TendermintVotePower::from(
-                state
-                    .top_level
-                    .network_params
-                    .get_required_council_node_stake(),
-            ),
+            TendermintVotePower::from(state.minimum_effective()),
         );
 
         self.uncommitted_account_root_hash = root;

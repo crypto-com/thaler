@@ -61,7 +61,7 @@ impl fmt::Display for DistributionError {
                 write!(f, "Invalid voting power")
             },
             DistributionError::InvalidPunishmentConfiguration => {
-                write!(f, "Invalid punishment configuration (maybe slash_wait_period >= jail_duration)")
+                write!(f, "Invalid punishment configuration (maybe slash_wait_period >= jail_duration or jail_duration > unbond period)")
             }
             DistributionError::InvalidRewardsParamter(err) => {
                 write!(f, "Invalid rewards parameters: {}", err)
@@ -235,6 +235,10 @@ impl InitConfig {
         if self.network_params.slashing_config.slash_wait_period
             >= self.network_params.jailing_config.jail_duration
         {
+            return Err(DistributionError::InvalidPunishmentConfiguration);
+        }
+
+        if self.network_params.jailing_config.jail_duration > self.network_params.unbonding_period {
             return Err(DistributionError::InvalidPunishmentConfiguration);
         }
 
