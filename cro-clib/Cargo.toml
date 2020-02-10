@@ -11,7 +11,7 @@ crate-type =["cdylib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-hex="0.4.0"
+hex="0.4.1"
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
