@@ -12,7 +12,7 @@ use cli_table::format::{CellFormat, Color, Justify};
 use cli_table::{Cell, Row, Table};
 use hex::encode;
 use pbr::ProgressBar;
-use quest::success;
+use quest::{ask, success};
 use structopt::StructOpt;
 
 use chain_core::init::coin::Coin;
@@ -418,6 +418,8 @@ impl Command {
 
     fn get_balance<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
         let enckey = ask_seckey(None)?;
+        print_sync_warning();
+
         let balance = wallet_client.balance(name, &enckey)?;
 
         let rows = vec![
@@ -454,6 +456,8 @@ impl Command {
         reversed: bool,
     ) -> Result<()> {
         let enckey = ask_seckey(None)?;
+        print_sync_warning();
+
         let history = wallet_client.history(name, &enckey, offset, limit, reversed)?;
 
         if !history.is_empty() {
@@ -571,4 +575,9 @@ impl Command {
         let _ = handle.join();
         Ok(())
     }
+}
+
+fn print_sync_warning() {
+    ask("Warning! Information displayed here may be outdated. To get the latest information, do `client-cli sync --name <wallet name>`");
+    println!();
 }
