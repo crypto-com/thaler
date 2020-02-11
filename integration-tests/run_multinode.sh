@@ -78,5 +78,6 @@ fi
 
 runtest "jail"
 runtest "join"
+runtest "byzantine"
 
 ./cleanup.sh
