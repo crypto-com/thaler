@@ -11,11 +11,13 @@ crate-type =["cdylib"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+parity-scale-codec = { features = ["derive"], version = "1.1" }
 hex="0.4.1"
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 secstr = { version = "0.4.0", features = ["serde"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
 
 [build-dependencies]
 cbindgen = "0.13.0"
