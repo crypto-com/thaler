@@ -9,7 +9,11 @@
 
 typedef struct CroAddress CroAddress;
 
+typedef struct CroFee CroFee;
+
 typedef struct CroHDWallet CroHDWallet;
+
+typedef struct CroTx CroTx;
 
 typedef struct CroResult {
   int result;
@@ -17,7 +21,11 @@ typedef struct CroResult {
 
 typedef CroAddress *CroAddressPtr;
 
+typedef CroFee *CroFeePtr;
+
 typedef CroHDWallet *CroHDWalletPtr;
+
+typedef CroTx *CroTxPtr;
 
 /**
  * create staking address
@@ -59,6 +67,14 @@ CroResult cro_basic_restore_transfer_address(CroAddressPtr *address_out, const u
 CroResult cro_basic_restore_viewkey(CroAddressPtr *address_out, const uint8_t *input);
 
 /**
+ * create fee algorithm
+ * # Safety
+ */
+CroResult cro_create_fee_algorithm(CroFeePtr *fee_out,
+                                   const char *constant_string,
+                                   const char *coeff_string);
+
+/**
  * create hd wallet
  * minimum  300 byte-length is necessary
  * # Safety
@@ -86,6 +102,12 @@ CroResult cro_create_transfer_address(CroHDWalletPtr wallet_ptr,
                                       uint32_t index);
 
 /**
+ * create tx
+ * # Safety
+ */
+CroResult cro_create_tx(CroTxPtr *tx_out, uint8_t network);
+
+/**
  * create viewkey, which is for encrypted tx
  * # Safety
  */
@@ -101,10 +123,29 @@ CroResult cro_create_viewkey(CroHDWalletPtr wallet_ptr,
 CroResult cro_destroy_address(CroAddressPtr addr);
 
 /**
+ * destroy fee
+ * # Safety
+ */
+CroResult cro_destroy_fee_algorithm(CroFeePtr fee);
+
+/**
  * destroy bip44 hdwallet
  * # Safety
  */
 CroResult cro_destroy_hdwallet(CroHDWalletPtr hdwallet);
+
+/**
+ * destroy tx
+ * # Safety
+ */
+CroResult cro_destroy_tx(CroTxPtr tx);
+
+/**
+ * estimate fee
+ * tx_payload_size: in bytes
+ * # Safety
+ */
+uint64_t cro_estimate_fee(CroFeePtr fee_ptr, uint32_t tx_payload_size);
 
 /**
  * export privatekey as raw bytes
@@ -135,3 +176,74 @@ CroResult cro_get_printed_address(CroAddressPtr address_ptr,
  * # Safety
  */
 CroResult cro_restore_hdwallet(const char *mnemonics_string, CroHDWalletPtr *wallet_out);
+
+/**
+ * add txin
+ * txid_string: 64 length hex-char , 32 bytes
+ * addr_string: transfer address
+ * coin: carson unit  for example) 1_0000_0000 carson = 1 cro, 1 carson = 0.0000_0001 cro
+ * # Safety
+ */
+CroResult cro_tx_add_txin(CroTxPtr tx_ptr,
+                          const char *txid_string,
+                          uint16_t txindex,
+                          const char *addr_string,
+                          uint64_t coin);
+
+/**
+ * add txin in bytes
+ * txid: txid in raw bytes, it's 32 bytes
+ * txindex: which utxo in tx which txid_hex points
+ * addr, coin: txid_hex + txindex points this utxo (address, coin value)
+ * # Safety
+ */
+CroResult cro_tx_add_txin_raw(CroTxPtr tx_ptr,
+                              uint8_t txid[32],
+                              uint16_t txindex,
+                              uint8_t addr[32],
+                              uint64_t coin);
+
+/**
+ * add txout , this makes utxo
+ * addr_string: which address in string?
+ * coin: value to send in carson unit , 1 carson= 0.0000_0001 cro
+ * # Safety
+ */
+CroResult cro_tx_add_txout(CroTxPtr tx_ptr, const char *addr_string, uint64_t coin);
+
+/**
+ * add txout with bytes
+ * addr: which address in bytes
+ * coin: value to send in carson unit , 1 carson= 0.0000_0001 cro
+ * # Safety
+ */
+CroResult cro_tx_add_txout_raw(CroTxPtr tx_ptr, uint8_t addr[32], uint64_t coin);
+
+/**
+ * add viewkey in string, which you can get from client-cli
+ * # Safety
+ */
+CroResult cro_tx_add_viewkey(CroTxPtr tx_ptr, const char *viewkey_string);
+
+/**
+ * add viewkey in bytes
+ * # Safety
+ */
+CroResult cro_tx_add_viewkey_raw(CroTxPtr tx_ptr, uint8_t viewkey[33]);
+
+/**
+ * extract bytes from signed tx
+ * this output is encrypted with tx-query-app
+ * can be broadcast to the network
+ * # Safety
+ */
+CroResult cro_tx_complete_signing(CroTxPtr tx_ptr, uint8_t *output, uint32_t *output_length);
+
+/**
+ * sign for each txin
+ * address_ptr: privatekey which will sign
+ * tx_ptr: which tx to sign?
+ * which_tx_in_user: which txin inside tx?
+ * # Safety
+ */
+CroResult cro_tx_sign_txin(CroAddressPtr address_ptr, CroTxPtr tx_ptr, uint16_t which_tx_in_user);

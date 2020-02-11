@@ -5,6 +5,7 @@ mod unauthorized_wallet_transaction_builder;
 
 pub use default_wallet_transaction_builder::DefaultWalletTransactionBuilder;
 pub use raw_transfer_transaction_builder::RawTransferTransactionBuilder;
+pub use raw_transfer_transaction_builder::WitnessedUTxO;
 pub use unauthorized_wallet_transaction_builder::UnauthorizedWalletTransactionBuilder;
 
 use chain_core::init::coin::Coin;
