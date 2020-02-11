@@ -27,8 +27,10 @@ pub const COL_MERKLE_PROOFS: u32 = 5;
 pub const COL_APP_HASHS: u32 = 6;
 /// Column for tracking app states: height => ChainNodeState, only available when tx_query_address set
 pub const COL_APP_STATES: u32 = 7;
+/// Column for sealed transction payload: TxId => sealed tx payload (to MRSIGNER on a particular machine)
+pub const COL_ENCLAVE_TX: u32 = 8;
 /// Number of columns in DB
-pub const NUM_COLUMNS: u32 = 8;
+pub const NUM_COLUMNS: u32 = 9;
 
 pub const CHAIN_ID_KEY: &[u8] = b"chain_id";
 pub const GENESIS_APP_HASH_KEY: &[u8] = b"genesis_app_hash";
@@ -78,6 +80,26 @@ pub struct Storage {
     temp_sealed_tx_store: BTreeMap<TxId, Vec<u8>>,
 }
 
+pub struct ReadOnlyStorage {
+    db: Arc<dyn KeyValueDB>,
+}
+
+impl ReadOnlyStorage {
+    pub fn get_last_app_state(&self) -> Option<Vec<u8>> {
+        self.db
+            .get(COL_NODE_INFO, LAST_STATE_KEY)
+            .expect("app state lookup")
+            .map(|x| x.to_vec())
+    }
+
+    pub fn get_sealed_log(&self, txid: &TxId) -> Option<Vec<u8>> {
+        self.db
+            .get(COL_ENCLAVE_TX, txid)
+            .expect("IO fail")
+            .map(|x| x.to_vec())
+    }
+}
+
 pub trait StoredChainState {
     /// get the whole state encoded
     fn get_encoded(&self) -> Vec<u8>;
@@ -92,15 +114,23 @@ pub enum LookupItem {
     TxWitness,
     TxMetaSpent,
     TxsMerkle,
+    TxSealed,
 }
 
 impl Storage {
+    pub fn get_read_only(&self) -> ReadOnlyStorage {
+        ReadOnlyStorage {
+            db: self.db.clone(),
+        }
+    }
+
     pub fn lookup_item(&self, item_type: LookupItem, txid_or_app_hash: &H256) -> Option<Vec<u8>> {
         let col = match item_type {
             LookupItem::TxBody => COL_BODIES,
             LookupItem::TxWitness => COL_WITNESS,
             LookupItem::TxMetaSpent => COL_TX_META,
             LookupItem::TxsMerkle => COL_MERKLE_PROOFS,
+            LookupItem::TxSealed => COL_ENCLAVE_TX,
         };
         self.db
             .get(col, txid_or_app_hash)
@@ -246,8 +276,7 @@ impl Storage {
     pub fn persist_write(&mut self) -> std::io::Result<()> {
         if let Some(mut dbtx) = self.current_tx.take() {
             for (txid, sealed_log) in self.temp_sealed_tx_store.iter() {
-                // FIXME: same or separate column?
-                dbtx.put(COL_BODIES, txid, sealed_log);
+                dbtx.put(COL_ENCLAVE_TX, txid, sealed_log);
             }
             self.temp_sealed_tx_store.clear();
             self.db.write(dbtx)

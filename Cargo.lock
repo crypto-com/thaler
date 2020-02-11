@@ -428,12 +428,14 @@ dependencies = [
  "bit-vec 0.6.1",
  "blake2",
  "byteorder",
+ "cc",
  "chain-core",
  "chain-storage",
  "chain-tx-filter",
  "chain-tx-validation",
  "digest 0.8.1",
  "enclave-protocol",
+ "enclave-u-common",
  "env_logger 0.7.1",
  "hex 0.4.1",
  "integer-encoding",
@@ -449,6 +451,8 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_yaml",
+ "sgx_types",
+ "sgx_urts",
  "sha3",
  "starling",
  "structopt",
@@ -3258,9 +3262,9 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 
 [[package]]
 name = "sled"
-version = "0.30.3"
+version = "0.31.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2eb8c32cb0e34e67ad74fae1a77f4635d0cc7ffc873088a0136f3c4849336d71"
+checksum = "8fb6824dde66ad33bf20c6e8476f5b82b871bc8bc3c129a10ea2f7dae5060fa3"
 dependencies = [
  "crc32fast",
  "crossbeam-epoch",
@@ -3873,8 +3877,6 @@ version = "0.3.0"
 dependencies = [
  "cc",
  "chain-core",
- "client-common",
- "client-core",
  "enclave-protocol",
  "enclave-u-common",
  "env_logger 0.7.1",
@@ -3914,25 +3916,6 @@ dependencies = [
  "webpki-roots",
  "yasna 0.3.1 (git+https://github.com/mesalock-linux/yasna.rs-sgx)",
  "zeroize 1.1.0",
-]
-
-[[package]]
-name = "tx-validation-app"
-version = "0.3.0"
-dependencies = [
- "cc",
- "chain-core",
- "chain-tx-validation",
- "enclave-protocol",
- "enclave-u-common",
- "env_logger 0.7.1",
- "log 0.4.8",
- "parity-scale-codec",
- "secp256k1zkp",
- "sgx_types",
- "sgx_urts",
- "sled",
- "zmq",
 ]
 
 [[package]]

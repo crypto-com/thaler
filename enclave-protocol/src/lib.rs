@@ -65,6 +65,46 @@ pub enum IntraEnclaveRequest {
     Encrypt(Box<IntraEncryptRequest>),
 }
 
+impl IntraEnclaveRequest {
+    pub fn new_validate_transfer(
+        tx: TxEnclaveAux,
+        info: ChainInfo,
+        tx_inputs: Vec<SealedLog>,
+    ) -> Self {
+        Self::ValidateTx {
+            tx_inputs: Some(tx_inputs),
+            request: Box::new(VerifyTxRequest {
+                tx,
+                account: None,
+                info,
+            }),
+        }
+    }
+
+    pub fn new_validate_deposit(
+        tx: TxEnclaveAux,
+        info: ChainInfo,
+        account: Option<StakedState>,
+        tx_inputs: Vec<SealedLog>,
+    ) -> Self {
+        Self::ValidateTx {
+            tx_inputs: Some(tx_inputs),
+            request: Box::new(VerifyTxRequest { tx, account, info }),
+        }
+    }
+
+    pub fn new_validate_withdraw(tx: TxEnclaveAux, info: ChainInfo, account: StakedState) -> Self {
+        Self::ValidateTx {
+            tx_inputs: None,
+            request: Box::new(VerifyTxRequest {
+                tx,
+                account: Some(account),
+                info,
+            }),
+        }
+    }
+}
+
 /// helper method to validate basic assumptions
 pub fn is_basic_valid_tx_request(
     request: &VerifyTxRequest,
@@ -129,51 +169,21 @@ pub struct QueryEncryptRequest {
     pub tx_inputs: Option<Vec<TxoPointer>>,
 }
 
-/// requests sent from chain-abci app to enclave wrapper server
+/// requests sent from tx-query to chain-abci tx validation enclave app wrapper
 #[derive(Encode, Decode)]
 pub enum EnclaveRequest {
-    /// a sanity check (sends the chain network ID -- last byte / two hex digits convention)
-    /// during InitChain or startup (to test one connected to the correct process)
-    /// and the last processed app hash
-    /// FIXME: test genesis hash etc.
-    CheckChain {
-        chain_hex_id: u8,
-        last_app_hash: Option<H256>,
-    },
-    /// "stateless" transaction validation requests (sends transaction + all required information)
-    /// double-spent / BitVec check done in chain-abci
-    VerifyTx(Box<VerifyTxRequest>),
-    /// request to get the block's transaction filter and reset the existing one
-    EndBlock,
-    /// request to flush/persist storage + store the computed app hash + chain info (min_computed_fee is set to the constant factor in fee)
-    /// FIXME: enclave should be able to compute a part of app hash, so send the other parts and check the same app hash was computed
-    CommitBlock { app_hash: H256, info: ChainInfo },
     /// request to get tx data sealed to "mrsigner" (requested by TQE -- they should be on the same machine)
     GetSealedTxData { txids: Vec<TxId> },
     /// request to encrypt tx by the current key (requested by TQE -- they should be on the same machine)
     EncryptTx(Box<QueryEncryptRequest>),
 }
 
-impl EnclaveRequest {
-    pub fn new_tx_request(tx: TxEnclaveAux, account: Option<StakedState>, info: ChainInfo) -> Self {
-        EnclaveRequest::VerifyTx(Box::new(VerifyTxRequest { tx, account, info }))
-    }
-}
-
 pub type VerifyOk = (Fee, Option<StakedState>, Option<Box<SealedLog>>);
 
-/// responses sent from enclave wrapper server to chain-abci app
+/// responses sent from chain-abci tx validation enclave app wrapper to tx-query
 /// TODO: better error responses?
 #[derive(Encode, Decode)]
 pub enum EnclaveResponse {
-    /// returns OK if chain_hex_id matches the one embedded in enclave and last_app_hash matches (returns the last app hash if any)
-    CheckChain(Result<(), Option<H256>>),
-    /// returns the affected (account) state (if any) and paid fee if the TX is valid
-    VerifyTx(Result<VerifyOk, chain_tx_validation::Error>),
-    /// returns the transaction filter for the current block
-    EndBlock(Result<Option<Box<TxFilter>>, ()>),
-    /// returns if the data was successfully persisted in the enclave's local storage
-    CommitBlock(Result<(), ()>),
     /// returns Some(sealed data payloads) or None (if any TXID was not found / invalid)
     GetSealedTxData(Option<Vec<SealedLog>>),
     /// returns Ok(encrypted tx payload) if Tx was valid

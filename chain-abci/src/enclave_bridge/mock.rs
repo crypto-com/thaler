@@ -5,22 +5,20 @@ use abci::{RequestQuery, ResponseQuery};
 use chain_core::state::account::DepositBondTx;
 #[cfg(feature = "mock-enc-dec")]
 use chain_core::tx::data::input::TxoIndex;
-use chain_core::tx::data::TxId;
 use chain_core::tx::PlainTxAux;
-use chain_core::tx::TransactionId;
 use chain_core::tx::TxEnclaveAux;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::TxWithOutputs;
 use chain_storage::Storage;
 use chain_tx_filter::BlockFilter;
-use chain_tx_validation::{verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw};
+use chain_tx_validation::{verify_bonded_deposit_core, verify_transfer, verify_unbonded_withdraw};
+use enclave_protocol::IntraEnclaveResponseOk;
 #[cfg(feature = "mock-enc-dec")]
 use enclave_protocol::{
     DecryptionRequest, DecryptionRequestBody, DecryptionResponse, EncryptionRequest,
     EncryptionResponse,
 };
 use log::warn;
-use std::collections::HashMap;
 
 /// TODO: Remove
 #[cfg(not(feature = "mock-enc-dec"))]
@@ -129,7 +127,6 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
 
 pub struct MockClient {
     chain_hex_id: u8,
-    pub local_tx_store: HashMap<TxId, TxWithOutputs>,
     filter: BlockFilter,
 }
 
@@ -137,17 +134,8 @@ impl MockClient {
     pub fn new(chain_hex_id: u8) -> Self {
         MockClient {
             chain_hex_id,
-            local_tx_store: HashMap::new(),
             filter: BlockFilter::default(),
         }
-    }
-
-    fn lookup(&self, txid: &TxId) -> TxWithOutputs {
-        let tx = self
-            .local_tx_store
-            .get(txid)
-            .expect("mock is expected to be fed valid/existing TX");
-        (*tx).clone()
     }
 
     fn add_view_keys(&mut self, plain_tx: &TxWithOutputs) {
@@ -167,71 +155,99 @@ impl MockClient {
 }
 
 impl EnclaveProxy for MockClient {
-    fn process_request(&mut self, request: EnclaveRequest) -> EnclaveResponse {
-        match request {
-            EnclaveRequest::CheckChain { chain_hex_id, .. } => {
-                if chain_hex_id == self.chain_hex_id {
-                    EnclaveResponse::CheckChain(Ok(()))
-                } else {
-                    EnclaveResponse::CheckChain(Err(None))
-                }
-            }
-            EnclaveRequest::EndBlock => {
+    fn check_chain(&self, network_id: u8) -> Result<(), ()> {
+        if self.chain_hex_id == network_id {
+            Ok(())
+        } else {
+            Err(())
+        }
+    }
+
+    fn process_request(&mut self, request: IntraEnclaveRequest) -> IntraEnclaveResponse {
+        match &request {
+            IntraEnclaveRequest::EndBlock => {
                 let maybe_filter = if self.filter.is_modified() {
                     Some(Box::new(self.filter.get_raw()))
                 } else {
                     None
                 };
                 self.filter.reset();
-                EnclaveResponse::EndBlock(Ok(maybe_filter))
+                Ok(IntraEnclaveResponseOk::EndBlock(maybe_filter))
             }
-            EnclaveRequest::CommitBlock { .. } => EnclaveResponse::CommitBlock(Ok(())),
-            EnclaveRequest::VerifyTx(txrequest) => {
-                let (tx, account, info) = (txrequest.tx, txrequest.account, txrequest.info);
-                let (txpayload, inputs) = match &tx {
-                    TxEnclaveAux::TransferTx {
-                        inputs,
-                        payload: TxObfuscated { txpayload, .. },
-                        ..
-                    } => (
+            IntraEnclaveRequest::Encrypt(_) => {
+                // TODO: mock / simulate ?
+                Err(chain_tx_validation::Error::EnclaveRejected)
+            }
+            IntraEnclaveRequest::ValidateTx { request, tx_inputs } => {
+                let (tx, account, info) =
+                    (request.tx.clone(), request.account.clone(), request.info);
+
+                let (txpayload, inputs) = match (&tx, tx_inputs) {
+                    (
+                        TxEnclaveAux::TransferTx {
+                            payload: TxObfuscated { txpayload, .. },
+                            ..
+                        },
+                        Some(inputs),
+                    ) => (
                         txpayload,
-                        inputs.iter().map(|x| self.lookup(&x.id)).collect(),
+                        inputs
+                            .iter()
+                            .map(|x| TxWithOutputs::decode(&mut x.as_slice()).expect("TODO mock"))
+                            .collect(),
                     ),
-                    TxEnclaveAux::DepositStakeTx {
-                        tx: DepositBondTx { inputs, .. },
-                        payload: TxObfuscated { txpayload, .. },
-                        ..
-                    } => (
+                    (
+                        TxEnclaveAux::DepositStakeTx {
+                            tx: DepositBondTx { .. },
+                            payload: TxObfuscated { txpayload, .. },
+                            ..
+                        },
+                        Some(inputs),
+                    ) => (
                         txpayload,
-                        inputs.iter().map(|x| self.lookup(&x.id)).collect(),
+                        inputs
+                            .iter()
+                            .map(|x| TxWithOutputs::decode(&mut x.as_slice()).expect("TODO mock"))
+                            .collect(),
                     ),
-                    TxEnclaveAux::WithdrawUnbondedStakeTx {
-                        payload: TxObfuscated { txpayload, .. },
-                        ..
-                    } => (txpayload, vec![]),
+                    (
+                        TxEnclaveAux::WithdrawUnbondedStakeTx {
+                            payload: TxObfuscated { txpayload, .. },
+                            ..
+                        },
+                        _,
+                    ) => (txpayload, vec![]),
+                    _ => unreachable!(),
                 };
                 // FIXME
                 let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
                 match (tx, plain_tx) {
                     (_, Ok(PlainTxAux::TransferTx(maintx, witness))) => {
                         let result = verify_transfer(&maintx, &witness, info, inputs);
-                        let fakesealed = if result.is_ok() {
-                            let txid = maintx.id();
-                            let txwo = TxWithOutputs::Transfer(maintx);
-                            self.add_view_keys(&txwo);
-                            self.local_tx_store.insert(txid, txwo.clone());
-                            Some(Box::new(txwo.encode()))
-                        } else {
-                            None
-                        };
-                        EnclaveResponse::VerifyTx(result.map(|x| (x, None, fakesealed)))
+                        match result {
+                            Ok(fee) => {
+                                let txwo = TxWithOutputs::Transfer(maintx);
+                                self.add_view_keys(&txwo);
+
+                                Ok(IntraEnclaveResponseOk::TxWithOutputs {
+                                    paid_fee: fee,
+                                    sealed_tx: txwo.encode(),
+                                })
+                            }
+                            Err(e) => Err(e),
+                        }
                     }
                     (
                         TxEnclaveAux::DepositStakeTx { tx, .. },
                         Ok(PlainTxAux::DepositStakeTx(witness)),
                     ) => {
-                        let result = verify_bonded_deposit(&tx, &witness, info, inputs, account);
-                        EnclaveResponse::VerifyTx(result.map(|(x, y)| (x, y, None)))
+                        let result = verify_bonded_deposit_core(&tx, &witness, info, inputs);
+                        match result {
+                            Ok(input_coins) => {
+                                Ok(IntraEnclaveResponseOk::DepositStakeTx { input_coins })
+                            }
+                            Err(e) => Err(e),
+                        }
                     }
                     (_, Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx))) => {
                         let result = verify_unbonded_withdraw(
@@ -239,21 +255,22 @@ impl EnclaveProxy for MockClient {
                             info,
                             account.expect("account exists in withdraw"),
                         );
-                        let fakesealed = if result.is_ok() {
-                            let txid = tx.id();
-                            let txwo = TxWithOutputs::StakeWithdraw(tx);
-                            self.add_view_keys(&txwo);
-                            self.local_tx_store.insert(txid, txwo.clone());
-                            Some(Box::new(txwo.encode()))
-                        } else {
-                            None
-                        };
-                        EnclaveResponse::VerifyTx(result.map(|(x, y)| (x, y, fakesealed)))
+                        match result {
+                            Ok((fee, _account)) => {
+                                let txwo = TxWithOutputs::StakeWithdraw(tx);
+                                self.add_view_keys(&txwo);
+
+                                Ok(IntraEnclaveResponseOk::TxWithOutputs {
+                                    paid_fee: fee,
+                                    sealed_tx: txwo.encode(),
+                                })
+                            }
+                            Err(e) => Err(e),
+                        }
                     }
-                    _ => EnclaveResponse::UnknownRequest,
+                    _ => unreachable!(),
                 }
             }
-            _ => EnclaveResponse::UnknownRequest,
         }
     }
 }

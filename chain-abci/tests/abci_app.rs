@@ -47,7 +47,6 @@ use chain_storage::{
     LookupItem, Storage, COL_NODE_INFO, GENESIS_APP_HASH_KEY, LAST_STATE_KEY, NUM_COLUMNS,
 };
 use chain_tx_filter::BlockFilter;
-use chain_tx_validation::TxWithOutputs;
 use hex::decode;
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
@@ -59,6 +58,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::Arc;
+use test_common::chain_env::ChainEnv;
 
 pub fn get_enclave_bridge_mock() -> MockClient {
     MockClient::new(0)
@@ -94,6 +94,7 @@ fn proper_hash_and_chainid_should_be_stored() {
         Storage::new_db(db.clone()),
         create_account_db(),
         None,
+        None,
     );
     let decoded_gah = decode(example_hash).unwrap();
     let stored_genesis = app.storage.get_genesis_app_hash();
@@ -114,6 +115,7 @@ fn too_long_hash_should_panic() {
         Storage::new_db(db.clone()),
         create_account_db(),
         None,
+        None,
     );
 }
 
@@ -129,6 +131,7 @@ fn chain_id_without_hex_digits_should_panic() {
         Storage::new_db(db.clone()),
         create_account_db(),
         None,
+        None,
     );
 }
 
@@ -143,6 +146,7 @@ fn nonhex_hash_should_panic() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
         None,
     );
 }
@@ -212,6 +216,7 @@ fn previously_stored_hash_should_match() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
         None,
     );
 }
@@ -283,6 +288,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
             TEST_CHAIN_ID,
             Storage::new_db(db.clone()),
             create_account_db(),
+            None,
             None,
         );
         let mut req = RequestInitChain::default();
@@ -366,6 +372,7 @@ fn init_chain_panics_with_different_app_hash() {
         Storage::new_db(db.clone()),
         create_account_db(),
         None,
+        None,
     );
     let mut req = RequestInitChain::default();
     req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
@@ -385,6 +392,7 @@ fn init_chain_panics_with_empty_app_bytes() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         create_account_db(),
+        None,
         None,
     );
     let req = RequestInitChain::default();
@@ -660,7 +668,7 @@ fn valid_commit_should_persist() {
 
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxBody, &tx.id())
+        .lookup_item(LookupItem::TxSealed, &tx.id())
         .is_none());
     assert!(app
         .storage
@@ -674,7 +682,7 @@ fn valid_commit_should_persist() {
     assert_eq!(0, app.delivered_txs.len());
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxBody, &tx.id())
+        .lookup_item(LookupItem::TxSealed, &tx.id())
         .is_some());
     assert!(app
         .storage
@@ -736,60 +744,6 @@ fn query_should_return_an_account() {
     let qresp = app.query(&qreq);
     let account = StakedState::decode(&mut qresp.value.as_slice());
     assert!(account.is_ok());
-}
-
-#[test]
-fn query_should_return_proof_for_committed_tx() {
-    let (mut app, tx, witness, _) = deliver_valid_tx();
-    let mut endreq = RequestEndBlock::default();
-    endreq.set_height(10);
-    app.end_block(&endreq);
-    let cresp = app.commit(&RequestCommit::default());
-    let mut qreq = RequestQuery::new();
-    qreq.data = tx.id().to_vec();
-    qreq.path = "store".into();
-    qreq.prove = true;
-    let qresp = app.query(&qreq);
-    let returned_tx = TxWithOutputs::decode(&mut qresp.value.as_slice()).unwrap();
-    match returned_tx {
-        TxWithOutputs::StakeWithdraw(stx) => {
-            assert_eq!(tx, stx);
-        }
-        _ => panic!("expected stake withdrawal to be returned to a query"),
-    }
-
-    let proof = qresp.proof.unwrap();
-
-    assert_eq!(proof.ops.len(), 2);
-
-    let mut transaction_root_hash = [0u8; 32];
-    transaction_root_hash.copy_from_slice(proof.ops[0].key.as_slice());
-
-    let mut transaction_proof_data = proof.ops[0].data.as_slice();
-    let transaction_proof = <Proof<H256>>::decode(&mut transaction_proof_data).unwrap();
-
-    assert!(transaction_proof.verify(&transaction_root_hash));
-
-    let rewards_pool_part = app
-        .last_state
-        .clone()
-        .unwrap()
-        .top_level
-        .rewards_pool
-        .hash();
-    let mut bs = Vec::new();
-    bs.extend(transaction_root_hash.to_vec());
-    bs.extend(&app.last_state.clone().unwrap().top_level.account_root);
-    bs.extend(&rewards_pool_part);
-    bs.extend(&get_dummy_network_params().hash());
-
-    assert_eq!(txid_hash(&bs).to_vec(), cresp.data);
-    let mut qreq2 = RequestQuery::new();
-    qreq2.data = tx.id().to_vec();
-    qreq2.path = "witness".into();
-    let qresp = app.query(&qreq2);
-    assert_eq!(qresp.value, witness.encode());
-    assert_eq!(proof.ops[1].data, txid_hash(&qresp.value));
 }
 
 fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64) {
@@ -1012,4 +966,77 @@ fn all_valid_tx_types_should_commit() {
         assert_eq!(account.unbonded, Coin::unit());
         assert_eq!(account.nonce, 4);
     }
+}
+
+#[test]
+fn query_should_return_proof_for_committed_tx() {
+    let (env, storage, account_storage) =
+        ChainEnv::new_with_customizer(Coin::max(), Coin::zero(), 2, |parameters| {
+            parameters.required_council_node_stake = (Coin::max() / 10).unwrap();
+        });
+    let mut app = env.chain_node(storage, account_storage);
+    let _rsp = app.init_chain(&env.req_init_chain());
+
+    app.begin_block(&env.req_begin_block(1, 0));
+
+    let tx_aux = env.unbond_tx((Coin::max() / 10).unwrap(), 0, 0);
+    let rsp_tx = app.deliver_tx(&RequestDeliverTx {
+        tx: tx_aux.encode(),
+        ..Default::default()
+    });
+
+    assert_eq!(0, rsp_tx.code);
+
+    let _response_end_block = app.end_block(&RequestEndBlock {
+        height: 1,
+        ..Default::default()
+    });
+    let cresp = app.commit(&RequestCommit::default());
+    let mut qreq = RequestQuery::new();
+    qreq.data = tx_aux.tx_id().to_vec();
+    qreq.path = "store".into();
+    qreq.prove = true;
+    let qresp = app.query(&qreq);
+    let returned_tx = UnbondTx::decode(&mut qresp.value.as_slice()).unwrap();
+    match &tx_aux {
+        TxAux::UnbondStakeTx(stx, _) => {
+            assert_eq!(returned_tx, stx.clone());
+        }
+        _ => unreachable!(),
+    }
+
+    let proof = qresp.proof.unwrap();
+    let merkle = MerkleTree::new(vec![tx_aux.tx_id()]);
+    assert_eq!(proof.ops.len(), 2);
+
+    let mut transaction_root_hash = [0u8; 32];
+    transaction_root_hash.copy_from_slice(proof.ops[0].key.as_slice());
+
+    let mut transaction_proof_data = proof.ops[0].data.as_slice();
+    let transaction_proof = <Proof<H256>>::decode(&mut transaction_proof_data).unwrap();
+
+    assert!(transaction_proof.verify(&transaction_root_hash));
+    assert_eq!(merkle.root_hash(), transaction_root_hash);
+    let last_state = app.last_state.clone().unwrap();
+    assert_eq!(
+        compute_app_hash(
+            &merkle,
+            &last_state.top_level.account_root,
+            &last_state.top_level.rewards_pool,
+            &last_state.top_level.network_params
+        )
+        .to_vec(),
+        cresp.data
+    );
+    let mut qreq2 = RequestQuery::new();
+    qreq2.data = tx_aux.tx_id().to_vec();
+    qreq2.path = "witness".into();
+    let qresp = app.query(&qreq2);
+    match &tx_aux {
+        TxAux::UnbondStakeTx(_, witness) => {
+            assert_eq!(qresp.value, witness.encode());
+        }
+        _ => unreachable!(),
+    }
+    assert_eq!(proof.ops[1].data, txid_hash(&qresp.value));
 }

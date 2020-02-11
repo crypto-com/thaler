@@ -14,7 +14,7 @@ use chain_tx_validation::{
     verify_node_join, verify_unbonding, verify_unjailed, verify_unjailing,
     witness::verify_tx_recover_address, ChainInfo, Error, NodeChecker,
 };
-use enclave_protocol::{EnclaveRequest, EnclaveResponse, VerifyOk};
+use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, SealedLog, VerifyOk};
 
 /// checks that the account can be retrieved from the trie storage
 pub fn get_account(
@@ -29,11 +29,15 @@ pub fn get_account(
     }
 }
 
-fn check_spent_input_lookup(inputs: &[TxoPointer], storage: &Storage) -> Result<(), Error> {
+fn check_spent_input_lookup(
+    inputs: &[TxoPointer],
+    storage: &Storage,
+) -> Result<Vec<SealedLog>, Error> {
     // check that there are inputs
     if inputs.is_empty() {
         return Err(Error::NoInputs);
     }
+    let mut result = Vec::with_capacity(inputs.len());
     for txin in inputs.iter() {
         let txo = storage.lookup_input(txin);
         match txo {
@@ -49,10 +53,16 @@ fn check_spent_input_lookup(inputs: &[TxoPointer], storage: &Storage) -> Result<
             Ok(InputStatus::Spent) => {
                 return Err(Error::InputSpent);
             }
-            Ok(InputStatus::Unspent) => {}
+            Ok(InputStatus::Unspent) => {
+                result.push(
+                    storage
+                        .get_sealed_log(&txin.id)
+                        .expect("valid unspent tx output should be stored"),
+                );
+            }
         }
     }
-    Ok(())
+    Ok(result)
 }
 
 /// Checks TX against the current DB, passes to the enclave and returns an `Error` if something fails.
@@ -66,27 +76,21 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
     accounts: &AccountStorage,
 ) -> Result<VerifyOk, Error> {
     match txaux {
-        TxEnclaveAux::TransferTx {
-            inputs,
-            no_of_outputs,
-            payload,
-        } => {
-            check_spent_input_lookup(&inputs, storage)?;
-            let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
-                TxEnclaveAux::TransferTx {
-                    inputs: inputs.clone(),
-                    no_of_outputs: *no_of_outputs,
-                    payload: payload.clone(),
-                },
-                None,
-                extra_info,
-            ));
+        TxEnclaveAux::TransferTx { inputs, .. } => {
+            let tx_inputs = check_spent_input_lookup(&inputs, storage)?;
+            let response = tx_validator.process_request(
+                IntraEnclaveRequest::new_validate_transfer(txaux.clone(), extra_info, tx_inputs),
+            );
             match response {
-                EnclaveResponse::VerifyTx(r) => r,
-                _ => Err(Error::EnclaveRejected),
+                Ok(IntraEnclaveResponseOk::TxWithOutputs {
+                    paid_fee,
+                    sealed_tx,
+                }) => Ok((paid_fee, None, Some(Box::new(sealed_tx)))),
+                Err(e) => Err(e),
+                _ => unreachable!("unexpected enclave response"),
             }
         }
-        TxEnclaveAux::DepositStakeTx { tx, payload } => {
+        TxEnclaveAux::DepositStakeTx { tx, .. } => {
             let maccount = get_account(&tx.to_staked_account, last_account_root_hash, accounts);
             let account = match maccount {
                 Ok(a) => Some(a),
@@ -99,55 +103,65 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
                 verify_unjailed(account)?;
             }
 
-            check_spent_input_lookup(&tx.inputs, storage)?;
+            let tx_inputs = check_spent_input_lookup(&tx.inputs, storage)?;
 
-            let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
-                TxEnclaveAux::DepositStakeTx {
-                    tx: tx.clone(),
-                    payload: payload.clone(),
-                },
-                account,
+            let response = tx_validator.process_request(IntraEnclaveRequest::new_validate_deposit(
+                txaux.clone(),
                 extra_info,
+                account.clone(),
+                tx_inputs,
             ));
             match response {
-                EnclaveResponse::VerifyTx(r) => r,
-                _ => Err(Error::EnclaveRejected),
+                Ok(IntraEnclaveResponseOk::DepositStakeTx { input_coins }) => {
+                    let deposit_amount = (input_coins - extra_info.min_fee_computed.to_coin())
+                        .expect("diff with min fee in coins");
+                    let account = match account {
+                        Some(mut a) => {
+                            a.deposit(deposit_amount);
+                            Some(a)
+                        }
+                        None => Some(StakedState::new_init_bonded(
+                            deposit_amount,
+                            extra_info.previous_block_time,
+                            tx.to_staked_account,
+                            None,
+                        )),
+                    };
+                    let fee = extra_info.min_fee_computed;
+                    Ok((fee, account, None))
+                }
+                Err(e) => Err(e),
+                _ => unreachable!("unexpected enclave response"),
             }
         }
         TxEnclaveAux::WithdrawUnbondedStakeTx {
-            payload:
-                TxObfuscated {
-                    key_from,
-                    init_vector,
-                    txpayload,
-                    txid,
-                },
+            payload: TxObfuscated { txid, .. },
             witness,
-            no_of_outputs,
+            ..
         } => {
             let account_address = verify_tx_recover_address(&witness, &txid);
             if let Err(_e) = account_address {
                 return Err(Error::EcdsaCrypto); // FIXME: Err(Error::EcdsaCrypto(e));
             }
-            let account = get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
+            let mut account =
+                get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
             verify_unjailed(&account)?;
-            let response = tx_validator.process_request(EnclaveRequest::new_tx_request(
-                TxEnclaveAux::WithdrawUnbondedStakeTx {
-                    payload: TxObfuscated {
-                        key_from: *key_from,
-                        init_vector: *init_vector,
-                        txpayload: txpayload.clone(),
-                        txid: *txid,
-                    },
-                    witness: witness.clone(),
-                    no_of_outputs: *no_of_outputs,
-                },
-                Some(account),
-                extra_info,
-            ));
+            let response =
+                tx_validator.process_request(IntraEnclaveRequest::new_validate_withdraw(
+                    txaux.clone(),
+                    extra_info,
+                    account.clone(),
+                ));
             match response {
-                EnclaveResponse::VerifyTx(r) => r,
-                _ => Err(Error::EnclaveRejected),
+                Ok(IntraEnclaveResponseOk::TxWithOutputs {
+                    paid_fee,
+                    sealed_tx,
+                }) => {
+                    account.withdraw();
+                    Ok((paid_fee, Some(account), Some(Box::new(sealed_tx))))
+                }
+                Err(e) => Err(e),
+                _ => unreachable!("unexpected enclave response"),
             }
         }
     }
