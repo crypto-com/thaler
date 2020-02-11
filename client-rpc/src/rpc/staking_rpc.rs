@@ -37,7 +37,7 @@ pub trait StakingRpc: Send + Sync {
     ) -> Result<String>;
 
     #[rpc(name = "staking_state")]
-    fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState>;
+    fn state(&self, address: StakedStateAddress) -> Result<StakedState>;
 
     #[rpc(name = "staking_unbondStake")]
     fn unbond_stake(
@@ -247,9 +247,9 @@ where
         Ok(hex::encode(tx_id))
     }
 
-    fn state(&self, request: WalletRequest, address: StakedStateAddress) -> Result<StakedState> {
+    fn state(&self, address: StakedStateAddress) -> Result<StakedState> {
         self.ops_client
-            .get_staked_state(&request.name, &request.enckey, &address)
+            .get_staked_state(&address)
             .map_err(to_rpc_error)
     }
 

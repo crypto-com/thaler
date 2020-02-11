@@ -327,9 +327,9 @@ describe("Staking", () => {
 			bonded: stakingAmount,
 			unbonded: "0",
 		};
-		await waitStakingState(walletRequest, stakingAddress, expectedState);
+		await waitStakingState(stakingAddress, expectedState);
 		const stakingStateAfterDeposit = await asyncMiddleman(
-			rpcClient.request("staking_state", [walletRequest, stakingAddress]),
+			rpcClient.request("staking_state", [stakingAddress]),
 			"Error when query staking state after deposit",
 		);
 		assertStakingState(
@@ -403,9 +403,9 @@ describe("Staking", () => {
 			bonded: remainingBondedAmount,
 			unbonded: unbondAmount,
 		};
-		await waitStakingState(walletRequest, stakingAddress, expectedState);
+		await waitStakingState(stakingAddress, expectedState);
 		const stakingStateAfterUnbond = await asyncMiddleman(
-			rpcClient.request("staking_state", [walletRequest, stakingAddress]),
+			rpcClient.request("staking_state", [stakingAddress]),
 			"Error when query staking state after unbond",
 		);
 		assertStakingState(
@@ -487,9 +487,9 @@ describe("Staking", () => {
 			bonded: remainingBondedAmount,
 			unbonded: "0",
 		};
-		await waitStakingState(walletRequest, stakingAddress, expectedState);
+		await waitStakingState(stakingAddress, expectedState);
 		const stakingStateAfterWithdraw = await asyncMiddleman(
-			rpcClient.request("staking_state", [walletRequest, stakingAddress]),
+			rpcClient.request("staking_state", [stakingAddress]),
 			"Error when querying staking state after withdraw",
 		);
 		assertStakingState(
@@ -527,7 +527,6 @@ describe("Staking", () => {
 	}
 
 	const waitStakingState = async (
-		walletRequest: WalletRequest,
 		stakingAddress: string,
 		expectedState: ExpectedStakingState,
 	) => {
@@ -535,7 +534,7 @@ describe("Staking", () => {
 			await sleep(2000);
 			console.log(`[Log] Checking latest staking state`);
 			const stakingState = await asyncMiddleman(
-				rpcClient.request("staking_state", [walletRequest, stakingAddress]),
+				rpcClient.request("staking_state", [stakingAddress]),
 				"Error when query staking state",
 			);
 
