@@ -385,7 +385,18 @@ impl ValidatorState {
                 liveness_tracker.update(block_height, signed);
             }
             None => {
-                log::warn!("Validator in `last_commit_info` not found in liveness tracker");
+                if let Some(staking_address) = self.tendermint_validator_addresses.get(tm_address) {
+                    log::info!(
+                        "Validator in `last_commit_info` not found in liveness tracker: {}: {}",
+                        tm_address,
+                        staking_address
+                    );
+                } else {
+                    log::error!(
+                        "Validator in `last_commit_info` is cleaned up/non-existent: {}",
+                        tm_address
+                    );
+                }
             }
         }
     }
