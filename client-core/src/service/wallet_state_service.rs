@@ -68,6 +68,25 @@ where
         }
     }
 
+    /// Returns `true` or `false` depending if input is unspent or not. `true` if the input is unspent, `false`
+    /// otherwise
+    pub fn are_inputs_unspent(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        inputs: Vec<TxoPointer>,
+    ) -> Result<Vec<(TxoPointer, bool)>> {
+        let unspent_transactions = self.get_unspent_transactions(name, enckey, false)?;
+
+        Ok(inputs
+            .into_iter()
+            .map(|input| {
+                let is_unspent = unspent_transactions.contains_key(&input);
+                (input, is_unspent)
+            })
+            .collect())
+    }
+
     /// Returns currently stored transaction history for given wallet
     #[inline]
     pub fn get_transaction_history(

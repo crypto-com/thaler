@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
+use std::convert::TryInto;
 use std::str::FromStr;
 
 use chain_core::common::{Timespec, HASH_SIZE_256};
+use chain_core::init::coin::Coin;
 use chain_core::init::network::get_network_id;
 use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateOpAttributes};
 use chain_core::state::tendermint::TendermintValidatorPubKey;
@@ -12,9 +14,13 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
 use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecKey, Transaction};
-use client_core::types::TransactionPending;
+use client_core::types::{BalanceChange, TransactionPending};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
+
+use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use cli_table::format::{CellFormat, Color, Justify};
+use cli_table::{Cell, Row, Table};
 use hex::decode;
 use quest::{ask, success, text, yesno};
 use structopt::StructOpt;
@@ -91,6 +97,23 @@ pub enum TransactionCommand {
         )]
         transaction_type: TransactionType,
     },
+    #[structopt(name = "show", about = "Display details of a transaction")]
+    Show {
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
+        name: String,
+        #[structopt(
+            name = "transaction id",
+            short = "i",
+            long = "id",
+            help = "Transaction ID"
+        )]
+        transaction_id: String,
+    },
     #[structopt(
         name = "export",
         about = "Export a plain transaction by a given transaction id"
@@ -144,6 +167,10 @@ impl TransactionCommand {
                 name,
                 transaction_type,
             } => new_transaction(wallet_client, network_ops_client, name, transaction_type),
+            TransactionCommand::Show {
+                name,
+                transaction_id,
+            } => display_transaction(wallet_client, name, transaction_id),
             TransactionCommand::Export { name, id } => {
                 let enckey = ask_seckey(None)?;
                 let tx_info = wallet_client.export_plain_tx(name, &enckey, id)?;
@@ -159,6 +186,193 @@ impl TransactionCommand {
             }
         }
     }
+}
+
+fn display_transaction<T: WalletClient>(
+    wallet_client: &T,
+    name: &str,
+    transaction_id: &str,
+) -> Result<()> {
+    let enckey = ask_seckey(None)?;
+
+    let transaction_id_decoded = decode(transaction_id).chain(|| {
+        (
+            ErrorKind::DeserializationError,
+            "Unable to deserialize transaction ID from bytes",
+        )
+    })?;
+
+    if transaction_id_decoded.len() != HASH_SIZE_256 {
+        return Err(Error::new(
+            ErrorKind::DeserializationError,
+            "Transaction ID should be of 32 bytes",
+        ));
+    }
+
+    let mut transaction_id: [u8; HASH_SIZE_256] = [0; HASH_SIZE_256];
+    transaction_id.copy_from_slice(&transaction_id_decoded);
+
+    let transaction_change =
+        wallet_client.get_transaction_change(name, &enckey, &transaction_id)?;
+
+    match transaction_change {
+        None => {
+            success("Transaction not found!");
+        }
+        Some(transaction_change) => {
+            let bold = CellFormat::builder().bold(true).build();
+            let green = CellFormat::builder()
+                .foreground_color(Some(Color::Green))
+                .build();
+            let red = CellFormat::builder()
+                .foreground_color(Some(Color::Red))
+                .build();
+            let blue = CellFormat::builder()
+                .foreground_color(Some(Color::Blue))
+                .build();
+
+            let right_justify = CellFormat::builder().justify(Justify::Right).build();
+
+            let mut metadata_rows = Vec::new();
+
+            metadata_rows.push(Row::new(vec![
+                Cell::new("Transaction ID", bold),
+                Cell::new("In/Out", bold),
+                Cell::new("Amount", bold),
+                Cell::new("Fee", bold),
+                Cell::new("Transaction Type", bold),
+                Cell::new("Block Height", bold),
+                Cell::new("Block Time", bold),
+            ]));
+
+            let (amount, in_out, format) = match transaction_change.balance_change {
+                BalanceChange::Incoming { value } => (value, "IN", green),
+                BalanceChange::Outgoing { value } => (value, "OUT", red),
+                BalanceChange::NoChange => (Coin::zero(), "NO CHANGE", blue),
+            };
+
+            metadata_rows.push(Row::new(vec![
+                Cell::new(
+                    &hex::encode(&transaction_change.transaction_id),
+                    Default::default(),
+                ),
+                Cell::new(in_out, format),
+                Cell::new(&amount, right_justify),
+                Cell::new(&transaction_change.fee_paid.to_coin(), right_justify),
+                Cell::new(&transaction_change.transaction_type, Default::default()),
+                Cell::new(&transaction_change.block_height, right_justify),
+                Cell::new(&transaction_change.block_time, Default::default()),
+            ]));
+
+            let metadata_table = Table::new(metadata_rows, Default::default());
+
+            println!();
+            ask("Transaction metadata: ");
+            println!();
+
+            metadata_table
+                .print_stdout()
+                .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
+
+            let inputs: Vec<TxoPointer> = transaction_change
+                .inputs
+                .into_iter()
+                .map(|input| input.pointer)
+                .collect();
+
+            if !inputs.is_empty() {
+                let mut inputs_rows = Vec::new();
+
+                inputs_rows.push(Row::new(vec![
+                    Cell::new("Transaction ID", bold),
+                    Cell::new("Index", bold),
+                ]));
+
+                for input in inputs.into_iter() {
+                    inputs_rows.push(Row::new(vec![
+                        Cell::new(&hex::encode(&input.id), Default::default()),
+                        Cell::new(&input.index, right_justify),
+                    ]));
+                }
+
+                let inputs_table = Table::new(inputs_rows, Default::default());
+
+                println!();
+                ask("Transaction inputs: ");
+                println!();
+
+                inputs_table
+                    .print_stdout()
+                    .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
+            }
+
+            let outputs = transaction_change.outputs;
+
+            if !outputs.is_empty() {
+                let mut outputs_rows = Vec::new();
+
+                outputs_rows.push(Row::new(vec![
+                    Cell::new("Address", bold),
+                    Cell::new("Value", bold),
+                    Cell::new("Time-locked until", bold),
+                    Cell::new("Spent/Unspent", bold),
+                ]));
+
+                let inputs: Vec<TxoPointer> = outputs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| TxoPointer::new(transaction_id, i))
+                    .collect();
+
+                let spent_unspent: Vec<(&str, CellFormat)> = wallet_client
+                    .are_inputs_unspent(name, &enckey, inputs)?
+                    .into_iter()
+                    .map(|input| input.1)
+                    .map(|is_unspent| {
+                        if is_unspent {
+                            ("Unspent", green)
+                        } else {
+                            ("Spent", red)
+                        }
+                    })
+                    .collect();
+
+                for (output, (spent_unspent, format)) in
+                    outputs.into_iter().zip(spent_unspent.into_iter())
+                {
+                    let valid_from = match output.valid_from {
+                        None => "Not time-locked".to_string(),
+                        Some(valid_from) => {
+                            let valid_from = <DateTime<Local>>::from(DateTime::<Utc>::from_utc(
+                                NaiveDateTime::from_timestamp(valid_from.try_into().unwrap(), 0),
+                                Utc,
+                            ));
+                            valid_from.to_string()
+                        }
+                    };
+
+                    outputs_rows.push(Row::new(vec![
+                        Cell::new(&output.address, Default::default()),
+                        Cell::new(&output.value, right_justify),
+                        Cell::new(&valid_from, right_justify),
+                        Cell::new(&spent_unspent, format),
+                    ]));
+                }
+
+                let outputs_table = Table::new(outputs_rows, Default::default());
+
+                println!();
+                ask("Transaction outputs: ");
+                println!();
+
+                outputs_table
+                    .print_stdout()
+                    .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
