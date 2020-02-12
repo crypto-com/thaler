@@ -628,7 +628,7 @@ dependencies = [
  "parity-scale-codec",
  "quickcheck",
  "rand 0.7.3",
- "rust-argon2 0.8.0",
+ "rust-argon2 0.8.1",
  "secp256k1zkp",
  "secstr",
  "serde",
@@ -780,6 +780,8 @@ dependencies = [
  "client-common",
  "client-core",
  "hex 0.4.1",
+ "parity-scale-codec",
+ "secp256k1zkp",
  "secstr",
 ]
 
@@ -2815,9 +2817,9 @@ dependencies = [
 
 [[package]]
 name = "rust-argon2"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "375368e03ae25fdbe75c19884c72b8dd235c2f5e5858dc88ea8f0a85aeeb2d51"
+checksum = "13d93898abbc08f4122732299b5cc3e81052c18c6218045eba4a80e02a086a42"
 dependencies = [
  "base64 0.11.0",
  "blake2b_simd",
