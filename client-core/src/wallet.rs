@@ -204,6 +204,14 @@ pub trait WalletClient: Send + Sync {
         reversed: bool,
     ) -> Result<Vec<TransactionChange>>;
 
+    /// Retrieves transaction change corresponding to given transaction ID
+    fn get_transaction_change(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        transaction_id: &TxId,
+    ) -> Result<Option<TransactionChange>>;
+
     /// Retrieves all unspent transactions of wallet
     fn unspent_transactions(&self, name: &str, enckey: &SecKey) -> Result<UnspentTransactions>;
 
@@ -214,6 +222,15 @@ pub trait WalletClient: Send + Sync {
         enckey: &SecKey,
         inputs: &[TxoPointer],
     ) -> Result<bool>;
+
+    /// Returns `true` or `false` depending if input is unspent or not. `true` if the input is unspent, `false`
+    /// otherwise
+    fn are_inputs_unspent(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        inputs: Vec<TxoPointer>,
+    ) -> Result<Vec<(TxoPointer, bool)>>;
 
     /// Returns output of transaction with given input details
     fn output(&self, name: &str, enckey: &SecKey, input: &TxoPointer) -> Result<TxOut>;

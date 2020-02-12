@@ -589,6 +589,17 @@ where
         Ok(history)
     }
 
+    #[inline]
+    fn get_transaction_change(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        transaction_id: &TxId,
+    ) -> Result<Option<TransactionChange>> {
+        self.wallet_state_service
+            .get_transaction_change(name, enckey, transaction_id)
+    }
+
     fn unspent_transactions(&self, name: &str, enckey: &SecKey) -> Result<UnspentTransactions> {
         // Check if wallet exists
         self.wallet_service.view_key(name, enckey)?;
@@ -613,6 +624,17 @@ where
 
         self.wallet_state_service
             .has_unspent_transactions(name, enckey, inputs)
+    }
+
+    #[inline]
+    fn are_inputs_unspent(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        inputs: Vec<TxoPointer>,
+    ) -> Result<Vec<(TxoPointer, bool)>> {
+        self.wallet_state_service
+            .are_inputs_unspent(name, enckey, inputs)
     }
 
     #[inline]
