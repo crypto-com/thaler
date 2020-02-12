@@ -1,0 +1,59 @@
+---
+kind: pipeline
+name: default
+
+steps:
+- name: build
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export BUILD_MODE=mock
+  - export CARGO_HOME=$PWD/drone/cargo
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - ./docker/build.sh
+
+- name: unit-tests
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export BUILD_MODE=mock
+  - export CARGO_HOME=$PWD/drone/cargo
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - ./docker/unittest.sh
+
+- name: integration-tests
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export BUILD_MODE=mock
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export PYTHON_VENV_DIR=$PWD/drone/venv
+  - ./integration-tests/run.sh
+
+- name: multinode-tests
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export BUILD_MODE=mock
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export PYTHON_VENV_DIR=$PWD/drone/venv
+  - ./integration-tests/run_multinode.sh
+
+- name: teardown
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  commands:
+  - export BUILD_MODE=mock
+  - ./integration-tests/cleanup.sh
+  when:
+    status:
+      - success
+      - failure
+
+trigger:
+  branch:
+  - master
+  - staging
+  - trying
+  event:
+  - push

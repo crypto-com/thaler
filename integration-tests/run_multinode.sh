@@ -30,12 +30,15 @@ export BASE_PORT=${BASE_PORT:-26650}
 export CLIENT_RPC_PORT=$(($BASE_PORT + 9))
 
 function wait_http() {
-    for i in $(seq 0 10);
+    echo "Wait for http port $1"
+    for i in $(seq 0 20);
     do
         curl -s "http://127.0.0.1:$1" > /dev/null
         if [ $? -eq 0 ]; then
+            echo "Http port $1 is available now"
             return 0
         fi
+        echo "[`date`] Http port $1 not available yet, sleep 2 seconds and retry"
         sleep 2
     done
     return 1
@@ -49,7 +52,6 @@ function runtest() {
     supervisord -n -c data/tasks.ini &
     if ! wait_http $CLIENT_RPC_PORT; then
         echo 'client-rpc of first node still not ready, giveup.'
-        cat data/logs/*.log
         RETCODE=1
     else
         set +e

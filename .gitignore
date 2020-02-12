@@ -29,7 +29,7 @@ id_ecdsa
 
 # drone cache
 /drone
-/.drone.env
+/.drone.secret
 
 # integration tests temparary artifacts
 /integration-tests/*.so
