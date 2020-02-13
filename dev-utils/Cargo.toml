@@ -20,3 +20,7 @@ kvdb-memorydb = "0.3"
 dirs = "2.0.1"
 quest = "0.3"
 secstr = "0.4.0"
+
+[features]
+mock-enc-dec = ["chain-abci/mock-enc-dec"]
+mock-validation = ["chain-abci/mock-validation"]
