@@ -2,7 +2,7 @@ use quest::{ask, success, text};
 use secstr::SecUtf8;
 use structopt::StructOpt;
 
-use client_common::{Error, ErrorKind, Result, ResultExt};
+use client_common::{Error, ErrorKind, PrivateKey, Result, ResultExt};
 use client_core::types::WalletKind;
 use client_core::{Mnemonic, WalletClient};
 
@@ -43,6 +43,16 @@ pub enum WalletCommand {
         )]
         name: String,
     },
+    #[structopt(name = "restore-basic", about = "Restore watch-only Wallet")]
+    RestoreBasic {
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
+        name: String,
+    },
     #[structopt(name = "auth-token", about = "Get authentication token")]
     AuthToken {
         #[structopt(
@@ -73,6 +83,7 @@ impl WalletCommand {
             }
             WalletCommand::List => Self::list_wallets(wallet_client),
             WalletCommand::Restore { name } => Self::restore_wallet(wallet_client, name),
+            WalletCommand::RestoreBasic { name } => Self::restore_basic_wallet(wallet_client, name),
             WalletCommand::AuthToken { name } => Self::auth_token(wallet_client, name),
             WalletCommand::Delete { name } => Self::delete(wallet_client, name),
         }
@@ -143,6 +154,28 @@ impl WalletCommand {
         Ok(())
     }
 
+    fn restore_basic_wallet<T: WalletClient>(wallet_client: T, name: &str) -> Result<()> {
+        let passphrase = ask_passphrase(None)?;
+        let confirmed_passphrase = ask_passphrase(Some("Confirm passphrase: "))?;
+
+        if passphrase != confirmed_passphrase {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Passphrases do not match",
+            ));
+        }
+
+        let private_view_key = ask_private_view_key()?;
+
+        let enckey = wallet_client.restore_basic_wallet(name, &passphrase, &private_view_key)?;
+
+        success(&format!(
+            "Authentication token: {}",
+            &hex::encode(enckey.unsecure())
+        ));
+        Ok(())
+    }
+
     fn list_wallets<T: WalletClient>(wallet_client: T) -> Result<()> {
         let wallets = wallet_client.wallets()?;
 
@@ -180,4 +213,20 @@ fn ask_mnemonic(message: Option<&str>) -> Result<Mnemonic> {
     let mnemonic = SecUtf8::from(text().chain(|| (ErrorKind::IoError, "Unable to read mnemonic"))?);
 
     Mnemonic::from_secstr(&mnemonic)
+}
+
+fn ask_private_view_key() -> Result<PrivateKey> {
+    ask("Enter private view key: ");
+
+    let view_key_str = text().chain(|| (ErrorKind::IoError, "Unable to read view keys"))?;
+
+    if view_key_str.is_empty() {
+        Err(Error::new(ErrorKind::InvalidInput, "need private view key"))
+    } else {
+        let view_key = &hex::decode(view_key_str.trim())
+            .chain(|| (ErrorKind::InvalidInput, "invalid view_key"))?;
+        let view_key = PrivateKey::deserialize_from(view_key)
+            .chain(|| (ErrorKind::InvalidInput, "invalid private view key"))?;
+        Ok(view_key)
+    }
 }
