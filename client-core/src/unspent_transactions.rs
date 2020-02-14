@@ -1,4 +1,5 @@
 //! Operations on unspent transactions
+use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::ops::{Deref, DerefMut};
 
@@ -22,7 +23,7 @@ use client_common::{Error, ErrorKind, Result, ResultExt};
 /// // Apply operations
 /// unspent_transactions.apply_all(operations);
 /// ```
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, Encode, Decode)]
 #[serde(transparent)]
 pub struct UnspentTransactions(Vec<(TxoPointer, TxOut)>);
 

@@ -24,6 +24,7 @@ use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResponse;
 use client_common::{PrivateKey, PublicKey, Result, SecKey, Transaction, TransactionInfo};
 
+use crate::transaction_builder::{SignedTransferTransaction, UnsignedTransferTransaction};
 use crate::types::{AddressType, TransactionChange, TransactionPending, WalletBalance, WalletKind};
 use crate::{InputSelectionStrategy, Mnemonic, UnspentTransactions};
 
@@ -285,6 +286,36 @@ pub trait WalletClient: Send + Sync {
         tx_id: TxId,
         tx_pending: TransactionPending,
     ) -> Result<()>;
+
+    /// build raw transfer tx
+    ///
+    fn build_raw_transfer_tx(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        to_address: ExtendedAddr,
+        amount: Coin,
+        view_keys: Vec<PublicKey>,
+        network_id: u8,
+    ) -> Result<UnsignedTransferTransaction>;
+
+    /// sign raw transaction transfer
+    ///
+    fn sign_raw_transfer_tx(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        unsigned_tx: UnsignedTransferTransaction,
+    ) -> Result<SignedTransferTransaction>;
+
+    /// send signed transfer transaction_builder
+    ///
+    fn broadcast_signed_transfer_tx(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        signed_tx: SignedTransferTransaction,
+    ) -> Result<TxId>;
 }
 
 /// Interface for a generic wallet for multi-signature transactions

@@ -7,8 +7,10 @@ use secstr::SecUtf8;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::{PrivateKey, PublicKey, Result as CommonResult, SecKey};
+use client_core::transaction_builder::SignedTransferTransaction;
 use client_core::types::{TransactionChange, WalletBalance, WalletKind};
 use client_core::{Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient};
+use parity_scale_codec::{Decode, Encode};
 
 use crate::server::{rpc_error_from_string, to_rpc_error, CreateWalletRequest, WalletRequest};
 
@@ -78,6 +80,22 @@ pub trait WalletRpc: Send + Sync {
         to_address: String,
         amount: Coin,
         view_keys: Vec<String>,
+    ) -> Result<String>;
+
+    #[rpc(name = "wallet_buildRawTransferTx")]
+    fn build_raw_transfer_tx(
+        &self,
+        request: WalletRequest,
+        to_address: String,
+        amount: Coin,
+        view_keys: Vec<String>,
+    ) -> Result<String>;
+
+    #[rpc(name = "wallet_broadcastSignedTransferTx")]
+    fn broadcast_signed_transfer_tx(
+        &self,
+        request: WalletRequest,
+        signed_tx: String,
     ) -> Result<String>;
 
     #[rpc(name = "wallet_transactions")]
@@ -303,6 +321,52 @@ where
                 view_keys,
                 self.network_id,
             )
+            .map_err(to_rpc_error)?;
+        Ok(hex::encode(tx_id))
+    }
+
+    fn build_raw_transfer_tx(
+        &self,
+        request: WalletRequest,
+        to_address: String,
+        amount: Coin,
+        view_keys: Vec<String>,
+    ) -> Result<String> {
+        let to_address = to_address
+            .parse::<ExtendedAddr>()
+            .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
+        let view_keys = view_keys
+            .iter()
+            .map(|view_key| PublicKey::from_str(view_key))
+            .collect::<CommonResult<Vec<PublicKey>>>()
+            .map_err(to_rpc_error)?;
+        let unsigned_transfer_tx = self
+            .client
+            .build_raw_transfer_tx(
+                &request.name,
+                &request.enckey,
+                to_address,
+                amount,
+                view_keys,
+                self.network_id,
+            )
+            .map_err(to_rpc_error)?;
+        let raw_data = unsigned_transfer_tx.encode();
+        let b64 = base64::encode(&raw_data);
+        Ok(b64)
+    }
+
+    fn broadcast_signed_transfer_tx(
+        &self,
+        request: WalletRequest,
+        signed_tx: String,
+    ) -> Result<String> {
+        let raw_data = base64::decode(&signed_tx).map_err(to_rpc_error)?;
+        let signed_tx =
+            SignedTransferTransaction::decode(&mut raw_data.as_slice()).map_err(to_rpc_error)?;
+        let tx_id = self
+            .client
+            .broadcast_signed_transfer_tx(&request.name, &request.enckey, signed_tx)
             .map_err(to_rpc_error)?;
         Ok(hex::encode(tx_id))
     }

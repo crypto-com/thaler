@@ -1,6 +1,8 @@
 //! Builder for building raw transfer transaction
 use std::ops::Sub;
 use std::slice::Iter;
+use std::str::FromStr;
+use std::string::ToString;
 
 use parity_scale_codec::{Decode, Encode};
 
@@ -14,10 +16,11 @@ use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{TransactionId, TxAux};
 use chain_tx_validation::witness::verify_tx_address;
 use chain_tx_validation::{check_inputs_basic, check_outputs_basic};
-use client_common::{Error, ErrorKind, Result, ResultExt, SignedTransaction};
+use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SignedTransaction};
 
 use crate::signer::{DummySigner, SignCondition, Signer};
-use crate::TransactionObfuscation;
+use crate::{TransactionObfuscation, UnspentTransactions};
+use chain_core::tx::data::address::ExtendedAddr;
 
 /// Unspent transaction output with witness data
 #[derive(Debug, Decode, Encode, Clone)]
@@ -38,8 +41,76 @@ impl WitnessedUTxO {
     }
 }
 
+/// When withdraw some coin from an offline wallet(W_A),the struct is build from an
+/// `watch-only` wallet(W_B) associated with the offline wallet. We can dump the structure
+/// from W_A and load it into the W_B so that W_B can make a signed transaction then send
+/// it to online W_A by USB storage or email, W_A then broadcast the signed transaction
+#[derive(Debug, Clone, Decode, Encode)]
+pub struct UnsignedTransferTransaction {
+    /// unspend transactions in wallet
+    pub unspent_transactions: UnspentTransactions,
+    /// view keys
+    pub view_keys: Vec<PublicKey>,
+    ///  network id
+    pub network_id: u8,
+    /// send amount
+    pub amount: Coin,
+    /// send to address
+    pub to_address: ExtendedAddr,
+    /// return address of online wallet
+    pub return_address: ExtendedAddr,
+}
+
+impl ToString for UnsignedTransferTransaction {
+    fn to_string(&self) -> String {
+        let raw_data = self.encode();
+        base64::encode(&raw_data)
+    }
+}
+
+impl FromStr for UnsignedTransferTransaction {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let raw_data = base64::decode(s)
+            .map_err(|_e| Error::new(ErrorKind::DecryptionError, "decrypt error"))?;
+        let tx = Self::decode(&mut raw_data.as_slice())
+            .chain(|| (ErrorKind::DecryptionError, "decrypt error"))?;
+        Ok(tx)
+    }
+}
+
+/// on an isolated offline wallet, signed the UnsignedTransferTransaction
+#[derive(Debug, Clone, Decode, Encode)]
+pub struct SignedTransferTransaction {
+    /// signed transfer transaction
+    pub signed_transaction: TxAux,
+    /// the return amount of coin
+    pub return_amount: Coin,
+    /// the used inputs to build the transaction
+    pub used_inputs: Vec<TxoPointer>,
+}
+
+impl ToString for SignedTransferTransaction {
+    fn to_string(&self) -> String {
+        let raw_data = self.encode();
+        base64::encode(&raw_data)
+    }
+}
+
+impl FromStr for SignedTransferTransaction {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        let raw_data = base64::decode(s).chain(|| (ErrorKind::DecryptionError, "decrypt error"))?;
+        let tx = Self::decode(&mut raw_data.as_slice())
+            .chain(|| (ErrorKind::DecryptionError, "decrypt error"))?;
+        Ok(tx)
+    }
+}
+
 /// Raw transfer transaction data structure
-#[derive(Debug, Decode, Encode)]
+#[derive(Debug, Clone, Decode, Encode)]
 pub struct RawTransferTransaction {
     inputs: Vec<WitnessedUTxO>,
     outputs: Vec<TxOut>,

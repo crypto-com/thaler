@@ -5,10 +5,22 @@ use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 use zxcvbn::{feedback::Feedback, zxcvbn as estimate_password_strength};
 
+use crate::service::*;
+use crate::transaction_builder::UnauthorizedWalletTransactionBuilder;
+use crate::transaction_builder::{SignedTransferTransaction, UnsignedTransferTransaction};
+use crate::types::{
+    AddressType, BalanceChange, TransactionChange, TransactionPending, WalletBalance, WalletKind,
+};
+use crate::wallet::syncer_logic::create_transaction_change;
+use crate::{
+    InputSelectionStrategy, Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient,
+    WalletTransactionBuilder,
+};
 use chain_core::common::{Proof, H256};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
+use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::{str2txid, TxoPointer};
@@ -18,25 +30,13 @@ use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
+use client_common::tendermint::types::Time;
 use client_common::tendermint::types::{AbciQueryExt, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
     seckey::derive_enckey, Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecKey,
     SignedTransaction, Storage, Transaction, TransactionInfo,
 };
-
-use crate::service::*;
-use crate::transaction_builder::UnauthorizedWalletTransactionBuilder;
-use crate::types::{
-    AddressType, BalanceChange, TransactionChange, TransactionPending, WalletBalance, WalletKind,
-};
-use crate::wallet::syncer_logic::create_transaction_change;
-use crate::{
-    InputSelectionStrategy, Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient,
-    WalletTransactionBuilder,
-};
-use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
-use client_common::tendermint::types::Time;
 use std::time::Duration;
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
@@ -774,6 +774,108 @@ where
         wallet_state_memento.add_pending_transaction(tx_id, tx_pending);
         self.wallet_state_service
             .apply_memento(name, enckey, &wallet_state_memento)
+    }
+
+    fn build_raw_transfer_tx(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        to_address: ExtendedAddr,
+        amount: Coin,
+        view_keys: Vec<PublicKey>,
+        network_id: u8,
+    ) -> Result<UnsignedTransferTransaction> {
+        let unspent_transactions = self.unspent_transactions(name, enckey)?;
+        let return_address = self.new_transfer_address(name, enckey)?;
+        let unsigned = UnsignedTransferTransaction {
+            unspent_transactions,
+            view_keys,
+            network_id,
+            to_address,
+            return_address,
+            amount,
+        };
+        Ok(unsigned)
+    }
+
+    fn sign_raw_transfer_tx(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        unsigned_tx: UnsignedTransferTransaction,
+    ) -> Result<SignedTransferTransaction> {
+        let tx_out = TxOut::new(unsigned_tx.to_address, unsigned_tx.amount);
+
+        let view_key = self.view_key(name, enckey)?;
+
+        let mut access_policies = unsigned_tx
+            .view_keys
+            .iter()
+            .map(|key| TxAccessPolicy {
+                view_key: key.into(),
+                access: TxAccess::AllData,
+            })
+            .collect::<Vec<_>>();
+
+        access_policies.push(TxAccessPolicy {
+            view_key: view_key.into(),
+            access: TxAccess::AllData,
+        });
+
+        let attributes = TxAttributes::new_with_access(unsigned_tx.network_id, access_policies);
+
+        let return_address = unsigned_tx.return_address.clone();
+
+        let (transaction, selected_inputs, return_amount) =
+            self.transaction_builder.build_transfer_tx(
+                name,
+                enckey,
+                unsigned_tx.unspent_transactions,
+                vec![tx_out],
+                return_address,
+                attributes,
+            )?;
+        let signed_tx = SignedTransferTransaction {
+            signed_transaction: transaction,
+            used_inputs: selected_inputs,
+            return_amount,
+        };
+        Ok(signed_tx)
+    }
+
+    fn broadcast_signed_transfer_tx(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        signed_tx: SignedTransferTransaction,
+    ) -> Result<TxId> {
+        let current_block_height = self.get_current_block_height()?;
+
+        self.broadcast_transaction(&signed_tx.signed_transaction)?;
+
+        //update the wallet state
+        let tx_pending = TransactionPending {
+            used_inputs: signed_tx.used_inputs.clone(),
+            block_height: current_block_height,
+            return_amount: signed_tx.return_amount,
+        };
+
+        let transaction = signed_tx.signed_transaction;
+
+        self.update_tx_pending_state(name, enckey, transaction.tx_id(), tx_pending)?;
+
+        if let TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
+            payload: TxObfuscated { txid, .. },
+            ..
+        }) = transaction
+        {
+            Ok(txid)
+        } else {
+            Err(Error::new(
+                ErrorKind::IllegalInput,
+                "Transaction is not transfer transaction",
+            ))
+        }
     }
 }
 

@@ -1,5 +1,8 @@
 use std::collections::BTreeSet;
 use std::convert::TryInto;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 use chain_core::common::{Timespec, HASH_SIZE_256};
@@ -14,6 +17,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
 use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecKey, Transaction};
+use client_core::transaction_builder::SignedTransferTransaction;
 use client_core::types::{BalanceChange, TransactionPending};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
@@ -27,6 +31,7 @@ use structopt::StructOpt;
 use unicase::eq_ascii;
 
 use crate::{ask_seckey, coin_from_str};
+use client_core::transaction_builder::UnsignedTransferTransaction;
 
 const TRANSACTION_TYPE_VARIANTS: [&str; 7] = [
     "transfer",
@@ -154,6 +159,71 @@ pub enum TransactionCommand {
         )]
         tx: String,
     },
+    #[structopt(
+        name = "build",
+        about = "build a raw transfer transaction for offline wallet"
+    )]
+    Build {
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
+        name: String,
+        #[structopt(
+            name = "file",
+            short = "f",
+            long = "file",
+            parse(from_os_str),
+            help = "file to dump raw transaction"
+        )]
+        file: PathBuf,
+    },
+    #[structopt(
+        name = "sign",
+        about = "sign a raw transfer transaction on offline wallet"
+    )]
+    Sign {
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
+        name: String,
+        #[structopt(
+            name = "from_file",
+            long = "from_file",
+            parse(from_os_str),
+            help = "unsigned raw transaction file"
+        )]
+        from_file: PathBuf,
+        #[structopt(
+            name = "to_file",
+            long = "to_file",
+            parse(from_os_str),
+            help = "file to save signed transaction"
+        )]
+        to_file: PathBuf,
+    },
+    Broadcast {
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet"
+        )]
+        name: String,
+        #[structopt(
+            name = "file",
+            short = "f",
+            long = "file",
+            parse(from_os_str),
+            help = "signed transaction file"
+        )]
+        file: PathBuf,
+    },
 }
 
 impl TransactionCommand {
@@ -182,6 +252,63 @@ impl TransactionCommand {
                 let enckey = ask_seckey(None)?;
                 let imported_amount = wallet_client.import_plain_tx(name, &enckey, tx)?;
                 success(format!("import amount: {}", imported_amount).as_str());
+                Ok(())
+            }
+            TransactionCommand::Build { name, file } => {
+                let enckey = ask_seckey(None)?;
+                let to_address = ask_transfer_address()?;
+                ask("Enter transfer amount (in CRO): ");
+                let amount_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
+                let amount = coin_from_str(&amount_str)?;
+                let view_keys = ask_view_keys()?;
+                let network_id = get_network_id();
+                let unsigned_transfer_tx = wallet_client.build_raw_transfer_tx(
+                    name, &enckey, to_address, amount, view_keys, network_id,
+                )?;
+                let msg = format!("Save raw transfer transaction to file {:?} success!", file);
+                let mut file =
+                    File::create(file).chain(|| (ErrorKind::IoError, "Unable to create file"))?;
+                file.write_all(unsigned_transfer_tx.to_string().as_bytes())
+                    .chain(|| (ErrorKind::IoError, "Unable to write to file"))?;
+                success(&msg);
+                Ok(())
+            }
+            TransactionCommand::Sign {
+                name,
+                from_file,
+                to_file,
+            } => {
+                let enckey = ask_seckey(None)?;
+                let mut from_file =
+                    File::open(from_file).chain(|| (ErrorKind::IoError, "Unable to open file"))?;
+                let mut tx_unsigned = String::new();
+                from_file
+                    .read_to_string(&mut tx_unsigned)
+                    .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
+                let unsigned = UnsignedTransferTransaction::from_str(&tx_unsigned)?;
+                let signed = wallet_client.sign_raw_transfer_tx(name, &enckey, unsigned)?;
+                // save to to_file
+                let msg = format!(
+                    "Save signed transfer transaction to file {:?} success!",
+                    to_file
+                );
+                let mut file = File::create(to_file)
+                    .chain(|| (ErrorKind::IoError, "Unable to create file"))?;
+                file.write_all(signed.to_string().as_bytes())
+                    .chain(|| (ErrorKind::IoError, "Unable to write to file"))?;
+                success(&msg);
+                Ok(())
+            }
+            TransactionCommand::Broadcast { name, file } => {
+                let enckey = ask_seckey(None)?;
+                let mut file =
+                    File::open(file).chain(|| (ErrorKind::IoError, "Unable to open file"))?;
+                let mut tx_signed = String::new();
+                file.read_to_string(&mut tx_signed)
+                    .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
+                let signed = SignedTransferTransaction::from_str(&tx_signed)?;
+                let tx_id = wallet_client.broadcast_signed_transfer_tx(name, &enckey, signed)?;
+                success(hex::encode(tx_id).as_str());
                 Ok(())
             }
         }

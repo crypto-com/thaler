@@ -13,7 +13,7 @@ else
     source $PYTHON_VENV_DIR/bin/activate
 fi
 pip3 install -e .
-pip3 install supervisor pytest iso8601
+pip3 install supervisor pytest iso8601 pexpect
 popd
 
 pushd client-rpc; npm install; popd
