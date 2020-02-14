@@ -25,7 +25,7 @@ sgx_tstd = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.g
 static_assertions = { version = "1.1.0", default-features = false}
 bech32 = { version = "0.7.2", optional = true }
 aead = "0.2"
-fixed = "0.5.2"
+fixed = "0.5.3"
 thiserror = { version = "1.0", default-features = false }
 
 [dev-dependencies]
