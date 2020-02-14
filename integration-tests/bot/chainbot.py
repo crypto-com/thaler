@@ -10,6 +10,8 @@ import re
 import os
 import configparser
 import binascii
+# import time
+import shutil
 
 import jsonpatch
 import fire
@@ -298,7 +300,9 @@ def coin_to_voting_power(coin):
 
 async def run(cmd, ignore_error=False, **kwargs):
     proc = await asyncio.create_subprocess_shell(cmd, **kwargs)
+    # begin = time.perf_counter()
     retcode = await proc.wait()
+    # print('[%.02f] %s' % (time.perf_counter() - begin, cmd))
     if not ignore_error:
         assert retcode == 0, cmd
 
@@ -310,7 +314,9 @@ async def interact(cmd, input=None, **kwargs):
         stdout=asyncio.subprocess.PIPE,
         **kwargs
     )
+    # begin = time.perf_counter()
     (stdout, stderr) = await proc.communicate(input=input)
+    # print('[%.02f] %s' % (time.perf_counter() - begin, cmd))
     assert proc.returncode == 0, f'{stdout.decode("utf-8")} ({cmd})'
     return stdout
 
@@ -328,35 +334,6 @@ async def fix_genesis(genesis, cfg):
                 f'--tendermint_genesis_path "{fp_genesis.name}"'
             )
         return json.load(open(fp_genesis.name))
-
-
-async def gen_wallet_addr(mnemonic, type='Staking', count=1):
-    prefix = {
-        'Staking': '0x',
-        'Transfer': 'dcro',
-    }[type]
-    with tempfile.TemporaryDirectory() as dirname:
-        env = dict(
-            os.environ,
-            CRYPTO_CLIENT_STORAGE=dirname,
-        )
-        stdout = await interact(
-            f'client-cli wallet restore --name Default',
-            ('%s\n%s\n%s\n%s\n' % (
-                PASSPHRASE, PASSPHRASE, mnemonic, mnemonic
-            )).encode(),
-            env=env,
-        )
-        enckey = extract_enckey(stdout)
-        addrs = []
-        for i in range(count):
-            result = (await interact(
-                f'client-cli address new --name Default --type {type}',
-                ('%s\n' % enckey).encode(),
-                env=env,
-            )).decode()
-            addrs.append(re.search(prefix + r'[0-9a-zA-Z]+', result).group())
-        return addrs
 
 
 async def gen_genesis(cfg):
@@ -426,8 +403,8 @@ def gen_peers(cfgs):
     )
 
 
-async def init_wallet(wallet_root, mnemonic, chain_id):
-    # init wallet
+async def init_wallet(wallet_root, mnemonic, chain_id, staking_count, transfer_count):
+    'init wallet and return generated addresses'
     env = dict(
         os.environ,
         CRYPTO_CLIENT_STORAGE=wallet_root,
@@ -441,29 +418,44 @@ async def init_wallet(wallet_root, mnemonic, chain_id):
         env=env,
     )
     enckey = extract_enckey(stdout)
-    for i in range(2):
-        await interact(
+    staking_addresses = []
+    for _ in range(staking_count):
+        result = await interact(
             f'client-cli address new --name Default --type Staking',
             ('%s\n' % enckey).encode(),
             env=env,
         )
-    for i in range(2):
-        await interact(
+        staking_addresses.append(re.search(r'0x[0-9a-zA-Z]+', result.decode()).group())
+    transfer_addresses = []
+    for _ in range(transfer_count):
+        result = await interact(
             f'client-cli address new --name Default --type Transfer',
             ('%s\n' % enckey).encode(),
             env=env,
         )
+        transfer_addresses.append(re.search(r'dcro[0-9a-zA-Z]+', result.decode()).group())
+    return staking_addresses, transfer_addresses
 
 
 async def init_cluster(cfg):
-    await populate_wallet_addresses(cfg['nodes'])
+    root_path = Path(cfg['root_path']).resolve()
+    if root_path.exists():
+        print('root path(%s) exists, remove it first' % root_path)
+        shutil.rmtree(root_path)
+    root_path.mkdir()
+
+    # init wallet and populate node fields
+    for i, node in enumerate(cfg['nodes']):
+        node['node_id'] = SigningKey(node['node_seed']).validator_address().lower()
+
+        wallet_path = root_path / Path('node%d' % i) / Path('wallet')
+        os.makedirs(wallet_path)
+        node['staking'], node['transfer'] = \
+            await init_wallet(wallet_path, node['mnemonic'], cfg['chain_id'], 2, 2)
 
     peers = gen_peers(cfg['nodes'])
     genesis = await gen_genesis(cfg)
     app_hash = genesis['app_hash']
-    root_path = Path(cfg['root_path']).resolve()
-    if not root_path.exists():
-        root_path.mkdir()
 
     json.dump(
         cfg,
@@ -475,8 +467,7 @@ async def init_cluster(cfg):
         base_port = node['base_port']
         node_name = 'node%d' % i
         cfg_path = root_path / Path(node_name) / Path('tendermint') / Path('config')
-        if not cfg_path.exists():
-            os.makedirs(cfg_path)
+        os.makedirs(cfg_path)
 
         json.dump(genesis,
                   open(cfg_path / Path('genesis.json'), 'w'),
@@ -511,13 +502,6 @@ async def init_cluster(cfg):
             "step": 0
         }, open(data_path / Path('priv_validator_state.json'), 'w'))
 
-        wallet_path = root_path / Path(node_name) / Path('wallet')
-        if not wallet_path.exists():
-            wallet_path.mkdir()
-            await init_wallet(wallet_path, node['mnemonic'], cfg['chain_id'])
-        else:
-            print('wallet directory already exists, ignore')
-
     logs_path = root_path / Path('logs')
     if not logs_path.exists():
         logs_path.mkdir()
@@ -532,13 +516,6 @@ def gen_mnemonic():
 
 def gen_seed():
     return binascii.hexlify(os.urandom(32)).decode()
-
-
-async def populate_wallet_addresses(nodes):
-    for node in nodes:
-        node['staking'] = await gen_wallet_addr(node['mnemonic'], type='Staking', count=2)
-        node['transfer'] = await gen_wallet_addr(node['mnemonic'], type='Transfer', count=2)
-        node['node_id'] = SigningKey(node['node_seed']).validator_address().lower()
 
 
 class CLI:

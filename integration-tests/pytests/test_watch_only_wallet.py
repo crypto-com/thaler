@@ -1,6 +1,7 @@
 import time
 from chainrpc import RPC
 from uuid import uuid1
+from .common import wait_for_tx
 
 rpc = RPC()
 
@@ -34,9 +35,8 @@ def test_watch_only_wallet(addresses):
     ) == transfer_addr
 
     amount = 10000000
-    rpc.wallet.send(transfer_addr, amount, view_keys=[view_key_pub])
-    time.sleep(1)  # wait for the block to pop up, FIXME do it more gracefully
-    rpc.wallet.sync()
+    txid = rpc.wallet.send(transfer_addr, amount, view_keys=[view_key_pub])
+    wait_for_tx(rpc, txid)
     rpc.wallet.sync(name, enckey=enckey)
     assert int(rpc.wallet.balance(name, enckey=enckey)["total"]) == amount
     assert int(rpc.wallet.balance(name, enckey=enckey)["available"]) == amount
