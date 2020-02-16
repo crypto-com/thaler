@@ -2,17 +2,51 @@
 
 *Unreleased*
 
+## v0.?.?
+...
+
+*February 16, 2020*
+
+This release fixes some of the main issues discovered during the testnet 0.2 operation and implements
+various improvements, notably deployment is simplified through major parts of ADR-001 being implemented.
+
 ## v0.3.0
 ### Breaking changes
-* client uses argon2 function for its internal storage key derivation.
+* *client* [723](https://github.com/crypto-com/chain/pull/723) [830](https://github.com/crypto-com/chain/pull/830): uses argon2 function for its internal storage key derivation.
 * *client* [976](https://github.com/crypto-com/chain/pull/976) Missing MultiSig pubkey methods in ClientRPC and ClientCLI
  -- Rename client-rpc method `wallet_newMultiSigAddressPublicKey` to  `multiSig_newAddressPublicKey`
-* ADR-001: tx-validation-app subsumed by chain-abci and sealed transaction payloads are stored in chain-abci's storage
-...
+* *client* [1035](https://github.com/crypto-com/chain/pull/1035): querying public information doesn't require a wallet name / passphrase
+* *chain-abci* [982](https://github.com/crypto-com/chain/pull/982): a different reward formula + paramater renaming in genesis.json
+* ADR-001 [1073](https://github.com/crypto-com/chain/pull/1073): tx-validation-app subsumed by chain-abci and sealed transaction payloads are stored in chain-abci's storage
+
+### Features
+* *client* [695](https://github.com/crypto-com/chain/pull/695): export and import transaction -- transactions that do not include receiver's view key can be exported, giving a base64 encoded plain transaction string which can be imported by the receiver.
+* *client* [916](https://github.com/crypto-com/chain/pull/916): wallet delete API
+* *client* [921](https://github.com/crypto-com/chain/pull/921): high-level deposit transaction workflow (note [it has a bug pending to be fixed](https://github.com/crypto-com/chain/issues/949))
+* *client* [1058](https://github.com/crypto-com/chain/pull/1058): transaction details display
+
+### Improvements
+* *client* [736](https://github.com/crypto-com/chain/pull/736): more details in abci query errors
+* *client* [701](https://github.com/crypto-com/chain/pull/701): tracking of utxo status after a transaction broadcast
+* *client* [842](https://github.com/crypto-com/chain/pull/842): waiting for tendermint node to catch up before syncing
+* *client* [841](https://github.com/crypto-com/chain/pull/841): not entering duplicate view keys in transaction metadata
+* *client* [848](https://github.com/crypto-com/chain/pull/848): transaction type shown in history
+* *client* [928](https://github.com/crypto-com/chain/pull/928): addresses sorted in creation order
+* *client* [959](https://github.com/crypto-com/chain/pull/959): extra details in client-cli help messages
+* *client* [1051](https://github.com/crypto-com/chain/pull/1051): warning for potentially outdated information in client-cli
+* *chain-abci* [843](https://github.com/crypto-com/chain/pull/843): sanity check for historical state querying
+* *chain-abci* [875](https://github.com/crypto-com/chain/pull/875): arguments can be read from a yaml file
+* *chain-abci* [1055](https://github.com/crypto-com/chain/pull/1055): different log levels for missing liveness tracking information
+* *chain-tx-enclave* [740](https://github.com/crypto-com/chain/pull/740): more logging
+* *chain-tx-enclave* [836](https://github.com/crypto-com/chain/pull/836): retries for IAS in tx-query
+* *chain-tx-enclave* [931](https://github.com/crypto-com/chain/pull/931): checking required environment variables are set in tx-query
+* *chain-tx-validation* [845](https://github.com/crypto-com/chain/pull/845): more descriptive error message for non-existant accounts
 
 ### Bug Fixes
 * *client* [969](https://github.com/crypto-com/chain/pull/969): client-cli incorrect fee display in history
+* *client* [995](https://github.com/crypto-com/chain/pull/995): pending balance amount fixed for deposits
 * *chain-abci* [1008](https://github.com/crypto-com/chain/pull/1008):  unbonded or unjailed validator cannot rejoin the validator set 
+* *chain-abci* [933](https://github.com/crypto-com/chain/pull/933): unbonding any amount removes a validator
 
 *January 3, 2020*
 
@@ -39,7 +73,6 @@ of Rust SGX SDK (0.1.0 used a beta version of 1.1.0).
 
 ### Breaking changes
 * *client* [703](https://github.com/crypto-com/chain/pull/703): HD wallet generate view key with a different account index.
-* *client* [695](https://github.com/crypto-com/chain/pull/695): export and import transaction -- transactions that do not include receiver's view key can be exported, giving a base64 encoded plain transaction string which can be imported by the receiver.
 
 ### Improvements
 * *dev-utils* [692](https://github.com/crypto-com/chain/pull/692): dev-utils init command logs error when it goes wrong
