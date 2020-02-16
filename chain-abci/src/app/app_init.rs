@@ -5,12 +5,13 @@ use std::collections::BTreeMap;
 use std::convert::TryInto;
 
 use abci::*;
-use enclave_protocol::{EnclaveRequest, EnclaveResponse};
 use log::{info, warn};
 use parity_scale_codec::{Decode, Encode};
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
+#[cfg(all(not(feature = "mock-validation"), target_os = "linux"))]
+use crate::enclave_bridge::real::start_zmq;
 use crate::enclave_bridge::EnclaveProxy;
 use chain_core::common::MerkleTree;
 use chain_core::common::Timespec;
@@ -29,7 +30,7 @@ use chain_core::tx::TxAux;
 use chain_storage::account::AccountWrapper;
 use chain_storage::account::StarlingFixedKey;
 use chain_storage::account::{pure_account_storage, AccountStorage};
-use chain_storage::{Storage, StorageConfig, StoredChainState};
+use chain_storage::{Storage, StoredChainState};
 use chain_tx_validation::NodeChecker;
 pub use validator_state::ValidatorState;
 use validator_state::ValidatorStateHelper;
@@ -275,19 +276,26 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// * `storage` - underlying storage to be used (in-mem or persistent)
     /// * `accounts` - underlying storage for account tries to be used (in-mem or persistent)
     /// * `tx_query_address` -  address of tx query enclave to supply to clients (if any)
+    /// * `enclave_server` -  connection string which ZeroMQ server wrapper around the transaction validation enclave will listen on
     pub fn new_with_storage(
-        mut tx_validator: T,
+        tx_validator: T,
         gah: &str,
         chain_id: &str,
         mut storage: Storage,
         accounts: AccountStorage,
         tx_query_address: Option<String>,
+        enclave_server: Option<String>,
     ) -> Self {
         let decoded_gah = hex::decode(gah).expect("failed to decode genesis app hash");
         let mut genesis_app_hash = [0u8; HASH_SIZE_256];
         genesis_app_hash.copy_from_slice(&decoded_gah[..]);
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
+
+        if let (Some(_), Some(_conn_str)) = (tx_query_address.as_ref(), enclave_server.as_ref()) {
+            #[cfg(all(not(feature = "mock-validation"), target_os = "linux"))]
+            let _ = start_zmq(_conn_str, chain_hex_id, storage.get_read_only());
+        }
 
         if let Some(data) = storage.get_last_app_state() {
             info!("last app state stored");
@@ -311,23 +319,14 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             }
 
             // TODO: genesis app hash check when embedded in enclave binary
-            let enclave_sanity_check = tx_validator.process_request(EnclaveRequest::CheckChain {
-                chain_hex_id,
-                last_app_hash: Some(last_state.last_apphash),
-            });
+            let enclave_sanity_check = tx_validator.check_chain(chain_hex_id);
             match enclave_sanity_check {
-                EnclaveResponse::CheckChain(Ok(_)) => {
+                Ok(_) => {
                     info!("enclave connection OK");
                 }
-                EnclaveResponse::CheckChain(Err(enc_app)) => {
-                    let enc_app_str = match enc_app {
-                        None => "None".to_string(),
-                        Some(data) => hex::encode(data),
-                    };
-                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process), \
-                    enclave app hash: {} (chain-abci app hash: {})", enc_app_str, hex::encode(last_state.last_apphash));
+                Err(()) => {
+                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process)");
                 }
-                _ => unreachable!("unexpected enclave response"),
             }
 
             ChainNodeApp::restore_from_storage(
@@ -342,23 +341,14 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         } else {
             info!("no last app state stored");
             // TODO: genesis app hash check when embedded in enclave binary
-            let enclave_sanity_check = tx_validator.process_request(EnclaveRequest::CheckChain {
-                chain_hex_id,
-                last_app_hash: None,
-            });
+            let enclave_sanity_check = tx_validator.check_chain(chain_hex_id);
             match enclave_sanity_check {
-                EnclaveResponse::CheckChain(Ok(_)) => {
+                Ok(_) => {
                     info!("enclave connection OK");
                 }
-                EnclaveResponse::CheckChain(Err(enc_app)) => {
-                    let enc_app_str = match enc_app {
-                        None => "None".to_string(),
-                        Some(data) => hex::encode(data),
-                    };
-                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process), \
-                    enclave app hash: {}", enc_app_str);
+                Err(()) => {
+                    panic!("enclave sanity check failed (either a binary for a different network is used or there is a problem with enclave process)");
                 }
-                _ => unreachable!("unexpected enclave response"),
             }
             storage.write_genesis_chain_id(&genesis_app_hash, chain_id);
             ChainNodeApp {
@@ -374,34 +364,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 tx_query_address,
             }
         }
-    }
-
-    /// Creates a new App initialized according to a provided storage config (most likely persistent).
-    ///
-    /// # Arguments
-    ///
-    /// * `tx_validator` - ZMQ proxy to enclave TX validator
-    /// * `gah` - hex-encoded genesis app hash
-    /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
-    /// * `node_storage_config` - configuration for node storage (currently only the path, but TODO: more options, e.g. SSD or HDD params)
-    /// * `account_storage_config` - configuration for account storage
-    /// * `tx_query_address` -  address of tx query enclave to supply to clients (if any)
-    pub fn new(
-        tx_validator: T,
-        gah: &str,
-        chain_id: &str,
-        node_storage_config: &StorageConfig<'_>,
-        account_storage_config: &StorageConfig<'_>,
-        tx_query_address: Option<String>,
-    ) -> ChainNodeApp<T> {
-        ChainNodeApp::new_with_storage(
-            tx_validator,
-            gah,
-            chain_id,
-            Storage::new(node_storage_config),
-            AccountStorage::new(Storage::new(account_storage_config), 20).expect("account db"),
-            tx_query_address,
-        )
     }
 
     /// Handles InitChain requests:

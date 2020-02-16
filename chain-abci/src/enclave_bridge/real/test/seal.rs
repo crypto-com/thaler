@@ -1,16 +1,14 @@
-use crate::enclave_u::{check_initchain, check_tx, end_block};
-use crate::TX_VALIDATION_ENCLAVE_FILE;
+use crate::enclave_bridge::real::enclave_u::{check_initchain, check_tx, end_block};
+use crate::enclave_bridge::real::TX_VALIDATION_ENCLAVE_FILE;
 use chain_core::common::MerkleTree;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
-use chain_core::state::account::StakedStateDestination;
 use chain_core::state::account::{
     StakedState, StakedStateAddress, StakedStateOpWitness, WithdrawUnbondedTx,
 };
 use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::witness::EcdsaSignature;
-use chain_core::tx::PlainTxAux;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{
@@ -27,7 +25,9 @@ use chain_core::tx::{
 };
 use chain_core::ChainInfo;
 use chain_tx_validation::Error;
-use enclave_protocol::{EncryptionRequest, IntraEnclaveRequest, VerifyTxRequest};
+use enclave_protocol::{
+    EncryptionRequest, IntraEnclaveRequest, IntraEnclaveResponseOk, VerifyTxRequest,
+};
 use enclave_u_common::enclave_u::init_enclave;
 use env_logger::{Builder, WriteStyle};
 use log::LevelFilter;
@@ -37,7 +37,6 @@ use secp256k1::{
     key::PublicKey, key::SecretKey, schnorrsig::schnorr_sign, Message, Secp256k1, Signing,
 };
 use sgx_types::{sgx_enclave_id_t, sgx_status_t};
-use sled::Db;
 
 extern "C" {
     fn ecall_test_encrypt(
@@ -89,11 +88,6 @@ fn get_account(account_address: &RedeemAddress) -> StakedState {
 
 const TEST_NETWORK_ID: u8 = 0xab;
 
-fn cleanup(db: &mut Db) {
-    db.drop_tree(crate::META_KEYSPACE).expect("test meta tx");
-    db.drop_tree(crate::TX_KEYSPACE).expect("test cleanup tx");
-}
-
 /// Unfortunately the usual Rust unit-test facility can't be used with Apache Teaclave SGX SDK,
 /// so this has to be run as a normal app
 pub fn test_sealing() {
@@ -103,13 +97,6 @@ pub fn test_sealing() {
         .filter(None, LevelFilter::Debug)
         .write_style(WriteStyle::Always)
         .init();
-    let mut db = sled::open(".enclave-test").expect("failed to open a storage path");
-    let mut metadb = db
-        .open_tree(crate::META_KEYSPACE)
-        .expect("failed to open a meta keyspace");
-    let mut txdb = db
-        .open_tree(crate::TX_KEYSPACE)
-        .expect("failed to open a tx keyspace");
 
     let enclave = match init_enclave(TX_VALIDATION_ENCLAVE_FILE, true) {
         Ok(r) => {
@@ -121,16 +108,15 @@ pub fn test_sealing() {
             return;
         }
     };
-    assert!(check_initchain(enclave.geteid(), TEST_NETWORK_ID, None).is_ok());
+    assert!(check_initchain(enclave.geteid(), TEST_NETWORK_ID).is_ok());
 
     let end_b = end_block(enclave.geteid(), IntraEnclaveRequest::EndBlock);
     match end_b {
-        Ok(b) => {
+        Ok(IntraEnclaveResponseOk::EndBlock(b)) => {
             debug!("request filter in the beginning");
             assert!(b.is_none(), "empty filter");
         }
         _ => {
-            cleanup(&mut db);
             assert!(false, "filter not returned");
         }
     };
@@ -169,16 +155,7 @@ pub fn test_sealing() {
         previous_block_time: 1,
         unbonding_period: 0,
     };
-    let tb = txdb.get(&txid);
-    match tb {
-        Ok(None) => {
-            debug!("new tx not in DB yet");
-        }
-        _ => {
-            cleanup(&mut db);
-            assert!(false, "new tx already in db");
-        }
-    };
+
     let request0 = IntraEnclaveRequest::ValidateTx {
         request: Box::new(VerifyTxRequest {
             tx: withdrawtx,
@@ -187,29 +164,21 @@ pub fn test_sealing() {
         }),
         tx_inputs: None,
     };
-    let r = check_tx(enclave.geteid(), request0, &mut txdb);
+    let r = check_tx(enclave.geteid(), request0);
     assert!(r.is_ok());
-    let ta = txdb.get(&txid);
-    let sealedtx = match ta {
-        Ok(Some(tx)) => {
-            debug!("new tx in DB!");
-            tx.to_vec()
-        }
-        _ => {
-            cleanup(&mut db);
-            assert!(false, "new tx not in db");
-            vec![]
-        }
+
+    let sealedtx = match r {
+        Ok(IntraEnclaveResponseOk::TxWithOutputs { sealed_tx, .. }) => sealed_tx,
+        _ => vec![],
     };
 
     let end_b = end_block(enclave.geteid(), IntraEnclaveRequest::EndBlock);
     match end_b {
-        Ok(b) => {
+        Ok(IntraEnclaveResponseOk::EndBlock(b)) => {
             debug!("request filter after one tx");
             assert!(b.unwrap().iter().any(|x| *x != 0u8), "non-empty filter");
         }
         _ => {
-            cleanup(&mut db);
             assert!(false, "filter not returned");
         }
     };
@@ -237,16 +206,6 @@ pub fn test_sealing() {
         ),
     };
 
-    let tc = txdb.get(&txid1);
-    match tc {
-        Ok(None) => {
-            debug!("new 2nd tx not in DB yet");
-        }
-        _ => {
-            assert!(false, "new 2nd tx already in db");
-        }
-    };
-
     let request1 = IntraEnclaveRequest::ValidateTx {
         request: Box::new(VerifyTxRequest {
             tx: transfertx,
@@ -256,18 +215,8 @@ pub fn test_sealing() {
         tx_inputs: Some(vec![sealedtx.clone()]),
     };
 
-    let r2 = check_tx(enclave.geteid(), request1, &mut txdb);
+    let r2 = check_tx(enclave.geteid(), request1);
     assert!(r2.is_ok());
-    let td = txdb.get(&txid1);
-    match td {
-        Ok(Some(_tx)) => {
-            debug!("new 2nd tx in DB!");
-        }
-        _ => {
-            cleanup(&mut db);
-            assert!(false, "new 2nd tx not in db");
-        }
-    };
 
     let mut tx2 = Tx::new();
     tx2.attributes = TxAttributes::new(TEST_NETWORK_ID);
@@ -298,19 +247,19 @@ pub fn test_sealing() {
         tx_inputs: Some(vec![sealedtx]),
     };
 
-    let r3 = check_tx(enclave.geteid(), request2, &mut txdb);
+    let r3 = check_tx(enclave.geteid(), request2);
     match r3 {
         Err(Error::ZeroCoin) => {
             debug!("invalid transaction rejected and error code returned");
         }
-        x => {
-            cleanup(&mut db);
+        Err(x) => {
             panic!(
                 "something else happened (tx not correctly rejected): {:?}",
                 x
             );
         }
+        Ok(_) => {
+            panic!("something else happened (tx accepted)");
+        }
     };
-
-    cleanup(&mut db);
 }

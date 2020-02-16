@@ -6,10 +6,7 @@ use chain_core::compute_app_hash;
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::TxId;
 use chain_core::tx::{TxAux, TxEnclaveAux};
-use chain_core::ChainInfo;
 use chain_storage::Storage;
-use enclave_protocol::{EnclaveRequest, EnclaveResponse};
-use log::debug;
 use parity_scale_codec::Encode;
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
@@ -102,25 +99,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         self.storage
             .store_txs_merkle_tree(&app_hash, &tree.encode());
         new_state.last_apphash = app_hash;
-        match self
-            .tx_validator
-            .process_request(EnclaveRequest::CommitBlock {
-                app_hash,
-                info: ChainInfo {
-                    // TODO: fee computation in enclave?
-                    min_fee_computed: top_level.network_params.calculate_fee(0).expect("base fee"),
-                    chain_hex_id: self.chain_hex_id,
-                    previous_block_time: new_state.block_time,
-                    unbonding_period: top_level.network_params.get_unbonding_period(),
-                },
-            }) {
-            EnclaveResponse::CommitBlock(Ok(_)) => {
-                debug!("enclave storage persisted");
-            }
-            _ => {
-                panic!("persisting enclave storage failed");
-            }
-        }
+
         self.storage.store_chain_state(
             &new_state,
             new_state.last_block_height,

@@ -22,7 +22,6 @@ cd ..
 echo "Build $BUILD_MODE $BUILD_PROFILE"
 if [ $BUILD_MODE == "sgx" ]; then
     cargo build $CARGO_ARGS
-    cargo build $CARGO_ARGS -p tx-validation-app
     cargo build $CARGO_ARGS -p tx-query-app
     make -C chain-tx-enclave/tx-validation
     make -C chain-tx-enclave/tx-query

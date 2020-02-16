@@ -10,6 +10,7 @@ edition = "2018"
 mock-enc-dec = []
 mock-validation = []
 default = []
+sgx-test = []
 
 [dependencies]
 abci = "0.6"
@@ -37,7 +38,15 @@ structopt = "0.3"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
 blake2 = "0.8"
 parity-scale-codec = { features = ["derive"], version = "1.1" }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+enclave-u-common = { path = "../chain-tx-enclave/enclave-u-common" }
+sgx_types = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_urts = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 zmq = "0.9"
+
+[build-dependencies]
+cc = "1.0"
 
 [dev-dependencies]
 quickcheck = "0.9"

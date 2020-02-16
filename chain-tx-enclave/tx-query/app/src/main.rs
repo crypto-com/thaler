@@ -1,8 +1,5 @@
 mod enclave_u;
 
-#[cfg(feature = "sgx-test")]
-mod test;
-
 use crate::enclave_u::init_connection;
 use enclave_u::run_server;
 use enclave_u_common::enclave_u::init_enclave;

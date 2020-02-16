@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import time
 from chainrpc import RPC
 from chainbot import SigningKey
 from common import UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, wait_for_tx, wait_for_blocktime, stop_node
@@ -44,7 +43,6 @@ wait_for_validators(rpc, 3)
 enckey = rpc.wallet.restore(TARGET_NODE_MNEMONIC, name='target')
 
 print('Stop', TARGET_NODE)
-time.sleep(5)  # FIXME, remove after adr-001 implemented
 stop_node(supervisor, TARGET_NODE)
 
 print('Waiting for', MISSED_BLOCK_THRESHOLD + 3, 'blocks')

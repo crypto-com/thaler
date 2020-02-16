@@ -3,7 +3,7 @@ use crate::enclave_bridge::EnclaveProxy;
 use abci::{Event, KVPair, RequestEndBlock, ResponseEndBlock};
 use chain_core::common::TendermintEventType;
 use chain_tx_filter::BlockFilter;
-use enclave_protocol::{EnclaveRequest, EnclaveResponse};
+use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk};
 use protobuf::RepeatedField;
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
@@ -11,8 +11,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     pub fn end_block_handler(&mut self, _req: &RequestEndBlock) -> ResponseEndBlock {
         let mut resp = ResponseEndBlock::new();
         if !self.delivered_txs.is_empty() {
-            let end_block_resp = self.tx_validator.process_request(EnclaveRequest::EndBlock);
-            if let EnclaveResponse::EndBlock(Ok(maybe_filter)) = end_block_resp {
+            let end_block_resp = self
+                .tx_validator
+                .process_request(IntraEnclaveRequest::EndBlock);
+            if let Ok(IntraEnclaveResponseOk::EndBlock(maybe_filter)) = end_block_resp {
                 if let Some(raw_filter) = maybe_filter {
                     let filter = BlockFilter::from(&*raw_filter);
 

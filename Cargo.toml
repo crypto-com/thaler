@@ -14,7 +14,6 @@ members = [
     "test-common",
     "dev-utils",
     "enclave-protocol",
-    "chain-tx-enclave/tx-validation/app",
     "chain-tx-enclave/tx-validation/enclave",
     "chain-tx-enclave/tx-query/app",
     "chain-tx-enclave/tx-query/enclave",

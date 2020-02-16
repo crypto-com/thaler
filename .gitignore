@@ -34,3 +34,5 @@ id_ecdsa
 # integration tests temparary artifacts
 /integration-tests/*.so
 /integration-tests/bot/.venv
+
+**/chain-abci/Enclave_u.*

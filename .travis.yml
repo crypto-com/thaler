@@ -1,7 +1,7 @@
 clean_cache: &clean_cache
   language: rust
   sudo: required
-  dist: trusty
+  dist: xenial
   if: type = cron
   cache:
     directories: # cargo caching from https://docs.travis-ci.com/user/caching/#rust-cargo-cache
@@ -22,7 +22,7 @@ clean_cache: &clean_cache
 rust: &rust
   language: rust
   sudo: required
-  dist: trusty
+  dist: xenial
   addons:
     apt:
       packages:
@@ -34,6 +34,7 @@ rust: &rust
         - gcc
         - binutils-dev
         - libc6-dev
+        - libzmq3-dev
   cache:
     directories:
       - $HOME/.cargo
@@ -47,11 +48,13 @@ rust: &rust
   env:
     - RUST_BACKTRACE=1
     - RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3 -D warnings"
-    - PATH=$HOME/.local/bin:$PATH
-    - LD_LIBRARY_PATH=$HOME/lib
-    - PKG_CONFIG_PATH=$HOME/lib/pkgconfig
+    - PATH=$HOME/.local/bin:$PATH:/opt/sgxsdk/bin/x64
+    - LD_LIBRARY_PATH=$HOME/lib:/opt/sgxsdk/sdk_libs
+    - PKG_CONFIG_PATH=$HOME/lib/pkgconfig:/opt/sgxsdk/pkgconfig
+    - SGX_SDK=/opt/sgxsdk
+    - SGX_MODE=SW
   before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
-    - ./ci-scripts/install_zeromq.sh
+    - ./ci-scripts/install_sgxsdk.sh
     - |
       if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
         ./ci-scripts/install_kcov.sh 
@@ -77,6 +80,12 @@ rust: &rust
     if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
       # a small hack, as kcov doesn't have an option to only build default members
       sed 's/"chain-tx-enclave/#"chain-tx-enclave/g' -i Cargo.toml;
+      # more hacks for kcov :(
+      sed 's/default = \[\]/default = \["mock-validation"\]/g' -i chain-abci/Cargo.toml;
+      sed 's/sgx/#sgx/g' -i chain-abci/Cargo.toml;
+      sed 's/enclave-u-common/#enclave-u-common/g' -i chain-abci/Cargo.toml;
+      sed 's/CARGO/_CARGO/g' -i chain-abci/build.rs;
+
       travis_wait 30 cargo kcov --all;
       bash <(curl -s https://codecov.io/bash);
     fi

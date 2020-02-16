@@ -224,12 +224,11 @@ def programs(node, app_hash, root_path, cfg):
     def_env = {
         'RUST_BACKTRACE': '1',
         'RUST_LOG': 'info',
+        'SGX_MODE': 'HW',
     }
     commands = []
     if not cfg.get('mock_mode'):
         commands += [
-            ('tx-validation', f"tx-validation-app tcp://0.0.0.0:{tx_validation_port}",
-             dict(def_env, SGX_MODE='HW', TX_ENCLAVE_STORAGE=node_path / Path('tx-validation'))),
             ('tx-query', f"tx-query-app 0.0.0.0:{tx_query_port} tcp://127.0.0.1:{tx_validation_port}",
              dict(def_env, SGX_MODE='HW', IAS_API_KEY=os.environ['IAS_API_KEY'], SPID=os.environ['SPID'], TX_ENCLAVE_STORAGE=node_path / Path('tx-query'))),
         ]

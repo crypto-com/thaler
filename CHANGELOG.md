@@ -7,10 +7,12 @@
 * client uses argon2 function for its internal storage key derivation.
 * *client* [976](https://github.com/crypto-com/chain/pull/976) Missing MultiSig pubkey methods in ClientRPC and ClientCLI
  -- Rename client-rpc method `wallet_newMultiSigAddressPublicKey` to  `multiSig_newAddressPublicKey`
+* ADR-001: tx-validation-app subsumed by chain-abci and sealed transaction payloads are stored in chain-abci's storage
 ...
 
 ### Bug Fixes
 * *client* [969](https://github.com/crypto-com/chain/pull/969): client-cli incorrect fee display in history
+* *chain-abci* [1008](https://github.com/crypto-com/chain/pull/1008):  unbonded or unjailed validator cannot rejoin the validator set 
 
 *January 3, 2020*
 

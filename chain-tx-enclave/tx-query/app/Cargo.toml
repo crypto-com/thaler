@@ -8,7 +8,6 @@ edition = "2018"
 
 [features]
 default = []
-sgx-test = ["client-core", "client-common"]
 
 [dependencies]
 log = "0.4.8"
@@ -21,8 +20,6 @@ chain-core   = { path = "../../../chain-core" }
 enclave-protocol   = { path = "../../../enclave-protocol" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
 zmq = "0.9"
-client-core   = { path = "../../../client-core", optional = true }
-client-common   = { path = "../../../client-common", optional = true }
 
 [build-dependencies]
 cc = "1.0"

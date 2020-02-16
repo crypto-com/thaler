@@ -137,6 +137,16 @@ impl NetworkParameters {
         }
     }
 
+    // TODO: will it be necessary?
+    pub fn get_min_const_fee(&self) -> Result<Fee, CoinError> {
+        match self {
+            NetworkParameters::Genesis(params) => {
+                let coin = Coin::new(params.initial_fee_policy.coefficient.to_integral())?;
+                Ok(Fee::new(coin))
+            }
+        }
+    }
+
     pub fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError> {
         match self {
             NetworkParameters::Genesis(params) => {

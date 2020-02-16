@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os
-import time
 from chainrpc import RPC
 from chainbot import SigningKey
 from common import UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, stop_node, wait_for_tx
@@ -24,7 +23,6 @@ rpc = RPC(BASE_PORT)
 
 # stop node1
 print('Stop node1')
-time.sleep(5)  # FIXME, remove after adr-001 implemented
 stop_node(supervisor, 'node1')
 
 print('Wait for 1 validators online')

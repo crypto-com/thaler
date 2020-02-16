@@ -51,8 +51,6 @@ def wait_for_blocks(rpc, n):
 
 def stop_node(supervisor, name):
     supervisor.supervisor.stopProcess('%s:%s-%s' % (name, 'tendermint', name))
-    print('Wait 3 seconds before stop other processes[FIXME, remove after adr-001]')
-    time.sleep(3)
     supervisor.supervisor.stopProcessGroup(name)
 
 
