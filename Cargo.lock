@@ -3047,12 +3047,12 @@ dependencies = [
 [[package]]
 name = "sgx_alloc"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 
 [[package]]
 name = "sgx_backtrace_sys"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "cc",
  "sgx_build_helper",
@@ -3062,17 +3062,17 @@ dependencies = [
 [[package]]
 name = "sgx_build_helper"
 version = "0.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 
 [[package]]
 name = "sgx_demangle"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 
 [[package]]
 name = "sgx_libc"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_types",
 ]
@@ -3080,7 +3080,7 @@ dependencies = [
 [[package]]
 name = "sgx_rand"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_trts",
  "sgx_tstd",
@@ -3090,7 +3090,7 @@ dependencies = [
 [[package]]
 name = "sgx_tcrypto"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_types",
 ]
@@ -3098,7 +3098,7 @@ dependencies = [
 [[package]]
 name = "sgx_tprotected_fs"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_trts",
  "sgx_types",
@@ -3107,7 +3107,7 @@ dependencies = [
 [[package]]
 name = "sgx_trts"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_libc",
  "sgx_types",
@@ -3116,7 +3116,7 @@ dependencies = [
 [[package]]
 name = "sgx_tse"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_types",
 ]
@@ -3124,7 +3124,7 @@ dependencies = [
 [[package]]
 name = "sgx_tseal"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_tcrypto",
  "sgx_trts",
@@ -3135,7 +3135,7 @@ dependencies = [
 [[package]]
 name = "sgx_tstd"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_alloc",
  "sgx_backtrace_sys",
@@ -3151,12 +3151,12 @@ dependencies = [
 [[package]]
 name = "sgx_types"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 
 [[package]]
 name = "sgx_unwind"
 version = "0.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_build_helper",
 ]
@@ -3164,7 +3164,7 @@ dependencies = [
 [[package]]
 name = "sgx_urts"
 version = "1.1.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#93c76de88befbfc1f483ce8336c7ee1f0c7f7563"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "libc",
  "sgx_types",
