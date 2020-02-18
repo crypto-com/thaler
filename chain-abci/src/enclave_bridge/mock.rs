@@ -6,6 +6,8 @@ use chain_core::state::account::DepositBondTx;
 #[cfg(feature = "mock-enc-dec")]
 use chain_core::tx::data::input::TxoIndex;
 use chain_core::tx::PlainTxAux;
+#[cfg(feature = "mock-enc-dec")]
+use chain_core::tx::TransactionId;
 use chain_core::tx::TxEnclaveAux;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::TxWithOutputs;
