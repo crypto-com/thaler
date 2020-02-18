@@ -367,10 +367,16 @@ impl ValidatorState {
             .tendermint_validator_addresses
             .get(addr)
             .expect("block proposer is not found");
-        self.proposer_stats
-            .entry(*staking_address)
-            .and_modify(|count| *count += 1)
-            .or_insert_with(|| 1);
+        if self
+            .validator_state_helper
+            .validator_voting_power
+            .contains_key(staking_address)
+        {
+            self.proposer_stats
+                .entry(*staking_address)
+                .and_modify(|count| *count += 1)
+                .or_insert_with(|| 1);
+        }
     }
 
     /// for liveness tracking
