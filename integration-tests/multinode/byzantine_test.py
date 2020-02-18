@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import time
 from chainrpc import RPC
 from chainbot import SigningKey
 from common import UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, stop_node, wait_for_tx
@@ -33,6 +34,7 @@ os.environ['ENCKEY'] = enckey
 bonded_staking, unbonded_staking = rpc.address.list()[:2]
 transfer = rpc.address.list(type='transfer')[0]
 
+time.sleep(5)  # wait for at least one block, FIXME remove after #828 fixed
 txid = rpc.staking.withdraw_all_unbonded(unbonded_staking, transfer)
 wait_for_tx(rpc, txid)
 rpc.wallet.sync()
