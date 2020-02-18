@@ -169,6 +169,21 @@ class Wallet(BaseService):
     def sync_stop(self, name=DEFAULT_WALLET, enckey=None):
         return self.call('sync_stop', [name, enckey or get_enckey()])
 
+    def build_raw_transfer_tx(self, to_address, amount, name = DEFAULT_WALLET,  enckey=None, viewkeys=[]):
+        """
+        build a raw transfer tx on watch-only wallet
+        :return: unsigned raw transaction info encoded in base64 string
+        """
+        return self.call('wallet_buildRawTransferTransaction', [name, enckey or get_enckey()], to_address, str(amount), viewkeys)
+
+    def broadcast_signed_transfer_tx(self, signed_tx, name = DEFAULT_WALLET, enckey=None):
+        """
+        send a transfer tx signed by offline wallet
+        :return:
+        """
+        return self.call('wallet_broadcastSignedTransferTransaction', [name, enckey or get_enckey()], signed_tx)
+
+
 
 class Staking(BaseService):
     def deposit(self, to_address, inputs, name=DEFAULT_WALLET, enckey=None):
@@ -195,6 +210,13 @@ class Staking(BaseService):
 
     def join(self, node_name, node_pubkey, node_staking_address, name=DEFAULT_WALLET, enckey=None):
         return self.call('staking_validatorNodeJoin', [name, enckey or get_enckey()], node_name, node_pubkey,  fix_address(node_staking_address))
+
+    def build_raw_transfer_tx(self, to_address, amount, name = DEFAULT_WALLET,  enckey=None, viewkeys=[]):
+        return self.call('wallet_buildRawTransferTx', [name, enckey or get_enckey()], to_address, amount, viewkeys)
+
+    def broadcast_raw_transfer_tx(self, signed_tx, name = DEFAULT_WALLET, enckey=None):
+        return self.call('wallet_broadcastSignedTransferTx', [name, enckey or get_enckey()], signed_tx)
+
 
 
 class MultiSig(BaseService):

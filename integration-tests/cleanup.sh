@@ -11,6 +11,9 @@ fi
 if [ -d data ]; then
     rm -rf data
 fi
+if [ -d data_offline ]; then
+    rm -rf data_offline
+fi
 if [ -f tx_query_enclave.signed.so ]; then
     rm tx_query_enclave.signed.so
 fi
