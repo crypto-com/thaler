@@ -467,11 +467,7 @@ fn new_unbond_transaction<N: NetworkOpsClient>(
 ) -> Result<TxAux> {
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let address = ask_staking_address()?;
-
-    ask("Enter amount (in CRO): ");
-    let value_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
-    let value = coin_from_str(&value_str)?;
-
+    let value = ask_cro()?;
     network_ops_client.create_unbond_stake_transaction(name, enckey, address, value, attributes)
 }
 
@@ -514,9 +510,7 @@ fn new_deposit_amount_transaction<T: WalletClient, N: NetworkOpsClient>(
 ) -> Result<()> {
     let to_staking_address = ask_staking_address()?;
     let attr = StakedStateOpAttributes::new(get_network_id());
-    ask("Enter deposit amount (in CRO): ");
-    let amount_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
-    let amount = coin_from_str(&amount_str)?;
+    let amount = ask_cro()?;
     let fee = network_ops_client.calculate_deposit_fee()?;
     let total_amount = (amount + fee).chain(|| (ErrorKind::InvalidInput, "invalid amount"))?;
     success(&format!(
@@ -682,10 +676,7 @@ fn ask_outputs() -> Result<Vec<TxOut>> {
                 "Unable to parse output address",
             )
         })?;
-
-        ask("Enter amount (in CRO): ");
-        let amount_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
-        let amount = coin_from_str(&amount_str)?;
+        let amount = ask_cro()?;
 
         ask(
             "Enter timelock (seconds from UNIX epoch) (leave blank if output is not time locked): ",
@@ -715,6 +706,26 @@ fn ask_outputs() -> Result<Vec<TxOut>> {
     }
 
     Ok(outputs)
+}
+
+fn ask_cro() -> Result<Coin> {
+    loop {
+        ask("Enter amount (in CRO): ");
+        let amount_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
+        let amount = coin_from_str(&amount_str)?;
+
+        ask(&format!("Is the amount {} CRO? [Y|N]:", amount));
+        match yesno(false).chain(|| (ErrorKind::IoError, "Unable to read yes/no"))? {
+            None => return Err(ErrorKind::InvalidInput.into()),
+            Some(yes) => {
+                if yes {
+                    break Ok(amount);
+                } else {
+                    continue;
+                }
+            }
+        }
+    }
 }
 
 fn ask_inputs() -> Result<Vec<TxoPointer>> {
