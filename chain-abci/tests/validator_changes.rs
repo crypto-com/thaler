@@ -200,7 +200,7 @@ fn check_rejoin() {
     // node join should be ok
     let validators_meta = &app.last_state.as_ref().expect("state").validators;
     assert!(validators_meta.is_scheduled_for_delete(&staking_address, &tm_address));
-    let tx_aux = env.join_tx(1, 0);
+    let tx_aux = env.join_tx(2, 0);
     let rsp_tx = app.deliver_tx(&RequestDeliverTx {
         tx: tx_aux.encode(),
         ..Default::default()

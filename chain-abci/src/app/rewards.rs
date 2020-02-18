@@ -138,6 +138,7 @@ mod tests {
         let staking = state.validators.lookup_address(&env.validator_address(0));
         let acct = get_account(staking, &app);
         assert_eq!(acct.bonded, (env.share() + reward1).unwrap());
+        assert_eq!(acct.nonce, 1);
 
         // propose block by second validator.
         let reward2 = monetary_expansion(
@@ -160,6 +161,7 @@ mod tests {
         let staking = state.validators.lookup_address(&env.validator_address(1));
         let acct = get_account(staking, &app);
         assert_eq!(acct.bonded, (env.share() + reward2).unwrap());
+        assert_eq!(acct.nonce, 1);
 
         // rewards decrease
         assert!(reward2 > Coin::zero() && reward2 < reward1);

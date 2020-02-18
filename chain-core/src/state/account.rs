@@ -430,6 +430,7 @@ impl StakedState {
     }
 
     pub fn add_reward(&mut self, amount: Coin) -> Result<Coin, CoinError> {
+        self.nonce += 1;
         self.bonded = (self.bonded + amount)?;
         Ok(self.bonded)
     }
