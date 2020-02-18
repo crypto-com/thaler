@@ -1,10 +1,10 @@
 use std::str::FromStr;
 
-use quest::{ask, success};
+use quest::{ask, success, text};
 use structopt::StructOpt;
 use unicase::eq_ascii;
 
-use client_common::{Error, ErrorKind, Result};
+use client_common::{error::ResultExt, Error, ErrorKind, PublicKey, Result};
 use client_core::WalletClient;
 
 use crate::ask_seckey;
@@ -14,6 +14,7 @@ const ADDRESS_TYPE_VARIANTS: [&str; 2] = ["transfer", "staking"];
 #[derive(Debug)]
 pub enum AddressType {
     Transfer,
+    TransferWatch,
     Staking,
 }
 
@@ -23,6 +24,8 @@ impl FromStr for AddressType {
     fn from_str(s: &str) -> Result<Self> {
         if eq_ascii(s, "transfer") {
             Ok(AddressType::Transfer)
+        } else if eq_ascii(s, "transfer-watch") {
+            Ok(AddressType::TransferWatch)
         } else if eq_ascii(s, "staking") {
             Ok(AddressType::Staking)
         } else {
@@ -128,6 +131,14 @@ impl AddressCommand {
                 success(&format!("New address: {}", address));
                 Ok(())
             }
+            AddressType::TransferWatch => {
+                let enckey = ask_seckey(None)?;
+                let public_key = ask_public_key(None)?;
+                let address =
+                    wallet_client.new_watch_staking_address(name, &enckey, &public_key)?;
+                success(&format!("New watch transfer address: {}", address));
+                Ok(())
+            }
         }
     }
 
@@ -151,7 +162,7 @@ impl AddressCommand {
                     success("No addresses found!")
                 }
             }
-            AddressType::Transfer => {
+            AddressType::Transfer | AddressType::TransferWatch => {
                 let addresses = wallet_client.transfer_addresses(name, &enckey)?;
 
                 if !addresses.is_empty() {
@@ -177,7 +188,9 @@ impl AddressCommand {
 
         let pub_keys = match address_type {
             AddressType::Staking => wallet_client.staking_keys(name, &enckey)?,
-            AddressType::Transfer => wallet_client.public_keys(name, &enckey)?,
+            AddressType::Transfer | AddressType::TransferWatch => {
+                wallet_client.public_keys(name, &enckey)?
+            }
         };
         for pubkey in pub_keys.iter() {
             println!("{}", pubkey);
@@ -185,4 +198,13 @@ impl AddressCommand {
 
         Ok(())
     }
+}
+
+fn ask_public_key(message: Option<&str>) -> Result<PublicKey> {
+    ask(message.unwrap_or("Enter public key: "));
+    let pubkey_str = text().chain(|| (ErrorKind::InvalidInput, "Invalid input"))?;
+    let pubkey_str = pubkey_str.trim();
+    let pubkey = PublicKey::from_str(pubkey_str)
+        .chain(|| (ErrorKind::InvalidInput, "Invalid public key"))?;
+    Ok(pubkey)
 }
