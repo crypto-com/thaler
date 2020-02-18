@@ -68,7 +68,7 @@ pub fn log2(x: Fixed, y: Fixed) -> Fixed {
 /// Compute newly released coins for rewards distribution.
 /// [Docs for the formula](https://crypto-com.github.io/getting-started/staking.html#monetary-expansion)
 pub fn monetary_expansion(staking: Coin, tau: u64, r0: Milli, period: u64) -> Coin {
-    assert!(tau > 0 && tau <= 100_00000000_00000000_u64);
+    assert!(tau != 0);
 
     let r0 = Fixed::from_num(r0.as_millis());
     let period = Fixed::from_num(period);
@@ -119,6 +119,16 @@ mod tests {
     #[test]
     fn check_exp_lower_bound() {
         let err = exp_error(Fixed::from_num(EXP_LOWER_BOUND), Fixed::from_num(1));
+        assert!(err < MIN_ERROR);
+    }
+
+    #[test]
+    fn check_exp_edge_cases() {
+        let base = Fixed::from_num(10000000_00000000_u64);
+        let err = exp_error(
+            Fixed::from_num(-1) / base,
+            Fixed::from_num(std::u64::MAX) / base,
+        );
         assert!(err < MIN_ERROR);
     }
 
@@ -189,21 +199,18 @@ mod tests {
     #[test]
     fn check_monetory_expansion_edge_cases() {
         // staking: [1, 100_00000000_00000000]
-        // tau: [1, 100_00000000_00000000]
-        // r0: [0, ...]
-        // period: [0, ...]
+        // tau: [1, )
+        // r0: [0, 1000000]
+        // period: [0, 365 * 86400]
+
+        // check staking/tau edge cases
         println!(
             "coins: {}",
             check_monetory_expansion(Coin::one(), 1, Milli::new(0, 500), 86400)
         );
         println!(
             "coins: {}",
-            check_monetory_expansion(
-                Coin::one(),
-                100_00000000_00000000_u64,
-                Milli::new(0, 500),
-                86400
-            )
+            check_monetory_expansion(Coin::one(), std::u64::MAX, Milli::new(0, 500), 86400)
         );
         println!(
             "coins: {}",
@@ -211,12 +218,7 @@ mod tests {
         );
         println!(
             "coins: {}",
-            check_monetory_expansion(
-                Coin::max(),
-                100_00000000_00000000,
-                Milli::integral(1),
-                365 * 24 * 60 * 60
-            )
+            check_monetory_expansion(Coin::max(), std::u64::MAX, Milli::new(0, 500), 86400)
         );
         println!(
             "coins: {}",

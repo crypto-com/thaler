@@ -147,10 +147,10 @@ fn check_rejoin() {
         |parameters| {
             // tweaking times + parameters, something more than 0.0... gets minted
             parameters.unbonding_period = 3600 * 24 * 10000;
-            parameters.rewards_config.reward_period_seconds = 3600 * 12 * 10000;
+            parameters.rewards_config.reward_period_seconds = 365 * 24 * 3600;
             parameters.required_council_node_stake = (Coin::max() / 4).unwrap();
             parameters.rewards_config.monetary_expansion_r0 = Milli::new(1, 0);
-            parameters.rewards_config.monetary_expansion_tau = 10_0000_0000_0000_0000;
+            parameters.rewards_config.monetary_expansion_tau = 1000_0000_0000_0000_0000;
             parameters.rewards_config.monetary_expansion_decay = 0;
         },
     );
@@ -191,7 +191,7 @@ fn check_rejoin() {
     // Begin block -- there should be a reward after this one
     app.begin_block(&RequestBeginBlock {
         last_commit_info: Some(env.last_commit_info(1, true)).into(),
-        ..env.req_begin_block_with_time(2, 1, 3600 * 12 * 10000 + 1)
+        ..env.req_begin_block_with_time(2, 1, 365 * 24 * 3600 + 1)
     });
 
     let acct = get_account(&staking_address, &app);

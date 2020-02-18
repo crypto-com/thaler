@@ -203,8 +203,8 @@ impl RewardsParameters {
         if self.monetary_expansion_tau == 0 {
             return Err("tau can't == 0");
         }
-        if self.monetary_expansion_tau > 100_00000000_00000000_u64 {
-            return Err("tau too big");
+        if self.reward_period_seconds > 365 * 86400 {
+            return Err("reward period can't exceed 365 days");
         }
         if self.monetary_expansion_decay > 1_000_000 {
             return Err("decay can't > 1_000_000");
