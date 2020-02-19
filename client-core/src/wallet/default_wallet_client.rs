@@ -213,6 +213,48 @@ where
         self.wallet_service.names()
     }
 
+    fn export_wallet(&self, name: &str, enckey: &SecKey) -> Result<WalletInfo> {
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let private_key = self
+            .key_service
+            .private_key(&wallet.view_key, enckey)?
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "Can not find private key in wallet",
+                )
+            })?;
+        let wallet_info = WalletInfo {
+            name: name.into(),
+            wallet,
+            private_key,
+            passphrase: None,
+        };
+        Ok(wallet_info)
+    }
+
+    fn import_wallet(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        wallet_info: WalletInfo,
+    ) -> Result<SecKey> {
+        check_passphrase_strength(name, passphrase)?;
+        let enckey = derive_enckey(passphrase, name).err_kind(ErrorKind::InvalidInput, || {
+            "unable to derive encryption key from passphrase"
+        })?;
+        let view_key = PublicKey::from(&wallet_info.private_key);
+        if view_key != wallet_info.wallet.view_key {
+            return Err(Error::new(ErrorKind::InvalidInput, "public key not match"));
+        }
+        self.key_service
+            .add_keypair(&wallet_info.private_key, &view_key, &enckey)?;
+
+        self.wallet_service
+            .set_wallet(name, &enckey, wallet_info.wallet)?;
+        Ok(enckey)
+    }
+
     fn new_wallet(
         &self,
         name: &str,

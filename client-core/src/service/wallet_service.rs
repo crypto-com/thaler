@@ -7,11 +7,70 @@ use chain_core::init::address::RedeemAddress;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::{
-    Error, ErrorKind, PublicKey, Result, ResultExt, SecKey, SecureStorage, Storage,
+    Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecKey, SecureStorage, Storage,
 };
+use std::fmt;
+//use serde::ser::{Serialize, SerializeStruct, Serializer};
+use secstr::SecUtf8;
+use serde::de::{self, Visitor};
+use serde::export::PhantomData;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Key space of wallet
 const KEYSPACE: &str = "core_wallet";
+
+fn serde_to_str<T, S>(value: &T, serializer: S) -> std::result::Result<S::Ok, S::Error>
+where
+    T: Encode,
+    S: Serializer,
+{
+    let value_str = base64::encode(&value.encode());
+    serializer.serialize_str(&value_str)
+}
+
+fn deserde_from_str<'de, D, T>(deserializer: D) -> std::result::Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Decode,
+{
+    struct Helper<S>(PhantomData<S>);
+
+    impl<'de, S> Visitor<'de> for Helper<S>
+    where
+        S: Decode,
+    {
+        type Value = S;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            write!(formatter, "expect valid str")
+        }
+
+        fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            let raw_data = base64::decode(value).map_err(de::Error::custom)?;
+            let v = Self::Value::decode(&mut raw_data.as_slice()).map_err(de::Error::custom)?;
+            Ok(v)
+        }
+    }
+    deserializer.deserialize_str(Helper(PhantomData))
+}
+
+/// Wallet information to export and import
+#[derive(Debug, Deserialize, Serialize)]
+pub struct WalletInfo {
+    /// name of the the wallet
+    pub name: String,
+    /// wallet meta data
+    #[serde(deserialize_with = "deserde_from_str", serialize_with = "serde_to_str")]
+    pub wallet: Wallet,
+    /// private key of the wallet
+    #[serde(deserialize_with = "deserde_from_str", serialize_with = "serde_to_str")]
+    pub private_key: PrivateKey,
+    /// passphrase used when import wallet
+    pub passphrase: Option<SecUtf8>,
+}
 
 /// Wallet meta data
 #[derive(Debug)]
@@ -168,7 +227,8 @@ where
         })
     }
 
-    fn set_wallet(&self, name: &str, enckey: &SecKey, wallet: Wallet) -> Result<()> {
+    /// Store the wallet to storage
+    pub fn set_wallet(&self, name: &str, enckey: &SecKey, wallet: Wallet) -> Result<()> {
         save_wallet(&self.storage, name, enckey, &wallet)
     }
 

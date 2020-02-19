@@ -273,11 +273,11 @@ pub fn verify_transfer(
         &extra_info,
         transaction_inputs,
     )?;
-    let outcoins = maintx.get_output_total();
-    if let Err(_coin_err) = outcoins {
-        return Err(Error::InvalidSum); // FIXME: Err(Error::InvalidSum(coin_err));
-    }
-    check_input_output_sums(incoins, outcoins.unwrap(), &extra_info)
+    let outcoins = maintx.get_output_total().map_err(|_| {
+        // FIXME: Err(Error::InvalidSum(coin_err));
+        Error::InvalidSum
+    })?;
+    check_input_output_sums(incoins, outcoins, &extra_info)
 }
 
 /// checks depositing to a staked state -- TODO: this will be moved to an enclave

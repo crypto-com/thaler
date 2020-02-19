@@ -17,7 +17,7 @@ pub use self::root_hash_service::RootHashService;
 pub use self::sync_state_service::{
     delete_sync_state, load_sync_state, save_sync_state, SyncState, SyncStateService,
 };
-pub use self::wallet_service::{load_wallet, save_wallet, Wallet, WalletService};
+pub use self::wallet_service::{load_wallet, save_wallet, Wallet, WalletInfo, WalletService};
 pub use self::wallet_state_service::{
     delete_wallet_state, load_wallet_state, modify_wallet_state, save_wallet_state, WalletState,
     WalletStateService,
