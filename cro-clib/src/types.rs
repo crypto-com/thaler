@@ -1,3 +1,4 @@
+use chain_core::state::account::DepositBondTx;
 use chain_core::tx::data::Tx;
 use chain_core::tx::fee::{LinearFee, Milli};
 use client_common::{PrivateKey, PublicKey};
@@ -9,6 +10,7 @@ use std::os::raw::c_int;
 pub type CroHDWalletPtr = *mut CroHDWallet;
 pub type CroAddressPtr = *mut CroAddress;
 pub type CroTxPtr = *mut CroTx;
+pub type CroDepositTxPtr = *mut CroDepositTx;
 pub type CroFeePtr = *mut CroFee;
 
 pub const SUCCESS: i32 = 0;
@@ -68,19 +70,18 @@ pub unsafe fn get_string(src: *const c_char) -> String {
     CStr::from_ptr(src).to_string_lossy().into_owned()
 }
 
-/// value: carson unit  for example) 1_0000_0000 carson = 1 cro, 1 carson = 0.0000_0001 cro
-#[repr(C)]
-pub struct CroUtxo {
-    pub address: [u8; 32], // holder
-    pub value: u64,        // amount in carson unit
-    pub valid_from: u64,   // time lock
-}
-
 #[derive(Clone)]
 pub struct CroTx {
     pub txin: Vec<WitnessedUTxO>, // TxoPointer, TxOut, TxInWitness
     // contains TxoPointer(in), TxOut(out), attribites(viewkey)
     pub tx: Tx,
+}
+
+#[derive(Clone)]
+pub struct CroDepositTx {
+    pub txin: Vec<WitnessedUTxO>, // TxoPointer, TxOut, TxInWitness
+    // contains TxoPointer(in), TxOut(out), attribites(viewkey)
+    pub tx: DepositBondTx,
 }
 
 #[derive(Clone)]
