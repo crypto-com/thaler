@@ -1803,9 +1803,9 @@ dependencies = [
 
 [[package]]
 name = "kvdb"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8396be0e5561ccd1bf7ff0b2007487cdd7a87a056873fe6ea906b35d4dbf7ed8"
+checksum = "03080afe6f42cd996da9f568d6add5d7fb5ee2ea7fb7802d2d2cbd836958fd87"
 dependencies = [
  "parity-bytes",
  "parity-util-mem",
@@ -1814,20 +1814,20 @@ dependencies = [
 
 [[package]]
 name = "kvdb-memorydb"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d25ef14155e418515c4839e9144c839de3506e68946f255a32b7f166095493d"
+checksum = "b9355274e5a9e0a7e8ef43916950eae3949024de2a8dffe4d5a6c13974a37c8e"
 dependencies = [
  "kvdb",
  "parity-util-mem",
- "parking_lot 0.9.0",
+ "parking_lot 0.10.0",
 ]
 
 [[package]]
 name = "kvdb-rocksdb"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a1053e90a54421a842b6bf5d0e4a5cb5364c0bf570f713c58e44a9906f501d9"
+checksum = "af36fd66ccd99f3f771ae39b75aaba28b952372b6debfb971134bf1f03466ab2"
 dependencies = [
  "fs-swap",
  "interleaved-ordered",
@@ -1836,7 +1836,7 @@ dependencies = [
  "num_cpus",
  "owning_ref",
  "parity-util-mem",
- "parking_lot 0.9.0",
+ "parking_lot 0.10.0",
  "regex",
  "rocksdb",
  "smallvec 1.2.0",
@@ -2227,14 +2227,14 @@ dependencies = [
 
 [[package]]
 name = "parity-util-mem"
-version = "0.4.2"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01b04e4d2588668d5aa93144b3bd719be963542e60042d66c7586ca763838a5b"
+checksum = "ef1476e40bf8f5c6776e9600983435821ca86eb9819d74a6207cca69d091406a"
 dependencies = [
  "cfg-if",
  "impl-trait-for-tuples",
  "parity-util-mem-derive",
- "parking_lot 0.9.0",
+ "parking_lot 0.10.0",
  "smallvec 1.2.0",
  "winapi 0.3.8",
 ]
