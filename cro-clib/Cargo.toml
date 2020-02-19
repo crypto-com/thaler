@@ -12,7 +12,7 @@ crate-type =["cdylib"]
 
 [dependencies]
 parity-scale-codec = { features = ["derive"], version = "1.1" }
-hex="0.4.1"
+hex="0.4.2"
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }

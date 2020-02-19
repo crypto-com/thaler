@@ -437,7 +437,7 @@ dependencies = [
  "enclave-protocol",
  "enclave-u-common",
  "env_logger 0.7.1",
- "hex 0.4.1",
+ "hex 0.4.2",
  "integer-encoding",
  "kvdb",
  "kvdb-memorydb",
@@ -470,7 +470,7 @@ dependencies = [
  "blake2",
  "digest 0.8.1",
  "fixed",
- "hex 0.4.1",
+ "hex 0.4.2",
  "parity-scale-codec",
  "quickcheck",
  "secp256k1zkp",
@@ -506,7 +506,7 @@ dependencies = [
  "bit-vec 0.6.1",
  "chain-core",
  "ethbloom",
- "hex 0.4.1",
+ "hex 0.4.2",
  "parity-scale-codec",
  "quickcheck",
  "secp256k1zkp",
@@ -602,7 +602,7 @@ dependencies = [
  "client-core",
  "client-network",
  "env_logger 0.7.1",
- "hex 0.4.1",
+ "hex 0.4.2",
  "log 0.4.8",
  "pbr",
  "quest",
@@ -624,7 +624,7 @@ dependencies = [
  "chain-core",
  "chain-tx-filter",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
- "hex 0.4.1",
+ "hex 0.4.2",
  "hmac",
  "itertools 0.8.2",
  "jsonrpc",
@@ -658,7 +658,7 @@ dependencies = [
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common",
  "enclave-protocol",
- "hex 0.4.1",
+ "hex 0.4.2",
  "indexmap",
  "itertools 0.8.2",
  "jsonrpc-core",
@@ -699,7 +699,7 @@ dependencies = [
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common",
  "client-core",
- "hex 0.4.1",
+ "hex 0.4.2",
  "parity-scale-codec",
  "secp256k1zkp",
  "secstr",
@@ -719,7 +719,7 @@ dependencies = [
  "client-network",
  "dirs",
  "env_logger 0.7.1",
- "hex 0.4.1",
+ "hex 0.4.2",
  "indexmap",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -783,7 +783,7 @@ dependencies = [
  "chain-core",
  "client-common",
  "client-core",
- "hex 0.4.1",
+ "hex 0.4.2",
  "parity-scale-codec",
  "secp256k1zkp",
  "secstr",
@@ -934,7 +934,7 @@ dependencies = [
  "client-core",
  "client-network",
  "dirs",
- "hex 0.4.1",
+ "hex 0.4.2",
  "kvdb-memorydb",
  "quest",
  "secstr",
@@ -1461,9 +1461,9 @@ checksum = "805026a5d0141ffc30abb3be3173848ad46a1b1664fe632428479619a3644d77"
 
 [[package]]
 name = "hex"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76cdda6bf525062a0c9e8f14ee2b37935c86b8efb6c8b69b3c83dfb518a914af"
+checksum = "644f9158b2f133fd50f5fb3242878846d9eb792e445c893805ff0e3824006e35"
 
 [[package]]
 name = "hmac"
@@ -3541,7 +3541,7 @@ dependencies = [
  "chain-storage",
  "client-common",
  "client-core",
- "hex 0.4.1",
+ "hex 0.4.2",
  "kvdb-memorydb",
  "lazy_static",
  "parity-scale-codec",
