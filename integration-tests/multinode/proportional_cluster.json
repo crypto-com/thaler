@@ -1,0 +1,73 @@
+{
+    "mock_mode": false,
+    "root_path": "./data",
+    "chain_id": "test-chain-y3m1e6-AB",
+    "genesis_time": "2019-11-20T08:56:48.618137Z",
+    "expansion_cap": 1000000000000000000,
+    "nodes": [
+        {
+            "name": "node0",
+            "hostname": "127.0.0.1",
+            "mnemonic": "crash light verify moon door fence primary among hole spray prosper mom excite skin route",
+            "validator_seed": "83e3e0d1412ee89c152cbd1a073b6b828e31f9d34d4d67f09838b0594c0511c3",
+            "node_seed": "239f4e9246ddcaa2f3eab3f7b5ef13579d75c739688bc6524aedf9da7d38affe",
+            "bonded_coin": 400000000100000000,
+            "unbonded_coin": 100000000000000000,
+            "base_port": 26650
+        },
+        {
+            "name": "node1",
+            "hostname": "127.0.0.1",
+            "mnemonic": "nerve month script mouse smooth news exit wolf garbage allow barrel science decline orbit myself",
+            "validator_seed": "817ea5a66da64514a8227da207542e3841cc614a7af599da724e51fc6d7fd493",
+            "node_seed": "b0cffddc4725f6c6b0d968aa240d0050ee785e7f2062cc3546dbf568c92b008a",
+            "bonded_coin": 100000000000000000,
+            "unbonded_coin": 100000000000000000,
+            "base_port": 26660
+        },
+        {
+            "name": "node2",
+            "hostname": "127.0.0.1",
+            "mnemonic": "employ quarter stadium image fortune push now voyage tomorrow robot patient biology chief lawn nephew",
+            "validator_seed": "53e2f9272f2bbcfc84440bd34e1b6ae67ec2e8ee076773c0bd6e572cf0d5bcb8",
+            "node_seed": "6abc2c5e98142d86c2f71074699e815cf0726db9af6a34c593d31dbe643ced25",
+            "bonded_coin": 100000000000000000,
+            "unbonded_coin": 100000000000000000,
+            "base_port": 26670
+        }
+    ],
+    "chain_config_patch": [
+        {
+            "op": "replace",
+            "path": "/initial_fee_policy/base_fee",
+            "value": "0.0"
+        },
+        {
+            "op": "replace",
+            "path": "/initial_fee_policy/per_byte_fee",
+            "value": "0.0"
+        },
+        {
+            "op": "replace",
+            "path": "/jailing_config/missed_block_threshold",
+            "value": 5
+        },
+        {
+            "op": "replace",
+            "path": "/slashing_config/slash_wait_period",
+            "value": 5
+        }
+    ],
+    "tendermint_config_patch": [
+        {
+            "op": "replace",
+            "path": "/consensus/create_empty_blocks",
+            "value": false
+        },
+        {
+            "op": "add",
+            "path": "/consensus/create_empty_blocks_interval",
+            "value": "0s"
+        }
+    ]
+}

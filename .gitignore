@@ -19,6 +19,7 @@ __pycache__
 .vscode
 .idea
 /tags
+/.vim
 
 # TODOR
 .todor
