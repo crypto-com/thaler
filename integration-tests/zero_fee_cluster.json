@@ -15,7 +15,7 @@
             "node_seed": "95356c3c5791cdd1601087c6448aa2a3b1f6f01ecce89b601194e0d6f27fdd7b",
             "bonded_coin": 500000000000000000,
             "unbonded_coin": 500000000000000000,
-            "base_port": 16650
+            "base_port": 26650
         }
     ],
     "chain_config_patch": [

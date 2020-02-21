@@ -41,7 +41,15 @@ wait_for_blocktime(rpc, unbonded_from)
 
 print('Withdraw unbonded', bonded_staking)
 transfer = rpc.address.list(enckey=enckey, type='transfer')[0]
-txid = rpc.staking.withdraw_all_unbonded(bonded_staking, transfer, enckey=enckey)
+txid = rpc.staking.withdraw_all_unbonded(
+    bonded_staking, transfer, enckey=enckey,
+    # test fee calculation
+    view_keys=[
+        rpc.wallet.view_key(enckey=enckey),
+        # view key of node1
+        RPC(BASE_PORT+10).wallet.view_key(enckey=enckey),
+    ]
+)
 
 print('Wait for transaction', txid)
 wait_for_tx(rpc, txid)

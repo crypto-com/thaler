@@ -10,7 +10,7 @@
             "mnemonic": "must sunny destroy cousin ladder survey wrong employ illness thing divert under ready purpose elegant",
             "validator_seed": "9f06b6bb885d0143092aad7a6df2f1cae7690fcbfa1edb8727542372085ade8b",
             "node_seed": "208ff2032ea90646cecee2b21de3488593f8c3a0b9c78ab02bfbf9aa15ab35b4",
-            "bonded_coin": 100000000000000000,
+            "bonded_coin": 100000000010000000,
             "unbonded_coin": 0,
             "base_port": 26650
         },
@@ -39,12 +39,12 @@
         {
             "op": "replace",
             "path": "/initial_fee_policy/base_fee",
-            "value": "0.0"
+            "value": "1.1"
         },
         {
             "op": "replace",
             "path": "/initial_fee_policy/per_byte_fee",
-            "value": "0.0"
+            "value": "1.25"
         }
     ],
     "tendermint_config_patch": [
