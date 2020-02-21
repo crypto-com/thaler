@@ -50,7 +50,7 @@ def fix_address(addr):
 
 class BaseService:
     def __init__(self, base_port=None):
-        self.base_port = config('BASE_PORT', 26650, cast=int)
+        self.base_port = base_port if base_port is not None else config('BASE_PORT', 26650, cast=int)
         self.client_rpc_url = 'http://127.0.0.1:%d' % (self.base_port + 9)
         self.chain_rpc_url = 'http://127.0.0.1:%d' % (self.base_port + 7)
 

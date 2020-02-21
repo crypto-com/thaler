@@ -40,11 +40,15 @@ def wait_for_validators(rpc, count, timeout=10):
         raise TimeoutError('validators still not enough, giveup')
 
 
+def latest_block_height(rpc):
+    return int(rpc.chain.status()['sync_info']['latest_block_height'])
+
+
 def wait_for_blocks(rpc, n):
-    height = int(rpc.chain.status()['sync_info']['latest_block_height'])
+    height = latest_block_height(rpc)
     while True:
         time.sleep(1)
-        delta = int(rpc.chain.status()['sync_info']['latest_block_height']) - height
+        delta = latest_block_height(rpc) - height
         if delta >= n:
             break
 
@@ -54,10 +58,14 @@ def stop_node(supervisor, name):
     supervisor.supervisor.stopProcessGroup(name)
 
 
+def latest_block_time(rpc):
+    return datetime.timestamp(iso8601.parse_date(rpc.chain.status()['sync_info']['latest_block_time']))
+
+
 def wait_for_blocktime(rpc, t):
     while True:
         time.sleep(1)
-        block_time = datetime.timestamp(iso8601.parse_date(rpc.chain.status()['sync_info']['latest_block_time']))
+        block_time = latest_block_time(rpc)
         print('block_time:', block_time)
         if block_time > t:
             break
