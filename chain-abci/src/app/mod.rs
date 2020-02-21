@@ -325,7 +325,6 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             // The question is whether it really is -- e.g. if Tendermint/ABCI app crashes during DeliverTX
             // and then it tries to replay the block on the restart, will it cause problems
             // with the account storage (starling / MerkleBIT), because it already persisted those "future" / not-yet-committed account states?
-            // TODO: check-verify / test starling persistence safety?
             // TODO: most of these intermediate uncommitted tree roots aren't useful (not exposed for querying) -- prune them / the account storage?
             self.uncommitted_account_root_hash = next_account_root;
             let mut kvpair = KVPair::new();
@@ -344,7 +343,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                 .expect("rewards pool + fee greater than max coin?");
             rewards_pool.period_bonus = new_remaining;
             self.rewards_pool_updated = true;
-            self.storage.write_buffered();
+            // updates in DeliverTx are not persisted -- only in-mem in self.storage
         }
         resp
     }

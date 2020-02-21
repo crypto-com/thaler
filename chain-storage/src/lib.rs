@@ -73,13 +73,16 @@ impl<'a> StorageConfig<'a> {
 }
 
 /// Storage wrapper -- currently only holds the reference to KV DB.
-/// It may hold caches or other look ups (TODO: reconsider whether necessary and if db could be moved up to App)
+/// It may hold caches or other look ups
 pub struct Storage {
     db: Arc<dyn KeyValueDB>,
+    /// tx to be committed
     current_tx: Option<DBTransaction>,
-    temp_sealed_tx_store: BTreeMap<TxId, Vec<u8>>,
+    /// uncommitted values (for lookups during current block execution processing)
+    temp_tx_db: BTreeMap<(TxId, LookupItem), Vec<u8>>,
 }
 
+/// committed storage only
 pub struct ReadOnlyStorage {
     db: Arc<dyn KeyValueDB>,
 }
@@ -109,12 +112,14 @@ pub trait StoredChainState {
     fn get_last_app_hash(&self) -> H256;
 }
 
+#[repr(u32)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum LookupItem {
-    TxBody,
-    TxWitness,
-    TxMetaSpent,
-    TxsMerkle,
-    TxSealed,
+    TxBody = COL_BODIES,
+    TxWitness = COL_WITNESS,
+    TxMetaSpent = COL_TX_META,
+    TxsMerkle = COL_MERKLE_PROOFS,
+    TxSealed = COL_ENCLAVE_TX,
 }
 
 impl Storage {
@@ -124,18 +129,31 @@ impl Storage {
         }
     }
 
-    pub fn lookup_item(&self, item_type: LookupItem, txid_or_app_hash: &H256) -> Option<Vec<u8>> {
-        let col = match item_type {
-            LookupItem::TxBody => COL_BODIES,
-            LookupItem::TxWitness => COL_WITNESS,
-            LookupItem::TxMetaSpent => COL_TX_META,
-            LookupItem::TxsMerkle => COL_MERKLE_PROOFS,
-            LookupItem::TxSealed => COL_ENCLAVE_TX,
-        };
-        self.db
-            .get(col, txid_or_app_hash)
-            .expect("IO fail")
-            .map(|x| x.to_vec())
+    pub fn lookup_item(
+        &self,
+        item_type: LookupItem,
+        txid_or_app_hash: &H256,
+        read_uncommitted: bool,
+    ) -> Option<Vec<u8>> {
+        let col = item_type as u32;
+        match (
+            read_uncommitted,
+            self.temp_tx_db.get(&(*txid_or_app_hash, item_type)),
+        ) {
+            (false, _) | (true, None) => self
+                .db
+                .get(col, txid_or_app_hash)
+                .expect("IO fail")
+                .map(|x| x.to_vec()),
+            (true, Some(x)) => Some(x.clone()),
+        }
+    }
+
+    pub fn insert_item(&mut self, item_type: LookupItem, txid_or_app_hash: H256, data: Vec<u8>) {
+        let col = item_type as u32;
+        let dbtx = self.get_or_create_tx();
+        dbtx.put(col, &txid_or_app_hash, &data);
+        self.temp_tx_db.insert((txid_or_app_hash, item_type), data);
     }
 
     /// initializes Storage with a provided reference to KV DB (used in testing / benches -- in-mem KVDB)
@@ -144,7 +162,7 @@ impl Storage {
         Storage {
             db,
             current_tx: None,
-            temp_sealed_tx_store: BTreeMap::new(),
+            temp_tx_db: BTreeMap::new(),
         }
     }
 
@@ -160,7 +178,7 @@ impl Storage {
         Storage {
             db,
             current_tx: None,
-            temp_sealed_tx_store: BTreeMap::new(),
+            temp_tx_db: BTreeMap::new(),
         }
     }
 
@@ -274,14 +292,88 @@ impl Storage {
     }
 
     pub fn persist_write(&mut self) -> std::io::Result<()> {
-        if let Some(mut dbtx) = self.current_tx.take() {
-            for (txid, sealed_log) in self.temp_sealed_tx_store.iter() {
-                dbtx.put(COL_ENCLAVE_TX, txid, sealed_log);
-            }
-            self.temp_sealed_tx_store.clear();
+        if let Some(dbtx) = self.current_tx.take() {
+            self.temp_tx_db.clear();
             self.db.write(dbtx)
         } else {
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+    use crate::{StorageConfig, StorageType};
+
+    // needed due to parallel test execution and locks
+    const TEST_DB_1: &str = ".test-only-db1";
+    const TEST_DB_2: &str = ".test-only-db2";
+
+    fn cleanup_assert(prop: bool, msg: &'static str, db: &'static str) {
+        if !prop {
+            let _ = std::fs::remove_dir_all(db);
+            assert!(prop, msg);
+        }
+    }
+
+    #[test]
+    fn test_buffered_should_not_persist() {
+        let txid = TxId::default();
+        {
+            let mut storage = Storage::new(&StorageConfig::new(TEST_DB_1, StorageType::Node));
+            storage.create_utxo(2, &txid);
+            assert!(storage
+                .lookup_item(LookupItem::TxMetaSpent, &txid, false)
+                .is_none());
+            assert!(storage
+                .lookup_item(LookupItem::TxMetaSpent, &txid, true)
+                .is_some());
+        } // storage dropped / closed after this block to be re-opened
+        let storage = Storage::new(&StorageConfig::new(TEST_DB_1, StorageType::Node));
+        cleanup_assert(
+            storage
+                .lookup_item(LookupItem::TxMetaSpent, &txid, false)
+                .is_none()
+                && storage
+                    .lookup_item(LookupItem::TxMetaSpent, &txid, true)
+                    .is_none(),
+            "buffered write should not persist",
+            TEST_DB_1,
+        );
+    }
+
+    #[test]
+    fn test_persist_write() {
+        let txid = TxId::default();
+        {
+            let mut storage = Storage::new(&StorageConfig::new(TEST_DB_2, StorageType::Node));
+            storage.create_utxo(2, &txid);
+            assert!(storage
+                .lookup_item(LookupItem::TxMetaSpent, &txid, false)
+                .is_none());
+            assert!(storage
+                .lookup_item(LookupItem::TxMetaSpent, &txid, true)
+                .is_some());
+            let _ = storage.persist_write();
+            assert!(storage
+                .lookup_item(LookupItem::TxMetaSpent, &txid, true)
+                .is_some());
+            assert!(storage
+                .lookup_item(LookupItem::TxMetaSpent, &txid, false)
+                .is_some());
+        } // storage dropped / closed after this block to be re-opened
+        let storage = Storage::new(&StorageConfig::new(TEST_DB_2, StorageType::Node));
+        cleanup_assert(
+            storage
+                .lookup_item(LookupItem::TxMetaSpent, &txid, true)
+                .is_some()
+                && storage
+                    .lookup_item(LookupItem::TxMetaSpent, &txid, true)
+                    .is_some(),
+            "persist write should commit data",
+            TEST_DB_2,
+        );
     }
 }

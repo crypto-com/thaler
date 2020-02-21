@@ -39,7 +39,7 @@ fn check_spent_input_lookup(
     }
     let mut result = Vec::with_capacity(inputs.len());
     for txin in inputs.iter() {
-        let txo = storage.lookup_input(txin);
+        let txo = storage.lookup_input(txin, true);
         match txo {
             Err(InputError::InvalidIndex) => {
                 return Err(Error::InvalidInput);

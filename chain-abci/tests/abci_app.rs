@@ -668,11 +668,11 @@ fn valid_commit_should_persist() {
 
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxSealed, &tx.id())
+        .lookup_item(LookupItem::TxSealed, &tx.id(), false)
         .is_none());
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxWitness, &tx.id())
+        .lookup_item(LookupItem::TxWitness, &tx.id(), false)
         .is_none());
     let persisted_state =
         ChainNodeState::decode(&mut app.storage.get_last_app_state().unwrap().as_slice()).unwrap();
@@ -682,11 +682,11 @@ fn valid_commit_should_persist() {
     assert_eq!(0, app.delivered_txs.len());
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxSealed, &tx.id())
+        .lookup_item(LookupItem::TxSealed, &tx.id(), false)
         .is_some());
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxWitness, &tx.id())
+        .lookup_item(LookupItem::TxWitness, &tx.id(), false)
         .is_some());
     assert_eq!(10, app.last_state.as_ref().unwrap().last_block_height);
     assert_eq!(
@@ -707,13 +707,14 @@ fn valid_commit_should_persist() {
         .storage
         .lookup_item(
             LookupItem::TxsMerkle,
-            &app.last_state.as_ref().unwrap().last_apphash
+            &app.last_state.as_ref().unwrap().last_apphash,
+            false
         )
         .is_some());
     // TODO: check account
     let new_utxos = BitVec::from_bytes(
         &app.storage
-            .lookup_item(LookupItem::TxMetaSpent, &tx.id())
+            .lookup_item(LookupItem::TxMetaSpent, &tx.id(), false)
             .unwrap(),
     );
     assert!(!new_utxos.any());
@@ -785,7 +786,7 @@ pub fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp<MockClien
 fn get_tx_meta(txid: &TxId, app: &ChainNodeApp<MockClient>) -> BitVec {
     BitVec::from_bytes(
         &app.storage
-            .lookup_item(LookupItem::TxMetaSpent, txid)
+            .lookup_item(LookupItem::TxMetaSpent, txid, false)
             .unwrap(),
     )
 }

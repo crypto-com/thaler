@@ -787,6 +787,8 @@ dependencies = [
  "parity-scale-codec",
  "secp256k1zkp",
  "secstr",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
