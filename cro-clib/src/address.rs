@@ -18,6 +18,7 @@ pub unsafe extern "C" fn cro_export_private(address_ptr: CroAddressPtr, dst: *mu
 /// minimum byte length 100 is necessary
 #[no_mangle]
 /// # Safety
+/// address_output: string buffer, previously allocated
 pub unsafe extern "C" fn cro_get_printed_address(
     address_ptr: CroAddressPtr,
     address_output: *mut u8,

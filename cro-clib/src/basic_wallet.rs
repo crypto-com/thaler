@@ -61,7 +61,7 @@ fn do_cro_basic_create_transfer_address(private: PrivateKey) -> Box<CroAddress> 
     let public: PublicKey = PublicKey::from(&private);
     let public_keys: Vec<PublicKey> = vec![public.clone()];
     let multi_sig_address: MultiSigAddress =
-        MultiSigAddress::new(public_keys, public.clone(), 1).unwrap();
+        MultiSigAddress::new(public_keys, public.clone(), 1).expect("multisig address new");
     let address: ExtendedAddr = multi_sig_address.into();
     match address {
         ExtendedAddr::OrTree(hash) => {

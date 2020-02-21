@@ -41,6 +41,25 @@ pub unsafe extern "C" fn cro_estimate_fee(fee_ptr: CroFeePtr, tx_payload_size: u
     let coin_value: u64 = fee_value.to_coin().into();
     coin_value
 }
+
+/// estimate fee after encryption
+/// tx_payload_size: in bytes
+#[no_mangle]
+/// # Safety
+pub unsafe extern "C" fn cro_estimate_fee_after_encrypt(
+    fee_ptr: CroFeePtr,
+    tx_payload_size: u32,
+) -> u64 {
+    let fee: &mut CroFee = fee_ptr.as_mut().expect("get fee");
+    let block_size = 16; // aes block size 16 bytes == 128 bits
+    let after_encrypt_size = tx_payload_size + (block_size - (tx_payload_size % block_size));
+    let fee_value = fee
+        .fee
+        .estimate(after_encrypt_size as usize)
+        .expect("fee estimate");
+    let coin_value: u64 = fee_value.to_coin().into();
+    coin_value
+}
 /// destroy fee
 #[no_mangle]
 /// # Safety

@@ -5,3 +5,6 @@ pub mod types;
 pub mod wallet;
 pub use chain_core::init::network::Network;
 pub mod fee;
+pub mod transaction;
+pub mod transaction_deposit;
+pub mod transaction_staking;

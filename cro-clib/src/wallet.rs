@@ -46,7 +46,7 @@ pub unsafe extern "C" fn cro_restore_hdwallet(
 ) -> CroResult {
     let mnemonics = get_string(mnemonics_string);
     let mnemonics_sec = SecUtf8::from(mnemonics);
-    let mnemonic = Mnemonic::from_secstr(&mnemonics_sec).unwrap();
+    let mnemonic = Mnemonic::from_secstr(&mnemonics_sec).expect("get mnemonic from secstr");
     let wallet = CroHDWallet {
         seed: HDSeed::from(&mnemonic),
     };
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn cro_create_staking_address(
     let (public, private) = wallet
         .seed
         .derive_key_pair(network, CroAccount::Staking as u32, index)
-        .unwrap();
+        .expect("derive key pair");
     let address = StakedStateAddress::BasicRedeem(RedeemAddress::from(&public));
 
     match address {
@@ -108,9 +108,10 @@ pub unsafe extern "C" fn cro_create_transfer_address(
     let (public, private) = wallet
         .seed
         .derive_key_pair(network, CroAccount::Transfer as u32, index)
-        .unwrap();
+        .expect("derive key pair");
     let public_keys = vec![public.clone()];
-    let multi_sig_address = MultiSigAddress::new(public_keys, public.clone(), 1).unwrap();
+    let multi_sig_address =
+        MultiSigAddress::new(public_keys, public.clone(), 1).expect("create multi sig address");
 
     let address: ExtendedAddr = multi_sig_address.into();
 
@@ -150,7 +151,7 @@ pub unsafe extern "C" fn cro_create_viewkey(
     let (public, private) = wallet
         .seed
         .derive_key_pair(network, CroAccount::Viewkey as u32, index)
-        .unwrap();
+        .expect("derive key pair");
     let raw: Vec<u8> = public.serialize();
     assert!(65 == raw.len());
     let ret = CroAddress {
@@ -167,6 +168,7 @@ pub unsafe extern "C" fn cro_create_viewkey(
 /// destroy bip44 hdwallet
 #[no_mangle]
 /// # Safety
+/// hdwallet: previously allocated hdwallet
 pub unsafe extern "C" fn cro_destroy_hdwallet(hdwallet: CroHDWalletPtr) -> CroResult {
     Box::from_raw(hdwallet);
     CroResult::success()
@@ -175,6 +177,7 @@ pub unsafe extern "C" fn cro_destroy_hdwallet(hdwallet: CroHDWalletPtr) -> CroRe
 /// destroy address
 #[no_mangle]
 /// # Safety
+/// addr: previously allocated address
 pub unsafe extern "C" fn cro_destroy_address(addr: CroAddressPtr) -> CroResult {
     Box::from_raw(addr);
     CroResult::success()
