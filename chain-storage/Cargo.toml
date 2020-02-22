@@ -15,7 +15,7 @@ chain-core = { path = "../chain-core" }
 bit-vec = { version = "0.6.1", features = ["serde_no_std"] }
 starling = "3.1.2"
 parity-scale-codec = { features = ["derive"], version = "1.1" }
-integer-encoding = "1.0.7"
+integer-encoding = "1.0.8"
 
 [dev-dependencies]
 quickcheck = "0.9"
