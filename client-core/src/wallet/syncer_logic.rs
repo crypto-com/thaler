@@ -228,6 +228,7 @@ fn calculate_balance_change<'a>(
 
 #[cfg(test)]
 mod tests {
+    use indexmap::IndexMap;
     use secstr::SecUtf8;
     use std::str::FromStr;
 
@@ -243,7 +244,6 @@ mod tests {
     use crate::service::load_wallet;
     use crate::types::WalletKind;
     use crate::wallet::{DefaultWalletClient, WalletClient};
-    use std::collections::BTreeMap;
 
     fn create_test_wallet(n: usize) -> Result<Vec<Wallet>> {
         let storage = MemoryStorage::default();
@@ -302,7 +302,7 @@ mod tests {
             .map(|tx| tx.id())
             .chain(other_txs.iter().map(|tx| tx.id()))
             .collect();
-        let mut valid_transaction_fees = BTreeMap::new();
+        let mut valid_transaction_fees = IndexMap::new();
         for txid in valid_transaction_ids.iter() {
             valid_transaction_fees.insert(*txid, Fee::new(Coin::one()));
         }

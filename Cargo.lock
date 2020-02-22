@@ -626,6 +626,7 @@ dependencies = [
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.1",
  "hmac",
+ "indexmap",
  "itertools 0.8.2",
  "jsonrpc",
  "log 0.4.8",
