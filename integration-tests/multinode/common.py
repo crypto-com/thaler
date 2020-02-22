@@ -44,8 +44,8 @@ def latest_block_height(rpc):
     return int(rpc.chain.status()['sync_info']['latest_block_height'])
 
 
-def wait_for_blocks(rpc, n):
-    height = latest_block_height(rpc)
+def wait_for_blocks(rpc, n, height=None):
+    height = height if height is not None else latest_block_height(rpc)
     while True:
         time.sleep(1)
         delta = latest_block_height(rpc) - height

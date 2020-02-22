@@ -1,0 +1,35 @@
+{
+    "node_info":{
+        "protocol_version":{
+            "p2p":"7",
+            "block":"10",
+            "app":"0"
+        },
+        "id":"53E4F049FF877F3172EC5E5A4D793DB59DC7A2F8",
+        "listen_addr":"tcp://0.0.0.0:26656",
+        "network":"testnet-thaler-crypto-com-chain-42",
+        "version":"0.32.8",
+        "channels":"4020212223303800",
+        "moniker":"sgx-testnet-westeurope-fullnode-201912180327-2",
+        "other":{
+            "tx_index":"on",
+            "rpc_address":"tcp://0.0.0.0:26657"
+        }
+    },
+    "sync_info":{
+        "latest_block_hash":"1BCD8DAF3F4730096071204E0BBBE35CC40CCB55C3045421261E856768699726",
+        "latest_app_hash":"C780DA0CC55772C98B0FFBC2D2950A6CDF3E542EF0E39AEBB189718324D00847",
+        "latest_block_height":"8484",
+        "latest_block_time":"2020-02-22T06:39:19.984920103Z",
+        "catching_up":false
+    },
+    "validator_info":{
+        "address":"D6F24973C3656338201CA75803C57DBBD6AAD991",
+        "pub_key":{
+            "type":"tendermint/PubKeyEd25519",
+            "value":"4n5bWd8FWT0WwfoLZ3YSxWBGVxVuacPTvoVkR96LdgI="
+        },
+        "voting_power":"0",
+        "proposer_priority":null
+    }
+}
