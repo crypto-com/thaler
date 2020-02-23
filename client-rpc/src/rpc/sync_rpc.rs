@@ -94,3 +94,14 @@ where
         syncer.sync().map_err(to_rpc_error)
     }
 }
+
+impl<S, C, O> Drop for SyncRpcImpl<S, C, O>
+where
+    S: Storage,
+    C: Client,
+    O: TransactionObfuscation,
+{
+    fn drop(&mut self) {
+        self.polling_synchronizer.stop();
+    }
+}

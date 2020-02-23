@@ -6,7 +6,7 @@ edition = "2018"
 
 [lib]
 name = "cro_clib"
-crate-type =["staticlib"]
+crate-type =["staticlib", "cdylib"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,9 +18,15 @@ hex="0.4.2"
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
+client-network = { path = "../client-network" }
+client-rpc = { path = "../client-rpc" }
 secstr = { version = "0.4.0", features = ["serde"] }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
+jsonrpc-core = "14.0"
+libc = "0.2.67"
 
 [build-dependencies]
 cbindgen = "0.13.0"
 
+[features]
+mock-enc-dec = ["client-rpc/mock-enc-dec"]

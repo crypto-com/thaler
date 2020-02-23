@@ -272,6 +272,31 @@ CroResult cro_join(uint8_t network,
 
 /**
  * # Safety
+ *
+ * Should not be called with null pointers.
+ *
+ * c example:
+ *
+ * ```c
+ * char buf[BUFSIZE];
+ * const char* req = "{\"jsonrpc\": \"2.0\", \"method\": \"wallet_list\", \"params\": [], \"id\": 1}";
+ * int retcode = cro_jsonrpc_call("./data", "ws://...", 0xab, req, buf, sizeof(buf));
+ * if (retcode == 0) {
+ *     printf("response: %s\n", buf);
+ * } else {
+ *     printf("error: %s\n", buf);
+ * }
+ * ```
+ */
+CroResult cro_jsonrpc_call(const char *storage_dir,
+                           const char *websocket_url,
+                           uint8_t network_id,
+                           const char *request,
+                           char *buf,
+                           uintptr_t buf_size);
+
+/**
+ * # Safety
  */
 CroResult cro_restore_hdwallet(const char *mnemonics_string, CroHDWalletPtr *wallet_out);
 

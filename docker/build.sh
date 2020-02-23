@@ -28,6 +28,7 @@ if [ $BUILD_MODE == "sgx" ]; then
 else
     cargo build $CARGO_ARGS --features mock-enc-dec  --manifest-path client-rpc/Cargo.toml
     cargo build $CARGO_ARGS --features mock-enc-dec  --manifest-path client-cli/Cargo.toml
+    cargo build $CARGO_ARGS --features mock-enc-dec  --manifest-path cro-clib/Cargo.toml
     cargo build $CARGO_ARGS --features mock-enc-dec --features mock-validation --manifest-path dev-utils/Cargo.toml
     cargo build $CARGO_ARGS --features mock-enc-dec --features mock-validation --manifest-path chain-abci/Cargo.toml
 fi

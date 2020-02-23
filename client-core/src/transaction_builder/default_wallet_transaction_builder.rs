@@ -30,7 +30,7 @@ use chain_core::tx::{data::TxId, TransactionId};
 /// 7. Calculate `new_fees`.
 /// 8. If `new_fees > fees`, then change `fees = new_fees` and goto step 3, otherwise return signed transaction.
 ///
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DefaultWalletTransactionBuilder<S, F, O>
 where
     S: Storage,
