@@ -22,10 +22,8 @@ pub struct DummySigner();
 impl DummySigner {
     /// pad payload to the multiples of 128bits
     fn pad_payload(&self, plain_txaux: PlainTxAux) -> Vec<u8> {
-        let unit = 16_usize;
-        let plain_payload_len = plain_txaux.encode().len();
-        // PKCS7 padding -- if the len is multiple of the block length, it'll still be padded
-        vec![0; plain_payload_len + unit - plain_payload_len % unit]
+        // https://tools.ietf.org/html/rfc8452
+        vec![0; plain_txaux.encode().len() + 16]
     }
 
     /// Creates a mock merkletree
@@ -81,9 +79,9 @@ impl DummySigner {
         TxAux::EnclaveTx(tx_enclave_aux)
     }
 
-    /// Mock the txaux for withdraw transactions
+    /// Mock the txaux for deposit transactions
     pub fn mock_txaux_for_deposit(&self, input_len: usize) -> Result<TxAux> {
-        let total_pubkeys_len = 2;
+        let total_pubkeys_len = 1;
         let witness = self.schnorr_sign_inputs_len(total_pubkeys_len, input_len)?;
         let plain_payload = PlainTxAux::DepositStakeTx(witness);
         let padded_payload = self.pad_payload(plain_payload);

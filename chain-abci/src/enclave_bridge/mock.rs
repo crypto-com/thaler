@@ -31,6 +31,14 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, _storage: &
     resp.code = 1;
 }
 
+fn pad_payload(payload: &[u8]) -> Vec<u8> {
+    // https://tools.ietf.org/html/rfc8452
+    let mut result = Vec::with_capacity(payload.len() + 16);
+    result.extend_from_slice(payload);
+    result.extend_from_slice(&[0; 16]);
+    result
+}
+
 /// temporary mock
 #[cfg(feature = "mock-enc-dec")]
 pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &Storage) {
@@ -53,7 +61,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                                 key_from: 0,
                                 txid: tx.id(),
                                 init_vector: [0u8; 12],
-                                txpayload: plain.encode(),
+                                txpayload: pad_payload(&plain.encode()),
                             },
                         }),
                     };
@@ -68,7 +76,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                                 key_from: 0,
                                 txid: maintx.id(),
                                 init_vector: [0u8; 12],
-                                txpayload: plain.encode(),
+                                txpayload: pad_payload(&plain.encode()),
                             },
                         }),
                     };
@@ -84,7 +92,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                                 key_from: 0,
                                 txid: tx.id(),
                                 init_vector: [0u8; 12],
-                                txpayload: plain.encode(),
+                                txpayload: pad_payload(&plain.encode()),
                             },
                         }),
                     };
