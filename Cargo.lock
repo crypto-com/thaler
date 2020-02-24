@@ -432,7 +432,7 @@ checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
 name = "chain-abci"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "abci",
  "base64 0.11.0",
@@ -473,7 +473,7 @@ dependencies = [
 
 [[package]]
 name = "chain-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aead",
  "base64 0.11.0",
@@ -496,7 +496,7 @@ dependencies = [
 
 [[package]]
 name = "chain-storage"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bit-vec 0.6.1",
  "blake2",
@@ -512,7 +512,7 @@ dependencies = [
 
 [[package]]
 name = "chain-tx-filter"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "bit-vec 0.6.1",
  "chain-core",
@@ -526,7 +526,7 @@ dependencies = [
 
 [[package]]
 name = "chain-tx-validation"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chain-core",
  "parity-scale-codec",
@@ -603,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "client-cli"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.11.0",
  "chain-core",
@@ -626,7 +626,7 @@ dependencies = [
 
 [[package]]
 name = "client-common"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aes",
  "aes-gcm-siv",
@@ -657,7 +657,7 @@ dependencies = [
 
 [[package]]
 name = "client-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base58",
  "base64 0.11.0",
@@ -702,7 +702,7 @@ dependencies = [
 
 [[package]]
 name = "client-network"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.11.0",
  "chain-core",
@@ -719,7 +719,7 @@ dependencies = [
 
 [[package]]
 name = "client-rpc"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.11.0",
  "chain-core",
@@ -938,7 +938,7 @@ dependencies = [
 
 [[package]]
 name = "dev-utils"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chain-abci",
  "chain-core",
@@ -1063,7 +1063,7 @@ dependencies = [
 
 [[package]]
 name = "enclave-protocol"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "chain-core",
  "chain-tx-validation",
@@ -3549,7 +3549,7 @@ dependencies = [
 
 [[package]]
 name = "test-common"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "abci",
  "base64 0.11.0",
@@ -3890,7 +3890,7 @@ checksum = "e604eb7b43c06650e854be16a2a03155743d3752dd1c943f6829e26b7a36e382"
 
 [[package]]
 name = "tx-query-app"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "cc",
  "chain-core",
@@ -3907,7 +3907,7 @@ dependencies = [
 
 [[package]]
 name = "tx-query-enclave"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "base64 0.10.1 (git+https://github.com/mesalock-linux/rust-base64-sgx)",
  "bit-vec 0.6.1",
@@ -3937,7 +3937,7 @@ dependencies = [
 
 [[package]]
 name = "tx-validation-enclave"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "aead",
  "aes-gcm-siv",

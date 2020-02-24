@@ -1,6 +1,6 @@
 [package]
 name = "chain-core"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Library with core types and serialization for the use in external tools"
 readme = "../README.md"

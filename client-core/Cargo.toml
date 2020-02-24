@@ -1,6 +1,6 @@
 [package]
 name = "client-core"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["Devashish Dixit <devashish@crypto.com>"]
 description = "This crate exposes following functionalities for interacting with Crypto.com Chain."
 edition = "2018"
@@ -23,7 +23,7 @@ itertools = "0.8"
 base64 = "0.11"
 webpki = "0.21"
 rustls =  {version = "0.16", features = ["dangerous_configuration"]}
-yasna = { version = "0.3.0", features = ["bit-vec", "num-bigint", "chrono"] }
+yasna = { version = "0.3.1", features = ["bit-vec", "num-bigint", "chrono"] }
 bit-vec = "0.6.1"
 num-bigint = "0.2.5"
 serde_json = "1.0.48"
