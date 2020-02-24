@@ -1,6 +1,6 @@
 [package]
 name = "chain-storage"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Storage of Crypto.com Chain node (Merkle trie, transaction metadata etc.)"
 readme = "README.md"
