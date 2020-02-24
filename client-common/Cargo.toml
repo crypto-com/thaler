@@ -1,6 +1,6 @@
 [package]
 name = "client-common"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Devashish Dixit <devashish@crypto.com>"]
 edition = "2018"
 

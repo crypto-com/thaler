@@ -3,7 +3,21 @@
 *Unreleased*
 
 ## v0.4.0
-...
+
+### Breaking changes
+* *chain-abci* [1090](https://github.com/crypto-com/chain/pull/1090): upper bounds of reward parameters changed
+* *chain-abci* [1100](https://github.com/crypto-com/chain/pull/1100): account nonce increased after reward distribution
+
+### Features
+* *client* [1072](https://github.com/crypto-com/chain/pull/1072): airgap-friendly workflow for client
+
+### Improvements
+* *client* [1099](https://github.com/crypto-com/chain/pull/1099): client-cli asks to confirm the value
+* *client* [1074](https://github.com/crypto-com/chain/pull/1074): watch-only mode can be used in client-cli
+
+### Bug Fixes
+* *chain-abci* [1092](https://github.com/crypto-com/chain/pull/1092): rewards may be recorded for inactive validators
+* *chain-abci* [1116](https://github.com/crypto-com/chain/pull/1116): uncommitted changes may be persisted
 
 ## v0.3.1
 

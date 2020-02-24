@@ -1,6 +1,6 @@
 [package]
 name = "tx-query-app"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Application server wrapper around the transaction query enclave (optional)."
 readme = "../../README.md"

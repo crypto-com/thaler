@@ -1,6 +1,6 @@
 [package]
 name = "chain-tx-filter"
-version = "0.3.1"
+version = "0.4.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Library that captures the fuctionality related to block-level public view key-based transaction filtering."
 readme = "../README.md"
