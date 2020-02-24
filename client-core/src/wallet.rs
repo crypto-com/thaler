@@ -23,10 +23,31 @@ use chain_core::tx::witness::tree::RawPubkey;
 use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResponse;
 use client_common::{PrivateKey, PublicKey, Result, SecKey, Transaction, TransactionInfo};
+use serde::{Deserialize, Serialize};
 
+use crate::service::WalletInfo;
 use crate::transaction_builder::{SignedTransferTransaction, UnsignedTransferTransaction};
 use crate::types::{AddressType, TransactionChange, TransactionPending, WalletBalance, WalletKind};
 use crate::{InputSelectionStrategy, Mnemonic, UnspentTransactions};
+
+/// information needed when create/delete a wallet
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CreateWalletRequest {
+    /// the name of the wallet
+    pub name: String,
+    /// the passphares of the wallet
+    pub passphrase: SecUtf8,
+}
+
+/// information needed when operate the a wallet
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct WalletRequest {
+    /// the name of the wallet
+    pub name: String,
+    /// the auth token of the wallet
+    #[serde(alias = "auth_token", alias = "enckey")]
+    pub enckey: SecKey,
+}
 
 /// Interface for a generic wallet
 pub trait WalletClient: Send + Sync {
@@ -65,6 +86,17 @@ pub trait WalletClient: Send + Sync {
         passphrase: &SecUtf8,
         wallet_kind: WalletKind,
     ) -> Result<(SecKey, Option<Mnemonic>)>;
+
+    /// export wallet info including private key, transfer address, staking address and so on
+    fn export_wallet(&self, name: &str, enckey: &SecKey) -> Result<WalletInfo>;
+
+    /// import wallet info to the storage
+    fn import_wallet(
+        &self,
+        name: &str,
+        passphrase: &SecUtf8,
+        wallet_info: WalletInfo,
+    ) -> Result<SecKey>;
 
     /// Restores a HD wallet from given mnemonic
     fn restore_wallet(

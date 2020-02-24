@@ -618,6 +618,7 @@ dependencies = [
  "pbr",
  "quest",
  "secstr",
+ "serde_json",
  "structopt",
  "tiny-bip39",
  "unicase 2.6.0",

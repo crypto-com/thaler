@@ -1,4 +1,4 @@
-use quest::{ask, success, text};
+use quest::{ask, error, success, text};
 use secstr::SecUtf8;
 use structopt::StructOpt;
 
@@ -6,7 +6,12 @@ use client_common::{Error, ErrorKind, PrivateKey, Result, ResultExt};
 use client_core::types::WalletKind;
 use client_core::{Mnemonic, WalletClient};
 
-use crate::ask_passphrase;
+use crate::{ask_passphrase, ask_seckey};
+use client_core::service::WalletInfo;
+use client_core::wallet::WalletRequest;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::PathBuf;
 
 const WALLET_KIND_VARIANTS: [&str; 2] = ["basic", "hd"];
 
@@ -30,6 +35,43 @@ pub enum WalletCommand {
             case_insensitive = true
         )]
         wallet_type: WalletKind,
+    },
+    #[structopt(name = "export", about = "Backup wallet to a file")]
+    Export {
+        #[structopt(
+            name = "wallet name",
+            short = "n",
+            long = "name",
+            help = "Name of wallet (comma separated if many) "
+        )]
+        name: Option<String>,
+        #[structopt(
+            name = "from_file",
+            short = "f",
+            long = "from_file",
+            parse(from_os_str),
+            help = r#"json file contains a list of {"name": wallet_name, "auth_token": auth_token}"#
+        )]
+        from_file: Option<PathBuf>,
+        #[structopt(
+            name = "to_file",
+            short = "t",
+            long = "to_file",
+            parse(from_os_str),
+            help = "file to dump the wallet information"
+        )]
+        to_file: Option<PathBuf>,
+    },
+    #[structopt(name = "import", about = "Import a wallet from a file")]
+    Import {
+        #[structopt(
+            name = "file",
+            short = "f",
+            long = "file",
+            parse(from_os_str),
+            help = "file stored the wallet info"
+        )]
+        file: PathBuf,
     },
     #[structopt(name = "list", about = "List all wallets")]
     List,
@@ -86,6 +128,12 @@ impl WalletCommand {
             WalletCommand::RestoreBasic { name } => Self::restore_basic_wallet(wallet_client, name),
             WalletCommand::AuthToken { name } => Self::auth_token(wallet_client, name),
             WalletCommand::Delete { name } => Self::delete(wallet_client, name),
+            WalletCommand::Export {
+                name,
+                from_file,
+                to_file,
+            } => Self::export(wallet_client, name, from_file, to_file),
+            WalletCommand::Import { file } => Self::import(wallet_client, file),
         }
     }
 
@@ -119,6 +167,118 @@ impl WalletCommand {
             "Authentication token: {}",
             &hex::encode(enckey.unsecure())
         ));
+        Ok(())
+    }
+
+    fn export<T: WalletClient>(
+        wallet_client: T,
+        name: &Option<String>,
+        from_file: &Option<PathBuf>,
+        to_file: &Option<PathBuf>,
+    ) -> Result<()> {
+        let mut wallet_info_list = vec![];
+        let mut error_wallets = vec![];
+        match (name, from_file) {
+            (Some(_name), Some(_from_file)) => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "only need name or from_file",
+                ))
+            }
+            (None, None) => {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "need name or from_file",
+                ))
+            }
+            (Some(names), None) => {
+                for name in names.split(',') {
+                    let enckey =
+                        ask_seckey(Some(&format!("Enter authentication token for {}: ", name)))?;
+                    let wallet_info = wallet_client.export_wallet(name, &enckey)?;
+                    wallet_info_list.push(wallet_info);
+                }
+            }
+            (None, Some(from_file)) => {
+                let mut file =
+                    File::open(from_file).chain(|| (ErrorKind::IoError, "Unable to open file"))?;
+                let mut settings: String = String::new();
+                file.read_to_string(&mut settings)
+                    .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
+                let wallet_requests: Vec<WalletRequest> = serde_json::from_str(&settings)
+                    .chain(|| (ErrorKind::InvalidInput, "Invalid wallet info"))?;
+                for request in wallet_requests {
+                    match wallet_client.export_wallet(&request.name, &request.enckey) {
+                        Ok(wallet_info) => {
+                            wallet_info_list.push(wallet_info);
+                        }
+                        Err(e) => {
+                            error(&format!("error to get wallet info: {:?}", e));
+                            error_wallets.push(request.name.clone());
+                        }
+                    }
+                }
+            }
+        }
+        if error_wallets.is_empty() {
+            success(&format!("Get all {} wallets info.", wallet_info_list.len()));
+        } else {
+            error(&format!(
+                "Get {} wallets info, failed wallet(s): {}, please fix and retry!",
+                wallet_info_list.len(),
+                error_wallets.join(",")
+            ));
+            return Ok(());
+        }
+        let wallet_info_str = serde_json::to_string_pretty(&wallet_info_list).chain(|| {
+            (
+                ErrorKind::SerializationError,
+                "Inner serialize wallet info error",
+            )
+        })?;
+        match to_file {
+            Some(to_file) => {
+                let mut file = File::create(to_file)
+                    .chain(|| (ErrorKind::IoError, "Unable to create file"))?;
+                file.write_all(wallet_info_str.as_bytes())
+                    .chain(|| (ErrorKind::IoError, "Unable to write to file"))?;
+                let msg = format!(
+                    "Export {} wallet to file {:?} success",
+                    wallet_info_list.len(),
+                    to_file
+                );
+                success(&msg);
+            }
+            None => {
+                success(&wallet_info_str);
+            }
+        }
+        Ok(())
+    }
+
+    fn import<T: WalletClient>(wallet_client: T, file: &PathBuf) -> Result<()> {
+        let mut file = File::open(file).chain(|| (ErrorKind::IoError, "Unable to open file"))?;
+        let mut wallet_info_str = String::new();
+        file.read_to_string(&mut wallet_info_str)
+            .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
+        let wallet_info_list: Vec<WalletInfo> = serde_json::from_str(&wallet_info_str)
+            .chain(|| (ErrorKind::InvalidInput, "Invalid wallet info list"))?;
+        for wallet_info in wallet_info_list {
+            let name = wallet_info.name.clone();
+            let passphrase = match &wallet_info.passphrase {
+                Some(p) => p.clone(),
+                None => ask_passphrase(Some(&format!("Input passphrase for wallet {}", name)))?,
+            };
+            let enckey = wallet_client.import_wallet(&name, &passphrase, wallet_info);
+            match enckey {
+                Ok(enckey) => success(&format!(
+                    "Authentication token of wallet {}: {}",
+                    name,
+                    &hex::encode(enckey.unsecure())
+                )),
+                Err(e) => error(&format!("Import wallet {} failed: {:?}", name, e)),
+            }
+        }
         Ok(())
     }
 

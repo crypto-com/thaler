@@ -6,9 +6,10 @@ use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::tx::data::Tx;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt, SecKey};
 use client_core::types::AddressType;
+use client_core::wallet::WalletRequest;
 use client_core::{MultiSigWalletClient, WalletClient};
 
-use crate::server::{to_rpc_error, WalletRequest};
+use crate::server::to_rpc_error;
 
 #[rpc]
 pub trait MultiSigRpc: Send + Sync {

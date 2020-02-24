@@ -7,12 +7,14 @@ use secstr::SecUtf8;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::{PrivateKey, PublicKey, Result as CommonResult, SecKey};
+use client_core::service::WalletInfo;
 use client_core::transaction_builder::SignedTransferTransaction;
 use client_core::types::{TransactionChange, WalletBalance, WalletKind};
+use client_core::wallet::{CreateWalletRequest, WalletRequest};
 use client_core::{Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient};
 use parity_scale_codec::{Decode, Encode};
 
-use crate::server::{rpc_error_from_string, to_rpc_error, CreateWalletRequest, WalletRequest};
+use crate::server::{rpc_error_from_string, to_rpc_error};
 
 #[rpc]
 pub trait WalletRpc: Send + Sync {
@@ -115,6 +117,12 @@ pub trait WalletRpc: Send + Sync {
 
     #[rpc(name = "wallet_getEncKey")]
     fn get_enc_key(&self, request: CreateWalletRequest) -> Result<SecKey>;
+
+    #[rpc(name = "wallet_export")]
+    fn export(&self, request: WalletRequest) -> Result<WalletInfo>;
+
+    #[rpc(name = "wallet_export")]
+    fn import(&self, request: CreateWalletRequest, wallet_info: WalletInfo) -> Result<SecKey>;
 }
 
 pub struct WalletRpcImpl<T>
@@ -400,6 +408,20 @@ where
     fn get_enc_key(&self, request: CreateWalletRequest) -> Result<SecKey> {
         self.client
             .auth_token(&request.name, &request.passphrase)
+            .map_err(to_rpc_error)
+    }
+
+    fn export(&self, request: WalletRequest) -> Result<WalletInfo> {
+        let wallet_info = self
+            .client
+            .export_wallet(&request.name, &request.enckey)
+            .map_err(to_rpc_error)?;
+        Ok(wallet_info)
+    }
+
+    fn import(&self, request: CreateWalletRequest, wallet_info: WalletInfo) -> Result<SecKey> {
+        self.client
+            .import_wallet(&request.name, &request.passphrase, wallet_info)
             .map_err(to_rpc_error)
     }
 }
@@ -765,6 +787,41 @@ pub mod tests {
                 .len(),
             66
         );
+    }
+
+    #[test]
+    fn test_export_import_wallet() {
+        let wallet_rpc = setup_wallet_rpc();
+        let (create_request, wallet_request) = create_wallet_request("Default", "123456");
+        wallet_rpc
+            .create(create_request.clone(), WalletKind::Basic)
+            .unwrap();
+        let old_staking_address = wallet_rpc
+            .list_staking_addresses(wallet_request.clone())
+            .unwrap()[0]
+            .clone();
+        let old_transfer_address = wallet_rpc
+            .list_transfer_addresses(wallet_request.clone())
+            .unwrap()[0]
+            .clone();
+        let old_enckey = wallet_rpc.get_enc_key(create_request.clone()).unwrap();
+        let wallet_info = wallet_rpc.export(wallet_request.clone()).unwrap();
+        // delete the old wallet
+        wallet_rpc.delete(create_request.clone()).unwrap();
+        let new_enckey = wallet_rpc
+            .import(create_request.clone(), wallet_info)
+            .unwrap();
+        let new_staking_address = wallet_rpc
+            .list_staking_addresses(wallet_request.clone())
+            .unwrap()[0]
+            .clone();
+        let new_transfer_address = wallet_rpc
+            .list_transfer_addresses(wallet_request.clone())
+            .unwrap()[0]
+            .clone();
+        assert_eq!(old_transfer_address, new_transfer_address);
+        assert_eq!(old_staking_address, new_staking_address);
+        assert_eq!(old_enckey, new_enckey);
     }
 
     #[test]

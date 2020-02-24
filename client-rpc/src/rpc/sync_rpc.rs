@@ -1,11 +1,12 @@
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
-use crate::server::{to_rpc_error, WalletRequest};
+use crate::server::to_rpc_error;
 use client_common::tendermint::Client;
 use client_common::Storage;
 use client_core::synchronizer::PollingSynchronizer;
 use client_core::wallet::syncer::{ObfuscationSyncerConfig, WalletSyncer};
+use client_core::wallet::WalletRequest;
 use client_core::TransactionObfuscation;
 
 #[rpc]

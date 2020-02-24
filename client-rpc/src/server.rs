@@ -14,7 +14,7 @@ use chain_core::tx::fee::LinearFee;
 use client_common::storage::SledStorage;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
-use client_common::{ErrorKind, Result, SecKey};
+use client_common::{ErrorKind, Result};
 #[cfg(not(feature = "mock-enc-dec"))]
 use client_core::cipher::DefaultTransactionObfuscation;
 #[cfg(feature = "mock-enc-dec")]
@@ -28,8 +28,6 @@ use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
 #[cfg(feature = "mock-enc-dec")]
 use log::warn;
-use secstr::SecUtf8;
-use serde::{Deserialize, Serialize};
 
 #[cfg(not(feature = "mock-enc-dec"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;
@@ -233,16 +231,4 @@ pub(crate) fn rpc_error_from_string(error: String) -> jsonrpc_core::Error {
         message: error,
         data: None,
     }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct CreateWalletRequest {
-    pub name: String,
-    pub passphrase: SecUtf8,
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct WalletRequest {
-    pub name: String,
-    pub enckey: SecKey,
 }

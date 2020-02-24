@@ -3,7 +3,7 @@ use std::str::FromStr;
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
-use crate::server::{rpc_error_from_string, to_rpc_error, WalletRequest};
+use crate::server::{rpc_error_from_string, to_rpc_error};
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
     CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
@@ -15,6 +15,7 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt, Transaction};
+use client_core::wallet::WalletRequest;
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_network::NetworkOpsClient;
 
