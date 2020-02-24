@@ -1,9 +1,9 @@
 #![allow(missing_docs)]
-use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::str::{from_utf8, FromStr};
 
 use base64;
+use indexmap::IndexMap;
 use serde::Deserialize;
 
 use chain_core::common::{TendermintEventKey, TendermintEventType};
@@ -56,11 +56,11 @@ pub struct Attribute {
 
 impl BlockResults {
     /// Returns transaction ids and the corresponding fees in block results
-    pub fn fees(&self) -> Result<BTreeMap<TxId, Fee>> {
+    pub fn fees(&self) -> Result<IndexMap<TxId, Fee>> {
         match &self.results.deliver_tx {
-            None => Ok(BTreeMap::default()),
+            None => Ok(IndexMap::default()),
             Some(deliver_tx) => {
-                let mut fees: BTreeMap<TxId, Fee> = BTreeMap::new();
+                let mut fees: IndexMap<TxId, Fee> = IndexMap::new();
 
                 for transaction in deliver_tx.iter() {
                     for event in transaction.events.iter() {

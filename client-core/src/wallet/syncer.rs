@@ -1,4 +1,5 @@
 #![allow(missing_docs)]
+use indexmap::IndexMap;
 use itertools::{izip, Itertools};
 use non_empty_vec::NonEmpty;
 use std::sync::mpsc::Sender;
@@ -18,7 +19,6 @@ use super::syncer_logic::handle_blocks;
 use crate::service;
 use crate::service::{KeyService, SyncState, Wallet, WalletState, WalletStateMemento};
 use crate::TransactionObfuscation;
-use std::collections::BTreeMap;
 
 /// Transaction decryptor interface for wallet synchronizer
 pub trait TxDecryptor: Clone + Send + Sync {
@@ -301,6 +301,7 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
 
     fn sync(&mut self) -> Result<()> {
         let status = self.env.client.status()?;
+
         if status.sync_info.catching_up {
             return Err(Error::new(
                 ErrorKind::TendermintRpcError,
@@ -484,7 +485,7 @@ pub(crate) struct FilteredBlock {
     /// Block time
     pub block_time: Time,
     /// List of successfully committed transaction ids in this block and their fees
-    pub valid_transaction_fees: BTreeMap<TxId, Fee>,
+    pub valid_transaction_fees: IndexMap<TxId, Fee>,
     /// Bloom filter for view keys and staking addresses
     pub block_filter: BlockFilter,
     /// List of successfully committed transaction of transactions that may need to be queried against
@@ -551,11 +552,19 @@ fn filter_staking_transactions<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::fs;
+    use std::path::PathBuf;
+
     use secstr::SecUtf8;
 
+    use chain_core::state::ChainState;
     use client_common::storage::MemoryStorage;
+    use client_common::tendermint::types::*;
+    use client_common::tendermint::{lite, Client};
     use test_common::block_generator::{BlockGenerator, GeneratorClient};
 
+    use crate::service::save_sync_state;
     use crate::types::WalletKind;
     use crate::wallet::{DefaultWalletClient, WalletClient};
 
@@ -599,5 +608,122 @@ mod tests {
     fn check_wallet_syncer() {
         check_wallet_syncer_impl(false);
         check_wallet_syncer_impl(true);
+    }
+
+    #[test]
+    fn check_wallet_syncer_app_hash_on_multiple_tx() {
+        #[derive(Clone)]
+        struct MockTendermintClient {}
+        impl Client for MockTendermintClient {
+            fn genesis(&self) -> Result<Genesis> {
+                unreachable!()
+            }
+            fn status(&self) -> Result<Status> {
+                Ok(serde_json::from_str(&read_asset_file("tendermint_status.json")).unwrap())
+            }
+            fn block(&self, _height: u64) -> Result<Block> {
+                Ok(serde_json::from_str(&read_asset_file("tendermint_block.json")).unwrap())
+            }
+            fn block_batch<'a, T: Iterator<Item = &'a u64>>(
+                &self,
+                _heights: T,
+            ) -> Result<Vec<Block>> {
+                unreachable!()
+            }
+            fn block_results(&self, _height: u64) -> Result<BlockResults> {
+                unreachable!()
+            }
+            fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
+                &self,
+                _heights: T,
+            ) -> Result<Vec<BlockResults>> {
+                return Ok(serde_json::from_str(&read_asset_file(
+                    "tendermint_block_results_batch.json",
+                ))
+                .unwrap());
+            }
+            fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
+                &self,
+                _state: lite::TrustedState,
+                _heights: T,
+            ) -> Result<(Vec<Block>, lite::TrustedState)> {
+                let blocks: Vec<Block> = serde_json::from_str(&read_asset_file(
+                    "tendermint_block_batch_verified_blocks.json",
+                ))
+                .unwrap();
+                let trusted_state: lite::TrustedState = serde_json::from_str(&read_asset_file(
+                    "tendermint_block_batch_verified_trusted_state.json",
+                ))
+                .unwrap();
+                Ok((blocks, trusted_state))
+            }
+            fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
+                unreachable!()
+            }
+            fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
+                unreachable!()
+            }
+
+            /// Match batch state `abci_query` call to tendermint
+            fn query_state_batch<T: Iterator<Item = u64>>(
+                &self,
+                _heights: T,
+            ) -> Result<Vec<ChainState>> {
+                Ok(
+                    serde_json::from_str(&read_asset_file("tendermint_query_state_batch.json"))
+                        .unwrap(),
+                )
+            }
+        }
+
+        let storage = MemoryStorage::default();
+        let name = "name";
+        let trusted_state: lite::TrustedState =
+            serde_json::from_str(&read_asset_file("sync_state_trusted_state.json")).unwrap();
+        save_sync_state(
+            &storage,
+            name,
+            &SyncState {
+                last_block_height: 4820,
+                last_app_hash: "8F0702AADD083A2524BCAAD76B7B192BBFE5AE3449777FCB9060CD401A4E7D1F"
+                    .to_string(),
+                trusted_state,
+            },
+        )
+        .expect("should save sync state");
+
+        let wallet_passphrase = SecUtf8::from("passphrase");
+        let wallet = DefaultWalletClient::new_read_only(storage.clone());
+
+        let (wallet_enckey, _) = wallet
+            .new_wallet(name, &wallet_passphrase, WalletKind::Basic)
+            .unwrap();
+        let client = MockTendermintClient {};
+
+        let enable_fast_forward = false;
+        let syncer = WalletSyncer::with_config(
+            SyncerConfig {
+                storage,
+                client,
+                enable_fast_forward,
+                batch_size: 20,
+                block_height_ensure: 50,
+            },
+            |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
+            None,
+            name.to_owned(),
+            wallet_enckey,
+        );
+
+        syncer.sync().expect("sync should succeed");
+    }
+
+    fn read_asset_file(filename: &str) -> String {
+        let mut path = PathBuf::new();
+        path.push(env!("CARGO_MANIFEST_DIR"));
+        path.push("src/wallet");
+        path.push(format!("syncer_test_assets/{}", filename));
+
+        fs::read_to_string(path).unwrap()
     }
 }

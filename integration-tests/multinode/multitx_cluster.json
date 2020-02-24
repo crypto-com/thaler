@@ -1,0 +1,53 @@
+{
+    "mock_mode": false,
+    "root_path": "./data",
+    "chain_id": "test-chain-y3m1e6-AB",
+    "genesis_time": "2019-11-20T08:56:48.618137Z",
+    "expansion_cap": 1000000000000000000,
+    "nodes": [
+        {
+            "name": "node0",
+            "hostname": "127.0.0.1",
+            "mnemonic": "analyst salon domain idea mango loyal depart utility vicious afraid double visit frog place bench",
+            "validator_seed": "14d5136b842b5bdbe6df065f78ef8b92f3f67597a77f6fd16f13b7513331c3a0",
+            "node_seed": "0360e3074ebe3ef45660514e3723670cb5a20c231778abaf4b21ebd4a8cdfac1",
+            "bonded_coin": 250000000000000000,
+            "unbonded_coin": 250000000000000000,
+            "base_port": 26650
+        },
+        {
+            "name": "node1",
+            "hostname": "127.0.0.1",
+            "mnemonic": "afford citizen lyrics field stumble globe brisk muffin speak scare gift million isolate nuclear wait",
+            "validator_seed": "5191100898b7eba044ff67cf7bf496ee49c1fd553755e7966d6dcd9f29d1e686",
+            "node_seed": "6a7833dc02885693c7f9704a5434facb7eb7a288bbaa0edb2145ab3e7a819ff3",
+            "bonded_coin": 250000000000000000,
+            "unbonded_coin": 250000000000000000,
+            "base_port": 26660
+        }
+    ],
+    "chain_config_patch": [
+        {
+            "op": "replace",
+            "path": "/initial_fee_policy/base_fee",
+            "value": "0"
+        },
+        {
+            "op": "replace",
+            "path": "/initial_fee_policy/per_byte_fee",
+            "value": "0"
+        }
+    ],
+    "tendermint_config_patch": [
+        {
+            "op": "replace",
+            "path": "/consensus/create_empty_blocks",
+            "value": false
+        },
+        {
+            "op": "add",
+            "path": "/consensus/create_empty_blocks_interval",
+            "value": "0s"
+        }
+    ]
+}
