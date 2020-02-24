@@ -2,8 +2,18 @@
 
 *Unreleased*
 
-## v0.?.?
+## v0.4.0
 ...
+
+## v0.3.1
+
+*February 24, 2020*
+
+This release contains a hotfix for two client issues in the 0.3.0 release (the binaries for chain-abci, enclaves, and dev-utils remain the same).
+
+### Bug Fixes
+* *client* [1117](https://github.com/crypto-com/chain/pull/1117): lightweight verification may fail with blocks with multiple transactions due to a different order of txids in btreemap
+* *client* [1118](https://github.com/crypto-com/chain/pull/1118): incorrect fee estimation
 
 *February 16, 2020*
 
