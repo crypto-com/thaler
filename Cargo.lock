@@ -993,12 +993,15 @@ checksum = "4358a9e11b9a09cf52383b451b49a169e8d797b68aa02301ff586d70d9661ea3"
 
 [[package]]
 name = "ecdsa"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9455b6c4ee3265c116c9ff33df6ae8af776adb9e6674a98319ec7f55b42bca8d"
+checksum = "e96b58e5e926181b2cd9bd547b672e888482644a27b5e067e7a13ee52baf5813"
 dependencies = [
  "elliptic-curve",
  "generic-array 0.12.3",
+ "k256",
+ "p256",
+ "p384",
  "sha2 0.8.1",
  "signature",
 ]
@@ -1033,9 +1036,9 @@ checksum = "bb1f6b1ce1c140482ea30ddd3335fc0024ac7ee112895426e0a629a6c20adfe3"
 
 [[package]]
 name = "elliptic-curve"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed8af8090c11491f2eda061d68eb48433176f851dfa6b634f829381c659ea1ff"
+checksum = "01f69be7d1feb7a7a04f158aaf32c7deaa7604e9bd58145525e536438c4e5096"
 dependencies = [
  "generic-array 0.12.3",
  "getrandom",
@@ -1788,6 +1791,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "k256"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4407bc616f76afb6bccd8a813b86fe622752b15b43c5e60fec94d21af2393a72"
+dependencies = [
+ "elliptic-curve",
+]
+
+[[package]]
 name = "keccak"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2194,6 +2206,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49a4b8ea2179e6a2e27411d3bca09ca6dd630821cf6894c6c7c8467a8ee7ef13"
 dependencies = [
  "stable_deref_trait",
+]
+
+[[package]]
+name = "p256"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "812a058a5afc96a52a8ab6e250325d025254ff030ff737dc5b62576e4e604c42"
+dependencies = [
+ "elliptic-curve",
+]
+
+[[package]]
+name = "p384"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3aee0d9bdeedaea6cdd47f9281a9f8e1037d3037088b70e2af13c64ce65608ec"
+dependencies = [
+ "elliptic-curve",
 ]
 
 [[package]]
@@ -3223,9 +3253,9 @@ checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
 
 [[package]]
 name = "signatory"
-version = "0.17.1"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8266215e389a88750d9d6afb35c839ca6845b9cf1e78513bee006497620686a"
+checksum = "7acd87e0a98ac7048c5ffa8b5856e5f479f8f4e37b9edb22b1d6d8dce827a29b"
 dependencies = [
  "ecdsa",
  "ed25519",
@@ -3237,9 +3267,9 @@ dependencies = [
 
 [[package]]
 name = "signatory-dalek"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37e71296303f2f04a00ef9a3133627db900805a41de2c944cc64a31039afa366"
+checksum = "fbe3b5e02c9c9d8b53924fc2f37a67fbf8799d9ef14edafa3803867dd2c5729c"
 dependencies = [
  "digest 0.8.1",
  "ed25519-dalek",
@@ -3480,7 +3510,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.10.0"
-source = "git+https://github.com/crypto-com/tendermint-rs.git?rev=db982c2437fe72c7a03942fc2bddf490f2332364#db982c2437fe72c7a03942fc2bddf490f2332364"
+source = "git+https://github.com/crypto-com/tendermint-rs.git?rev=2aa9dcece9d5abf5b8f108fec61baaa5c83d5884#2aa9dcece9d5abf5b8f108fec61baaa5c83d5884"
 dependencies = [
  "bytes",
  "chrono 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
