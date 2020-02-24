@@ -108,6 +108,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cff77d8686867eceff3105329d4698d96c2391c176d5d03adc90c7389162b5b8"
 
 [[package]]
+name = "async-trait"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "750b1c38a1dfadd108da0f01c08f4cdc7ff1bb39b325f9c82cc972361780a6e1"
+dependencies = [
+ "proc-macro2 1.0.8",
+ "quote 1.0.2",
+ "syn 1.0.14",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1621,9 +1632,13 @@ dependencies = [
 
 [[package]]
 name = "integer-encoding"
-version = "1.0.7"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1aec89c15e2cfa0f0eae8ca60e03cb10b30d25ea2c0ad7d6be60a95e32729994"
+checksum = "ca80fdd4829ab7569b7a72db4784b2f819d42f124e189c47dba0f72861c3888a"
+dependencies = [
+ "async-trait",
+ "futures 0.3.4",
+]
 
 [[package]]
 name = "interleaved-ordered"
