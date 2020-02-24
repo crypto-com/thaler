@@ -59,6 +59,7 @@ impl ResponseWithCodeAndLog for ResponseDeliverTx {
 }
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
+    // TODO: CheckTx only against only committed states or a custom CheckTx sub-state?
     fn handle_tx(
         &mut self,
         txaux: &TxAux,

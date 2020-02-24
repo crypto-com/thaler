@@ -117,25 +117,25 @@ impl Database<H256> for Storage {
     #[inline]
     fn insert(&mut self, key: H256, value: Self::NodeType) -> Result<(), Exception> {
         let serialized = value.encode();
-        let mut insert_tx = self.db.transaction();
+        let insert_tx = self.get_or_create_tx();
         insert_tx.put(0, &key, &serialized);
-        // this "buffered write" shouldn't persist (persistence done in batch write)
-        // but should change it in-memory -- TODO: check
-        self.db.write_buffered(insert_tx);
         Ok(())
     }
 
     #[inline]
     fn remove(&mut self, key: &[u8; KEY_LEN]) -> Result<(), Exception> {
-        let mut delete_tx = self.db.transaction();
+        let delete_tx = self.get_or_create_tx();
         delete_tx.delete(0, key);
-        self.db.write_buffered(delete_tx);
         Ok(())
     }
 
     #[inline]
     fn batch_write(&mut self) -> Result<(), Exception> {
-        self.db.flush().map_err(tree::convert_io_err)
+        if let Some(dbtx) = self.current_tx.take() {
+            self.db.write(dbtx).map_err(tree::convert_io_err)
+        } else {
+            Ok(())
+        }
     }
 }
 
