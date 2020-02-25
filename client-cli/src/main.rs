@@ -60,6 +60,10 @@ pub(crate) fn chain_id() -> Option<String> {
 }
 
 pub(crate) fn ask_passphrase(message: Option<&str>) -> Result<SecUtf8> {
+    if let Ok(passphrase) = std::env::var("PASSPHRASE") {
+        return Ok(passphrase.into());
+    }
+
     ask(message.unwrap_or("Enter passphrase: "));
     password()
         .map(Into::into)
@@ -67,6 +71,10 @@ pub(crate) fn ask_passphrase(message: Option<&str>) -> Result<SecUtf8> {
 }
 
 pub(crate) fn ask_seckey(message: Option<&str>) -> Result<SecKey> {
+    if let Ok(s) = std::env::var("AUTH_TOKEN") {
+        return Ok(parse_hex_enckey(&s)?);
+    }
+
     ask(message.unwrap_or("Enter authentication token: "));
     let key = password().err_kind(ErrorKind::InvalidInput, || "Unable to read enckey")?;
     parse_hex_enckey(&key)
