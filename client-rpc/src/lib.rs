@@ -1,5 +1,6 @@
 mod program;
-mod rpc;
+/// Used by c api
+pub mod rpc;
 mod server;
 
 pub fn run() {

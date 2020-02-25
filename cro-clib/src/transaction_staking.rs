@@ -114,7 +114,7 @@ fn create_encoded_signed_join(
         consensus_pubkey: pubkey,
     };
     let transaction: NodeJoinRequestTx = NodeJoinRequestTx {
-        nonce: nonce,
+        nonce,
         address: to_address,
         attributes,
         node_meta: node_metadata,

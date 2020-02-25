@@ -1,5 +1,6 @@
 //! global polling synchronizer
 use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -19,6 +20,9 @@ type WalletPassphrase = SecKey;
 pub struct PollingSynchronizer {
     wallets: Arc<Mutex<BTreeMap<WalletName, WalletPassphrase>>>,
     progress: Arc<Mutex<SynchronizerProgress>>,
+    should_run: Arc<AtomicBool>,
+    sync_thread: Option<thread::JoinHandle<()>>,
+    progress_thread: Option<thread::JoinHandle<()>>,
 }
 
 impl PollingSynchronizer {
@@ -45,30 +49,37 @@ impl PollingSynchronizer {
         let wallets = self.wallets.clone();
         let progress = self.progress.clone();
 
+        self.should_run.store(true, Ordering::Relaxed);
+        let should_run = self.should_run.clone();
+
         let (sender, receiver) = channel();
-        thread::spawn(move || loop {
-            let wallets_to_synchronize = wallets
-                .lock()
-                .expect("Unable to acquire lock on wallets to synchronize in polling synchronizer")
-                .clone();
+        self.sync_thread = Some(thread::spawn(move || {
+            while should_run.load(Ordering::Relaxed) {
+                let wallets_to_synchronize = wallets
+                    .lock()
+                    .expect(
+                        "Unable to acquire lock on wallets to synchronize in polling synchronizer",
+                    )
+                    .clone();
 
-            for (name, enckey) in wallets_to_synchronize.iter() {
-                let result = WalletSyncer::with_obfuscation_config(
-                    config.clone(),
-                    Some(sender.clone()),
-                    name.clone(),
-                    enckey.clone(),
-                )
-                .and_then(|syncer| syncer.sync());
-                if let Err(e) = result {
-                    log::error!("Error while synchronizing wallet [{}]: {:?}", name, e);
+                for (name, enckey) in wallets_to_synchronize.iter() {
+                    let result = WalletSyncer::with_obfuscation_config(
+                        config.clone(),
+                        Some(sender.clone()),
+                        name.clone(),
+                        enckey.clone(),
+                    )
+                    .and_then(|syncer| syncer.sync());
+                    if let Err(e) = result {
+                        log::error!("Error while synchronizing wallet [{}]: {:?}", name, e);
+                    }
                 }
+
+                thread::sleep(time::Duration::from_millis(100));
             }
+        }));
 
-            thread::sleep(time::Duration::from_millis(100));
-        });
-
-        thread::spawn(move || {
+        self.progress_thread = Some(thread::spawn(move || {
             for progress_report in receiver.iter() {
                 match progress_report {
                     ProgressReport::Init {
@@ -106,7 +117,18 @@ impl PollingSynchronizer {
                     }
                 }
             }
-        });
+        }));
+    }
+
+    /// Stop the auto synchronizer thread
+    pub fn stop(&mut self) {
+        self.should_run.store(false, Ordering::Relaxed);
+        if let Some(thread) = self.sync_thread.take() {
+            thread.join().expect("join auto syncer thread failed");
+        }
+        if let Some(thread) = self.progress_thread.take() {
+            thread.join().expect("join progress report thread failed");
+        }
     }
 }
 
