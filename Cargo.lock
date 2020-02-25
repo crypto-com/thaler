@@ -1637,12 +1637,11 @@ dependencies = [
 
 [[package]]
 name = "integer-encoding"
-version = "1.0.8"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca80fdd4829ab7569b7a72db4784b2f819d42f124e189c47dba0f72861c3888a"
+checksum = "833ff084d6afe5184d5ca7a9c759d3db5e223e5a7055c216e38994e0874056d7"
 dependencies = [
  "async-trait",
- "futures 0.3.4",
 ]
 
 [[package]]
