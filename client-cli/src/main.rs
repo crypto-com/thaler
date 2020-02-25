@@ -3,6 +3,7 @@
 use std::str::FromStr;
 
 mod command;
+mod logo;
 use quest::{ask, error, password};
 use secstr::SecUtf8;
 use structopt::StructOpt;
