@@ -316,6 +316,7 @@ where
         self.verify_inputs()?;
         self.verify_outputs()?;
         self.verify_output_does_not_exceed_input_amount()?;
+        self.verify_fee()?;
         self.verify_input_witnesses()?;
 
         Ok(())
@@ -356,14 +357,22 @@ where
         let input_value = self.total_input_amount()?;
         let output_value = self.total_output_amount()?;
 
-        // TODO: Include fee in calculation?
         if input_value < output_value {
+            return Err(Error::new(ErrorKind::VerifyError, "Insufficient balance"));
+        }
+        Ok(())
+    }
+
+    fn verify_fee(&self) -> Result<()> {
+        let fee_expected = self.estimate_fee()?;
+        let fee_in_tx = self.fee()?;
+        if fee_in_tx < fee_expected {
+            let fee_gap = (fee_expected - fee_in_tx).unwrap();
             return Err(Error::new(
                 ErrorKind::VerifyError,
-                "Output amount exceed input amount",
+                format!("Insufficient fee, need more {:?}", fee_gap),
             ));
         }
-
         Ok(())
     }
 
@@ -588,7 +597,7 @@ mod raw_transfer_transaction_builder_tests {
 
             let err = builder.verify().unwrap_err();
             assert_eq!(err.kind(), ErrorKind::VerifyError);
-            assert_eq!(err.message(), "Output amount exceed input amount");
+            assert_eq!(err.message(), "Insufficient balance");
         }
 
         #[test]
@@ -1057,11 +1066,11 @@ mod raw_transfer_transaction_builder_tests {
 
         builder.add_input((
             TxoPointer::new(random(), 0),
-            TxOut::new(transfer_addr.clone(), Coin::new(100).unwrap()),
+            TxOut::new(transfer_addr.clone(), Coin::new(500).unwrap()),
         ));
         builder.add_input((
             TxoPointer::new(random(), 0),
-            TxOut::new(transfer_addr, Coin::new(200).unwrap()),
+            TxOut::new(transfer_addr, Coin::new(500).unwrap()),
         ));
 
         builder.add_output(TxOut::new(

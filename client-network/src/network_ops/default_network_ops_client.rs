@@ -162,10 +162,23 @@ where
         to_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
     ) -> Result<(TxAux, TransactionPending)> {
+        // if the to_address belongs to current wallet, we do not check the state
+        let staking_addresses = self.wallet_client.staking_addresses(name, enckey)?;
+        if !staking_addresses.contains(&to_address) {
+            let staked_state = self.get_staked_state(&to_address)?;
+            verify_unjailed(&staked_state).map_err(|e| {
+                Error::new(
+                    ErrorKind::ValidationError,
+                    format!("Failed to validate staking account: {}", e),
+                )
+            })?;
+        }
+
         let inputs = transactions
             .iter()
             .map(|(input, _)| input.clone())
             .collect::<Vec<_>>();
+
         let transaction = DepositBondTx::new(inputs.clone(), to_address, attributes);
         let unspent_transactions = UnspentTransactions::new(transactions);
         let signer = self.signer_manager.create_signer(name, enckey);
@@ -176,7 +189,7 @@ where
         check_inputs_basic(&transaction.inputs, &witness).map_err(|e| {
             Error::new(
                 ErrorKind::ValidationError,
-                format!("Failed to validate transaction inputs: {}", e),
+                format!("Failed to validate deposit transaction inputs: {}", e),
             )
         })?;
 
