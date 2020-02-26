@@ -363,19 +363,21 @@ impl ValidatorState {
 
     /// FIXME: vote
     pub fn record_proposed_block(&mut self, addr: &TendermintValidatorAddress) {
-        let staking_address = self
-            .tendermint_validator_addresses
-            .get(addr)
-            .expect("block proposer is not found");
-        if self
-            .validator_state_helper
-            .validator_voting_power
-            .contains_key(staking_address)
-        {
-            self.proposer_stats
-                .entry(*staking_address)
-                .and_modify(|count| *count += 1)
-                .or_insert_with(|| 1);
+        if let Some(staking_address) = self.tendermint_validator_addresses.get(addr) {
+            if self
+                .validator_state_helper
+                .validator_voting_power
+                .contains_key(staking_address)
+            {
+                self.proposer_stats
+                    .entry(*staking_address)
+                    .and_modify(|count| *count += 1)
+                    .or_insert_with(|| 1);
+            } else {
+                log::warn!("block proposer found, but not in validator_voting_power");
+            }
+        } else {
+            log::error!("block proposer not found");
         }
     }
 

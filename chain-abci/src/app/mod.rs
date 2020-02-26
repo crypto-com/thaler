@@ -84,8 +84,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     .as_ref()
                     .expect("No timestamp in begin block request from tendermint")
                     .seconds,
-                TendermintValidatorAddress::try_from(header.proposer_address.as_slice())
-                    .expect("invalid proposer_address"),
+                TendermintValidatorAddress::try_from(header.proposer_address.as_slice()),
             ),
         };
 
@@ -209,7 +208,12 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             response.events.push(slashing_event);
         }
 
-        self.rewards_record_proposer(&proposer_address);
+        // FIXME: record based on votes
+        if let Ok(proposer_address) = proposer_address {
+            self.rewards_record_proposer(&proposer_address);
+        } else {
+            log::error!("invalid proposer address");
+        }
         if let Some((distributed, minted)) = self.rewards_try_distribute() {
             let mut event = Event::new();
             event.field_type = TendermintEventType::RewardsDistribution.to_string();
