@@ -278,7 +278,7 @@ impl EnclaveProxy for MockClient {
                             Err(e) => Err(e),
                         }
                     }
-                    _ => unreachable!(),
+                    _ => Err(chain_tx_validation::Error::EnclaveRejected),
                 }
             }
         }
