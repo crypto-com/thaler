@@ -8,10 +8,17 @@ if [ x"${SGX_MODE}" == "xHW" ]; then
   LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service &
 
   echo "[aesm_service] Running in background ..."
-  # Wait for aesm_service to initialize
-  sleep 4
 fi
 
+PID=$!
 trap 'kill -TERM $PID' TERM INT
-echo "[Config] start enclave on port ${APP_PORT_VALIDATION}"
-RUST_LOG=${RUST_LOG} ./tx-validation-app tcp://0.0.0.0:${APP_PORT_VALIDATION}
+
+echo "[Config] start chain abci on port 26658"
+chain-abci \
+    --chain_id ${CHAIN_ID} \
+    --data /crypto-chain/chain-storage \
+    --enclave_server ${TX_VALIDATION_CONN} \
+    --genesis_app_hash ${APP_HASH} \
+    --host 0.0.0.0 \
+    --port 26658 \
+    --tx_query ${PREFIX}sgx-query:26651
