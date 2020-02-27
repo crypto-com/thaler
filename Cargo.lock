@@ -3661,9 +3661,9 @@ dependencies = [
 
 [[package]]
 name = "tiny-bip39"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cd1fb03fe8e07d17cd851a624a9fff74642a997b67fbd1ccd77533241640d92"
+checksum = "a6848cd8f566953ce1e8faeba12ee23cbdbb0437754792cd857d44628b5685e3"
 dependencies = [
  "failure",
  "hmac",
@@ -3672,6 +3672,7 @@ dependencies = [
  "rand 0.7.3",
  "rustc-hash",
  "sha2 0.8.1",
+ "unicode-normalization",
 ]
 
 [[package]]
