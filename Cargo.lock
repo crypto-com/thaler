@@ -1641,9 +1641,9 @@ dependencies = [
 
 [[package]]
 name = "integer-encoding"
-version = "1.1.1"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "833ff084d6afe5184d5ca7a9c759d3db5e223e5a7055c216e38994e0874056d7"
+checksum = "553a280155f89ff1c798520ccf877d1bc9571314164e998f8a7b5fe2d84cb45c"
 dependencies = [
  "async-trait",
 ]
