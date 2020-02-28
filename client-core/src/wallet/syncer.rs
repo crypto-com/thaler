@@ -611,6 +611,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn check_wallet_syncer_app_hash_on_multiple_tx() {
         #[derive(Clone)]
         struct MockTendermintClient {}

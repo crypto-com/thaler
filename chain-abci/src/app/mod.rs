@@ -17,12 +17,33 @@ pub use self::app_init::{
 use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::get_account;
 use chain_core::common::{TendermintEventKey, TendermintEventType};
-use chain_core::state::account::PunishmentKind;
+use chain_core::init::coin::Coin;
+use chain_core::init::params::NetworkParameters;
+use chain_core::state::account::{PunishmentKind, StakedState};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
+use chain_core::state::{ChainState, RewardsPoolState};
 use chain_core::tx::{TxAux, TxEnclaveAux};
 use chain_storage::account::update_staked_state;
 use slash_accounts::{get_slashing_proportion, get_vote_power_in_milli};
 use std::convert::{TryFrom, TryInto};
+
+// get `TendermintValidatorAddress` from `VoteInfo`
+fn vote_validator_address(vote: &VoteInfo) -> TendermintValidatorAddress {
+    vote.validator
+        .get_ref()
+        .address
+        .as_slice()
+        .try_into()
+        .expect("Invalid address in vote_info")
+}
+
+// iterate VoteInfo in `RequestBeginBlock`
+fn iter_votes(req: &RequestBeginBlock) -> impl Iterator<Item = &VoteInfo> {
+    req.last_commit_info
+        .as_ref()
+        .into_iter()
+        .flat_map(|commit| commit.votes.iter())
+}
 
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
 impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
@@ -75,7 +96,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     fn begin_block(&mut self, req: &RequestBeginBlock) -> ResponseBeginBlock {
         info!("received beginblock request");
         // TODO: Check security implications once https://github.com/tendermint/tendermint/issues/2653 is closed
-        let (block_height, block_time, proposer_address) = match req.header.as_ref() {
+        let (block_height, block_time) = match req.header.as_ref() {
             None => panic!("No block header in begin block request from tendermint"),
             Some(header) => (
                 header.height,
@@ -84,7 +105,6 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
                     .as_ref()
                     .expect("No timestamp in begin block request from tendermint")
                     .seconds,
-                TendermintValidatorAddress::try_from(header.proposer_address.as_slice()),
             ),
         };
 
@@ -208,19 +228,23 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             response.events.push(slashing_event);
         }
 
-        // FIXME: record based on votes
-        if let Ok(proposer_address) = proposer_address {
-            self.rewards_record_proposer(&proposer_address);
-        } else {
-            log::error!("invalid proposer address");
-        }
-        if let Some((distributed, minted)) = self.rewards_try_distribute() {
+        // Get the `TendermintValidatorAddress`s of all the signing voters
+        let voter_addresses = iter_votes(&req).filter_map(|vote| {
+            if vote.signed_last_block {
+                Some(vote_validator_address(vote))
+            } else {
+                None
+            }
+        });
+        self.validator_state_mut()
+            .record_voters_for_rewarding(voter_addresses);
+        if let Some((distribution, minted)) = self.rewards_try_distribute() {
             let mut event = Event::new();
             event.field_type = TendermintEventType::RewardsDistribution.to_string();
 
             let mut kvpair = KVPair::new();
             kvpair.key = TendermintEventKey::RewardsDistribution.into();
-            kvpair.value = serde_json::to_string(&distributed)
+            kvpair.value = serde_json::to_string(&distribution)
                 .expect("encode rewards result failed")
                 .as_bytes()
                 .to_owned();
@@ -362,6 +386,58 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     fn commit(&mut self, _req: &RequestCommit) -> ResponseCommit {
         info!("received commit request");
         ChainNodeApp::commit_handler(self, _req)
+    }
+}
+
+/// Utilities
+impl<T: EnclaveProxy> ChainNodeApp<T> {
+    fn state(&self) -> &ChainNodeState {
+        self.last_state.as_ref().unwrap()
+    }
+    fn state_mut(&mut self) -> &mut ChainNodeState {
+        self.last_state.as_mut().unwrap()
+    }
+
+    fn chain_state(&self) -> &ChainState {
+        &self.state().top_level
+    }
+    fn chain_state_mut(&mut self) -> &mut ChainState {
+        &mut self.state_mut().top_level
+    }
+
+    fn network_params(&self) -> &NetworkParameters {
+        &self.chain_state().network_params
+    }
+    #[allow(dead_code)]
+    fn network_params_mut(&mut self) -> &mut NetworkParameters {
+        &mut self.chain_state_mut().network_params
+    }
+
+    fn rewards_pool(&self) -> &RewardsPoolState {
+        &self.chain_state().rewards_pool
+    }
+    fn rewards_pool_mut(&mut self) -> &mut RewardsPoolState {
+        &mut self.chain_state_mut().rewards_pool
+    }
+
+    fn validator_state(&self) -> &ValidatorState {
+        &self.last_state.as_ref().unwrap().validators
+    }
+    fn validator_state_mut(&mut self) -> &mut ValidatorState {
+        &mut self.last_state.as_mut().unwrap().validators
+    }
+
+    fn total_staking(&self) -> Coin {
+        self.validator_state()
+            .validator_state_helper
+            .get_validator_total_bonded(&self.chain_state().account_root, &self.accounts)
+    }
+
+    fn update_voting_power(&mut self, state: &StakedState) {
+        let minimum_effective = self.state().minimum_effective().into();
+        self.validator_state_mut()
+            .validator_state_helper
+            .voting_power_update(state, minimum_effective);
     }
 }
 

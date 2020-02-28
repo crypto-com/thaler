@@ -370,13 +370,28 @@ impl ChainEnv {
     }
 
     pub fn req_begin_block(&self, height: i64, proposed_by: usize) -> RequestBeginBlock {
+        let validator_addr = Into::<[u8; 20]>::into(&self.validator_address(proposed_by)).to_vec();
         RequestBeginBlock {
             header: Some(Header {
                 time: Some(Timestamp::new()).into(),
                 chain_id: TEST_CHAIN_ID.to_owned(),
                 height,
-                proposer_address: Into::<[u8; 20]>::into(&self.validator_address(proposed_by))
-                    .to_vec(),
+                proposer_address: validator_addr.clone(),
+                ..Default::default()
+            })
+            .into(),
+            last_commit_info: Some(LastCommitInfo {
+                votes: vec![VoteInfo {
+                    validator: Some(Validator {
+                        address: validator_addr,
+                        power: TendermintVotePower::from(self.share()).into(),
+                        ..Default::default()
+                    })
+                    .into(),
+                    signed_last_block: true,
+                    ..Default::default()
+                }]
+                .into(),
                 ..Default::default()
             })
             .into(),

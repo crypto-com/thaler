@@ -52,8 +52,8 @@ pub struct RewardsPoolState {
     pub last_distribution_time: Timespec,
     /// Record how many coins have been minted, can't exceed the cap
     pub minted: Coin,
-    /// Parameter in monetary expansion formula, decayed for each rewards distribution
-    pub tau: u64,
+    /// Current tau value of monetary expansion formula, decayed for each rewards distribution
+    pub current_tau: u64,
 }
 
 impl RewardsPoolState {
@@ -62,13 +62,13 @@ impl RewardsPoolState {
         hash256::<Blake2s>(&self.encode())
     }
 
-    pub fn new(genesis_time: Timespec, tau: u64) -> Self {
+    pub fn new(genesis_time: Timespec, current_tau: u64) -> Self {
         RewardsPoolState {
             period_bonus: Coin::zero(),
             last_block_height: 0,
             last_distribution_time: genesis_time,
             minted: Coin::zero(),
-            tau,
+            current_tau,
         }
     }
 }

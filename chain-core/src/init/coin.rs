@@ -130,6 +130,16 @@ impl Coin {
             Err(CoinError::OutOfBound(v))
         }
     }
+
+    /// Saturating coin addition, the result won't exceed max coin
+    pub fn saturating_add(&self, v: Coin) -> Coin {
+        Coin(std::cmp::max(MAX_COIN, self.0.saturating_add(v.0)))
+    }
+
+    /// Saturating coin subtraction
+    pub fn saturating_sub(&self, v: Coin) -> Coin {
+        Coin(self.0.saturating_sub(v.0))
+    }
 }
 
 impl fmt::Display for Coin {
@@ -257,6 +267,12 @@ impl ops::Mul<SlashRatio> for Coin {
 impl From<Coin> for u64 {
     fn from(c: Coin) -> u64 {
         c.0
+    }
+}
+
+impl From<Coin> for u128 {
+    fn from(c: Coin) -> u128 {
+        c.0.into()
     }
 }
 

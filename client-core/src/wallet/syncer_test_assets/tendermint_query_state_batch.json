@@ -39,7 +39,7 @@
             "last_block_height":4679,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -110,7 +110,7 @@
             "last_block_height":4679,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -181,7 +181,7 @@
             "last_block_height":4679,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -252,7 +252,7 @@
             "last_block_height":4679,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -323,7 +323,7 @@
             "last_block_height":4679,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -394,7 +394,7 @@
             "last_block_height":4679,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -465,7 +465,7 @@
             "last_block_height":4679,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -536,7 +536,7 @@
             "last_block_height":4828,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -607,7 +607,7 @@
             "last_block_height":4828,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -678,7 +678,7 @@
             "last_block_height":4828,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -749,7 +749,7 @@
             "last_block_height":4828,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -820,7 +820,7 @@
             "last_block_height":4828,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -891,7 +891,7 @@
             "last_block_height":4833,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -962,7 +962,7 @@
             "last_block_height":4833,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -1033,7 +1033,7 @@
             "last_block_height":4833,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -1104,7 +1104,7 @@
             "last_block_height":4836,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -1175,7 +1175,7 @@
             "last_block_height":4837,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -1246,7 +1246,7 @@
             "last_block_height":4837,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -1317,7 +1317,7 @@
             "last_block_height":4837,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{
@@ -1388,7 +1388,7 @@
             "last_block_height":4837,
             "last_distribution_time":1582227702,
             "minted":"53285419760000",
-            "tau":999580058797255999
+            "current_tau":999580058797255999
         },
         "network_params":{
             "Genesis":{

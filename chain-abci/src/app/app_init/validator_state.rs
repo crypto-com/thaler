@@ -1,4 +1,3 @@
-use crate::app::rewards::RewardsDistribution;
 use crate::app::ChainNodeState;
 use crate::liveness::LivenessTracker;
 use crate::punishment::ValidatorPunishment;
@@ -11,11 +10,10 @@ use chain_core::state::account::PunishmentKind;
 use chain_core::state::account::{CouncilNode, StakedState, StakedStateAddress};
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
-use chain_storage::account::update_staked_state;
 use chain_storage::account::AccountStorage;
 use chain_storage::account::StarlingFixedKey;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// Validator state tracking (needs to be persisted / a part of node state)
 #[derive(PartialEq, Debug, Clone, Default)]
@@ -28,10 +26,10 @@ pub struct ValidatorState {
     /// Runtime state for computing and executing validator punishment
     punishment: ValidatorPunishment,
 
-    /// Record how many block each validator proposed, used for rewards distribution,
-    /// cleared after rewards distributed
-    /// FIXME: fairness -- use lastcommitinfo for stats
-    proposer_stats: BTreeMap<StakedStateAddress, u64>,
+    /// Record signing voters and the sum of voting powers at vote time, used for rewards distribution,
+    /// Cleared when validator is jailed,
+    /// Cleared after rewards distributed
+    pub signed_voters: HashMap<StakedStateAddress, u64>,
 
     after_unbond_delete: DeleteScheduleMap,
 
@@ -146,7 +144,7 @@ impl Encode for ValidatorState {
         self.council_nodes_by_power.size_hint()
             + self.tendermint_validator_addresses.size_hint()
             + self.punishment.size_hint()
-            + self.proposer_stats.size_hint()
+            + self.signed_voters.iter().collect::<Vec<_>>().size_hint()
             + ub_size * ub_item_size
     }
 
@@ -154,7 +152,10 @@ impl Encode for ValidatorState {
         self.council_nodes_by_power.encode_to(dest);
         self.tendermint_validator_addresses.encode_to(dest);
         self.punishment.encode_to(dest);
-        self.proposer_stats.encode_to(dest);
+        self.signed_voters
+            .iter()
+            .collect::<Vec<_>>()
+            .encode_to(dest);
         let unbond_schedule: Vec<DeleteSchedule> = self
             .after_unbond_delete
             .iter()
@@ -171,7 +172,9 @@ impl Decode for ValidatorState {
         let tendermint_validator_addresses =
             BTreeMap::<TendermintValidatorAddress, StakedStateAddress>::decode(input)?;
         let punishment = ValidatorPunishment::decode(input)?;
-        let proposer_stats = BTreeMap::<StakedStateAddress, u64>::decode(input)?;
+        let signed_voters = Vec::<(StakedStateAddress, u64)>::decode(input)?
+            .into_iter()
+            .collect::<HashMap<_, _>>();
         let unbond_schedule: Vec<DeleteSchedule> = Vec::decode(input)?;
         let after_unbond_delete = DeleteScheduleMap::from_vec(unbond_schedule);
         let mut validator_state_helper = ValidatorStateHelper::default();
@@ -184,7 +187,7 @@ impl Decode for ValidatorState {
             council_nodes_by_power,
             tendermint_validator_addresses,
             punishment,
-            proposer_stats,
+            signed_voters,
             after_unbond_delete,
             validator_state_helper,
         })
@@ -260,7 +263,7 @@ impl ValidatorState {
             log::info!("(other reason -- effective bonded stake not enough or explicit unbonding)");
         }
         // rewards
-        if is_infraction && self.proposer_stats.remove(&address).is_some() {
+        if is_infraction && self.signed_voters.remove(&address).is_some() {
             log::info!("removed reward stats for: {}", address);
         }
         let tendermint_address = node.consensus_pubkey.into();
@@ -322,63 +325,38 @@ impl ValidatorState {
             .collect()
     }
 
-    /// TODO: tm_min_power should be effective (min required or lowest val) and obtained from within ValidatorState
-    pub fn distribute_rewards(
+    fn get_voting_power(&self, addr: &StakedStateAddress) -> Option<TendermintVotePower> {
+        self.validator_state_helper.get_voting_power(addr)
+    }
+
+    /// Record signing voters
+    pub fn record_voters_for_rewarding(
         &mut self,
-        share: Coin,
-        last_root: &StarlingFixedKey,
-        accounts: &mut AccountStorage,
-        tm_min_power: TendermintVotePower,
-    ) -> (StarlingFixedKey, RewardsDistribution) {
-        let mut root = *last_root;
-        let mut distributed: RewardsDistribution = vec![];
-        if share > Coin::zero() {
-            for (addr, &count) in self.proposer_stats.iter() {
-                let mut state = get_account(addr, &root, &accounts)
-                    .expect("io error or validator account not exists");
-
-                if state.is_jailed() {
-                    log::error!(
-                        "Jailed validator should not have reward stats, will cause coins burned"
-                    );
-                    continue;
+        addrs: impl Iterator<Item = TendermintValidatorAddress>,
+    ) {
+        for addr in addrs {
+            if let Some(staking_address) = self.get_staking_address(&addr).copied() {
+                if let Some(voting_power) = self.get_voting_power(&staking_address) {
+                    let amount = u64::from(voting_power);
+                    self.signed_voters
+                        .entry(staking_address)
+                        .and_modify(|power| *power = power.saturating_add(amount))
+                        .or_insert(amount);
+                } else {
+                    log::warn!("voter found, but not in validator_voting_power");
                 }
-
-                let amount = (share * count).unwrap();
-                let _balance = state.add_reward(amount).unwrap();
-                root = update_staked_state(state.clone(), &root, accounts).0;
-                distributed.push((*addr, amount));
-                self.validator_state_helper
-                    .voting_power_update(&state, tm_min_power)
-            }
-        }
-        self.proposer_stats.clear();
-        (root, distributed)
-    }
-
-    /// FIXME: total votes?
-    pub fn get_total_blocks(&self) -> u64 {
-        self.proposer_stats.iter().map(|(_, count)| count).sum()
-    }
-
-    /// FIXME: vote
-    pub fn record_proposed_block(&mut self, addr: &TendermintValidatorAddress) {
-        if let Some(staking_address) = self.tendermint_validator_addresses.get(addr) {
-            if self
-                .validator_state_helper
-                .validator_voting_power
-                .contains_key(staking_address)
-            {
-                self.proposer_stats
-                    .entry(*staking_address)
-                    .and_modify(|count| *count += 1)
-                    .or_insert_with(|| 1);
             } else {
-                log::warn!("block proposer found, but not in validator_voting_power");
+                log::error!("voter not found");
             }
-        } else {
-            log::error!("block proposer not found");
         }
+    }
+
+    // Get staking address by validator address
+    fn get_staking_address(
+        &self,
+        validator_address: &TendermintValidatorAddress,
+    ) -> Option<&StakedStateAddress> {
+        self.tendermint_validator_addresses.get(validator_address)
     }
 
     /// for liveness tracking
@@ -700,5 +678,12 @@ impl ValidatorStateHelper {
             );
         }
         validator_voting_power
+    }
+
+    fn get_voting_power(
+        &self,
+        staking_address: &StakedStateAddress,
+    ) -> Option<TendermintVotePower> {
+        self.validator_voting_power.get(staking_address).copied()
     }
 }

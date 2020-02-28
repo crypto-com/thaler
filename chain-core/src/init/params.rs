@@ -183,15 +183,17 @@ pub struct SlashingParameters {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct RewardsParameters {
-    /// Maximum monetary expansion for rewards.
-    pub monetary_expansion_cap: Coin,
     /// Time inteval in seconds to do rewards distribution
     pub reward_period_seconds: u64,
-    /// Monetary expansion formula parameter
+
+    /// Maximum minted coins for rewards
+    pub monetary_expansion_cap: Coin,
+    /// Monetary expansion formula parameter R0
     pub monetary_expansion_r0: Milli,
-    /// Monetary expansion formula parameter
+    /// Monetary expansion formula parameter tau
     pub monetary_expansion_tau: u64,
-    /// Monetary expansion formula parameter
+
+    /// Decay rate of the parameter tau
     pub monetary_expansion_decay: u64,
 }
 
