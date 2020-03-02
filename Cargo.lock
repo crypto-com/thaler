@@ -3311,9 +3311,9 @@ dependencies = [
 
 [[package]]
 name = "signatory-dalek"
-version = "0.18.0"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbe3b5e02c9c9d8b53924fc2f37a67fbf8799d9ef14edafa3803867dd2c5729c"
+checksum = "24b5d13f80962e02eb1113e2bd0c698b6b50db6cffa9b4c48dcfbf33abe2cbe7"
 dependencies = [
  "digest 0.8.1",
  "ed25519-dalek",
