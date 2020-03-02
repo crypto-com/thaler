@@ -3297,9 +3297,9 @@ checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
 
 [[package]]
 name = "signatory"
-version = "0.18.0"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7acd87e0a98ac7048c5ffa8b5856e5f479f8f4e37b9edb22b1d6d8dce827a29b"
+checksum = "98887ae129a828815e623e2656c6cfcc0a4b2926dcc6104e0c866d9f2f95041c"
 dependencies = [
  "ecdsa",
  "ed25519",
