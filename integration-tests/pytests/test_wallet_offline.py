@@ -16,7 +16,7 @@ rpc = RPC()
 # ./client-cli wallet auth-token -n ${wallet_name}
 enckey_offline = "678207f07853b6f2c361989cb3eb31fd15ed0d30da7e01d1e8b50a1f38eb63dd"
 # ./client-cli address new -n ${wallet_name} -t transfer
-transfer_address_offline = "dcro1ayhu0665wprxf86letqlv8x4ssppeu6awf7m60qlwds9268vltwsk6ehwa"
+transfer_address_offline = "dcro1ne3l2yxmneg6mfce096424w3dawjmpr6yfjp2tffwd6tn42pp7fst75jua"
 # ./client-cli address list-pub-key -n ${wallet_name} -t transfer
 transfer_pubkey_offline = "02a732fb6c34812ea5a46547344d63a360e22d0c4815c837af82a09de7b7fd9797"
 view_key_offline = "02b4dabfc862b9cb9f86b8d49520023aa0cccb2ad89446577dd0fee7bc946a79a1"

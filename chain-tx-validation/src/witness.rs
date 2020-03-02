@@ -3,7 +3,7 @@ use chain_core::state::account::{StakedStateAddress, StakedStateOpWitness};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::TxId;
 use chain_core::tx::witness::TxInWitness;
-use secp256k1::{schnorrsig::schnorr_verify, Message, PublicKey, Secp256k1};
+use secp256k1::{key::XOnlyPublicKey, schnorrsig::schnorr_verify, Message, Secp256k1};
 
 /// verify a given extended address is associated to the witness
 /// and the signature against the given transaction `Tx`
@@ -26,7 +26,7 @@ pub fn verify_tx_address(
                     &secp,
                     &message,
                     &sig,
-                    &PublicKey::from_slice(proof.value().as_bytes())?,
+                    &XOnlyPublicKey::from_slice(proof.value().as_bytes())?,
                 )
             }
         }
@@ -56,11 +56,11 @@ pub mod tests {
     use super::*;
 
     use secp256k1::schnorrsig::schnorr_sign;
-    use secp256k1::SecretKey;
+    use secp256k1::{PublicKey, SecretKey};
 
     use chain_core::common::MerkleTree;
     use chain_core::tx::data::Tx;
-    use chain_core::tx::witness::tree::RawPubkey;
+    use chain_core::tx::witness::tree::RawXOnlyPubkey;
     use chain_core::tx::TransactionId;
 
     #[test]
@@ -70,9 +70,9 @@ pub mod tests {
         let secp = Secp256k1::new();
 
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("Unable to create secret key");
-        let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+        let public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);
 
-        let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
+        let merkle_tree = MerkleTree::new(vec![RawXOnlyPubkey::from(public_key.serialize())]);
         let address = ExtendedAddr::OrTree(merkle_tree.root_hash());
 
         let witness = TxInWitness::TreeSig(
@@ -80,10 +80,9 @@ pub mod tests {
                 &secp,
                 &Message::from_slice(&transation.id()).unwrap(),
                 &secret_key,
-            )
-            .0,
+            ),
             merkle_tree
-                .generate_proof(RawPubkey::from(public_key.serialize()))
+                .generate_proof(RawXOnlyPubkey::from(public_key.serialize()))
                 .unwrap(),
         );
 
@@ -101,13 +100,13 @@ pub mod tests {
             SecretKey::from_slice(&[0xde; 32]).expect("Unable to create secret key"),
         ];
         let public_keys = [
-            PublicKey::from_secret_key(&secp, &secret_keys[0]),
-            PublicKey::from_secret_key(&secp, &secret_keys[1]),
+            XOnlyPublicKey::from_secret_key(&secp, &secret_keys[0]),
+            XOnlyPublicKey::from_secret_key(&secp, &secret_keys[1]),
         ];
 
         let merkle_tree = MerkleTree::new(vec![
-            RawPubkey::from(public_keys[0].serialize()),
-            RawPubkey::from(public_keys[1].serialize()),
+            RawXOnlyPubkey::from(public_keys[0].serialize()),
+            RawXOnlyPubkey::from(public_keys[1].serialize()),
         ]);
         let address = ExtendedAddr::OrTree(merkle_tree.root_hash());
 
@@ -116,10 +115,9 @@ pub mod tests {
                 &secp,
                 &Message::from_slice(&transation.id()).unwrap(),
                 &secret_keys[0],
-            )
-            .0,
+            ),
             merkle_tree
-                .generate_proof(RawPubkey::from(public_keys[0].serialize()))
+                .generate_proof(RawXOnlyPubkey::from(public_keys[0].serialize()))
                 .unwrap(),
         );
 
@@ -137,13 +135,13 @@ pub mod tests {
             SecretKey::from_slice(&[0xde; 32]).expect("Unable to create secret key"),
         ];
         let public_keys = [
-            PublicKey::from_secret_key(&secp, &secret_keys[0]),
-            PublicKey::from_secret_key(&secp, &secret_keys[1]),
+            XOnlyPublicKey::from_secret_key(&secp, &secret_keys[0]),
+            XOnlyPublicKey::from_secret_key(&secp, &secret_keys[1]),
         ];
 
         let merkle_tree = MerkleTree::new(vec![
-            RawPubkey::from(public_keys[0].serialize()),
-            RawPubkey::from(public_keys[1].serialize()),
+            RawXOnlyPubkey::from(public_keys[0].serialize()),
+            RawXOnlyPubkey::from(public_keys[1].serialize()),
         ]);
         let address = ExtendedAddr::OrTree(merkle_tree.root_hash());
 
@@ -152,10 +150,9 @@ pub mod tests {
                 &secp,
                 &Message::from_slice(&transation.id()).unwrap(),
                 &secret_keys[0],
-            )
-            .0,
+            ),
             merkle_tree
-                .generate_proof(RawPubkey::from(public_keys[1].serialize()))
+                .generate_proof(RawXOnlyPubkey::from(public_keys[1].serialize()))
                 .unwrap(),
         );
 

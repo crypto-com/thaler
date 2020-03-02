@@ -1,7 +1,7 @@
 use parity_scale_codec::{Decode, Encode};
 
 use chain_core::common::{Proof, H256};
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use client_common::MultiSigAddress;
 use client_common::{ErrorKind, PublicKey, Result, ResultExt, SecKey, SecureStorage, Storage};
 
@@ -54,7 +54,7 @@ where
         root_hash: &H256,
         public_keys: Vec<PublicKey>,
         enckey: &SecKey,
-    ) -> Result<Proof<RawPubkey>> {
+    ) -> Result<Proof<RawXOnlyPubkey>> {
         let address = self.get_multi_sig_address_from_root_hash(root_hash, enckey)?;
 
         address
@@ -109,8 +109,6 @@ where
 mod tests {
     use super::*;
     use secstr::SecUtf8;
-
-    use secp256k1::PublicKey as SecpPublicKey;
 
     use client_common::storage::MemoryStorage;
     use client_common::{seckey::derive_enckey, PrivateKey};
@@ -229,9 +227,7 @@ mod tests {
         let mut signers = vec![public_keys[0].clone(), public_keys[1].clone()];
         signers.sort();
 
-        let signer = RawPubkey::from(
-            SecpPublicKey::from(PublicKey::combine(&signers).unwrap().0).serialize(),
-        );
+        let signer = RawXOnlyPubkey::from(PublicKey::combine(&signers).unwrap().0.serialize());
 
         assert_eq!(proof.value(), &signer);
     }

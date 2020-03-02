@@ -18,7 +18,7 @@ sgx_urts = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.g
 parity-scale-codec = { features = ["derive"], version = "1.0" }
 chain-core   = { path = "../../../chain-core" }
 enclave-protocol   = { path = "../../../enclave-protocol" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "0125097a7bf6f939db0ce52e49803c5e0312bf5e", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d50d5998a11064591d86583b297130d6d9636aa5", features = ["recovery", "endomorphism"] }
 zmq = "0.9"
 
 [build-dependencies]

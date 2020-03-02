@@ -2,14 +2,13 @@ use std::fmt;
 use std::str::FromStr;
 
 use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input, Output};
-use secp256k1::key::pubkey_combine;
+use secp256k1::key::{pubkey_combine, MuSigPreSession, XOnlyPublicKey};
 use secp256k1::PublicKey as SecpPublicKey;
 use serde::de::{Deserialize, Deserializer, Error as SerdeDeError, Visitor};
 use serde::ser::{Serialize, Serializer};
 
-use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 
 use crate::{Error, ErrorKind, Result, ResultExt, SECP};
 
@@ -76,25 +75,31 @@ impl PublicKey {
         Ok(PublicKey(public_key))
     }
 
-    /// Combine multiple public keys into one and returns as RawPubKey
-    pub fn combine_to_raw_pubkey(public_keys: &[PublicKey]) -> Result<RawPubkey> {
+    /// Combine multiple public keys into one and returns as XOnlyRawPubKey
+    pub fn combine_to_raw_pubkey(public_keys: &[PublicKey]) -> Result<RawXOnlyPubkey> {
         if public_keys.len() == 1 {
-            Ok(RawPubkey::from(&public_keys[0]))
+            Ok(RawXOnlyPubkey::from(
+                XOnlyPublicKey::from_pubkey(&public_keys[0].clone().into())
+                    .0
+                    .serialize(),
+            ))
         } else {
-            Ok(RawPubkey::from(PublicKey::combine(&public_keys)?.0))
+            Ok(RawXOnlyPubkey::from(
+                PublicKey::combine(&public_keys)?.0.serialize(),
+            ))
         }
     }
 
-    /// Combines multiple public keys into one and also returns hash of combined public key
-    pub fn combine(public_keys: &[Self]) -> Result<(Self, H256)> {
-        let (public_key, public_key_hash) = SECP
+    /// Combines multiple public keys into one and also return a musig pre-session
+    pub fn combine(public_keys: &[Self]) -> Result<(XOnlyPublicKey, MuSigPreSession)> {
+        let (public_key, pre_session) = SECP
             .with(|secp| {
                 pubkey_combine(
                     secp,
                     &public_keys
                         .iter()
-                        .map(|key| key.0.clone())
-                        .collect::<Vec<SecpPublicKey>>(),
+                        .map(|key| XOnlyPublicKey::from_pubkey(&key.0).0)
+                        .collect::<Vec<XOnlyPublicKey>>(),
                 )
             })
             .chain(|| {
@@ -104,7 +109,7 @@ impl PublicKey {
                 )
             })?;
 
-        Ok((Self(public_key), public_key_hash.serialize()))
+        Ok((public_key, pre_session))
     }
 }
 
@@ -153,15 +158,25 @@ impl From<&PublicKey> for SecpPublicKey {
     }
 }
 
-impl From<PublicKey> for RawPubkey {
-    fn from(public_key: PublicKey) -> RawPubkey {
-        RawPubkey::from(SecpPublicKey::from(public_key).serialize())
+impl From<PublicKey> for RawXOnlyPubkey {
+    fn from(public_key: PublicKey) -> RawXOnlyPubkey {
+        // TODO: what if it was negated?
+        RawXOnlyPubkey::from(
+            XOnlyPublicKey::from_pubkey(&SecpPublicKey::from(public_key))
+                .0
+                .serialize(),
+        )
     }
 }
 
-impl From<&PublicKey> for RawPubkey {
-    fn from(public_key: &PublicKey) -> RawPubkey {
-        RawPubkey::from(SecpPublicKey::from(public_key).serialize())
+impl From<&PublicKey> for RawXOnlyPubkey {
+    fn from(public_key: &PublicKey) -> RawXOnlyPubkey {
+        // TODO: what if it was negated?
+        RawXOnlyPubkey::from(
+            XOnlyPublicKey::from_pubkey(&SecpPublicKey::from(public_key))
+                .0
+                .serialize(),
+        )
     }
 }
 
@@ -242,11 +257,17 @@ mod tests {
             .unwrap()
             .0;
 
-        let manual_combination = PublicKey::from(SECP.with(|secp| {
-            pubkey_combine(secp, &[public_key_1.into(), public_key_2.into()])
-                .unwrap()
-                .0
-        }));
+        let manual_combination = SECP.with(|secp| {
+            pubkey_combine(
+                secp,
+                &[
+                    XOnlyPublicKey::from_pubkey(&public_key_1.into()).0,
+                    XOnlyPublicKey::from_pubkey(&public_key_2.into()).0,
+                ],
+            )
+            .unwrap()
+            .0
+        });
 
         assert_eq!(manual_combination, combination);
     }

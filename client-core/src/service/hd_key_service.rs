@@ -276,12 +276,13 @@ mod tests {
             .restore_wallet(&name, &passphrase, &mnemonic)
             .expect("restore wallet");
 
+        // NOTE: addresses changed here in 0.4 due to migration to x-only pubkeys used in BIP-340
         for addr in &[
-            "dcro1vjjulckel0jthl8d5vgvjkt9l9jncvgvpnpcwu9680qws44g5ymq5fprcu",
-            "dcro13z2xw689qhpmv7ge9xg428ljg4848rtu5dcpdmxy3m6njdsjtd3sl30d8n",
-            "dcro1fnjq70pf9hvd2tkd3rj7pash6ph7p42qakqt2k39sjqp4m4p25kqclslnt",
-            "dcro1ee3exuxyv5pauameswxureamlvmptjm8tsg4lcwqpx2nclshc6eqt8fanm",
-            "dcro1kl06wz2ytp02zlneqzsmtaecxvqdelkgrp693xk55tj7zs5vns7sjheun0",
+            "dcro13jycspqf67hp3ejjjlyt5y23umwrutv3gxfynk4s5lqh50pgsp5skktpj6",
+            "dcro1qlavhgsvpv4q5pm3qg93jmrskzhwww2td4e8cl40vuej7yww97hs2dqms9",
+            "dcro17pfjfshdgmh0e7ea59fd4vuk8jpuqhnht296gy2jzmr5g7h2449qu7ndd7",
+            "dcro1vgg3rdajp9awxrz9smvwn9yhvr3l28yfjueul7wr0fmxwxq85yvs6j2lfz",
+            "dcro1tjt8l64wpuqp80hf94cceututwhc5t76hwty7guty5rm7svg9xjs2zm6q8",
         ] {
             assert_eq!(
                 wallet

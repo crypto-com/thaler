@@ -8,7 +8,7 @@ use std::prelude::v1::Vec;
 use secp256k1::{self, recovery::RecoverableSignature, schnorrsig::SchnorrSignature};
 
 use crate::common::Proof;
-use crate::tx::witness::tree::{RawPubkey, RawSignature};
+use crate::tx::witness::tree::{RawSignature, RawXOnlyPubkey};
 
 pub type EcdsaSignature = RecoverableSignature;
 
@@ -80,7 +80,7 @@ impl ::std::ops::DerefMut for TxWitness {
 // normally should be some structure: e.g. indicate a type of signature
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TxInWitness {
-    TreeSig(SchnorrSignature, Proof<RawPubkey>),
+    TreeSig(SchnorrSignature, Proof<RawXOnlyPubkey>),
 }
 
 impl fmt::Display for TxInWitness {

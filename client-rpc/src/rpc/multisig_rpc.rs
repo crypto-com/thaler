@@ -210,7 +210,7 @@ where
 
         self.client
             .nonce(&session_id, &enckey)
-            .map(serialize_public_key)
+            .map(serialize_hash_256)
             .map_err(to_rpc_error)
     }
 
@@ -222,7 +222,7 @@ where
         public_key: String,
     ) -> Result<()> {
         let session_id = parse_hash_256(session_id).map_err(to_rpc_error)?;
-        let nonce = parse_public_key(nonce).map_err(to_rpc_error)?;
+        let nonce = parse_hash_256(nonce).map_err(to_rpc_error)?;
         let public_key = parse_public_key(public_key).map_err(to_rpc_error)?;
 
         self.client
@@ -312,10 +312,6 @@ fn parse_hash_256(hash: String) -> CommonResult<H256> {
     new_hash.copy_from_slice(&array);
 
     Ok(new_hash)
-}
-
-fn serialize_public_key(public_key: PublicKey) -> String {
-    encode(&public_key.serialize())
 }
 
 fn parse_public_keys(public_keys: Vec<String>) -> CommonResult<Vec<PublicKey>> {

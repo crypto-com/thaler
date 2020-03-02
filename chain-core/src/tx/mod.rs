@@ -297,10 +297,12 @@ pub mod tests {
     use crate::tx::data::address::ExtendedAddr;
     use crate::tx::data::input::TxoPointer;
     use crate::tx::data::output::TxOut;
-    use crate::tx::witness::tree::RawPubkey;
+    use crate::tx::witness::tree::RawXOnlyPubkey;
     use crate::tx::witness::TxInWitness;
     use parity_scale_codec::{Decode, Encode};
-    use secp256k1::{schnorrsig::schnorr_sign, Message, PublicKey, Secp256k1, SecretKey};
+    use secp256k1::{
+        key::XOnlyPublicKey, schnorrsig::schnorr_sign, Message, PublicKey, Secp256k1, SecretKey,
+    };
 
     // TODO: rewrite as quickcheck prop
     #[test]
@@ -315,7 +317,7 @@ pub mod tests {
         let secp = Secp256k1::new();
         let sk1 = SecretKey::from_slice(&[0xcc; 32][..]).expect("secret key");
         let pk1 = PublicKey::from_secret_key(&secp, &sk1);
-        let raw_pk1 = RawPubkey::from(pk1.serialize());
+        let raw_pk1 = RawXOnlyPubkey::from(XOnlyPublicKey::from_pubkey(&pk1).0.serialize());
 
         let raw_public_keys = vec![raw_pk1];
 
@@ -328,7 +330,7 @@ pub mod tests {
         let merkle = MerkleTree::new(raw_public_keys.clone());
 
         let w1 = TxInWitness::TreeSig(
-            schnorr_sign(&secp, &msg, &sk1).0,
+            schnorr_sign(&secp, &msg, &sk1),
             merkle.generate_proof(raw_public_keys[0].clone()).unwrap(),
         );
         let txa = PlainTxAux::TransferTx(tx, vec![w1].into());

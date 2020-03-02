@@ -80,7 +80,8 @@ where
                         format!("Session with ID ({}) not found", hex::encode(session_id)),
                     )
                 })?;
-                let mut session = MultiSigBuilder::from_incomplete(session_bytes.to_vec())?;
+                let mut session =
+                    MultiSigBuilder::from_incomplete_insecure(session_bytes.to_vec())?;
                 session.add_nonce_commitment(public_key, nonce_commitment)?;
 
                 Ok(Some(session.to_incomplete()))
@@ -89,7 +90,7 @@ where
     }
 
     /// Returns nonce of self. This function will fail if nonce commitments from all co-signers are not received.
-    pub fn nonce(&self, session_id: &H256, enckey: &SecKey) -> Result<PublicKey> {
+    pub fn nonce(&self, session_id: &H256, enckey: &SecKey) -> Result<H256> {
         let mut session = self.get_session(session_id, enckey)?;
         let nonce = session.nonce()?;
 
@@ -101,7 +102,7 @@ where
     pub fn add_nonce(
         &self,
         session_id: &H256,
-        nonce: &PublicKey,
+        nonce: &H256,
         public_key: &PublicKey,
         enckey: &SecKey,
     ) -> Result<()> {
@@ -113,7 +114,8 @@ where
                         format!("Session with ID ({}) not found", hex::encode(session_id)),
                     )
                 })?;
-                let mut session = MultiSigBuilder::from_incomplete(session_bytes.to_vec())?;
+                let mut session =
+                    MultiSigBuilder::from_incomplete_insecure(session_bytes.to_vec())?;
                 session.add_nonce(public_key, nonce)?;
 
                 Ok(Some(session.to_incomplete()))
@@ -146,7 +148,8 @@ where
                         format!("Session with ID ({}) not found", hex::encode(session_id)),
                     )
                 })?;
-                let mut session = MultiSigBuilder::from_incomplete(session_bytes.to_vec())?;
+                let mut session =
+                    MultiSigBuilder::from_incomplete_insecure(session_bytes.to_vec())?;
                 session.add_partial_signature(public_key, partial_signature)?;
 
                 Ok(Some(session.to_incomplete()))
@@ -177,7 +180,7 @@ where
                     format!("Session with ID ({}) not found", hex::encode(session_id)),
                 )
             })?;
-        MultiSigBuilder::from_incomplete(session_bytes)
+        MultiSigBuilder::from_incomplete_insecure(session_bytes)
     }
 
     /// Persists a session in storage

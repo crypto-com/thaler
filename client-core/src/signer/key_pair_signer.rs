@@ -1,7 +1,7 @@
 //! A signer that sign message using the provided key pair
 use chain_core::common::Proof;
 use chain_core::tx::data::address::ExtendedAddr;
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use client_common::{Error, ErrorKind, MultiSigAddress, PrivateKey, PublicKey, Result, ResultExt};
 
@@ -10,7 +10,7 @@ use crate::{SelectedUnspentTransactions, SignCondition, Signer};
 /// Signer using key pair
 pub struct KeyPairSigner {
     extended_addr: ExtendedAddr,
-    proof: Proof<RawPubkey>,
+    proof: Proof<RawXOnlyPubkey>,
     private_key: PrivateKey,
 }
 
@@ -29,7 +29,7 @@ impl KeyPairSigner {
 
 fn generate_extended_addr_and_proof(
     public_key: PublicKey,
-) -> Result<(ExtendedAddr, Proof<RawPubkey>)> {
+) -> Result<(ExtendedAddr, Proof<RawXOnlyPubkey>)> {
     let require_signers = 1;
     let multi_sig_address = MultiSigAddress::new(
         vec![public_key.clone()],

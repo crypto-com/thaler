@@ -11,7 +11,7 @@ pub struct Signer {
     /// Nonce commitment of signer (when available)
     pub nonce_commitment: Option<H256>,
     /// Nonce of signer (when available)
-    pub nonce: Option<PublicKey>,
+    pub nonce: Option<H256>,
     /// Partial signature of signer (when available)
     pub partial_signature: Option<H256>,
 }
@@ -31,7 +31,7 @@ impl Signer {
     }
 
     /// Adds nonce to current signer if not already added.
-    pub fn add_nonce(&mut self, nonce: PublicKey) -> Result<()> {
+    pub fn add_nonce(&mut self, nonce: H256) -> Result<()> {
         if self.nonce.is_some() {
             return Err(Error::new(
                 ErrorKind::InvalidInput,

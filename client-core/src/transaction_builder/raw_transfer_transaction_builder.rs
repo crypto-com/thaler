@@ -532,12 +532,12 @@ mod raw_transfer_transaction_builder_tests {
     use secp256k1::schnorrsig::SchnorrSignature;
 
     use chain_core::common::MerkleTree;
-    use chain_core::common::H264;
+    use chain_core::common::H256;
     use chain_core::init::MAX_COIN;
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::input::TxoIndex;
     use chain_core::tx::fee::{LinearFee, Milli};
-    use chain_core::tx::witness::tree::RawPubkey;
+    use chain_core::tx::witness::tree::RawXOnlyPubkey;
     use chain_core::tx::{TxEnclaveAux, TxObfuscated};
     use client_common::{MultiSigAddress, PrivateKey, PublicKey, Transaction};
 
@@ -1195,7 +1195,7 @@ mod raw_transfer_transaction_builder_tests {
     }
 
     fn create_dummy_witness() -> TxInWitness {
-        let raw_pubkey = RawPubkey::from([0_u8; 33] as H264);
+        let raw_pubkey = RawXOnlyPubkey::from([0_u8; 32] as H256);
         let total_pubkeys_len = 2;
         let tree = vec![raw_pubkey.clone(); total_pubkeys_len];
         let merkle_tree = MerkleTree::new(tree);
