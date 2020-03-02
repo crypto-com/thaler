@@ -41,13 +41,26 @@ use self::address_command::AddressCommand;
 use self::multisig_command::MultiSigCommand;
 use self::transaction_command::TransactionCommand;
 use self::wallet_command::WalletCommand;
+use crate::logo::{get_jok, get_logo};
 use crate::{ask_seckey, storage_path, tendermint_url};
+use once_cell::sync::Lazy;
+
+static VERSION: Lazy<String> = Lazy::new(|| {
+    format!(
+        "{} {}:{}\n {}\n{}",
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_COMMIT_DATE"),
+        env!("VERGEN_SHA_SHORT"),
+        get_logo(),
+        get_jok(),
+    )
+});
 
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "client-cli",
+    version = VERSION.as_str(),
     about = r#"Basic CLI tool for interacting with Crypto.com Chain
-
 ENVIRONMENT VARIABLES:
     CRYPTO_CLIENT_DEBUG             Set to `true` for detailed error messages (Default: `false`)
     CRYPTO_CHAIN_ID                 Chain ID of Crypto.com Chain
