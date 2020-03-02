@@ -8,12 +8,9 @@ prefix ?=
 sgx_mode ?= HW
 build_mode ?= debug
 MAKE_CMD = make
-# sgx_device can be /dev/sgx or /dev/isgx
-sgx_device ?= ${SGX_DEVICE}
 
-ifeq ($(sgx_device)x, x)
-	sgx_device ?= /dev/isgx
-endif
+# SGX_DEVICE can be /dev/sgx or /dev/isgx
+SGX_DEVICE ?= /dev/sgx
 
 ifeq ($(build_mode), release)
 	CARGO_BUILD_CMD = cargo build --release
@@ -89,8 +86,8 @@ IMAGE_RUST             = cryptocom/chain
 IMAGE_TENDERMINT       = tendermint/tendermint:v0.32.8
 DOCKER_FILE            = docker/Dockerfile
 DOCKER_FILE_RELEASE    = docker/Dockerfile.release
-ITEMS_START            = sgx-validation sgx-query chain-abci tendermint client-rpc
-ITEMS_STOP             = client-rpc tendermint chain-abci sgx-query sgx-validation
+ITEMS_START            = sgx-query chain-abci tendermint client-rpc
+ITEMS_STOP             = client-rpc tendermint chain-abci sgx-query
 
 create-path:
 	mkdir -p ${HOME}/.cargo/{git,registry}
@@ -141,22 +138,27 @@ endif
 
 # build the chain binary in docker
 build-chain:
-	docker run -i --rm \
-		-v ${HOME}/.cargo/git:/root/.cargo/git \
-		-v ${HOME}/.cargo/registry:/root/.cargo/registry \
-		-v `pwd`:/chain \
-		--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3 \
-		--workdir=/chain \
-		$(IMAGE_RUST):latest \
-		bash -c '. /root/.docker_bashrc && \
-		echo "========  build dev-utils   =========" && \
-		${CARGO_BUILD_CMD} --bin dev-utils && \
-		echo "========  build chain-abci   =========" && \
-		cd chain-abci && $(CARGO_BUILD_CMD_ABCI) && \
-		echo "========  build client-cli   =========" && \
-		cd ../client-cli && $(CARGO_BUILD_CMD_CLI)&& \
-		echo "========  build client-rpc   =========" && \
-		cd ../client-rpc && $(CARGO_BUILD_CMD_CLI)'
+	@if [ -e "./target/${BUILD_MODE}/client-cli" ] && [ -e "./target/${BUILD_MODE}/chain-abci" ] && [ -e "./target/${BUILD_MODE}/client-rpc" ] && [ -e "./target/${BUILD_MODE}/dev-utils" ]; then \
+		echo "\033[32mbinary already exist or delete binary to force new build for chain\033[0m"; \
+	else \
+		echo "\033[32mbuilding binary\033[0m"; \
+		docker run -i --rm \
+			-v ${HOME}/.cargo/git:/root/.cargo/git \
+			-v ${HOME}/.cargo/registry:/root/.cargo/registry \
+			-v `pwd`:/chain \
+			--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3 \
+			--workdir=/chain \
+			$(IMAGE_RUST):latest \
+			bash -c '. /root/.docker_bashrc && \
+			echo "========  build dev-utils   =========" && \
+			${CARGO_BUILD_CMD} --bin dev-utils && \
+			echo "========  build chain-abci   =========" && \
+			cd chain-abci && $(CARGO_BUILD_CMD_ABCI) && \
+			echo "========  build client-cli   =========" && \
+			cd ../client-cli && $(CARGO_BUILD_CMD_CLI)&& \
+			echo "========  build client-rpc   =========" && \
+			cd ../client-rpc && $(CARGO_BUILD_CMD_CLI)'; \
+	fi
 
 # build the enclave queury binary
 build-sgx-query:
@@ -173,7 +175,7 @@ build-sgx-query:
 		$(CARGO_BUILD_CMD) -p tx-query-app && \
 		make -C chain-tx-enclave/tx-query $(SGX_ARGS)"
 
-# build the enclave validation binary
+# build the enclave validation binary 
 build-sgx-validation:
 	@echo "\033[32mcompile sgx validation\033[0m"; \
 	docker run -i --rm \
@@ -186,7 +188,6 @@ build-sgx-validation:
 		--workdir=/chain \
 		$(IMAGE_RUST):latest \
 		bash -c " . /root/.docker_bashrc &&\
-		$(CARGO_BUILD_CMD) -p tx-validation-app && \
 		make -C chain-tx-enclave/tx-validation ${SGX_ARGS}"
 
 
@@ -200,21 +201,6 @@ create-network:
 rm-network:
 	@echo "\033\[32mremove network ${NETWORK}\033[0m"
 	docker network rm $(NETWORK)
-
-run-sgx-validation:
-	@echo "\033[32mrun docker sgx validation\033[0m"; \
-	docker run -d \
-	--net $(NETWORK) \
-	--restart=always \
-	--name $(prefix)sgx-validation \
-	-e SGX_MODE=$(SGX_MODE) \
-	-e NETWORK_ID=$(NETWORK_ID) \
-	-e RUST_LOG=$(RUST_LOG) \
-	--device $(sgx_device) \
-	-v  $(data_path)/enclave-storage:/crypto-chain/enclave-storage \
-	--workdir=/usr/local/bin \
-	$(IMAGE):$(TAG) \
-	bash ./run_tx_validation.sh
 
 run-sgx-query:
 	@if [ "${SPID}x" = "x" ] || [ "${IAS_API_KEY}x" = "x" ]; then \
@@ -230,8 +216,9 @@ run-sgx-query:
 		-e NETWORK_ID=$(NETWORK_ID) \
 		-e SPID=${SPID} \
 		-e IAS_API_KEY=${IAS_API_KEY} \
-		-e TX_VALIDATION_CONN=tcp://$(prefix)sgx-validation:26650 \
-		--device $(sgx_device) \
+		-e TX_VALIDATION_CONN=ipc:///root/sockets/enclave.socket \
+		-v ${HOME}/sockets:/root/sockets \
+		--device $(SGX_DEVICE) \
 		-p $(TX_QUERY_PORT):26651 \
 		--workdir=/usr/local/bin \
 		$(IMAGE):$(TAG) \
@@ -244,17 +231,19 @@ run-abci:
 	--net $(NETWORK) \
 	--restart=always \
 	-e RUST_LOG=$(RUST_LOG) \
+	-e SGX_MODE=$(SGX_MODE) \
+	-e NETWORK_ID=$(NETWORK_ID) \
+	-e CHAIN_ID=$(CHAIN_ID) \
+	-e PREFIX=$(prefix) \
+	-e APP_HASH=$(APP_HASH) \
+	-e TX_VALIDATION_CONN=ipc:///root/sockets/enclave.socket \
 	--name $(prefix)chain-abci \
 	-v $(data_path):/crypto-chain \
+	-v ${HOME}/sockets:/root/sockets \
+	--device $(SGX_DEVICE) \
+	--workdir=/usr/local/bin \
 	$(IMAGE):$(TAG) \
-	chain-abci \
-	 --chain_id $(CHAIN_ID) \
-	 --data /crypto-chain/chain-storage \
-	 --enclave_server tcp://$(prefix)sgx-validation:26650 \
-	 --genesis_app_hash $(APP_HASH) \
-	 --host 0.0.0.0 \
-	 --port 26658 \
-	 --tx_query $(prefix)sgx-query:26651
+	bash ./run_chain_abci.sh
 
 run-tendermint:
 	@echo "\033[32mrun docker tendermint\033[0m"; \
@@ -287,14 +276,14 @@ run-client-rpc:
 	--storage-dir=/crypto-chain/wallet \
 	--websocket-url=ws://$(prefix)tendermint:26657/websocket \
 
-.PHONY: sgx-validation sgx-query chain-abci tendermint client-rpc
+.PHONY: sgx-query chain-abci tendermint client-rpc
 
 START = $(patsubst %, start-%, $(ITEMS_START))
 RESTART = $(patsubst %, restart-%, $(ITEMS_START))
 STOP = $(patsubst %, stop-%, $(ITEMS_STOP))
 REMOVE = $(patsubst %, rm-%, $(ITEMS_STOP))
 
-start-%: % 
+start-%: %
 	@echo "\033[32mstart $(prefix)$<...\033[0m" && docker start $(prefix)$< || echo "start $< failed";
 stop-%: %
 	@echo "\033[32mstop $(prefix)$<...\033[0m" && docker stop $(prefix)$< || echo "$< does not exist";
@@ -309,13 +298,12 @@ rm-all:       $(REMOVE)
 restart-all:  $(RESTART)
 
 stop-sgx:
-	@echo "\033[32mstop $(prefix)sgx-validation...\033[0m" && docker stop $(prefix)sgx-validation;
-	@echo "\033[32mstop $(prefix)sgx-query...\033[0m" && docker stop $(prefix)sgx-query;
+	@echo "\033[32mstop $(prefix)sgx-query...\033[0m" && docker stop $(prefix)sgx-query || echo "sgx-query does not exist or stopped";
 
 stop-chain:
 	@echo "\033[32mstop $(prefix)chient-rpc...\033[0m" && docker stop $(prefix)client-rpc || echo "client-rpc does not exist";
 	@echo "\033[32mstop $(prefix)tendermint...\033[0m" && docker stop $(prefix)tendermint || echo "tendermint does not exist";
-	@echo "\033[32mstop $(prefix) chain-abci...\033[0m" && docker stop $(prefix)chain-abci || echo "chain-abci does not exist";
+	@echo "\033[32mstop $(prefix)chain-abci...\033[0m" && docker stop $(prefix)chain-abci || echo "chain-abci does not exist";
 
 clean-data:
 	docker run -i --rm  \
@@ -350,9 +338,9 @@ clean:
 		bash -c ". /root/.docker_bashrc && cargo clean"
 
 prepare:    create-path install-sgx-driver init-tendermint
-build-sgx:  build-sgx-query build-sgx-validation
+build-sgx:  build-sgx-query build-chain build-sgx-validation
 build:      build-chain build-sgx
-run-sgx:    create-network run-sgx-validation run-sgx-query
+run-sgx:    create-network run-sgx-query
 run-chain:  create-network run-tendermint run-abci run-client-rpc
 run:        run-sgx run-chain
 
@@ -379,7 +367,7 @@ help:
 		prepare                prepare the environment\n\
 		image                  build the docker image\n\
 		build                  just build the chain and enclave binaery in docker\n\
-		run-sgx                docker run sgx-validation and a sgx-query container\n\
+		run-sgx                docker run chain-abci and a sgx-query container\n\
 		run-chain              docker run chain-abci, tendermint and client-rpc container\n\
 		stop-all               docker stop all the container\n\
 		start-all              docker start all the container\n\
