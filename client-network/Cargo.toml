@@ -14,7 +14,7 @@ client-core = { path = "../client-core" }
 secstr = { version = "0.4.0", features = ["serde"] }
 base64 = "0.11"
 chrono = { version = "0.4", features = ["serde"] }
-parity-scale-codec = { features = ["derive"], version = "1.1" }
+parity-scale-codec = { features = ["derive"], version = "1.2" }
 hex = "0.4.2"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d50d5998a11064591d86583b297130d6d9636aa5", features = ["recovery"] }
 tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "2aa9dcece9d5abf5b8f108fec61baaa5c83d5884" }
