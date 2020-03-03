@@ -120,6 +120,8 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                         } else {
                             _req.height
                         };
+                        // note this should not crash if Tendermint delivers all blocks with height in order
+                        // TODO: invariant / sanity check in rust-abci?
                         let app_hash = self.storage.get_historical_app_hash(height).unwrap();
                         let data = self
                             .storage
