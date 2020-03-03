@@ -56,7 +56,7 @@ impl PrivateKey {
                 "Unable to deserialize message to sign",
             )
         })?;
-        let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0).0);
+        let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0));
         Ok(signature)
     }
 }

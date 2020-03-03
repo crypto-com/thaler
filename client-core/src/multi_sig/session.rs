@@ -2,10 +2,12 @@ use std::convert::TryFrom;
 
 use parity_scale_codec::{Decode, Encode};
 use rand::rngs::OsRng;
-use secp256k1::key::PublicKeyHash;
-use secp256k1::musig::{MuSigNonceCommitment, MuSigPartialSignature, MuSigSession, MuSigSessionID};
+use secp256k1::key::MuSigPreSession;
+use secp256k1::musig::{
+    MuSigNonce, MuSigNonceCommitment, MuSigPartialSignature, MuSigSession, MuSigSessionID,
+};
 use secp256k1::schnorrsig::SchnorrSignature;
-use secp256k1::{Message, PublicKey as SecpPublicKey, SecretKey};
+use secp256k1::{key::XOnlyPublicKey, Message, SecretKey};
 
 use chain_core::common::H256;
 use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SECP};
@@ -25,13 +27,22 @@ pub struct MultiSigSession {
     pub public_key: PublicKey,
     /// Private key of current signer
     pub private_key: PrivateKey,
-    /// Combined public key
-    pub combined_public_key: PublicKey,
-    /// Combined public key hash
-    pub combined_public_key_hash: H256,
 }
 
 impl MultiSigSession {
+    /// for some reason, the old implementation exposed all internals + kept reconstructing the session?
+    /// this is a minimal change to get it working
+    /// TODO: change all these client-* to something safe, but not so naive and super-inefficient way, as it was before
+    /// (perhaps after MuSig API stabilizes more?)
+    fn get_preinit(&self) -> Result<(XOnlyPublicKey, MuSigPreSession)> {
+        let pks: Vec<PublicKey> = self
+            .signers
+            .iter()
+            .map(|signer| signer.public_key.clone())
+            .collect();
+        PublicKey::combine(&pks)
+    }
+
     /// Create a new instance of MultiSigSession
     pub fn new(
         message: H256,
@@ -62,9 +73,6 @@ impl MultiSigSession {
             ));
         }
 
-        let (combined_public_key, combined_public_key_hash) =
-            PublicKey::combine(&signer_public_keys)?;
-
         let signers = signer_public_keys
             .into_iter()
             .map(|public_key| Signer {
@@ -89,14 +97,13 @@ impl MultiSigSession {
             signers,
             public_key: self_public_key,
             private_key: self_private_key,
-            combined_public_key,
-            combined_public_key_hash,
         })
     }
 
     /// Returns nonce commitment of current signer
     pub fn nonce_commitment(&self) -> Result<H256> {
         SECP.with(|secp| -> Result<H256> {
+            let (pk, pre_init) = self.get_preinit()?;
             let session = MuSigSession::new(
                 &secp,
                 MuSigSessionID::from_slice(&self.id).chain(|| {
@@ -111,8 +118,8 @@ impl MultiSigSession {
                         "Unable to deserialize message to sign from bytes",
                     )
                 })?,
-                &SecpPublicKey::from(&self.combined_public_key),
-                &PublicKeyHash::deserialize_from(self.combined_public_key_hash),
+                &pk,
+                &pre_init,
                 self.signers.len(),
                 self.signer_index(&self.public_key)?,
                 &SecretKey::from(&self.private_key),
@@ -135,10 +142,11 @@ impl MultiSigSession {
 
     /// Returns nonce of current signer. This function will fail if nonce commitments from all co-signers are not
     /// received.
-    pub fn nonce(&self) -> Result<PublicKey> {
+    pub fn nonce(&self) -> Result<H256> {
         let nonce_commitments = self.nonce_commitments()?;
 
-        SECP.with(|secp| -> Result<PublicKey> {
+        SECP.with(|secp| -> Result<H256> {
+            let (pk, pre_init) = self.get_preinit()?;
             let mut session = MuSigSession::new(
                 &secp,
                 MuSigSessionID::from_slice(&self.id).chain(|| {
@@ -153,8 +161,8 @@ impl MultiSigSession {
                         "Unable to deserialize message to sign from bytes",
                     )
                 })?,
-                &SecpPublicKey::from(&self.combined_public_key),
-                &PublicKeyHash::deserialize_from(self.combined_public_key_hash),
+                &pk,
+                &pre_init,
                 self.signers.len(),
                 self.signer_index(&self.public_key)?,
                 &SecretKey::from(&self.private_key),
@@ -179,12 +187,12 @@ impl MultiSigSession {
                 )
             })?;
 
-            Ok(public_nonce.into())
+            Ok(public_nonce.serialize())
         })
     }
 
     /// Adds nonce for signer corresponding to given public key
-    pub fn add_nonce(&mut self, public_key: &PublicKey, nonce: PublicKey) -> Result<()> {
+    pub fn add_nonce(&mut self, public_key: &PublicKey, nonce: H256) -> Result<()> {
         let signer_index = self.signer_index(public_key)?;
         self.signers[signer_index].add_nonce(nonce)
     }
@@ -196,6 +204,7 @@ impl MultiSigSession {
         let nonces = self.nonces()?;
 
         SECP.with(|secp| -> Result<H256> {
+            let (pk, pre_init) = self.get_preinit()?;
             let mut session = MuSigSession::new(
                 &secp,
                 MuSigSessionID::from_slice(&self.id).chain(|| {
@@ -210,8 +219,8 @@ impl MultiSigSession {
                         "Unable to deserialize message to sign from bytes",
                     )
                 })?,
-                &SecpPublicKey::from(&self.combined_public_key),
-                &PublicKeyHash::deserialize_from(self.combined_public_key_hash),
+                &pk,
+                &pre_init,
                 self.signers.len(),
                 self.signer_index(&self.public_key)?,
                 &SecretKey::from(&self.private_key),
@@ -240,7 +249,10 @@ impl MultiSigSession {
                 .into_iter()
                 .map(|(public_key, nonce)| {
                     session
-                        .set_nonce(self.signer_index(&public_key)?, nonce.into())
+                        .set_nonce(
+                            self.signer_index(&public_key)?,
+                            MuSigNonce::deserialize_from(nonce),
+                        )
                         .chain(|| {
                             (
                                 ErrorKind::MultiSigError,
@@ -283,6 +295,7 @@ impl MultiSigSession {
         let partial_signatures = self.partial_signatures()?;
 
         SECP.with(|secp| -> Result<SchnorrSignature> {
+            let (pk, pre_init) = self.get_preinit()?;
             let mut session = MuSigSession::new(
                 &secp,
                 MuSigSessionID::from_slice(&self.id).chain(|| {
@@ -297,8 +310,8 @@ impl MultiSigSession {
                         "Unable to deserialize message to sign from bytes",
                     )
                 })?,
-                &SecpPublicKey::from(&self.combined_public_key),
-                &PublicKeyHash::deserialize_from(self.combined_public_key_hash),
+                &pk,
+                &pre_init,
                 self.signers.len(),
                 self.signer_index(&self.public_key)?,
                 &SecretKey::from(&self.private_key),
@@ -327,7 +340,10 @@ impl MultiSigSession {
                 .into_iter()
                 .map(|(public_key, nonce)| {
                     session
-                        .set_nonce(self.signer_index(&public_key)?, nonce.into())
+                        .set_nonce(
+                            self.signer_index(&public_key)?,
+                            MuSigNonce::deserialize_from(nonce),
+                        )
                         .chain(|| {
                             (
                                 ErrorKind::MultiSigError,
@@ -428,7 +444,7 @@ impl MultiSigSession {
     }
 
     /// Returns all the nonces. This function will fail if nonces from all co-signers are not received.
-    fn nonces(&self) -> Result<Vec<(PublicKey, PublicKey)>> {
+    fn nonces(&self) -> Result<Vec<(PublicKey, H256)>> {
         self.signers
             .iter()
             .map(|signer| match signer.nonce {
@@ -439,7 +455,7 @@ impl MultiSigSession {
                         signer.public_key
                     ),
                 )),
-                Some(ref nonce) => Ok((signer.public_key.clone(), nonce.clone())),
+                Some(ref nonce) => Ok((signer.public_key.clone(), *nonce)),
             })
             .collect()
     }

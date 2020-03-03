@@ -1,5 +1,5 @@
 use chain_core::common::MerkleTree;
-use chain_core::common::H264;
+use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::state::account::{
     DepositBondTx, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
@@ -7,7 +7,7 @@ use chain_core::state::account::{
 };
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::{Tx, TxId};
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
 use client_common::Result;
@@ -29,16 +29,16 @@ impl DummySigner {
     /// Creates a mock merkletree
     fn mock_merkletree(
         &self,
-        raw_pubkey: RawPubkey,
+        raw_pubkey: RawXOnlyPubkey,
         tree_length: usize,
-    ) -> Result<MerkleTree<RawPubkey>> {
+    ) -> Result<MerkleTree<RawXOnlyPubkey>> {
         let tree = vec![raw_pubkey; tree_length];
         Ok(MerkleTree::new(tree))
     }
 
     /// Signs transaction with the mock key pair
     fn sign_tx(&self, total_pubkeys_len: usize) -> Result<TxInWitness> {
-        let raw_pk = RawPubkey::from([0_u8; 33] as H264);
+        let raw_pk = RawXOnlyPubkey::from([0_u8; 32] as H256);
         let merkle_tree = self.mock_merkletree(raw_pk.clone(), total_pubkeys_len)?;
         let proof = merkle_tree
             .generate_proof(raw_pk)

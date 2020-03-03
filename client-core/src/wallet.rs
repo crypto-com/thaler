@@ -19,7 +19,7 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResponse;
 use client_common::{PrivateKey, PublicKey, Result, SecKey, Transaction, TransactionInfo};
@@ -219,7 +219,7 @@ pub trait WalletClient: Send + Sync {
         enckey: &SecKey,
         address: &ExtendedAddr,
         public_keys: Vec<PublicKey>,
-    ) -> Result<Proof<RawPubkey>>;
+    ) -> Result<Proof<RawXOnlyPubkey>>;
 
     /// Returns number of cosigners required to sign the transaction
     fn required_cosigners(&self, name: &str, enckey: &SecKey, root_hash: &H256) -> Result<usize>;
@@ -393,14 +393,14 @@ pub trait MultiSigWalletClient: WalletClient {
 
     /// Returns nonce of current signer. This function will fail if nonce commitments from all co-signers are not
     /// received.
-    fn nonce(&self, session_id: &H256, enckey: &SecKey) -> Result<PublicKey>;
+    fn nonce(&self, session_id: &H256, enckey: &SecKey) -> Result<H256>;
 
     /// Adds a nonce from a public key to session with given id
     fn add_nonce(
         &self,
         session_id: &H256,
         enckey: &SecKey,
-        nonce: &PublicKey,
+        nonce: &H256,
         public_key: &PublicKey,
     ) -> Result<()>;
 

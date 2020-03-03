@@ -7,13 +7,18 @@
 ### Breaking changes
 * *chain-abci* [1090](https://github.com/crypto-com/chain/pull/1090): upper bounds of reward parameters changed
 * *chain-abci* [1100](https://github.com/crypto-com/chain/pull/1100): account nonce increased after reward distribution
+* *chain-core* [1162](https://github.com/crypto-com/chain/pull/1162): transaction witness contains BIP-340-compatible Schnorr signatures (instead of the previous WIP scheme)
+* *client* [1158](https://github.com/crypto-com/chain/pull/1158): "deposit-amount" is the default flow for client-cli when doing deposit
 
 ### Features
 * *client* [1072](https://github.com/crypto-com/chain/pull/1072): airgap-friendly workflow for client
+* *client* [1136](https://github.com/crypto-com/chain/pull/1136): logo and version number with git commit in client
+* *client* [1106](https://github.com/crypto-com/chain/pull/1106): import/export of non-HD keys
 
 ### Improvements
 * *client* [1099](https://github.com/crypto-com/chain/pull/1099): client-cli asks to confirm the value
 * *client* [1074](https://github.com/crypto-com/chain/pull/1074): watch-only mode can be used in client-cli
+* *client* [1131](https://github.com/crypto-com/chain/pull/1131): checking of generated transactions in client
 
 ### Bug Fixes
 * *chain-abci* [1092](https://github.com/crypto-com/chain/pull/1092): rewards may be recorded for inactive validators

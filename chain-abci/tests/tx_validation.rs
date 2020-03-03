@@ -26,7 +26,7 @@ use chain_core::tx::data::{
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::fee::{Fee, LinearFee, Milli};
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TransactionId;
@@ -44,7 +44,7 @@ use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
 use parity_scale_codec::Encode;
 use secp256k1::schnorrsig::schnorr_sign;
-use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
+use secp256k1::{key::PublicKey, key::SecretKey, key::XOnlyPublicKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::mem;
@@ -54,14 +54,14 @@ pub fn get_tx_witness<C: Signing>(
     secp: Secp256k1<C>,
     txid: &TxId,
     secret_key: &SecretKey,
-    merkle_tree: &MerkleTree<RawPubkey>,
+    merkle_tree: &MerkleTree<RawXOnlyPubkey>,
 ) -> TxInWitness {
     let message = Message::from_slice(txid).unwrap();
-    let public_key = PublicKey::from_secret_key(&secp, secret_key);
+    let public_key = XOnlyPublicKey::from_secret_key(&secp, secret_key);
     let proof = merkle_tree
-        .generate_proof(RawPubkey::from(public_key.serialize()))
+        .generate_proof(RawXOnlyPubkey::from(public_key.serialize()))
         .unwrap();
-    let signature = schnorr_sign(&secp, &message, secret_key).0;
+    let signature = schnorr_sign(&secp, &message, secret_key);
 
     TxInWitness::TreeSig(signature, proof)
 }
@@ -102,9 +102,9 @@ fn get_old_tx(addr: ExtendedAddr, timelocked: bool) -> Tx {
 fn get_address<C: Signing>(
     secp: &Secp256k1<C>,
     secret_key: &SecretKey,
-) -> (ExtendedAddr, MerkleTree<RawPubkey>) {
-    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-    let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
+) -> (ExtendedAddr, MerkleTree<RawXOnlyPubkey>) {
+    let public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);
+    let merkle_tree = MerkleTree::new(vec![RawXOnlyPubkey::from(public_key.serialize())]);
 
     (ExtendedAddr::OrTree(merkle_tree.root_hash()), merkle_tree)
 }
@@ -174,7 +174,7 @@ fn prepate_init_tx(
     Arc<dyn KeyValueDB>,
     TxoPointer,
     ExtendedAddr,
-    MerkleTree<RawPubkey>,
+    MerkleTree<RawXOnlyPubkey>,
     SecretKey,
 ) {
     let db = create_db();
@@ -212,7 +212,7 @@ fn prepare_app_valid_transfer_tx(
     TxEnclaveAux,
     Tx,
     TxWitness,
-    MerkleTree<RawPubkey>,
+    MerkleTree<RawXOnlyPubkey>,
     SecretKey,
     AccountStorage,
 ) {
@@ -874,8 +874,8 @@ fn test_deposit_verify_fail() {
             secp.clone(),
             &tx.id(),
             &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
-            &MerkleTree::new(vec![RawPubkey::from(
-                PublicKey::from_secret_key(
+            &MerkleTree::new(vec![RawXOnlyPubkey::from(
+                XOnlyPublicKey::from_secret_key(
                     &secp,
                     &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
                 )
@@ -1235,8 +1235,8 @@ fn test_transfer_verify_fail() {
             secp.clone(),
             &tx.id(),
             &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
-            &MerkleTree::new(vec![RawPubkey::from(
-                PublicKey::from_secret_key(
+            &MerkleTree::new(vec![RawXOnlyPubkey::from(
+                XOnlyPublicKey::from_secret_key(
                     &secp,
                     &SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order"),
                 )
@@ -1339,7 +1339,7 @@ fn prepare_jailed_accounts() -> (
     AccountStorage,
     SecretKey,
     RedeemAddress,
-    MerkleTree<RawPubkey>,
+    MerkleTree<RawXOnlyPubkey>,
     StarlingFixedKey,
 ) {
     let db = create_db();
@@ -1348,7 +1348,8 @@ fn prepare_jailed_accounts() -> (
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-    let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
+    let x_public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);
+    let merkle_tree = MerkleTree::new(vec![RawXOnlyPubkey::from(x_public_key.serialize())]);
 
     let addr = RedeemAddress::from(&public_key);
     let account = StakedState::new(
@@ -1394,7 +1395,7 @@ fn prepare_withdraw_transaction(secret_key: &SecretKey) -> TxEnclaveAux {
 fn prepare_deposit_transaction(
     secret_key: &SecretKey,
     address: RedeemAddress,
-    merkle_tree: &MerkleTree<RawPubkey>,
+    merkle_tree: &MerkleTree<RawXOnlyPubkey>,
 ) -> TxEnclaveAux {
     let secp = Secp256k1::new();
 

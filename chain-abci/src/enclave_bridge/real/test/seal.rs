@@ -7,7 +7,7 @@ use chain_core::state::account::{
     StakedState, StakedStateAddress, StakedStateOpWitness, WithdrawUnbondedTx,
 };
 use chain_core::tx::fee::Fee;
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxObfuscated;
@@ -34,7 +34,8 @@ use log::LevelFilter;
 use log::{debug, error, info};
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::{
-    key::PublicKey, key::SecretKey, schnorrsig::schnorr_sign, Message, Secp256k1, Signing,
+    key::PublicKey, key::SecretKey, key::XOnlyPublicKey, schnorrsig::schnorr_sign, Message,
+    Secp256k1, Signing,
 };
 use sgx_types::{sgx_enclave_id_t, sgx_status_t};
 
@@ -124,9 +125,11 @@ pub fn test_sealing() {
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+    let x_public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);
+
     let addr = RedeemAddress::from(&public_key);
 
-    let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
+    let merkle_tree = MerkleTree::new(vec![RawXOnlyPubkey::from(x_public_key.serialize())]);
 
     let eaddr = ExtendedAddr::OrTree(merkle_tree.root_hash());
     let tx0 = WithdrawUnbondedTx::new(
@@ -191,9 +194,9 @@ pub fn test_sealing() {
     tx1.add_output(TxOut::new(eaddr.clone(), halfcoin));
     let txid1 = tx1.id();
     let witness1 = vec![TxInWitness::TreeSig(
-        schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key).0,
+        schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),
         merkle_tree
-            .generate_proof(RawPubkey::from(public_key.serialize()))
+            .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
             .unwrap(),
     )]
     .into();
@@ -224,9 +227,9 @@ pub fn test_sealing() {
     tx2.add_output(TxOut::new(eaddr.clone(), Coin::zero()));
     let txid2 = tx2.id();
     let witness2 = vec![TxInWitness::TreeSig(
-        schnorr_sign(&secp, &Message::from_slice(&txid2).unwrap(), &secret_key).0,
+        schnorr_sign(&secp, &Message::from_slice(&txid2).unwrap(), &secret_key),
         merkle_tree
-            .generate_proof(RawPubkey::from(public_key.serialize()))
+            .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
             .unwrap(),
     )]
     .into();

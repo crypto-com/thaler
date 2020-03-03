@@ -5,7 +5,7 @@ use parity_scale_codec::{Decode, Encode};
 use super::{Error, ErrorKind, PublicKey, Result};
 use chain_core::common::{MerkleTree, Proof, H256};
 use chain_core::tx::data::address::ExtendedAddr;
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 
 // TODO: Remove pub
 /// m-of-n multi-sig address
@@ -18,7 +18,7 @@ pub struct MultiSigAddress {
     /// Public key of current signer
     pub self_public_key: PublicKey,
     /// Merkle tree with different combinations of `n` public keys as leaf nodes
-    pub merkle_tree: MerkleTree<RawPubkey>,
+    pub merkle_tree: MerkleTree<RawXOnlyPubkey>,
 }
 
 impl From<MultiSigAddress> for ExtendedAddr {
@@ -66,7 +66,7 @@ impl MultiSigAddress {
     pub fn generate_proof(
         &self,
         mut public_keys: Vec<PublicKey>,
-    ) -> Result<Option<Proof<RawPubkey>>> {
+    ) -> Result<Option<Proof<RawXOnlyPubkey>>> {
         if public_keys.len() != self.required_signers() {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -111,7 +111,7 @@ impl MultiSigAddress {
 fn public_key_combinations(
     public_keys: Vec<PublicKey>,
     required_signers: usize,
-) -> Result<Vec<RawPubkey>> {
+) -> Result<Vec<RawXOnlyPubkey>> {
     if public_keys.is_empty() {
         return Err(Error::new(
             ErrorKind::InvalidInput,
@@ -140,7 +140,7 @@ fn public_key_combinations(
             combination.sort();
             PublicKey::combine_to_raw_pubkey(&combination)
         })
-        .collect::<Result<Vec<RawPubkey>>>()?;
+        .collect::<Result<Vec<RawXOnlyPubkey>>>()?;
 
     combinations.sort();
     Ok(combinations)
@@ -353,9 +353,9 @@ mod multi_sig_tests {
             assert_eq!(
                 public_key_combinations(public_keys.clone(), required_signers).unwrap(),
                 vec![
-                    RawPubkey::from(&public_key_2),
-                    RawPubkey::from(&public_key_3),
-                    RawPubkey::from(&public_key_1),
+                    RawXOnlyPubkey::from(&public_key_1),
+                    RawXOnlyPubkey::from(&public_key_2),
+                    RawXOnlyPubkey::from(&public_key_3),
                 ]
             );
 
@@ -363,36 +363,36 @@ mod multi_sig_tests {
             assert_eq!(
                 public_key_combinations(public_keys.clone(), required_signers).unwrap(),
                 vec![
-                    RawPubkey::from(
-                        PublicKey::combine(&vec![public_key_2.clone(), public_key_1.clone()])
-                            .expect("Combine public keys should work")
-                            .0
-                    ),
-                    RawPubkey::from(
-                        PublicKey::combine(&vec![public_key_3.clone(), public_key_2.clone()])
-                            .expect("Combine public keys should work")
-                            .0
-                    ),
-                    RawPubkey::from(
-                        PublicKey::combine(&vec![public_key_3.clone(), public_key_1.clone()])
-                            .expect("Combine public keys should work")
-                            .0
-                    ),
+                    PublicKey::combine(&vec![public_key_3.clone(), public_key_2.clone()])
+                        .expect("Combine public keys should work")
+                        .0
+                        .serialize()
+                        .into(),
+                    PublicKey::combine(&vec![public_key_2.clone(), public_key_1.clone()])
+                        .expect("Combine public keys should work")
+                        .0
+                        .serialize()
+                        .into(),
+                    PublicKey::combine(&vec![public_key_3.clone(), public_key_1.clone()])
+                        .expect("Combine public keys should work")
+                        .0
+                        .serialize()
+                        .into(),
                 ]
             );
 
             let required_signers = 3;
             assert_eq!(
                 public_key_combinations(public_keys.clone(), required_signers).unwrap(),
-                vec![RawPubkey::from(
-                    PublicKey::combine(&vec![
-                        public_key_3.clone(),
-                        public_key_2.clone(),
-                        public_key_1.clone()
-                    ])
-                    .expect("Combine public keys should work")
-                    .0
-                ),]
+                vec![PublicKey::combine(&vec![
+                    public_key_3.clone(),
+                    public_key_2.clone(),
+                    public_key_1.clone()
+                ])
+                .expect("Combine public keys should work")
+                .0
+                .serialize()
+                .into(),]
             );
         }
     }

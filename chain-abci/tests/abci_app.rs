@@ -23,7 +23,7 @@ use chain_core::state::tendermint::{
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::state::{ChainState, RewardsPoolState};
 use chain_core::tx::fee::{LinearFee, Milli};
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TransactionId;
@@ -52,7 +52,7 @@ use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::schnorrsig::schnorr_sign;
-use secp256k1::{key::PublicKey, key::SecretKey, Message, Secp256k1, Signing};
+use secp256k1::{key::PublicKey, key::SecretKey, key::XOnlyPublicKey, Message, Secp256k1, Signing};
 use std::collections::BTreeMap;
 use std::convert::TryFrom;
 use std::convert::TryInto;
@@ -795,11 +795,13 @@ fn get_tx_meta(txid: &TxId, app: &ChainNodeApp<MockClient>) -> BitVec {
 fn all_valid_tx_types_should_commit() {
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
+    let x_public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+
     let addr = RedeemAddress::from(&public_key);
     let mut app = init_chain_for(addr);
 
-    let merkle_tree = MerkleTree::new(vec![RawPubkey::from(public_key.serialize())]);
+    let merkle_tree = MerkleTree::new(vec![RawXOnlyPubkey::from(x_public_key.serialize())]);
 
     let eaddr = ExtendedAddr::OrTree(merkle_tree.root_hash());
     let tx0 = WithdrawUnbondedTx::new(
@@ -846,9 +848,9 @@ fn all_valid_tx_types_should_commit() {
     tx1.add_output(TxOut::new(eaddr.clone(), halfcoin));
     let txid1 = tx1.id();
     let witness1 = vec![TxInWitness::TreeSig(
-        schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key).0,
+        schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),
         merkle_tree
-            .generate_proof(RawPubkey::from(public_key.serialize()))
+            .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
             .unwrap(),
     )]
     .into();
@@ -877,9 +879,9 @@ fn all_valid_tx_types_should_commit() {
     let utxo2 = TxoPointer::new(*txid, 1);
     let tx2 = DepositBondTx::new(vec![utxo2], addr.into(), StakedStateOpAttributes::new(0));
     let witness2 = vec![TxInWitness::TreeSig(
-        schnorr_sign(&secp, &Message::from_slice(&tx2.id()).unwrap(), &secret_key).0,
+        schnorr_sign(&secp, &Message::from_slice(&tx2.id()).unwrap(), &secret_key),
         merkle_tree
-            .generate_proof(RawPubkey::from(public_key.serialize()))
+            .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
             .unwrap(),
     )]
     .into();

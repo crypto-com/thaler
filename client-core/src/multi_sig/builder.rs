@@ -78,7 +78,7 @@ impl MultiSigBuilder {
     ///
     /// This function will fail if nonce commitments from all co-signers are
     /// not received.
-    pub fn nonce(&mut self) -> Result<PublicKey> {
+    pub fn nonce(&mut self) -> Result<H256> {
         let nonce = self.session.nonce()?;
 
         let public_key = &self.session.public_key.clone();
@@ -90,7 +90,7 @@ impl MultiSigBuilder {
     }
 
     /// Adds a nonce from a public key to session.
-    pub fn add_nonce(&mut self, public_key: &PublicKey, nonce: &PublicKey) -> Result<()> {
+    pub fn add_nonce(&mut self, public_key: &PublicKey, nonce: &H256) -> Result<()> {
         self.session.add_nonce(public_key, nonce.clone())?;
 
         Ok(())
@@ -167,7 +167,7 @@ impl MultiSigBuilder {
     /// Restoring from such a source can result in complete lost of your funds.
     /// If you are in doubt, always create a new session builder and restart
     /// the whole process from scratch.
-    pub fn from_incomplete(bytes: Vec<u8>) -> Result<Self> {
+    pub fn from_incomplete_insecure(bytes: Vec<u8>) -> Result<Self> {
         let session = MultiSigSession::decode(&mut bytes.as_slice()).chain(|| {
             (
                 ErrorKind::DeserializationError,
@@ -267,7 +267,7 @@ mod multi_sig_builder_tests {
 
         let encoded = session_1.to_incomplete();
 
-        let restored_session_1 = MultiSigBuilder::from_incomplete(encoded)
+        let restored_session_1 = MultiSigBuilder::from_incomplete_insecure(encoded)
             .expect("Should be able to restore from encoded incompleted bytes");
 
         let signature_1 = session_1.signature().unwrap();

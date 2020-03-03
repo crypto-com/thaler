@@ -27,7 +27,7 @@ use chain_core::tx::data::input::{str2txid, TxoPointer};
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::fee::Fee;
-use chain_core::tx::witness::tree::RawPubkey;
+use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
 use client_common::tendermint::types::Time;
@@ -583,7 +583,7 @@ where
         enckey: &SecKey,
         address: &ExtendedAddr,
         public_keys: Vec<PublicKey>,
-    ) -> Result<Proof<RawPubkey>> {
+    ) -> Result<Proof<RawXOnlyPubkey>> {
         // To verify if the enckey is correct or not
         self.wallet_service.view_key(name, enckey)?;
 
@@ -996,7 +996,7 @@ where
         )
     }
 
-    fn nonce(&self, session_id: &H256, enckey: &SecKey) -> Result<PublicKey> {
+    fn nonce(&self, session_id: &H256, enckey: &SecKey) -> Result<H256> {
         self.multi_sig_session_service.nonce(session_id, enckey)
     }
 
@@ -1004,7 +1004,7 @@ where
         &self,
         session_id: &H256,
         enckey: &SecKey,
-        nonce: &PublicKey,
+        nonce: &H256,
         public_key: &PublicKey,
     ) -> Result<()> {
         self.multi_sig_session_service
