@@ -33,22 +33,24 @@ use unicase::eq_ascii;
 use crate::{ask_seckey, coin_from_str};
 use client_core::transaction_builder::UnsignedTransferTransaction;
 
-const TRANSACTION_TYPE_VARIANTS: [&str; 6] = [
+const TRANSACTION_TYPE_VARIANTS: [&str; 7] = [
     "transfer",
     "deposit",
+    "deposit-amount",
     "unbond",
     "withdraw",
     "unjail",
     "node-join",
 ];
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum TransactionType {
     Transfer,
-    // deposit inputs in the wallet to a staking address in advanced mode
+    // deposit inputs in the wallet to a staking address
+    Deposit,
     // deposit any amount of Coins you want to a staking address
     // it will build an UTXO worth that amount and then deposit to the staking address
-    Deposit,
+    DepositAmount,
     Unbond,
     Withdraw,
     Unjail,
@@ -63,6 +65,8 @@ impl FromStr for TransactionType {
             Ok(TransactionType::Transfer)
         } else if eq_ascii(s, "deposit") {
             Ok(TransactionType::Deposit)
+        } else if eq_ascii(s, "deposit-amount") {
+            Ok(TransactionType::DepositAmount)
         } else if eq_ascii(s, "unbond") {
             Ok(TransactionType::Unbond)
         } else if eq_ascii(s, "withdraw") {
@@ -97,13 +101,6 @@ pub enum TransactionCommand {
             case_insensitive = true
         )]
         transaction_type: TransactionType,
-        #[structopt(
-            name = "advanced mode",
-            long = "advanced",
-            help = "Advanced mode when transaction type is deposit",
-            case_insensitive = true
-        )]
-        advanced: bool,
     },
     #[structopt(name = "show", about = "Display details of a transaction")]
     Show {
@@ -239,14 +236,7 @@ impl TransactionCommand {
             TransactionCommand::New {
                 name,
                 transaction_type,
-                advanced,
-            } => new_transaction(
-                wallet_client,
-                network_ops_client,
-                name,
-                transaction_type,
-                *advanced,
-            ),
+            } => new_transaction(wallet_client, network_ops_client, name, transaction_type),
             TransactionCommand::Show {
                 name,
                 transaction_id,
@@ -517,16 +507,7 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
     transaction_type: &TransactionType,
-    advanced: bool,
 ) -> Result<()> {
-    let can_use_advanced = vec![TransactionType::Deposit];
-    if advanced && !can_use_advanced.contains(transaction_type) {
-        let error = Error::new(
-            ErrorKind::InvalidInput,
-            "advanced mode is only available when deposit",
-        );
-        return Err(error);
-    }
     let enckey = ask_seckey(None)?;
 
     match transaction_type {
@@ -536,19 +517,13 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
             wallet_client.update_tx_pending_state(&name, &enckey, tx_aux.tx_id(), tx_pending)?;
         }
         TransactionType::Deposit => {
-            if advanced {
-                let (tx_aux, tx_pending) =
-                    new_deposit_transaction(wallet_client, network_ops_client, name, &enckey)?;
-                wallet_client.broadcast_transaction(&tx_aux)?;
-                wallet_client.update_tx_pending_state(
-                    &name,
-                    &enckey,
-                    tx_aux.tx_id(),
-                    tx_pending,
-                )?;
-            } else {
-                new_deposit_amount_transaction(wallet_client, network_ops_client, name, &enckey)?;
-            }
+            let (tx_aux, tx_pending) =
+                new_deposit_transaction(wallet_client, network_ops_client, name, &enckey)?;
+            wallet_client.broadcast_transaction(&tx_aux)?;
+            wallet_client.update_tx_pending_state(&name, &enckey, tx_aux.tx_id(), tx_pending)?;
+        }
+        TransactionType::DepositAmount => {
+            new_deposit_amount_transaction(wallet_client, network_ops_client, name, &enckey)?;
         }
         TransactionType::Unbond => {
             let tx_aux = new_unbond_transaction(network_ops_client, name, &enckey)?;

@@ -106,6 +106,8 @@ pub struct SyncerConfig<S: SecureStorage, C: Client> {
     block_height_ensure: u64,
 }
 
+pub type SyncCallback = extern "C" fn(f32) -> i32;
+
 /// Wallet Syncer
 #[derive(Clone)]
 pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor> {
@@ -121,6 +123,7 @@ pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor> {
     decryptor: D,
     name: String,
     enckey: SecKey,
+    progress_callback: Option<SyncCallback>,
 }
 
 impl<S, C, D> WalletSyncer<S, C, D>
@@ -136,6 +139,7 @@ where
         progress_reporter: Option<Sender<ProgressReport>>,
         name: String,
         enckey: SecKey,
+        progress_callback: Option<SyncCallback>,
     ) -> WalletSyncer<S, C, D> {
         Self {
             storage: config.storage,
@@ -147,6 +151,7 @@ where
             enable_fast_forward: config.enable_fast_forward,
             batch_size: config.batch_size,
             block_height_ensure: config.block_height_ensure,
+            progress_callback,
         }
     }
 
@@ -187,6 +192,7 @@ where
         progress_reporter: Option<Sender<ProgressReport>>,
         name: String,
         enckey: SecKey,
+        progress_callback: Option<SyncCallback>,
     ) -> Result<WalletSyncer<S, C, TxObfuscationDecryptor<O>>>
     where
         O: TransactionObfuscation,
@@ -207,6 +213,7 @@ where
             progress_reporter,
             name,
             enckey,
+            progress_callback,
         ))
     }
 }
@@ -219,6 +226,7 @@ struct WalletSyncerImpl<'a, S: SecureStorage, C: Client, D: TxDecryptor> {
     wallet: Wallet,
     sync_state: SyncState,
     wallet_state: WalletState,
+    progress_callback: Option<SyncCallback>,
 }
 
 impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C, D> {
@@ -243,6 +251,7 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
             wallet,
             sync_state,
             wallet_state,
+            progress_callback: env.progress_callback,
         })
     }
 
@@ -311,6 +320,11 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
         let current_block_height = status.sync_info.latest_block_height.value();
         self.init_progress(current_block_height);
 
+        // 0.0 ~ 100.0
+        let mut progress_percent: f32;
+        let start: u64 = self.sync_state.last_block_height + 1;
+        let end: u64 = current_block_height;
+        let gap: u64 = if end > start { end - start } else { 0 };
         // Send batch RPC requests to tendermint in chunks of `batch_size` requests per batch call
         for chunk in ((self.sync_state.last_block_height + 1)..=current_block_height)
             .chunks(self.env.batch_size)
@@ -384,6 +398,18 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
 
                 let block = FilteredBlock::from_block(&self.wallet, &block, &block_result)?;
                 self.update_progress(block.block_height);
+
+                if gap != 0 && block.block_height > start {
+                    assert!(start <= block.block_height);
+                    let current: u64 = block.block_height - start;
+                    progress_percent = ((current as f64) / (gap as f64) * 100.0) as f32;
+                } else {
+                    progress_percent = 100.0;
+                }
+                if let Some(delegator) = self.progress_callback {
+                    (delegator)(progress_percent);
+                }
+
                 batch.push(block);
             }
             if let Some(non_empty_batch) = NonEmpty::new(batch) {
@@ -600,6 +626,7 @@ mod tests {
             None,
             name.to_owned(),
             enckey,
+            None,
         );
         syncer.sync().expect("Unable to synchronize");
     }
@@ -713,6 +740,7 @@ mod tests {
             None,
             name.to_owned(),
             wallet_enckey,
+            None,
         );
 
         syncer.sync().expect("sync should succeed");

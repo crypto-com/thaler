@@ -42,6 +42,12 @@ typedef struct CroStakedState {
 } CroStakedState;
 
 /**
+ * 0: zero, 100.0: complete
+ * return: 0: OK, -1: Error
+ */
+typedef int32_t (*ProgressCallback)(float);
+
+/**
  * create staking address
  * # Safety
  */
@@ -287,13 +293,15 @@ CroResult cro_join(uint8_t network,
  *     printf("error: %s\n", buf);
  * }
  * ```
+ * ProgressCallback: rate ( 0.0s ~ 100.0)
  */
 CroResult cro_jsonrpc_call(const char *storage_dir,
                            const char *websocket_url,
                            uint8_t network_id,
                            const char *request,
                            char *buf,
-                           uintptr_t buf_size);
+                           uintptr_t buf_size,
+                           ProgressCallback progress_callback);
 
 /**
  * # Safety

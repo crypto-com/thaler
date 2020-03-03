@@ -95,3 +95,7 @@ impl Default for CroFee {
         CroFee { fee }
     }
 }
+
+/// 0: zero, 100.0: complete
+/// return: 0: OK, -1: Error
+pub type ProgressCallback = extern "C" fn(f32) -> i32;
