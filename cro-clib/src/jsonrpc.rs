@@ -24,6 +24,7 @@ use client_rpc::rpc::{
 };
 
 use crate::types::CroResult;
+use crate::types::ProgressCallback;
 
 #[cfg(not(feature = "mock-enc-dec"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;
@@ -113,6 +114,7 @@ fn do_jsonrpc_call(
     websocket_url: &str,
     network_id: u8,
     json_request: &str,
+    progress_callback: ProgressCallback,
 ) -> Result<String> {
     let mut io = IoHandler::new();
     let storage = SledStorage::new(storage_dir)?;
@@ -124,7 +126,7 @@ fn do_jsonrpc_call(
     let multisig_rpc = MultiSigRpcImpl::new(wallet_client.clone());
     let transaction_rpc = TransactionRpcImpl::new(network_id);
     let staking_rpc = StakingRpcImpl::new(wallet_client.clone(), ops_client, network_id);
-    let sync_rpc = SyncRpcImpl::new(syncer_config);
+    let sync_rpc = SyncRpcImpl::new(syncer_config, Some(progress_callback));
     let wallet_rpc = WalletRpcImpl::new(wallet_client, network_id);
 
     io.extend_with(multisig_rpc.to_delegate());
@@ -156,6 +158,7 @@ fn do_jsonrpc_call(
 ///     printf("error: %s\n", buf);
 /// }
 /// ```
+/// ProgressCallback: rate ( 0.0s ~ 100.0)
 #[no_mangle]
 pub unsafe extern "C" fn cro_jsonrpc_call(
     storage_dir: *const c_char,
@@ -164,7 +167,9 @@ pub unsafe extern "C" fn cro_jsonrpc_call(
     request: *const c_char,
     buf: *mut c_char,
     buf_size: usize,
+    progress_callback: ProgressCallback,
 ) -> CroResult {
+    (progress_callback)(0.0);
     let res = do_jsonrpc_call(
         CStr::from_ptr(storage_dir)
             .to_str()
@@ -176,6 +181,7 @@ pub unsafe extern "C" fn cro_jsonrpc_call(
         CStr::from_ptr(request)
             .to_str()
             .expect("storage_dir should be utf-8"),
+        progress_callback,
     );
     match res {
         Err(e) => {

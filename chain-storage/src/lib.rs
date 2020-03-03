@@ -342,7 +342,6 @@ mod test {
             "buffered write should not persist",
             TEST_DB_1,
         );
-        let _ = std::fs::remove_dir_all(TEST_DB_1);
     }
 
     #[test]
@@ -376,6 +375,5 @@ mod test {
             "persist write should commit data",
             TEST_DB_2,
         );
-        let _ = std::fs::remove_dir_all(TEST_DB_2);
     }
 }

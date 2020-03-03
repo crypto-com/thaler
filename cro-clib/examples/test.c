@@ -7,6 +7,7 @@
 #include "../chain.h"
 
 int test_tx();
+int test_rpc();
 
 void print_address(CroAddressPtr a)
 {
@@ -154,6 +155,7 @@ int main()
     //test_hdwallet_create();
     //test_hdwallet_mnemonics();
     //test_normal_wallet_create();
-    test_tx();
+    //test_tx();
+    test_rpc();
     return 0;
 }

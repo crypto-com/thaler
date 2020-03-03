@@ -579,7 +579,8 @@ impl Command {
             }
         });
 
-        let syncer = WalletSyncer::with_obfuscation_config(config, Some(sender), name, enckey)?;
+        let syncer =
+            WalletSyncer::with_obfuscation_config(config, Some(sender), name, enckey, None)?;
         if force {
             syncer.reset_state()?;
         }
