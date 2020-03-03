@@ -31,7 +31,7 @@ log ="0.4.8"
 zeroize = "1.1"
 tiny-bip39 = { version = "0.7", default-features = false }
 indexmap = "1.3"
-parity-scale-codec = { features = ["derive"], version = "1.0" }
+parity-scale-codec = { features = ["derive"], version = "1.2" }
 
 [dev-dependencies]
-parity-scale-codec = "1.1"
+parity-scale-codec = "1.2"
