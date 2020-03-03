@@ -2,9 +2,9 @@
 # It is not intended for manual editing.
 [[package]]
 name = "abci"
-version = "0.6.5"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cfb90d266d6ca61cea4d155dd5033c9516495f4f74f82faf1ca5c4feeb82577"
+checksum = "d3dc684df5ab1be507c9f9266e7549e377541574737b76f8df4eafcf7010e771"
 dependencies = [
  "byteorder",
  "bytes",
@@ -2535,24 +2535,24 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.10.0"
+version = "2.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6563a657a014b771e7f69f06447d88d8fbb5a215ffc4cab724afb3acedcc7701"
+checksum = "37a5325d019a4d837d3abde0a836920f959e33d350f77b5f1e289e061e774942"
 
 [[package]]
 name = "protobuf-codegen"
-version = "2.10.0"
+version = "2.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f1bbc6db30d5d3e730b6e2326e9a64a75ca9c80d6427d6f054dc8cacc79d225"
+checksum = "64dd3a6192e0c6c1b0dae8f125b7f6b201c39fc487ebda0ee717d7a87fc47dc2"
 dependencies = [
  "protobuf",
 ]
 
 [[package]]
 name = "protobuf-codegen-pure"
-version = "2.10.0"
+version = "2.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db5473ffa23d2ea3b9046764f1a22149791967aad946b6cbd99601e720afc4d0"
+checksum = "037fa49710ee83b3be232ed53c5fce0bdb1b64c6aa6b1143a86640969c3e4b1d"
 dependencies = [
  "protobuf",
  "protobuf-codegen",

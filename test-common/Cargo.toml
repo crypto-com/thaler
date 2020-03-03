@@ -14,7 +14,7 @@ subtle-encoding = { version = "0.5", features = ["bech32-preview"] }
 secstr = { version = "0.4.0", features = ["serde"] }
 lazy_static  = { version = "1.4", features = ["spin_no_std"] }
 signature = "1.0.0-pre.1"
-abci = "0.6"
+abci = "0.7"
 kvdb-memorydb = "0.4"
 protobuf = "2.7.0"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d50d5998a11064591d86583b297130d6d9636aa5", features = ["recovery", "endomorphism"] }
