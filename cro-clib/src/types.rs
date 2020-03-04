@@ -7,11 +7,18 @@ use client_core::HDSeed;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::os::raw::c_int;
+
+use jsonrpc_core::IoHandler;
+
+#[cfg(feature = "mock-enc-dec")]
+use client_core::cipher::MockAbciTransactionObfuscation;
+
 pub type CroHDWalletPtr = *mut CroHDWallet;
 pub type CroAddressPtr = *mut CroAddress;
 pub type CroTxPtr = *mut CroTx;
 pub type CroDepositTxPtr = *mut CroDepositTx;
 pub type CroFeePtr = *mut CroFee;
+pub type CroJsonRpcPtr = *mut CroJsonRpc;
 
 pub const SUCCESS: i32 = 0;
 pub const FAIL: i32 = -1;
@@ -41,6 +48,12 @@ pub struct CroAddress {
     pub address: String,
 }
 
+#[derive(Clone)]
+pub struct CroJsonRpc {
+    pub handler: IoHandler,
+    pub progress_callback: ProgressCallback,
+}
+
 /// TODO: other states (jailed, unjail) will be added
 #[repr(C)]
 #[derive(Clone)]
@@ -67,7 +80,10 @@ impl CroResult {
 
 /// # Safety
 pub unsafe fn get_string(src: *const c_char) -> String {
-    CStr::from_ptr(src).to_string_lossy().into_owned()
+    CStr::from_ptr(src)
+        .to_str()
+        .expect("get string from c_char")
+        .to_string()
 }
 
 #[derive(Clone)]
@@ -95,3 +111,7 @@ impl Default for CroFee {
         CroFee { fee }
     }
 }
+
+/// 0: zero, 100.0: complete
+/// return: 0: OK, -1: Error
+pub type ProgressCallback = extern "C" fn(f32) -> i32;

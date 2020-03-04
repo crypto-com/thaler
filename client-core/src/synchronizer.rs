@@ -68,6 +68,7 @@ impl PollingSynchronizer {
                         Some(sender.clone()),
                         name.clone(),
                         enckey.clone(),
+                        None,
                     )
                     .and_then(|syncer| syncer.sync());
                     if let Err(e) = result {

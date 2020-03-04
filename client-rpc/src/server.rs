@@ -163,7 +163,7 @@ impl Server {
 
         let syncer_config = self.make_syncer_config(storage.clone(), tendermint_client.clone())?;
 
-        let sync_rpc = SyncRpcImpl::new(syncer_config);
+        let sync_rpc = SyncRpcImpl::new(syncer_config, None);
 
         let wallet_rpc_wallet_client = self.make_wallet_client(storage, tendermint_client)?;
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);

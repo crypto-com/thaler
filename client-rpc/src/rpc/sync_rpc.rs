@@ -9,6 +9,8 @@ use client_core::wallet::syncer::{ObfuscationSyncerConfig, WalletSyncer};
 use client_core::wallet::WalletRequest;
 use client_core::TransactionObfuscation;
 
+pub type SyncRpcCallback = extern "C" fn(f32) -> i32;
+
 #[rpc]
 pub trait SyncRpc: Send + Sync {
     #[rpc(name = "sync")]
@@ -32,6 +34,7 @@ where
 {
     config: ObfuscationSyncerConfig<S, C, O>,
     polling_synchronizer: PollingSynchronizer,
+    progress_callback: Option<SyncRpcCallback>,
 }
 
 impl<S, C, O> SyncRpc for SyncRpcImpl<S, C, O>
@@ -70,13 +73,17 @@ where
     C: Client + 'static,
     O: TransactionObfuscation + 'static,
 {
-    pub fn new(config: ObfuscationSyncerConfig<S, C, O>) -> Self {
+    pub fn new(
+        config: ObfuscationSyncerConfig<S, C, O>,
+        progress_callback: Option<SyncRpcCallback>,
+    ) -> Self {
         let mut polling_synchronizer = PollingSynchronizer::default();
         polling_synchronizer.spawn(config.clone());
 
         SyncRpcImpl {
             config,
             polling_synchronizer,
+            progress_callback,
         }
     }
 
@@ -86,6 +93,7 @@ where
             None,
             request.name,
             request.enckey,
+            self.progress_callback,
         )
         .map_err(to_rpc_error)?;
         if reset {
