@@ -249,7 +249,7 @@ where
         };
         let private_key = self
             .wallet_client
-            .private_key(enckey, &public_key)?
+            .private_key(name, enckey, &public_key)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -316,7 +316,7 @@ where
         };
         let private_key = self
             .wallet_client
-            .private_key(enckey, &public_key)?
+            .private_key(name, enckey, &public_key)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -384,7 +384,7 @@ where
         };
         let private_key = self
             .wallet_client
-            .private_key(enckey, &public_key)?
+            .private_key(name, enckey, &public_key)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -484,7 +484,7 @@ where
         };
         let private_key = self
             .wallet_client
-            .private_key(enckey, &public_key)?
+            .private_key(name, enckey, &public_key)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,

@@ -9,6 +9,7 @@
 * *chain-abci* [1100](https://github.com/crypto-com/chain/pull/1100): account nonce increased after reward distribution
 * *chain-core* [1162](https://github.com/crypto-com/chain/pull/1162): transaction witness contains BIP-340-compatible Schnorr signatures (instead of the previous WIP scheme)
 * *client* [1158](https://github.com/crypto-com/chain/pull/1158): "deposit-amount" is the default flow for client-cli when doing deposit
+* *client* [1185](https://github.com/crypto-com/chain/pull/1185): public and private key pairs stored in wallet, use public_key + wallet_name as key to store the multi_sig_address
 
 ### Features
 * *client* [1072](https://github.com/crypto-com/chain/pull/1072): airgap-friendly workflow for client

@@ -161,8 +161,16 @@ pub trait WalletClient: Send + Sync {
         address: &ExtendedAddr,
     ) -> Result<Option<H256>>;
 
+    /// Retrieves private key corresponding to given wallet name
+    fn wallet_private_key(&self, name: &str, enckey: &SecKey) -> Result<Option<PrivateKey>>;
+
     /// Retrieves private key corresponding to given public key
-    fn private_key(&self, enckey: &SecKey, public_key: &PublicKey) -> Result<Option<PrivateKey>>;
+    fn private_key(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        public_key: &PublicKey,
+    ) -> Result<Option<PrivateKey>>;
 
     /// Generates a new public key for given wallet
     fn new_public_key(

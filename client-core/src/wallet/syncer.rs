@@ -164,12 +164,8 @@ where
 }
 
 fn load_view_key<S: SecureStorage>(storage: &S, name: &str, enckey: &SecKey) -> Result<PrivateKey> {
-    let wallet = service::load_wallet(storage, name, enckey)?
-        .err_kind(ErrorKind::InvalidInput, || {
-            format!("wallet not found: {}", name)
-        })?;
     KeyService::new(storage.clone())
-        .private_key(&wallet.view_key, enckey)?
+        .wallet_private_key(name, enckey)?
         .err_kind(ErrorKind::InvalidInput, || {
             format!("wallet private view key not found: {}", name)
         })

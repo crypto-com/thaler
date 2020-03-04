@@ -33,13 +33,7 @@ where
 
     /// Create an instance of wallet signer
     pub fn create_signer<'a>(&'a self, name: &'a str, enckey: &'a SecKey) -> WalletSigner<'a, S> {
-        WalletSigner::new(
-            name,
-            enckey,
-            &self.key_service,
-            &self.root_hash_service,
-            &self.wallet_service,
-        )
+        WalletSigner::new(name, enckey, &self.root_hash_service, &self.wallet_service)
     }
 }
 
@@ -50,7 +44,6 @@ where
 {
     name: &'a str,
     enckey: &'a SecKey,
-    key_service: &'a KeyService<S>,
     root_hash_service: &'a RootHashService<S>,
     wallet_service: &'a WalletService<S>,
 }
@@ -63,14 +56,12 @@ where
     pub fn new(
         name: &'a str,
         enckey: &'a SecKey,
-        key_service: &'a KeyService<S>,
         root_hash_service: &'a RootHashService<S>,
         wallet_service: &'a WalletService<S>,
     ) -> Self {
         WalletSigner {
             name,
             enckey,
-            key_service,
             root_hash_service,
             wallet_service,
         }
@@ -138,7 +129,7 @@ where
     ) -> Result<TxInWitness> {
         if self
             .root_hash_service
-            .required_signers(&root_hash, self.enckey)?
+            .required_signers(self.name, &root_hash, self.enckey)?
             != 1
         {
             return Err(Error::new(
@@ -147,10 +138,12 @@ where
             ));
         }
 
-        let public_key = self.root_hash_service.public_key(&root_hash, self.enckey)?;
+        let public_key = self
+            .root_hash_service
+            .public_key(self.name, &root_hash, self.enckey)?;
         let private_key = self
-            .key_service
-            .private_key(&public_key, self.enckey)?
+            .wallet_service
+            .find_private_key(self.name, self.enckey, &public_key)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -161,9 +154,12 @@ where
                 )
             })?;
 
-        let proof =
-            self.root_hash_service
-                .generate_proof(&root_hash, vec![public_key], self.enckey)?;
+        let proof = self.root_hash_service.generate_proof(
+            self.name,
+            &root_hash,
+            vec![public_key],
+            self.enckey,
+        )?;
 
         Ok(TxInWitness::TreeSig(
             private_key.schnorr_sign(&message)?,
