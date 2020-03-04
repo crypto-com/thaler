@@ -95,3 +95,7 @@ impl Default for CroFee {
         CroFee { fee }
     }
 }
+
+/// current, start, end, userdata
+/// return: 1: continue, 0: stop
+pub type ProgressCallback = extern "C" fn(u64, u64, u64, u64) -> i32;
