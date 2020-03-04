@@ -1,6 +1,7 @@
 #![no_main]
 use abci::Application;
 use abci::{Request, RequestInitChain, Request_oneof_value};
+use chain_abci::app::check_validators;
 use chain_abci::app::*;
 use chain_abci::enclave_bridge::mock::MockClient;
 use chain_core::common::MerkleTree;
@@ -106,27 +107,42 @@ fuzz_target!(|data: &[u8]| {
                         (Ok(c), Some(t)) => {
                             let result =
                                 c.validate_config_get_genesis(t.get_seconds().try_into().unwrap());
-                            if let Ok((accounts, rp, _)) = result {
-                                let tx_tree = MerkleTree::empty();
-                                let mut account_tree =
-                                    AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20)
-                                        .expect("account db");
-                                let wrapped: Vec<AccountWrapper> =
-                                        accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
-                                let mut keys: Vec<StarlingFixedKey> =
-                                    accounts.iter().map(|x| x.key()).collect();
-                                let new_account_root = account_tree
-                                    .insert(None, &mut keys, &wrapped)
-                                    .expect("initial insert");
-
-                                let genesis_app_hash = compute_app_hash(
-                                    &tx_tree,
-                                    &new_account_root,
-                                    &rp,
-                                    &NetworkParameters::Genesis(c.network_params),
+                            if let Ok((accounts, rp, nodes)) = result {
+                                let network_params = NetworkParameters::Genesis(c.network_params);
+                                let r = check_validators(
+                                    &nodes,
+                                    req.validators.clone().into_vec(),
+                                    &c.distribution,
+                                    &network_params,
                                 );
+                                if r.is_err() {
+                                    defaultinit
+                                } else {
+                                    let tx_tree = MerkleTree::empty();
+                                    let mut account_tree = AccountStorage::new(
+                                        Storage::new_db(Arc::new(create(1))),
+                                        20,
+                                    )
+                                    .expect("account db");
+                                    let wrapped: Vec<AccountWrapper> = accounts
+                                        .iter()
+                                        .map(|x| AccountWrapper(x.clone()))
+                                        .collect();
+                                    let mut keys: Vec<StarlingFixedKey> =
+                                        accounts.iter().map(|x| x.key()).collect();
+                                    let new_account_root = account_tree
+                                        .insert(None, &mut keys, &wrapped)
+                                        .expect("initial insert");
 
-                                (req.clone(), hex::encode_upper(genesis_app_hash).to_owned())
+                                    let genesis_app_hash = compute_app_hash(
+                                        &tx_tree,
+                                        &new_account_root,
+                                        &rp,
+                                        &network_params,
+                                    );
+
+                                    (req.clone(), hex::encode_upper(genesis_app_hash).to_owned())
+                                }
                             } else {
                                 defaultinit
                             }

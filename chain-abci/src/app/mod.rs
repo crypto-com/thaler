@@ -10,6 +10,8 @@ mod validate_tx;
 use abci::*;
 use log::info;
 
+#[cfg(fuzzing)]
+pub use self::app_init::check_validators;
 pub use self::app_init::{
     compute_accounts_root, get_validator_key, init_app_hash, ChainNodeApp, ChainNodeState,
     ValidatorState,
