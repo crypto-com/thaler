@@ -98,8 +98,9 @@ fuzz_target!(|data: &[u8]| {
                 protobuf::parse_from_bytes(&INIT_REQ[..]).unwrap(),
                 "0512AD829B78F1395E6DFFAEA4005B0AD356C5CCD4BC97D4B461B21FFBFBECE4".to_owned(),
                 TEST_CHAIN_ID.to_owned(),
+                get_enclave_bridge_mock(),
             );
-            let (init, example_hash, chain_id) = match messages[0].value {
+            let (init, example_hash, chain_id, mock_bridge) = match messages[0].value {
                 Some(Request_oneof_value::init_chain(ref req)) => {
                     match (
                         serde_json::from_slice::<InitConfig>(&req.app_state_bytes),
@@ -141,13 +142,19 @@ fuzz_target!(|data: &[u8]| {
                                         &rp,
                                         &network_params,
                                     );
-                                    if hex::decode(&req.chain_id[req.chain_id.len() - 2..]).is_ok()
-                                    {
-                                        (
-                                            req.clone(),
-                                            hex::encode_upper(genesis_app_hash).to_owned(),
-                                            req.chain_id.clone(),
-                                        )
+                                    if req.chain_id.len() > 3 {
+                                        if let Ok(netid) =
+                                            hex::decode(&req.chain_id[req.chain_id.len() - 2..])
+                                        {
+                                            (
+                                                req.clone(),
+                                                hex::encode_upper(genesis_app_hash).to_owned(),
+                                                req.chain_id.clone(),
+                                                MockClient::new(netid[0]),
+                                            )
+                                        } else {
+                                            defaultinit
+                                        }
                                     } else {
                                         defaultinit
                                     }
@@ -164,7 +171,7 @@ fuzz_target!(|data: &[u8]| {
             };
 
             let mut app = ChainNodeApp::new_with_storage(
-                get_enclave_bridge_mock(),
+                mock_bridge,
                 &example_hash,
                 &chain_id,
                 Storage::new_db(create_db()),
