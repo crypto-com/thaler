@@ -188,6 +188,45 @@ fn check_and_store_consensus_params(
     }
 }
 
+/// checks InitChain's req.validators is consistent with InitChain's app_state's council nodes
+pub fn check_validators(
+    nodes: &[(StakedStateAddress, CouncilNode)],
+    mut req_validators: Vec<ValidatorUpdate>,
+    distribution: &BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
+    network_params: &NetworkParameters,
+) -> Result<ValidatorState, ()> {
+    let mut validators = Vec::with_capacity(nodes.len());
+    let mut validator_state = ValidatorState::default();
+    for (address, node) in nodes.iter() {
+        let mut validator = ValidatorUpdate::default();
+        let power = get_voting_power(distribution, address);
+        validator.set_power(power.into());
+        let pk = get_validator_key(&node);
+        validator.set_pub_key(pk);
+        validators.push(validator);
+        validator_state.add_initial_validator(
+            *address,
+            power,
+            node.clone(),
+            network_params.get_block_signing_window(),
+        );
+    }
+
+    let fn_sort_key = |a: &ValidatorUpdate| {
+        a.pub_key
+            .as_ref()
+            .map(|key| (key.field_type.clone(), key.data.clone()))
+    };
+    validators.sort_by_key(fn_sort_key);
+    req_validators.sort_by_key(fn_sort_key);
+
+    if validators == req_validators {
+        Ok(validator_state)
+    } else {
+        Err(())
+    }
+}
+
 fn get_voting_power(
     distribution: &BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
     node_address: &StakedStateAddress,
@@ -413,55 +452,34 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             &mut self.storage,
         );
 
-        let mut validators = Vec::with_capacity(nodes.len());
-        let mut validator_state = ValidatorState::default();
-        for (address, node) in nodes.iter() {
-            let mut validator = ValidatorUpdate::default();
-            let power = get_voting_power(&conf.distribution, address);
-            validator.set_power(power.into());
-            let pk = get_validator_key(&node);
-            validator.set_pub_key(pk);
-            validators.push(validator);
-            validator_state.add_initial_validator(
-                *address,
-                power,
-                node.clone(),
-                network_params.get_block_signing_window(),
+        if let Ok(validator_state) = check_validators(
+            &nodes,
+            req.validators.clone().into_vec(),
+            &conf.distribution,
+            &network_params,
+        ) {
+            let genesis_state = ChainNodeState::genesis(
+                genesis_app_hash,
+                genesis_time,
+                new_account_root,
+                rp,
+                network_params,
+                validator_state,
             );
-        }
+            self.storage
+                .store_genesis_state(&genesis_state, self.tx_query_address.is_some());
 
-        // check req.validators is consistent with app_state's council nodes
-        let mut req_validators = req.validators.clone().into_vec();
-        let fn_sort_key = |a: &ValidatorUpdate| {
-            a.pub_key
-                .as_ref()
-                .map(|key| (key.field_type.clone(), key.data.clone()))
-        };
-        validators.sort_by_key(fn_sort_key);
-        req_validators.sort_by_key(fn_sort_key);
-        if validators != req_validators {
-            panic!("validators in genesis configuration are not consistent with app_state");
-        }
+            let wr = self.storage.persist_write();
+            if let Err(e) = wr {
+                panic!("db write error: {}", e);
+            } else {
+                self.uncommitted_account_root_hash = genesis_state.top_level.account_root;
+                self.last_state = Some(genesis_state);
+            }
 
-        let genesis_state = ChainNodeState::genesis(
-            genesis_app_hash,
-            genesis_time,
-            new_account_root,
-            rp,
-            network_params,
-            validator_state,
-        );
-        self.storage
-            .store_genesis_state(&genesis_state, self.tx_query_address.is_some());
-
-        let wr = self.storage.persist_write();
-        if let Err(e) = wr {
-            panic!("db write error: {}", e);
+            ResponseInitChain::new()
         } else {
-            self.uncommitted_account_root_hash = genesis_state.top_level.account_root;
-            self.last_state = Some(genesis_state);
+            panic!("validators in genesis configuration are not consistent with app_state")
         }
-
-        ResponseInitChain::new()
     }
 }
