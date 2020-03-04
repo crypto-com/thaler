@@ -83,7 +83,6 @@ where
     fn do_sync(&self, request: WalletRequest, reset: bool) -> Result<()> {
         let syncer = WalletSyncer::with_obfuscation_config(
             self.config.clone(),
-            None,
             request.name,
             request.enckey,
         )
@@ -91,7 +90,7 @@ where
         if reset {
             syncer.reset_state().map_err(to_rpc_error)?;
         }
-        syncer.sync().map_err(to_rpc_error)
+        syncer.sync(|_| true).map_err(to_rpc_error)
     }
 }
 

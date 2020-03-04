@@ -53,6 +53,11 @@ impl PollingSynchronizer {
         let should_run = self.should_run.clone();
 
         let (sender, receiver) = channel();
+        let progress_callback = move |report| {
+            println!("{:?}", report);
+            sender.send(report).unwrap();
+            true
+        };
         self.sync_thread = Some(thread::spawn(move || {
             while should_run.load(Ordering::Relaxed) {
                 let wallets_to_synchronize = wallets
@@ -65,11 +70,10 @@ impl PollingSynchronizer {
                 for (name, enckey) in wallets_to_synchronize.iter() {
                     let result = WalletSyncer::with_obfuscation_config(
                         config.clone(),
-                        Some(sender.clone()),
                         name.clone(),
                         enckey.clone(),
                     )
-                    .and_then(|syncer| syncer.sync());
+                    .and_then(|syncer| syncer.sync(progress_callback.clone()));
                     if let Err(e) = result {
                         log::error!("Error while synchronizing wallet [{}]: {:?}", name, e);
                     }
