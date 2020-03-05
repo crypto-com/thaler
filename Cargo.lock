@@ -1668,9 +1668,9 @@ dependencies = [
 
 [[package]]
 name = "integer-encoding"
-version = "1.1.3"
+version = "1.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40e9c5447a1098bcd69d313acfb34c53cee271038ba1eb31fa654b237d89b299"
+checksum = "083cfe51895f8d283aaf210a736fdf5d08a1171faa44fe08e979cc0c961b891a"
 
 [[package]]
 name = "interleaved-ordered"
