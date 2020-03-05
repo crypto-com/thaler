@@ -2,7 +2,6 @@
 use indexmap::IndexMap;
 use itertools::{izip, Itertools};
 use non_empty_vec::NonEmpty;
-use std::sync::mpsc::Sender;
 
 use chain_core::common::H256;
 use chain_core::state::account::StakedStateAddress;
@@ -112,7 +111,6 @@ pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor> {
     // common
     storage: S,
     client: C,
-    progress_reporter: Option<Sender<ProgressReport>>,
     enable_fast_forward: bool,
     batch_size: usize,
     block_height_ensure: u64,
@@ -133,7 +131,6 @@ where
     pub fn with_config(
         config: SyncerConfig<S, C>,
         decryptor: D,
-        progress_reporter: Option<Sender<ProgressReport>>,
         name: String,
         enckey: SecKey,
     ) -> WalletSyncer<S, C, D> {
@@ -141,7 +138,6 @@ where
             storage: config.storage,
             client: config.client,
             decryptor,
-            progress_reporter,
             name,
             enckey,
             enable_fast_forward: config.enable_fast_forward,
@@ -158,8 +154,8 @@ where
     }
 
     /// Load wallet state in memory, sync it to most recent latest, then drop the memory cache.
-    pub fn sync(&self) -> Result<()> {
-        WalletSyncerImpl::new(self)?.sync()
+    pub fn sync<F: FnMut(ProgressReport) -> bool>(&self, callback: F) -> Result<()> {
+        WalletSyncerImpl::new(self, callback)?.sync()
     }
 }
 
@@ -184,7 +180,6 @@ where
     /// Construct with obfuscation config
     pub fn with_obfuscation_config(
         config: ObfuscationSyncerConfig<S, C, O>,
-        progress_reporter: Option<Sender<ProgressReport>>,
         name: String,
         enckey: SecKey,
     ) -> Result<WalletSyncer<S, C, TxObfuscationDecryptor<O>>>
@@ -204,7 +199,6 @@ where
                 block_height_ensure: config.block_height_ensure,
             },
             decryptor,
-            progress_reporter,
             name,
             enckey,
         ))
@@ -212,8 +206,15 @@ where
 }
 
 /// Sync wallet state from blocks.
-struct WalletSyncerImpl<'a, S: SecureStorage, C: Client, D: TxDecryptor> {
+struct WalletSyncerImpl<
+    'a,
+    S: SecureStorage,
+    C: Client,
+    D: TxDecryptor,
+    F: FnMut(ProgressReport) -> bool,
+> {
     env: &'a WalletSyncer<S, C, D>,
+    progress_callback: F,
 
     // cached state
     wallet: Wallet,
@@ -221,8 +222,10 @@ struct WalletSyncerImpl<'a, S: SecureStorage, C: Client, D: TxDecryptor> {
     wallet_state: WalletState,
 }
 
-impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C, D> {
-    fn new(env: &'a WalletSyncer<S, C, D>) -> Result<Self> {
+impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -> bool>
+    WalletSyncerImpl<'a, S, C, D, F>
+{
+    fn new(env: &'a WalletSyncer<S, C, D>, progress_callback: F) -> Result<Self> {
         let wallet = service::load_wallet(&env.storage, &env.name, &env.enckey)?
             .err_kind(ErrorKind::InvalidInput, || {
                 format!("wallet not found: {}", env.name)
@@ -240,29 +243,26 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
 
         Ok(Self {
             env,
+            progress_callback,
             wallet,
             sync_state,
             wallet_state,
         })
     }
 
-    fn init_progress(&self, height: u64) {
-        if let Some(ref sender) = &self.env.progress_reporter {
-            let _ = sender.send(ProgressReport::Init {
-                wallet_name: self.env.name.clone(),
-                start_block_height: self.sync_state.last_block_height,
-                finish_block_height: height,
-            });
-        }
+    fn init_progress(&mut self, height: u64) -> bool {
+        (self.progress_callback)(ProgressReport::Init {
+            wallet_name: self.env.name.clone(),
+            start_block_height: self.sync_state.last_block_height,
+            finish_block_height: height,
+        })
     }
 
-    fn update_progress(&self, height: u64) {
-        if let Some(ref sender) = &self.env.progress_reporter {
-            let _ = sender.send(ProgressReport::Update {
-                wallet_name: self.env.name.clone(),
-                current_block_height: height,
-            });
-        }
+    fn update_progress(&mut self, height: u64) -> bool {
+        (self.progress_callback)(ProgressReport::Update {
+            wallet_name: self.env.name.clone(),
+            current_block_height: height,
+        })
     }
 
     fn update_state(&mut self, memento: &WalletStateMemento) -> Result<()> {
@@ -294,9 +294,13 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
         let block = blocks.last();
         self.sync_state.last_block_height = block.block_height;
         self.sync_state.last_app_hash = block.app_hash.clone();
-        self.update_progress(block.block_height);
+        self.save(&memento)?;
 
-        self.save(&memento)
+        if !self.update_progress(block.block_height) {
+            return Err(Error::new(ErrorKind::InvalidInput, "Cancelled by user"));
+        }
+
+        Ok(())
     }
 
     fn sync(&mut self) -> Result<()> {
@@ -309,7 +313,9 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
             ));
         }
         let current_block_height = status.sync_info.latest_block_height.value();
-        self.init_progress(current_block_height);
+        if !self.init_progress(current_block_height) {
+            return Err(Error::new(ErrorKind::InvalidInput, "Cancelled by user"));
+        }
 
         // Send batch RPC requests to tendermint in chunks of `batch_size` requests per batch call
         for chunk in ((self.sync_state.last_block_height + 1)..=current_block_height)
@@ -454,7 +460,7 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
 }
 
 /// A struct for providing progress report for synchronization
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ProgressReport {
     /// Initial report to send start/finish heights
     Init {
@@ -597,11 +603,10 @@ mod tests {
                 block_height_ensure: 50,
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
-            None,
             name.to_owned(),
             enckey,
         );
-        syncer.sync().expect("Unable to synchronize");
+        syncer.sync(|_| true).expect("Unable to synchronize");
     }
 
     #[test]
@@ -710,12 +715,11 @@ mod tests {
                 block_height_ensure: 50,
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
-            None,
             name.to_owned(),
             wallet_enckey,
         );
 
-        syncer.sync().expect("sync should succeed");
+        syncer.sync(|_| true).expect("sync should succeed");
     }
 
     fn read_asset_file(filename: &str) -> String {
