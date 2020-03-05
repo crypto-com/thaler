@@ -20,6 +20,9 @@ use crate::service;
 use crate::service::{KeyService, SyncState, Wallet, WalletState, WalletStateMemento};
 use crate::TransactionObfuscation;
 
+use std::sync::Arc;
+use std::sync::Mutex;
+
 /// Transaction decryptor interface for wallet synchronizer
 pub trait TxDecryptor: Clone + Send + Sync {
     /// decrypt transaction
@@ -106,10 +109,18 @@ pub struct SyncerConfig<S: SecureStorage, C: Client> {
     block_height_ensure: u64,
 }
 
+pub trait CBidingCallback: Send + Sync {
+    fn progress(&self, current: u64, start: u64, end: u64) -> i32;
+}
+
+#[derive(Clone)]
+pub struct CBindingCore {
+    pub data: Arc<Mutex<dyn CBidingCallback>>,
+}
+
 #[derive(Clone)]
 pub struct SyncCallback {
-    pub user_data: u64,
-    pub user_callback: extern "C" fn(u64, u64, u64, u64) -> i32,
+    pub core_callback: CBindingCore,
 }
 
 /// Wallet Syncer
@@ -401,14 +412,12 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor> WalletSyncerImpl<'a, S, C,
                 self.update_progress(block.block_height);
 
                 if let Some(delegator) = &self.progress_callback {
-                    let ret = (delegator.user_callback)(
-                        block.block_height,
-                        start,
-                        end,
-                        delegator.user_data,
-                    );
-                    if 0 == ret {
-                        break;
+                    {
+                        let user_callback = delegator.core_callback.data.lock().unwrap();
+                        let ret = user_callback.progress(block.block_height, start, end);
+                        if 0 == ret {
+                            break;
+                        }
                     }
                 }
 

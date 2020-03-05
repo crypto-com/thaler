@@ -26,6 +26,7 @@ use client_rpc::rpc::{
 use crate::types::CroResult;
 use crate::types::ProgressCallback;
 use client_core::wallet::syncer::SyncCallback;
+use client_core::wallet::syncer::{CBidingCallback, CBindingCore};
 
 #[cfg(not(feature = "mock-enc-dec"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;
@@ -110,6 +111,22 @@ fn make_syncer_config(
     ))
 }
 
+use std::sync::Arc;
+use std::sync::Mutex;
+
+#[derive(Clone)]
+struct CBindingData {
+    progress_callback: ProgressCallback,
+    user_data: u64,
+}
+
+impl CBidingCallback for CBindingData {
+    fn progress(&self, current: u64, start: u64, end: u64) -> i32 {
+        let back = &self.progress_callback;
+        (back)(current, start, end, self.user_data)
+    }
+}
+
 fn do_jsonrpc_call(
     storage_dir: &str,
     websocket_url: &str,
@@ -128,10 +145,14 @@ fn do_jsonrpc_call(
     let multisig_rpc = MultiSigRpcImpl::new(wallet_client.clone());
     let transaction_rpc = TransactionRpcImpl::new(network_id);
     let staking_rpc = StakingRpcImpl::new(wallet_client.clone(), ops_client, network_id);
-    let sync_callback = SyncCallback {
-        user_data,
-        user_callback: progress_callback,
+    let m = CBindingCore {
+        data: Arc::new(Mutex::new(CBindingData {
+            progress_callback,
+            user_data,
+        })),
     };
+    let sync_callback = SyncCallback { core_callback: m };
+
     let sync_rpc = SyncRpcImpl::new(syncer_config, Some(sync_callback));
     let wallet_rpc = WalletRpcImpl::new(wallet_client, network_id);
 
