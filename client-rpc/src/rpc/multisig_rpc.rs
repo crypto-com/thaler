@@ -131,7 +131,7 @@ where
         let self_public_key = parse_public_key(self_public_key).map_err(to_rpc_error)?;
         // Check if self public key belongs to current wallet
         self.client
-            .private_key(&request.enckey, &self_public_key)
+            .private_key(&request.name, &request.enckey, &self_public_key)
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,

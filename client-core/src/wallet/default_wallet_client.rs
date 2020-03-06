@@ -110,9 +110,8 @@ where
     T: WalletTransactionBuilder,
 {
     fn get_transaction(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<Transaction> {
-        let public_key = self.view_key(name, enckey)?;
         let private_key = self
-            .private_key(enckey, &public_key)?
+            .wallet_private_key(name, enckey)?
             .chain(|| (ErrorKind::StorageError, "can not find private key"))?;
         let tx = self.transaction_builder.decrypt_tx(txid, &private_key)?;
         Ok(tx)
@@ -217,7 +216,7 @@ where
         let wallet = self.wallet_service.get_wallet(name, enckey)?;
         let private_key = self
             .key_service
-            .private_key(&wallet.view_key, enckey)?
+            .wallet_private_key(name, enckey)?
             .chain(|| {
                 (
                     ErrorKind::InvalidInput,
@@ -247,8 +246,11 @@ where
         if view_key != wallet_info.wallet.view_key {
             return Err(Error::new(ErrorKind::InvalidInput, "public key not match"));
         }
-        self.key_service
-            .add_keypair(&wallet_info.private_key, &view_key, &enckey)?;
+        self.key_service.add_wallet_private_key(
+            &wallet_info.name,
+            &wallet_info.private_key,
+            &enckey,
+        )?;
 
         self.wallet_service
             .set_wallet(name, &enckey, wallet_info.wallet)?;
@@ -273,7 +275,7 @@ where
                 let view_key = PublicKey::from(&private_key);
 
                 self.key_service
-                    .add_keypair(&private_key, &view_key, &enckey)?;
+                    .add_wallet_private_key(name, &private_key, &enckey)?;
 
                 self.wallet_service.create(name, &enckey, view_key)?;
 
@@ -289,7 +291,7 @@ where
                         .generate_keypair(name, &enckey, HDAccountType::Viewkey)?;
 
                 self.key_service
-                    .add_keypair(&private_key, &public_key, &enckey)?;
+                    .add_wallet_private_key(name, &private_key, &enckey)?;
 
                 self.wallet_service.create(name, &enckey, public_key)?;
 
@@ -317,7 +319,7 @@ where
                 .generate_keypair(name, &enckey, HDAccountType::Viewkey)?;
 
         self.key_service
-            .add_keypair(&private_key, &public_key, &enckey)?;
+            .add_wallet_private_key(name, &private_key, &enckey)?;
 
         self.wallet_service.create(name, &enckey, public_key)?;
         Ok(enckey)
@@ -337,7 +339,7 @@ where
 
         let view_key = PublicKey::from(view_key_priv);
         self.key_service
-            .add_keypair(&view_key_priv, &view_key, &enckey)?;
+            .add_wallet_private_key(name, &view_key_priv, &enckey)?;
         self.wallet_service.create(name, &enckey, view_key)?;
         Ok(enckey)
     }
@@ -356,16 +358,11 @@ where
         if self.hd_key_service.has_wallet(name)? {
             self.hd_key_service.delete_wallet(name, &enckey)?;
         }
-        self.key_service.delete_key(&wallet.view_key, &enckey)?;
-        for pubkey in wallet.public_keys.iter() {
-            self.key_service.delete_key(pubkey, &enckey)?;
-        }
-        for pubkey in wallet.staking_keys.iter() {
-            self.key_service.delete_key(pubkey, &enckey)?;
-        }
+        self.key_service.delete_wallet_private_key(name, &enckey)?;
+
         for root_hash in wallet.root_hashes.iter() {
             self.root_hash_service
-                .delete_root_hash(root_hash, &enckey)?;
+                .delete_root_hash(name, root_hash, &enckey)?;
         }
         Ok(())
     }
@@ -388,7 +385,7 @@ where
     #[inline]
     fn view_key_private(&self, name: &str, enckey: &SecKey) -> Result<PrivateKey> {
         self.key_service
-            .private_key(&self.wallet_service.view_key(name, enckey)?, enckey)?
+            .wallet_private_key(name, enckey)?
             .err_kind(ErrorKind::InvalidInput, || "private view key not found")
     }
 
@@ -443,8 +440,19 @@ where
     }
 
     #[inline]
-    fn private_key(&self, enckey: &SecKey, public_key: &PublicKey) -> Result<Option<PrivateKey>> {
-        self.key_service.private_key(public_key, enckey)
+    fn wallet_private_key(&self, name: &str, enckey: &SecKey) -> Result<Option<PrivateKey>> {
+        self.key_service.wallet_private_key(name, enckey)
+    }
+
+    #[inline]
+    fn private_key(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        public_key: &PublicKey,
+    ) -> Result<Option<PrivateKey>> {
+        self.wallet_service
+            .find_private_key(name, enckey, public_key)
     }
 
     fn new_public_key(
@@ -473,11 +481,10 @@ where
             (public_key, private_key)
         };
 
-        self.key_service
-            .add_keypair(&private_key, &public_key, enckey)?;
-
         self.wallet_service
             .add_public_key(name, enckey, &public_key)?;
+        self.wallet_service
+            .add_key_pairs(name, enckey, &public_key, &private_key)?;
 
         Ok(public_key)
     }
@@ -493,11 +500,10 @@ where
             (public_key, private_key)
         };
 
-        self.key_service
-            .add_keypair(&private_key, &staking_key, enckey)?;
-
         self.wallet_service
             .add_staking_key(name, enckey, &staking_key)?;
+        self.wallet_service
+            .add_key_pairs(name, enckey, &staking_key, &private_key)?;
 
         Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from(
             &staking_key,
@@ -515,11 +521,11 @@ where
             (public_key, private_key)
         };
 
-        self.key_service
-            .add_keypair(&private_key, &public_key, enckey)?;
-
         self.wallet_service
             .add_public_key(name, enckey, &public_key)?;
+
+        self.wallet_service
+            .add_key_pairs(name, enckey, &public_key, &private_key)?;
 
         self.new_multisig_transfer_address(name, enckey, vec![public_key.clone()], public_key, 1)
     }
@@ -570,7 +576,7 @@ where
 
         let (root_hash, multi_sig_address) =
             self.root_hash_service
-                .new_root_hash(public_keys, self_public_key, m, enckey)?;
+                .new_root_hash(name, public_keys, self_public_key, m, enckey)?;
 
         self.wallet_service.add_root_hash(name, enckey, root_hash)?;
 
@@ -590,7 +596,7 @@ where
         match address {
             ExtendedAddr::OrTree(ref address) => {
                 self.root_hash_service
-                    .generate_proof(address, public_keys, enckey)
+                    .generate_proof(name, address, public_keys, enckey)
             }
         }
     }
@@ -599,7 +605,8 @@ where
         // To verify if the enckey is correct or not
         self.wallet_service.view_key(name, enckey)?;
 
-        self.root_hash_service.required_signers(root_hash, enckey)
+        self.root_hash_service
+            .required_signers(name, root_hash, enckey)
     }
 
     #[inline]
@@ -937,7 +944,7 @@ where
         // To verify if the enckey is correct or not
         self.transfer_addresses(name, enckey)?;
 
-        let private_key = self.private_key(enckey, public_key)?.chain(|| {
+        let private_key = self.private_key(name, enckey, public_key)?.chain(|| {
             (
                 ErrorKind::InvalidInput,
                 format!("Public key ({}) is not owned by current wallet", public_key),
@@ -957,15 +964,17 @@ where
         // To verify if the enckey is correct or not
         self.transfer_addresses(name, enckey)?;
 
-        let self_private_key = self.private_key(enckey, &self_public_key)?.chain(|| {
-            (
-                ErrorKind::InvalidInput,
-                format!(
-                    "Self public key ({}) is not owned by current wallet",
-                    self_public_key
-                ),
-            )
-        })?;
+        let self_private_key = self
+            .private_key(name, enckey, &self_public_key)?
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "Self public key ({}) is not owned by current wallet",
+                        self_public_key
+                    ),
+                )
+            })?;
 
         self.multi_sig_session_service.new_session(
             message,
@@ -1065,7 +1074,7 @@ where
 
         let proof = self
             .root_hash_service
-            .generate_proof(&root_hash, public_keys, enckey)?;
+            .generate_proof(name, &root_hash, public_keys, enckey)?;
         let signature = self.signature(session_id, enckey)?;
 
         let witness = TxWitness::from(vec![TxInWitness::TreeSig(signature, proof)]);
@@ -1192,5 +1201,38 @@ mod tests {
         client
             .restore_wallet("test", &passphrase, &words)
             .expect("restore wallet");
+    }
+
+    #[test]
+    fn check_restore_wallet_twice() {
+        let words = Mnemonic::from_secstr(&SecUtf8::from("pony thank pluck sweet bless tuna couple eight stove fluid essay debate cinnamon elite only")).unwrap();
+        let name1 = "Default1";
+        let name2 = "Default2";
+        let passphrase = SecUtf8::from("123456");
+        let client = DefaultWalletClient::new_read_only(MemoryStorage::default());
+        let enckey1 = client
+            .restore_wallet(name1, &passphrase, &words)
+            .expect("restore wallet 1 failed");
+        let enckey2 = client
+            .restore_wallet(name2, &passphrase, &words)
+            .expect("restore wallet 2 failed");
+        let transfer_address_1 = client
+            .new_transfer_address(name1, &enckey1)
+            .expect("create transfer address 1 failed");
+        let transfer_address_2 = client
+            .new_transfer_address(name2, &enckey2)
+            .expect("create transfer address 2 failed");
+        assert_eq!(transfer_address_1, transfer_address_2);
+        let staking_address_1 = client
+            .new_staking_address(name1, &enckey1)
+            .expect("create staking address 1 failed");
+        let staking_address_2 = client
+            .new_staking_address(name2, &enckey2)
+            .expect("create staking address 2 failed");
+        assert_eq!(staking_address_1, staking_address_2);
+        let transfer_address_22 = client.new_transfer_address(name2, &enckey2).unwrap();
+        assert_ne!(transfer_address_2, transfer_address_22);
+        let transfer_addresses = client.transfer_addresses(name2, &enckey2).unwrap();
+        assert_eq!(transfer_addresses.len(), 2);
     }
 }

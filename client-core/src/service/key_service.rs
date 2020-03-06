@@ -1,11 +1,11 @@
 use zeroize::Zeroize;
 
 use client_common::Result;
-use client_common::{ErrorKind, PrivateKey, PublicKey, ResultExt, SecKey, SecureStorage, Storage};
+use client_common::{ErrorKind, PrivateKey, ResultExt, SecKey, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_key";
 
-/// Maintains mapping `public-key -> private-key`
+/// Maintains mapping `wallet-name -> private-key`
 #[derive(Debug, Default, Clone)]
 pub struct KeyService<T: SecureStorage> {
     storage: T,
@@ -21,32 +21,32 @@ where
         KeyService { storage }
     }
 
-    /// Adds a new public-private keypair to storage
-    pub fn add_keypair(
+    /// Adds a new wallet_name-private keypair to storage
+    pub fn add_wallet_private_key(
         &self,
+        wallet_name: &str,
         private_key: &PrivateKey,
-        public_key: &PublicKey,
         enckey: &SecKey,
     ) -> Result<()> {
         self.storage
             .set_secure(
                 KEYSPACE,
-                public_key.serialize(),
+                wallet_name.as_bytes(),
                 private_key.serialize(),
                 enckey,
             )
             .map(|_| ())
     }
 
-    /// Retrieves private key corresponding to given public key
-    pub fn private_key(
+    /// Retrieves private key corresponding to given wallet name
+    pub fn wallet_private_key(
         &self,
-        public_key: &PublicKey,
+        wallet_name: &str,
         enckey: &SecKey,
     ) -> Result<Option<PrivateKey>> {
         let private_key_bytes =
             self.storage
-                .get_secure(KEYSPACE, public_key.serialize(), enckey)?;
+                .get_secure(KEYSPACE, wallet_name.as_bytes(), enckey)?;
 
         private_key_bytes
             .map(|mut private_key_bytes| {
@@ -57,13 +57,14 @@ where
             .transpose()
     }
 
-    /// Delete key pair
-    pub fn delete_key(&self, public_key: &PublicKey, enckey: &SecKey) -> Result<()> {
-        let serialized = public_key.serialize();
+    /// Delete private key
+    pub fn delete_wallet_private_key(&self, wallet_name: &str, enckey: &SecKey) -> Result<()> {
         self.storage
-            .get_secure(KEYSPACE, &serialized, enckey)?
-            .err_kind(ErrorKind::InvalidInput, || "public key not found")?;
-        self.storage.delete(KEYSPACE, &serialized)?;
+            .get_secure(KEYSPACE, wallet_name.as_bytes(), enckey)?
+            .err_kind(ErrorKind::InvalidInput, || {
+                "private key not found for wallet"
+            })?;
+        self.storage.delete(KEYSPACE, wallet_name.as_bytes())?;
         Ok(())
     }
 
@@ -89,21 +90,21 @@ mod tests {
         let incorrect_enckey = derive_enckey(&SecUtf8::from("passphrase1"), "").unwrap();
 
         let private_key = PrivateKey::new().unwrap();
-        let public_key = PublicKey::from(&private_key);
+        let name = "Default";
 
         key_service
-            .add_keypair(&private_key, &public_key, &enckey)
+            .add_wallet_private_key(name, &private_key, &enckey)
             .expect("Unable to generate private key");
 
         let retrieved_private_key = key_service
-            .private_key(&public_key, &enckey)
+            .wallet_private_key(name, &enckey)
             .unwrap()
             .unwrap();
 
         assert_eq!(private_key, retrieved_private_key);
 
         let error = key_service
-            .private_key(&public_key, &incorrect_enckey)
+            .wallet_private_key(name, &incorrect_enckey)
             .expect_err("Decryption worked with incorrect enckey");
 
         assert_eq!(

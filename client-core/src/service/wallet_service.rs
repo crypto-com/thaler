@@ -11,6 +11,7 @@ use client_common::{
 };
 use std::fmt;
 //use serde::ser::{Serialize, SerializeStruct, Serializer};
+use parity_scale_codec::alloc::collections::BTreeMap;
 use secstr::SecUtf8;
 use serde::de::{self, Visitor};
 use serde::export::PhantomData;
@@ -77,6 +78,8 @@ pub struct WalletInfo {
 pub struct Wallet {
     /// view key to decrypt enclave transactions
     pub view_key: PublicKey,
+    /// public key and private key pair
+    pub key_pairs: BTreeMap<PublicKey, PrivateKey>,
     /// public keys to construct transfer addresses
     pub public_keys: IndexSet<PublicKey>,
     /// public keys of staking addresses
@@ -88,6 +91,11 @@ pub struct Wallet {
 impl Encode for Wallet {
     fn encode_to<W: Output>(&self, dest: &mut W) {
         self.view_key.encode_to(dest);
+        (self.key_pairs.len() as u64).encode_to(dest);
+        for (key, value) in self.key_pairs.iter() {
+            key.encode_to(dest);
+            value.encode_to(dest);
+        }
         (self.public_keys.len() as u64).encode_to(dest);
         for key in self.public_keys.iter() {
             key.encode_to(dest);
@@ -106,7 +114,13 @@ impl Encode for Wallet {
 impl Decode for Wallet {
     fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, parity_scale_codec::Error> {
         let view_key = PublicKey::decode(input)?;
-
+        let mut key_pairs = BTreeMap::new();
+        let len = u64::decode(input)?;
+        for _ in 0..len {
+            let key = PublicKey::decode(input)?;
+            let value = PrivateKey::decode(input)?;
+            key_pairs.insert(key, value);
+        }
         let len = u64::decode(input)?;
         let mut public_keys = IndexSet::with_capacity(len as usize);
         for _ in 0..len {
@@ -127,6 +141,7 @@ impl Decode for Wallet {
 
         Ok(Wallet {
             view_key,
+            key_pairs,
             public_keys,
             staking_keys,
             root_hashes,
@@ -139,6 +154,7 @@ impl Wallet {
     pub fn new(view_key: PublicKey) -> Self {
         Self {
             view_key,
+            key_pairs: Default::default(),
             public_keys: Default::default(),
             staking_keys: Default::default(),
             root_hashes: Default::default(),
@@ -167,6 +183,17 @@ impl Wallet {
         self.staking_keys
             .iter()
             .find(|staking_key| &RedeemAddress::from(*staking_key) == redeem_address)
+    }
+
+    /// find private key
+    pub fn find_private_key(&self, public_key: &PublicKey) -> Option<&PrivateKey> {
+        self.key_pairs.get(public_key)
+    }
+
+    /// add key pair
+    pub fn add_key_pair(&mut self, public_key: &PublicKey, private_key: &PrivateKey) {
+        self.key_pairs
+            .insert(public_key.clone(), private_key.clone());
     }
 
     /// find root hash
@@ -245,6 +272,19 @@ where
             .cloned())
     }
 
+    /// Finds private_key corresponding to given public_key
+    pub fn find_private_key(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        public_key: &PublicKey,
+    ) -> Result<Option<PrivateKey>> {
+        Ok(self
+            .get_wallet(name, enckey)?
+            .find_private_key(public_key)
+            .cloned())
+    }
+
     /// Checks if root hash exists in current wallet and returns root hash if exists
     pub fn find_root_hash(
         &self,
@@ -310,6 +350,21 @@ where
         enckey: &SecKey,
     ) -> Result<IndexSet<ExtendedAddr>> {
         Ok(self.get_wallet(name, enckey)?.transfer_addresses())
+    }
+
+    /// Adds a (public_key, private_key) pair to given wallet
+    pub fn add_key_pairs(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        public_key: &PublicKey,
+        private_key: &PrivateKey,
+    ) -> Result<()> {
+        self.modify_wallet(name, enckey, move |wallet| {
+            wallet
+                .key_pairs
+                .insert(public_key.clone(), private_key.clone());
+        })
     }
 
     /// Adds a public key to given wallet
