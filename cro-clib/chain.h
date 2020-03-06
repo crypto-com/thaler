@@ -15,6 +15,8 @@ typedef struct CroFee CroFee;
 
 typedef struct CroHDWallet CroHDWallet;
 
+typedef struct CroJsonRpc CroJsonRpc;
+
 typedef struct CroTx CroTx;
 
 typedef struct CroResult {
@@ -26,6 +28,14 @@ typedef CroAddress *CroAddressPtr;
 typedef CroFee *CroFeePtr;
 
 typedef CroHDWallet *CroHDWalletPtr;
+
+typedef CroJsonRpc *CroJsonRpcPtr;
+
+/**
+ * current, start, end, userdata
+ * return: 1: continue, 0: stop
+ */
+typedef int32_t (*ProgressCallback)(uint64_t, uint64_t, uint64_t, const void*);
 
 typedef CroTx *CroTxPtr;
 
@@ -40,12 +50,6 @@ typedef struct CroStakedState {
   uint64_t unbonded;
   uint64_t unbonded_from;
 } CroStakedState;
-
-/**
- * current, start, end, userdata
- * return: 1: continue, 0: stop
- */
-typedef int32_t (*ProgressCallback)(uint64_t, uint64_t, uint64_t, const void*);
 
 /**
  * create staking address
@@ -114,6 +118,31 @@ CroResult cro_create_hdwallet(CroHDWalletPtr *wallet_out,
                               uint32_t mnemonics_length);
 
 /**
+ * create json-rpc context
+ * rpc_out: null pointer which will be written
+ * example c-code)
+ *  CroJsonRpcPtr rpc= NULL;
+ *  cro_create_jsonrpc(&rpc, ".storage", "ws://localhost:26657/websocket", 0xab, &progress);
+ * storage_dir: ".storage"
+ * websocket_url:  "ws://localhost:26657/websocket"
+ * network: network-id  ex) 0xab
+ * progress_callback: callback function which user codes
+ * example c-code)
+ * int32_t  progress(float rate)
+ * {
+ *    printf("progress %f\n", rate);
+ * }
+ * you can give this callback like below
+ * CroResult retcode = cro_jsonrpc_call("./.storage", "ws://localhost:26657/websocket", 0xab, req, buf, sizeof(buf), &progress);
+ * # Safety
+ */
+CroResult cro_create_jsonrpc(CroJsonRpcPtr *rpc_out,
+                             const char *storage_dir_user,
+                             const char *websocket_url_user,
+                             uint8_t network_id,
+                             ProgressCallback progress_callback);
+
+/**
  * create staking address from bip44 hdwallet
  * # Safety
  */
@@ -176,6 +205,13 @@ CroResult cro_destroy_fee_algorithm(CroFeePtr fee);
  * hdwallet: previously allocated hdwallet
  */
 CroResult cro_destroy_hdwallet(CroHDWalletPtr hdwallet);
+
+/**
+ * destroy json-rpc context
+ * rpc: containing pointer to free
+ * # Safety
+ */
+CroResult cro_destroy_jsonrpc(CroJsonRpcPtr rpc);
 
 /**
  * destroy tx
@@ -307,6 +343,19 @@ CroResult cro_jsonrpc_call(const char *storage_dir,
  * # Safety
  */
 CroResult cro_restore_hdwallet(const char *mnemonics_string, CroHDWalletPtr *wallet_out);
+
+/**
+ * request: json rpc request
+ * example c code) const char* req = "{\"jsonrpc\": \"2.0\", \"method\": \"wallet_list\", \"params\": [], \"id\": 1}";
+ * buf: minimum 500 bytes
+ * buf_size: size of buf in bytes
+ * # Safety
+ */
+CroResult cro_run_jsonrpc(CroJsonRpcPtr rpc_ptr,
+                          const char *request,
+                          char *buf,
+                          uintptr_t buf_size,
+                          const void *user_data);
 
 /**
  * add txin
