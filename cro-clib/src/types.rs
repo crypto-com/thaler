@@ -4,9 +4,16 @@ use chain_core::tx::fee::{LinearFee, Milli};
 use client_common::{PrivateKey, PublicKey};
 use client_core::transaction_builder::WitnessedUTxO;
 use client_core::HDSeed;
+use client_rpc::rpc::sync_rpc::CBindingCore;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::os::raw::c_int;
+
+use jsonrpc_core::IoHandler;
+
+#[cfg(feature = "mock-enc-dec")]
+use client_core::cipher::MockAbciTransactionObfuscation;
+
 pub type CroHDWalletPtr = *mut CroHDWallet;
 pub type CroAddressPtr = *mut CroAddress;
 pub type CroTxPtr = *mut CroTx;
@@ -17,6 +24,7 @@ pub const SUCCESS: i32 = 0;
 pub const FAIL: i32 = -1;
 
 pub type CroString = [u8; 200];
+
 /// account types
 #[repr(C)]
 pub enum CroAccount {
@@ -99,3 +107,10 @@ impl Default for CroFee {
 /// current, start, end, userdata
 /// return: 1: continue, 0: stop
 pub type ProgressCallback = extern "C" fn(u64, u64, u64, *const std::ffi::c_void) -> i32;
+
+#[derive(Clone)]
+pub struct CroJsonRpc {
+    pub handler: IoHandler,
+    pub binding: CBindingCore,
+}
+pub type CroJsonRpcPtr = *mut CroJsonRpc;
