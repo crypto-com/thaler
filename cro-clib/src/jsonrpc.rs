@@ -24,6 +24,8 @@ use client_rpc::rpc::{
 };
 
 use crate::types::CroResult;
+use crate::types::ProgressCallback;
+use client_rpc::rpc::sync_rpc::{CBindingCallback, CBindingCore};
 
 #[cfg(not(feature = "mock-enc-dec"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;
@@ -108,11 +110,41 @@ fn make_syncer_config(
     ))
 }
 
+use std::sync::Arc;
+use std::sync::Mutex;
+
+#[derive(Clone)]
+struct CBindingData {
+    progress_callback: ProgressCallback,
+    user_data: u64,
+}
+
+impl CBindingCallback for CBindingData {
+    fn set_user(&mut self, user: u64) {
+        self.user_data = user;
+    }
+    fn get_user(&self) -> u64 {
+        self.user_data
+    }
+
+    fn progress(&self, current: u64, start: u64, end: u64) -> i32 {
+        let back = &self.progress_callback;
+        (back)(
+            current,
+            start,
+            end,
+            self.user_data as *const std::ffi::c_void,
+        )
+    }
+}
+
 fn do_jsonrpc_call(
     storage_dir: &str,
     websocket_url: &str,
     network_id: u8,
     json_request: &str,
+    progress_callback: ProgressCallback,
+    user_data: *const std::ffi::c_void,
 ) -> Result<String> {
     let mut io = IoHandler::new();
     let storage = SledStorage::new(storage_dir)?;
@@ -124,7 +156,13 @@ fn do_jsonrpc_call(
     let multisig_rpc = MultiSigRpcImpl::new(wallet_client.clone());
     let transaction_rpc = TransactionRpcImpl::new(network_id);
     let staking_rpc = StakingRpcImpl::new(wallet_client.clone(), ops_client, network_id);
-    let sync_rpc = SyncRpcImpl::new(syncer_config);
+    let cbindingcallback = CBindingCore {
+        data: Arc::new(Mutex::new(CBindingData {
+            progress_callback,
+            user_data: user_data as u64,
+        })),
+    };
+    let sync_rpc = SyncRpcImpl::new(syncer_config, Some(cbindingcallback));
     let wallet_rpc = WalletRpcImpl::new(wallet_client, network_id);
 
     io.extend_with(multisig_rpc.to_delegate());
@@ -164,6 +202,8 @@ pub unsafe extern "C" fn cro_jsonrpc_call(
     request: *const c_char,
     buf: *mut c_char,
     buf_size: usize,
+    progress_callback: ProgressCallback,
+    user_data: *const std::ffi::c_void,
 ) -> CroResult {
     let res = do_jsonrpc_call(
         CStr::from_ptr(storage_dir)
@@ -176,6 +216,8 @@ pub unsafe extern "C" fn cro_jsonrpc_call(
         CStr::from_ptr(request)
             .to_str()
             .expect("storage_dir should be utf-8"),
+        progress_callback,
+        user_data,
     );
     match res {
         Err(e) => {
