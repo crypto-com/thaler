@@ -14,7 +14,7 @@ chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 client-network = { path = "../client-network" }
-console = "0.9"
+console = "0.10"
 rand = "0.7"
 once_cell = "1.3"
 structopt = "0.3"
