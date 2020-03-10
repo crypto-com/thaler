@@ -27,4 +27,5 @@ To suggest an ADR, please make use of the [ADR template](./adr-template.md) prov
 
 | ADR \# | Description | Status |
 | ------ | ----------- | ------ |
-| [000](./adr-template.md) | None yet | Proposed |
+| [001](./adr-001.md) | Storage Consolidation | Accepted |
+| [002](./adr-002.md) | Enclave Code | Proposed |
