@@ -273,19 +273,6 @@ pub fn to_stake_key(address: &StakedStateAddress) -> [u8; HASH_SIZE_256] {
     }
 }
 
-impl Default for StakedState {
-    fn default() -> Self {
-        StakedState::new(
-            0,
-            Coin::zero(),
-            Coin::zero(),
-            0,
-            StakedStateAddress::BasicRedeem(RedeemAddress::default()),
-            None,
-        )
-    }
-}
-
 impl StakedState {
     /// creates a new StakedState with given parameters
     pub fn new(
@@ -303,6 +290,19 @@ impl StakedState {
             unbonded_from,
             address,
             punishment,
+            council_node: None,
+        }
+    }
+
+    /// Create a default StakedState with address.
+    pub fn default(address: StakedStateAddress) -> Self {
+        StakedState {
+            nonce: 0,
+            bonded: Coin::zero(),
+            unbonded: Coin::zero(),
+            unbonded_from: 0,
+            address,
+            punishment: None,
             council_node: None,
         }
     }
