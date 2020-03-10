@@ -10,7 +10,7 @@ chain-tx-filter = { path = "../chain-tx-filter" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d50d5998a11064591d86583b297130d6d9636aa5", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
 rand = "0.7"
 log = "0.4.8"
-aes-gcm-siv = "0.3"
+aes-gcm-siv = "0.4"
 aes = "0.3"
 blake2 = "0.8"
 rust-argon2 = "0.8"
