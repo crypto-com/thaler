@@ -54,6 +54,7 @@ void sync()
         printf("error: %s\n", buf);
     }
 }
+
 void context_sync()
 {
     const int BUFSIZE=1000;
@@ -61,24 +62,28 @@ void context_sync()
     char* name= getenv("CRO_NAME");
     char* passphrase=getenv("CRO_PASSPHRASE");
     char* enckey=getenv("CRO_ENCKEY");
+    char* mnemonics= getenv("CRO_MNEMONICS");
     const char* req_template = "{\"jsonrpc\": \"2.0\", \"method\": \"sync\", \"params\": [{\"name\":\"%s\", \"passphrase\":\"%s\",\"enckey\":\"%s\"}], \"id\": 1}";
     char req[BUFSIZE];
     sprintf(req, req_template, name, passphrase, enckey);
 
     const char* user="i'm user";
     const char* wallet_req = "{\"jsonrpc\": \"2.0\", \"method\": \"wallet_list\", \"params\": [], \"id\": 1}";
-
+    const char* wallet_restore_req = "{\"jsonrpc\": \"2.0\", \"method\": \"wallet_restore\", \"params\": [{\"name\":\"%s\", \"passphrase\":\"%s\"}, \"%s\"], \"id\": 2}";
+    char tmp[BUFSIZE];
+    sprintf(tmp ,wallet_restore_req, name, passphrase, mnemonics);    
     printf("sync with context\n");
     CroJsonRpcPtr rpc= NULL;
     cro_create_jsonrpc(&rpc, ".storage", "ws://localhost:26657/websocket", 0xab, &progress);
-    cro_run_jsonrpc(rpc, wallet_req, buf, sizeof(buf), user);
+    cro_run_jsonrpc(rpc, wallet_req, buf, sizeof(buf), user);        
     printf("response: %s\n", buf);    
-
+    cro_run_jsonrpc(rpc, tmp, buf, sizeof(buf), user);    
+    printf("response: %s\n", buf);    
     cro_run_jsonrpc(rpc, req, buf, sizeof(buf),user);
     printf("response: %s\n", buf);
     
     cro_destroy_jsonrpc(rpc);
-    printf("OK");
+    printf("OK\n");
 
 }
 
@@ -87,7 +92,7 @@ int test_rpc()
     printf("test rpc\n");
     //show_wallets();
     //sync();
-    context_sync();
+    context_sync();    
     return 0;
 }
 
