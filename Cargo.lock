@@ -583,9 +583,9 @@ dependencies = [
 
 [[package]]
 name = "cli-table"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fe7bde9ea2c89a08ae0f5b75de12a5afbedb424dc09d9f58a9d850a348f60e0"
+checksum = "6c33fefd3d47608151daee022309798b78d25bb3320b378258822ce2edc2abe7"
 dependencies = [
  "termcolor",
  "unicode-width",
