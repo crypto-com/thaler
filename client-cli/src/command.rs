@@ -406,7 +406,8 @@ impl Command {
                 ]),
             ],
             Default::default(),
-        );
+        )
+        .chain(|| (ErrorKind::InternalError, "Unable to create new table"))?;
 
         table
             .print_stdout()
@@ -451,7 +452,8 @@ impl Command {
             ]),
         ];
 
-        let table = Table::new(rows, Default::default());
+        let table = Table::new(rows, Default::default())
+            .chain(|| (ErrorKind::InternalError, "Unable to create new table"))?;
         table
             .print_stdout()
             .chain(|| (ErrorKind::IoError, "Unable to print table"))?;
@@ -522,7 +524,8 @@ impl Command {
                 ]));
             }
 
-            let table = Table::new(rows, Default::default());
+            let table = Table::new(rows, Default::default())
+                .chain(|| (ErrorKind::InternalError, "Unable to create new table"))?;
 
             table
                 .print_stdout()
