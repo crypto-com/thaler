@@ -401,7 +401,8 @@ fn display_transaction<T: WalletClient>(
                 Cell::new(&transaction_change.block_time, Default::default()),
             ]));
 
-            let metadata_table = Table::new(metadata_rows, Default::default());
+            let metadata_table = Table::new(metadata_rows, Default::default())
+                .chain(|| (ErrorKind::InternalError, "Unable to create new table"))?;
 
             println!();
             ask("Transaction metadata: ");
@@ -432,7 +433,8 @@ fn display_transaction<T: WalletClient>(
                     ]));
                 }
 
-                let inputs_table = Table::new(inputs_rows, Default::default());
+                let inputs_table = Table::new(inputs_rows, Default::default())
+                    .chain(|| (ErrorKind::InternalError, "Unable to create new table"))?;
 
                 println!();
                 ask("Transaction inputs: ");
@@ -496,7 +498,8 @@ fn display_transaction<T: WalletClient>(
                     ]));
                 }
 
-                let outputs_table = Table::new(outputs_rows, Default::default());
+                let outputs_table = Table::new(outputs_rows, Default::default())
+                    .chain(|| (ErrorKind::InternalError, "Unable to create new table"))?;
 
                 println!();
                 ask("Transaction outputs: ");
