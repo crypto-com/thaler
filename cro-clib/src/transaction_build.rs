@@ -8,14 +8,12 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::TxId;
 use chain_core::tx::witness::TxInWitness;
 use chain_core::tx::witness::TxWitness;
-use chain_core::tx::TransactionId;
-use client_common::MultiSigAddress;
 use client_common::SignedTransaction;
 use client_common::{ErrorKind, Result, ResultExt};
-use client_common::{PrivateKey, PublicKey};
+use client_common::{MultiSigAddress, Transaction};
+use client_common::{PrivateKey, PrivateKeyAction, PublicKey};
 use client_core::transaction_builder::WitnessedUTxO;
 use parity_scale_codec::Encode;
 use std::convert::From;
@@ -207,8 +205,8 @@ pub unsafe extern "C" fn cro_tx_complete_signing(
 fn sign_txin(address: &CroAddress, user_tx: &mut CroTx, which_tx_in_user: u16) -> Result<()> {
     let which_tx_in: usize = which_tx_in_user as usize;
     assert!(which_tx_in < user_tx.txin.len());
-    let txid: TxId = user_tx.tx.id();
-    let witness: TxInWitness = schnorr_sign(&txid, &address.publickey, &address.privatekey)?;
+    let tx = Transaction::TransferTransaction(user_tx.tx.clone());
+    let witness: TxInWitness = schnorr_sign(&tx, &address.publickey, &address.privatekey)?;
     user_tx.txin[which_tx_in].witness = Some(witness);
     Ok(())
 }
@@ -234,7 +232,7 @@ pub unsafe extern "C" fn cro_tx_sign_txin(
 
 /// TODO: it's only for 1 of 1 , code for other multiple signers(m/n) will be added
 pub fn schnorr_sign(
-    message: &TxId,
+    tx: &Transaction,
     public_key: &PublicKey,
     private_key: &PrivateKey,
 ) -> Result<TxInWitness> {
@@ -244,10 +242,7 @@ pub fn schnorr_sign(
     let proof = multi_sig_address
         .generate_proof(public_keys.to_vec())?
         .chain(|| (ErrorKind::InvalidInput, "Unable to generate merkle proof"))?;
-    Ok(TxInWitness::TreeSig(
-        private_key.schnorr_sign(message)?,
-        proof,
-    ))
+    Ok(TxInWitness::TreeSig(private_key.schnorr_sign(tx)?, proof))
 }
 
 fn add_txout(tx: &mut CroTx, addr: &str, coin: u64) -> Result<()> {

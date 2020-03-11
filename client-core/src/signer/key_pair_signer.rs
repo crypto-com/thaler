@@ -3,7 +3,10 @@ use chain_core::common::Proof;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use client_common::{Error, ErrorKind, MultiSigAddress, PrivateKey, PublicKey, Result, ResultExt};
+use client_common::{
+    Error, ErrorKind, MultiSigAddress, PrivateKey, PrivateKeyAction, PublicKey, Result, ResultExt,
+    Transaction,
+};
 
 use crate::{SelectedUnspentTransactions, SignCondition, Signer};
 
@@ -45,14 +48,14 @@ fn generate_extended_addr_and_proof(
 }
 
 impl Signer for KeyPairSigner {
-    fn schnorr_sign_transaction<T: AsRef<[u8]>>(
+    fn schnorr_sign_transaction(
         &self,
-        message: T,
+        tx: &Transaction,
         selected_unspent_transactions: &SelectedUnspentTransactions<'_>,
     ) -> Result<TxWitness> {
         selected_unspent_transactions
             .iter()
-            .map(|(_, output)| self.schnorr_sign(&message, &output.address))
+            .map(|(_, output)| self.schnorr_sign(tx, &output.address))
             .collect::<Result<Vec<TxInWitness>>>()
             .map(Into::into)
     }
@@ -64,11 +67,7 @@ impl Signer for KeyPairSigner {
             Ok(SignCondition::Impossible)
         }
     }
-    fn schnorr_sign<T: AsRef<[u8]>>(
-        &self,
-        message: T,
-        signing_addr: &ExtendedAddr,
-    ) -> Result<TxInWitness> {
+    fn schnorr_sign(&self, tx: &Transaction, signing_addr: &ExtendedAddr) -> Result<TxInWitness> {
         if *signing_addr != self.extended_addr {
             return Err(Error::new(
                 ErrorKind::MultiSigError,
@@ -77,7 +76,7 @@ impl Signer for KeyPairSigner {
         }
 
         Ok(TxInWitness::TreeSig(
-            self.private_key.schnorr_sign(&message)?,
+            self.private_key.schnorr_sign(tx)?,
             self.proof.clone(),
         ))
     }

@@ -22,9 +22,12 @@ use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResponse;
-use client_common::{PrivateKey, PublicKey, Result, SecKey, Transaction, TransactionInfo};
+use client_common::{
+    PrivateKey, PrivateKeyAction, PublicKey, Result, SecKey, Transaction, TransactionInfo,
+};
 use serde::{Deserialize, Serialize};
 
+use crate::hd_wallet::HardwareKind;
 use crate::service::WalletInfo;
 use crate::transaction_builder::{SignedTransferTransaction, UnsignedTransferTransaction};
 use crate::types::{AddressType, TransactionChange, TransactionPending, WalletBalance, WalletKind};
@@ -53,6 +56,12 @@ pub struct WalletRequest {
 pub trait WalletClient: Send + Sync {
     /// if the view key included in the transaction, return the Transaction
     fn get_transaction(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<Transaction>;
+
+    /// update hardware wallet service
+    fn update_hw_service(&mut self, hardware_type: HardwareKind);
+
+    /// get wallet kind
+    fn get_wallet_kind(&self, name: &str, enckey: &SecKey) -> Result<WalletKind>;
 
     /// Send balance to a transfer address, return the transaction id directly
     fn send_to_address(
@@ -162,7 +171,20 @@ pub trait WalletClient: Send + Sync {
     ) -> Result<Option<H256>>;
 
     /// Retrieves private key corresponding to given wallet name
-    fn wallet_private_key(&self, name: &str, enckey: &SecKey) -> Result<Option<PrivateKey>>;
+    fn wallet_private_key(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        wallet_kind: WalletKind,
+    ) -> Result<Option<PrivateKey>>;
+
+    /// Retrieves sign key(local private key or hardware key) corresponding to given public key
+    fn sign_key(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        public_key: &PublicKey,
+    ) -> Result<Box<dyn PrivateKeyAction>>;
 
     /// Retrieves private key corresponding to given public key
     fn private_key(
@@ -365,7 +387,7 @@ pub trait MultiSigWalletClient: WalletClient {
         &self,
         name: &str,
         enckey: &SecKey,
-        message: &H256,
+        tx: &Transaction,
         public_key: &PublicKey,
     ) -> Result<SchnorrSignature>;
 

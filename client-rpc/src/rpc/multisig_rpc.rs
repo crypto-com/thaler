@@ -346,6 +346,7 @@ mod test {
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
     use client_common::{PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
+    use client_core::service::HwKeyService;
     use client_core::signer::WalletSignerManager;
     use client_core::transaction_builder::DefaultWalletTransactionBuilder;
     use client_core::types::WalletKind;
@@ -398,13 +399,19 @@ mod test {
     }
 
     fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
         let transaction_builder = DefaultWalletTransactionBuilder::new(
             signer_manager,
             ZeroFeeAlgorithm::default(),
             MockTransactionCipher,
         );
-        DefaultWalletClient::new(storage, MockRpcClient, transaction_builder, None)
+        DefaultWalletClient::new(
+            storage,
+            MockRpcClient,
+            transaction_builder,
+            None,
+            HwKeyService::default(),
+        )
     }
 
     fn setup_multisig_rpc() -> MultiSigRpcImpl<TestWalletClient> {

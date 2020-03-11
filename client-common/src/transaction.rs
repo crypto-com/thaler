@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use super::{ErrorKind, Result, ResultExt};
 use chain_core::state::account::{
-    DepositBondTx, StakedState, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
+    DepositBondTx, StakedState, StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
 };
+use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
@@ -65,6 +66,10 @@ pub enum Transaction {
     UnbondStakeTransaction(UnbondTx),
     /// Withdraw unbounded stake transaction
     WithdrawUnbondedStakeTransaction(WithdrawUnbondedTx),
+    /// Unjail transaction
+    UnjailTransaction(UnjailTx),
+    /// Node join transaction
+    NodejoinTransaction(NodeJoinRequestTx),
 }
 
 impl Transaction {
@@ -74,7 +79,9 @@ impl Transaction {
             Transaction::TransferTransaction(ref transaction) => &transaction.inputs,
             Transaction::DepositStakeTransaction(ref transaction) => &transaction.inputs,
             Transaction::UnbondStakeTransaction(_)
-            | Transaction::WithdrawUnbondedStakeTransaction(_) => &[],
+            | Transaction::WithdrawUnbondedStakeTransaction(_)
+            | Transaction::UnjailTransaction(_)
+            | Transaction::NodejoinTransaction(_) => &[],
         }
     }
 
@@ -83,7 +90,10 @@ impl Transaction {
         match self {
             Transaction::TransferTransaction(ref transaction) => &transaction.outputs,
             Transaction::WithdrawUnbondedStakeTransaction(ref transaction) => &transaction.outputs,
-            Transaction::UnbondStakeTransaction(_) | Transaction::DepositStakeTransaction(_) => &[],
+            Transaction::UnbondStakeTransaction(_)
+            | Transaction::DepositStakeTransaction(_)
+            | Transaction::UnjailTransaction(_)
+            | Transaction::NodejoinTransaction(_) => &[],
         }
     }
 }
@@ -95,6 +105,8 @@ impl TransactionId for Transaction {
             Transaction::DepositStakeTransaction(ref transaction) => transaction.id(),
             Transaction::UnbondStakeTransaction(ref transaction) => transaction.id(),
             Transaction::WithdrawUnbondedStakeTransaction(ref transaction) => transaction.id(),
+            Transaction::UnjailTransaction(ref transaction) => transaction.id(),
+            Transaction::NodejoinTransaction(ref transaction) => transaction.id(),
         }
     }
 }

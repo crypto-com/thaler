@@ -11,6 +11,7 @@ use client_common::{
 };
 use std::fmt;
 //use serde::ser::{Serialize, SerializeStruct, Serializer};
+use crate::types::WalletKind;
 use parity_scale_codec::alloc::collections::BTreeMap;
 use secstr::SecUtf8;
 use serde::de::{self, Visitor};
@@ -86,6 +87,8 @@ pub struct Wallet {
     pub staking_keys: IndexSet<PublicKey>,
     /// root hashes of multi-sig transfer addresses
     pub root_hashes: IndexSet<H256>,
+    /// wallet type
+    pub wallet_kind: WalletKind,
 }
 
 impl Encode for Wallet {
@@ -108,6 +111,7 @@ impl Encode for Wallet {
         for hash in self.root_hashes.iter() {
             hash.encode_to(dest);
         }
+        self.wallet_kind.encode_to(dest);
     }
 }
 
@@ -138,6 +142,7 @@ impl Decode for Wallet {
         for _ in 0..len {
             root_hashes.insert(H256::decode(input)?);
         }
+        let wallet_kind = WalletKind::decode(input)?;
 
         Ok(Wallet {
             view_key,
@@ -145,19 +150,21 @@ impl Decode for Wallet {
             public_keys,
             staking_keys,
             root_hashes,
+            wallet_kind,
         })
     }
 }
 
 impl Wallet {
     /// Creates a new instance of `Wallet`
-    pub fn new(view_key: PublicKey) -> Self {
+    pub fn new(view_key: PublicKey, wallet_kind: WalletKind) -> Self {
         Self {
             view_key,
             key_pairs: Default::default(),
             public_keys: Default::default(),
             staking_keys: Default::default(),
             root_hashes: Default::default(),
+            wallet_kind,
         }
     }
 
@@ -224,7 +231,6 @@ pub fn save_wallet<S: SecureStorage>(
 ) -> Result<()> {
     storage.save_secure(KEYSPACE, name, enckey, wallet)
 }
-
 /// Maintains mapping `wallet-name -> wallet-details`
 #[derive(Debug, Default, Clone)]
 pub struct WalletService<T: Storage> {
@@ -279,10 +285,9 @@ where
         enckey: &SecKey,
         public_key: &PublicKey,
     ) -> Result<Option<PrivateKey>> {
-        Ok(self
-            .get_wallet(name, enckey)?
-            .find_private_key(public_key)
-            .cloned())
+        let wallet = self.get_wallet(name, enckey)?;
+        let private_key = wallet.find_private_key(public_key).cloned();
+        Ok(private_key)
     }
 
     /// Checks if root hash exists in current wallet and returns root hash if exists
@@ -299,7 +304,13 @@ where
     }
 
     /// Creates a new wallet and returns wallet ID
-    pub fn create(&self, name: &str, enckey: &SecKey, view_key: PublicKey) -> Result<()> {
+    pub fn create(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        view_key: PublicKey,
+        wallet_kind: WalletKind,
+    ) -> Result<()> {
         if self.storage.contains_key(KEYSPACE, name)? {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -307,7 +318,7 @@ where
             ));
         }
 
-        self.set_wallet(name, enckey, Wallet::new(view_key))
+        self.set_wallet(name, enckey, Wallet::new(view_key, wallet_kind))
     }
 
     /// Returns view key of wallet
@@ -472,14 +483,16 @@ mod tests {
             .public_keys("name", &enckey)
             .expect_err("Retrieved public keys for non-existent wallet");
 
+        let wallet_kind = WalletKind::Basic;
+
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
 
         assert!(wallet_service
-            .create("name", &enckey, view_key.clone())
+            .create("name", &enckey, view_key.clone(), wallet_kind)
             .is_ok());
 
         let error = wallet_service
-            .create("name", &enckey, view_key.clone())
+            .create("name", &enckey, view_key.clone(), wallet_kind)
             .expect_err("Created duplicate wallet");
 
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
@@ -490,7 +503,7 @@ mod tests {
         );
 
         let error = wallet_service
-            .create("name", &enckey, view_key)
+            .create("name", &enckey, view_key, wallet_kind)
             .expect_err("Able to create wallet with same name as previously created");
 
         assert_eq!(error.kind(), ErrorKind::InvalidInput, "Invalid error kind");

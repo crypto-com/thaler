@@ -1,3 +1,5 @@
+use crate::Transaction;
+use chain_core::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use rand::rngs::OsRng;
 use secp256k1::schnorrsig::{schnorr_sign, SchnorrSignature};
@@ -6,9 +8,55 @@ use zeroize::Zeroize;
 
 use crate::{ErrorKind, PublicKey, Result, ResultExt, SECP};
 
+/// a object acts like a private key should impl the trait
+pub trait PrivateKeyAction: Sync + Send {
+    /// Signs a message with current private key
+    fn sign(&self, tx: &Transaction) -> Result<RecoverableSignature>;
+
+    /// Signs a message with current private key (uses schnorr signature algorithm)
+    fn schnorr_sign(&self, tx: &Transaction) -> Result<SchnorrSignature>;
+
+    /// Signs a message with current private key
+    fn public_key(&self) -> Result<PublicKey>;
+}
+
 /// Private key used in Crypto.com Chain
 #[derive(Debug, PartialEq, Clone)]
 pub struct PrivateKey(SecretKey);
+
+impl PrivateKeyAction for PrivateKey {
+    fn sign(&self, tx: &Transaction) -> Result<RecoverableSignature> {
+        let tx_id = tx.id();
+        let message = Message::from_slice(&tx_id).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize message to sign",
+            )
+        })?;
+        let signature = SECP.with(|secp| secp.sign_recoverable(&message, &self.0));
+        Ok(signature)
+    }
+
+    fn schnorr_sign(&self, tx: &Transaction) -> Result<SchnorrSignature> {
+        let tx_id = tx.id();
+        let message = Message::from_slice(&tx_id).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize message to sign",
+            )
+        })?;
+        let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0));
+        Ok(signature)
+    }
+
+    fn public_key(&self) -> Result<PublicKey> {
+        let secret_key = &self.0;
+
+        let public_key = SECP.with(|secp| SecpPublicKey::from_secret_key(secp, secret_key));
+
+        Ok(public_key.into())
+    }
+}
 
 impl PrivateKey {
     /// Generates a new private key
@@ -35,30 +83,6 @@ impl PrivateKey {
 
         Ok(PrivateKey(secret_key))
     }
-
-    /// Signs a message with current private key
-    pub fn sign<T: AsRef<[u8]>>(&self, bytes: T) -> Result<RecoverableSignature> {
-        let message = Message::from_slice(bytes.as_ref()).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                "Unable to deserialize message to sign",
-            )
-        })?;
-        let signature = SECP.with(|secp| secp.sign_recoverable(&message, &self.0));
-        Ok(signature)
-    }
-
-    /// Signs a message with current private key (uses schnorr signature algorithm)
-    pub fn schnorr_sign<T: AsRef<[u8]>>(&self, bytes: T) -> Result<SchnorrSignature> {
-        let message = Message::from_slice(bytes.as_ref()).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                "Unable to deserialize message to sign",
-            )
-        })?;
-        let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0));
-        Ok(signature)
-    }
 }
 
 impl Encode for PrivateKey {
@@ -81,11 +105,7 @@ impl Decode for PrivateKey {
 
 impl From<&PrivateKey> for PublicKey {
     fn from(private_key: &PrivateKey) -> Self {
-        let secret_key = &private_key.0;
-
-        let public_key = SECP.with(|secp| SecpPublicKey::from_secret_key(secp, secret_key));
-
-        public_key.into()
+        private_key.public_key().unwrap()
     }
 }
 

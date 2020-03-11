@@ -5,6 +5,7 @@ use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 use zxcvbn::{feedback::Feedback, zxcvbn as estimate_password_strength};
 
+use crate::hd_wallet::HardwareKind;
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedWalletTransactionBuilder;
 use crate::transaction_builder::{SignedTransferTransaction, UnsignedTransferTransaction};
@@ -34,8 +35,8 @@ use client_common::tendermint::types::Time;
 use client_common::tendermint::types::{AbciQueryExt, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
-    seckey::derive_enckey, Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecKey,
-    SignedTransaction, Storage, Transaction, TransactionInfo,
+    seckey::derive_enckey, Error, ErrorKind, PrivateKey, PrivateKeyAction, PublicKey, Result,
+    ResultExt, SecKey, SignedTransaction, Storage, Transaction, TransactionInfo,
 };
 use std::time::Duration;
 
@@ -49,6 +50,7 @@ where
 {
     key_service: KeyService<S>,
     hd_key_service: HdKeyService<S>,
+    hw_key_service: HwKeyService,
     wallet_service: WalletService<S>,
     wallet_state_service: WalletStateService<S>,
     sync_state_service: SyncStateService<S>,
@@ -72,10 +74,12 @@ where
         tendermint_client: C,
         transaction_builder: T,
         block_height_ensure: Option<u64>,
+        hw_key_service: HwKeyService,
     ) -> Self {
         Self {
             key_service: KeyService::new(storage.clone()),
             hd_key_service: HdKeyService::new(storage.clone()),
+            hw_key_service,
             wallet_service: WalletService::new(storage.clone()),
             wallet_state_service: WalletStateService::new(storage.clone()),
             sync_state_service: SyncStateService::new(storage.clone()),
@@ -94,11 +98,13 @@ where
 {
     /// Creates a new read-only instance of `DefaultWalletClient`
     pub fn new_read_only(storage: S) -> Self {
+        let hw_key_service = HwKeyService::default();
         Self::new(
             storage,
             UnauthorizedClient,
             UnauthorizedWalletTransactionBuilder,
             None,
+            hw_key_service,
         )
     }
 }
@@ -110,11 +116,30 @@ where
     T: WalletTransactionBuilder,
 {
     fn get_transaction(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<Transaction> {
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
         let private_key = self
-            .wallet_private_key(name, enckey)?
+            .wallet_private_key(name, enckey, wallet.wallet_kind)?
             .chain(|| (ErrorKind::StorageError, "can not find private key"))?;
         let tx = self.transaction_builder.decrypt_tx(txid, &private_key)?;
         Ok(tx)
+    }
+
+    fn update_hw_service(&mut self, hw_wallet_kind: HardwareKind) {
+        let hw_key_service = match hw_wallet_kind {
+            HardwareKind::Ledger => HwKeyService::Unauthorized(UnauthorizedHwKeyService),
+            HardwareKind::Trezor => HwKeyService::Unauthorized(UnauthorizedHwKeyService),
+            #[cfg(feature = "mock-hardware-wallet")]
+            HardwareKind::Mock => {
+                let mock = MockHardwareService::new();
+                HwKeyService::Mock(mock)
+            }
+        };
+        self.hw_key_service = hw_key_service;
+    }
+
+    fn get_wallet_kind(&self, name: &str, enckey: &SecKey) -> Result<WalletKind> {
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        Ok(wallet.wallet_kind)
     }
 
     fn send_to_address(
@@ -277,7 +302,8 @@ where
                 self.key_service
                     .add_wallet_private_key(name, &private_key, &enckey)?;
 
-                self.wallet_service.create(name, &enckey, view_key)?;
+                self.wallet_service
+                    .create(name, &enckey, view_key, wallet_kind)?;
 
                 Ok((enckey, None))
             }
@@ -293,9 +319,23 @@ where
                 self.key_service
                     .add_wallet_private_key(name, &private_key, &enckey)?;
 
-                self.wallet_service.create(name, &enckey, public_key)?;
+                self.wallet_service
+                    .create(name, &enckey, public_key, wallet_kind)?;
 
                 Ok((enckey, Some(mnemonic)))
+            }
+            WalletKind::HW => {
+                // the view-key pair is the local key pair, not come from the hardware wallet.
+                let private_key = PrivateKey::new()?;
+                let view_key = PublicKey::from(&private_key);
+
+                self.key_service
+                    .add_wallet_private_key(name, &private_key, &enckey)?;
+
+                self.wallet_service
+                    .create(name, &enckey, view_key, wallet_kind)?;
+
+                Ok((enckey, None))
             }
         }
     }
@@ -321,7 +361,8 @@ where
         self.key_service
             .add_wallet_private_key(name, &private_key, &enckey)?;
 
-        self.wallet_service.create(name, &enckey, public_key)?;
+        self.wallet_service
+            .create(name, &enckey, public_key, WalletKind::HD)?;
         Ok(enckey)
     }
 
@@ -340,7 +381,8 @@ where
         let view_key = PublicKey::from(view_key_priv);
         self.key_service
             .add_wallet_private_key(name, &view_key_priv, &enckey)?;
-        self.wallet_service.create(name, &enckey, view_key)?;
+        self.wallet_service
+            .create(name, &enckey, view_key, WalletKind::Basic)?;
         Ok(enckey)
     }
 
@@ -440,8 +482,42 @@ where
     }
 
     #[inline]
-    fn wallet_private_key(&self, name: &str, enckey: &SecKey) -> Result<Option<PrivateKey>> {
-        self.key_service.wallet_private_key(name, enckey)
+    fn wallet_private_key(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        wallet_kind: WalletKind,
+    ) -> Result<Option<PrivateKey>> {
+        if wallet_kind != WalletKind::HW {
+            let k = self.key_service.wallet_private_key(name, enckey)?;
+            Ok(k)
+        } else {
+            unreachable!("can not get private key from HW key")
+        }
+    }
+
+    fn sign_key(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        public_key: &PublicKey,
+    ) -> Result<Box<dyn PrivateKeyAction>> {
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        match wallet.wallet_kind {
+            WalletKind::HW => self.hw_key_service.get_sign_key(public_key),
+            _ => {
+                let private_key = self
+                    .wallet_service
+                    .find_private_key(name, enckey, public_key)?
+                    .chain(|| {
+                        (
+                            ErrorKind::InvalidInput,
+                            "Not able to find private key for given public_key in current wallet",
+                        )
+                    })?;
+                Ok(Box::new(private_key))
+            }
+        }
     }
 
     #[inline]
@@ -451,8 +527,13 @@ where
         enckey: &SecKey,
         public_key: &PublicKey,
     ) -> Result<Option<PrivateKey>> {
-        self.wallet_service
-            .find_private_key(name, enckey, public_key)
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        match wallet.wallet_kind {
+            WalletKind::HW => unreachable!("can not get private key in hw wallet"),
+            _ => self
+                .wallet_service
+                .find_private_key(name, enckey, public_key),
+        }
     }
 
     fn new_public_key(
@@ -461,71 +542,96 @@ where
         enckey: &SecKey,
         address_type: Option<AddressType>,
     ) -> Result<PublicKey> {
-        let (public_key, private_key) = if self.hd_key_service.has_wallet(name)? {
-            self.hd_key_service.generate_keypair(
-                name,
-                enckey,
-                address_type
-                    .chain(|| {
-                        (
-                            ErrorKind::InvalidInput,
-                            "Address type is needed when creating address for HD wallet",
-                        )
-                    })?
-                    .into(),
-            )?
-        } else {
-            let private_key = PrivateKey::new()?;
-            let public_key = PublicKey::from(&private_key);
-
-            (public_key, private_key)
-        };
-
-        self.wallet_service
-            .add_public_key(name, enckey, &public_key)?;
-        self.wallet_service
-            .add_key_pairs(name, enckey, &public_key, &private_key)?;
-
-        Ok(public_key)
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        match wallet.wallet_kind {
+            WalletKind::Basic => {
+                let private_key = PrivateKey::new()?;
+                let public_key = PublicKey::from(&private_key);
+                self.wallet_service
+                    .add_public_key(name, enckey, &public_key)?;
+                self.wallet_service
+                    .add_key_pairs(name, enckey, &public_key, &private_key)?;
+                Ok(public_key)
+            }
+            WalletKind::HD => {
+                let (public_key, private_key) = self.hd_key_service.generate_keypair(
+                    name,
+                    enckey,
+                    address_type
+                        .chain(|| {
+                            (
+                                ErrorKind::InvalidInput,
+                                "Address type is needed when creating address for HD wallet",
+                            )
+                        })?
+                        .into(),
+                )?;
+                self.wallet_service
+                    .add_public_key(name, enckey, &public_key)?;
+                self.wallet_service
+                    .add_key_pairs(name, enckey, &public_key, &private_key)?;
+                Ok(public_key)
+            }
+            WalletKind::HW => {
+                let public_key = self.hw_key_service.new_staking_address()?;
+                self.wallet_service
+                    .add_public_key(name, enckey, &public_key)?;
+                Ok(public_key)
+            }
+        }
     }
 
     fn new_staking_address(&self, name: &str, enckey: &SecKey) -> Result<StakedStateAddress> {
-        let (staking_key, private_key) = if self.hd_key_service.has_wallet(name)? {
-            self.hd_key_service
-                .generate_keypair(name, enckey, HDAccountType::Staking)?
-        } else {
-            let private_key = PrivateKey::new()?;
-            let public_key = PublicKey::from(&private_key);
-
-            (public_key, private_key)
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let public_key = match wallet.wallet_kind {
+            WalletKind::Basic => {
+                let private_key = PrivateKey::new()?;
+                let public_key = PublicKey::from(&private_key);
+                self.wallet_service
+                    .add_key_pairs(name, enckey, &public_key, &private_key)?;
+                public_key
+            }
+            WalletKind::HD => {
+                let (public_key, private_key) =
+                    self.hd_key_service
+                        .generate_keypair(name, enckey, HDAccountType::Staking)?;
+                self.wallet_service
+                    .add_key_pairs(name, enckey, &public_key, &private_key)?;
+                public_key
+            }
+            WalletKind::HW => self.hw_key_service.new_staking_address()?,
         };
 
         self.wallet_service
-            .add_staking_key(name, enckey, &staking_key)?;
-        self.wallet_service
-            .add_key_pairs(name, enckey, &staking_key, &private_key)?;
+            .add_staking_key(name, enckey, &public_key)?;
 
         Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from(
-            &staking_key,
+            &public_key,
         )))
     }
 
     fn new_transfer_address(&self, name: &str, enckey: &SecKey) -> Result<ExtendedAddr> {
-        let (public_key, private_key) = if self.hd_key_service.has_wallet(name)? {
-            self.hd_key_service
-                .generate_keypair(name, enckey, HDAccountType::Transfer)?
-        } else {
-            let private_key = PrivateKey::new()?;
-            let public_key = PublicKey::from(&private_key);
-
-            (public_key, private_key)
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let public_key = match wallet.wallet_kind {
+            WalletKind::Basic => {
+                let private_key = PrivateKey::new()?;
+                let public_key = PublicKey::from(&private_key);
+                self.wallet_service
+                    .add_key_pairs(name, enckey, &public_key, &private_key)?;
+                public_key
+            }
+            WalletKind::HD => {
+                let (public_key, private_key) =
+                    self.hd_key_service
+                        .generate_keypair(name, enckey, HDAccountType::Transfer)?;
+                self.wallet_service
+                    .add_key_pairs(name, enckey, &public_key, &private_key)?;
+                public_key
+            }
+            WalletKind::HW => self.hw_key_service.new_transfer_address()?,
         };
-
         self.wallet_service
             .add_public_key(name, enckey, &public_key)?;
-
-        self.wallet_service
-            .add_key_pairs(name, enckey, &public_key, &private_key)?;
 
         self.new_multisig_transfer_address(name, enckey, vec![public_key.clone()], public_key, 1)
     }
@@ -938,19 +1044,23 @@ where
         &self,
         name: &str,
         enckey: &SecKey,
-        message: &H256,
+        tx: &Transaction,
         public_key: &PublicKey,
     ) -> Result<SchnorrSignature> {
         // To verify if the enckey is correct or not
         self.transfer_addresses(name, enckey)?;
-
-        let private_key = self.private_key(name, enckey, public_key)?.chain(|| {
-            (
-                ErrorKind::InvalidInput,
-                format!("Public key ({}) is not owned by current wallet", public_key),
-            )
-        })?;
-        private_key.schnorr_sign(message)
+        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let sign_key = match wallet.wallet_kind {
+            WalletKind::HW => self.hw_key_service.get_sign_key(public_key)?,
+            _ => {
+                let private_key = self
+                    .wallet_service
+                    .find_private_key(name, enckey, public_key)?
+                    .chain(|| (ErrorKind::InvalidInput, ""))?;
+                Box::new(private_key)
+            }
+        };
+        sign_key.schnorr_sign(tx)
     }
 
     fn new_multi_sig_session(
@@ -963,6 +1073,7 @@ where
     ) -> Result<H256> {
         // To verify if the enckey is correct or not
         self.transfer_addresses(name, enckey)?;
+        //        let sign_key = self.sign_key(name, enckey, &self_public_key)?;
 
         let self_private_key = self
             .private_key(name, enckey, &self_public_key)?

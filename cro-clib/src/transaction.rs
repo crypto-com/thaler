@@ -11,11 +11,11 @@ use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::{TransactionId, TxAux, TxPublicAux};
+use chain_core::tx::{TxAux, TxPublicAux};
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
-use client_common::{ErrorKind, Result, ResultExt};
-use client_common::{PublicKey, SignedTransaction};
+use client_common::{ErrorKind, Result, ResultExt, Transaction};
+use client_common::{PrivateKeyAction, PublicKey, SignedTransaction};
 use client_core::cipher::DefaultTransactionObfuscation;
 use client_core::TransactionObfuscation;
 use parity_scale_codec::Decode;
@@ -49,10 +49,9 @@ fn create_encoded_signed_unbond(
         Coin::new(amount).chain(|| (ErrorKind::DeserializationError, "Invalid Coin Amount"))?; // carson unit
     let attributes = StakedStateOpAttributes::new(network);
     let transaction: UnbondTx = UnbondTx::new(to_address, nonce, value, attributes);
+    let tx = Transaction::UnbondStakeTransaction(transaction.clone());
     let from_private = &from_address.privatekey;
-    let signature: StakedStateOpWitness = from_private
-        .sign(transaction.id())
-        .map(StakedStateOpWitness::new)?;
+    let signature: StakedStateOpWitness = from_private.sign(&tx).map(StakedStateOpWitness::new)?;
     let result = TxAux::PublicTx(TxPublicAux::UnbondStakeTx(transaction, signature));
     let encoded = result.encode();
     Ok(encoded)
@@ -144,9 +143,8 @@ fn create_encoded_signed_withdraw(
         staked_state.unbonded_from,
     )];
     let transaction = WithdrawUnbondedTx::new(nonce, outputs, attributes);
-    let signature = from_private
-        .sign(transaction.id())
-        .map(StakedStateOpWitness::new)?;
+    let tx = Transaction::WithdrawUnbondedStakeTransaction(transaction.clone());
+    let signature = from_private.sign(&tx).map(StakedStateOpWitness::new)?;
     let signed_transaction = SignedTransaction::WithdrawUnbondedStakeTransaction(
         transaction,
         Box::new(staked_state),

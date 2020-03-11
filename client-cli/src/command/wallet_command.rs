@@ -13,7 +13,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
-const WALLET_KIND_VARIANTS: [&str; 2] = ["basic", "hd"];
+const WALLET_KIND_VARIANTS: [&str; 3] = ["basic", "hd", "hw"];
 
 #[derive(Debug, StructOpt)]
 pub enum WalletCommand {
@@ -30,7 +30,7 @@ pub enum WalletCommand {
             name = "wallet type",
             short = "t",
             long = "type",
-            help = "Type of wallet to create (hd, basic)",
+            help = "Type of wallet to create",
             possible_values = &WALLET_KIND_VARIANTS,
             case_insensitive = true
         )]
@@ -151,7 +151,6 @@ impl WalletCommand {
                 "Passphrases do not match",
             ));
         }
-
         let (enckey, mnemonic) = wallet_client.new_wallet(name, &passphrase, wallet_kind)?;
 
         if let WalletKind::HD = wallet_kind {

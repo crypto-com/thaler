@@ -10,7 +10,8 @@ use crate::Mnemonic;
 /// Hierarchical Deterministic seed
 #[derive(Debug, Clone, PartialEq, Decode, Encode)]
 pub struct HDSeed {
-    bytes: Vec<u8>,
+    /// raw data of HDSeed
+    pub bytes: Vec<u8>,
 }
 
 impl From<&Mnemonic> for HDSeed {

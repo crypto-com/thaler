@@ -6,9 +6,8 @@ use chain_core::state::account::{
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::state::validator::NodeJoinRequestTx;
-use chain_core::tx::TransactionId;
 use chain_core::tx::{TxAux, TxPublicAux};
-use client_common::{ErrorKind, Result, ResultExt};
+use client_common::{ErrorKind, PrivateKeyAction, Result, ResultExt, Transaction};
 use parity_scale_codec::Encode;
 use std::os::raw::c_char;
 use std::ptr;
@@ -34,10 +33,9 @@ fn create_encoded_signed_unjail(
     })?;
     let attributes = StakedStateOpAttributes::new(network);
     let transaction: UnjailTx = UnjailTx::new(nonce, to_address, attributes);
+    let tx = Transaction::UnjailTransaction(transaction.clone());
     let from_private = &from_address.privatekey;
-    let signature: StakedStateOpWitness = from_private
-        .sign(transaction.id())
-        .map(StakedStateOpWitness::new)?;
+    let signature: StakedStateOpWitness = from_private.sign(&tx).map(StakedStateOpWitness::new)?;
     let result = TxAux::PublicTx(TxPublicAux::UnjailTx(transaction, signature));
     let encoded = result.encode();
     Ok(encoded)
@@ -119,10 +117,9 @@ fn create_encoded_signed_join(
         attributes,
         node_meta: node_metadata,
     };
+    let tx = Transaction::NodejoinTransaction(transaction.clone());
     let from_private = &from_address.privatekey;
-    let signature: StakedStateOpWitness = from_private
-        .sign(transaction.id())
-        .map(StakedStateOpWitness::new)?;
+    let signature: StakedStateOpWitness = from_private.sign(&tx).map(StakedStateOpWitness::new)?;
     let result = TxAux::PublicTx(TxPublicAux::NodeJoinTx(transaction, signature));
     let encoded = result.encode();
     Ok(encoded)

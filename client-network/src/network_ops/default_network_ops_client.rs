@@ -13,11 +13,13 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
-use chain_core::tx::{TransactionId, TxAux, TxPublicAux};
+use chain_core::tx::{TxAux, TxPublicAux};
 use chain_tx_validation::{check_inputs_basic, check_outputs_basic, verify_unjailed};
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
-use client_common::{Error, ErrorKind, Result, ResultExt, SecKey, SignedTransaction, Storage};
+use client_common::{
+    Error, ErrorKind, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction,
+};
 use client_core::signer::{DummySigner, Signer, WalletSignerManager};
 use client_core::types::TransactionPending;
 use client_core::{TransactionObfuscation, UnspentTransactions, WalletClient};
@@ -181,10 +183,12 @@ where
 
         let transaction = DepositBondTx::new(inputs.clone(), to_address, attributes);
         let unspent_transactions = UnspentTransactions::new(transactions);
-        let signer = self.signer_manager.create_signer(name, enckey);
+        let signer =
+            self.signer_manager
+                .create_signer(name, enckey, &self.signer_manager.hw_key_service);
 
-        let witness = signer
-            .schnorr_sign_transaction(transaction.id(), &unspent_transactions.select_all())?;
+        let tx = Transaction::DepositStakeTransaction(transaction.clone());
+        let witness = signer.schnorr_sign_transaction(&tx, &unspent_transactions.select_all())?;
 
         check_inputs_basic(&transaction.inputs, &witness).map_err(|e| {
             Error::new(
@@ -235,6 +239,7 @@ where
         let nonce = staked_state.nonce;
 
         let transaction = UnbondTx::new(address, nonce, value, attributes);
+        let tx = Transaction::UnbondStakeTransaction(transaction.clone());
 
         let public_key = match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
@@ -247,19 +252,9 @@ where
                     )
                 })?,
         };
-        let private_key = self
-            .wallet_client
-            .private_key(name, enckey, &public_key)?
-            .chain(|| {
-                (
-                    ErrorKind::InvalidInput,
-                    "Not able to find private key for given address in current wallet",
-                )
-            })?;
+        let sign_key = self.wallet_client.sign_key(name, enckey, &public_key)?;
 
-        let signature = private_key
-            .sign(transaction.id())
-            .map(StakedStateOpWitness::new)?;
+        let signature = sign_key.sign(&tx).map(StakedStateOpWitness::new)?;
 
         Ok(TxAux::PublicTx(TxPublicAux::UnbondStakeTx(
             transaction,
@@ -305,6 +300,7 @@ where
         let nonce = staked_state.nonce;
 
         let transaction = WithdrawUnbondedTx::new(nonce, outputs, attributes);
+        let tx = Transaction::WithdrawUnbondedStakeTransaction(transaction.clone());
 
         let public_key = match from_address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
@@ -317,19 +313,8 @@ where
                     )
                 })?,
         };
-        let private_key = self
-            .wallet_client
-            .private_key(name, enckey, &public_key)?
-            .chain(|| {
-                (
-                    ErrorKind::InvalidInput,
-                    "Not able to find private key for given address in current wallet",
-                )
-            })?;
-
-        let signature = private_key
-            .sign(transaction.id())
-            .map(StakedStateOpWitness::new)?;
+        let sign_key = self.wallet_client.sign_key(name, enckey, &public_key)?;
+        let signature = sign_key.sign(&tx).map(StakedStateOpWitness::new)?;
 
         let signed_transaction = SignedTransaction::WithdrawUnbondedStakeTransaction(
             transaction,
@@ -373,6 +358,7 @@ where
             address,
             attributes,
         };
+        let tx = Transaction::UnjailTransaction(transaction.clone());
 
         let public_key = match address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
@@ -385,19 +371,8 @@ where
                     )
                 })?,
         };
-        let private_key = self
-            .wallet_client
-            .private_key(name, enckey, &public_key)?
-            .chain(|| {
-                (
-                    ErrorKind::InvalidInput,
-                    "Not able to find private key for given address in current wallet",
-                )
-            })?;
-
-        let signature = private_key
-            .sign(transaction.id())
-            .map(StakedStateOpWitness::new)?;
+        let sign_key = self.wallet_client.sign_key(name, enckey, &public_key)?;
+        let signature = sign_key.sign(&tx).map(StakedStateOpWitness::new)?;
 
         Ok(TxAux::PublicTx(TxPublicAux::UnjailTx(
             transaction,
@@ -476,6 +451,7 @@ where
             attributes,
             node_meta: node_metadata,
         };
+        let tx = Transaction::NodejoinTransaction(transaction.clone());
 
         let public_key = match staking_account_address {
             StakedStateAddress::BasicRedeem(ref redeem_address) => self
@@ -488,19 +464,8 @@ where
                     )
                 })?,
         };
-        let private_key = self
-            .wallet_client
-            .private_key(name, enckey, &public_key)?
-            .chain(|| {
-                (
-                    ErrorKind::InvalidInput,
-                    "Not able to find private key for given address in current wallet",
-                )
-            })?;
-
-        let signature = private_key
-            .sign(transaction.id())
-            .map(StakedStateOpWitness::new)?;
+        let sign_key = self.wallet_client.sign_key(name, enckey, &public_key)?;
+        let signature = sign_key.sign(&tx).map(StakedStateOpWitness::new)?;
 
         Ok(TxAux::PublicTx(TxPublicAux::NodeJoinTx(
             transaction,
@@ -532,6 +497,7 @@ mod tests {
     use chain_core::tx::data::input::TxoSize;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::Fee;
+    use chain_core::tx::TransactionId;
     use chain_core::tx::{PlainTxAux, TxEnclaveAux, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_recover_address;
     use client_common::storage::MemoryStorage;
@@ -539,6 +505,7 @@ mod tests {
     use client_common::tendermint::mock;
     use client_common::tendermint::types::*;
     use client_common::{seckey::derive_enckey, PrivateKey, PublicKey, Transaction};
+    use client_core::service::HwKeyService;
     use client_core::signer::WalletSignerManager;
     use client_core::types::WalletKind;
     use client_core::wallet::DefaultWalletClient;
@@ -751,7 +718,7 @@ mod tests {
         let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
@@ -806,7 +773,7 @@ mod tests {
         let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
@@ -843,7 +810,7 @@ mod tests {
         let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
@@ -901,7 +868,7 @@ mod tests {
         let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
@@ -969,7 +936,7 @@ mod tests {
         let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
@@ -1012,7 +979,7 @@ mod tests {
         let enckey = &derive_enckey(&SecUtf8::from("passphrase"), name).unwrap();
 
         let storage = MemoryStorage::default();
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
@@ -1050,7 +1017,7 @@ mod tests {
         let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
@@ -1100,7 +1067,7 @@ mod tests {
         let passphrase = SecUtf8::from("passphrase");
 
         let storage = MemoryStorage::default();
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
 
         let fee_algorithm = UnitFeeAlgorithm::default();
 
