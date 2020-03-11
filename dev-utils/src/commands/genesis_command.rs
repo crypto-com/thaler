@@ -62,7 +62,7 @@ pub enum GenesisCommand {
 
 impl GenesisCommand {
     pub fn execute(&self) -> Result<()> {
-        match self {
+        let result = match self {
             GenesisCommand::Generate {
                 tendermint_genesis_path,
                 genesis_dev_config_path,
@@ -75,7 +75,11 @@ impl GenesisCommand {
                 *no_backup,
             )
             .map(|_| ()),
+        };
+        if let Err(err) = result.as_ref() {
+            println!("{:?}", err);
         }
+        result
     }
 }
 

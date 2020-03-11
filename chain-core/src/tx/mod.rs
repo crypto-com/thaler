@@ -244,6 +244,16 @@ impl TxAux {
             TxAux::NodeJoinTx(tx, _) => tx.id(),
         }
     }
+
+    /// Get chain hex id, only works on public tx.
+    pub fn chain_hex_id(&self) -> u8 {
+        match self {
+            TxAux::EnclaveTx(_) => panic!("this method only support public tx"),
+            TxAux::UnbondStakeTx(tx, _) => tx.attributes.chain_hex_id,
+            TxAux::UnjailTx(tx, _) => tx.attributes.chain_hex_id,
+            TxAux::NodeJoinTx(tx, _) => tx.attributes.chain_hex_id,
+        }
+    }
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]

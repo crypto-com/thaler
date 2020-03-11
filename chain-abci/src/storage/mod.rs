@@ -1,21 +1,22 @@
-use crate::enclave_bridge::EnclaveProxy;
+use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{StakedState, StakedStateAddress};
+use chain_core::state::account::{StakedState, StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
+use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
-use chain_core::tx::TransactionId;
-use chain_core::tx::TxObfuscated;
-use chain_core::tx::{TxAux, TxEnclaveAux};
+use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
 use chain_storage::account::{
     get_staked_state, AccountStorage, StakedStateError, StarlingFixedKey,
 };
+use chain_storage::buffer::{GetStaking, StoreStaking};
 use chain_storage::tx::{InputError, InputStatus};
 use chain_storage::Storage;
-use chain_tx_validation::{
-    verify_node_join, verify_unbonding, verify_unjailed, verify_unjailing,
-    witness::verify_tx_recover_address, ChainInfo, Error, NodeChecker,
-};
+use chain_tx_validation::{verify_unjailed, witness::verify_tx_recover_address, ChainInfo, Error};
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, SealedLog};
+
+use crate::enclave_bridge::EnclaveProxy;
+use crate::staking_table::StakingTable;
+use crate::tx::PublicTxError;
 
 /// fee: Written into block result events
 /// spend_utxo: Modify UTxO storage
@@ -87,21 +88,6 @@ impl TxEnclaveAction {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum TxAction {
-    Enclave(TxEnclaveAction),
-    Public(Fee),
-}
-
-impl TxAction {
-    pub fn fee(&self) -> Fee {
-        match self {
-            Self::Public(fee) => *fee,
-            Self::Enclave(action) => action.fee(),
-        }
-    }
-}
-
 /// checks that the account can be retrieved from the trie storage
 pub fn get_account(
     account_address: &StakedStateAddress,
@@ -151,15 +137,14 @@ fn check_spent_input_lookup(
     Ok(result)
 }
 
-/// Checks TX against the current DB, passes to the enclave and returns an `Error` if something fails.
-/// If OK, returns the paid fee + affected staked state (if any).
+/// Checks enclave TX against the current DB, passes to the enclave and returns an `Error` if something fails.
+/// If OK, returns TxEnclaveAction which is executed after.
 pub fn verify_enclave_tx<T: EnclaveProxy>(
     tx_validator: &mut T,
+    storage: &Storage,
+    staking_store: &impl GetStaking,
     txaux: &TxEnclaveAux,
     extra_info: ChainInfo,
-    last_account_root_hash: &StarlingFixedKey,
-    storage: &Storage,
-    accounts: &AccountStorage,
 ) -> Result<TxEnclaveAction, Error> {
     match txaux {
         TxEnclaveAux::TransferTx {
@@ -186,28 +171,19 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
             }
         }
         TxEnclaveAux::DepositStakeTx { tx, .. } => {
-            let maccount = get_account(&tx.to_staked_account, last_account_root_hash, accounts);
-            let account = match maccount {
-                Ok(a) => Some(a),
-                Err(Error::AccountNotFound) => None,
-                Err(e) => {
-                    return Err(e);
-                }
-            };
-            if let Some(ref account) = account {
-                verify_unjailed(account)?;
-            }
-
+            let account = staking_store.get_or_default(&tx.to_staked_account);
+            verify_unjailed(&account)?;
             let tx_inputs = check_spent_input_lookup(&tx.inputs, storage)?;
 
             let response = tx_validator.process_request(IntraEnclaveRequest::new_validate_deposit(
                 txaux.clone(),
                 extra_info,
-                account,
+                Some(account),
                 tx_inputs,
             ));
             match response {
                 Ok(IntraEnclaveResponseOk::DepositStakeTx { input_coins }) => {
+                    // panic: TODO
                     let deposit_amount = (input_coins - extra_info.min_fee_computed.to_coin())
                         .expect("diff with min fee in coins");
                     Ok(TxEnclaveAction::deposit(
@@ -227,7 +203,9 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
         } => {
             let account_address =
                 verify_tx_recover_address(&witness, &txid).map_err(|_| Error::EcdsaCrypto)?;
-            let account = get_account(&account_address, last_account_root_hash, accounts)?;
+            let account = staking_store
+                .get(&account_address)
+                .ok_or(Error::AccountNotFound)?;
             verify_unjailed(&account)?;
             let withdraw_amount = account.unbonded;
             let response = tx_validator.process_request(
@@ -250,52 +228,116 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
     }
 }
 
-/// Checks non-enclave TX against the current DB and returns an `Error` if something fails.
-/// If OK, returns the paid fee + affected staked state.
-pub fn verify_public_tx(
+pub fn execute_enclave_tx(
+    storage: &mut Storage,
+    staking_store: &mut impl StoreStaking,
+    staking_table: &mut StakingTable,
+    block_time: Timespec,
+    txid: &TxId,
+    action: &TxEnclaveAction,
+) -> Option<StakedStateAddress> {
+    match action {
+        TxEnclaveAction::Transfer {
+            spend_utxo,
+            sealed_log,
+            ..
+        } => {
+            storage.spend_utxos(&spend_utxo);
+            // Done in commit event
+            // storage.create_utxo(no_of_outputs, txid);
+            storage.store_sealed_log(&txid, sealed_log);
+            None
+        }
+        TxEnclaveAction::Deposit {
+            spend_utxo,
+            deposit: (address, amount),
+            ..
+        } => {
+            storage.spend_utxos(&spend_utxo);
+            staking_table
+                .deposit(staking_store, address, *amount)
+                .expect("deposit sanity check");
+            Some(*address)
+        }
+        TxEnclaveAction::Withdraw {
+            withdraw: (address, amount),
+            sealed_log,
+            ..
+        } => {
+            // Done in commit event
+            // storage.create_utxo(no_of_outputs, txid);
+            storage.store_sealed_log(&txid, sealed_log);
+
+            // no panic: tx is already verified, all the error in execution is not allowed.
+            // operations are sequential in the state machine, so no concurrent updates
+            staking_table
+                .withdraw(staking_store, block_time, address, *amount)
+                .expect("withdraw sanity check");
+            Some(*address)
+        }
+    }
+}
+
+fn check_attributes(
+    attrs: &StakedStateOpAttributes,
+    chain_hex_id: u8,
+) -> Result<(), PublicTxError> {
+    // check that chain IDs match
+    if chain_hex_id != attrs.chain_hex_id {
+        return Err(PublicTxError::WrongChainHexId);
+    }
+    // check that version number is <= current one
+    if chain_core::APP_VERSION < attrs.app_version {
+        return Err(PublicTxError::UnsupportedVersion);
+    }
+    Ok(())
+}
+/// Execute public transactions against uncommitted db.
+/// If OK, returns the paid fee + affected staking address
+pub fn process_public_tx(
+    staking_store: &mut impl StoreStaking,
+    staking_table: &mut StakingTable,
+    chain_info: &ChainInfo,
     txaux: &TxAux,
-    extra_info: ChainInfo,
-    node_info: impl NodeChecker,
-    last_account_root_hash: &StarlingFixedKey,
-    accounts: &AccountStorage,
-) -> Result<(Fee, Option<StakedState>), Error> {
+) -> Result<(Fee, Option<StakedStateAddress>), PublicTxError> {
     match txaux {
         TxAux::EnclaveTx(_) => unreachable!("should be handled by verify_enclave_tx"),
         // TODO: delay checking witness, as address is contained in Tx?
         TxAux::UnbondStakeTx(maintx, witness) => {
-            match verify_tx_recover_address(&witness, &maintx.id()) {
-                Ok(account_address) => {
-                    let account = get_account(&account_address, last_account_root_hash, accounts)?;
-                    verify_unbonding(maintx, extra_info, account)
-                }
-                Err(_) => {
-                    Err(Error::EcdsaCrypto) // FIXME: Err(Error::EcdsaCrypto(e))
-                }
+            check_attributes(&maintx.attributes, chain_info.chain_hex_id)?;
+            let address = verify_tx_recover_address(&witness, &maintx.id())?;
+            if address != maintx.from_staked_account {
+                return Err(PublicTxError::StakingWitnessNotMatch);
             }
+            staking_table.unbond(
+                staking_store,
+                chain_info.unbonding_period as Timespec,
+                chain_info.block_time,
+                chain_info.block_height,
+                &maintx,
+            )?;
+            Ok((chain_info.min_fee_computed, Some(address)))
         }
         // TODO: delay checking witness, as address is contained in Tx?
         TxAux::UnjailTx(maintx, witness) => {
-            match verify_tx_recover_address(&witness, &maintx.id()) {
-                Ok(account_address) => {
-                    let account = get_account(&account_address, last_account_root_hash, accounts)?;
-                    verify_unjailing(maintx, extra_info, account)
-                }
-                Err(_) => {
-                    Err(Error::EcdsaCrypto) // FIXME: Err(Error::EcdsaCrypto(e))
-                }
+            check_attributes(&maintx.attributes, chain_info.chain_hex_id)?;
+            let address = verify_tx_recover_address(&witness, &maintx.id())?;
+            if address != maintx.address {
+                return Err(PublicTxError::StakingWitnessNotMatch);
             }
+
+            staking_table.unjail(staking_store, chain_info.block_time, maintx)?;
+            Ok((Fee::new(Coin::zero()), Some(address)))
         }
         // TODO: delay checking witness, as address is contained in Tx?
         TxAux::NodeJoinTx(maintx, witness) => {
-            match verify_tx_recover_address(&witness, &maintx.id()) {
-                Ok(account_address) => {
-                    let account = get_account(&account_address, last_account_root_hash, accounts)?;
-                    verify_node_join(maintx, extra_info, node_info, account)
-                }
-                Err(_) => {
-                    Err(Error::EcdsaCrypto) // FIXME: Err(Error::EcdsaCrypto(e))
-                }
+            check_attributes(&maintx.attributes, chain_info.chain_hex_id)?;
+            let address = verify_tx_recover_address(&witness, &maintx.id())?;
+            if address != maintx.address {
+                return Err(PublicTxError::StakingWitnessNotMatch);
             }
+            staking_table.node_join(staking_store, chain_info.block_time, maintx)?;
+            Ok((Fee::new(Coin::zero()), Some(address)))
         }
     }
 }

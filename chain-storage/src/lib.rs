@@ -1,4 +1,5 @@
 pub mod account;
+pub mod buffer;
 pub mod tx;
 
 use chain_core::common::H256;

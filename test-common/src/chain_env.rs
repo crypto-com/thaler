@@ -22,8 +22,8 @@ use chain_core::init::config::{
     SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
-    to_stake_key, CouncilNode, StakedState, StakedStateAddress, StakedStateDestination,
-    StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, ValidatorName,
+    CouncilNode, StakedState, StakedStateAddress, StakedStateDestination, StakedStateOpAttributes,
+    StakedStateOpWitness, UnbondTx, Validator as ChainValidator, ValidatorName,
     ValidatorSecurityContact,
 };
 use chain_core::state::tendermint::{
@@ -33,8 +33,8 @@ use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::{data::TxId, TransactionId, TxAux};
-use chain_storage::account::StarlingFixedKey;
-use chain_storage::account::{AccountStorage, AccountWrapper};
+use chain_storage::account::{AccountStorage, AccountWrapper, StarlingFixedKey};
+use chain_storage::buffer::Get;
 use chain_storage::{Storage, NUM_COLUMNS};
 
 const TEST_CHAIN_ID: &str = "test-00";
@@ -55,25 +55,16 @@ pub fn get_account(
     account_address: &StakedStateAddress,
     app: &ChainNodeApp<MockClient>,
 ) -> StakedState {
-    println!(
-        "uncommitted root hash: {}",
-        hex::encode(app.uncommitted_account_root_hash)
-    );
-    let account_key = to_stake_key(&account_address);
-    let state = app.last_state.clone().expect("app state");
-    println!(
-        "committed root hash: {}",
-        hex::encode(&state.top_level.account_root)
-    );
-    let account = app
-        .accounts
-        .get_one(&app.uncommitted_account_root_hash, &account_key)
-        .expect("account lookup problem");
+    app.staking_getter()
+        .get(&account_address)
+        .expect("account not found")
+}
 
-    match account {
-        None => panic!("account not found"),
-        Some(AccountWrapper(a)) => a,
-    }
+pub fn get_validator(
+    account_address: &StakedStateAddress,
+    app: &ChainNodeApp<MockClient>,
+) -> ChainValidator {
+    get_account(account_address, app).validator.unwrap()
 }
 
 pub fn get_ecdsa_witness<C: Signing>(
@@ -365,6 +356,7 @@ impl ChainEnv {
                 ..Default::default()
             })
             .into(),
+            time: Some(::protobuf::well_known_types::Timestamp::default()).into(),
             ..Default::default()
         }
     }

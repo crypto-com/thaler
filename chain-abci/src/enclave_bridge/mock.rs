@@ -265,10 +265,10 @@ impl EnclaveProxy for MockClient {
                         let result = verify_unbonded_withdraw(
                             &tx,
                             info,
-                            account.expect("account exists in withdraw"),
+                            &account.expect("account exists in withdraw"),
                         );
                         match result {
-                            Ok((fee, _account)) => {
+                            Ok(fee) => {
                                 let txwo = TxWithOutputs::StakeWithdraw(tx);
                                 self.add_view_keys(&txwo);
 

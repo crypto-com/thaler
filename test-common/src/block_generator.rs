@@ -16,7 +16,8 @@ use tendermint::{
     rpc::endpoint::commit::SignedHeader, validator, vote, Block, Hash, PublicKey, Signature, Time,
 };
 
-use chain_abci::app::{compute_accounts_root, ChainNodeState, ValidatorState};
+use chain_abci::app::{compute_accounts_root, ChainNodeState};
+use chain_abci::staking_table::StakingTable;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::init::config::NetworkParameters;
@@ -31,6 +32,7 @@ use chain_core::state::ChainState;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::TxAux;
 use chain_storage::account::{pure_account_storage, AccountStorage};
+use chain_storage::buffer::StakingGetter;
 use client_common::tendermint::types::{
     AbciQuery, BlockResults, BroadcastTxResponse, Genesis, Results,
 };
@@ -254,7 +256,7 @@ impl TestnetSpec {
     }
 
     pub fn gen_genesis(&self) -> (Genesis, ChainNodeState, Arc<AccountStorage>) {
-        let account_storage = Arc::new(pure_account_storage(20).unwrap());
+        let mut account_storage = Arc::new(pure_account_storage(20).unwrap());
 
         let config = self.init_config();
         let genesis_seconds = self
@@ -262,14 +264,15 @@ impl TestnetSpec {
             .duration_since(Time::unix_epoch())
             .expect("invalid genesis time")
             .as_secs();
-        let (accounts, rewards_pool, _nodes) = config
+        let (accounts, rewards_pool, nodes) = config
             .validate_config_get_genesis(genesis_seconds)
             .expect("distribution validation error");
-        let account_root = compute_accounts_root(&mut pure_account_storage(20).unwrap(), &accounts);
+        let account_root =
+            compute_accounts_root(Arc::get_mut(&mut account_storage).unwrap(), &accounts);
         let network_params = NetworkParameters::Genesis(config.network_params.clone());
         let app_hash = compute_app_hash(
             &MerkleTree::empty(),
-            &compute_accounts_root(&mut pure_account_storage(20).unwrap(), &accounts),
+            &account_root,
             &rewards_pool,
             &network_params,
         );
@@ -305,17 +308,15 @@ impl TestnetSpec {
             app_state: config,
         };
 
-        let power = TendermintVotePower::from(self.share());
-        let mut validator_set = ValidatorState::default();
-        for node in self.nodes.iter() {
-            let staking_address = node.staking_address(0);
-            validator_set.add_initial_validator(
-                staking_address,
-                power,
-                node.council_node(),
-                network_params.get_block_signing_window(),
-            );
-        }
+        let staking_table = StakingTable::from_genesis(
+            &StakingGetter::new(
+                Arc::get_mut(&mut account_storage).unwrap(),
+                Some(account_root),
+            ),
+            network_params.get_required_council_node_stake(),
+            network_params.get_max_validators(),
+            &nodes.iter().map(|(addr, _)| *addr).collect::<Vec<_>>(),
+        );
 
         let state = ChainNodeState::genesis(
             app_hash,
@@ -323,7 +324,7 @@ impl TestnetSpec {
             account_root,
             rewards_pool,
             network_params,
-            validator_set,
+            staking_table,
         );
 
         (genesis, state, account_storage)

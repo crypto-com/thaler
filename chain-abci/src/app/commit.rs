@@ -6,6 +6,7 @@ use chain_core::compute_app_hash;
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::TxId;
 use chain_core::tx::{TxAux, TxEnclaveAux};
+use chain_storage::buffer::flush_staking_storage;
 use chain_storage::Storage;
 use parity_scale_codec::Encode;
 
@@ -70,10 +71,26 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     }
     /// Commits delivered TX: flushes updates to the underlying storage
     pub fn commit_handler(&mut self, _req: &RequestCommit) -> ResponseCommit {
-        let orig_state = self.last_state.clone();
-        let mut new_state = orig_state.expect("executing block commit, but no app state stored (i.e. no initchain or recovery was executed)");
+        let mut new_state = self.last_state.clone().expect("executing block commit, but no app state stored (i.e. no initchain or recovery was executed)");
         let mut top_level = &mut new_state.top_level;
         let mut resp = ResponseCommit::new();
+
+        // flush staking buffer
+        top_level.account_root = flush_staking_storage(
+            &mut self.accounts,
+            Some(top_level.account_root),
+            std::mem::take(&mut self.staking_buffer),
+        )
+        .expect("staking trie io error")
+        // no panic: TODO
+        .unwrap();
+
+        self.process_txs();
+
+        if self.rewards_pool_updated {
+            top_level.rewards_pool.last_block_height = new_state.last_block_height;
+            self.rewards_pool_updated = false;
+        }
 
         let ids: Vec<TxId> = self
             .delivered_txs
@@ -81,15 +98,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             .map(chain_core::tx::TxAux::tx_id)
             .collect();
         let tree = MerkleTree::new(ids);
-
-        if !self.delivered_txs.is_empty() {
-            self.process_txs();
-        }
-        if self.rewards_pool_updated {
-            top_level.rewards_pool.last_block_height = new_state.last_block_height;
-            self.rewards_pool_updated = false;
-        }
-        top_level.account_root = self.uncommitted_account_root_hash;
         let app_hash = compute_app_hash(
             &tree,
             &top_level.account_root,

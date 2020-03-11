@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define APP_VERSION 0
+
 #define HASH_SIZE_256 32
 
 #define KECCAK256_BYTES 32

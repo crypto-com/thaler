@@ -11,9 +11,6 @@ use std::os::raw::c_int;
 
 use jsonrpc_core::IoHandler;
 
-#[cfg(feature = "mock-enc-dec")]
-use client_core::cipher::MockAbciTransactionObfuscation;
-
 pub type CroHDWalletPtr = *mut CroHDWallet;
 pub type CroAddressPtr = *mut CroAddress;
 pub type CroTxPtr = *mut CroTx;

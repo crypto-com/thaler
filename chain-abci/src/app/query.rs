@@ -5,7 +5,7 @@ use crate::enclave_bridge::{mock::handle_enc_dec, EnclaveProxy};
 use crate::storage::get_account;
 use abci::*;
 use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
-use chain_core::state::account::{CouncilNodeMetadata, StakedStateAddress};
+use chain_core::state::account::StakedStateAddress;
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::ChainState;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
@@ -226,26 +226,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 }
             }
             "council-nodes" => {
-                let validator_state = &self
+                let council_nodes = &self
                     .last_state
                     .as_ref()
                     .expect("Missing last_state: init chain was not called")
-                    .validators;
-
-                let mut council_nodes =
-                    Vec::with_capacity(validator_state.council_nodes_by_power.len());
-
-                for ((voting_power, staking_address), council_node) in
-                    validator_state.council_nodes_by_power.iter()
-                {
-                    council_nodes.push(CouncilNodeMetadata {
-                        name: council_node.name.clone(),
-                        voting_power: *voting_power,
-                        staking_address: *staking_address,
-                        security_contact: council_node.security_contact.clone(),
-                        tendermint_pubkey: council_node.consensus_pubkey.clone(),
-                    })
-                }
+                    .staking_table
+                    .list_council_nodes(&self.staking_committed_getter());
 
                 resp.value = serde_json::to_string(&council_nodes)
                     .expect("Unable to serialize validator metadata into json")
