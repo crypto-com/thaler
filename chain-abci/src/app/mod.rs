@@ -19,7 +19,7 @@ pub use self::app_init::{
 use crate::app::validate_tx::ResponseWithCodeAndLog;
 use crate::enclave_bridge::EnclaveProxy;
 use crate::storage::{get_account, TxAction};
-use chain_core::common::{TendermintEventKey, TendermintEventType};
+use chain_core::common::{TendermintEventKey, TendermintEventType, Timespec};
 use chain_core::state::account::PunishmentKind;
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
 use slash_accounts::{get_slashing_proportion, get_vote_power_in_milli};
@@ -35,7 +35,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         let mut resp = ResponseInfo::new();
         if let Some(app_state) = &self.last_state {
             resp.last_block_app_hash = app_state.last_apphash.to_vec();
-            resp.last_block_height = app_state.last_block_height;
+            resp.last_block_height = app_state.last_block_height.value().try_into().unwrap();
             resp.data = serde_json::to_string(&app_state).expect("serialize app state to json");
         } else {
             resp.last_block_app_hash = self.genesis_app_hash.to_vec();
@@ -85,39 +85,45 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     fn begin_block(&mut self, req: &RequestBeginBlock) -> ResponseBeginBlock {
         info!("received beginblock request");
         // TODO: Check security implications once https://github.com/tendermint/tendermint/issues/2653 is closed
-        let (block_height, block_time, proposer_address) = match req.header.as_ref() {
-            None => panic!("No block header in begin block request from tendermint"),
-            Some(header) => (
-                header.height,
-                header
-                    .time
-                    .as_ref()
-                    .expect("No timestamp in begin block request from tendermint")
-                    .seconds,
-                TendermintValidatorAddress::try_from(header.proposer_address.as_slice()),
-            ),
-        };
+        let (block_height, block_time, proposer_address): (BlockHeight, Timespec, _) =
+            match req.header.as_ref() {
+                None => panic!("No block header in begin block request from tendermint"),
+                Some(header) => (
+                    header.height.try_into().unwrap(),
+                    header
+                        .time
+                        .as_ref()
+                        .expect("No timestamp in begin block request from tendermint")
+                        .seconds
+                        .try_into()
+                        .expect("invalid block time"),
+                    TendermintValidatorAddress::try_from(header.proposer_address.as_slice()),
+                ),
+            };
 
         let last_state = self
             .last_state
             .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
 
-        last_state.block_time = block_time.try_into().expect("invalid block time");
+        last_state.block_time = block_time;
         last_state.validators.metadata_clean(last_state.block_time);
-        if block_height > 1 {
-            if let Some(last_commit_info) = req.last_commit_info.as_ref() {
-                // liveness will always be updated for previous block, i.e., `block_height - 1`
-                update_validator_liveness(
-                    &mut last_state.validators,
-                    block_height - 1,
-                    last_commit_info,
-                );
-            } else {
-                panic!(
-                    "No last commit info in begin block request for height: {}",
-                    block_height
-                );
+        if let Some(prev_height) = block_height.checked_sub(1) {
+            // if previous block is not genesis, last_commit_info should be exists
+            if prev_height > BlockHeight::genesis() {
+                if let Some(last_commit_info) = req.last_commit_info.as_ref() {
+                    // liveness will always be updated for previous block, i.e., `block_height - 1`
+                    update_validator_liveness(
+                        &mut last_state.validators,
+                        prev_height,
+                        last_commit_info,
+                    );
+                } else {
+                    panic!(
+                        "No last commit info in begin block request for height: {}",
+                        block_height
+                    );
+                }
             }
         }
 

@@ -13,6 +13,7 @@ use chain_core::state::account::{
     DepositBondTx, Punishment, PunishmentKind, StakedStateOpWitness, UnbondTx, UnjailTx,
     WithdrawUnbondedTx,
 };
+use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::tendermint::{
     TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
@@ -233,7 +234,7 @@ fn prepare_app_valid_transfer_tx(
         no_of_outputs: tx.outputs.len() as TxoIndex,
         payload: TxObfuscated {
             txid: tx.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0; 12],
             txpayload: plain_txaux.encode(),
         },
@@ -417,7 +418,7 @@ fn prepare_app_valid_withdraw_tx(
         witness: witness.clone(),
         payload: TxObfuscated {
             txid: tx.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
         },
@@ -670,7 +671,7 @@ fn prepare_app_valid_deposit_tx(
         tx: tx.clone(),
         payload: TxObfuscated {
             txid: tx.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0u8; 12],
             txpayload: PlainTxAux::DepositStakeTx(witness.clone().into()).encode(),
         },
@@ -1385,7 +1386,7 @@ fn prepare_withdraw_transaction(secret_key: &SecretKey) -> TxEnclaveAux {
         witness: witness.clone(),
         payload: TxObfuscated {
             txid: tx.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
         },
@@ -1411,7 +1412,7 @@ fn prepare_deposit_transaction(
         tx: tx.clone(),
         payload: TxObfuscated {
             txid: tx.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0u8; 12],
             txpayload: PlainTxAux::DepositStakeTx(witness.into()).encode(),
         },

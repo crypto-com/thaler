@@ -116,7 +116,7 @@ impl ChainNodeState {
         validators: ValidatorState,
     ) -> Self {
         ChainNodeState {
-            last_block_height: 0,
+            last_block_height: BlockHeight::genesis(),
             last_apphash: genesis_apphash,
             block_time: genesis_time,
             validators,

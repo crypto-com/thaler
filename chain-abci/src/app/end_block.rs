@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use crate::app::app_init::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
 use abci::{Event, KVPair, RequestEndBlock, ResponseEndBlock};
@@ -39,7 +41,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             state.block_time + (state.top_level.network_params.get_unbonding_period() as u64)) {
             resp.set_validator_updates(RepeatedField::from(validators));
         }
-        state.last_block_height = _req.height;
+        state.last_block_height = _req.height.try_into().unwrap();
         }).expect("executing end block, but no app state stored (i.e. no initchain or recovery was executed)");
         resp
     }

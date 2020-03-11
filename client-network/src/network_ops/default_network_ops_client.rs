@@ -517,6 +517,7 @@ mod tests {
     use chain_core::state::account::{
         Punishment, PunishmentKind, StakedState, StakedStateOpAttributes,
     };
+    use chain_core::state::tendermint::BlockHeight;
     use chain_core::state::tendermint::TendermintValidatorPubKey;
     use chain_core::state::ChainState;
     use chain_core::tx::data::input::TxoIndex;
@@ -554,7 +555,7 @@ mod tests {
                         tx: tx.clone(),
                         payload: TxObfuscated {
                             txid: tx.id(),
-                            key_from: 0,
+                            key_from: BlockHeight::genesis(),
                             init_vector: [0u8; 12],
                             txpayload: plain.encode(),
                         },
@@ -567,7 +568,7 @@ mod tests {
                         witness,
                         payload: TxObfuscated {
                             txid: tx.id(),
-                            key_from: 0,
+                            key_from: BlockHeight::genesis(),
                             init_vector: [0u8; 12],
                             txpayload: plain.encode(),
                         },

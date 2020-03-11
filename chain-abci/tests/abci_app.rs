@@ -18,7 +18,7 @@ use chain_core::state::account::{
     WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::{
-    TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
+    BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::state::{ChainState, RewardsPoolState};
@@ -180,7 +180,7 @@ fn get_dummy_network_params() -> NetworkParameters {
 fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
     let params = get_dummy_network_params();
     ChainNodeState {
-        last_block_height: 0,
+        last_block_height: BlockHeight::genesis(),
         last_apphash: app_hash,
         block_time: 0,
         genesis_time: 0,
@@ -448,7 +448,7 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
         witness: witness.clone(),
         payload: TxObfuscated {
             txid: tx.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
         },
@@ -624,9 +624,15 @@ fn endblock_should_change_block_height() {
     begin_block(&mut app);
     let mut creq = RequestEndBlock::default();
     creq.set_height(10);
-    assert_ne!(10, app.last_state.as_ref().unwrap().last_block_height);
+    assert_ne!(
+        BlockHeight::new(10),
+        app.last_state.as_ref().unwrap().last_block_height
+    );
     let cresp = app.end_block(&creq);
-    assert_eq!(10, app.last_state.as_ref().unwrap().last_block_height);
+    assert_eq!(
+        BlockHeight::new(10),
+        app.last_state.as_ref().unwrap().last_block_height
+    );
     assert_eq!(0, cresp.events.len());
 }
 
@@ -676,8 +682,11 @@ fn valid_commit_should_persist() {
         .is_none());
     let persisted_state =
         ChainNodeState::decode(&mut app.storage.get_last_app_state().unwrap().as_slice()).unwrap();
-    assert_ne!(10, persisted_state.last_block_height);
-    assert_ne!(10, persisted_state.top_level.rewards_pool.last_block_height);
+    assert_ne!(BlockHeight::new(10), persisted_state.last_block_height);
+    assert_ne!(
+        BlockHeight::new(10),
+        persisted_state.top_level.rewards_pool.last_block_height
+    );
     let cresp = app.commit(&RequestCommit::default());
     assert_eq!(0, app.delivered_txs.len());
     assert!(app
@@ -688,9 +697,12 @@ fn valid_commit_should_persist() {
         .storage
         .lookup_item(LookupItem::TxWitness, &tx.id(), false)
         .is_some());
-    assert_eq!(10, app.last_state.as_ref().unwrap().last_block_height);
     assert_eq!(
-        10,
+        BlockHeight::new(10),
+        app.last_state.as_ref().unwrap().last_block_height
+    );
+    assert_eq!(
+        BlockHeight::new(10),
         app.last_state
             .as_ref()
             .unwrap()
@@ -826,7 +838,7 @@ fn all_valid_tx_types_should_commit() {
         witness: witness0,
         payload: TxObfuscated {
             txid: tx0.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0u8; 12],
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),
         },
@@ -864,7 +876,7 @@ fn all_valid_tx_types_should_commit() {
         no_of_outputs: tx1.outputs.len() as TxoIndex,
         payload: TxObfuscated {
             txid: tx1.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0u8; 12],
             txpayload: plain_txaux.encode(),
         },
@@ -893,7 +905,7 @@ fn all_valid_tx_types_should_commit() {
         tx: tx2.clone(),
         payload: TxObfuscated {
             txid: tx2.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0u8; 12],
             txpayload: PlainTxAux::DepositStakeTx(witness2).encode(),
         },
@@ -928,7 +940,7 @@ fn all_valid_tx_types_should_commit() {
         tx: tx3.clone(),
         payload: TxObfuscated {
             txid: tx3.id(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0u8; 12],
             txpayload: PlainTxAux::DepositStakeTx(witness3).encode(),
         },

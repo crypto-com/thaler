@@ -65,7 +65,7 @@ impl RewardsPoolState {
     pub fn new(genesis_time: Timespec, tau: u64) -> Self {
         RewardsPoolState {
             period_bonus: Coin::zero(),
-            last_block_height: 0,
+            last_block_height: 0.into(),
             last_distribution_time: genesis_time,
             minted: Coin::zero(),
             tau,

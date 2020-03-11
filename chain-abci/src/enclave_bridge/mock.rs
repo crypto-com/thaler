@@ -4,6 +4,8 @@ use super::*;
 use abci::{RequestQuery, ResponseQuery};
 use chain_core::state::account::DepositBondTx;
 #[cfg(feature = "mock-enc-dec")]
+use chain_core::state::tendermint::BlockHeight;
+#[cfg(feature = "mock-enc-dec")]
 use chain_core::tx::data::input::TxoIndex;
 use chain_core::tx::PlainTxAux;
 #[cfg(feature = "mock-enc-dec")]
@@ -58,7 +60,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                             inputs: tx.inputs.clone(),
                             no_of_outputs: tx.outputs.len() as TxoIndex,
                             payload: TxObfuscated {
-                                key_from: 0,
+                                key_from: BlockHeight::genesis(),
                                 txid: tx.id(),
                                 init_vector: [0u8; 12],
                                 txpayload: pad_payload(&plain.encode()),
@@ -73,7 +75,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                         resp: Ok(TxEnclaveAux::DepositStakeTx {
                             tx: maintx.clone(),
                             payload: TxObfuscated {
-                                key_from: 0,
+                                key_from: BlockHeight::genesis(),
                                 txid: maintx.id(),
                                 init_vector: [0u8; 12],
                                 txpayload: pad_payload(&plain.encode()),
@@ -89,7 +91,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                             no_of_outputs: tx.outputs.len() as TxoIndex,
                             witness,
                             payload: TxObfuscated {
-                                key_from: 0,
+                                key_from: BlockHeight::genesis(),
                                 txid: tx.id(),
                                 init_vector: [0u8; 12],
                                 txpayload: pad_payload(&plain.encode()),

@@ -29,8 +29,8 @@ impl LivenessTracker {
     /// Updates liveness tracker with new block data
     pub fn update(&mut self, block_height: BlockHeight, signed: bool) {
         let block_signing_window = self.liveness.len();
-        let update_index = (block_height as usize - 1) % block_signing_window; // Because `block_height` starts from 1
-        self.liveness.set(update_index, signed)
+        let update_index = block_height.value() as usize % block_signing_window;
+        self.liveness.set(update_index, signed);
     }
 
     /// Checks if validator is live or not
@@ -72,8 +72,8 @@ mod tests {
     #[test]
     fn check_liveness_tracker_encode_decode() {
         let mut initial = LivenessTracker::new(50);
-        initial.update(1, true);
-        initial.update(2, false);
+        initial.update(1.into(), true);
+        initial.update(2.into(), false);
 
         let encoded = initial.encode();
         let decoded = LivenessTracker::decode(&mut encoded.as_ref()).unwrap();
@@ -84,11 +84,11 @@ mod tests {
     #[test]
     fn check_liveness_tracker() {
         let mut tracker = LivenessTracker::new(5);
-        tracker.update(1, true);
-        tracker.update(2, false);
-        tracker.update(3, true);
-        tracker.update(4, false);
-        tracker.update(5, true);
+        tracker.update(1.into(), true);
+        tracker.update(2.into(), false);
+        tracker.update(3.into(), true);
+        tracker.update(4.into(), false);
+        tracker.update(5.into(), true);
 
         assert!(tracker.is_live(3));
         assert!(!tracker.is_live(2));

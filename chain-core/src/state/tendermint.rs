@@ -14,8 +14,60 @@ use std::prelude::v1::{String, ToString, Vec};
 use thiserror::Error;
 
 /// Tendermint block height
-/// TODO: u64?
-pub type BlockHeight = i64;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Encode, Decode)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[cfg_attr(not(feature = "mesalock_sgx"), serde(transparent))]
+pub struct BlockHeight(u64);
+
+impl std::fmt::Display for BlockHeight {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl BlockHeight {
+    #[inline]
+    pub fn new(n: u64) -> BlockHeight {
+        BlockHeight(n)
+    }
+    #[inline]
+    pub fn genesis() -> BlockHeight {
+        BlockHeight(0)
+    }
+    #[inline]
+    pub fn value(self) -> u64 {
+        self.0
+    }
+    #[inline]
+    pub fn checked_sub(self, n: u64) -> Option<BlockHeight> {
+        self.0.checked_sub(n).map(BlockHeight)
+    }
+    #[inline]
+    pub fn checked_add(self, n: u64) -> Option<BlockHeight> {
+        self.0.checked_add(n).map(BlockHeight)
+    }
+    #[inline]
+    pub fn saturating_sub(self, n: u64) -> BlockHeight {
+        BlockHeight(self.0.saturating_sub(n))
+    }
+    #[inline]
+    pub fn saturating_add(self, n: u64) -> BlockHeight {
+        BlockHeight(self.0.saturating_add(n))
+    }
+}
+
+impl From<u64> for BlockHeight {
+    fn from(n: u64) -> BlockHeight {
+        BlockHeight(n)
+    }
+}
+
+impl TryFrom<i64> for BlockHeight {
+    type Error = <u64 as TryFrom<i64>>::Error;
+    fn try_from(n: i64) -> Result<BlockHeight, Self::Error> {
+        u64::try_from(n).map(BlockHeight)
+    }
+}
 
 /// ed25519 public key size
 pub const PUBLIC_KEY_SIZE: usize = 32;
