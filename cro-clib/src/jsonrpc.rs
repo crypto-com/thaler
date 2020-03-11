@@ -23,8 +23,12 @@ use client_rpc::rpc::{
     wallet_rpc::{WalletRpc, WalletRpcImpl},
 };
 
+use crate::types::get_string;
 use crate::types::CroResult;
 use crate::types::ProgressCallback;
+use crate::types::{CroJsonRpc, CroJsonRpcPtr};
+use std::ptr;
+
 use client_rpc::rpc::sync_rpc::{CBindingCallback, CBindingCore};
 
 #[cfg(not(feature = "mock-enc-dec"))]
@@ -239,4 +243,124 @@ pub unsafe extern "C" fn cro_jsonrpc_call(
             CroResult::success()
         }
     }
+}
+
+/// create json-rpc context
+/// rpc_out: null pointer which will be written
+/// example c-code)
+///  CroJsonRpcPtr rpc= NULL;
+///  cro_create_jsonrpc(&rpc, ".storage", "ws://localhost:26657/websocket", 0xab, &progress);
+/// storage_dir: ".storage"
+/// websocket_url:  "ws://localhost:26657/websocket"
+/// network: network-id  ex) 0xab
+/// progress_callback: callback function which user codes
+/// example c-code)
+/// int32_t  progress(float rate)
+/// {
+///    printf("progress %f\n", rate);
+/// }
+/// you can give this callback like below
+/// CroResult retcode = cro_jsonrpc_call("./.storage", "ws://localhost:26657/websocket", 0xab, req, buf, sizeof(buf), &progress);
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn cro_create_jsonrpc(
+    rpc_out: *mut CroJsonRpcPtr,
+    storage_dir_user: *const c_char,
+    websocket_url_user: *const c_char,
+    network_id: u8,
+    progress_callback: ProgressCallback,
+) -> CroResult {
+    let storage_dir = get_string(storage_dir_user);
+    let websocket_url = get_string(websocket_url_user);
+
+    let mut io = IoHandler::new();
+    let storage = SledStorage::new(&storage_dir).unwrap();
+    let tendermint_client = WebsocketRpcClient::new(&websocket_url).unwrap();
+    let wallet_client = make_wallet_client(storage.clone(), tendermint_client.clone()).unwrap();
+    let ops_client = make_ops_client(storage.clone(), tendermint_client.clone()).unwrap();
+    let syncer_config = make_syncer_config(storage, tendermint_client).unwrap();
+
+    let multisig_rpc = MultiSigRpcImpl::new(wallet_client.clone());
+    let transaction_rpc = TransactionRpcImpl::new(network_id);
+    let staking_rpc = StakingRpcImpl::new(wallet_client.clone(), ops_client, network_id);
+
+    let cbindingcallback = CBindingCore {
+        data: Arc::new(Mutex::new(CBindingData {
+            progress_callback,
+            user_data: 0 as u64,
+        })),
+    };
+
+    let sync_rpc = SyncRpcImpl::new(syncer_config, Some(cbindingcallback.clone()));
+    let wallet_rpc = WalletRpcImpl::new(wallet_client, network_id);
+
+    io.extend_with(multisig_rpc.to_delegate());
+    io.extend_with(transaction_rpc.to_delegate());
+    io.extend_with(staking_rpc.to_delegate());
+    io.extend_with(sync_rpc.to_delegate());
+    io.extend_with(wallet_rpc.to_delegate());
+
+    let rpc = CroJsonRpc {
+        handler: io,
+        binding: cbindingcallback,
+    };
+    let rpc_box = Box::new(rpc);
+    ptr::write(rpc_out, Box::into_raw(rpc_box));
+
+    CroResult::success()
+}
+
+/// request: json rpc request
+/// example c code) const char* req = "{\"jsonrpc\": \"2.0\", \"method\": \"wallet_list\", \"params\": [], \"id\": 1}";
+/// buf: minimum 500 bytes
+/// buf_size: size of buf in bytes
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn cro_run_jsonrpc(
+    rpc_ptr: CroJsonRpcPtr,
+    request: *const c_char,
+    buf: *mut c_char,
+    buf_size: usize,
+    user_data: *const std::ffi::c_void,
+) -> CroResult {
+    if rpc_ptr.is_null() {
+        return CroResult::fail();
+    }
+    let rpc = rpc_ptr.as_mut().expect("get wallet");
+    let json_request = get_string(request);
+
+    {
+        let mut user = (*rpc).binding.data.lock().expect("get cbinding callback");
+        user.set_user(user_data as u64);
+    }
+
+    let io = &rpc.handler;
+    let res = io
+        .handle_request_sync(&json_request)
+        .err_kind(ErrorKind::InvalidInput, || {
+            "stateful command execute failed"
+        });
+    match res {
+        Err(e) => {
+            libc::strncpy(
+                buf,
+                CString::new(e.to_string()).unwrap().into_raw(),
+                buf_size,
+            );
+            CroResult::fail()
+        }
+        Ok(s) => {
+            libc::strncpy(buf, CString::new(s).unwrap().into_raw(), buf_size);
+            CroResult::success()
+        }
+    }
+}
+
+/// destroy json-rpc context
+/// rpc: containing pointer to free
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn cro_destroy_jsonrpc(rpc: CroJsonRpcPtr) -> CroResult {
+    Box::from_raw(rpc);
+    CroResult::success()
 }
