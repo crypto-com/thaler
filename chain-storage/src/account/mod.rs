@@ -19,6 +19,7 @@ use chain_core::state::account::{to_stake_key, StakedState, StakedStateAddress};
 /// key type for looking up accounts/staked states in the merkle tree storage
 pub type StarlingFixedKey = [u8; KEY_LEN];
 
+#[derive(Debug)]
 pub enum StakedStateError {
     NotFound,
     IoError(std::io::Error),
@@ -225,7 +226,8 @@ mod test {
     #[test]
     fn test_account_insert_can_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = StakedState::default();
+        let account =
+            StakedState::default(StakedStateAddress::BasicRedeem(RedeemAddress::default()));
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let new_root = tree
@@ -238,7 +240,8 @@ mod test {
     #[test]
     fn test_account_update_can_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = StakedState::default();
+        let account =
+            StakedState::default(StakedStateAddress::BasicRedeem(RedeemAddress::default()));
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree
@@ -271,7 +274,8 @@ mod test {
     #[test]
     fn test_account_remove_cannot_find() {
         let mut tree = AccountStorage::new(create_db(), 20).expect("account db");
-        let account = StakedState::default();
+        let account =
+            StakedState::default(StakedStateAddress::BasicRedeem(RedeemAddress::default()));
         let key = account.key();
         let wrapped = AccountWrapper(account);
         let old_root = tree

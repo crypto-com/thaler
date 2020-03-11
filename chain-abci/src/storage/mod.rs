@@ -1,6 +1,7 @@
 use crate::enclave_bridge::EnclaveProxy;
+use chain_core::init::coin::Coin;
 use chain_core::state::account::{StakedState, StakedStateAddress};
-use chain_core::tx::data::input::TxoPointer;
+use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::fee::Fee;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxObfuscated;
@@ -14,7 +15,92 @@ use chain_tx_validation::{
     verify_node_join, verify_unbonding, verify_unjailed, verify_unjailing,
     witness::verify_tx_recover_address, ChainInfo, Error, NodeChecker,
 };
-use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, SealedLog, VerifyOk};
+use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, SealedLog};
+
+/// fee: Written into block result events
+/// spend_utxo: Modify UTxO storage
+/// create_utxo: Write into UTxO storage
+/// sealed_log: Write into storage
+/// deposit/withdraw: Modify staking state and related validator state structure
+#[derive(Debug, Clone)]
+pub enum TxEnclaveAction {
+    Transfer {
+        fee: Fee,
+        spend_utxo: Vec<TxoPointer>,
+        create_utxo: TxoIndex,
+        sealed_log: SealedLog,
+    },
+    Deposit {
+        fee: Fee,
+        spend_utxo: Vec<TxoPointer>,
+        deposit: (StakedStateAddress, Coin),
+    },
+    Withdraw {
+        fee: Fee,
+        withdraw: (StakedStateAddress, Coin),
+        create_utxo: TxoIndex,
+        sealed_log: SealedLog,
+    },
+}
+
+impl TxEnclaveAction {
+    fn transfer(
+        fee: Fee,
+        spend_utxo: Vec<TxoPointer>,
+        create_utxo: TxoIndex,
+        sealed_log: SealedLog,
+    ) -> Self {
+        Self::Transfer {
+            fee,
+            spend_utxo,
+            create_utxo,
+            sealed_log,
+        }
+    }
+    fn deposit(fee: Fee, spend_utxo: Vec<TxoPointer>, deposit: (StakedStateAddress, Coin)) -> Self {
+        Self::Deposit {
+            fee,
+            spend_utxo,
+            deposit,
+        }
+    }
+    fn withdraw(
+        fee: Fee,
+        create_utxo: TxoIndex,
+        sealed_log: SealedLog,
+        withdraw: (StakedStateAddress, Coin),
+    ) -> Self {
+        Self::Withdraw {
+            fee,
+            create_utxo,
+            sealed_log,
+            withdraw,
+        }
+    }
+
+    pub fn fee(&self) -> Fee {
+        match self {
+            Self::Transfer { fee, .. } => *fee,
+            Self::Deposit { fee, .. } => *fee,
+            Self::Withdraw { fee, .. } => *fee,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum TxAction {
+    Enclave(TxEnclaveAction),
+    Public(Fee),
+}
+
+impl TxAction {
+    pub fn fee(&self) -> Fee {
+        match self {
+            Self::Public(fee) => *fee,
+            Self::Enclave(action) => action.fee(),
+        }
+    }
+}
 
 /// checks that the account can be retrieved from the trie storage
 pub fn get_account(
@@ -74,9 +160,13 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
     last_account_root_hash: &StarlingFixedKey,
     storage: &Storage,
     accounts: &AccountStorage,
-) -> Result<VerifyOk, Error> {
+) -> Result<TxEnclaveAction, Error> {
     match txaux {
-        TxEnclaveAux::TransferTx { inputs, .. } => {
+        TxEnclaveAux::TransferTx {
+            inputs,
+            no_of_outputs,
+            ..
+        } => {
             let tx_inputs = check_spent_input_lookup(&inputs, storage)?;
             let response = tx_validator.process_request(
                 IntraEnclaveRequest::new_validate_transfer(txaux.clone(), extra_info, tx_inputs),
@@ -85,7 +175,12 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
                 Ok(IntraEnclaveResponseOk::TxWithOutputs {
                     paid_fee,
                     sealed_tx,
-                }) => Ok((paid_fee, None, Some(Box::new(sealed_tx)))),
+                }) => Ok(TxEnclaveAction::transfer(
+                    paid_fee,
+                    inputs.clone(),
+                    *no_of_outputs,
+                    sealed_tx,
+                )),
                 Err(e) => Err(e),
                 _ => unreachable!("unexpected enclave response"),
             }
@@ -108,27 +203,18 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
             let response = tx_validator.process_request(IntraEnclaveRequest::new_validate_deposit(
                 txaux.clone(),
                 extra_info,
-                account.clone(),
+                account,
                 tx_inputs,
             ));
             match response {
                 Ok(IntraEnclaveResponseOk::DepositStakeTx { input_coins }) => {
                     let deposit_amount = (input_coins - extra_info.min_fee_computed.to_coin())
                         .expect("diff with min fee in coins");
-                    let account = match account {
-                        Some(mut a) => {
-                            a.deposit(deposit_amount);
-                            Some(a)
-                        }
-                        None => Some(StakedState::new_init_bonded(
-                            deposit_amount,
-                            extra_info.previous_block_time,
-                            tx.to_staked_account,
-                            None,
-                        )),
-                    };
-                    let fee = extra_info.min_fee_computed;
-                    Ok((fee, account, None))
+                    Ok(TxEnclaveAction::deposit(
+                        extra_info.min_fee_computed,
+                        tx.inputs.clone(),
+                        (tx.to_staked_account, deposit_amount),
+                    ))
                 }
                 Err(e) => Err(e),
                 _ => unreachable!("unexpected enclave response"),
@@ -137,29 +223,26 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
         TxEnclaveAux::WithdrawUnbondedStakeTx {
             payload: TxObfuscated { txid, .. },
             witness,
-            ..
+            no_of_outputs,
         } => {
-            let account_address = verify_tx_recover_address(&witness, &txid);
-            if let Err(_e) = account_address {
-                return Err(Error::EcdsaCrypto); // FIXME: Err(Error::EcdsaCrypto(e));
-            }
-            let mut account =
-                get_account(&account_address.unwrap(), last_account_root_hash, accounts)?;
+            let account_address =
+                verify_tx_recover_address(&witness, &txid).map_err(|_| Error::EcdsaCrypto)?;
+            let account = get_account(&account_address, last_account_root_hash, accounts)?;
             verify_unjailed(&account)?;
-            let response =
-                tx_validator.process_request(IntraEnclaveRequest::new_validate_withdraw(
-                    txaux.clone(),
-                    extra_info,
-                    account.clone(),
-                ));
+            let withdraw_amount = account.unbonded;
+            let response = tx_validator.process_request(
+                IntraEnclaveRequest::new_validate_withdraw(txaux.clone(), extra_info, account),
+            );
             match response {
                 Ok(IntraEnclaveResponseOk::TxWithOutputs {
                     paid_fee,
                     sealed_tx,
-                }) => {
-                    account.withdraw();
-                    Ok((paid_fee, Some(account), Some(Box::new(sealed_tx))))
-                }
+                }) => Ok(TxEnclaveAction::withdraw(
+                    paid_fee,
+                    *no_of_outputs,
+                    sealed_tx,
+                    (account_address, withdraw_amount),
+                )),
                 Err(e) => Err(e),
                 _ => unreachable!("unexpected enclave response"),
             }
