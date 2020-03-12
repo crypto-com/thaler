@@ -761,7 +761,10 @@ fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64
     println!("commit: {:?}", app.commit(&RequestCommit::default()));
 }
 
-pub fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp<MockClient>) -> StakedState {
+pub fn get_account(
+    account_address: &RedeemAddress,
+    app: &ChainNodeApp<MockClient>,
+) -> Option<StakedState> {
     println!(
         "uncommitted root hash: {}",
         hex::encode(app.uncommitted_account_root_hash)
@@ -777,10 +780,7 @@ pub fn get_account(account_address: &RedeemAddress, app: &ChainNodeApp<MockClien
         .get_one(&app.uncommitted_account_root_hash, &account_key)
         .expect("account lookup problem");
 
-    match account {
-        None => panic!("account not found"),
-        Some(AccountWrapper(a)) => a,
-    }
+    account.map(|AccountWrapper(a)| a)
 }
 
 fn get_tx_meta(txid: &TxId, app: &ChainNodeApp<MockClient>) -> BitVec {
@@ -792,13 +792,19 @@ fn get_tx_meta(txid: &TxId, app: &ChainNodeApp<MockClient>) -> BitVec {
 }
 
 #[test]
+#[allow(clippy::cognitive_complexity)]
 fn all_valid_tx_types_should_commit() {
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let x_public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
-
     let addr = RedeemAddress::from(&public_key);
+
+    let secret_key2 = SecretKey::from_slice(&[0xce; 32]).expect("32 bytes, within curve order");
+    let public_key2 = PublicKey::from_secret_key(&secp, &secret_key2);
+    // addr2 is not exist in genesis.
+    let addr2 = RedeemAddress::from(&public_key2);
+
     let mut app = init_chain_for(addr);
 
     let merkle_tree = MerkleTree::new(vec![RawXOnlyPubkey::from(x_public_key.serialize())]);
@@ -809,11 +815,9 @@ fn all_valid_tx_types_should_commit() {
         vec![
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
             TxOut::new_with_timelock(eaddr.clone(), (Coin::one() + Coin::one()).unwrap(), 0),
+            TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
         ],
-        TxAttributes::new_with_access(
-            0,
-            vec![TxAccessPolicy::new(public_key.clone(), TxAccess::AllData)],
-        ),
+        TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
     );
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
@@ -828,14 +832,14 @@ fn all_valid_tx_types_should_commit() {
         },
     });
     {
-        let account = get_account(&addr, &app);
+        let account = get_account(&addr, &app).expect("acount not exist");
         // TODO: more precise amount assertions
         assert!(account.unbonded > Coin::zero());
         assert_eq!(account.nonce, 0);
     }
     block_commit(&mut app, withdrawtx, 1);
     {
-        let account = get_account(&addr, &app);
+        let account = get_account(&addr, &app).expect("acount not exist");
         assert_eq!(account.unbonded, Coin::zero());
         assert_eq!(account.nonce, 1);
         let spend_utxos = get_tx_meta(&txid, &app);
@@ -845,7 +849,7 @@ fn all_valid_tx_types_should_commit() {
     let utxo1 = TxoPointer::new(*txid, 0);
     let mut tx1 = Tx::new();
     tx1.add_input(utxo1);
-    tx1.add_output(TxOut::new(eaddr.clone(), halfcoin));
+    tx1.add_output(TxOut::new(eaddr, halfcoin));
     let txid1 = tx1.id();
     let witness1 = vec![TxInWitness::TreeSig(
         schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),
@@ -897,7 +901,7 @@ fn all_valid_tx_types_should_commit() {
     {
         let spent_utxos0 = get_tx_meta(&txid, &app);
         assert!(spent_utxos0[0] && !spent_utxos0[1]);
-        let account = get_account(&addr, &app);
+        let account = get_account(&addr, &app).expect("acount not exist");
         assert_eq!(account.bonded, Coin::zero());
         assert_eq!(account.nonce, 1);
     }
@@ -905,10 +909,44 @@ fn all_valid_tx_types_should_commit() {
     {
         let spent_utxos0 = get_tx_meta(&txid, &app);
         assert!(spent_utxos0[0] && spent_utxos0[1]);
-        let account = get_account(&addr, &app);
+        let account = get_account(&addr, &app).expect("acount not exist");
         // TODO: more precise amount assertions
         assert!(account.bonded > Coin::zero());
         assert_eq!(account.nonce, 2);
+    }
+
+    let utxo3 = TxoPointer::new(*txid, 2);
+    let tx3 = DepositBondTx::new(vec![utxo3], addr2.into(), StakedStateOpAttributes::new(0));
+    let witness3 = vec![TxInWitness::TreeSig(
+        schnorr_sign(&secp, &Message::from_slice(&tx3.id()).unwrap(), &secret_key),
+        merkle_tree
+            .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
+            .unwrap(),
+    )]
+    .into();
+    let depositx = TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
+        tx: tx3.clone(),
+        payload: TxObfuscated {
+            txid: tx3.id(),
+            key_from: 0,
+            init_vector: [0u8; 12],
+            txpayload: PlainTxAux::DepositStakeTx(witness3).encode(),
+        },
+    });
+    {
+        let spent_utxos0 = get_tx_meta(txid, &app);
+        assert!(spent_utxos0[0] && spent_utxos0[1] && !spent_utxos0[2]);
+        let account = get_account(&addr2, &app);
+        assert!(account.is_none());
+    }
+    block_commit(&mut app, depositx, 4);
+    {
+        let spent_utxos0 = get_tx_meta(txid, &app);
+        assert!(spent_utxos0[0] && spent_utxos0[1] && spent_utxos0[2]);
+        let account = get_account(&addr2, &app).expect("account not exist");
+        // TODO: more precise amount assertions
+        assert!(account.bonded > Coin::zero());
+        assert_eq!(account.nonce, 1);
     }
 
     let tx = NodeJoinRequestTx::new(
@@ -921,7 +959,7 @@ fn all_valid_tx_types_should_commit() {
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
     let nodejointx = TxAux::NodeJoinTx(tx, witness);
     {
-        let account = get_account(&addr, &app);
+        let account = get_account(&addr, &app).expect("account not exist");
         assert!(account.council_node.is_none());
         assert_eq!(
             app.last_state
@@ -934,9 +972,9 @@ fn all_valid_tx_types_should_commit() {
         );
         assert_eq!(account.nonce, 2);
     }
-    block_commit(&mut app, nodejointx, 4);
+    block_commit(&mut app, nodejointx, 5);
     {
-        let account = get_account(&addr, &app);
+        let account = get_account(&addr, &app).expect("account not exist");
         assert!(account.council_node.is_some());
         assert_eq!(
             app.last_state
@@ -959,13 +997,13 @@ fn all_valid_tx_types_should_commit() {
     let witness4 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx4.id(), &secret_key));
     let unbondtx = TxAux::UnbondStakeTx(tx4, witness4);
     {
-        let account = get_account(&addr, &app);
+        let account = get_account(&addr, &app).expect("account not exist");
         assert_eq!(account.unbonded, Coin::zero());
         assert_eq!(account.nonce, 3);
     }
-    block_commit(&mut app, unbondtx, 5);
+    block_commit(&mut app, unbondtx, 6);
     {
-        let account = get_account(&addr, &app);
+        let account = get_account(&addr, &app).expect("account not exist");
         assert_eq!(account.unbonded, Coin::unit());
         assert_eq!(account.nonce, 4);
     }
