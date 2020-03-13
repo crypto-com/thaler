@@ -17,8 +17,6 @@
 // TODO: document the SGX stuff
 use chrono::DateTime;
 use client_common::{Error, ErrorKind, Result, ResultExt};
-use rustls;
-use serde_json;
 use serde_json::Value;
 use std::convert::TryFrom;
 use std::io::BufReader;

@@ -3,7 +3,6 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 use secstr::SecUtf8;
-use serde_json;
 use signatory::ed25519;
 use signatory::public_key::PublicKeyed;
 use signatory_dalek::Ed25519Signer;

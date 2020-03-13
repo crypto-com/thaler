@@ -1,7 +1,6 @@
 //! Lite tendermint client
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use tendermint::{block::Header, validator};
 
 use crate::tendermint::client::Client;

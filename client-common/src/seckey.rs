@@ -3,7 +3,6 @@ use std::str::FromStr;
 
 use aes::{block_cipher_trait::BlockCipher, Aes256};
 use aes_gcm_siv::aead::generic_array::{typenum::Unsigned, GenericArray};
-use argon2;
 use blake2::{Blake2s, Digest};
 use hmac::{Hmac, Mac};
 use secstr::{SecBox, SecUtf8};

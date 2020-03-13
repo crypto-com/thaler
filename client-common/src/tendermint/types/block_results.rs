@@ -2,7 +2,6 @@
 use std::convert::TryFrom;
 use std::str::{from_utf8, FromStr};
 
-use base64;
 use indexmap::IndexMap;
 use serde::Deserialize;
 

@@ -1,6 +1,5 @@
 #![allow(missing_docs)]
 use crate::tendermint::types::*;
-use serde_json;
 use std::str::FromStr;
 use tendermint::{account, chain, channel, net, node, validator, Moniker, PrivateKey, PublicKey};
 

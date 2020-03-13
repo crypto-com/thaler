@@ -62,7 +62,7 @@ impl<'a, 'b> ConsReader<'a, 'b> for BERReaderSet<'a, 'b> {
 pub trait Asn1Ty {
     type ValueTy;
     const TAG: yasna::Tag;
-    fn dump<'a>(writer: Writer<'a>, value: Self::ValueTy) -> ();
+    fn dump<'a>(writer: Writer<'a>, value: Self::ValueTy);
     fn load<'a, 'b>(reader: Reader<'a, 'b>) -> ASN1Result<Self::ValueTy>
     where
         'a: 'b;
@@ -73,7 +73,7 @@ where
     Self: std::marker::Sized,
 {
     type ValueTy;
-    fn dump<'a, W: ConsWriter<'a>>(writer: &mut W, value: Self::ValueTy) -> ();
+    fn dump<'a, W: ConsWriter<'a>>(writer: &mut W, value: Self::ValueTy);
     fn load<'a, 'b, R>(reader: &mut R) -> ASN1Result<Self::ValueTy>
     where
         'a: 'b,
