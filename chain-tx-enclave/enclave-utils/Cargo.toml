@@ -1,0 +1,16 @@
+[package]
+name = "enclave-utils"
+version = "0.4.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Platform independent enclave utilities (sealing, attestation primitives...)."
+readme = "../../README.md"
+edition = "2018"
+
+[dependencies]
+sgx-isa = "0.3"
+aes-gcm = "0.4.2"
+aead = "0.2"
+zeroize = "1.1"
+
+[features]
+sgxstd = ["sgx-isa/sgxstd"]
