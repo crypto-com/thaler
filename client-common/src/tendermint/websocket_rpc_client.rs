@@ -11,7 +11,6 @@ use std::sync::{atomic::AtomicUsize, atomic::Ordering, Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use base64;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tendermint::{lite::verifier, validator};

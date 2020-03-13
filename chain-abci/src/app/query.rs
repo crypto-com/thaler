@@ -8,7 +8,6 @@ use chain_core::state::ChainState;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use chain_storage::LookupItem;
 use parity_scale_codec::{Decode, Encode};
-use serde_json;
 use std::convert::TryFrom;
 
 /// Generate generic ABCI ProofOp for the witness

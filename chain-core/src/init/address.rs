@@ -19,8 +19,6 @@ use std::prelude::v1::String;
 #[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
 
-#[cfg(not(feature = "mesalock_sgx"))]
-use hex;
 use secp256k1::key::PublicKey;
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::de::Error;
