@@ -4,8 +4,8 @@ pub mod tx;
 use chain_core::common::H256;
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::data::TxId;
-use integer_encoding::VarInt;
 use kvdb::{DBTransaction, KeyValueDB};
+use parity_scale_codec::Encode;
 use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -227,7 +227,7 @@ impl Storage {
 
     pub fn get_historical_state(&self, height: BlockHeight) -> Option<Vec<u8>> {
         self.db
-            .get(COL_APP_STATES, &i64::encode_var_vec(height))
+            .get(COL_APP_STATES, &height.encode())
             .expect("app last block height look up")
             .map(|x| x.to_vec())
     }
@@ -235,7 +235,7 @@ impl Storage {
     pub fn get_historical_app_hash(&self, height: BlockHeight) -> Option<H256> {
         let sah = self
             .db
-            .get(COL_APP_HASHS, &i64::encode_var_vec(height))
+            .get(COL_APP_HASHS, &height.encode())
             .expect("app last block height look up")
             .map(|x| x.to_vec());
         if let Some(ah) = sah {
@@ -255,7 +255,7 @@ impl Storage {
     ) {
         let inittx = self.get_or_create_tx();
         inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &genesis_state.get_encoded());
-        let encoded_height = i64::encode_var_vec(block_height);
+        let encoded_height = block_height.encode();
         inittx.put(
             COL_APP_HASHS,
             &encoded_height,
@@ -275,7 +275,7 @@ impl Storage {
         genesis_state: &T,
         write_history_states: bool,
     ) {
-        self.store_chain_state(genesis_state, 0, write_history_states);
+        self.store_chain_state(genesis_state, BlockHeight::genesis(), write_history_states);
     }
 
     pub fn write_genesis_chain_id(&mut self, genesis_app_hash: &H256, chain_id: &str) {

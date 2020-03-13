@@ -1,6 +1,7 @@
 use crate::validate::write_back_response;
 use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm_siv::Aes128GcmSiv;
+use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::TransactionId;
 use chain_core::tx::{PlainTxAux, TxObfuscated, TxToObfuscate};
 use chain_tx_validation::{
@@ -31,7 +32,7 @@ pub(crate) fn encrypt(tx: TxToObfuscate) -> TxObfuscated {
     let nonce = GenericArray::from_slice(&init_vector);
     let ciphertext = aead.encrypt(nonce, &tx).expect("encryption failure!");
     TxObfuscated {
-        key_from: -1,
+        key_from: BlockHeight::genesis(),
         init_vector,
         txpayload: ciphertext,
         txid: tx.txid,

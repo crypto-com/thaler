@@ -1,14 +1,17 @@
+use std::convert::{TryFrom, TryInto};
+
 use super::ChainNodeApp;
 use crate::enclave_bridge::{mock::handle_enc_dec, EnclaveProxy};
 use crate::storage::get_account;
 use abci::*;
 use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
 use chain_core::state::account::{CouncilNodeMetadata, StakedStateAddress};
+use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::ChainState;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
 use chain_storage::LookupItem;
 use parity_scale_codec::{Decode, Encode};
-use std::convert::TryFrom;
+use serde_json;
 
 /// Generate generic ABCI ProofOp for the witness
 fn get_witness_proof_op(witness: &[u8]) -> ProofOp {
@@ -112,13 +115,21 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                         .storage
                         .lookup_item(LookupItem::TxWitness, &txid, false);
                     if let Some(witness) = mwitness {
-                        let last_height: i64 =
-                            self.last_state.as_ref().map_or(0, |x| x.last_block_height);
-                        let height = if _req.height == 0 || _req.height > last_height {
-                            last_height
-                        } else {
-                            _req.height
-                        };
+                        // Negative height default to 0
+                        let req_height = _req
+                            .height
+                            .try_into()
+                            .unwrap_or_else(|_| BlockHeight::genesis());
+                        let last_height = self
+                            .last_state
+                            .as_ref()
+                            .map_or(BlockHeight::genesis(), |x| x.last_block_height);
+                        let height =
+                            if req_height == BlockHeight::genesis() || req_height > last_height {
+                                last_height
+                            } else {
+                                req_height
+                            };
                         // note this should not crash if Tendermint delivers all blocks with height in order
                         // TODO: invariant / sanity check in rust-abci?
                         let app_hash = self.storage.get_historical_app_hash(height).unwrap();
@@ -195,7 +206,9 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     resp.code = 1;
                     resp.log += "tx query address not set / state is not persisted";
                 } else {
-                    let value = self.storage.get_historical_state(_req.height);
+                    let value = self.storage.get_historical_state(
+                        _req.height.try_into().expect("Invalid block height"),
+                    );
                     match value {
                         Some(value) => {
                             if let Ok(state) = ChainState::decode(&mut value.to_vec().as_slice()) {

@@ -193,6 +193,7 @@ mod default_wallet_transaction_builder_tests {
     use secstr::SecUtf8;
 
     use super::*;
+    use chain_core::state::tendermint::BlockHeight;
     use chain_core::tx::data::input::{TxoIndex, TxoPointer};
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{LinearFee, Milli};
@@ -228,7 +229,7 @@ mod default_wallet_transaction_builder_tests {
                         no_of_outputs: tx.outputs.len() as TxoIndex,
                         payload: TxObfuscated {
                             txid: [0; 32],
-                            key_from: 0,
+                            key_from: BlockHeight::genesis(),
                             init_vector: [0u8; 12],
                             txpayload,
                         },

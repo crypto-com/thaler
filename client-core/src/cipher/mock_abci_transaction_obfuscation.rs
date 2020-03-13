@@ -125,6 +125,7 @@ mod tests {
 
     use base64::encode;
 
+    use chain_core::state::tendermint::BlockHeight;
     use chain_core::state::ChainState;
     use chain_core::tx::data::Tx;
     use chain_core::tx::witness::TxWitness;
@@ -138,7 +139,7 @@ mod tests {
             no_of_outputs: 2,
             payload: TxObfuscated {
                 txid: [0; 32],
-                key_from: 0,
+                key_from: BlockHeight::genesis(),
                 init_vector: [0; 12],
                 txpayload: Vec::new(),
             },

@@ -5,6 +5,7 @@ use chain_core::state::account::{
     DepositBondTx, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
     WithdrawUnbondedTx,
 };
+use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
@@ -71,7 +72,7 @@ impl DummySigner {
             no_of_outputs: tx.outputs.len() as TxoIndex,
             payload: TxObfuscated {
                 txid: [0; 32],
-                key_from: 0,
+                key_from: BlockHeight::genesis(),
                 init_vector: [0u8; 12],
                 txpayload: padded_payload,
             },
@@ -95,7 +96,7 @@ impl DummySigner {
         };
         let payload = TxObfuscated {
             txid: TxId::default(),
-            key_from: 0,
+            key_from: BlockHeight::genesis(),
             init_vector: [0u8; 12],
             txpayload: padded_payload,
         };
@@ -120,7 +121,7 @@ impl DummySigner {
             witness,
             payload: TxObfuscated {
                 txid,
-                key_from: 0,
+                key_from: BlockHeight::genesis(),
                 init_vector: [0u8; 12],
                 txpayload: padded_plain,
             },
