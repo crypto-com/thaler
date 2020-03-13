@@ -26,6 +26,13 @@ use parity_scale_codec::{Decode, Encode};
 use state::RewardsPoolState;
 use tx::fee::Fee;
 
+/// The app version returned in Tendermint "Info" response,
+/// included in every header + transaction metadata.
+/// It denotes both binary schema and semantics (state machine rules)
+/// ref: https://github.com/tendermint/tendermint/blob/master/docs/architecture/adr-016-protocol-versions.md#appversion
+/// TODO: upgrades/new version signalling
+pub const APP_VERSION: u64 = 0;
+
 /// computes the "global" application hash (used by Tendermint to check consistency + block replaying)
 /// currently: app_hash = blake2s(root of valid TX merkle tree
 /// || root of account/staked state trie || blake2s(scale bytes(rewards pool state)) || blake2s(scale bytes(network params)))

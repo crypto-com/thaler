@@ -25,6 +25,15 @@ use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
 use slash_accounts::{get_slashing_proportion, get_vote_power_in_milli};
 use std::convert::{TryFrom, TryInto};
 
+fn get_version() -> String {
+    format!(
+        "{} {}:{}",
+        env!("CARGO_PKG_VERSION"),
+        env!("VERGEN_BUILD_DATE"),
+        env!("VERGEN_SHA_SHORT")
+    )
+}
+
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
 impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     /// Query Connection: Called on startup from Tendermint.  The application should normally
@@ -36,6 +45,8 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         if let Some(app_state) = &self.last_state {
             resp.last_block_app_hash = app_state.last_apphash.to_vec();
             resp.last_block_height = app_state.last_block_height.value().try_into().unwrap();
+            resp.app_version = chain_core::APP_VERSION;
+            resp.version = get_version();
             resp.data = serde_json::to_string(&app_state).expect("serialize app state to json");
         } else {
             resp.last_block_app_hash = self.genesis_app_hash.to_vec();

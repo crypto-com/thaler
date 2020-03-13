@@ -472,6 +472,7 @@ dependencies = [
  "starling",
  "structopt",
  "test-common",
+ "vergen",
  "zmq",
 ]
 

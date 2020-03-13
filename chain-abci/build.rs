@@ -1,8 +1,15 @@
 use std::env;
 use std::path::Path;
 use std::process::Command;
+use vergen::{generate_cargo_keys, ConstantsFlags};
 
 fn main() {
+    let mut flags = ConstantsFlags::empty();
+    flags.toggle(ConstantsFlags::BUILD_DATE);
+    flags.toggle(ConstantsFlags::SHA_SHORT);
+
+    generate_cargo_keys(flags).expect("Unable to generate the cargo keys!");
+
     match env::var("CARGO_CFG_TARGET_OS").as_ref() {
         Ok(os) if os == "linux" => {
             let sdk_dir = env::var("SGX_SDK").unwrap_or_else(|_| "/opt/intel/sgxsdk".to_string());

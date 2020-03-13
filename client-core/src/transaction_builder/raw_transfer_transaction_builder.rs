@@ -1138,7 +1138,7 @@ mod raw_transfer_transaction_builder_tests {
 
         builder.add_input((
             TxoPointer::new(random(), 0),
-            TxOut::new(transfer_addr.clone(), Coin::new(500).unwrap()),
+            TxOut::new(transfer_addr.clone(), Coin::new(501).unwrap()),
         ));
         builder.add_input((
             TxoPointer::new(random(), 0),

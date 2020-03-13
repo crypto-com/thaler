@@ -5,6 +5,7 @@
 ## v0.4.0
 
 ### Breaking changes
+* *chain-abci* [1239](https://github.com/crypto-com/chain/pull/1239): basic versioning
 * *chain-abci* [1090](https://github.com/crypto-com/chain/pull/1090): upper bounds of reward parameters changed
 * *chain-abci* [1100](https://github.com/crypto-com/chain/pull/1100): account nonce increased after reward distribution
 * *chain-core* [1162](https://github.com/crypto-com/chain/pull/1162): transaction witness contains BIP-340-compatible Schnorr signatures (instead of the previous WIP scheme)

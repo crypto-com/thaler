@@ -441,12 +441,15 @@ impl StakedState {
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct StakedStateOpAttributes {
     pub chain_hex_id: u8,
-    // TODO: Other attributes?
+    pub app_version: u64,
 }
 
 impl StakedStateOpAttributes {
     pub fn new(chain_hex_id: u8) -> Self {
-        StakedStateOpAttributes { chain_hex_id }
+        StakedStateOpAttributes {
+            chain_hex_id,
+            app_version: crate::APP_VERSION,
+        }
     }
 }
 
