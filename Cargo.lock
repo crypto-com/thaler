@@ -38,6 +38,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "aes-gcm"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff010d955ff3380d45cd17bd86be81cc45e27bc89579d1429ee430163ac19086"
+dependencies = [
+ "aead",
+ "aes",
+ "block-cipher-trait",
+ "ghash",
+ "subtle 2.2.2",
+ "zeroize 1.1.0",
+]
+
+[[package]]
 name = "aes-gcm-siv"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1128,6 +1142,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "enclave-utils"
+version = "0.4.0"
+dependencies = [
+ "aead",
+ "aes-gcm",
+ "sgx-isa",
+ "zeroize 1.1.0",
+]
+
+[[package]]
 name = "encode_unicode"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1446,6 +1470,15 @@ dependencies = [
  "cfg-if",
  "libc",
  "wasi",
+]
+
+[[package]]
+name = "ghash"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f0930ed19a7184089ea46d2fedead2f6dc2b674c5db4276b7da336c7cd83252"
+dependencies = [
+ "polyval",
 ]
 
 [[package]]
@@ -3128,6 +3161,15 @@ dependencies = [
  "linked-hash-map",
  "serde",
  "yaml-rust",
+]
+
+[[package]]
+name = "sgx-isa"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "749959307fc786b8d0724d6ce621d9c5292e3bd992b14ea79e8930cf5d82c30e"
+dependencies = [
+ "bitflags",
 ]
 
 [[package]]

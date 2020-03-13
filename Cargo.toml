@@ -14,6 +14,7 @@ members = [
     "test-common",
     "dev-utils",
     "enclave-protocol",
+    "chain-tx-enclave/enclave-utils",
     "chain-tx-enclave/tx-validation/enclave",
     "chain-tx-enclave/tx-query/app",
     "chain-tx-enclave/tx-query/enclave",
@@ -34,5 +35,6 @@ default-members = [
     "test-common",
     "dev-utils",
     "enclave-protocol",
+    "chain-tx-enclave/enclave-utils",
     "cro-clib",
 ]
