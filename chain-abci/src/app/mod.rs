@@ -50,7 +50,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         ChainNodeApp::query_handler(self, _req)
     }
 
-    /// Mempool Connection:  Used to validate incoming transactions.  If the application reponds
+    /// Mempool Connection:  Used to validate incoming transactions.  If the application responds
     /// with a non-zero value, the transaction is added to Tendermint's mempool for processing
     /// on the deliver_tx call below.
     fn check_tx(&mut self, _req: &RequestCheckTx) -> ResponseCheckTx {
