@@ -47,7 +47,7 @@ static VERSION: Lazy<String> = Lazy::new(|| {
     format!(
         "{} {}:{}\n {}\n{}",
         env!("CARGO_PKG_VERSION"),
-        env!("VERGEN_COMMIT_DATE"),
+        env!("VERGEN_BUILD_DATE"),
         env!("VERGEN_SHA_SHORT"),
         get_logo(),
         get_jok(),

@@ -305,6 +305,23 @@ fn test_account_unbond_verify_fail() {
         );
         expect_error(&result, Error::WrongChainHexId);
     }
+    // UnsupportedVersion
+    {
+        let mut tx = tx.clone();
+        tx.attributes.app_version = chain_core::APP_VERSION + 1;
+        let txaux = TxAux::UnbondStakeTx(
+            tx.clone(),
+            get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+        );
+        let result = verify_public_tx(
+            &txaux,
+            extra_info,
+            NodeInfoWrap::default(),
+            &last_account_root_hash,
+            &accounts,
+        );
+        expect_error(&result, Error::UnsupportedVersion);
+    }
     // AccountNotFound
     {
         let result = verify_public_tx(
@@ -471,6 +488,29 @@ fn test_account_withdraw_verify_fail() {
         assert!(result.is_err());
         let result = verify_unbonded_withdraw(&tx, extra_info, account.clone());
         expect_error(&result, Error::WrongChainHexId);
+    }
+    // UnsupportedVersion
+    {
+        let mut tx = tx.clone();
+        tx.attributes.app_version = chain_core::APP_VERSION + 1;
+        let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+        let txaux = replace_tx_payload(
+            txaux.clone(),
+            PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()),
+            Some(witness),
+            None,
+        );
+        let result = verify_enclave_tx(
+            &mut mock_bridge,
+            &txaux,
+            extra_info,
+            &last_account_root_hash,
+            &storage,
+            &accounts,
+        );
+        assert!(result.is_err());
+        let result = verify_unbonded_withdraw(&tx, extra_info, account.clone());
+        expect_error(&result, Error::UnsupportedVersion);
     }
     // NoOutputs
     {
@@ -750,6 +790,28 @@ fn test_deposit_verify_fail() {
         assert!(result.is_err());
         let result = verify_bonded_deposit(&tx, &witness, extra_info, vec![], None);
         expect_error(&result, Error::WrongChainHexId);
+    }
+    // UnsupportedVersion
+    {
+        let mut tx = tx.clone();
+        tx.attributes.app_version = chain_core::APP_VERSION + 1;
+        let txaux = replace_tx_payload(
+            txaux.clone(),
+            PlainTxAux::DepositStakeTx(witness.clone()),
+            None,
+            Some(tx.clone()),
+        );
+        let result = verify_enclave_tx(
+            &mut mock_bridge,
+            &txaux,
+            extra_info,
+            &last_account_root_hash,
+            &storage,
+            &accounts,
+        );
+        assert!(result.is_err());
+        let result = verify_bonded_deposit(&tx, &witness, extra_info, vec![], None);
+        expect_error(&result, Error::UnsupportedVersion);
     }
     // NoInputs
     {
@@ -1040,6 +1102,35 @@ fn test_transfer_verify_fail() {
         assert!(result.is_err());
         let result = verify_transfer(&tx, &witness, extra_info, vec![]);
         expect_error(&result, Error::WrongChainHexId);
+    }
+    // UnsupportedVersion
+    {
+        let mut tx = tx.clone();
+        tx.attributes.app_version = chain_core::APP_VERSION + 1;
+        let txaux = replace_tx_payload(
+            txaux.clone(),
+            PlainTxAux::TransferTx(tx, witness.clone()),
+            None,
+            None,
+        );
+        let result = verify_enclave_tx(
+            &mut mock_bridge,
+            &txaux,
+            extra_info,
+            &last_account_root_hash,
+            &storage,
+            &accounts,
+        );
+        assert!(result.is_err());
+        let result = verify_enclave_tx(
+            &mut mock_bridge,
+            &txaux,
+            extra_info,
+            &last_account_root_hash,
+            &storage,
+            &accounts,
+        );
+        expect_error(&result, Error::UnsupportedVersion);
     }
     // NoInputs
     {
@@ -1680,6 +1771,23 @@ fn test_nodejoin_fail() {
             &accounts,
         );
         expect_error(&result, Error::WrongChainHexId);
+    }
+    // UnsupportedVersion
+    {
+        let mut tx = tx.clone();
+        tx.attributes.app_version = chain_core::APP_VERSION + 1;
+        let txaux = TxAux::NodeJoinTx(
+            tx.clone(),
+            get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+        );
+        let result = verify_public_tx(
+            &txaux,
+            extra_info,
+            NodeInfoWrap::default(),
+            &root,
+            &accounts,
+        );
+        expect_error(&result, Error::UnsupportedVersion);
     }
     // AccountNotFound
     {

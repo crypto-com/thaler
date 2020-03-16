@@ -23,7 +23,7 @@ pub struct TxAttributes {
     )]
     pub chain_hex_id: u8,
     pub allowed_view: Vec<TxAccessPolicy>,
-    // TODO: other attributes, e.g. versioning info
+    pub app_version: u64,
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
@@ -79,6 +79,7 @@ impl TxAttributes {
         TxAttributes {
             chain_hex_id,
             allowed_view: Vec::new(),
+            app_version: crate::APP_VERSION,
         }
     }
 
@@ -87,6 +88,7 @@ impl TxAttributes {
         TxAttributes {
             chain_hex_id,
             allowed_view,
+            app_version: crate::APP_VERSION,
         }
     }
 }

@@ -334,10 +334,7 @@ mod tests {
         )];
         let memento = handle_blocks(&wallets[0], &state, &blocks, &[tx.clone()]).unwrap();
         state.apply_memento(&memento).expect("apply memento");
-        assert_eq!(
-            state.transaction_history.iter().next().unwrap().0,
-            &tx_cloned.id()
-        );
+        assert!(state.transaction_history.contains_key(&tx_cloned.id()));
     }
 
     fn transfer_transactions(addresses: [ExtendedAddr; 2]) -> [Transaction; 2] {
