@@ -58,8 +58,8 @@ class BaseService:
         rsp = request(self.client_rpc_url, method, *args, **kwargs)
         return rsp.data.result
 
-    def call_chain(self, method, *args):
-        rsp = request(self.chain_rpc_url, method, *args)
+    def call_chain(self, method, *args, **kwargs):
+        rsp = request(self.chain_rpc_url, method, *args, **kwargs)
         return rsp.data.result
 
 
@@ -279,8 +279,8 @@ class Blockchain(BaseService):
     def latest_height(self):
         return self.status()['sync_info']['latest_block_height']
 
-    def validators(self, height=None):
-        return self.call_chain('validators', str(height) if height is not None else None)
+    def validators(self, height=None, page = 0, num_per_page = 100):
+        return self.call_chain('validators', str(height) if height is not None else None, str(page), str(num_per_page))
 
     def block(self, height='latest'):
         height = height if height != 'latest' else self.latest_height()
@@ -314,8 +314,8 @@ class Blockchain(BaseService):
         txid = base64.b64encode(binascii.unhexlify(txid)).decode()
         return self.call_chain('tx', txid, include_proof)
 
-    def tx_search(self, query, include_proof=False, page=1, per_page=100):
-        return self.call_chain('tx_search', query, include_proof, str(page), str(per_page))
+    def tx_search(self, query, include_proof=False, page=1, per_page=100, order_by="asc"):
+        return self.call_chain('tx_search', query=query, prove=include_proof, page=str(page), per_page=str(per_page), order_by = order_by)
 
 
 class RPC:

@@ -12,7 +12,7 @@ default = []
 sgx-test = []
 
 [dependencies]
-abci = "0.6"
+abci = "0.7"
 chain-core = { path = "../chain-core" }
 chain-storage = { path = "../chain-storage" }
 chain-tx-filter = { path = "../chain-tx-filter" }

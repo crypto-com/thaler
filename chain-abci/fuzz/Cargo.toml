@@ -16,7 +16,7 @@ kvdb = "0.5"
 kvdb-memorydb = "0.5"
 chain-storage = { path = "../../chain-storage" }
 chain-core = { path = "../../chain-core" }
-abci = "0.6.5"
+abci = "0.7"
 protobuf = "2.10.0"
 serde_json = "1.0"
 hex = "0.4"

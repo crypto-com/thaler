@@ -32,7 +32,7 @@ use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
 use client_common::tendermint::types::Time;
-use client_common::tendermint::types::{AbciQueryExt, BroadcastTxResponse};
+use client_common::tendermint::types::{AbciQueryExt, BlockResults, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
     seckey::derive_enckey, Error, ErrorKind, PrivateKey, PrivateKeyAction, PublicKey, Result,
@@ -864,7 +864,7 @@ where
         let v = self
             .tendermint_client
             .query("meta", &tx_info.tx.id().to_vec())?
-            .bytes()?;
+            .bytes();
         let bit_flag = BitVec::from_bytes(&v);
         let spent_flags: Result<Vec<bool>> = tx_info
             .tx

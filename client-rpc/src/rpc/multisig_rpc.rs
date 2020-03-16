@@ -463,7 +463,7 @@ mod test {
             unreachable!("genesis")
         }
 
-        fn status(&self) -> CommonResult<Status> {
+        fn status(&self) -> CommonResult<StatusResponse> {
             unreachable!("status")
         }
 
@@ -478,14 +478,14 @@ mod test {
             unreachable!("block_batch")
         }
 
-        fn block_results(&self, _height: u64) -> CommonResult<BlockResults> {
+        fn block_results(&self, _height: u64) -> CommonResult<BlockResultsResponse> {
             unreachable!("block_results")
         }
 
         fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             _heights: T,
-        ) -> CommonResult<Vec<BlockResults>> {
+        ) -> CommonResult<Vec<BlockResultsResponse>> {
             unreachable!("block_results_batch")
         }
 

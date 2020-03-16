@@ -132,7 +132,7 @@ def tendermint_cfg(moniker, app_port, rpc_port, p2p_port, peers):
         'tx_index': {
             'indexer': 'kv',
             # 'index_tags': '',
-            'index_all_tags': True
+            'index_all_keys': True
         },
         'instrumentation': {
             'prometheus': False,
@@ -348,7 +348,8 @@ async def gen_genesis(cfg):
                 "time_iota_ms": "1000"
             },
             "evidence": {
-                "max_age": "100000"
+               "max_age_num_blocks": "100000",
+               "max_age_duration": "172800000000000"
             },
             "validator": {
                 "pub_key_types": [

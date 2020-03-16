@@ -13,7 +13,7 @@ RUN set -e; \
     apt-get install -y libzmq3-dev libssl1.1 libprotobuf10 libsgx-launch libsgx-urts libsgx-epid libsgx-quote-ex; \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=tendermint/tendermint:v0.32.9 /usr/bin/tendermint /usr/bin/tendermint
+COPY --from=tendermint/tendermint:v0.33.3 /usr/bin/tendermint /usr/bin/tendermint
 
 FROM baiduxlab/sgx-rust:1804-1.1.1 AS BUILDER_BASE
 LABEL maintainer="blockchain@crypto.com"
@@ -41,7 +41,7 @@ RUN set -e; \
       clang; \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=tendermint/tendermint:v0.32.9 /usr/bin/tendermint /usr/bin/tendermint
+COPY --from=tendermint/tendermint:v0.33.3 /usr/bin/tendermint /usr/bin/tendermint
 
 FROM BUILDER_BASE AS TEST
 LABEL maintainer="blockchain@crypto.com"

@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use crate::app::app_init::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use abci::{Event, KVPair, PubKey, RequestEndBlock, ResponseEndBlock, ValidatorUpdate};
+use abci::{Event, Pair as KVPair, PubKey, RequestEndBlock, ResponseEndBlock, ValidatorUpdate};
 use chain_core::common::TendermintEventType;
 use chain_tx_filter::BlockFilter;
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk};

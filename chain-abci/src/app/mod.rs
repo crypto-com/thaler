@@ -8,6 +8,7 @@ mod query;
 mod rewards;
 pub mod validate_tx;
 
+use abci::Pair as KVPair;
 use abci::*;
 use log::info;
 
@@ -316,19 +317,19 @@ fn write_tx_event(txaux: &TxAux, fee: Fee, maccount: Option<StakedStateAddress>)
     event.field_type = TendermintEventType::ValidTransactions.to_string();
 
     // write fee into event
-    let mut kvpair_fee = abci::KVPair::new();
+    let mut kvpair_fee = KVPair::new();
     kvpair_fee.key = TendermintEventKey::Fee.into();
     kvpair_fee.value = Vec::from(format!("{}", fee.to_coin()));
     event.attributes.push(kvpair_fee);
 
     if let Some(address) = maccount {
-        let mut kvpair = abci::KVPair::new();
+        let mut kvpair = KVPair::new();
         kvpair.key = TendermintEventKey::Account.into();
         kvpair.value = Vec::from(format!("{}", address));
         event.attributes.push(kvpair);
     }
 
-    let mut kvpair = abci::KVPair::new();
+    let mut kvpair = KVPair::new();
     kvpair.key = TendermintEventKey::TxId.into();
     kvpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
     event.attributes.push(kvpair);

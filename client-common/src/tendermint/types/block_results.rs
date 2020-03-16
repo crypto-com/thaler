@@ -1,9 +1,7 @@
 #![allow(missing_docs)]
+use indexmap::IndexMap;
 use std::convert::TryFrom;
 use std::str::{from_utf8, FromStr};
-
-use indexmap::IndexMap;
-use serde::Deserialize;
 
 use chain_core::common::{TendermintEventKey, TendermintEventType};
 use chain_core::init::address::RedeemAddress;
@@ -13,57 +11,31 @@ use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
 use chain_tx_filter::BlockFilter;
 
-use crate::tendermint::types::Height;
+use crate::tendermint::types::BlockResultsResponse;
 use crate::{Error, ErrorKind, Result, ResultExt};
+use tendermint::abci::tag::Tag as Attribute;
 
-#[derive(Debug, Deserialize)]
-pub struct BlockResults {
-    pub height: Height,
-    pub results: Results,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Results {
-    pub deliver_tx: Option<Vec<DeliverTx>>,
-    pub end_block: Option<EndBlock>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct EndBlock {
-    #[serde(default)]
-    pub events: Vec<Event>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct DeliverTx {
-    #[serde(default)]
-    pub events: Vec<Event>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Event {
-    #[serde(rename = "type")]
-    pub event_type: String,
-    pub attributes: Vec<Attribute>,
-}
-
-#[derive(Debug, Clone, Deserialize, PartialEq)]
-pub struct Attribute {
-    pub key: String,
-    pub value: String,
-}
-
-impl BlockResults {
+pub trait BlockResults {
     /// Returns transaction ids and the corresponding fees in block results
-    pub fn fees(&self) -> Result<IndexMap<TxId, Fee>> {
-        match &self.results.deliver_tx {
-            None => Ok(IndexMap::default()),
-            Some(deliver_tx) => {
-                let mut fees: IndexMap<TxId, Fee> = IndexMap::new();
+    fn fees(&self) -> Result<IndexMap<TxId, Fee>>;
 
-                for transaction in deliver_tx.iter() {
-                    for event in transaction.events.iter() {
-                        if event.event_type == TendermintEventType::ValidTransactions.to_string() {
+    /// Checks if a StakedStateAddress is included in devlier_tx account event.
+    /// Returns true when the address presents
+    fn contains_account(&self, target_account: &StakedStateAddress) -> Result<bool>;
+
+    /// Returns block filter in block results
+    fn block_filter(&self) -> Result<BlockFilter>;
+}
+
+impl BlockResults for BlockResultsResponse {
+    fn fees(&self) -> Result<IndexMap<TxId, Fee>> {
+        match &self.txs_results {
+            None => Ok(IndexMap::default()),
+            Some(deliver_txs) => {
+                let mut fees: IndexMap<TxId, Fee> = IndexMap::new();
+                for deliver_txs in deliver_txs.iter() {
+                    for event in deliver_txs.events.iter() {
+                        if event.type_str == TendermintEventType::ValidTransactions.to_string() {
                             let tx_id = find_tx_id_from_event_attributes(&event.attributes)?;
                             let fee = find_fee_from_event_attributes(&event.attributes)?;
                             if let (Some(tx_id), Some(fee)) = (tx_id, fee) {
@@ -78,42 +50,37 @@ impl BlockResults {
         }
     }
 
-    /// Checks if a StakedStateAddress is included in devlier_tx account event.
-    /// Returns true when the address presents
-    pub fn contains_account(&self, target_account: &StakedStateAddress) -> Result<bool> {
-        match &self.results.deliver_tx {
+    fn contains_account(&self, target_account: &StakedStateAddress) -> Result<bool> {
+        match &self.txs_results {
             None => Ok(false),
-            Some(deliver_tx) => {
-                for transaction in deliver_tx.iter() {
-                    for event in transaction.events.iter() {
-                        if event.event_type != TendermintEventType::ValidTransactions.to_string() {
-                            continue;
-                        }
-                        match find_account_from_event_attributes(&event.attributes)? {
-                            None => continue,
-                            Some(address) => {
-                                if address == *target_account {
-                                    return Ok(true);
+            Some(deliver_txs) => {
+                for deliver_txs in deliver_txs.iter() {
+                    for event in deliver_txs.events.iter() {
+                        if event.type_str == TendermintEventType::ValidTransactions.to_string() {
+                            match find_account_from_event_attributes(&event.attributes)? {
+                                None => continue,
+                                Some(address) => {
+                                    if address == *target_account {
+                                        return Ok(true);
+                                    }
                                 }
                             }
                         }
                     }
                 }
-
                 Ok(false)
             }
         }
     }
 
-    /// Returns block filter in block results
-    pub fn block_filter(&self) -> Result<BlockFilter> {
-        match &self.results.end_block {
+    fn block_filter(&self) -> Result<BlockFilter> {
+        match &self.end_block_events {
             None => Ok(BlockFilter::default()),
-            Some(ref end_block) => {
-                for event in end_block.events.iter() {
-                    if event.event_type == TendermintEventType::BlockFilter.to_string() {
+            Some(events) => {
+                for event in events.iter() {
+                    if event.type_str == TendermintEventType::BlockFilter.to_string() {
                         let attribute = &event.attributes[0];
-                        let decoded = base64::decode(&attribute.value).chain(|| {
+                        let decoded = base64::decode(attribute.value.as_ref()).chain(|| {
                             (
                                 ErrorKind::DeserializationError,
                                 "Unable to decode base64 bytes of block filter in block results",
@@ -125,7 +92,6 @@ impl BlockResults {
                         )?);
                     }
                 }
-
                 Ok(BlockFilter::default())
             }
         }
@@ -137,7 +103,7 @@ fn find_event_attribute_by_key(
     target_key: TendermintEventKey,
 ) -> Result<Option<&Attribute>> {
     for attribute in attributes.iter() {
-        let key = base64::decode(&attribute.key).chain(|| {
+        let key = base64::decode(attribute.key.as_ref()).chain(|| {
             (
                 ErrorKind::DeserializationError,
                 "Unable to decode base64 bytes of attribute key in block results",
@@ -156,7 +122,7 @@ fn find_fee_from_event_attributes(attributes: &[Attribute]) -> Result<Option<Fee
     match maybe_attribute {
         None => Ok(None),
         Some(attribute) => {
-            let raw_fee_text = base64::decode(&attribute.value).chain(|| {
+            let raw_fee_text = base64::decode(attribute.value.as_ref()).chain(|| {
                 (
                     ErrorKind::DeserializationError,
                     "Unable to decode base64 bytes of fee in block results",
@@ -187,7 +153,7 @@ fn find_tx_id_from_event_attributes(attributes: &[Attribute]) -> Result<Option<[
     match maybe_attribute {
         None => Ok(None),
         Some(attribute) => {
-            let tx_id = base64::decode(&attribute.value).chain(|| {
+            let tx_id = base64::decode(attribute.value.as_ref()).chain(|| {
                 (
                     ErrorKind::DeserializationError,
                     "Unable to decode base64 bytes of transaction id in block results",
@@ -220,7 +186,7 @@ fn find_account_from_event_attributes(
     match maybe_attribute {
         None => Ok(None),
         Some(attribute) => {
-            let account = base64::decode(&attribute.value).chain(|| {
+            let account = base64::decode(&attribute.value.as_ref()).chain(|| {
                 (
                     ErrorKind::DeserializationError,
                     "Unable to decode base64 bytes of account in block results",
@@ -248,30 +214,17 @@ fn find_account_from_event_attributes(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use base64::encode;
+    use tendermint::abci::tag::{Key, Value};
 
     mod find_account_from_event_attributes {
         use super::*;
 
         #[test]
         fn should_return_err_when_event_value_is_invalid_base64_encoded() {
-            let block_results = BlockResults {
-                height: Height::default().increment(),
-                results: Results {
-                    deliver_tx: Some(vec![DeliverTx {
-                        events: vec![Event {
-                            event_type: TendermintEventType::ValidTransactions.to_string(),
-                            attributes: vec![Attribute {
-                                key: TendermintEventKey::Account.to_base64_string(),
-                                value: "Invalid==".to_owned(),
-                            }],
-                        }],
-                    }]),
-                    end_block: None,
-                },
-            };
+            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDMwNw=="}, {"key": "YWNjb3VudA==", "value": "invalidbase64string"}, {"key": "dHhpZA==", "value": "ZjFmNzNkNmFjZWMyMTExOGRkMWUzNmY2ODRhYWUyMmM2Y2IxN2ZjNTFhZGEzNGEzNDIzMDlkNTMxY2I5YmU4ZA=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
 
+            let block_results: BlockResultsResponse =
+                serde_json::from_str(response_str).expect("invalid response str");
             let target_account = StakedStateAddress::from(
                 RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
             );
@@ -282,22 +235,9 @@ mod tests {
 
         #[test]
         fn should_return_err_when_account_value_is_invalid_utf8_string() {
-            let block_results = BlockResults {
-                height: Height::default().increment(),
-                results: Results {
-                    deliver_tx: Some(vec![DeliverTx {
-                        events: vec![Event {
-                            event_type: TendermintEventType::ValidTransactions.to_string(),
-                            attributes: vec![Attribute {
-                                key: TendermintEventKey::Account.to_base64_string(),
-                                value: base64::encode(&vec![0, 159, 146, 150]),
-                            }],
-                        }],
-                    }]),
-                    end_block: None,
-                },
-            };
-
+            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDMwNw=="}, {"key": "YWNjb3VudA==", "value": "AJ+Slg=="}, {"key": "dHhpZA==", "value": "ZjFmNzNkNmFjZWMyMTExOGRkMWUzNmY2ODRhYWUyMmM2Y2IxN2ZjNTFhZGEzNGEzNDIzMDlkNTMxY2I5YmU4ZA=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
+            let block_results: BlockResultsResponse =
+                serde_json::from_str(&response_str).expect("invalid response str");
             let target_account = StakedStateAddress::from(
                 RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
             );
@@ -308,22 +248,8 @@ mod tests {
 
         #[test]
         fn should_return_err_when_account_address_is_invalid() {
-            let block_results = BlockResults {
-                height: Height::default().increment(),
-                results: Results {
-                    deliver_tx: Some(vec![DeliverTx {
-                        events: vec![Event {
-                            event_type: TendermintEventType::ValidTransactions.to_string(),
-                            attributes: vec![Attribute {
-                                key: TendermintEventKey::Account.to_base64_string(),
-                                value: base64::encode("0xInvalid".as_bytes()),
-                            }],
-                        }],
-                    }]),
-                    end_block: None,
-                },
-            };
-
+            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDMwNw=="}, {"key": "YWNjb3VudA==", "value": "invalidbase64string"}, {"key": "dHhpZA==", "value": "ZjFmNzNkNmFjZWMyMTExOGRkMWUzNmY2ODRhYWUyMmM2Y2IxN2ZjNTFhZGEzNGEzNDIzMDlkNTMxY2I5YmU4ZA=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
+            let block_results: BlockResultsResponse = serde_json::from_str(response_str).unwrap();
             let target_account = StakedStateAddress::from(
                 RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
             );
@@ -334,22 +260,9 @@ mod tests {
 
         #[test]
         fn should_return_ok_of_none_when_block_results_has_no_account_event() {
-            let block_results = BlockResults {
-                height: Height::default().increment(),
-                results: Results {
-                    deliver_tx: Some(vec![DeliverTx {
-                        events: vec![Event {
-                            event_type: TendermintEventType::ValidTransactions.to_string(),
-                            attributes: vec![Attribute {
-                                key: TendermintEventKey::TxId.to_base64_string(),
-                                value: "MDc2NmQ0ZTFjMDkxMjRhZjlhZWI0YTdlZDk5ZDgxNjU0YTg0NDczZjEzMzk0OGNlYTA1MGRhYTE3ZmYwZTdmZg==".to_owned(),
-                            }],
-                        }],
-                    }]),
-                    end_block: None,
-                },
-            };
-
+            let response_str = r#"{"height": "3", "txs_results": null, "begin_block_events": null, "end_block_events": null, "validator_updates": null, "consensus_param_updates": null}"#;
+            let block_results: BlockResultsResponse =
+                serde_json::from_str(response_str).expect("invalid response str");
             let target_account = StakedStateAddress::from(
                 RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
             );
@@ -360,106 +273,11 @@ mod tests {
 
         #[test]
         fn should_return_ok_of_true_when_block_results_has_the_target_account_event() {
-            let block_results = BlockResults {
-                height: Height::default().increment(),
-                results: Results {
-                    deliver_tx: Some(vec![DeliverTx {
-                        events: vec![Event {
-                            event_type: TendermintEventType::ValidTransactions.to_string(),
-                            attributes: vec![Attribute {
-                                key: TendermintEventKey::Account.to_base64_string(),
-                                value: base64::encode(
-                                    "0xe4a2a719ca933d3f79a8506aa96cefde3405b0a7".as_bytes(),
-                                ),
-                            }],
-                        }],
-                    }]),
-                    end_block: None,
-                },
-            };
-
+            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDMwNw=="}, {"key": "YWNjb3VudA==", "value": "MHgzMzUwMmVkMzlkMGM0ZTIwNDRmYjM3ZmRjZDUxNjE0OTNmNTkwMGMz"}, {"key": "dHhpZA==", "value": "ZjFmNzNkNmFjZWMyMTExOGRkMWUzNmY2ODRhYWUyMmM2Y2IxN2ZjNTFhZGEzNGEzNDIzMDlkNTMxY2I5YmU4ZA=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
+            let block_results: BlockResultsResponse =
+                serde_json::from_str(response_str).expect("invalid response str");
             let target_account = StakedStateAddress::from(
-                RedeemAddress::from_str("0xe4a2a719ca933d3f79a8506aa96cefde3405b0a7").unwrap(),
-            );
-            let result = block_results.contains_account(&target_account);
-            assert!(result.is_ok());
-            assert_eq!(true, result.unwrap());
-        }
-
-        #[test]
-        fn should_return_ok_of_true_when_target_account_event_is_from_second_transaction() {
-            let block_results = BlockResults {
-                height: Height::default().increment(),
-                results: Results {
-                    deliver_tx: Some(vec![
-                        DeliverTx {
-                            events: vec![Event {
-                                event_type: TendermintEventType::ValidTransactions.to_string(),
-                                attributes: vec![Attribute {
-                                    key: TendermintEventKey::TxId.to_base64_string(),
-                                    value: "MDc2NmQ0ZTFjMDkxMjRhZjlhZWI0YTdlZDk5ZDgxNjU0YTg0NDczZjEzMzk0OGNlYTA1MGRhYTE3ZmYwZTdmZg==".to_owned(),
-                                }],
-                            }],
-                        },
-                        DeliverTx {
-                            events: vec![Event {
-                                event_type: TendermintEventType::ValidTransactions.to_string(),
-                                attributes: vec![Attribute {
-                                    key: TendermintEventKey::Account.to_base64_string(),
-                                    value: base64::encode(
-                                        "0xe4a2a719ca933d3f79a8506aa96cefde3405b0a7".as_bytes(),
-                                    ),
-                                }],
-                            }],
-                        },
-                    ]),
-                    end_block: None,
-                },
-            };
-
-            let target_account = StakedStateAddress::from(
-                RedeemAddress::from_str("0xe4a2a719ca933d3f79a8506aa96cefde3405b0a7").unwrap(),
-            );
-            let result = block_results.contains_account(&target_account);
-            assert!(result.is_ok());
-            assert_eq!(true, result.unwrap());
-        }
-
-        #[test]
-        fn should_return_ok_of_true_when_account_event_exists_in_multiple_transactions() {
-            let block_results = BlockResults {
-                height: Height::default().increment(),
-                results: Results {
-                    deliver_tx: Some(vec![
-                        DeliverTx {
-                            events: vec![Event {
-                                event_type: TendermintEventType::ValidTransactions.to_string(),
-                                attributes: vec![Attribute {
-                                    key: TendermintEventKey::Account.to_base64_string(),
-                                    value: base64::encode(
-                                        "0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b".as_bytes(),
-                                    ),
-                                }],
-                            }],
-                        },
-                        DeliverTx {
-                            events: vec![Event {
-                                event_type: TendermintEventType::ValidTransactions.to_string(),
-                                attributes: vec![Attribute {
-                                    key: TendermintEventKey::Account.to_base64_string(),
-                                    value: base64::encode(
-                                        "0xe4a2a719ca933d3f79a8506aa96cefde3405b0a7".as_bytes(),
-                                    ),
-                                }],
-                            }],
-                        },
-                    ]),
-                    end_block: None,
-                },
-            };
-
-            let target_account = StakedStateAddress::from(
-                RedeemAddress::from_str("0xe4a2a719ca933d3f79a8506aa96cefde3405b0a7").unwrap(),
+                RedeemAddress::from_str("0x33502ed39d0c4e2044fb37fdcd5161493f5900c3").unwrap(),
             );
             let result = block_results.contains_account(&target_account);
             assert!(result.is_ok());
@@ -469,79 +287,31 @@ mod tests {
 
     #[test]
     fn check_ids() {
-        let block_results = BlockResults {
-            height: Height::default().increment(),
-            results: Results {
-                deliver_tx: Some(vec![DeliverTx {
-                    events: vec![Event {
-                        event_type: TendermintEventType::ValidTransactions.to_string(),
-                        attributes: vec![Attribute {
-                            key: TendermintEventKey::TxId.to_base64_string(),
-                            value: "MDc2NmQ0ZTFjMDkxMjRhZjlhZWI0YTdlZDk5ZDgxNjU0YTg0NDczZjEzMzk0OGNlYTA1MGRhYTE3ZmYwZTdmZg==".to_owned(),
-                        },
-                        Attribute {
-                            key: TendermintEventKey::Fee.to_base64_string(),
-                            value: "MC4wMDAwMDU3OA==".to_owned(),
-                        }
-                        ],
-                    }],
-                }]),
-                end_block: None,
-            },
-        };
+        let response_str = r#"{"height": "38", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDYzMg=="}, {"key": "dHhpZA==", "value": "MGNkMDc4MDI3NzBiOGMwYzBkNjgwYTFiYTU5ODg1OGZlZDFhZDQ4MDY1MTgzMDUyMjgxOWQ0MzBiNzVlYTBlMQ=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
+        let block_results: BlockResultsResponse =
+            serde_json::from_str(response_str).expect("invalid response str");
         assert_eq!(1, block_results.fees().unwrap().len());
     }
 
     #[test]
     fn check_block_filter() {
-        let block_results = BlockResults {
-            height: Height::default().increment(),
-            results: Results {
-                deliver_tx: None,
-                end_block: Some(EndBlock {
-                    events: vec![Event {
-                        event_type: TendermintEventType::BlockFilter.to_string(),
-                        attributes: vec![Attribute {
-                            key: TendermintEventKey::EthBloom.to_base64_string(),
-                            value: encode(&[0; 256][..]),
-                        }],
-                    }],
-                }),
-            },
-        };
+        let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDMwNw=="}, {"key": "YWNjb3VudA==", "value": "MHgzMzUwMmVkMzlkMGM0ZTIwNDRmYjM3ZmRjZDUxNjE0OTNmNTkwMGMz"}, {"key": "dHhpZA==", "value": "ZjFmNzNkNmFjZWMyMTExOGRkMWUzNmY2ODRhYWUyMmM2Y2IxN2ZjNTFhZGEzNGEzNDIzMDlkNTMxY2I5YmU4ZA=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
+        let block_results: BlockResultsResponse =
+            serde_json::from_str(response_str).expect("invalid response str");
         assert!(block_results.block_filter().is_ok());
     }
 
     #[test]
     fn check_wrong_id() {
-        let block_results = BlockResults {
-            height: Height::default().increment(),
-            results: Results {
-                deliver_tx: Some(vec![DeliverTx {
-                    events: vec![Event {
-                        event_type: TendermintEventType::ValidTransactions.to_string(),
-                        attributes: vec![Attribute {
-                            key: TendermintEventKey::TxId.to_base64_string(),
-                            value: "kOzcmhZgAAaw5riwRjjKNe+foJEiDAOObTDQ=".to_owned(),
-                        }],
-                    }],
-                }]),
-                end_block: None,
-            },
-        };
-
+        let response_str = r#"{"height": "38", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "dHhpZA==", "value": "kOzcmhZgAAaw5riwRjjKNe+foJEiDAOObTDQ="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
+        let block_results: BlockResultsResponse =
+            serde_json::from_str(response_str).expect("invalid response str");
         assert!(block_results.fees().is_err());
     }
 
     #[test]
     fn check_null_deliver_tx() {
-        let block_results = BlockResults {
-            height: Height::default().increment(),
-            results: Results {
-                deliver_tx: None,
-                end_block: None,
-            },
-        };
+        let block_results = BlockResultsResponse::default();
         assert_eq!(0, block_results.fees().unwrap().len());
     }
 
@@ -550,10 +320,12 @@ mod tests {
 
         #[test]
         fn should_return_err_when_event_key_is_invalid_base64_encoded() {
-            let attributes = vec![Attribute {
-                key: "Invalid==".to_owned(),
-                value: "MDc2NmQ0ZTFjMDkxMjRhZjlhZWI0YTdlZDk5ZDgxNjU0YTg0NDczZjEzMzk0OGNlYTA1MGRhYTE3ZmYwZTdmZg==".to_owned(),
-            }];
+            let account_attribute = Attribute {
+                key: Key::from_str("Invalid==").unwrap(),
+                value: Value::from_str("MHhlNGEyYTcxOWNhOTMzZDNmNzlhODUwNmFhOTZjZWZkZTM0MDViMGE3")
+                    .unwrap(),
+            };
+            let attributes = vec![account_attribute.clone()];
 
             let result = find_event_attribute_by_key(&attributes, TendermintEventKey::Account);
             assert!(result.is_err());
@@ -562,11 +334,12 @@ mod tests {
 
         #[test]
         fn should_return_result_of_none_when_key_does_not_exist() {
-            let attribute = Attribute {
-                key: TendermintEventKey::TxId.to_base64_string(),
-                value: "Y2MwMjkxNThhZTFmMjVlN2I5ZGVhZTc5MWVjMTQ2MDA5ZTNjZTliMjZhMjFmZDEzOTZiMTA3YzYyZDIzNmMwOQ==".to_owned(),
+            let account_attribute = Attribute {
+                key: Key::from_str(&TendermintEventKey::TxId.to_base64_string()).unwrap(),
+                value: Value::from_str("MHhlNGEyYTcxOWNhOTMzZDNmNzlhODUwNmFhOTZjZWZkZTM0MDViMGE3")
+                    .unwrap(),
             };
-            let attributes = vec![attribute];
+            let attributes = vec![account_attribute.clone()];
 
             assert!(
                 find_event_attribute_by_key(&attributes, TendermintEventKey::Account)
@@ -578,17 +351,24 @@ mod tests {
         #[test]
         fn should_return_result_of_the_attribute_when_key_exist() {
             let account_attribute = Attribute {
-                key: TendermintEventKey::Account.to_base64_string(),
-                value: "MHhlNGEyYTcxOWNhOTMzZDNmNzlhODUwNmFhOTZjZWZkZTM0MDViMGE3".to_owned(),
+                key: Key::from_str(&TendermintEventKey::Account.to_base64_string()).unwrap(),
+                value: Value::from_str("MHhlNGEyYTcxOWNhOTMzZDNmNzlhODUwNmFhOTZjZWZkZTM0MDViMGE3")
+                    .unwrap(),
             };
             let attributes = vec![account_attribute.clone()];
-
-            assert_eq!(
-                account_attribute,
+            let attribute_finded =
                 find_event_attribute_by_key(&attributes, TendermintEventKey::Account)
                     .unwrap()
                     .unwrap()
-                    .to_owned()
+                    .to_owned();
+
+            assert_eq!(
+                account_attribute.key.as_ref(),
+                attribute_finded.key.as_ref(),
+            );
+            assert_eq!(
+                account_attribute.value.as_ref(),
+                attribute_finded.value.as_ref(),
             );
         }
     }

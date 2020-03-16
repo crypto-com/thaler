@@ -19,7 +19,8 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
             "time_iota_ms": "1000"
         },
         "evidence": {
-            "max_age": "100000"
+           "max_age_num_blocks": "100000",
+           "max_age_duration": "172800000000000"
         },
         "validator": {
             "pub_key_types": [
@@ -278,8 +279,8 @@ pub fn sync_info() -> status::SyncInfo {
     }
 }
 
-pub fn status_response() -> Status {
-    Status {
+pub fn status_response() -> StatusResponse {
+    StatusResponse {
         node_info: node_info(),
         sync_info: sync_info(),
         validator_info: validator_info(),

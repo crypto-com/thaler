@@ -65,7 +65,8 @@ for txid in pending_txs:
 print('Print num_txs in recent blocks')
 now_height = latest_block_height(rpc)
 for h in range(last_height, now_height+1):
-    print(rpc.chain.block(h)['block_meta']['header']['num_txs'])
+    txs = rpc.chain.block(h)['block']['data']['txs']  or []
+    print(len(txs))
 
 print('Check sync ok')
 rpc.wallet.sync()

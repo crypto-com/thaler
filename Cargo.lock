@@ -2,9 +2,9 @@
 # It is not intended for manual editing.
 [[package]]
 name = "abci"
-version = "0.6.5"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1cfb90d266d6ca61cea4d155dd5033c9516495f4f74f82faf1ca5c4feeb82577"
+checksum = "d3dc684df5ab1be507c9f9266e7549e377541574737b76f8df4eafcf7010e771"
 dependencies = [
  "byteorder",
  "bytes 0.4.12",
@@ -2954,24 +2954,24 @@ dependencies = [
 
 [[package]]
 name = "protobuf"
-version = "2.10.0"
+version = "2.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6563a657a014b771e7f69f06447d88d8fbb5a215ffc4cab724afb3acedcc7701"
+checksum = "37a5325d019a4d837d3abde0a836920f959e33d350f77b5f1e289e061e774942"
 
 [[package]]
 name = "protobuf-codegen"
-version = "2.10.0"
+version = "2.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f1bbc6db30d5d3e730b6e2326e9a64a75ca9c80d6427d6f054dc8cacc79d225"
+checksum = "64dd3a6192e0c6c1b0dae8f125b7f6b201c39fc487ebda0ee717d7a87fc47dc2"
 dependencies = [
  "protobuf",
 ]
 
 [[package]]
 name = "protobuf-codegen-pure"
-version = "2.10.0"
+version = "2.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db5473ffa23d2ea3b9046764f1a22149791967aad946b6cbd99601e720afc4d0"
+checksum = "037fa49710ee83b3be232ed53c5fce0bdb1b64c6aa6b1143a86640969c3e4b1d"
 dependencies = [
  "protobuf",
  "protobuf-codegen",
@@ -2979,18 +2979,18 @@ dependencies = [
 
 [[package]]
 name = "protoc"
-version = "2.10.0"
+version = "2.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba4f6bdf43828dd805132c2906b119dc0db2e460579bee6966365df2c3459a4d"
+checksum = "8f89b56360a99c36ff8dcf7cc969b291fbae680b027e768bfd27110606f45271"
 dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "protoc-rust"
-version = "2.10.0"
+version = "2.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a96fb278677b430891195adfe7291b84c7a2672db3d5df362b954a1095a95594"
+checksum = "14600264b715f826e9d8e23a320bf56d3c8bc91eac533146f24a186d082a3889"
 dependencies = [
  "protobuf",
  "protobuf-codegen",
@@ -3600,16 +3600,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "secp256k1"
-version = "0.15.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5618cd39d19d7a3964dde3bd1cc940c58097538ca42b6c3ea1cd66634d39652"
-dependencies = [
- "cc",
- "rand 0.6.5",
-]
-
-[[package]]
 name = "secp256k1zkp"
 version = "0.13.0"
 source = "git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=745bc8d8dc80cb921d5788e863a3536d3b6498a1#745bc8d8dc80cb921d5788e863a3536d3b6498a1"
@@ -3676,6 +3666,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36df6ac6412072f67cf767ebbde4133a5b2e88e76dc6187fa7104cd16f783399"
 dependencies = [
  "serde_derive",
+]
+
+[[package]]
+name = "serde_bytes"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "325a073952621257820e7a3469f55ba4726d8b28657e7e36653d1c36dc2c84ae"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -3944,7 +3943,6 @@ dependencies = [
  "ecdsa",
  "ed25519",
  "getrandom",
- "sha2",
  "signature",
  "subtle-encoding 0.4.1",
  "zeroize",
@@ -3963,36 +3961,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "signatory-secp256k1"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d98496421006efcfa95f6a9b8822ae9d798447147c07e5d3e175fc047740c3e4"
-dependencies = [
- "secp256k1",
- "signatory",
- "signature",
-]
-
-[[package]]
 name = "signature"
 version = "1.0.0-pre.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a0cfcdc45066661979294e965c21b60355da35eb5d638af8143e5aa83fdfce53"
 dependencies = [
  "digest 0.8.1",
- "signature_derive",
-]
-
-[[package]]
-name = "signature_derive"
-version = "1.0.0-pre.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6586d38c414ce5d216a7b1f9b253ff95f5424c1cfcf09fdac5e047d8e35b4ea"
-dependencies = [
- "proc-macro2 1.0.10",
- "quote 1.0.3",
- "syn 1.0.17",
- "synstructure",
 ]
 
 [[package]]
@@ -4202,7 +4176,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.12.0-rc0"
-source = "git+https://github.com/crypto-com/tendermint-rs.git?rev=44a3d5953bcabc7b9e2e8a0f56b2624b796a46f9#44a3d5953bcabc7b9e2e8a0f56b2624b796a46f9"
+source = "git+https://github.com/crypto-com/tendermint-rs.git?rev=defa15f676eb4a3fca6c5a896be61fb63df408fc#defa15f676eb4a3fca6c5a896be61fb63df408fc"
 dependencies = [
  "anomaly",
  "async-trait",
@@ -4216,11 +4190,11 @@ dependencies = [
  "prost-amino",
  "prost-amino-derive",
  "serde",
+ "serde_bytes",
  "serde_json",
  "sha2",
  "signatory",
  "signatory-dalek",
- "signatory-secp256k1",
  "subtle 2.2.2",
  "subtle-encoding 0.5.1",
  "tai64",
@@ -4771,9 +4745,9 @@ dependencies = [
 
 [[package]]
 name = "typenum"
-version = "1.11.2"
+version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d2783fe2d6b8c1101136184eb41be8b1ad379e4657050b8aaff0c79ee7575f9"
+checksum = "373c8a200f9e67a0c95e62a4f52fbf80c23b4381c05a17845531982fa99e6b33"
 
 [[package]]
 name = "unicase"
