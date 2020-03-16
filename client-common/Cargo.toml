@@ -27,7 +27,7 @@ secstr = { version = "0.4.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sled = { version = "0.31.0", optional = true }
-tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features=false, rev="44a3d5953bcabc7b9e2e8a0f56b2624b796a46f9" }
+tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "defa15f676eb4a3fca6c5a896be61fb63df408fc" }
 tokio = { version = "0.2", features = ["rt-threaded", "sync", "time", "tcp"], optional = true }
 tokio-tungstenite = { version = "0.10", features = ["tls"], optional = true }
 zeroize = "1.1"

@@ -8,7 +8,9 @@ use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
 use chain_tx_filter::BlockFilter;
-use client_common::tendermint::types::{Block, BlockExt, BlockResults, Status, Time};
+use client_common::tendermint::types::{
+    Block, BlockExt, BlockResults, BlockResultsResponse, StatusResponse, Time,
+};
 use client_common::tendermint::Client;
 use client_common::{
     Error, ErrorKind, PrivateKey, Result, ResultExt, SecKey, SecureStorage, Transaction,
@@ -299,7 +301,6 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -
 
     fn sync(&mut self) -> Result<()> {
         let status = self.env.client.status()?;
-
         if status.sync_info.catching_up {
             return Err(Error::new(
                 ErrorKind::TendermintRpcError,
@@ -397,7 +398,7 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -
     }
 
     /// Fast forwards state to given status if app hashes match
-    fn fast_forward_status(&self, status: &Status) -> Result<Option<FilteredBlock>> {
+    fn fast_forward_status(&self, status: &StatusResponse) -> Result<Option<FilteredBlock>> {
         let current_app_hash = status
             .sync_info
             .latest_app_hash
@@ -484,7 +485,7 @@ impl FilteredBlock {
     fn from_block(
         wallet: &Wallet,
         block: &Block,
-        block_result: &BlockResults,
+        block_result: &BlockResultsResponse,
     ) -> Result<FilteredBlock> {
         let app_hash = hex::encode(&block.header.app_hash);
         let block_height = block.header.height.value();
@@ -517,7 +518,7 @@ impl FilteredBlock {
 }
 
 fn filter_staking_transactions<'a>(
-    block_results: &BlockResults,
+    block_results: &BlockResultsResponse,
     staking_addresses: impl Iterator<Item = &'a StakedStateAddress>,
     block: &Block,
 ) -> Result<Vec<Transaction>> {
@@ -591,9 +592,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
-    /// FIXME: these asset files need to be regenerated
-    /// https://github.com/crypto-com/chain/issues/1168
     fn check_wallet_syncer_app_hash_on_multiple_tx() {
         #[derive(Clone)]
         struct MockTendermintClient {}
@@ -601,11 +599,17 @@ mod tests {
             fn genesis(&self) -> Result<Genesis> {
                 unreachable!()
             }
-            fn status(&self) -> Result<Status> {
-                Ok(serde_json::from_str(&read_asset_file("tendermint_status.json")).unwrap())
+            fn status(&self) -> Result<StatusResponse> {
+                Ok(
+                    serde_json::from_str(&read_asset_file("tendermint_status.json"))
+                        .expect("tendermint status"),
+                )
             }
             fn block(&self, _height: u64) -> Result<Block> {
-                Ok(serde_json::from_str(&read_asset_file("tendermint_block.json")).unwrap())
+                Ok(
+                    serde_json::from_str(&read_asset_file("tendermint_block.json"))
+                        .expect("tendermint block"),
+                )
             }
             fn block_batch<'a, T: Iterator<Item = &'a u64>>(
                 &self,
@@ -613,17 +617,17 @@ mod tests {
             ) -> Result<Vec<Block>> {
                 unreachable!()
             }
-            fn block_results(&self, _height: u64) -> Result<BlockResults> {
+            fn block_results(&self, _height: u64) -> Result<BlockResultsResponse> {
                 unreachable!()
             }
             fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
                 &self,
                 _heights: T,
-            ) -> Result<Vec<BlockResults>> {
+            ) -> Result<Vec<BlockResultsResponse>> {
                 return Ok(serde_json::from_str(&read_asset_file(
                     "tendermint_block_results_batch.json",
                 ))
-                .unwrap());
+                .expect("tendermint block results batch"));
             }
             fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
                 &self,
@@ -633,11 +637,11 @@ mod tests {
                 let blocks: Vec<Block> = serde_json::from_str(&read_asset_file(
                     "tendermint_block_batch_verified_blocks.json",
                 ))
-                .unwrap();
+                .expect("tendermint block batch verified blocks");
                 let trusted_state: lite::TrustedState = serde_json::from_str(&read_asset_file(
                     "tendermint_block_batch_verified_trusted_state.json",
                 ))
-                .unwrap();
+                .expect("tendermint block batch verified trusted state");
                 Ok((blocks, trusted_state))
             }
             fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
@@ -654,7 +658,7 @@ mod tests {
             ) -> Result<Vec<ChainState>> {
                 Ok(
                     serde_json::from_str(&read_asset_file("tendermint_query_state_batch.json"))
-                        .unwrap(),
+                        .expect("tendermint query state batch"),
                 )
             }
         }
@@ -667,8 +671,8 @@ mod tests {
             &storage,
             name,
             &SyncState {
-                last_block_height: 4820,
-                last_app_hash: "8F0702AADD083A2524BCAAD76B7B192BBFE5AE3449777FCB9060CD401A4E7D1F"
+                last_block_height: 1745,
+                last_app_hash: "3fe291fd64f1140acfe38988a9f8c5b0cb5da43a0214bbd4000035509ce34205"
                     .to_string(),
                 trusted_state,
             },
@@ -680,7 +684,7 @@ mod tests {
 
         let (wallet_enckey, _) = wallet
             .new_wallet(name, &wallet_passphrase, WalletKind::Basic)
-            .unwrap();
+            .expect("create wallet failed");
         let client = MockTendermintClient {};
 
         let enable_fast_forward = false;

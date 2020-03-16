@@ -63,7 +63,7 @@ impl DefaultTransactionObfuscation {
     where
         C: Client,
     {
-        let result = tendermint_client.query("txquery", &[])?.bytes()?;
+        let result = tendermint_client.query("txquery", &[])?.bytes();
         let address = std::str::from_utf8(&result).chain(|| {
             (
                 ErrorKind::ConnectionError,

@@ -74,10 +74,7 @@ where
 
     /// Get account info
     fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
-        let bytes = self
-            .client
-            .query("account", staked_state_address)?
-            .bytes()?;
+        let bytes = self.client.query("account", staked_state_address)?.bytes();
 
         StakedState::decode(&mut bytes.as_slice()).chain(|| {
             (
@@ -577,7 +574,7 @@ mod tests {
             unreachable!()
         }
 
-        fn status(&self) -> Result<Status> {
+        fn status(&self) -> Result<StatusResponse> {
             unreachable!()
         }
 
@@ -589,7 +586,7 @@ mod tests {
             unreachable!()
         }
 
-        fn block_results(&self, _height: u64) -> Result<BlockResults> {
+        fn block_results(&self, _height: u64) -> Result<BlockResultsResponse> {
             unreachable!()
         }
 
@@ -604,7 +601,7 @@ mod tests {
         fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             _heights: T,
-        ) -> Result<Vec<BlockResults>> {
+        ) -> Result<Vec<BlockResultsResponse>> {
             unreachable!()
         }
 
@@ -655,8 +652,8 @@ mod tests {
             unreachable!()
         }
 
-        fn status(&self) -> Result<Status> {
-            Ok(Status {
+        fn status(&self) -> Result<StatusResponse> {
+            Ok(StatusResponse {
                 sync_info: status::SyncInfo {
                     latest_block_height: Height::default(),
                     latest_app_hash: None,
@@ -674,14 +671,14 @@ mod tests {
             unreachable!()
         }
 
-        fn block_results(&self, _height: u64) -> Result<BlockResults> {
+        fn block_results(&self, _height: u64) -> Result<BlockResultsResponse> {
             unreachable!()
         }
 
         fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             _heights: T,
-        ) -> Result<Vec<BlockResults>> {
+        ) -> Result<Vec<BlockResultsResponse>> {
             unreachable!()
         }
 

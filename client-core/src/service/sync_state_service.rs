@@ -1,8 +1,7 @@
-use parity_scale_codec::{Decode, Encode};
-use tendermint::validator;
-
 use client_common::tendermint::lite;
 use client_common::{ErrorKind, Result, ResultExt, Storage};
+use parity_scale_codec::{Decode, Encode};
+use tendermint::validator;
 
 /// key space of wallet sync state
 const KEYSPACE: &str = "core_wallet_sync";
@@ -105,11 +104,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use parity_scale_codec::Encode;
+    use parity_scale_codec::{Decode, Encode};
     use tendermint::{block::Height, lite};
 
-    use super::{lite::TrustedState, SyncState, SyncStateService, KEYSPACE};
-    use client_common::storage::{MemoryStorage, Storage};
+    use super::{lite::TrustedState, SyncState, SyncStateService};
+    use client_common::storage::MemoryStorage;
     use test_common::block_generator::{BlockGenerator, GeneratorClient};
 
     #[test]
@@ -168,11 +167,10 @@ mod tests {
         }
 
         let gen = c.gen.read().unwrap();
-        let header1 = gen.signed_header(Height::default());
-        let _header2 = gen.signed_header(Height::default().increment());
+        let header = gen.signed_header(Height::default());
 
         let trusted_state = lite::TrustedState::new(
-            lite::SignedHeader::new(header1.clone(), header1.header.clone()),
+            lite::SignedHeader::new(header.clone(), header.header.clone()),
             gen.validators.clone(),
         )
         .into();
@@ -181,13 +179,9 @@ mod tests {
         state.last_app_hash =
             "0F46E113C21F9EACB26D752F9523746CF8D47ECBEA492736D176005911F973A5".to_owned();
         state.trusted_state = trusted_state;
+        let bytes = state.encode();
 
-        let key = "Default";
-
-        let storage = MemoryStorage::default();
-        storage.save(KEYSPACE, key, &state).unwrap();
-        let state1: SyncState = storage.load(KEYSPACE, key).unwrap().unwrap();
-
-        assert_eq!(state.encode(), state1.encode());
+        let state2 = SyncState::decode(&mut bytes.as_slice()).unwrap();
+        assert_eq!(bytes, state2.encode());
     }
 }
