@@ -9,7 +9,7 @@ use crate::{ErrorKind, Result, ResultExt, Transaction};
 use chain_core::init::config::InitConfig;
 use chain_core::tx::data::TxId;
 use chain_core::tx::fee::LinearFee;
-use chain_core::tx::{TxAux, TxEnclaveAux};
+use chain_core::tx::{TxAux, TxEnclaveAux, TxPublicAux};
 
 pub use self::block_results::*;
 pub use tendermint::rpc::endpoint::{
@@ -62,7 +62,7 @@ impl BlockExt for Block {
                     TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx { tx, .. }) => {
                         Some(Ok(Transaction::DepositStakeTransaction(tx)))
                     }
-                    TxAux::UnbondStakeTx(tx, _) => {
+                    TxAux::PublicTx(TxPublicAux::UnbondStakeTx(tx, _)) => {
                         Some(Ok(Transaction::UnbondStakeTransaction(tx)))
                     }
                     _ => None,

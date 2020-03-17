@@ -38,7 +38,7 @@ use chain_core::tx::{
         txid_hash, Tx, TxId,
     },
     witness::{TxInWitness, TxWitness},
-    TxAux, TxEnclaveAux,
+    TxAux, TxEnclaveAux, TxPublicAux,
 };
 use chain_storage::account::AccountStorage;
 use chain_storage::account::AccountWrapper;
@@ -969,7 +969,7 @@ fn all_valid_tx_types_should_commit() {
     );
     let secp = Secp256k1::new();
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
-    let nodejointx = TxAux::NodeJoinTx(tx, witness);
+    let nodejointx = TxAux::PublicTx(TxPublicAux::NodeJoinTx(tx, witness));
     {
         let account = get_account(&addr, &app).expect("account not exist");
         assert!(account.council_node.is_none());
@@ -1007,7 +1007,7 @@ fn all_valid_tx_types_should_commit() {
         StakedStateOpAttributes::new(0),
     );
     let witness4 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx4.id(), &secret_key));
-    let unbondtx = TxAux::UnbondStakeTx(tx4, witness4);
+    let unbondtx = TxAux::PublicTx(TxPublicAux::UnbondStakeTx(tx4, witness4));
     {
         let account = get_account(&addr, &app).expect("account not exist");
         assert_eq!(account.unbonded, Coin::zero());
@@ -1052,7 +1052,7 @@ fn query_should_return_proof_for_committed_tx() {
     let qresp = app.query(&qreq);
     let returned_tx = UnbondTx::decode(&mut qresp.value.as_slice()).unwrap();
     match &tx_aux {
-        TxAux::UnbondStakeTx(stx, _) => {
+        TxAux::PublicTx(TxPublicAux::UnbondStakeTx(stx, _)) => {
             assert_eq!(returned_tx, stx.clone());
         }
         _ => unreachable!(),
@@ -1086,7 +1086,7 @@ fn query_should_return_proof_for_committed_tx() {
     qreq2.path = "witness".into();
     let qresp = app.query(&qreq2);
     match &tx_aux {
-        TxAux::UnbondStakeTx(_, witness) => {
+        TxAux::PublicTx(TxPublicAux::UnbondStakeTx(_, witness)) => {
             assert_eq!(qresp.value, witness.encode());
         }
         _ => unreachable!(),

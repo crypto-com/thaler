@@ -6,7 +6,7 @@ use chain_core::state::account::StakedState;
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
-use chain_core::tx::TxAux;
+use chain_core::tx::{TxAux, TxPublicAux};
 use chain_storage::account::{get_staked_state, update_staked_state, StakedStateError};
 use chain_tx_validation::{ChainInfo, Error};
 use parity_scale_codec::Decode;
@@ -88,7 +88,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 )?;
                 Ok(TxAction::Enclave(action))
             }
-            _ => Ok(TxAction::Public(min_fee)),
+            TxAux::PublicTx(tx) => Ok(TxAction::Public(min_fee, tx.clone())),
         }
     }
 
@@ -186,7 +186,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     pub fn execute_public_tx(
         &mut self,
         min_fee: Fee,
-        txaux: &TxAux,
+        txaux: &TxPublicAux,
     ) -> Result<(Fee, Option<StakedState>), String> {
         let last_state = self.last_state.as_mut().expect("the app state is expected");
         let extra_info = ChainInfo {
@@ -204,9 +204,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         )
         .map_err(|err| format!("verification failed: {}", err.to_string()))?;
         let (new_root, maccount) = match txaux {
-            TxAux::EnclaveTx(_) => unreachable!(),
-
-            TxAux::UnbondStakeTx(_, _) => update_staked_state(
+            TxPublicAux::UnbondStakeTx(_, _) => update_staked_state(
                 fee_acc
                     .1
                     .clone()
@@ -214,8 +212,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 &self.uncommitted_account_root_hash,
                 &mut self.accounts,
             ),
-
-            TxAux::UnjailTx(_, _) => update_staked_state(
+            TxPublicAux::UnjailTx(_, _) => update_staked_state(
                 fee_acc
                     .1
                     .clone()
@@ -223,7 +220,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 &self.uncommitted_account_root_hash,
                 &mut self.accounts,
             ),
-            TxAux::NodeJoinTx(_, _) => {
+            TxPublicAux::NodeJoinTx(_, _) => {
                 let state = fee_acc
                     .1
                     .clone()

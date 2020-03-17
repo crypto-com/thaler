@@ -32,7 +32,7 @@ use chain_core::state::tendermint::{
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::EcdsaSignature;
-use chain_core::tx::{data::TxId, TransactionId, TxAux};
+use chain_core::tx::{data::TxId, TransactionId, TxAux, TxPublicAux};
 use chain_storage::account::StarlingFixedKey;
 use chain_storage::account::{AccountStorage, AccountWrapper};
 use chain_storage::{Storage, NUM_COLUMNS};
@@ -303,7 +303,7 @@ impl ChainEnv {
             &tx.id(),
             &self.accounts[account_index].secret_key,
         ));
-        TxAux::NodeJoinTx(tx, witness)
+        TxAux::PublicTx(TxPublicAux::NodeJoinTx(tx, witness))
     }
 
     pub fn unbond_tx(&self, coin: Coin, nonce: u64, account_index: usize) -> TxAux {
@@ -319,7 +319,7 @@ impl ChainEnv {
             &tx.id(),
             &self.accounts[account_index].secret_key,
         ));
-        TxAux::UnbondStakeTx(tx, witness)
+        TxAux::PublicTx(TxPublicAux::UnbondStakeTx(tx, witness))
     }
 
     pub fn req_init_chain(&self) -> RequestInitChain {

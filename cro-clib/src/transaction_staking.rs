@@ -7,7 +7,7 @@ use chain_core::state::account::{
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::TransactionId;
-use chain_core::tx::TxAux;
+use chain_core::tx::{TxAux, TxPublicAux};
 use client_common::{ErrorKind, Result, ResultExt};
 use parity_scale_codec::Encode;
 use std::os::raw::c_char;
@@ -38,7 +38,7 @@ fn create_encoded_signed_unjail(
     let signature: StakedStateOpWitness = from_private
         .sign(transaction.id())
         .map(StakedStateOpWitness::new)?;
-    let result = TxAux::UnjailTx(transaction, signature);
+    let result = TxAux::PublicTx(TxPublicAux::UnjailTx(transaction, signature));
     let encoded = result.encode();
     Ok(encoded)
 }
@@ -123,7 +123,7 @@ fn create_encoded_signed_join(
     let signature: StakedStateOpWitness = from_private
         .sign(transaction.id())
         .map(StakedStateOpWitness::new)?;
-    let result = TxAux::NodeJoinTx(transaction, signature);
+    let result = TxAux::PublicTx(TxPublicAux::NodeJoinTx(transaction, signature));
     let encoded = result.encode();
     Ok(encoded)
 }
