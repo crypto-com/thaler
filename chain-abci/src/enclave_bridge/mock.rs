@@ -234,7 +234,10 @@ impl EnclaveProxy for MockClient {
                 // FIXME
                 let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
                 match (tx, plain_tx) {
-                    (_, Ok(PlainTxAux::TransferTx(maintx, witness))) => {
+                    (
+                        TxEnclaveAux::TransferTx { .. },
+                        Ok(PlainTxAux::TransferTx(maintx, witness)),
+                    ) => {
                         let result = verify_transfer(&maintx, &witness, info, inputs);
                         match result {
                             Ok(fee) => {
@@ -261,7 +264,10 @@ impl EnclaveProxy for MockClient {
                             Err(e) => Err(e),
                         }
                     }
-                    (_, Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx))) => {
+                    (
+                        TxEnclaveAux::WithdrawUnbondedStakeTx { .. },
+                        Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx)),
+                    ) => {
                         let result = verify_unbonded_withdraw(
                             &tx,
                             info,
