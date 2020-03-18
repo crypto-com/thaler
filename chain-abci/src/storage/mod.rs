@@ -3,9 +3,7 @@ use chain_core::init::coin::Coin;
 use chain_core::state::account::{StakedState, StakedStateAddress};
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::fee::Fee;
-use chain_core::tx::TransactionId;
-use chain_core::tx::TxObfuscated;
-use chain_core::tx::{TxAux, TxEnclaveAux};
+use chain_core::tx::{TransactionId, TxEnclaveAux, TxObfuscated, TxPublicAux};
 use chain_storage::account::{
     get_staked_state, AccountStorage, StakedStateError, StarlingFixedKey,
 };
@@ -90,13 +88,13 @@ impl TxEnclaveAction {
 #[derive(Debug, Clone)]
 pub enum TxAction {
     Enclave(TxEnclaveAction),
-    Public(Fee),
+    Public(Fee, TxPublicAux),
 }
 
 impl TxAction {
     pub fn fee(&self) -> Fee {
         match self {
-            Self::Public(fee) => *fee,
+            Self::Public(fee, _) => *fee,
             Self::Enclave(action) => action.fee(),
         }
     }
@@ -253,16 +251,15 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
 /// Checks non-enclave TX against the current DB and returns an `Error` if something fails.
 /// If OK, returns the paid fee + affected staked state.
 pub fn verify_public_tx(
-    txaux: &TxAux,
+    txaux: &TxPublicAux,
     extra_info: ChainInfo,
     node_info: impl NodeChecker,
     last_account_root_hash: &StarlingFixedKey,
     accounts: &AccountStorage,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     match txaux {
-        TxAux::EnclaveTx(_) => unreachable!("should be handled by verify_enclave_tx"),
         // TODO: delay checking witness, as address is contained in Tx?
-        TxAux::UnbondStakeTx(maintx, witness) => {
+        TxPublicAux::UnbondStakeTx(maintx, witness) => {
             match verify_tx_recover_address(&witness, &maintx.id()) {
                 Ok(account_address) => {
                     let account = get_account(&account_address, last_account_root_hash, accounts)?;
@@ -274,7 +271,7 @@ pub fn verify_public_tx(
             }
         }
         // TODO: delay checking witness, as address is contained in Tx?
-        TxAux::UnjailTx(maintx, witness) => {
+        TxPublicAux::UnjailTx(maintx, witness) => {
             match verify_tx_recover_address(&witness, &maintx.id()) {
                 Ok(account_address) => {
                     let account = get_account(&account_address, last_account_root_hash, accounts)?;
@@ -286,7 +283,7 @@ pub fn verify_public_tx(
             }
         }
         // TODO: delay checking witness, as address is contained in Tx?
-        TxAux::NodeJoinTx(maintx, witness) => {
+        TxPublicAux::NodeJoinTx(maintx, witness) => {
             match verify_tx_recover_address(&witness, &maintx.id()) {
                 Ok(account_address) => {
                     let account = get_account(&account_address, last_account_root_hash, accounts)?;

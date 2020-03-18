@@ -275,7 +275,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         let result = mtxaux.and_then(|(txaux, action)| {
             let (fee, maccount) = match &action {
                 TxAction::Enclave(action) => self.execute_enclave_tx(&txaux.tx_id(), action),
-                TxAction::Public(fee) => self.execute_public_tx(*fee, &txaux)?,
+                TxAction::Public(fee, tx) => self.execute_public_tx(*fee, &tx)?,
             };
             Ok((txaux, fee, maccount))
         });

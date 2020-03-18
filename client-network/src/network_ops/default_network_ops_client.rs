@@ -13,7 +13,7 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
-use chain_core::tx::{TransactionId, TxAux};
+use chain_core::tx::{TransactionId, TxAux, TxPublicAux};
 use chain_tx_validation::{check_inputs_basic, check_outputs_basic, verify_unjailed};
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
@@ -261,7 +261,10 @@ where
             .sign(transaction.id())
             .map(StakedStateOpWitness::new)?;
 
-        Ok(TxAux::UnbondStakeTx(transaction, signature))
+        Ok(TxAux::PublicTx(TxPublicAux::UnbondStakeTx(
+            transaction,
+            signature,
+        )))
     }
 
     fn create_withdraw_unbonded_stake_transaction(
@@ -396,7 +399,10 @@ where
             .sign(transaction.id())
             .map(StakedStateOpWitness::new)?;
 
-        Ok(TxAux::UnjailTx(transaction, signature))
+        Ok(TxAux::PublicTx(TxPublicAux::UnjailTx(
+            transaction,
+            signature,
+        )))
     }
 
     fn create_withdraw_all_unbonded_stake_transaction(
@@ -496,7 +502,10 @@ where
             .sign(transaction.id())
             .map(StakedStateOpWitness::new)?;
 
-        Ok(TxAux::NodeJoinTx(transaction, signature))
+        Ok(TxAux::PublicTx(TxPublicAux::NodeJoinTx(
+            transaction,
+            signature,
+        )))
     }
 
     #[inline]
@@ -1075,7 +1084,7 @@ mod tests {
             )
             .unwrap();
         match transaction {
-            TxAux::UnjailTx(tx, witness) => {
+            TxAux::PublicTx(TxPublicAux::UnjailTx(tx, witness)) => {
                 let txid = tx.id();
                 let account_address = verify_tx_recover_address(&witness, &txid)
                     .expect("Unable to verify transaction");
@@ -1138,7 +1147,7 @@ mod tests {
             .unwrap();
 
         match transaction {
-            TxAux::NodeJoinTx(tx, witness) => {
+            TxAux::PublicTx(TxPublicAux::NodeJoinTx(tx, witness)) => {
                 let txid = tx.id();
                 let account_address = verify_tx_recover_address(&witness, &txid)
                     .expect("Unable to verify transaction");

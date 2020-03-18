@@ -15,7 +15,8 @@ use parity_scale_codec::{Decode, Encode, Error, Input};
 use self::data::Tx;
 use self::witness::TxWitness;
 use crate::state::account::{
-    DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
+    DepositBondTx, StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, UnjailTx,
+    WithdrawUnbondedTx,
 };
 use crate::state::tendermint::BlockHeight;
 use crate::state::validator::NodeJoinRequestTx;
@@ -185,17 +186,46 @@ impl TxEnclaveAux {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode)]
-/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-pub enum TxAux {
-    /// transactions that need to be processed inside TEE
-    EnclaveTx(TxEnclaveAux),
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+pub enum TxPublicAux {
     /// Tx that modifies staked state -- moves some bonded stake into unbonded (witness for staked state)
     UnbondStakeTx(UnbondTx, StakedStateOpWitness),
     /// Tx that unjails a staked state
     UnjailTx(UnjailTx, StakedStateOpWitness),
     /// Tx that updates a staked state with council node / validator details
     NodeJoinTx(NodeJoinRequestTx, StakedStateOpWitness),
+}
+
+impl TxPublicAux {
+    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
+    pub fn tx_id(&self) -> TxId {
+        match self {
+            TxPublicAux::UnbondStakeTx(tx, _) => tx.id(),
+            TxPublicAux::UnjailTx(tx, _) => tx.id(),
+            TxPublicAux::NodeJoinTx(tx, _) => tx.id(),
+        }
+    }
+
+    pub fn attributes(&self) -> &StakedStateOpAttributes {
+        match self {
+            TxPublicAux::UnbondStakeTx(tx, _) => &tx.attributes,
+            TxPublicAux::UnjailTx(tx, _) => &tx.attributes,
+            TxPublicAux::NodeJoinTx(tx, _) => &tx.attributes,
+        }
+    }
+
+    /// Get chain hex id, only works on public tx.
+    pub fn chain_hex_id(&self) -> u8 {
+        self.attributes().chain_hex_id
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Encode)]
+/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
+pub enum TxAux {
+    /// transactions that need to be processed inside TEE
+    EnclaveTx(TxEnclaveAux),
+    PublicTx(TxPublicAux),
 }
 
 impl Decode for TxAux {
@@ -210,18 +240,7 @@ impl Decode for TxAux {
 
         match input.read_byte()? {
             0 => Ok(TxAux::EnclaveTx(TxEnclaveAux::decode(input)?)),
-            1 => Ok(TxAux::UnbondStakeTx(
-                UnbondTx::decode(input)?,
-                StakedStateOpWitness::decode(input)?,
-            )),
-            2 => Ok(TxAux::UnjailTx(
-                UnjailTx::decode(input)?,
-                StakedStateOpWitness::decode(input)?,
-            )),
-            3 => Ok(TxAux::NodeJoinTx(
-                NodeJoinRequestTx::decode(input)?,
-                StakedStateOpWitness::decode(input)?,
-            )),
+            1 => Ok(TxAux::PublicTx(TxPublicAux::decode(input)?)),
             _ => Err("No such variant in enum TxAux".into()),
         }
     }
@@ -239,9 +258,7 @@ impl TxAux {
     pub fn tx_id(&self) -> TxId {
         match self {
             TxAux::EnclaveTx(tx) => tx.tx_id(),
-            TxAux::UnbondStakeTx(tx, _) => tx.id(),
-            TxAux::UnjailTx(tx, _) => tx.id(),
-            TxAux::NodeJoinTx(tx, _) => tx.id(),
+            TxAux::PublicTx(tx) => tx.tx_id(),
         }
     }
 }
@@ -269,7 +286,9 @@ impl fmt::Display for TxAux {
                 writeln!(f, "tx inputs: {:?}\n", inputs)
             }
             TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx { tx, .. }) => writeln!(f, "Tx:\n{}", tx),
-            TxAux::UnbondStakeTx(tx, witness) => display_tx_witness(f, tx, witness),
+            TxAux::PublicTx(TxPublicAux::UnbondStakeTx(tx, witness)) => {
+                display_tx_witness(f, tx, witness)
+            }
             TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                 payload: TxObfuscated { txid, .. },
                 witness,
@@ -282,8 +301,12 @@ impl fmt::Display for TxAux {
                 )?;
                 writeln!(f, "witness: {:?}\n", witness)
             }
-            TxAux::UnjailTx(tx, witness) => display_tx_witness(f, tx, witness),
-            TxAux::NodeJoinTx(tx, witness) => display_tx_witness(f, tx, witness),
+            TxAux::PublicTx(TxPublicAux::UnjailTx(tx, witness)) => {
+                display_tx_witness(f, tx, witness)
+            }
+            TxAux::PublicTx(TxPublicAux::NodeJoinTx(tx, witness)) => {
+                display_tx_witness(f, tx, witness)
+            }
         }
     }
 }
@@ -309,11 +332,8 @@ pub mod tests {
     fn encode_decode() {
         // not a valid transaction, only to test enconding-decoding
         let mut tx = Tx::new();
-        tx.add_input(TxoPointer::new([0x01; 32].into(), 1));
-        tx.add_output(TxOut::new(
-            ExtendedAddr::OrTree([0xbb; 32].into()),
-            Coin::unit(),
-        ));
+        tx.add_input(TxoPointer::new([0x01; 32], 1));
+        tx.add_output(TxOut::new(ExtendedAddr::OrTree([0xbb; 32]), Coin::unit()));
         let secp = Secp256k1::new();
         let sk1 = SecretKey::from_slice(&[0xcc; 32][..]).expect("secret key");
         let pk1 = PublicKey::from_secret_key(&secp, &sk1);
@@ -323,7 +343,7 @@ pub mod tests {
 
         tx.attributes
             .allowed_view
-            .push(TxAccessPolicy::new(pk1.clone(), TxAccess::AllData));
+            .push(TxAccessPolicy::new(pk1, TxAccess::AllData));
 
         let msg = Message::from_slice(&tx.id()).expect("msg");
 

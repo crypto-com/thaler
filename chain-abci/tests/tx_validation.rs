@@ -32,7 +32,7 @@ use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::PlainTxAux;
 use chain_core::tx::TransactionId;
 use chain_core::tx::TxObfuscated;
-use chain_core::tx::{TxAux, TxEnclaveAux};
+use chain_core::tx::{TxAux, TxEnclaveAux, TxPublicAux};
 use chain_storage::account::AccountStorage;
 use chain_storage::account::AccountWrapper;
 use chain_storage::account::StarlingFixedKey;
@@ -123,6 +123,10 @@ fn get_chain_info(txaux: &TxAux) -> ChainInfo {
 
 fn get_chain_info_enc(txaux: &TxEnclaveAux) -> ChainInfo {
     get_chain_info(&TxAux::EnclaveTx(txaux.clone()))
+}
+
+fn get_chain_info_pub(txaux: &TxPublicAux) -> ChainInfo {
+    get_chain_info(&TxAux::PublicTx(txaux.clone()))
 }
 
 struct NodeInfoWrap(
@@ -250,7 +254,13 @@ fn prepare_app_valid_transfer_tx(
     )
 }
 
-fn prepare_app_valid_unbond_tx() -> (TxAux, UnbondTx, SecretKey, AccountStorage, StarlingFixedKey) {
+fn prepare_app_valid_unbond_tx() -> (
+    TxPublicAux,
+    UnbondTx,
+    SecretKey,
+    AccountStorage,
+    StarlingFixedKey,
+) {
     let mut tree = AccountStorage::new(Storage::new_db(create_db()), 20).expect("account db");
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
@@ -270,14 +280,14 @@ fn prepare_app_valid_unbond_tx() -> (TxAux, UnbondTx, SecretKey, AccountStorage,
         StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
     );
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
-    let txaux = TxAux::UnbondStakeTx(tx.clone(), witness.clone());
+    let txaux = TxPublicAux::UnbondStakeTx(tx.clone(), witness.clone());
     (txaux, tx.clone(), secret_key, tree, new_root)
 }
 
 #[test]
 fn existing_account_unbond_tx_should_verify() {
     let (txaux, _, _, accounts, last_account_root_hash) = prepare_app_valid_unbond_tx();
-    let extra_info = get_chain_info(&txaux);
+    let extra_info = get_chain_info_pub(&txaux);
     let result = verify_public_tx(
         &txaux,
         extra_info,
@@ -291,7 +301,7 @@ fn existing_account_unbond_tx_should_verify() {
 #[test]
 fn test_account_unbond_verify_fail() {
     let (txaux, tx, secret_key, accounts, last_account_root_hash) = prepare_app_valid_unbond_tx();
-    let extra_info = get_chain_info(&txaux);
+    let extra_info = get_chain_info_pub(&txaux);
     // WrongChainHexId
     {
         let mut extra_info = extra_info.clone();
@@ -309,7 +319,7 @@ fn test_account_unbond_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.attributes.app_version = chain_core::APP_VERSION + 1;
-        let txaux = TxAux::UnbondStakeTx(
+        let txaux = TxPublicAux::UnbondStakeTx(
             tx.clone(),
             get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
         );
@@ -337,7 +347,7 @@ fn test_account_unbond_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.nonce = 0;
-        let txaux = TxAux::UnbondStakeTx(
+        let txaux = TxPublicAux::UnbondStakeTx(
             tx.clone(),
             get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
         );
@@ -354,7 +364,7 @@ fn test_account_unbond_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.value = Coin::zero();
-        let txaux = TxAux::UnbondStakeTx(
+        let txaux = TxPublicAux::UnbondStakeTx(
             tx.clone(),
             get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
         );
@@ -371,7 +381,7 @@ fn test_account_unbond_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.value = (tx.value + Coin::one()).unwrap();
-        let txaux = TxAux::UnbondStakeTx(
+        let txaux = TxPublicAux::UnbondStakeTx(
             tx.clone(),
             get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
         );
@@ -1510,7 +1520,7 @@ fn prepare_deposit_transaction(
     }
 }
 
-fn prepare_unbond_transaction(secret_key: &SecretKey, address: StakedStateAddress) -> TxAux {
+fn prepare_unbond_transaction(secret_key: &SecretKey, address: StakedStateAddress) -> TxPublicAux {
     let secp = Secp256k1::new();
 
     let tx = UnbondTx::new(
@@ -1521,14 +1531,14 @@ fn prepare_unbond_transaction(secret_key: &SecretKey, address: StakedStateAddres
     );
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
 
-    TxAux::UnbondStakeTx(tx, witness)
+    TxPublicAux::UnbondStakeTx(tx, witness)
 }
 
 fn prepare_unjail_transaction(
     secret_key: &SecretKey,
     address: StakedStateAddress,
     nonce: u64,
-) -> TxAux {
+) -> TxPublicAux {
     let secp = Secp256k1::new();
 
     let tx = UnjailTx {
@@ -1538,7 +1548,7 @@ fn prepare_unjail_transaction(
     };
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
 
-    TxAux::UnjailTx(tx, witness)
+    TxPublicAux::UnjailTx(tx, witness)
 }
 
 #[test]
@@ -1586,7 +1596,7 @@ fn check_verify_fail_for_jailed_account() {
         &secret_key,
         StakedStateAddress::BasicRedeem(address.clone()),
     );
-    let extra_info = get_chain_info(&txaux);
+    let extra_info = get_chain_info_pub(&txaux);
 
     expect_error(
         &verify_public_tx(
@@ -1605,7 +1615,7 @@ fn check_verify_fail_for_jailed_account() {
         &secret_key,
         StakedStateAddress::BasicRedeem(address.clone()),
     );
-    let extra_info = get_chain_info(&txaux);
+    let extra_info = get_chain_info_pub(&txaux);
 
     expect_error(
         &verify_public_tx(
@@ -1630,7 +1640,7 @@ fn check_unjail_transaction() {
         StakedStateAddress::BasicRedeem(address.clone()),
         0,
     );
-    let extra_info = get_chain_info(&txaux);
+    let extra_info = get_chain_info_pub(&txaux);
 
     expect_error(
         &verify_public_tx(
@@ -1650,7 +1660,7 @@ fn check_unjail_transaction() {
         StakedStateAddress::BasicRedeem(address.clone()),
         1,
     );
-    let extra_info = get_chain_info(&txaux);
+    let extra_info = get_chain_info_pub(&txaux);
 
     expect_error(
         &verify_public_tx(
@@ -1672,7 +1682,7 @@ fn check_unjail_transaction() {
     );
     let extra_info = ChainInfo {
         min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
-            .calculate_for_txaux(&txaux)
+            .calculate_for_txaux(&TxAux::PublicTx(txaux.clone()))
             .expect("invalid fee policy"),
         chain_hex_id: DEFAULT_CHAIN_ID,
         previous_block_time: 101,
@@ -1695,7 +1705,7 @@ fn check_unjail_transaction() {
 fn prepare_nodejoin_transaction(
     secret_key: &SecretKey,
     address: StakedStateAddress,
-) -> (TxAux, NodeJoinRequestTx) {
+) -> (TxPublicAux, NodeJoinRequestTx) {
     let secp = Secp256k1::new();
 
     let tx = NodeJoinRequestTx {
@@ -1710,11 +1720,11 @@ fn prepare_nodejoin_transaction(
     };
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
 
-    (TxAux::NodeJoinTx(tx.clone(), witness), tx)
+    (TxPublicAux::NodeJoinTx(tx.clone(), witness), tx)
 }
 
 fn prepare_valid_nodejoin_tx() -> (
-    TxAux,
+    TxPublicAux,
     NodeJoinRequestTx,
     StakedStateAddress,
     SecretKey,
@@ -1740,7 +1750,7 @@ fn prepare_valid_nodejoin_tx() -> (
 #[test]
 fn test_nodejoin_success() {
     let (txaux, _, _, _, accounts, root) = prepare_valid_nodejoin_tx();
-    let extra_info = get_chain_info(&txaux);
+    let extra_info = get_chain_info_pub(&txaux);
 
     let (fee, new_account) = verify_public_tx(
         &txaux,
@@ -1758,7 +1768,7 @@ fn test_nodejoin_success() {
 #[test]
 fn test_nodejoin_fail() {
     let (txaux, tx, addr, secret_key, accounts, root) = prepare_valid_nodejoin_tx();
-    let extra_info = get_chain_info(&txaux);
+    let extra_info = get_chain_info_pub(&txaux);
     // WrongChainHexId
     {
         let mut extra_info = extra_info.clone();
@@ -1776,7 +1786,7 @@ fn test_nodejoin_fail() {
     {
         let mut tx = tx.clone();
         tx.attributes.app_version = chain_core::APP_VERSION + 1;
-        let txaux = TxAux::NodeJoinTx(
+        let txaux = TxPublicAux::NodeJoinTx(
             tx.clone(),
             get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
         );
@@ -1804,7 +1814,7 @@ fn test_nodejoin_fail() {
     {
         let mut tx = tx.clone();
         tx.nonce = 0;
-        let txaux = TxAux::NodeJoinTx(
+        let txaux = TxPublicAux::NodeJoinTx(
             tx.clone(),
             get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
         );
@@ -1821,7 +1831,7 @@ fn test_nodejoin_fail() {
     {
         let mut tx = tx.clone();
         tx.address = StakedStateAddress::from(RedeemAddress::from([1u8; 20]));
-        let txaux = TxAux::NodeJoinTx(
+        let txaux = TxPublicAux::NodeJoinTx(
             tx.clone(),
             get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
         );

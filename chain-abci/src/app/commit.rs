@@ -5,7 +5,7 @@ use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::tx::data::input::{TxoIndex, TxoPointer};
 use chain_core::tx::data::TxId;
-use chain_core::tx::{TxAux, TxEnclaveAux};
+use chain_core::tx::{TxAux, TxEnclaveAux, TxPublicAux};
 use chain_storage::Storage;
 use parity_scale_codec::Encode;
 
@@ -40,7 +40,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     self.storage.spend_utxos(&tx.inputs);
                     // account should be already updated in deliver_tx
                 }
-                TxAux::UnbondStakeTx(tx, witness) => {
+                TxAux::PublicTx(TxPublicAux::UnbondStakeTx(tx, witness)) => {
                     self.storage.store_tx_body(&txid, &tx.encode());
                     self.storage.store_tx_witness(&txid, &witness.encode());
                     // account should be already updated in deliver_tx
@@ -54,12 +54,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     // account should be already updated in deliver_tx
                     self.storage.create_utxo(*no_of_outputs, &txid);
                 }
-                TxAux::UnjailTx(tx, witness) => {
+                TxAux::PublicTx(TxPublicAux::UnjailTx(tx, witness)) => {
                     self.storage.store_tx_body(&txid, &tx.encode());
                     self.storage.store_tx_witness(&txid, &witness.encode());
                     // account should be already unjailed in deliver_tx
                 }
-                TxAux::NodeJoinTx(tx, witness) => {
+                TxAux::PublicTx(TxPublicAux::NodeJoinTx(tx, witness)) => {
                     self.storage.store_tx_body(&txid, &tx.encode());
                     self.storage.store_tx_witness(&txid, &witness.encode());
                     // staked state updated in deliver_tx

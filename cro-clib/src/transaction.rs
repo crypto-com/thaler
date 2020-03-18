@@ -11,8 +11,7 @@ use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::TransactionId;
-use chain_core::tx::TxAux;
+use chain_core::tx::{TransactionId, TxAux, TxPublicAux};
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result, ResultExt};
@@ -54,7 +53,7 @@ fn create_encoded_signed_unbond(
     let signature: StakedStateOpWitness = from_private
         .sign(transaction.id())
         .map(StakedStateOpWitness::new)?;
-    let result = TxAux::UnbondStakeTx(transaction, signature);
+    let result = TxAux::PublicTx(TxPublicAux::UnbondStakeTx(transaction, signature));
     let encoded = result.encode();
     Ok(encoded)
 }
