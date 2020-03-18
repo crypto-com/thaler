@@ -77,6 +77,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "aesm-client"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc80c21ec0f985a2dabae6cf236739d643fb23c33f255bf7ab7fd16bd1f14b95"
+dependencies = [
+ "byteorder",
+ "failure",
+ "failure_derive",
+ "lazy_static",
+ "libloading",
+ "protobuf",
+ "protoc-rust",
+ "sgx-isa",
+ "sgxs",
+ "unix_socket2",
+ "winapi 0.3.8",
+]
+
+[[package]]
 name = "aesni"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -846,6 +865,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69323bff1fb41c635347b8ead484a5ca6c3f11914d784170b158d8449ab07f8e"
+dependencies = [
+ "cfg-if",
+ "crossbeam-channel",
+ "crossbeam-deque",
+ "crossbeam-epoch",
+ "crossbeam-queue",
+ "crossbeam-utils",
+]
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cced8691919c02aac3cb0a1bc2e9b73d89e832bf9a06fc579d4e71b68a2da061"
+dependencies = [
+ "crossbeam-utils",
+ "maybe-uninit",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1119,6 +1162,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "enclave-runner"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b6ed146379e00032a3dfdab283740a744012e489c114864f8d4804e6af53367"
+dependencies = [
+ "crossbeam",
+ "failure",
+ "failure_derive",
+ "fnv",
+ "fortanix-sgx-abi",
+ "futures 0.3.4",
+ "lazy_static",
+ "libc",
+ "nix 0.13.1",
+ "num_cpus",
+ "openssl",
+ "sgx-isa",
+ "sgxs",
+ "tokio",
+ "tokio-io",
+]
+
+[[package]]
 name = "enclave-t-common"
 version = "0.4.0"
 dependencies = [
@@ -1284,6 +1350,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 
 [[package]]
+name = "fortanix-sgx-abi"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c56c422ef86062869b2d57ae87270608dc5929969dd130a6e248979cf4fb6ca6"
+
+[[package]]
 name = "fs-swap"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1421,6 +1493,7 @@ version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22766cf25d64306bedf0384da004d05c9974ab104fcc4528f1236181c18004c5"
 dependencies = [
+ "futures 0.1.29",
  "futures-channel",
  "futures-core",
  "futures-io",
@@ -1432,6 +1505,7 @@ dependencies = [
  "proc-macro-hack",
  "proc-macro-nested",
  "slab",
+ "tokio-io",
 ]
 
 [[package]]
@@ -2147,6 +2221,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "nix"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "becb657d662f1cd2ef38c7ad480ec6b8cf9e96b27adb543e594f9cf0f2e6065c"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if",
+ "libc",
+ "void",
+]
+
+[[package]]
+name = "nix"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dbdc256eaac2e3bd236d93ad999d3479ef775c863dbda3068c4006a92eec51b"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if",
+ "libc",
+ "void",
+]
+
+[[package]]
 name = "nom"
 version = "4.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2599,6 +2699,27 @@ checksum = "db5473ffa23d2ea3b9046764f1a22149791967aad946b6cbd99601e720afc4d0"
 dependencies = [
  "protobuf",
  "protobuf-codegen",
+]
+
+[[package]]
+name = "protoc"
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba4f6bdf43828dd805132c2906b119dc0db2e460579bee6966365df2c3459a4d"
+dependencies = [
+ "log 0.4.8",
+]
+
+[[package]]
+name = "protoc-rust"
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a96fb278677b430891195adfe7291b84c7a2672db3d5df362b954a1095a95594"
+dependencies = [
+ "protobuf",
+ "protobuf-codegen",
+ "protoc",
+ "tempfile",
 ]
 
 [[package]]
@@ -3296,6 +3417,39 @@ source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b64
 dependencies = [
  "libc",
  "sgx_types",
+]
+
+[[package]]
+name = "sgxs"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47d3271865cbe8da468d02b2b3b5416c7a460f13b739c38ee2933aa970e7ed2e"
+dependencies = [
+ "byteorder",
+ "failure",
+ "failure_derive",
+ "foreign-types",
+ "openssl",
+ "openssl-sys",
+ "sgx-isa",
+ "time",
+]
+
+[[package]]
+name = "sgxs-loaders"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73022068235965eab2c0051c03067d962110fd7341a2216dbe8469b70d11ead7"
+dependencies = [
+ "bitflags",
+ "failure",
+ "failure_derive",
+ "libc",
+ "libloading",
+ "nix 0.11.1",
+ "sgx-isa",
+ "sgxs",
+ "winapi 0.3.8",
 ]
 
 [[package]]
@@ -4039,6 +4193,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "tx-query2-app-runner"
+version = "0.4.0"
+dependencies = [
+ "aesm-client",
+ "enclave-protocol",
+ "enclave-runner",
+ "env_logger 0.7.1",
+ "futures 0.3.4",
+ "log 0.4.8",
+ "sgxs-loaders",
+ "tokio",
+ "zmq",
+]
+
+[[package]]
+name = "tx-query2-enclave-app"
+version = "0.4.0"
+dependencies = [
+ "enclave-protocol",
+]
+
+[[package]]
 name = "tx-validation-enclave"
 version = "0.4.0"
 dependencies = [
@@ -4148,6 +4324,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "unix_socket2"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b57c6eace16c00eccb98a28e85db3370eab0685bdd5e13831d59e2bcb49a1d8a"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "untrusted"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4212,6 +4397,12 @@ name = "version_check"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "078775d0255232fb988e6fccf26ddc9d1ac274299aaedcedce21c6f72cc533ce"
+
+[[package]]
+name = "void"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
 name = "want"

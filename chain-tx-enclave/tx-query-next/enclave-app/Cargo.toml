@@ -1,0 +1,7 @@
+[package]
+name = "tx-query2-enclave-app"
+version = "0.4.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+
+[dependencies]
+enclave-protocol   = { path = "../../../enclave-protocol" }
