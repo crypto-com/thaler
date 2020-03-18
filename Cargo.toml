@@ -18,6 +18,8 @@ members = [
     "chain-tx-enclave/tx-validation/enclave",
     "chain-tx-enclave/tx-query/app",
     "chain-tx-enclave/tx-query/enclave",
+    "chain-tx-enclave/tx-query-next/app-runner",
+    "chain-tx-enclave/tx-query-next/enclave-app",
     "cro-clib",
 ]
 
