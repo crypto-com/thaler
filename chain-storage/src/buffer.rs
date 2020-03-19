@@ -41,7 +41,8 @@ use starling::traits::Exception;
 
 use chain_core::state::account::{to_stake_key, StakedState, StakedStateAddress};
 
-use super::account::{AccountStorage as StakingStorage, AccountWrapper, StarlingFixedKey};
+use crate::account::{AccountStorage as StakingStorage, AccountWrapper, StarlingFixedKey};
+use crate::Storage;
 
 pub trait Get {
     type Key;
@@ -316,6 +317,22 @@ pub fn flush_kvdb<S: KeyValueDB + ?Sized, H: BuildHasher>(
         }
     }
     storage.write(tx)
+}
+
+/// Flush buffer to storage
+pub fn flush_storage<H: BuildHasher>(
+    storage: &mut Storage,
+    buffer: HashMap<(u32, Vec<u8>), Option<Vec<u8>>, H>,
+) -> std::io::Result<()> {
+    let tx = storage.get_or_create_tx();
+    for ((col, key), value) in buffer.into_iter() {
+        if let Some(val) = &value {
+            tx.put(col, &key, val);
+        } else {
+            tx.delete(col, &key);
+        }
+    }
+    storage.persist_write()
 }
 
 /// Flush buffer to memstore

@@ -1,15 +1,16 @@
 pub mod account;
+mod api;
 pub mod buffer;
-pub mod tx;
 
+use crate::buffer::Get;
 use chain_core::common::H256;
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::data::TxId;
 use kvdb::{DBTransaction, KeyValueDB};
-use parity_scale_codec::Encode;
-use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::Arc;
+
+pub use api::*;
 
 // database columns
 /// Column for UTXOs: TxId => BitVec (where each bit indicates whether the output was spent or not, e.g. b[0] == true if output 0 was spent in a given TX)
@@ -79,8 +80,15 @@ pub struct Storage {
     db: Arc<dyn KeyValueDB>,
     /// tx to be committed
     current_tx: Option<DBTransaction>,
-    /// uncommitted values (for lookups during current block execution processing)
-    temp_tx_db: BTreeMap<(TxId, LookupItem), Vec<u8>>,
+}
+
+impl Get for Storage {
+    type Key = (u32, Vec<u8>);
+    type Value = Vec<u8>;
+    fn get(&self, key: &Self::Key) -> Option<Self::Value> {
+        let (col, key) = key;
+        self.db.get(*col, &key).unwrap()
+    }
 }
 
 /// committed storage only
@@ -130,31 +138,8 @@ impl Storage {
         }
     }
 
-    pub fn lookup_item(
-        &self,
-        item_type: LookupItem,
-        txid_or_app_hash: &H256,
-        read_uncommitted: bool,
-    ) -> Option<Vec<u8>> {
-        let col = item_type as u32;
-        match (
-            read_uncommitted,
-            self.temp_tx_db.get(&(*txid_or_app_hash, item_type)),
-        ) {
-            (false, _) | (true, None) => self
-                .db
-                .get(col, txid_or_app_hash)
-                .expect("IO fail")
-                .map(|x| x.to_vec()),
-            (true, Some(x)) => Some(x.clone()),
-        }
-    }
-
-    pub fn insert_item(&mut self, item_type: LookupItem, txid_or_app_hash: H256, data: Vec<u8>) {
-        let col = item_type as u32;
-        let dbtx = self.get_or_create_tx();
-        dbtx.put(col, &txid_or_app_hash, &data);
-        self.temp_tx_db.insert((txid_or_app_hash, item_type), data);
+    pub fn lookup_item(&self, item_type: LookupItem, txid_or_app_hash: &H256) -> Option<Vec<u8>> {
+        lookup_item(self, item_type, txid_or_app_hash)
     }
 
     /// initializes Storage with a provided reference to KV DB (used in testing / benches -- in-mem KVDB)
@@ -163,7 +148,6 @@ impl Storage {
         Storage {
             db,
             current_tx: None,
-            temp_tx_db: BTreeMap::new(),
         }
     }
 
@@ -179,7 +163,6 @@ impl Storage {
         Storage {
             db,
             current_tx: None,
-            temp_tx_db: BTreeMap::new(),
         }
     }
 
@@ -194,6 +177,10 @@ impl Storage {
         self.current_tx.as_mut().unwrap()
     }
 
+    pub fn get_sealed_log(&self, txid: &TxId) -> Option<Vec<u8>> {
+        self.lookup_item(LookupItem::TxSealed, txid)
+    }
+
     /// currently for potential debugging / diagnostics
     /// parameters are protobuf-serialized (what was passed in initchain)
     pub fn store_consensus_params(&mut self, cp: &[u8]) {
@@ -202,81 +189,23 @@ impl Storage {
     }
 
     pub fn get_genesis_app_hash(&self) -> H256 {
-        let stored_gah = self
-            .db
-            .get(COL_NODE_INFO, GENESIS_APP_HASH_KEY)
-            .expect("genesis hash lookup")
-            .expect("last app state found, but genesis app hash not stored");
-        let mut stored_genesis = H256::default();
-        stored_genesis.copy_from_slice(&stored_gah[..]);
-        stored_genesis
+        get_genesis_app_hash(self).expect("last app state found, but genesis app hash not stored")
     }
 
     pub fn get_stored_chain_id(&self) -> Vec<u8> {
-        self.db
-            .get(COL_EXTRA, CHAIN_ID_KEY)
-            .expect("chain id lookup")
-            .expect("last app state found, but no chain id stored")
+        get_stored_chain_id(self).expect("last app state found, but no chain id stored")
     }
 
     pub fn get_last_app_state(&self) -> Option<Vec<u8>> {
-        self.db
-            .get(COL_NODE_INFO, LAST_STATE_KEY)
-            .expect("app state lookup")
-            .map(|x| x.to_vec())
+        get_last_app_state(self)
     }
 
     pub fn get_historical_state(&self, height: BlockHeight) -> Option<Vec<u8>> {
-        self.db
-            .get(COL_APP_STATES, &height.encode())
-            .expect("app last block height look up")
-            .map(|x| x.to_vec())
+        get_historical_state(self, height)
     }
 
     pub fn get_historical_app_hash(&self, height: BlockHeight) -> Option<H256> {
-        let sah = self
-            .db
-            .get(COL_APP_HASHS, &height.encode())
-            .expect("app last block height look up")
-            .map(|x| x.to_vec());
-        if let Some(ah) = sah {
-            let mut stored_ah = H256::default();
-            stored_ah.copy_from_slice(&ah);
-            Some(stored_ah)
-        } else {
-            None
-        }
-    }
-
-    pub fn store_chain_state<T: StoredChainState>(
-        &mut self,
-        genesis_state: &T,
-        block_height: BlockHeight,
-        write_history_states: bool,
-    ) {
-        let inittx = self.get_or_create_tx();
-        inittx.put(COL_NODE_INFO, LAST_STATE_KEY, &genesis_state.get_encoded());
-        let encoded_height = block_height.encode();
-        inittx.put(
-            COL_APP_HASHS,
-            &encoded_height,
-            &genesis_state.get_last_app_hash(),
-        );
-        if write_history_states {
-            inittx.put(
-                COL_APP_STATES,
-                &encoded_height,
-                &genesis_state.get_encoded_top_level(),
-            );
-        }
-    }
-
-    pub fn store_genesis_state<T: StoredChainState>(
-        &mut self,
-        genesis_state: &T,
-        write_history_states: bool,
-    ) {
-        self.store_chain_state(genesis_state, BlockHeight::genesis(), write_history_states);
+        get_historical_app_hash(self, height)
     }
 
     pub fn write_genesis_chain_id(&mut self, genesis_app_hash: &H256, chain_id: &str) {
@@ -294,89 +223,9 @@ impl Storage {
 
     pub fn persist_write(&mut self) -> std::io::Result<()> {
         if let Some(dbtx) = self.current_tx.take() {
-            self.temp_tx_db.clear();
             self.db.write(dbtx)
         } else {
             Ok(())
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-
-    use super::*;
-    use crate::{StorageConfig, StorageType};
-
-    // needed due to parallel test execution and locks
-    const TEST_DB_1: &str = ".test-only-db1";
-    const TEST_DB_2: &str = ".test-only-db2";
-
-    fn cleanup_assert(prop: bool, msg: &'static str, db: &'static str) {
-        if !prop {
-            let _ = std::fs::remove_dir_all(db);
-            assert!(prop, msg);
-        }
-    }
-
-    #[test]
-    fn test_buffered_should_not_persist() {
-        let txid = TxId::default();
-        {
-            let mut storage = Storage::new(&StorageConfig::new(TEST_DB_1, StorageType::Node));
-            storage.create_utxo(2, &txid);
-            assert!(storage
-                .lookup_item(LookupItem::TxMetaSpent, &txid, false)
-                .is_none());
-            assert!(storage
-                .lookup_item(LookupItem::TxMetaSpent, &txid, true)
-                .is_some());
-        } // storage dropped / closed after this block to be re-opened
-        let storage = Storage::new(&StorageConfig::new(TEST_DB_1, StorageType::Node));
-        cleanup_assert(
-            storage
-                .lookup_item(LookupItem::TxMetaSpent, &txid, false)
-                .is_none()
-                && storage
-                    .lookup_item(LookupItem::TxMetaSpent, &txid, true)
-                    .is_none(),
-            "buffered write should not persist",
-            TEST_DB_1,
-        );
-        let _ = std::fs::remove_dir_all(TEST_DB_1);
-    }
-
-    #[test]
-    fn test_persist_write() {
-        let txid = TxId::default();
-        {
-            let mut storage = Storage::new(&StorageConfig::new(TEST_DB_2, StorageType::Node));
-            storage.create_utxo(2, &txid);
-            assert!(storage
-                .lookup_item(LookupItem::TxMetaSpent, &txid, false)
-                .is_none());
-            assert!(storage
-                .lookup_item(LookupItem::TxMetaSpent, &txid, true)
-                .is_some());
-            let _ = storage.persist_write();
-            assert!(storage
-                .lookup_item(LookupItem::TxMetaSpent, &txid, true)
-                .is_some());
-            assert!(storage
-                .lookup_item(LookupItem::TxMetaSpent, &txid, false)
-                .is_some());
-        } // storage dropped / closed after this block to be re-opened
-        let storage = Storage::new(&StorageConfig::new(TEST_DB_2, StorageType::Node));
-        cleanup_assert(
-            storage
-                .lookup_item(LookupItem::TxMetaSpent, &txid, true)
-                .is_some()
-                && storage
-                    .lookup_item(LookupItem::TxMetaSpent, &txid, true)
-                    .is_some(),
-            "persist write should commit data",
-            TEST_DB_2,
-        );
-        let _ = std::fs::remove_dir_all(TEST_DB_2);
     }
 }

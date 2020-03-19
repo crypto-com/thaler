@@ -170,7 +170,7 @@ pub(crate) fn handle_encrypt_request(
             let unsealed_inputs =
                 check_unseal(None, false, tx.inputs.iter().map(|x| x.id), sealed_inputs);
             if let Some(inputs) = unsealed_inputs {
-                let result = verify_transfer(&tx, &witness, request.info, inputs);
+                let result = verify_transfer(&tx, &witness, &request.info, inputs);
                 let txid = tx.id();
                 let response = construct_response(
                     result.map(|_| ()),
@@ -186,7 +186,7 @@ pub(crate) fn handle_encrypt_request(
             let unsealed_inputs =
                 check_unseal(None, false, tx.inputs.iter().map(|x| x.id), sealed_inputs);
             if let Some(inputs) = unsealed_inputs {
-                let result = verify_bonded_deposit_core(&tx, &witness, request.info, inputs);
+                let result = verify_bonded_deposit_core(&tx, &witness, &request.info, inputs);
                 let txid = tx.id();
                 let response = construct_response(
                     result.map(|_| ()),
@@ -203,7 +203,7 @@ pub(crate) fn handle_encrypt_request(
             let maddress = verify_tx_recover_address(&witness, &txid);
             match maddress {
                 Ok(address) if address == account.address => {
-                    let result = verify_unbonded_withdraw_core(&tx, request.info, &account);
+                    let result = verify_unbonded_withdraw_core(&tx, &request.info, &account);
                     let response = construct_response(
                         result.map(|_| ()),
                         TxToObfuscate::from(PlainTxAux::WithdrawUnbondedStakeTx(tx), txid)

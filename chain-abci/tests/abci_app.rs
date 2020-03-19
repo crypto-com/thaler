@@ -43,6 +43,7 @@ use chain_core::tx::{
 use chain_storage::account::AccountStorage;
 use chain_storage::account::AccountWrapper;
 use chain_storage::account::StarlingFixedKey;
+use chain_storage::buffer::Get;
 use chain_storage::{
     LookupItem, Storage, COL_NODE_INFO, GENESIS_APP_HASH_KEY, LAST_STATE_KEY, NUM_COLUMNS,
 };
@@ -674,11 +675,11 @@ fn valid_commit_should_persist() {
 
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxSealed, &tx.id(), false)
+        .lookup_item(LookupItem::TxSealed, &tx.id())
         .is_none());
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxWitness, &tx.id(), false)
+        .lookup_item(LookupItem::TxWitness, &tx.id())
         .is_none());
     let persisted_state =
         ChainNodeState::decode(&mut app.storage.get_last_app_state().unwrap().as_slice()).unwrap();
@@ -691,11 +692,11 @@ fn valid_commit_should_persist() {
     assert_eq!(0, app.delivered_txs.len());
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxSealed, &tx.id(), false)
+        .lookup_item(LookupItem::TxSealed, &tx.id())
         .is_some());
     assert!(app
         .storage
-        .lookup_item(LookupItem::TxWitness, &tx.id(), false)
+        .lookup_item(LookupItem::TxWitness, &tx.id())
         .is_some());
     assert_eq!(
         BlockHeight::new(10),
@@ -720,13 +721,12 @@ fn valid_commit_should_persist() {
         .lookup_item(
             LookupItem::TxsMerkle,
             &app.last_state.as_ref().unwrap().last_apphash,
-            false
         )
         .is_some());
     // TODO: check account
     let new_utxos = BitVec::from_bytes(
         &app.storage
-            .lookup_item(LookupItem::TxMetaSpent, &tx.id(), false)
+            .lookup_item(LookupItem::TxMetaSpent, &tx.id())
             .unwrap(),
     );
     assert!(!new_utxos.any());
@@ -777,28 +777,14 @@ pub fn get_account(
     account_address: &RedeemAddress,
     app: &ChainNodeApp<MockClient>,
 ) -> Option<StakedState> {
-    println!(
-        "uncommitted root hash: {}",
-        hex::encode(app.uncommitted_account_root_hash)
-    );
-    let account_key = to_stake_key(&StakedStateAddress::from(*account_address));
-    let state = app.last_state.clone().expect("app state");
-    println!(
-        "committed root hash: {}",
-        hex::encode(&state.top_level.account_root)
-    );
-    let account = app
-        .accounts
-        .get_one(&app.uncommitted_account_root_hash, &account_key)
-        .expect("account lookup problem");
-
-    account.map(|AccountWrapper(a)| a)
+    app.staking_getter(true)
+        .get(&StakedStateAddress::BasicRedeem(*account_address))
 }
 
 fn get_tx_meta(txid: &TxId, app: &ChainNodeApp<MockClient>) -> BitVec {
     BitVec::from_bytes(
         &app.storage
-            .lookup_item(LookupItem::TxMetaSpent, txid, false)
+            .lookup_item(LookupItem::TxMetaSpent, txid)
             .unwrap(),
     )
 }
