@@ -12,8 +12,8 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.3"
 parity-scale-codec = { version = "1.1" }
-kvdb = "0.4"
-kvdb-memorydb = "0.4"
+kvdb = "0.5"
+kvdb-memorydb = "0.5"
 chain-storage = { path = "../../chain-storage" }
 chain-core = { path = "../../chain-core" }
 abci = "0.6.5"
