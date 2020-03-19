@@ -238,7 +238,7 @@ impl EnclaveProxy for MockClient {
                         TxEnclaveAux::TransferTx { .. },
                         Ok(PlainTxAux::TransferTx(maintx, witness)),
                     ) => {
-                        let result = verify_transfer(&maintx, &witness, info, inputs);
+                        let result = verify_transfer(&maintx, &witness, &info, inputs);
                         match result {
                             Ok(fee) => {
                                 let txwo = TxWithOutputs::Transfer(maintx);
@@ -256,7 +256,7 @@ impl EnclaveProxy for MockClient {
                         TxEnclaveAux::DepositStakeTx { tx, .. },
                         Ok(PlainTxAux::DepositStakeTx(witness)),
                     ) => {
-                        let result = verify_bonded_deposit_core(&tx, &witness, info, inputs);
+                        let result = verify_bonded_deposit_core(&tx, &witness, &info, inputs);
                         match result {
                             Ok(input_coins) => {
                                 Ok(IntraEnclaveResponseOk::DepositStakeTx { input_coins })
@@ -270,7 +270,7 @@ impl EnclaveProxy for MockClient {
                     ) => {
                         let result = verify_unbonded_withdraw(
                             &tx,
-                            info,
+                            &info,
                             account.expect("account exists in withdraw"),
                         );
                         match result {

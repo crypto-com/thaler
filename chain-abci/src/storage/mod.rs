@@ -7,8 +7,7 @@ use chain_core::tx::{TransactionId, TxEnclaveAux, TxObfuscated, TxPublicAux};
 use chain_storage::account::{
     get_staked_state, AccountStorage, StakedStateError, StarlingFixedKey,
 };
-use chain_storage::tx::{InputError, InputStatus};
-use chain_storage::Storage;
+use chain_storage::buffer::{GetKV, GetStaking};
 use chain_tx_validation::{
     verify_node_join, verify_unbonding, verify_unjailed, verify_unjailing,
     witness::verify_tx_recover_address, ChainInfo, Error, NodeChecker,
@@ -88,16 +87,7 @@ impl TxEnclaveAction {
 #[derive(Debug, Clone)]
 pub enum TxAction {
     Enclave(TxEnclaveAction),
-    Public(Fee, TxPublicAux),
-}
-
-impl TxAction {
-    pub fn fee(&self) -> Fee {
-        match self {
-            Self::Public(fee, _) => *fee,
-            Self::Enclave(action) => action.fee(),
-        }
-    }
+    Public(TxPublicAux),
 }
 
 /// checks that the account can be retrieved from the trie storage
@@ -114,8 +104,8 @@ pub fn get_account(
 }
 
 fn check_spent_input_lookup(
+    kvdb: &impl GetKV,
     inputs: &[TxoPointer],
-    storage: &Storage,
 ) -> Result<Vec<SealedLog>, Error> {
     // check that there are inputs
     if inputs.is_empty() {
@@ -123,27 +113,14 @@ fn check_spent_input_lookup(
     }
     let mut result = Vec::with_capacity(inputs.len());
     for txin in inputs.iter() {
-        let txo = storage.lookup_input(txin, true);
-        match txo {
-            Err(InputError::InvalidIndex) => {
-                return Err(Error::InvalidInput);
-            }
-            Err(InputError::InvalidTxId) => {
-                return Err(Error::InvalidInput);
-            }
-            Err(InputError::IoError(_e)) => {
-                return Err(Error::IoError);
-            }
-            Ok(InputStatus::Spent) => {
-                return Err(Error::InputSpent);
-            }
-            Ok(InputStatus::Unspent) => {
-                result.push(
-                    storage
-                        .get_sealed_log(&txin.id)
-                        .expect("valid unspent tx output should be stored"),
-                );
-            }
+        let spent = chain_storage::lookup_input(kvdb, txin).ok_or(Error::InvalidInput)?;
+        if spent {
+            return Err(Error::InputSpent);
+        } else {
+            result.push(
+                chain_storage::get_sealed_log(kvdb, &txin.id)
+                    .expect("valid unspent tx output should be stored"),
+            );
         }
     }
     Ok(result)
@@ -154,10 +131,9 @@ fn check_spent_input_lookup(
 pub fn verify_enclave_tx<T: EnclaveProxy>(
     tx_validator: &mut T,
     txaux: &TxEnclaveAux,
-    extra_info: ChainInfo,
-    last_account_root_hash: &StarlingFixedKey,
-    storage: &Storage,
-    accounts: &AccountStorage,
+    extra_info: &ChainInfo,
+    trie: &impl GetStaking,
+    kvdb: &impl GetKV,
 ) -> Result<TxEnclaveAction, Error> {
     match txaux {
         TxEnclaveAux::TransferTx {
@@ -165,9 +141,9 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
             no_of_outputs,
             ..
         } => {
-            let tx_inputs = check_spent_input_lookup(&inputs, storage)?;
+            let tx_inputs = check_spent_input_lookup(kvdb, &inputs)?;
             let response = tx_validator.process_request(
-                IntraEnclaveRequest::new_validate_transfer(txaux.clone(), extra_info, tx_inputs),
+                IntraEnclaveRequest::new_validate_transfer(txaux.clone(), *extra_info, tx_inputs),
             );
             match response {
                 Ok(IntraEnclaveResponseOk::TxWithOutputs {
@@ -184,23 +160,16 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
             }
         }
         TxEnclaveAux::DepositStakeTx { tx, .. } => {
-            let maccount = get_account(&tx.to_staked_account, last_account_root_hash, accounts);
-            let account = match maccount {
-                Ok(a) => Some(a),
-                Err(Error::AccountNotFound) => None,
-                Err(e) => {
-                    return Err(e);
-                }
-            };
+            let account = trie.get(&tx.to_staked_account);
             if let Some(ref account) = account {
                 verify_unjailed(account)?;
             }
 
-            let tx_inputs = check_spent_input_lookup(&tx.inputs, storage)?;
+            let tx_inputs = check_spent_input_lookup(kvdb, &tx.inputs)?;
 
             let response = tx_validator.process_request(IntraEnclaveRequest::new_validate_deposit(
                 txaux.clone(),
-                extra_info,
+                *extra_info,
                 account,
                 tx_inputs,
             ));
@@ -225,11 +194,11 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
         } => {
             let account_address =
                 verify_tx_recover_address(&witness, &txid).map_err(|_| Error::EcdsaCrypto)?;
-            let account = get_account(&account_address, last_account_root_hash, accounts)?;
+            let account = trie.get(&account_address).ok_or(Error::AccountNotFound)?;
             verify_unjailed(&account)?;
             let withdraw_amount = account.unbonded;
             let response = tx_validator.process_request(
-                IntraEnclaveRequest::new_validate_withdraw(txaux.clone(), extra_info, account),
+                IntraEnclaveRequest::new_validate_withdraw(txaux.clone(), *extra_info, account),
             );
             match response {
                 Ok(IntraEnclaveResponseOk::TxWithOutputs {
@@ -252,17 +221,16 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
 /// If OK, returns the paid fee + affected staked state.
 pub fn verify_public_tx(
     txaux: &TxPublicAux,
-    extra_info: ChainInfo,
+    extra_info: &ChainInfo,
     node_info: impl NodeChecker,
-    last_account_root_hash: &StarlingFixedKey,
-    accounts: &AccountStorage,
+    trie: &impl GetStaking,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     match txaux {
         // TODO: delay checking witness, as address is contained in Tx?
         TxPublicAux::UnbondStakeTx(maintx, witness) => {
             match verify_tx_recover_address(&witness, &maintx.id()) {
                 Ok(account_address) => {
-                    let account = get_account(&account_address, last_account_root_hash, accounts)?;
+                    let account = trie.get(&account_address).ok_or(Error::AccountNotFound)?;
                     verify_unbonding(maintx, extra_info, account)
                 }
                 Err(_) => {
@@ -274,7 +242,7 @@ pub fn verify_public_tx(
         TxPublicAux::UnjailTx(maintx, witness) => {
             match verify_tx_recover_address(&witness, &maintx.id()) {
                 Ok(account_address) => {
-                    let account = get_account(&account_address, last_account_root_hash, accounts)?;
+                    let account = trie.get(&account_address).ok_or(Error::AccountNotFound)?;
                     verify_unjailing(maintx, extra_info, account)
                 }
                 Err(_) => {
@@ -286,7 +254,7 @@ pub fn verify_public_tx(
         TxPublicAux::NodeJoinTx(maintx, witness) => {
             match verify_tx_recover_address(&witness, &maintx.id()) {
                 Ok(account_address) => {
-                    let account = get_account(&account_address, last_account_root_hash, accounts)?;
+                    let account = trie.get(&account_address).ok_or(Error::AccountNotFound)?;
                     verify_node_join(maintx, extra_info, node_info, account)
                 }
                 Err(_) => {

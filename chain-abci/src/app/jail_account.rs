@@ -1,10 +1,9 @@
 use chain_core::state::account::{PunishmentKind, StakedStateAddress};
 use chain_tx_validation::Error;
 
-use crate::app::ChainNodeApp;
+use crate::app::{BufferType, ChainNodeApp};
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::get_account;
-use chain_storage::account::update_staked_state;
+use chain_storage::buffer::{Get, StoreStaking};
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Jails staking account with given address
@@ -14,11 +13,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         staking_address: StakedStateAddress,
         punishment_kind: PunishmentKind,
     ) -> Result<(), Error> {
-        let mut account = get_account(
-            &staking_address,
-            &self.uncommitted_account_root_hash,
-            &self.accounts,
-        )?;
+        let mut account = self
+            .staking_getter(BufferType::Consensus)
+            .get(&staking_address)
+            .ok_or(Error::AccountNotFound)?;
 
         if account.is_jailed() {
             // Return early if account is already jailed
@@ -35,17 +33,13 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         account.jail_until(block_time + jail_duration, punishment_kind);
 
-        let (new_root, _) = update_staked_state(
-            account,
-            &self.uncommitted_account_root_hash,
-            &mut self.accounts,
-        );
-        self.uncommitted_account_root_hash = new_root;
         last_state
             .validators
             .validator_state_helper
             .punish_update(staking_address);
 
+        self.staking_store(BufferType::Consensus)
+            .set_staking(account);
         Ok(())
     }
 }

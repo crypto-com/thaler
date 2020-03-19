@@ -12,8 +12,7 @@ use chain_tx_validation::Error;
 
 use crate::app::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::get_account;
-use chain_storage::account::update_staked_state;
+use chain_storage::buffer::{Get, StoreStaking};
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Slashes all the eligible accounts currently in slashing queue
@@ -22,6 +21,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             .last_state
             .as_mut()
             .expect("Last state is not present, init_chain was not called");
+        let root = Some(last_state.top_level.account_root);
 
         let current_time = last_state.block_time;
 
@@ -39,11 +39,9 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
             slashing_event.attributes.push(kvpair);
 
-            let mut account = get_account(
-                &staking_address,
-                &self.uncommitted_account_root_hash,
-                &self.accounts,
-            )?;
+            let mut account = staking_getter!(self, root)
+                .get(&staking_address)
+                .ok_or(Error::AccountNotFound)?;
 
             if !account.is_jailed() {
                 panic!("Account scheduled for slashing should already be jailed");
@@ -62,12 +60,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     .map_err(|_| Error::InvalidSum)?;
             self.rewards_pool_updated = true;
 
-            let (new_root, _) = update_staked_state(
-                account,
-                &self.uncommitted_account_root_hash,
-                &mut self.accounts,
-            );
-            self.uncommitted_account_root_hash = new_root;
+            staking_store!(self, root).set_staking(account);
         }
 
         Ok(slashing_event)

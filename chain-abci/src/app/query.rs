@@ -41,7 +41,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         key: &H256,
         log_message: &str,
     ) {
-        let v = self.storage.lookup_item(item, &key, false);
+        let v = self.storage.lookup_item(item, &key);
         match v {
             Some(uv) => {
                 resp.value = uv;
@@ -110,9 +110,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     "tx not found",
                 );
                 if let (Some(txid), true) = (key, _req.prove) {
-                    let mwitness = self
-                        .storage
-                        .lookup_item(LookupItem::TxWitness, &txid, false);
+                    let mwitness = self.storage.lookup_item(LookupItem::TxWitness, &txid);
                     if let Some(witness) = mwitness {
                         // Negative height default to 0
                         let req_height = _req
@@ -134,7 +132,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                         let app_hash = self.storage.get_historical_app_hash(height).unwrap();
                         let data = self
                             .storage
-                            .lookup_item(LookupItem::TxsMerkle, &app_hash, false)
+                            .lookup_item(LookupItem::TxsMerkle, &app_hash)
                             .unwrap();
                         let tree = MerkleTree::decode(&mut data.as_slice()).expect("merkle tree");
 

@@ -11,7 +11,7 @@ use secp256k1::{
     Message, Secp256k1, Signing,
 };
 
-use chain_abci::app::ChainNodeApp;
+use chain_abci::app::{BufferType, ChainNodeApp};
 use chain_abci::enclave_bridge::mock::MockClient;
 use chain_core::common::{MerkleTree, H256};
 use chain_core::compute_app_hash;
@@ -22,9 +22,8 @@ use chain_core::init::config::{
     SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
-    to_stake_key, CouncilNode, StakedState, StakedStateAddress, StakedStateDestination,
-    StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, ValidatorName,
-    ValidatorSecurityContact,
+    CouncilNode, StakedState, StakedStateAddress, StakedStateDestination, StakedStateOpAttributes,
+    StakedStateOpWitness, UnbondTx, ValidatorName, ValidatorSecurityContact,
 };
 use chain_core::state::tendermint::{
     TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
@@ -35,6 +34,7 @@ use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::{data::TxId, TransactionId, TxAux, TxPublicAux};
 use chain_storage::account::StarlingFixedKey;
 use chain_storage::account::{AccountStorage, AccountWrapper};
+use chain_storage::buffer::Get;
 use chain_storage::{Storage, NUM_COLUMNS};
 
 const TEST_CHAIN_ID: &str = "test-00";
@@ -55,25 +55,9 @@ pub fn get_account(
     account_address: &StakedStateAddress,
     app: &ChainNodeApp<MockClient>,
 ) -> StakedState {
-    println!(
-        "uncommitted root hash: {}",
-        hex::encode(app.uncommitted_account_root_hash)
-    );
-    let account_key = to_stake_key(&account_address);
-    let state = app.last_state.clone().expect("app state");
-    println!(
-        "committed root hash: {}",
-        hex::encode(&state.top_level.account_root)
-    );
-    let account = app
-        .accounts
-        .get_one(&app.uncommitted_account_root_hash, &account_key)
-        .expect("account lookup problem");
-
-    match account {
-        None => panic!("account not found"),
-        Some(AccountWrapper(a)) => a,
-    }
+    app.staking_getter(BufferType::Consensus)
+        .get(account_address)
+        .expect("account not found")
 }
 
 pub fn get_ecdsa_witness<C: Signing>(

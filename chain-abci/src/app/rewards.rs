@@ -21,6 +21,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Distribute rewards pool
     pub fn rewards_try_distribute(&mut self) -> Option<(RewardsDistribution, Coin)> {
         let state = self.last_state.as_mut().unwrap();
+        let account_root = Some(state.top_level.account_root);
         let top_level = &mut state.top_level;
         let params = &top_level.network_params;
 
@@ -42,7 +43,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let total_staking = state
             .validators
             .validator_state_helper
-            .get_validator_total_bonded(&top_level.account_root, &self.accounts);
+            .get_validator_total_bonded(&staking_getter!(self, account_root));
 
         let minted = if let Ok(can_mint) =
             params.get_rewards_monetary_expansion_cap() - top_level.rewards_pool.minted
@@ -74,14 +75,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let share = (total_rewards / total_blocks).unwrap();
         top_level.rewards_pool.period_bonus = (total_rewards % total_blocks).unwrap();
 
-        let (root, distributed) = state.validators.distribute_rewards(
+        let distributed = state.validators.distribute_rewards(
             share,
-            &self.uncommitted_account_root_hash,
-            &mut self.accounts,
+            &mut staking_store!(self, account_root),
             TendermintVotePower::from(state.minimum_effective()),
         );
 
-        self.uncommitted_account_root_hash = root;
         Some((distributed, minted))
     }
 

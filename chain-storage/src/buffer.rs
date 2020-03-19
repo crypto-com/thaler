@@ -41,7 +41,8 @@ use starling::traits::Exception;
 
 use chain_core::state::account::{to_stake_key, StakedState, StakedStateAddress};
 
-use super::account::{AccountStorage as StakingStorage, AccountWrapper, StarlingFixedKey};
+use crate::account::{AccountStorage as StakingStorage, AccountWrapper, StarlingFixedKey};
+use crate::Storage;
 
 pub trait Get {
     type Key;
@@ -286,11 +287,14 @@ where
     }
 }
 
+/// Buffer used for staking storage
+pub type StakingBuffer = HashMap<StakedStateAddress, StakedState>;
+
 /// Flush buffer to merkle trie, and return the new root
-pub fn flush_staking_storage<H: BuildHasher>(
+pub fn flush_staking_storage(
     storage: &mut StakingStorage,
     root: Option<StarlingFixedKey>,
-    buffer: HashMap<StakedStateAddress, StakedState, H>,
+    buffer: StakingBuffer,
 ) -> Result<Option<StarlingFixedKey>, Exception> {
     let (mut keys, values): (Vec<_>, Vec<_>) = buffer
         .into_iter()
@@ -302,11 +306,11 @@ pub fn flush_staking_storage<H: BuildHasher>(
     Ok(Some(storage.insert(root.as_ref(), &mut keys, &values)?))
 }
 
+/// Buffer used for key-value storage
+pub type KVBuffer = HashMap<(u32, Vec<u8>), Option<Vec<u8>>>;
+
 /// Flush buffer to kv db
-pub fn flush_kvdb<S: KeyValueDB + ?Sized, H: BuildHasher>(
-    storage: &S,
-    buffer: HashMap<(u32, Vec<u8>), Option<Vec<u8>>, H>,
-) -> std::io::Result<()> {
+pub fn flush_kvdb<S: KeyValueDB + ?Sized>(storage: &S, buffer: KVBuffer) -> std::io::Result<()> {
     let mut tx = storage.transaction();
     for ((col, key), value) in buffer.into_iter() {
         if let Some(val) = &value {
@@ -316,6 +320,19 @@ pub fn flush_kvdb<S: KeyValueDB + ?Sized, H: BuildHasher>(
         }
     }
     storage.write(tx)
+}
+
+/// Flush buffer to storage
+pub fn flush_storage(storage: &mut Storage, buffer: KVBuffer) -> std::io::Result<()> {
+    let tx = storage.get_or_create_tx();
+    for ((col, key), value) in buffer.into_iter() {
+        if let Some(val) = &value {
+            tx.put(col, &key, val);
+        } else {
+            tx.delete(col, &key);
+        }
+    }
+    storage.persist_write()
 }
 
 /// Flush buffer to memstore
@@ -331,6 +348,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::mem;
+
     use kvdb::KeyValueDB;
     use kvdb_memorydb::{create as create_memorydb, InMemory};
 
@@ -345,11 +364,11 @@ mod tests {
         trie: StakingStorage,
         root: Option<StarlingFixedKey>,
 
-        tmp_kv_buffer: HashMap<(u32, Vec<u8>), Option<Vec<u8>>>,
-        tmp_trie_buffer: HashMap<StakedStateAddress, StakedState>,
+        tmp_kv_buffer: KVBuffer,
+        tmp_trie_buffer: StakingBuffer,
 
-        kv_buffer: HashMap<(u32, Vec<u8>), Option<Vec<u8>>>,
-        trie_buffer: HashMap<StakedStateAddress, StakedState>,
+        kv_buffer: KVBuffer,
+        trie_buffer: StakingBuffer,
     }
 
     impl<D: KeyValueDB> App<D> {
@@ -366,13 +385,10 @@ mod tests {
         }
 
         fn commit(&mut self) {
-            flush_kvdb(&self.kvdb, std::mem::take(&mut self.kv_buffer)).unwrap();
-            self.root = flush_staking_storage(
-                &mut self.trie,
-                self.root,
-                std::mem::take(&mut self.trie_buffer),
-            )
-            .unwrap();
+            flush_kvdb(&self.kvdb, mem::take(&mut self.kv_buffer)).unwrap();
+            self.root =
+                flush_staking_storage(&mut self.trie, self.root, mem::take(&mut self.trie_buffer))
+                    .unwrap();
 
             self.tmp_kv_buffer.clear();
             self.tmp_trie_buffer.clear();
