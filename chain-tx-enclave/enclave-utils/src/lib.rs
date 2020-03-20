@@ -4,8 +4,10 @@ use aead::{generic_array::GenericArray, Aead, NewAead};
 use aes_gcm::Aes128Gcm;
 use aes_gcm::Tag;
 #[cfg(all(feature = "sgxstd", target_env = "sgx"))]
-use sgx_isa::ErrorCode;
+use rand::random;
 use sgx_isa::Keyrequest;
+#[cfg(all(feature = "sgxstd", target_env = "sgx"))]
+use sgx_isa::{ErrorCode, Keyname, Keypolicy, Report};
 use std::convert::TryFrom;
 #[cfg(all(feature = "sgxstd", target_env = "sgx"))]
 use zeroize::Zeroize;
@@ -24,7 +26,63 @@ pub struct SealedData {
     pub aes_data: AesGcmData,
 }
 
+/// current setup in tx-validation
+/// FIXME: check, verify and adapt when tx-validation is moved to EDP + "production"
+#[cfg(all(feature = "sgxstd", target_env = "sgx"))]
+const MISCMASK: u32 = 4026531840;
+#[cfg(all(feature = "sgxstd", target_env = "sgx"))]
+const ATTRIBUTEMASK: [u64; 2] = [18374686479671623691, 0];
+
 impl SealedData {
+    #[cfg(all(feature = "sgxstd", target_env = "sgx"))]
+    pub fn seal(plain: &[u8], txid: [u8; 32]) -> Result<Vec<u8>, ErrorCode> {
+        let plain_len = plain.len();
+        // TODO: max tx size instead of u32::MAX
+        if plain_len + 32 > (u32::MAX as usize) {
+            // TODO: better error code
+            return Err(ErrorCode::Success);
+        }
+        let report = Report::for_self();
+        const RESERVED: [u8; 12] = [0; 12];
+        let plain_offset = plain_len as u32;
+        let payload_len = plain_offset + 32;
+        // in Intel SDK, keys are unique per request; nonce is 0
+        // https://github.com/intel/linux-sgx/blob/master/sdk/tseal/tSeal_internal.cpp#L123
+        let nonce = GenericArray::from_slice(&[0u8; 12]);
+        let mut encrypt_txt = vec![0u8; plain_len];
+        let mut result =
+            Vec::with_capacity(plain_len + Keyrequest::UNPADDED_SIZE + 4 * 2 + 12 * 2 + 16 + 32);
+        let key_request = Keyrequest {
+            keyname: Keyname::Seal as _,
+            keypolicy: Keypolicy::MRSIGNER,
+            isvsvn: report.isvsvn,
+            cpusvn: report.cpusvn,
+            attributemask: ATTRIBUTEMASK,
+            keyid: random(), // random in Intel SDK
+            miscmask: MISCMASK,
+            ..Default::default()
+        };
+        result.extend_from_slice(key_request.as_ref());
+        result.extend_from_slice(&u32::to_le_bytes(plain_offset)[..]);
+        result.extend_from_slice(&RESERVED[..]);
+        result.extend_from_slice(&u32::to_le_bytes(payload_len)[..]);
+        result.extend_from_slice(&RESERVED[..]);
+
+        let mut key = key_request.egetkey()?;
+        let gk = GenericArray::clone_from_slice(&key);
+        key.zeroize();
+        let aead = Aes128Gcm::new(gk);
+        if let Ok(tag) = aead.encrypt_in_place_detached(nonce, &txid, &mut encrypt_txt) {
+            result.extend_from_slice(&tag);
+            result.extend_from_slice(&encrypt_txt);
+            result.extend_from_slice(&txid);
+            Ok(result)
+        } else {
+            // WARNING / FIXME in new version of aes-gcm: https://github.com/RustCrypto/AEADs/issues/65
+            Err(ErrorCode::MacCompareFail)
+        }
+    }
+
     pub fn try_copy_from(source: &[u8]) -> Option<Self> {
         let mut pos: usize = 0;
         let mut take = |n: usize| -> Option<&[u8]> {
@@ -61,13 +119,11 @@ impl SealedData {
 
     #[cfg(all(feature = "sgxstd", target_env = "sgx"))]
     pub fn unseal(&self) -> Result<Vec<u8>, ErrorCode> {
-        let report = Report::for_self();
         // Make sure the parameters that are not checked for correctness
         // by EGETKEY match the current enclave. Without this check,
         // EGETKEY will proceed to derive a key, which will be an
         // incorrect key.
-        if report.attributes != self.key_request.attributes
-            || report.miscselect != self.key_request.miscselect
+        if ATTRIBUTEMASK != self.key_request.attributemask || MISCMASK != self.key_request.miscmask
         {
             return Err(ErrorCode::InvalidAttribute);
         }
@@ -99,6 +155,19 @@ impl SealedData {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // can be run with cargo test --target x86_64-fortanix-unknown-sgx --features sgxstd
+    #[cfg(all(feature = "sgxstd", target_env = "sgx"))]
+    #[test]
+    fn seal_unseal() {
+        let v: [u8; 32] = random();
+        let id: [u8; 32] = random();
+        let sealed = SealedData::seal(&v[..], id).expect("sealed");
+        SealedData::try_copy_from(&sealed)
+            .expect("parsed")
+            .unseal()
+            .expect("unsealed");
+    }
 
     #[test]
     fn test_parse() {
