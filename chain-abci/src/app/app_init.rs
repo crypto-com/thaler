@@ -1,8 +1,9 @@
 mod validator_state;
 pub mod validator_state_update;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryInto;
+use std::mem;
 
 use abci::*;
 use log::{info, warn};
@@ -16,7 +17,6 @@ use crate::enclave_bridge::EnclaveProxy;
 use chain_core::common::MerkleTree;
 use chain_core::common::Timespec;
 use chain_core::common::{H256, HASH_SIZE_256};
-use chain_core::compute_app_hash;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
@@ -27,9 +27,13 @@ use chain_core::state::tendermint::TendermintValidatorAddress;
 use chain_core::state::tendermint::{BlockHeight, TendermintVotePower};
 use chain_core::state::{ChainState, RewardsPoolState};
 use chain_core::tx::TxAux;
+use chain_core::{compute_app_hash, ChainInfo};
 use chain_storage::account::AccountWrapper;
 use chain_storage::account::StarlingFixedKey;
 use chain_storage::account::{pure_account_storage, AccountStorage};
+use chain_storage::buffer::{
+    flush_storage, GetStaking, KVBuffer, StakingBuffer, StakingGetter, StoreKV, StoreStaking,
+};
 use chain_storage::{Storage, StoredChainState};
 use chain_tx_validation::NodeChecker;
 pub use validator_state::ValidatorState;
@@ -130,6 +134,12 @@ impl ChainNodeState {
     }
 }
 
+/// Two types of storage buffer
+pub enum BufferType {
+    Consensus,
+    Mempool,
+}
+
 /// The global ABCI state
 pub struct ChainNodeApp<T: EnclaveProxy> {
     /// the underlying key-value storage (+ possibly some info in the future)
@@ -138,20 +148,29 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub accounts: AccountStorage,
     /// valid transactions after DeliverTx before EndBlock/Commit
     pub delivered_txs: Vec<TxAux>,
-    /// root hash of the sparse merkle patricia trie of staking account states after DeliverTx before EndBlock/Commit
-    pub uncommitted_account_root_hash: StarlingFixedKey,
     /// a reference to genesis (used when there is no committed state)
     pub genesis_app_hash: H256,
     /// last two hex digits in chain_id
     pub chain_hex_id: u8,
     /// last application state snapshot (if any)
     pub last_state: Option<ChainNodeState>,
+    /// The state for mempool connection
+    pub mempool_state: Option<ChainNodeState>,
     /// proxy for processing transaction validation requests
     pub tx_validator: T,
     /// was rewards pool updated in the current block?
     pub rewards_pool_updated: bool,
     /// address of tx query enclave to supply to clients (if any)
     pub tx_query_address: Option<String>,
+
+    /// consensus buffer of staking merkle trie storage
+    pub staking_buffer: StakingBuffer,
+    /// mempool buffer of staking merkle trie storage
+    pub mempool_staking_buffer: StakingBuffer,
+    /// consensus buffer of key-value storage
+    pub kv_buffer: KVBuffer,
+    /// mempool buffer of key-value storage
+    pub mempool_kv_buffer: KVBuffer,
 }
 
 pub fn get_validator_key(node: &CouncilNode) -> PubKey {
@@ -288,19 +307,26 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         }
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
-        last_app_state.validators.validator_state_helper =
-            ValidatorStateHelper::restore(&accounts, &last_app_state);
+        last_app_state.validators.validator_state_helper = ValidatorStateHelper::restore(
+            &StakingGetter::new(&accounts, Some(last_app_state.top_level.account_root)),
+            &last_app_state,
+        );
         ChainNodeApp {
             storage,
             accounts,
             delivered_txs: Vec::new(),
-            uncommitted_account_root_hash: last_app_state.top_level.account_root,
             chain_hex_id,
             genesis_app_hash,
-            last_state: Some(last_app_state),
+            last_state: Some(last_app_state.clone()),
+            mempool_state: Some(last_app_state),
             tx_validator,
             rewards_pool_updated: false,
             tx_query_address,
+
+            staking_buffer: HashMap::new(),
+            mempool_staking_buffer: HashMap::new(),
+            kv_buffer: HashMap::new(),
+            mempool_kv_buffer: HashMap::new(),
         }
     }
 
@@ -394,13 +420,18 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 storage,
                 accounts,
                 delivered_txs: Vec::new(),
-                uncommitted_account_root_hash: [0u8; 32],
                 chain_hex_id,
                 genesis_app_hash,
                 last_state: None,
+                mempool_state: None,
                 tx_validator,
                 rewards_pool_updated: false,
                 tx_query_address,
+
+                staking_buffer: HashMap::new(),
+                mempool_staking_buffer: HashMap::new(),
+                kv_buffer: HashMap::new(),
+                mempool_kv_buffer: HashMap::new(),
             }
         }
     }
@@ -466,20 +497,54 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 network_params,
                 validator_state,
             );
-            self.storage
-                .store_genesis_state(&genesis_state, self.tx_query_address.is_some());
+            chain_storage::store_genesis_state(
+                &mut kv_store!(self),
+                &genesis_state,
+                self.tx_query_address.is_some(),
+            );
 
-            let wr = self.storage.persist_write();
-            if let Err(e) = wr {
-                panic!("db write error: {}", e);
-            } else {
-                self.uncommitted_account_root_hash = genesis_state.top_level.account_root;
-                self.last_state = Some(genesis_state);
-            }
+            flush_storage(&mut self.storage, mem::take(&mut self.kv_buffer))
+                .expect("storage io error");
+            self.last_state = Some(genesis_state);
 
             ResponseInitChain::new()
         } else {
             panic!("validators in genesis configuration are not consistent with app_state")
+        }
+    }
+
+    pub fn staking_store(&mut self, buffer_type: BufferType) -> impl StoreStaking + '_ {
+        let root = self
+            .last_state
+            .as_ref()
+            .map(|state| state.top_level.account_root);
+        staking_store!(self, root, buffer_type)
+    }
+
+    pub fn staking_getter(&self, buffer_type: BufferType) -> impl GetStaking + '_ {
+        let root = self
+            .last_state
+            .as_ref()
+            .map(|state| state.top_level.account_root);
+        staking_getter!(self, root, buffer_type)
+    }
+
+    pub fn kv_store(&mut self, buffer_type: BufferType) -> impl StoreKV + '_ {
+        kv_store!(self, buffer_type)
+    }
+
+    pub fn tx_extra_info(&self, tx_len: usize) -> ChainInfo {
+        let state = self.last_state.as_ref().expect("the app state is expected");
+        let min_fee = state
+            .top_level
+            .network_params
+            .calculate_fee(tx_len)
+            .expect("invalid fee policy");
+        ChainInfo {
+            min_fee_computed: min_fee,
+            chain_hex_id: self.chain_hex_id,
+            previous_block_time: state.block_time,
+            unbonding_period: state.top_level.network_params.get_unbonding_period(),
         }
     }
 }

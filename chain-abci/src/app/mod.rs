@@ -1,3 +1,6 @@
+#[macro_use]
+mod macros;
+
 mod app_init;
 mod commit;
 mod end_block;
@@ -13,15 +16,20 @@ use log::info;
 #[cfg(fuzzing)]
 pub use self::app_init::check_validators;
 pub use self::app_init::{
-    compute_accounts_root, get_validator_key, init_app_hash, ChainNodeApp, ChainNodeState,
-    ValidatorState,
+    compute_accounts_root, get_validator_key, init_app_hash, BufferType, ChainNodeApp,
+    ChainNodeState, ValidatorState,
 };
-use crate::app::validate_tx::ResponseWithCodeAndLog;
+use crate::app::validate_tx::{
+    execute_enclave_tx, execute_public_tx, validate_tx_req, RequestWithTx, ResponseWithCodeAndLog,
+};
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::{get_account, TxAction};
+use crate::storage::TxAction;
 use chain_core::common::{TendermintEventKey, TendermintEventType, Timespec};
-use chain_core::state::account::PunishmentKind;
+use chain_core::state::account::{PunishmentKind, StakedState};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
+use chain_core::tx::fee::Fee;
+use chain_core::tx::TxAux;
+use chain_storage::buffer::Get;
 use slash_accounts::{get_slashing_proportion, get_vote_power_in_milli};
 use std::convert::{TryFrom, TryInto};
 
@@ -64,10 +72,10 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     /// Mempool Connection:  Used to validate incoming transactions.  If the application responds
     /// with a non-zero value, the transaction is added to Tendermint's mempool for processing
     /// on the deliver_tx call below.
-    fn check_tx(&mut self, _req: &RequestCheckTx) -> ResponseCheckTx {
+    fn check_tx(&mut self, req: &RequestCheckTx) -> ResponseCheckTx {
         info!("received checktx request");
         let mut resp = ResponseCheckTx::new();
-        match ChainNodeApp::validate_tx_req(self, _req) {
+        match self.process_tx(req, BufferType::Mempool) {
             Ok(_) => {
                 resp.set_code(0);
             }
@@ -176,19 +184,19 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
 
         let slashing_time =
             last_state.block_time + last_state.top_level.network_params.get_slash_wait_period();
-        let accounts = &self.accounts;
-        let last_root = last_state.top_level.account_root;
+        let root = last_state.top_level.account_root;
         let total_vp = get_vote_power_in_milli(
             last_state
                 .validators
                 .validator_state_helper
-                .get_validator_total_bonded(&last_root, &accounts),
+                .get_validator_total_bonded(&staking_getter!(self, Some(root))),
         );
         let slashing_proportion = get_slashing_proportion(
             accounts_to_punish.iter().map(|x| {
                 (
                     x.0,
-                    get_account(&x.0, &last_root, &accounts)
+                    self.staking_getter(BufferType::Consensus)
+                        .get(&x.0)
                         .expect("io error or validator account not exists")
                         .bonded,
                 )
@@ -266,20 +274,12 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
 
     /// Consensus Connection: Actually processing the transaction, performing some form of a
     /// state transistion.
-    fn deliver_tx(&mut self, _req: &RequestDeliverTx) -> ResponseDeliverTx {
+    fn deliver_tx(&mut self, req: &RequestDeliverTx) -> ResponseDeliverTx {
         info!("received delivertx request");
         let mut resp = ResponseDeliverTx::new();
-        let mtxaux = ChainNodeApp::validate_tx_req(self, _req);
         let mut event = Event::new();
         event.field_type = TendermintEventType::ValidTransactions.to_string();
-        let result = mtxaux.and_then(|(txaux, action)| {
-            let (fee, maccount) = match &action {
-                TxAction::Enclave(action) => self.execute_enclave_tx(&txaux.tx_id(), action),
-                TxAction::Public(fee, tx) => self.execute_public_tx(*fee, &tx)?,
-            };
-            Ok((txaux, fee, maccount))
-        });
-        match result {
+        match self.process_tx(req, BufferType::Consensus) {
             Ok((txaux, fee, maccount)) => {
                 resp.set_code(0);
 
@@ -332,6 +332,48 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     fn commit(&mut self, _req: &RequestCommit) -> ResponseCommit {
         info!("received commit request");
         ChainNodeApp::commit_handler(self, _req)
+    }
+}
+
+impl<T: EnclaveProxy> ChainNodeApp<T> {
+    fn process_tx(
+        &mut self,
+        req: &impl RequestWithTx,
+        buffer_type: BufferType,
+    ) -> Result<(TxAux, Fee, Option<StakedState>), String> {
+        let extra_info = self.tx_extra_info(req.tx().len());
+        let account_root = self
+            .last_state
+            .as_ref()
+            .map(|state| state.top_level.account_root);
+        let mtxaux = validate_tx_req(
+            &staking_getter!(self, account_root, buffer_type),
+            &kv_store!(self, buffer_type),
+            &mut self.tx_validator,
+            req,
+            &extra_info,
+        );
+        mtxaux.and_then(|(txaux, action)| {
+            let (fee, maccount) = match &action {
+                TxAction::Enclave(action) => execute_enclave_tx(
+                    &mut staking_store!(self, account_root, buffer_type),
+                    &mut kv_store!(self, buffer_type),
+                    self.last_state.as_mut().unwrap(),
+                    &txaux.tx_id(),
+                    action,
+                ),
+                TxAction::Public(tx) => execute_public_tx(
+                    &mut staking_store!(self, account_root, buffer_type),
+                    match buffer_type {
+                        BufferType::Consensus => self.last_state.as_mut().unwrap(),
+                        BufferType::Mempool => self.mempool_state.as_mut().unwrap(),
+                    },
+                    &tx,
+                    &extra_info,
+                )?,
+            };
+            Ok((txaux, fee, maccount))
+        })
     }
 }
 

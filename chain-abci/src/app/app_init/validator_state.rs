@@ -3,7 +3,6 @@ use crate::app::ChainNodeState;
 use crate::liveness::LivenessTracker;
 use crate::punishment::ValidatorPunishment;
 use crate::slashing::SlashingSchedule;
-use crate::storage::get_account;
 use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
 use chain_core::init::config::SlashRatio;
@@ -11,9 +10,7 @@ use chain_core::state::account::PunishmentKind;
 use chain_core::state::account::{CouncilNode, StakedState, StakedStateAddress};
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
-use chain_storage::account::update_staked_state;
-use chain_storage::account::AccountStorage;
-use chain_storage::account::StarlingFixedKey;
+use chain_storage::buffer::{GetStaking, StoreStaking};
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -326,15 +323,14 @@ impl ValidatorState {
     pub fn distribute_rewards(
         &mut self,
         share: Coin,
-        last_root: &StarlingFixedKey,
-        accounts: &mut AccountStorage,
+        accounts: &mut impl StoreStaking,
         tm_min_power: TendermintVotePower,
-    ) -> (StarlingFixedKey, RewardsDistribution) {
-        let mut root = *last_root;
+    ) -> RewardsDistribution {
         let mut distributed: RewardsDistribution = vec![];
         if share > Coin::zero() {
             for (addr, &count) in self.proposer_stats.iter() {
-                let mut state = get_account(addr, &root, &accounts)
+                let mut state = accounts
+                    .get(addr)
                     .expect("io error or validator account not exists");
 
                 if state.is_jailed() {
@@ -346,14 +342,14 @@ impl ValidatorState {
 
                 let amount = (share * count).unwrap();
                 let _balance = state.add_reward(amount).unwrap();
-                root = update_staked_state(state.clone(), &root, accounts).0;
                 distributed.push((*addr, amount));
                 self.validator_state_helper
-                    .voting_power_update(&state, tm_min_power)
+                    .voting_power_update(&state, tm_min_power);
+                accounts.set_staking(state);
             }
         }
         self.proposer_stats.clear();
-        (root, distributed)
+        distributed
     }
 
     /// FIXME: total votes?
@@ -562,15 +558,12 @@ impl ValidatorStateHelper {
         self.punished_nodes_in_block.contains(address)
     }
 
-    pub fn get_validator_total_bonded(
-        &self,
-        last_root: &StarlingFixedKey,
-        accounts: &AccountStorage,
-    ) -> Coin {
+    pub fn get_validator_total_bonded(&self, accounts: &impl GetStaking) -> Coin {
         // TODO: store and remain updated?
         let mut total_staking = Coin::zero();
         for (addr, _) in self.validator_voting_power.iter() {
-            let account = get_account(addr, last_root, accounts)
+            let account = accounts
+                .get(addr)
                 .expect("io error or validator account not exists");
             total_staking = (total_staking + account.bonded).expect("coin overflow");
         }
@@ -643,7 +636,7 @@ impl ValidatorStateHelper {
     }
 
     /// creates a fresh helper from storage and last known state
-    pub fn restore(accounts: &AccountStorage, last_app_state: &ChainNodeState) -> Self {
+    pub fn restore(accounts: &impl GetStaking, last_app_state: &ChainNodeState) -> Self {
         let validator_voting_power =
             ValidatorStateHelper::get_validator_mapping(accounts, last_app_state);
         Self {
@@ -655,7 +648,7 @@ impl ValidatorStateHelper {
     }
 
     fn get_validator_mapping(
-        accounts: &AccountStorage,
+        accounts: &impl GetStaking,
         last_app_state: &ChainNodeState,
     ) -> BTreeMap<StakedStateAddress, TendermintVotePower> {
         let mut validator_voting_power = BTreeMap::new();
@@ -667,7 +660,8 @@ impl ValidatorStateHelper {
             .take(last_app_state.top_level.network_params.get_max_validators())
         {
             // integrity checks -- committed / disk-persisted values should match up
-            let account = get_account(&address, &last_app_state.top_level.account_root, accounts)
+            let account = accounts
+                .get(&address)
                 .expect("council node staking state address should be in the state trie");
             assert!(
                 &account.council_node.is_some(),

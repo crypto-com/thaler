@@ -175,7 +175,7 @@ pub(crate) fn handle_validate_tx(
                         log::error!("input invalid txid or outputs index not match!");
                         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
                     }
-                    let result = verify_transfer(&tx, &witness, request.info, inputs);
+                    let result = verify_transfer(&tx, &witness, &request.info, inputs);
                     let response = construct_sealed_response(
                         result,
                         &payload.txid,
@@ -194,7 +194,7 @@ pub(crate) fn handle_validate_tx(
             let inputs = check_unseal(None, false, tx.inputs.iter().map(|x| x.id), sealed_inputs);
             match (plaintx, inputs) {
                 (Ok(PlainTxAux::DepositStakeTx(witness)), Some(inputs)) => {
-                    let result = verify_bonded_deposit_core(&tx, &witness, request.info, inputs);
+                    let result = verify_bonded_deposit_core(&tx, &witness, &request.info, inputs);
                     let response = construct_simple_response(result);
                     write_back_response(response, response_buf, response_len)
                 }
@@ -226,7 +226,7 @@ pub(crate) fn handle_validate_tx(
                     {
                         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
                     }
-                    let result = verify_unbonded_withdraw_core(&tx, request.info, &account);
+                    let result = verify_unbonded_withdraw_core(&tx, &request.info, &account);
                     let response = construct_sealed_response(
                         result,
                         &payload.txid,

@@ -276,13 +276,13 @@ fn check_input_output_sums(
 pub fn verify_transfer(
     maintx: &Tx,
     witness: &TxWitness,
-    extra_info: ChainInfo,
+    extra_info: &ChainInfo,
     transaction_inputs: Vec<TxWithOutputs>,
 ) -> Result<Fee, Error> {
     check_attributes(
         maintx.attributes.chain_hex_id,
         maintx.attributes.app_version,
-        &extra_info,
+        extra_info,
     )?;
     check_inputs_basic(&maintx.inputs, witness)?;
     check_outputs_basic(&maintx.outputs)?;
@@ -290,14 +290,14 @@ pub fn verify_transfer(
         &maintx.id(),
         &maintx.inputs,
         witness,
-        &extra_info,
+        extra_info,
         transaction_inputs,
     )?;
     let outcoins = maintx.get_output_total().map_err(|_| {
         // FIXME: Err(Error::InvalidSum(coin_err));
         Error::InvalidSum
     })?;
-    check_input_output_sums(incoins, outcoins, &extra_info)
+    check_input_output_sums(incoins, outcoins, extra_info)
 }
 
 /// checks depositing to a staked state -- TODO: this will be moved to an enclave
@@ -305,20 +305,20 @@ pub fn verify_transfer(
 pub fn verify_bonded_deposit_core(
     maintx: &DepositBondTx,
     witness: &TxWitness,
-    extra_info: ChainInfo,
+    extra_info: &ChainInfo,
     transaction_inputs: Vec<TxWithOutputs>,
 ) -> Result<Coin, Error> {
     check_attributes(
         maintx.attributes.chain_hex_id,
         maintx.attributes.app_version,
-        &extra_info,
+        extra_info,
     )?;
     check_inputs_basic(&maintx.inputs, witness)?;
     let incoins = check_inputs(
         &maintx.id(),
         &maintx.inputs,
         witness,
-        &extra_info,
+        extra_info,
         transaction_inputs,
     )?;
     if incoins <= extra_info.min_fee_computed.to_coin() {
@@ -333,7 +333,7 @@ pub fn verify_bonded_deposit_core(
 pub fn verify_bonded_deposit(
     maintx: &DepositBondTx,
     witness: &TxWitness,
-    extra_info: ChainInfo,
+    extra_info: &ChainInfo,
     transaction_inputs: Vec<TxWithOutputs>,
     maccount: Option<StakedState>,
 ) -> Result<(Fee, Option<StakedState>), Error> {
@@ -362,14 +362,14 @@ pub fn verify_bonded_deposit(
 /// NOTE: witness is assumed to be checked in chain-abci
 pub fn verify_unbonding(
     maintx: &UnbondTx,
-    extra_info: ChainInfo,
+    extra_info: &ChainInfo,
     mut account: StakedState,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     verify_unjailed(&account)?;
     check_attributes(
         maintx.attributes.chain_hex_id,
         maintx.attributes.app_version,
-        &extra_info,
+        extra_info,
     )?;
 
     if maintx.from_staked_account != account.address {
@@ -383,7 +383,7 @@ pub fn verify_unbonding(
     if maintx.value == Coin::zero() {
         return Err(Error::ZeroCoin);
     }
-    check_input_output_sums(account.bonded, maintx.value, &extra_info)?;
+    check_input_output_sums(account.bonded, maintx.value, extra_info)?;
     account.unbond(
         maintx.value,
         extra_info.min_fee_computed.to_coin(),
@@ -397,7 +397,7 @@ pub fn verify_unbonding(
 /// NOTE: witness is assumed to be checked in chain-abci
 pub fn verify_unbonded_withdraw_core(
     maintx: &WithdrawUnbondedTx,
-    extra_info: ChainInfo,
+    extra_info: &ChainInfo,
     account: &StakedState,
 ) -> Result<Fee, Error> {
     verify_unjailed(account)?;
@@ -432,7 +432,7 @@ pub fn verify_unbonded_withdraw_core(
     if let Err(_coin_err) = outcoins {
         return Err(Error::InvalidSum); // FIXME: Err(Error::InvalidSum(coin_err));
     }
-    check_input_output_sums(account.unbonded, outcoins.unwrap(), &extra_info)
+    check_input_output_sums(account.unbonded, outcoins.unwrap(), extra_info)
 }
 
 /// checks wihdrawing from a staked state
@@ -440,7 +440,7 @@ pub fn verify_unbonded_withdraw_core(
 /// TODO: move this to chain-abci? (the account update)
 pub fn verify_unbonded_withdraw(
     maintx: &WithdrawUnbondedTx,
-    extra_info: ChainInfo,
+    extra_info: &ChainInfo,
     mut account: StakedState,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     let fee = verify_unbonded_withdraw_core(maintx, extra_info, &account)?;
@@ -451,13 +451,13 @@ pub fn verify_unbonded_withdraw(
 /// Verifies if an account can be unjailed
 pub fn verify_unjailing(
     maintx: &UnjailTx,
-    extra_info: ChainInfo,
+    extra_info: &ChainInfo,
     mut account: StakedState,
 ) -> Result<(Fee, Option<StakedState>), Error> {
     check_attributes(
         maintx.attributes.chain_hex_id,
         maintx.attributes.app_version,
-        &extra_info,
+        extra_info,
     )?;
 
     // checks that account transaction count matches to the one in transaction
@@ -511,7 +511,7 @@ pub trait NodeChecker {
 /// Verifies if a new council node can be added
 pub fn verify_node_join(
     maintx: &NodeJoinRequestTx,
-    extra_info: ChainInfo,
+    extra_info: &ChainInfo,
     node_info: impl NodeChecker,
     mut account: StakedState,
 ) -> Result<(Fee, Option<StakedState>), Error> {
@@ -519,7 +519,7 @@ pub fn verify_node_join(
     check_attributes(
         maintx.attributes.chain_hex_id,
         maintx.attributes.app_version,
-        &extra_info,
+        extra_info,
     )?;
 
     // checks that staked state transaction count matches to the one in transaction
