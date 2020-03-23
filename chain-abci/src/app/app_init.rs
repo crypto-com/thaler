@@ -506,6 +506,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             flush_storage(&mut self.storage, mem::take(&mut self.kv_buffer))
                 .expect("storage io error");
             self.last_state = Some(genesis_state);
+            self.mempool_state = self.last_state.clone();
 
             ResponseInitChain::new()
         } else {
