@@ -6,6 +6,7 @@ use chain_core::init::coin::Coin;
 use chain_core::state::account::{
     StakedState, StakedStateAddress, StakedStateOpWitness, WithdrawUnbondedTx,
 };
+use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::EcdsaSignature;
@@ -84,7 +85,9 @@ fn get_ecdsa_witness<C: Signing>(
 }
 
 fn get_account(account_address: &RedeemAddress) -> StakedState {
-    StakedState::new_init_unbonded(Coin::one(), 0, StakedStateAddress::from(*account_address))
+    let mut state = StakedState::default(StakedStateAddress::from(*account_address));
+    state.unbonded = Coin::one();
+    state
 }
 
 const TEST_NETWORK_ID: u8 = 0xab;
@@ -155,7 +158,8 @@ pub fn test_sealing() {
     let info = ChainInfo {
         min_fee_computed: Fee::new(Coin::zero()),
         chain_hex_id: TEST_NETWORK_ID,
-        previous_block_time: 1,
+        block_time: 1,
+        block_height: BlockHeight::genesis(),
         unbonding_period: 0,
     };
 
@@ -167,11 +171,10 @@ pub fn test_sealing() {
         }),
         tx_inputs: None,
     };
-    let r = check_tx(enclave.geteid(), request0);
-    assert!(r.is_ok());
+    let r = check_tx(enclave.geteid(), request0).unwrap();
 
     let sealedtx = match r {
-        Ok(IntraEnclaveResponseOk::TxWithOutputs { sealed_tx, .. }) => sealed_tx,
+        IntraEnclaveResponseOk::TxWithOutputs { sealed_tx, .. } => sealed_tx,
         _ => vec![],
     };
 
@@ -218,8 +221,7 @@ pub fn test_sealing() {
         tx_inputs: Some(vec![sealedtx.clone()]),
     };
 
-    let r2 = check_tx(enclave.geteid(), request1);
-    assert!(r2.is_ok());
+    check_tx(enclave.geteid(), request1).unwrap();
 
     let mut tx2 = Tx::new();
     tx2.attributes = TxAttributes::new(TEST_NETWORK_ID);

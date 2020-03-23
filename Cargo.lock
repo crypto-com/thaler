@@ -499,6 +499,7 @@ dependencies = [
  "starling",
  "structopt",
  "test-common",
+ "thiserror",
  "vergen",
  "zmq",
 ]
@@ -564,6 +565,7 @@ dependencies = [
  "parity-scale-codec",
  "secp256k1zkp",
  "sgx_tstd",
+ "thiserror",
 ]
 
 [[package]]

@@ -180,7 +180,7 @@ def app_state_cfg(cfg):
         "jailing_config": {
             "jail_duration": 18,
             "block_signing_window": 20,
-            "missed_block_threshold": 10
+            "missed_block_threshold": 5
         },
         "slashing_config": {
             "liveness_slash_percent": "0.1",
