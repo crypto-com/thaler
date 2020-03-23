@@ -49,7 +49,7 @@ impl SealedData {
         // in Intel SDK, keys are unique per request; nonce is 0
         // https://github.com/intel/linux-sgx/blob/master/sdk/tseal/tSeal_internal.cpp#L123
         let nonce = GenericArray::from_slice(&[0u8; 12]);
-        let mut encrypt_txt = vec![0u8; plain_len];
+        let mut encrypt_txt = plain.to_vec();
         let mut result =
             Vec::with_capacity(plain_len + Keyrequest::UNPADDED_SIZE + 4 * 2 + 12 * 2 + 16 + 32);
         let key_request = Keyrequest {
@@ -163,10 +163,13 @@ mod tests {
         let v: [u8; 32] = random();
         let id: [u8; 32] = random();
         let sealed = SealedData::seal(&v[..], id).expect("sealed");
-        SealedData::try_copy_from(&sealed)
-            .expect("parsed")
-            .unseal()
-            .expect("unsealed");
+        assert_eq!(
+            SealedData::try_copy_from(&sealed)
+                .expect("parsed")
+                .unseal()
+                .expect("unsealed"),
+            v
+        );
     }
 
     #[test]
