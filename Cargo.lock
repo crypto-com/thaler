@@ -78,9 +78,9 @@ dependencies = [
 
 [[package]]
 name = "aesm-client"
-version = "0.3.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc80c21ec0f985a2dabae6cf236739d643fb23c33f255bf7ab7fd16bd1f14b95"
+checksum = "03b754d48274858b1d470638de5522e06e926ad43d87884cf78b9e21f400cdfa"
 dependencies = [
  "byteorder",
  "failure",
