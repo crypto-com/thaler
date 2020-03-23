@@ -62,6 +62,7 @@ pub enum TendermintEventKey {
     EthBloom,
     RewardsDistribution,
     CoinMinted,
+    Slash,
 }
 
 impl From<TendermintEventKey> for Vec<u8> {
@@ -91,6 +92,7 @@ impl fmt::Display for TendermintEventKey {
             TendermintEventKey::EthBloom => write!(f, "ethbloom"),
             TendermintEventKey::RewardsDistribution => write!(f, "dist"),
             TendermintEventKey::CoinMinted => write!(f, "minted"),
+            TendermintEventKey::Slash => write!(f, "slash"),
         }
     }
 }
@@ -110,6 +112,7 @@ impl TendermintEventKey {
             TendermintEventKey::EthBloom => String::from("ZXRoYmxvb20="),
             TendermintEventKey::RewardsDistribution => String::from("ZGlzdA=="),
             TendermintEventKey::CoinMinted => String::from("bWludGVk"),
+            TendermintEventKey::Slash => String::from("c2xhc2g="),
         }
     }
 }

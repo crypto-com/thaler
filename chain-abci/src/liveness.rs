@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use chain_core::state::tendermint::BlockHeight;
 
 /// Liveness tracker for a validator
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LivenessTracker {
     /// Holds data to measure liveness
     ///
@@ -20,25 +20,36 @@ pub struct LivenessTracker {
 impl LivenessTracker {
     /// Creates a new instance of liveness tracker
     #[inline]
-    pub fn new(block_signing_window: u16) -> Self {
+    pub fn new() -> Self {
         Self {
-            liveness: BitVec::from_elem(block_signing_window as usize, true),
+            liveness: BitVec::new(),
         }
     }
 
     /// Updates liveness tracker with new block data
-    pub fn update(&mut self, block_height: BlockHeight, signed: bool) {
-        let block_signing_window = self.liveness.len();
-        let update_index = block_height.value() as usize % block_signing_window;
-        self.liveness.set(update_index, signed);
+    pub fn update(&mut self, block_signing_window: usize, block_height: BlockHeight, signed: bool) {
+        self.resize(block_signing_window);
+        self.liveness
+            .set(block_height.value() as usize % block_signing_window, signed);
     }
 
     /// Checks if validator is live or not
     #[inline]
-    pub fn is_live(&self, missed_block_threshold: u16) -> bool {
-        // FIXME: use POPCOUNT
-        let zero_count = self.liveness.iter().filter(|x| !x).count();
-        zero_count < missed_block_threshold as usize
+    // FIXME: use POPCOUNT
+    pub fn is_live(&self, missed_block_threshold: usize) -> bool {
+        self.liveness.iter().filter(|b| !b).count() < missed_block_threshold
+    }
+
+    /// reset tracker to true
+    pub fn reset(&mut self) {
+        self.liveness.set_all();
+    }
+
+    /// grow BitVec to size, no need to shrink.
+    fn resize(&mut self, size: usize) {
+        if let Some(grow) = size.checked_sub(self.liveness.len()) {
+            self.liveness.grow(grow, true);
+        }
     }
 }
 
@@ -71,9 +82,9 @@ mod tests {
 
     #[test]
     fn check_liveness_tracker_encode_decode() {
-        let mut initial = LivenessTracker::new(50);
-        initial.update(1.into(), true);
-        initial.update(2.into(), false);
+        let mut initial = LivenessTracker::new();
+        initial.update(10, 1.into(), true);
+        initial.update(10, 2.into(), false);
 
         let encoded = initial.encode();
         let decoded = LivenessTracker::decode(&mut encoded.as_ref()).unwrap();
@@ -83,12 +94,12 @@ mod tests {
 
     #[test]
     fn check_liveness_tracker() {
-        let mut tracker = LivenessTracker::new(5);
-        tracker.update(1.into(), true);
-        tracker.update(2.into(), false);
-        tracker.update(3.into(), true);
-        tracker.update(4.into(), false);
-        tracker.update(5.into(), true);
+        let mut tracker = LivenessTracker::new();
+        tracker.update(5, 1.into(), true);
+        tracker.update(5, 2.into(), false);
+        tracker.update(5, 3.into(), true);
+        tracker.update(5, 4.into(), false);
+        tracker.update(5, 5.into(), true);
 
         assert!(tracker.is_live(3));
         assert!(!tracker.is_live(2));
