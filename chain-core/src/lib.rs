@@ -23,6 +23,7 @@ use blake2::Blake2s;
 use common::{hash256, MerkleTree, Timespec, H256};
 use init::params::NetworkParameters;
 use parity_scale_codec::{Decode, Encode};
+use state::tendermint::BlockHeight;
 use state::RewardsPoolState;
 use tx::fee::Fee;
 
@@ -62,8 +63,10 @@ pub struct ChainInfo {
     pub min_fee_computed: Fee,
     /// network hexamedical ID
     pub chain_hex_id: u8,
-    /// time in the previous committed block
-    pub previous_block_time: Timespec,
+    /// block time of current processing block
+    pub block_time: Timespec,
     /// how much time is required to wait until stake state's unbonded amount can be withdrawn
     pub unbonding_period: u32,
+    /// height of current processing block
+    pub block_height: BlockHeight,
 }

@@ -1,14 +1,13 @@
 use crate::common::{hash256, Timespec, HASH_SIZE_256};
 use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
-#[cfg(not(feature = "mesalock_sgx"))]
-use crate::init::config::SlashRatio;
 use crate::tx::data::attribute::TxAttributes;
 use crate::tx::data::input::TxoPointer;
 use crate::tx::data::output::TxOut;
 use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
 use crate::tx::TransactionId;
 use blake2::Blake2s;
+use core::cmp::Ordering;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::de;
@@ -20,7 +19,9 @@ use std::str::FromStr;
 // TODO: switch to normal signatures + explicit public key
 #[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::address::ErrorAddress;
-use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
+use crate::state::tendermint::{
+    BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
+};
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::From;
 #[cfg(not(feature = "mesalock_sgx"))]
@@ -237,10 +238,13 @@ impl fmt::Display for PunishmentKind {
 /// Details of a punishment for a staked state
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-pub struct Punishment {
+pub struct SlashRecord {
+    // why
     pub kind: PunishmentKind,
-    pub jailed_until: Timespec,
-    pub slash_amount: Option<Coin>,
+    // when
+    pub time: Timespec,
+    // how much
+    pub amount: Coin,
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
@@ -250,7 +254,101 @@ impl fmt::Display for CouncilNode {
     }
 }
 
+/// Validator meta
+///
+/// Invariant 1.1:
+///   ```plain
+///   (inactive_time.is_none() && inactive_block.is_none()) ||
+///   (inactive_time.is_some() && inactive_block.is_some())
+///   ```
+///
+/// Invariant 1.2:
+///   `! (is_jailed() && is_active())`
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+pub struct Validator {
+    pub council_node: CouncilNode,
+    pub jailed_until: Option<Timespec>,
+
+    pub inactive_time: Option<Timespec>,
+    pub inactive_block: Option<BlockHeight>,
+
+    #[cfg_attr(not(feature = "mesalock_sgx"), serde(skip))]
+    pub used_validator_addresses: Vec<(TendermintValidatorAddress, Timespec)>,
+}
+
+impl Validator {
+    pub fn new(council_node: CouncilNode) -> Self {
+        Self {
+            council_node,
+            jailed_until: None,
+            inactive_time: None,
+            inactive_block: None,
+            used_validator_addresses: Vec::new(),
+        }
+    }
+
+    pub fn validator_address(&self) -> TendermintValidatorAddress {
+        TendermintValidatorAddress::from(&self.council_node.consensus_pubkey)
+    }
+
+    pub fn is_jailed(&self) -> bool {
+        self.jailed_until.is_some()
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.inactive_time.is_none()
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn check_invariants(&self) {
+        // check: Invariant 1.1
+        assert!(
+            (self.inactive_time.is_none() && self.inactive_block.is_none())
+                || (self.inactive_time.is_some() && self.inactive_block.is_some())
+        );
+
+        // check: Invariant 1.2
+        assert_eq!(self.is_jailed() && self.is_active(), false);
+    }
+
+    pub fn jail(
+        &mut self,
+        block_time: Timespec,
+        block_height: BlockHeight,
+        jail_duration: Timespec,
+    ) {
+        assert!(!self.is_jailed());
+        self.jailed_until = Some(block_time.saturating_add(jail_duration));
+        if self.is_active() {
+            self.inactivate(block_time, block_height);
+        }
+    }
+
+    pub fn inactivate(&mut self, block_time: Timespec, block_height: BlockHeight) {
+        assert!(self.is_active());
+        self.inactive_time = Some(block_time);
+        self.inactive_block = Some(block_height);
+    }
+
+    pub fn unjail(&mut self) {
+        assert!(self.is_jailed());
+        self.jailed_until = None;
+    }
+}
+
 /// represents the StakedState (account involved in staking)
+/// Invariant 4.1:
+///   - bonded + unbonded <= max supply
+///
+/// Invariant 4.2:
+///   ```plain
+///   if let Some(val) = validator {
+///       if val.is_active() {
+///           (bonded >= minimal_required_staking && !val.is_jailed())
+///       }
+///   }
+///   ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct StakedState {
@@ -259,8 +357,9 @@ pub struct StakedState {
     pub unbonded: Coin,
     pub unbonded_from: Timespec,
     pub address: StakedStateAddress,
-    pub punishment: Option<Punishment>,
-    pub council_node: Option<CouncilNode>,
+    pub validator: Option<Validator>,
+    // record the last slash only for query
+    pub last_slash: Option<SlashRecord>,
 }
 
 /// the tree used in StakedState storage db has a hardcoded 32-byte keys,
@@ -281,158 +380,119 @@ impl StakedState {
         unbonded: Coin,
         unbonded_from: Timespec,
         address: StakedStateAddress,
-        punishment: Option<Punishment>,
+        validator: Option<Validator>,
     ) -> Self {
-        StakedState {
+        Self {
             nonce,
             bonded,
             unbonded,
             unbonded_from,
             address,
-            punishment,
-            council_node: None,
+            validator,
+            last_slash: None,
         }
     }
 
     /// Create a default StakedState with address.
     pub fn default(address: StakedStateAddress) -> Self {
-        StakedState {
+        Self {
+            address,
             nonce: 0,
             bonded: Coin::zero(),
             unbonded: Coin::zero(),
             unbonded_from: 0,
-            address,
-            punishment: None,
-            council_node: None,
+            validator: None,
+            last_slash: None,
         }
     }
 
-    /// creates a bonded StakedState with a validator metadata specified at genesis
-    pub fn new_init_bonded(
-        amount: Coin,
-        genesis_time: Timespec,
+    /// Create with informations in genesis config.
+    pub fn from_genesis(
         address: StakedStateAddress,
+        genesis_time: Timespec,
+        destination: &StakedStateDestination,
+        amount: Coin,
         council_node: Option<CouncilNode>,
     ) -> Self {
-        StakedState {
-            nonce: 0,
-            bonded: amount,
-            unbonded: Coin::zero(),
-            unbonded_from: genesis_time,
-            address,
-            punishment: None,
-            council_node,
-        }
+        let mut staking = Self::default(address);
+        match destination {
+            StakedStateDestination::Bonded => {
+                staking.validator = council_node.map(Validator::new);
+                staking.bonded = amount;
+                staking.unbonded_from = genesis_time;
+            }
+            StakedStateDestination::UnbondedFromGenesis => {
+                staking.unbonded = amount;
+                staking.unbonded_from = genesis_time;
+            }
+            StakedStateDestination::UnbondedFromCustomTime(time) => {
+                staking.unbonded = amount;
+                staking.unbonded_from = *time;
+            }
+        };
+        staking
     }
 
-    /// creates a StakedState at unbonded at specified time
-    pub fn new_init_unbonded(amount: Coin, time: Timespec, address: StakedStateAddress) -> Self {
-        StakedState {
-            nonce: 0,
-            bonded: Coin::zero(),
-            unbonded: amount,
-            unbonded_from: time,
-            address,
-            punishment: None,
-            council_node: None,
-        }
-    }
-
-    /// in-place update after depositing a stake
-    pub fn deposit(&mut self, amount: Coin) {
-        self.nonce += 1;
-        self.bonded = (self.bonded + amount).expect("should not be over the max supply");
-    }
-
-    /// in-place update after unbonding a bonded stake
-    pub fn unbond(&mut self, amount: Coin, fee: Coin, unbonded_from: Timespec) {
-        self.nonce += 1;
-        self.unbonded_from = unbonded_from;
-        self.bonded = (self.bonded - amount)
-            .and_then(|x| x - fee)
-            .expect("should not go below zero");
-        self.unbonded = (self.unbonded + amount).expect("should not be over the max supply");
-    }
-
-    /// in-place update after withdrawing unbonded stake
-    pub fn withdraw(&mut self) {
-        self.nonce += 1;
-        self.unbonded = Coin::zero();
-    }
-
-    /// in-place update after node join request
-    pub fn join_node(&mut self, council_node: CouncilNode) {
-        self.nonce += 1;
-        self.council_node = Some(council_node);
-    }
-
-    /// the tree used in StakedState storage db has a hardcoded 32-byte keys,
-    /// this computes a key as blake2s(StakedState.address) where
-    /// the StakedState address itself is ETH-style address (20 bytes from keccak hash of public key)
+    /// Key of merkle storage
     pub fn key(&self) -> [u8; HASH_SIZE_256] {
         to_stake_key(&self.address)
     }
 
-    /// Checks if current account is jailed
-    #[inline]
+    /// Return is jailed, non validator default to false.
     pub fn is_jailed(&self) -> bool {
-        self.punishment.is_some()
-    }
-
-    /// Returns `jailed_until` for current account, `None` if current account is not jailed
-    #[inline]
-    pub fn jailed_until(&self) -> Option<Timespec> {
-        self.punishment
-            .as_ref()
-            .map(|punishment| punishment.jailed_until)
-    }
-
-    /// Jails current account until given time
-    pub fn jail_until(&mut self, jailed_until: Timespec, kind: PunishmentKind) {
-        self.nonce += 1;
-        self.punishment = Some(Punishment {
-            kind,
-            jailed_until,
-            slash_amount: None,
-        });
-    }
-
-    /// Unjails current account
-    pub fn unjail(&mut self) {
-        self.nonce += 1;
-        self.punishment = None;
-    }
-
-    /// Slashes current account with given ratio and returns slashed amount
-    /// TODO: previously this required base64, not sure why? check if this needs to be guarded, or it was a mistake
-    #[cfg(not(feature = "mesalock_sgx"))]
-    pub fn slash(
-        &mut self,
-        slash_ratio: SlashRatio,
-        punishment_kind: PunishmentKind,
-    ) -> Result<Coin, CoinError> {
-        self.nonce += 1;
-
-        let bonded_slash_value = self.bonded * slash_ratio;
-        let unbonded_slash_value = self.unbonded * slash_ratio;
-
-        self.bonded = (self.bonded - bonded_slash_value)?;
-        self.unbonded = (self.unbonded - unbonded_slash_value)?;
-
-        let slash_amount = (bonded_slash_value + unbonded_slash_value)?;
-
-        if let Some(ref mut punishment) = self.punishment {
-            punishment.slash_amount = Some(slash_amount);
-            punishment.kind = punishment_kind;
+        if let Some(v) = &self.validator {
+            v.is_jailed()
+        } else {
+            false
         }
-
-        Ok(slash_amount)
     }
 
-    pub fn add_reward(&mut self, amount: Coin) -> Result<Coin, CoinError> {
-        self.nonce += 1;
-        self.bonded = (self.bonded + amount)?;
-        Ok(self.bonded)
+    pub fn sort_key(&self) -> ValidatorSortKey {
+        ValidatorSortKey::new(self.bonded, self.address)
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn check_invariants(&self, minimal_required_staking: Coin) {
+        // check: Invariant 4.1
+        (self.bonded + self.unbonded).unwrap();
+
+        // check: Invariant 4.2
+        if let Some(val) = &self.validator {
+            if val.is_active() {
+                assert!(self.bonded >= minimal_required_staking && !val.is_jailed());
+            }
+        }
+    }
+
+    /// Increment nonce by 1
+    pub fn inc_nonce(&mut self) {
+        self.nonce = self.nonce.wrapping_add(1);
+    }
+}
+
+/// order by bonded desc, staking_address
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+pub struct ValidatorSortKey {
+    pub bonded: Coin,
+    pub address: StakedStateAddress,
+}
+impl Ord for ValidatorSortKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.bonded.cmp(&other.bonded) {
+            Ordering::Equal => self.address.cmp(&other.address),
+            ordering => ordering.reverse(),
+        }
+    }
+}
+impl PartialOrd for ValidatorSortKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl ValidatorSortKey {
+    pub fn new(bonded: Coin, address: StakedStateAddress) -> Self {
+        Self { bonded, address }
     }
 }
 

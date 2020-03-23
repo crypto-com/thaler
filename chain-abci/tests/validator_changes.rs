@@ -1,9 +1,11 @@
 use abci::*;
+use chain_abci::app::BufferType;
 use chain_core::init::coin::Coin;
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::fee::Milli;
+use chain_storage::buffer::Get;
 use parity_scale_codec::Encode;
-use test_common::chain_env::{get_account, ChainEnv};
+use test_common::chain_env::{get_account, get_validator, ChainEnv};
 
 /// Scenario 1: Unbond stake from a validator so that remaining bonded amount is still greater than
 /// `required_council_node_stake`. This should not remove validator from validator set.
@@ -64,7 +66,7 @@ fn check_unbonding_with_removing_validator() {
     let _rsp = app.init_chain(&env.req_init_chain());
     let state = app.last_state.as_ref().unwrap();
     let tm_address = &env.validator_address(0);
-    let staking_address = state.validators.lookup_address(&tm_address).clone();
+    let staking_address = *state.staking_table.lookup_address(&tm_address).unwrap();
     // Note: At this point, there are two validators with `Coin::max() / 2` staked amount each.
     // Also, `required_council_node_stake` is set to `Coin::max() / 10`.
 
@@ -119,18 +121,21 @@ fn check_unbonding_with_removing_validator() {
     assert_eq!(0, response_end_block.validator_updates.to_vec().len());
     app.commit(&RequestCommit::new());
     // as default Timestamp in these block headers is 0 (< time + unbonding period), some validator metadata should still be there
-    let validators_meta = &app.last_state.as_ref().expect("state").validators;
-    assert!(validators_meta.is_scheduled_for_delete(&staking_address, &tm_address));
-
-    assert!(validators_meta.is_current_validator(&env.validator_address(0)));
+    assert!(!get_validator(&staking_address, &app).is_active());
+    let state = app.last_state.as_ref().expect("state");
+    // not validator anymore
+    assert!(!&state.staking_table.get_chosen_validators().contains_key(
+        state
+            .staking_table
+            .lookup_address(&env.validator_address(0))
+            .unwrap()
+    ));
     // after unbonding period (in unit testing -- 61), it should be cleaned
     app.begin_block(&RequestBeginBlock {
         last_commit_info: Some(env.last_commit_info(1, true)).into(),
         ..env.req_begin_block_with_time(3, 1, 120)
     });
-    let validators_meta = &app.last_state.as_ref().expect("state").validators;
-    assert!(!validators_meta.is_current_validator(&env.validator_address(0)));
-    assert!(!validators_meta.is_scheduled_for_delete(&staking_address, &tm_address));
+    assert!(get_account(&staking_address, &app).validator.is_none());
 }
 
 /// Scenario 4: Unbond stake from validator 2 so that the remaining bonded amount becomes less than
@@ -158,7 +163,7 @@ fn check_rejoin() {
     let _rsp = app.init_chain(&env.req_init_chain());
     let state = app.last_state.as_ref().unwrap();
     let tm_address = &env.validator_address(0);
-    let staking_address = state.validators.lookup_address(&tm_address).clone();
+    let staking_address = *state.staking_table.lookup_address(&tm_address).unwrap();
     // Begin Block
     app.begin_block(&env.req_begin_block(1, 0));
 
@@ -185,8 +190,11 @@ fn check_rejoin() {
     assert_eq!(1, response_end_block.validator_updates.to_vec().len());
     assert_eq!(0, response_end_block.validator_updates.to_vec()[0].power);
     app.commit(&RequestCommit::new());
-    let validators_meta = &app.last_state.as_ref().expect("state").validators;
-    assert!(validators_meta.is_scheduled_for_delete(&staking_address, &tm_address));
+    assert!(!get_account(&staking_address, &app)
+        .validator
+        .as_ref()
+        .unwrap()
+        .is_active());
 
     // Begin block -- there should be a reward after this one
     app.begin_block(&RequestBeginBlock {
@@ -198,17 +206,27 @@ fn check_rejoin() {
     assert!(acct.bonded > required_stake);
 
     // node join should be ok
-    let validators_meta = &app.last_state.as_ref().expect("state").validators;
-    assert!(validators_meta.is_scheduled_for_delete(&staking_address, &tm_address));
+    assert!(!get_account(&staking_address, &app)
+        .validator
+        .as_ref()
+        .unwrap()
+        .is_active());
+
     let tx_aux = env.join_tx(2, 0);
     let rsp_tx = app.deliver_tx(&RequestDeliverTx {
         tx: tx_aux.encode(),
         ..Default::default()
     });
-    assert_eq!(0, rsp_tx.code);
+    assert_eq!(0, rsp_tx.code, "{}", rsp_tx.log);
     // it should no longer be planned to be deleted
-    let validators_meta = &app.last_state.as_ref().expect("state").validators;
-    assert!(!validators_meta.is_scheduled_for_delete(&staking_address, &tm_address));
+    assert!(app
+        .staking_getter(BufferType::Consensus)
+        .get(&staking_address)
+        .unwrap()
+        .validator
+        .as_ref()
+        .unwrap()
+        .is_active());
     // End block
     // Note: This should bring back the validator to the validator set.
     let response_end_block = app.end_block(&RequestEndBlock {

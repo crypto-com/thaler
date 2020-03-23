@@ -3,7 +3,7 @@ import os
 import time
 from chainrpc import RPC
 from chainbot import SigningKey
-from common import UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, stop_node, wait_for_tx
+from common import UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, stop_node, wait_for_tx, wait_for_blocktime
 
 '''
 - 3 nodes
@@ -62,6 +62,35 @@ supervisor.supervisor.startProcessGroup('node1')
 wait_for_port(BASE_PORT + 10 + 9)
 
 wait_for_blocks(rpc, 13)
-punishment = rpc.staking.state(bonded_staking)['punishment']
+state = rpc.staking.state(bonded_staking)
+assert state['validator']['jailed_until'] is not None, 'jailed for byzantine fault'
+punishment = state['last_slash']
 print('punishment', punishment)
 assert punishment['kind'] == 'ByzantineFault'
+
+assert len(rpc.chain.validators()['validators']) == 1
+
+stop_node(supervisor, 'node1')
+print('Wait until jailed_until', state['validator']['jailed_until'])
+wait_for_blocktime(rpc, state['validator']['jailed_until'])
+
+txid = rpc.staking.unjail(bonded_staking)
+print('Wait for unjail transaction', txid)
+wait_for_tx(rpc, txid)
+
+# FIXME add extra block to prevent nonce contension, remove after #1293 fixed
+wait_for_blocks(rpc, 1)
+
+print('re-join')
+txid = rpc.staking.join(
+    'node0',
+    SigningKey(VALIDATOR_SEED).pub_key_base64(),
+    bonded_staking
+)
+print('Wait for join node transaction', txid)
+wait_for_tx(rpc, txid)
+
+print('Wait 3 blocks for validators to take effect')
+wait_for_blocks(rpc, 3)
+
+assert len(rpc.chain.validators()['validators']) == 2

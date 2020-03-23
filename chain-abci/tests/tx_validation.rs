@@ -1,22 +1,26 @@
+use std::collections::HashMap;
+
 use bit_vec::BitVec;
 /// FIXME: organize better / refactor (group by tx, less duplication or unneeded arguments)
 use chain_abci::enclave_bridge::mock::MockClient;
-use chain_abci::storage::{verify_enclave_tx, verify_public_tx};
+use chain_abci::enclave_bridge::EnclaveProxy;
+use chain_abci::staking::StakingTable;
+use chain_abci::storage::{
+    process_public_tx, verify_enclave_tx as verify_enclave_tx_inner, TxEnclaveAction,
+};
+use chain_abci::tx_error::{NodeJoinError, PublicTxError, TxError, UnbondError, UnjailError};
 use chain_core::common::{MerkleTree, Timespec};
 use chain_core::init::address::RedeemAddress;
-use chain_core::init::coin::Coin;
+use chain_core::init::coin::{Coin, CoinError};
 use chain_core::state::account::CouncilNode;
 use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::account::StakedStateOpAttributes;
 use chain_core::state::account::{
-    DepositBondTx, Punishment, PunishmentKind, StakedStateOpWitness, UnbondTx, UnjailTx,
-    WithdrawUnbondedTx,
+    DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, Validator, WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::BlockHeight;
-use chain_core::state::tendermint::{
-    TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
-};
+use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::data::{
     address::ExtendedAddr,
@@ -36,21 +40,57 @@ use chain_core::tx::{TxAux, TxEnclaveAux, TxPublicAux};
 use chain_storage::account::AccountStorage;
 use chain_storage::account::AccountWrapper;
 use chain_storage::account::StarlingFixedKey;
-use chain_storage::buffer::StakingGetter;
+use chain_storage::buffer::{Get, StakingBufferStore, StakingGetter};
 use chain_storage::{Storage, COL_ENCLAVE_TX, COL_TX_META, NUM_COLUMNS};
 use chain_tx_validation::{
-    verify_bonded_deposit, verify_transfer, verify_unbonded_withdraw, ChainInfo, Error,
-    NodeChecker, TxWithOutputs,
+    verify_bonded_deposit_core, verify_transfer, verify_unbonded_withdraw_core, ChainInfo, Error,
+    TxWithOutputs,
 };
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
 use parity_scale_codec::Encode;
 use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, key::XOnlyPublicKey, Message, Secp256k1, Signing};
-use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::mem;
 use std::sync::Arc;
+
+fn verify_enclave_tx<T: EnclaveProxy>(
+    tx_validator: &mut T,
+    txaux: &TxEnclaveAux,
+    extra_info: &ChainInfo,
+    root: &StarlingFixedKey,
+    storage: &Storage,
+    accounts: &AccountStorage,
+) -> Result<TxEnclaveAction, Error> {
+    verify_enclave_tx_inner(
+        tx_validator,
+        txaux,
+        &extra_info,
+        &StakingGetter::new(&accounts, Some(*root)),
+        storage,
+    )
+}
+
+fn verify_public_tx(
+    txaux: &TxPublicAux,
+    extra_info: &ChainInfo,
+    info: NodeInfoWrap,
+    root: &StarlingFixedKey,
+    accounts: &AccountStorage,
+) -> Result<(Fee, Option<StakedState>), TxError> {
+    let mut tbl = StakingTable::from_genesis(
+        &StakingGetter::new(&accounts, Some(*root)),
+        info.0,
+        50,
+        &info.1,
+    );
+    let mut buffer = HashMap::new();
+
+    let mut store = StakingBufferStore::new(StakingGetter::new(accounts, Some(*root)), &mut buffer);
+    let (fee, maddress) = process_public_tx(&mut store, &mut tbl, extra_info, txaux)?;
+    Ok((fee, maddress.map(|addr| store.get(&addr).unwrap())))
+}
 
 pub fn get_tx_witness<C: Signing>(
     secp: Secp256k1<C>,
@@ -75,7 +115,7 @@ pub fn get_account_op_witness<C: Signing>(
 ) -> StakedStateOpWitness {
     let message = Message::from_slice(&txid[..]).expect("32 bytes");
     let sig = secp.sign_recoverable(&message, &secret_key);
-    return StakedStateOpWitness::new(sig);
+    StakedStateOpWitness::new(sig)
 }
 
 fn create_db() -> Arc<dyn KeyValueDB> {
@@ -117,8 +157,9 @@ fn get_chain_info(txaux: &TxAux) -> ChainInfo {
             .calculate_for_txaux(&txaux)
             .expect("invalid fee policy"),
         chain_hex_id: DEFAULT_CHAIN_ID,
-        previous_block_time: 0,
+        block_time: 0,
         unbonding_period: 1,
+        block_height: BlockHeight::genesis(),
     }
 }
 
@@ -131,46 +172,19 @@ fn get_chain_info_pub(txaux: &TxPublicAux) -> ChainInfo {
 }
 
 struct NodeInfoWrap(
-    Coin,
-    BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
-    BTreeMap<StakedStateAddress, TendermintVotePower>,
+    Coin,                    // minimal_required_staking
+    Vec<StakedStateAddress>, // genesis validators
 );
 
 impl Default for NodeInfoWrap {
     fn default() -> Self {
-        Self(Coin::one(), BTreeMap::default(), BTreeMap::default())
+        Self(Coin::one(), Vec::new())
     }
 }
 
 impl NodeInfoWrap {
-    pub fn custom(
-        stake: Coin,
-        validators: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
-        stakes: BTreeMap<StakedStateAddress, TendermintVotePower>,
-    ) -> Self {
-        NodeInfoWrap(stake, validators, stakes)
-    }
-}
-
-impl NodeChecker for NodeInfoWrap {
-    fn minimum_effective_stake(&self) -> Coin {
-        self.0
-    }
-
-    fn is_current_validator(&self, address: &TendermintValidatorAddress) -> bool {
-        self.1.contains_key(address)
-    }
-
-    fn is_current_validator_stake(&self, address: &StakedStateAddress) -> bool {
-        self.2.contains_key(address)
-    }
-
-    fn is_current_previous_unbond(
-        &self,
-        _address: &StakedStateAddress,
-        _tm_address: &TendermintValidatorAddress,
-    ) -> bool {
-        false
+    pub fn custom(stake: Coin, validators: Vec<StakedStateAddress>) -> Self {
+        NodeInfoWrap(stake, validators)
     }
 }
 
@@ -247,7 +261,7 @@ fn prepare_app_valid_transfer_tx(
     (
         db,
         txaux,
-        tx.clone(),
+        tx,
         witness.into(),
         merkle_tree,
         secret_key,
@@ -271,9 +285,7 @@ fn prepare_app_valid_unbond_tx() -> (
     let account = StakedState::new(1, Coin::one(), Coin::zero(), 0, addr.into(), None);
     let key = account.key();
     let wrapped = AccountWrapper(account);
-    let new_root = tree
-        .insert(None, &mut [key], &mut vec![wrapped])
-        .expect("insert");
+    let new_root = tree.insert(None, &mut [key], &[wrapped]).expect("insert");
     let tx = UnbondTx::new(
         addr.into(),
         1,
@@ -281,8 +293,8 @@ fn prepare_app_valid_unbond_tx() -> (
         StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
     );
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
-    let txaux = TxPublicAux::UnbondStakeTx(tx.clone(), witness.clone());
-    (txaux, tx.clone(), secret_key, tree, new_root)
+    let txaux = TxPublicAux::UnbondStakeTx(tx.clone(), witness);
+    (txaux, tx, secret_key, tree, new_root)
 }
 
 #[test]
@@ -293,7 +305,8 @@ fn existing_account_unbond_tx_should_verify() {
         &txaux,
         &extra_info,
         NodeInfoWrap::default(),
-        &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+        &last_account_root_hash,
+        &accounts,
     );
     assert!(result.is_ok());
 }
@@ -304,15 +317,16 @@ fn test_account_unbond_verify_fail() {
     let extra_info = get_chain_info_pub(&txaux);
     // WrongChainHexId
     {
-        let mut extra_info = extra_info.clone();
+        let mut extra_info = extra_info;
         extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
         let result = verify_public_tx(
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
+            &accounts,
         );
-        expect_error(&result, Error::WrongChainHexId);
+        expect_error_public(&result, PublicTxError::WrongChainHexId);
     }
     // UnsupportedVersion
     {
@@ -326,19 +340,21 @@ fn test_account_unbond_verify_fail() {
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
+            &accounts,
         );
-        expect_error(&result, Error::UnsupportedVersion);
+        expect_error_public(&result, PublicTxError::UnsupportedVersion);
     }
-    // AccountNotFound
+    // AccountNotFound, non exist account treated as a default account, so incorrect nonce.
     {
         let result = verify_public_tx(
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some([0; 32])),
+            &[0; 32],
+            &accounts,
         );
-        expect_error(&result, Error::AccountNotFound);
+        expect_error_public(&result, PublicTxError::IncorrectNonce);
     }
     // AccountIncorrectNonce
     {
@@ -352,9 +368,10 @@ fn test_account_unbond_verify_fail() {
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
+            &accounts,
         );
-        expect_error(&result, Error::AccountIncorrectNonce);
+        expect_error_public(&result, PublicTxError::IncorrectNonce);
     }
     // ZeroCoin
     {
@@ -368,13 +385,14 @@ fn test_account_unbond_verify_fail() {
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
+            &accounts,
         );
-        expect_error(&result, Error::ZeroCoin);
+        expect_error_unbond(&result, UnbondError::ZeroValue);
     }
     // InputOutputDoNotMatch
     {
-        let mut tx = tx.clone();
+        let mut tx = tx;
         tx.value = (tx.value + Coin::one()).unwrap();
         let txaux = TxPublicAux::UnbondStakeTx(
             tx.clone(),
@@ -384,9 +402,10 @@ fn test_account_unbond_verify_fail() {
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
+            &accounts,
         );
-        expect_error(&result, Error::InputOutputDoNotMatch);
+        expect_error_unbond(&result, UnbondError::CoinError(CoinError::Negative));
     }
 }
 
@@ -417,9 +436,7 @@ fn prepare_app_valid_withdraw_tx(
     );
     let key = account.key();
     let wrapped = AccountWrapper(account.clone());
-    let new_root = tree
-        .insert(None, &mut [key], &mut vec![wrapped])
-        .expect("insert");
+    let new_root = tree.insert(None, &mut [key], &[wrapped]).expect("insert");
 
     let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
 
@@ -444,15 +461,7 @@ fn prepare_app_valid_withdraw_tx(
             txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
         },
     };
-    (
-        txaux,
-        tx.clone(),
-        witness,
-        account,
-        secret_key,
-        tree,
-        new_root,
-    )
+    (txaux, tx, witness, account, secret_key, tree, new_root)
 }
 
 #[test]
@@ -463,8 +472,9 @@ fn existing_account_withdraw_tx_should_verify() {
         &mut get_enclave_bridge_mock(),
         &txaux,
         &extra_info,
-        &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+        &last_account_root_hash,
         &create_storage(),
+        &accounts,
     );
     assert!(result.is_ok());
 }
@@ -478,17 +488,18 @@ fn test_account_withdraw_verify_fail() {
     let mut mock_bridge = get_enclave_bridge_mock();
     // WrongChainHexId
     {
-        let mut extra_info = extra_info.clone();
+        let mut extra_info = extra_info;
         extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
         let result = verify_enclave_tx(
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_unbonded_withdraw(&tx, &extra_info, account.clone());
+        let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
         expect_error(&result, Error::WrongChainHexId);
     }
     // UnsupportedVersion
@@ -506,11 +517,12 @@ fn test_account_withdraw_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_unbonded_withdraw(&tx, &extra_info, account.clone());
+        let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
         expect_error(&result, Error::UnsupportedVersion);
     }
     // NoOutputs
@@ -528,11 +540,12 @@ fn test_account_withdraw_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_unbonded_withdraw(&tx, &extra_info, account.clone());
+        let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
         expect_error(&result, Error::NoOutputs);
     }
     // ZeroCoin
@@ -550,11 +563,12 @@ fn test_account_withdraw_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_unbonded_withdraw(&tx, &extra_info, account.clone());
+        let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
         expect_error(&result, Error::ZeroCoin);
     }
     // InvalidSum
@@ -574,11 +588,12 @@ fn test_account_withdraw_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_unbonded_withdraw(&tx, &extra_info, account.clone());
+        let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
         expect_error(
             &result,
             Error::InvalidSum, // FIXME: Error::InvalidSum(CoinError::OutOfBound(Coin::max().into())),
@@ -599,11 +614,12 @@ fn test_account_withdraw_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_unbonded_withdraw(&tx, &extra_info, account.clone());
+        let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
         expect_error(&result, Error::InputOutputDoNotMatch);
     }
     // AccountNotFound
@@ -612,8 +628,9 @@ fn test_account_withdraw_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some([0; 32])),
+            &[0; 32],
             &storage,
+            &accounts,
         );
         expect_error(&result, Error::AccountNotFound);
     }
@@ -632,11 +649,12 @@ fn test_account_withdraw_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_unbonded_withdraw(&tx, &extra_info, account.clone());
+        let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
         expect_error(&result, Error::AccountIncorrectNonce);
     }
     // AccountWithdrawOutputNotLocked
@@ -645,7 +663,7 @@ fn test_account_withdraw_verify_fail() {
         tx.outputs[0].valid_from = None;
         let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
         let txaux = replace_tx_payload(
-            txaux.clone(),
+            txaux,
             PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()),
             Some(witness),
             None,
@@ -654,11 +672,12 @@ fn test_account_withdraw_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_unbonded_withdraw(&tx, &extra_info, account.clone());
+        let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
         expect_error(&result, Error::AccountWithdrawOutputNotLocked);
     }
     // AccountNotUnbonded
@@ -669,11 +688,12 @@ fn test_account_withdraw_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_unbonded_withdraw(&tx, &extra_info, account);
+        let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
         expect_error(&result, Error::AccountNotUnbonded);
     }
 }
@@ -712,7 +732,7 @@ fn prepare_app_valid_deposit_tx(
     (
         db,
         txaux,
-        tx.clone(),
+        tx,
         witness.into(),
         secret_key,
         AccountStorage::new(create_storage(), 20).expect("account db"),
@@ -732,8 +752,9 @@ fn existing_utxo_input_tx_should_verify() {
         &mut mock_bridge,
         &txaux,
         &extra_info,
-        &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+        &last_account_root_hash,
         &storage,
+        &accounts,
     );
     assert!(result.is_ok());
     let (db, txaux, _, _, _, accounts) = prepare_app_valid_deposit_tx(false);
@@ -742,8 +763,9 @@ fn existing_utxo_input_tx_should_verify() {
         &mut mock_bridge,
         &txaux,
         &extra_info,
-        &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+        &last_account_root_hash,
         &storage,
+        &accounts,
     );
     assert!(result.is_ok());
 }
@@ -759,6 +781,41 @@ where
     }
 }
 
+fn expect_error_public<T>(res: &Result<T, TxError>, expected: PublicTxError) {
+    match res {
+        Err(TxError::Public(err)) if mem::discriminant(&expected) == mem::discriminant(err) => {}
+        Err(err) => panic!("Expected error {:?} but got {:?}", expected, err),
+        Ok(_) => panic!("Expected error {:?} but succeeded", expected),
+    }
+}
+
+fn expect_error_unbond<T>(res: &Result<T, TxError>, expected: UnbondError) {
+    match res {
+        Err(TxError::Public(PublicTxError::Unbond(err)))
+            if mem::discriminant(&expected) == mem::discriminant(err) => {}
+        Err(err) => panic!("Expected error {:?} but got {:?}", expected, err),
+        Ok(_) => panic!("Expected error {:?} but succeeded", expected),
+    }
+}
+
+fn expect_error_joinnode<T>(res: &Result<T, TxError>, expected: NodeJoinError) {
+    match res {
+        Err(TxError::Public(PublicTxError::NodeJoin(err)))
+            if mem::discriminant(&expected) == mem::discriminant(err) => {}
+        Err(err) => panic!("Expected error {:?} but got {:?}", expected, err),
+        Ok(_) => panic!("Expected error {:?} but succeeded", expected),
+    }
+}
+
+fn expect_error_unjail<T>(res: &Result<T, TxError>, expected: UnjailError) {
+    match res {
+        Err(TxError::Public(PublicTxError::Unjail(err)))
+            if mem::discriminant(&expected) == mem::discriminant(err) => {}
+        Err(err) => panic!("Expected error {:?} but got {:?}", expected, err),
+        Ok(_) => panic!("Expected error {:?} but succeeded", expected),
+    }
+}
+
 #[test]
 fn test_deposit_verify_fail() {
     let mut mock_bridge = get_enclave_bridge_mock();
@@ -768,17 +825,18 @@ fn test_deposit_verify_fail() {
     let last_account_root_hash = [0u8; 32];
     // WrongChainHexId
     {
-        let mut extra_info = extra_info.clone();
+        let mut extra_info = extra_info;
         extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
         let result = verify_enclave_tx(
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_bonded_deposit(&tx, &witness, &extra_info, vec![], None);
+        let result = verify_bonded_deposit_core(&tx, &witness, &extra_info, vec![]);
         expect_error(&result, Error::WrongChainHexId);
     }
     // UnsupportedVersion
@@ -795,11 +853,12 @@ fn test_deposit_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_bonded_deposit(&tx, &witness, &extra_info, vec![], None);
+        let result = verify_bonded_deposit_core(&tx, &witness, &extra_info, vec![]);
         expect_error(&result, Error::UnsupportedVersion);
     }
     // NoInputs
@@ -816,11 +875,12 @@ fn test_deposit_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_bonded_deposit(&tx, &witness, &extra_info, vec![], None);
+        let result = verify_bonded_deposit_core(&tx, &witness, &extra_info, vec![]);
         expect_error(&result, Error::NoInputs);
     }
     // DuplicateInputs
@@ -838,11 +898,12 @@ fn test_deposit_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_bonded_deposit(&tx, &witness, &extra_info, vec![], None);
+        let result = verify_bonded_deposit_core(&tx, &witness, &extra_info, vec![]);
         expect_error(&result, Error::DuplicateInputs);
     }
     // UnexpectedWitnesses
@@ -860,11 +921,12 @@ fn test_deposit_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_bonded_deposit(&tx, &witness, &extra_info, vec![], None);
+        let result = verify_bonded_deposit_core(&tx, &witness, &extra_info, vec![]);
         expect_error(&result, Error::UnexpectedWitnesses);
     }
     // MissingWitnesses
@@ -879,11 +941,12 @@ fn test_deposit_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_bonded_deposit(&tx, &vec![].into(), &extra_info, vec![], None);
+        let result = verify_bonded_deposit_core(&tx, &vec![].into(), &extra_info, vec![]);
         expect_error(&result, Error::MissingWitnesses);
     }
     // InputSpent
@@ -900,8 +963,9 @@ fn test_deposit_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         expect_error(&result, Error::InputSpent);
 
@@ -932,12 +996,11 @@ fn test_deposit_verify_fail() {
         let addr = get_address(&secp, &secret_key).0;
         let input_tx = get_old_tx(addr, false);
 
-        let result = verify_bonded_deposit(
+        let result = verify_bonded_deposit_core(
             &tx,
             &witness,
             &extra_info,
             vec![TxWithOutputs::Transfer(input_tx)],
-            None,
         );
         expect_error(
             &result,
@@ -945,7 +1008,7 @@ fn test_deposit_verify_fail() {
         );
         let txaux = replace_tx_payload(
             txaux.clone(),
-            PlainTxAux::DepositStakeTx(witness.clone()),
+            PlainTxAux::DepositStakeTx(witness),
             None,
             None,
         );
@@ -953,8 +1016,9 @@ fn test_deposit_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
     }
@@ -964,24 +1028,26 @@ fn test_deposit_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
-            &mut create_storage(),
+            &last_account_root_hash,
+            &create_storage(),
+            &accounts,
         );
         expect_error(&result, Error::InvalidInput);
     }
     // InputOutputDoNotMatch
     {
-        let mut extra_info = extra_info.clone();
+        let mut extra_info = extra_info;
         extra_info.min_fee_computed = Fee::new(Coin::one());
         let result = verify_enclave_tx(
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
-        let result = verify_bonded_deposit(&tx, &witness, &extra_info, vec![], None);
+        let result = verify_bonded_deposit_core(&tx, &witness, &extra_info, vec![]);
         expect_error(&result, Error::InputOutputDoNotMatch);
     }
 }
@@ -1070,14 +1136,15 @@ fn test_transfer_verify_fail() {
     let last_account_root_hash = [0u8; 32];
     // WrongChainHexId
     {
-        let mut extra_info = extra_info.clone();
+        let mut extra_info = extra_info;
         extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
         let result = verify_enclave_tx(
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
         let result = verify_transfer(&tx, &witness, &extra_info, vec![]);
@@ -1097,16 +1164,18 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
         let result = verify_enclave_tx(
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         expect_error(&result, Error::UnsupportedVersion);
     }
@@ -1124,8 +1193,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         expect_error(&result, Error::NoInputs);
     }
@@ -1145,8 +1215,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
     }
@@ -1167,8 +1238,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
     }
@@ -1188,8 +1260,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
     }
@@ -1210,8 +1283,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
     }
@@ -1227,8 +1301,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
         let result = verify_transfer(&tx.clone(), &vec![].into(), &extra_info, vec![]);
@@ -1257,8 +1332,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
     }
@@ -1276,8 +1352,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         expect_error(&result, Error::InputSpent);
 
@@ -1328,8 +1405,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
     }
@@ -1339,32 +1417,29 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
-            &mut create_storage(),
+            &last_account_root_hash,
+            &create_storage(),
+            &accounts,
         );
         expect_error(&result, Error::InvalidInput);
     }
     // InputOutputDoNotMatch
     {
-        let mut tx = tx.clone();
-        let mut witness = witness.clone();
+        let mut tx = tx;
+        let mut witness = witness;
 
         tx.outputs[0].value = (tx.outputs[0].value + Coin::one()).unwrap();
         witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key, &merkle_tree);
         let result = verify_transfer(&tx, &witness, &extra_info, vec![]);
         expect_error(&result, Error::InputOutputDoNotMatch);
-        let txaux = replace_tx_payload(
-            txaux.clone(),
-            PlainTxAux::TransferTx(tx, witness),
-            None,
-            None,
-        );
+        let txaux = replace_tx_payload(txaux, PlainTxAux::TransferTx(tx, witness), None, None);
         let result = verify_enclave_tx(
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
     }
@@ -1385,8 +1460,9 @@ fn test_transfer_verify_fail() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(last_account_root_hash)),
+            &last_account_root_hash,
             &storage,
+            &accounts,
         );
         assert!(result.is_err());
     }
@@ -1412,21 +1488,23 @@ fn prepare_jailed_accounts() -> (
     let addr = RedeemAddress::from(&public_key);
     let account = StakedState::new(
         1,
-        Coin::zero(),
+        Coin::one(),
         Coin::one(),
         0,
         addr.into(),
-        Some(Punishment {
-            kind: PunishmentKind::NonLive,
-            jailed_until: 100,
-            slash_amount: None,
+        Some(Validator {
+            council_node: CouncilNode::new(TendermintValidatorPubKey::Ed25519([0xcd; 32])),
+            jailed_until: Some(100),
+            inactive_time: Some(0),
+            inactive_block: Some(BlockHeight::genesis()),
+            used_validator_addresses: vec![],
         }),
     );
 
     let key = account.key();
-    let wrapped = AccountWrapper(account.clone());
+    let wrapped = AccountWrapper(account);
     let root = accounts
-        .insert(None, &mut [key], &mut vec![wrapped])
+        .insert(None, &mut [key], &[wrapped])
         .expect("insert");
 
     (db, accounts, secret_key, addr, merkle_tree, root)
@@ -1440,12 +1518,12 @@ fn prepare_withdraw_transaction(secret_key: &SecretKey) -> TxEnclaveAux {
 
     TxEnclaveAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx.outputs.len() as TxoSize,
-        witness: witness.clone(),
+        witness,
         payload: TxObfuscated {
             txid: tx.id(),
             key_from: BlockHeight::genesis(),
             init_vector: [0; 12],
-            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
+            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx).encode(),
         },
     }
 }
@@ -1522,15 +1600,16 @@ fn check_verify_fail_for_jailed_account() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
             &storage,
+            &accounts,
         ),
         Error::AccountJailed,
     );
 
     // Deposit transaction
 
-    let txaux = prepare_deposit_transaction(&secret_key, address.clone(), &merkle_tree);
+    let txaux = prepare_deposit_transaction(&secret_key, address, &merkle_tree);
     let extra_info = get_chain_info_enc(&txaux);
 
     expect_error(
@@ -1538,46 +1617,44 @@ fn check_verify_fail_for_jailed_account() {
             &mut mock_bridge,
             &txaux,
             &extra_info,
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
             &storage,
+            &accounts,
         ),
         Error::AccountJailed,
     );
 
     // Unbond transaction
 
-    let txaux = prepare_unbond_transaction(
-        &secret_key,
-        StakedStateAddress::BasicRedeem(address.clone()),
-    );
+    let txaux = prepare_unbond_transaction(&secret_key, StakedStateAddress::BasicRedeem(address));
     let extra_info = get_chain_info_pub(&txaux);
 
-    expect_error(
+    expect_error_unbond(
         &verify_public_tx(
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
+            &accounts,
         ),
-        Error::AccountJailed,
+        UnbondError::IsJailed,
     );
 
     // Node join transaction
 
-    let (txaux, _) = prepare_nodejoin_transaction(
-        &secret_key,
-        StakedStateAddress::BasicRedeem(address.clone()),
-    );
+    let (txaux, _) =
+        prepare_nodejoin_transaction(&secret_key, StakedStateAddress::BasicRedeem(address));
     let extra_info = get_chain_info_pub(&txaux);
 
-    expect_error(
+    expect_error_joinnode(
         &verify_public_tx(
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
+            &accounts,
         ),
-        Error::AccountJailed,
+        NodeJoinError::IsJailed,
     );
 }
 
@@ -1587,55 +1664,49 @@ fn check_unjail_transaction() {
 
     // Incorrect nonce
 
-    let txaux = prepare_unjail_transaction(
-        &secret_key,
-        StakedStateAddress::BasicRedeem(address.clone()),
-        0,
-    );
+    let txaux =
+        prepare_unjail_transaction(&secret_key, StakedStateAddress::BasicRedeem(address), 0);
     let extra_info = get_chain_info_pub(&txaux);
 
-    expect_error(
+    expect_error_public(
         &verify_public_tx(
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
+            &accounts,
         ),
-        Error::AccountIncorrectNonce,
+        PublicTxError::IncorrectNonce,
     );
 
     // Before `jailed_until`
 
-    let txaux = prepare_unjail_transaction(
-        &secret_key,
-        StakedStateAddress::BasicRedeem(address.clone()),
-        1,
-    );
+    let txaux =
+        prepare_unjail_transaction(&secret_key, StakedStateAddress::BasicRedeem(address), 1);
     let extra_info = get_chain_info_pub(&txaux);
 
-    expect_error(
+    expect_error_unjail(
         &verify_public_tx(
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
+            &accounts,
         ),
-        Error::AccountJailed,
+        UnjailError::JailTimeNotExpired,
     );
 
     // After `jailed_until`
 
-    let txaux = prepare_unjail_transaction(
-        &secret_key,
-        StakedStateAddress::BasicRedeem(address.clone()),
-        1,
-    );
+    let txaux =
+        prepare_unjail_transaction(&secret_key, StakedStateAddress::BasicRedeem(address), 1);
     let extra_info = ChainInfo {
         min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
             .calculate_for_txaux(&TxAux::PublicTx(txaux.clone()))
             .expect("invalid fee policy"),
         chain_hex_id: DEFAULT_CHAIN_ID,
-        previous_block_time: 101,
+        block_time: 101,
+        block_height: BlockHeight::genesis(),
         unbonding_period: 1,
     };
 
@@ -1643,7 +1714,8 @@ fn check_unjail_transaction() {
         &txaux,
         &extra_info,
         NodeInfoWrap::default(),
-        &StakingGetter::new(&accounts, Some(root)),
+        &root,
+        &accounts,
     )
     .expect("Verification of unjail transaction failed");
 
@@ -1672,7 +1744,9 @@ fn prepare_nodejoin_transaction(
     (TxPublicAux::NodeJoinTx(tx.clone(), witness), tx)
 }
 
-fn prepare_valid_nodejoin_tx() -> (
+fn prepare_valid_nodejoin_tx(
+    validator: bool,
+) -> (
     TxPublicAux,
     NodeJoinRequestTx,
     StakedStateAddress,
@@ -1686,48 +1760,61 @@ fn prepare_valid_nodejoin_tx() -> (
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
     let addr = RedeemAddress::from(&public_key);
-    let account = StakedState::new(1, Coin::one(), Coin::zero(), 0, addr.into(), None);
+    let account = StakedState::new(
+        1,
+        Coin::one(),
+        Coin::zero(),
+        0,
+        addr.into(),
+        if validator {
+            Some(Validator::new(CouncilNode::new(
+                TendermintValidatorPubKey::Ed25519([1u8; 32]),
+            )))
+        } else {
+            None
+        },
+    );
     let key = account.key();
     let wrapped = AccountWrapper(account);
-    let new_root = tree
-        .insert(None, &mut [key], &mut vec![wrapped])
-        .expect("insert");
+    let new_root = tree.insert(None, &mut [key], &[wrapped]).expect("insert");
     let (txaux, tx) = prepare_nodejoin_transaction(&secret_key, addr.into());
     (txaux, tx, addr.into(), secret_key, tree, new_root)
 }
 
 #[test]
 fn test_nodejoin_success() {
-    let (txaux, _, _, _, accounts, root) = prepare_valid_nodejoin_tx();
+    let (txaux, _, _, _, accounts, root) = prepare_valid_nodejoin_tx(false);
     let extra_info = get_chain_info_pub(&txaux);
 
     let (fee, new_account) = verify_public_tx(
         &txaux,
         &extra_info,
         NodeInfoWrap::default(),
-        &StakingGetter::new(&accounts, Some(root)),
+        &root,
+        &accounts,
     )
     .expect("Verification of node join transaction failed");
 
     assert_eq!(Fee::new(Coin::zero()), fee);
-    assert!(new_account.unwrap().council_node.is_some());
+    assert!(new_account.unwrap().validator.is_some());
 }
 
 #[test]
 fn test_nodejoin_fail() {
-    let (txaux, tx, addr, secret_key, accounts, root) = prepare_valid_nodejoin_tx();
+    let (txaux, tx, _addr, secret_key, accounts, root) = prepare_valid_nodejoin_tx(false);
     let extra_info = get_chain_info_pub(&txaux);
     // WrongChainHexId
     {
-        let mut extra_info = extra_info.clone();
+        let mut extra_info = extra_info;
         extra_info.chain_hex_id = DEFAULT_CHAIN_ID + 1;
         let result = verify_public_tx(
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
+            &accounts,
         );
-        expect_error(&result, Error::WrongChainHexId);
+        expect_error_public(&result, PublicTxError::WrongChainHexId);
     }
     // UnsupportedVersion
     {
@@ -1741,19 +1828,21 @@ fn test_nodejoin_fail() {
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
+            &accounts,
         );
-        expect_error(&result, Error::UnsupportedVersion);
+        expect_error_public(&result, PublicTxError::UnsupportedVersion);
     }
-    // AccountNotFound
+    // AccountNotFound, not exist account treated as empty account, so incorrect nonce
     {
         let result = verify_public_tx(
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some([0; 32])),
+            &[0; 32],
+            &accounts,
         );
-        expect_error(&result, Error::AccountNotFound);
+        expect_error_public(&result, PublicTxError::IncorrectNonce);
     }
     // AccountIncorrectNonce
     {
@@ -1767,13 +1856,14 @@ fn test_nodejoin_fail() {
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
+            &accounts,
         );
-        expect_error(&result, Error::AccountIncorrectNonce);
+        expect_error_public(&result, PublicTxError::IncorrectNonce);
     }
     // MismatchAccountAddress
     {
-        let mut tx = tx.clone();
+        let mut tx = tx;
         tx.address = StakedStateAddress::from(RedeemAddress::from([1u8; 20]));
         let txaux = TxPublicAux::NodeJoinTx(
             tx.clone(),
@@ -1783,38 +1873,22 @@ fn test_nodejoin_fail() {
             &txaux,
             &extra_info,
             NodeInfoWrap::default(),
-            &StakingGetter::new(&accounts, Some(root)),
+            &root,
+            &accounts,
         );
-        expect_error(&result, Error::MismatchAccountAddress);
+        expect_error_public(&result, PublicTxError::StakingWitnessNotMatch);
     }
-    // NotEnoughStake
+    // BondedNotEnough
     {
-        let wrap = NodeInfoWrap::custom(
-            (Coin::one() + Coin::one()).unwrap(),
-            BTreeMap::default(),
-            BTreeMap::default(),
-        );
-        let result = verify_public_tx(
-            &txaux,
-            &extra_info,
-            wrap,
-            &StakingGetter::new(&accounts, Some(root)),
-        );
-        expect_error(&result, Error::NotEnoughStake);
+        let wrap = NodeInfoWrap::custom((Coin::one() + Coin::one()).unwrap(), Vec::new());
+        let result = verify_public_tx(&txaux, &extra_info, wrap, &root, &accounts);
+        expect_error_joinnode(&result, NodeJoinError::BondedNotEnough);
     }
-    // DuplicateValidator
+    let (txaux, _tx, addr, _secret_key, accounts, root) = prepare_valid_nodejoin_tx(true);
+    // AlreadyJoined
     {
-        let addresses = BTreeMap::new();
-        let mut powers = BTreeMap::new();
-        powers.insert(addr, TendermintVotePower::zero());
-        let wrap = NodeInfoWrap::custom(Coin::one(), addresses, powers);
-
-        let result = verify_public_tx(
-            &txaux,
-            &extra_info,
-            wrap,
-            &StakingGetter::new(&accounts, Some(root)),
-        );
-        expect_error(&result, Error::DuplicateValidator);
+        let wrap = NodeInfoWrap::custom(Coin::one(), vec![addr]);
+        let result = verify_public_tx(&txaux, &extra_info, wrap, &root, &accounts);
+        expect_error_joinnode(&result, NodeJoinError::AlreadyJoined);
     }
 }
