@@ -1,17 +1,17 @@
 use crate::enclave_bridge::EnclaveProxy;
+use crate::staking::StakingTable;
+use crate::tx_error::PublicTxError;
+use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{StakedState, StakedStateAddress};
+use chain_core::state::account::{StakedState, StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::input::{TxoPointer, TxoSize};
 use chain_core::tx::fee::Fee;
 use chain_core::tx::{TransactionId, TxEnclaveAux, TxObfuscated, TxPublicAux};
 use chain_storage::account::{
     get_staked_state, AccountStorage, StakedStateError, StarlingFixedKey,
 };
-use chain_storage::buffer::{GetKV, GetStaking};
-use chain_tx_validation::{
-    verify_node_join, verify_unbonding, verify_unjailed, verify_unjailing,
-    witness::verify_tx_recover_address, ChainInfo, Error, NodeChecker,
-};
+use chain_storage::buffer::{GetKV, GetStaking, StoreStaking};
+use chain_tx_validation::{verify_unjailed, witness::verify_tx_recover_address, ChainInfo, Error};
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, SealedLog};
 
 /// fee: Written into block result events
@@ -82,12 +82,6 @@ impl TxEnclaveAction {
             Self::Withdraw { fee, .. } => *fee,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum TxAction {
-    Enclave(TxEnclaveAction),
-    Public(TxPublicAux),
 }
 
 /// checks that the account can be retrieved from the trie storage
@@ -217,50 +211,64 @@ pub fn verify_enclave_tx<T: EnclaveProxy>(
     }
 }
 
-/// Checks non-enclave TX against the current DB and returns an `Error` if something fails.
-/// If OK, returns the paid fee + affected staked state.
-pub fn verify_public_tx(
+fn check_staking_attributes(
+    attrs: &StakedStateOpAttributes,
+    chain_hex_id: u8,
+) -> Result<(), PublicTxError> {
+    // check that chain IDs match
+    if chain_hex_id != attrs.chain_hex_id {
+        return Err(PublicTxError::WrongChainHexId);
+    }
+    // check that version number is <= current one
+    if chain_core::APP_VERSION < attrs.app_version {
+        return Err(PublicTxError::UnsupportedVersion);
+    }
+    Ok(())
+}
+
+/// Execute public transactions against uncommitted db.
+/// If OK, returns the paid fee + affected staking address
+pub fn process_public_tx(
+    staking_store: &mut impl StoreStaking,
+    staking_table: &mut StakingTable,
+    chain_info: &ChainInfo,
     txaux: &TxPublicAux,
-    extra_info: &ChainInfo,
-    node_info: impl NodeChecker,
-    trie: &impl GetStaking,
-) -> Result<(Fee, Option<StakedState>), Error> {
+) -> Result<(Fee, Option<StakedStateAddress>), PublicTxError> {
+    check_staking_attributes(txaux.attributes(), chain_info.chain_hex_id)?;
     match txaux {
         // TODO: delay checking witness, as address is contained in Tx?
         TxPublicAux::UnbondStakeTx(maintx, witness) => {
-            match verify_tx_recover_address(&witness, &maintx.id()) {
-                Ok(account_address) => {
-                    let account = trie.get(&account_address).ok_or(Error::AccountNotFound)?;
-                    verify_unbonding(maintx, extra_info, account)
-                }
-                Err(_) => {
-                    Err(Error::EcdsaCrypto) // FIXME: Err(Error::EcdsaCrypto(e))
-                }
+            let address = verify_tx_recover_address(&witness, &maintx.id())?;
+            if address != maintx.from_staked_account {
+                return Err(PublicTxError::StakingWitnessNotMatch);
             }
+            staking_table.unbond(
+                staking_store,
+                chain_info.unbonding_period as Timespec,
+                chain_info.block_time,
+                chain_info.block_height,
+                &maintx,
+            )?;
+            Ok((chain_info.min_fee_computed, Some(address)))
         }
         // TODO: delay checking witness, as address is contained in Tx?
         TxPublicAux::UnjailTx(maintx, witness) => {
-            match verify_tx_recover_address(&witness, &maintx.id()) {
-                Ok(account_address) => {
-                    let account = trie.get(&account_address).ok_or(Error::AccountNotFound)?;
-                    verify_unjailing(maintx, extra_info, account)
-                }
-                Err(_) => {
-                    Err(Error::EcdsaCrypto) // FIXME: Err(Error::EcdsaCrypto(e))
-                }
+            let address = verify_tx_recover_address(&witness, &maintx.id())?;
+            if address != maintx.address {
+                return Err(PublicTxError::StakingWitnessNotMatch);
             }
+
+            staking_table.unjail(staking_store, chain_info.block_time, maintx)?;
+            Ok((Fee::new(Coin::zero()), Some(address)))
         }
         // TODO: delay checking witness, as address is contained in Tx?
         TxPublicAux::NodeJoinTx(maintx, witness) => {
-            match verify_tx_recover_address(&witness, &maintx.id()) {
-                Ok(account_address) => {
-                    let account = trie.get(&account_address).ok_or(Error::AccountNotFound)?;
-                    verify_node_join(maintx, extra_info, node_info, account)
-                }
-                Err(_) => {
-                    Err(Error::EcdsaCrypto) // FIXME: Err(Error::EcdsaCrypto(e))
-                }
+            let address = verify_tx_recover_address(&witness, &maintx.id())?;
+            if address != maintx.address {
+                return Err(PublicTxError::StakingWitnessNotMatch);
             }
+            staking_table.node_join(staking_store, chain_info.block_time, maintx)?;
+            Ok((Fee::new(Coin::zero()), Some(address)))
         }
     }
 }
