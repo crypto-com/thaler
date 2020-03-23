@@ -10,8 +10,8 @@
             "mnemonic": "must sunny destroy cousin ladder survey wrong employ illness thing divert under ready purpose elegant",
             "validator_seed": "9f06b6bb885d0143092aad7a6df2f1cae7690fcbfa1edb8727542372085ade8b",
             "node_seed": "208ff2032ea90646cecee2b21de3488593f8c3a0b9c78ab02bfbf9aa15ab35b4",
-            "bonded_coin": 100000000010000000,
-            "unbonded_coin": 0,
+            "bonded_coin": 100000000000000000,
+            "unbonded_coin": 100000000000000000,
             "base_port": 26650
         },
         {
@@ -30,8 +30,8 @@
             "mnemonic": "symptom labor zone shrug chicken bargain hood define tornado mass inquiry rural step color guitar",
             "validator_seed": "5c1b9c06ae7485cd0f9d75819f964db3b1306ebd397f5bbdc1dd386a32b7c1c0",
             "node_seed": "d40ed56a5fcfa9f196f12d4a7d347774e4ab10de7ec0d173a926ea1f2451a0e4",
-            "bonded_coin": 100000000000000000,
-            "unbonded_coin": 100000000000000000,
+            "bonded_coin": 90000000000000000,
+            "unbonded_coin": 90000000000000000,
             "base_port": 26670
         }
     ],

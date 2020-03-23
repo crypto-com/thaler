@@ -6,6 +6,7 @@ use chain_core::init::coin::Coin;
 use chain_core::state::account::{
     StakedState, StakedStateAddress, StakedStateOpWitness, WithdrawUnbondedTx,
 };
+use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::EcdsaSignature;
@@ -84,7 +85,7 @@ fn get_ecdsa_witness<C: Signing>(
 }
 
 fn get_account(account_address: &RedeemAddress) -> StakedState {
-    StakedState::new_init_unbonded(Coin::one(), 0, StakedStateAddress::from(*account_address))
+    StakedState::default(StakedStateAddress::from(*account_address))
 }
 
 const TEST_NETWORK_ID: u8 = 0xab;
@@ -155,7 +156,8 @@ pub fn test_sealing() {
     let info = ChainInfo {
         min_fee_computed: Fee::new(Coin::zero()),
         chain_hex_id: TEST_NETWORK_ID,
-        previous_block_time: 1,
+        block_time: 1,
+        block_height: BlockHeight::genesis(),
         unbonding_period: 0,
     };
 
