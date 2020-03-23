@@ -78,10 +78,8 @@ if [ -d data ]; then
     exit 1;
 fi
 
-runtest "jail"
-runtest "join"
-runtest "byzantine"
-runtest "proportional"
-runtest "multitx"
+runtest "join" # non-live fault slash, re-join, unbond, re-join
+runtest "byzantine" # make byzantine fault and check jailed, then unjail and re-join again
+runtest "multitx" # make multiple transactions in one block
 
 ./cleanup.sh

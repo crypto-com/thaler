@@ -69,6 +69,7 @@ for h in range(last_height, now_height+1):
     print(rpc.chain.block(h)['block_meta']['header']['num_txs'])
 
 print('Check sync ok')
+time.sleep(5)  # Wait a little bit for block generation
 rpc.wallet.sync()
 assert rpc.wallet.balance() == {
     'total': '250000000000000000',
