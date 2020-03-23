@@ -12,7 +12,7 @@ use sgx_rand::*;
 use sgx_types::*;
 
 use chain_core::tx::{
-    data::{input::TxoIndex, TxId},
+    data::{input::TxoSize, TxId},
     TransactionId, TxEnclaveAux,
 };
 use enclave_protocol::{
@@ -222,7 +222,7 @@ fn handle_encryption_request(
                             let tx = match req {
                                 EncryptionRequest::TransferTx(tx, _) => {
                                     let inputs = tx.inputs;
-                                    let no_of_outputs = tx.outputs.len() as TxoIndex;
+                                    let no_of_outputs = tx.outputs.len() as TxoSize;
                                     TxEnclaveAux::TransferTx {
                                         inputs,
                                         no_of_outputs,
@@ -233,7 +233,7 @@ fn handle_encryption_request(
                                     TxEnclaveAux::DepositStakeTx { tx, payload }
                                 }
                                 EncryptionRequest::WithdrawStake(tx, _, witness) => {
-                                    let no_of_outputs = tx.outputs.len() as TxoIndex;
+                                    let no_of_outputs = tx.outputs.len() as TxoSize;
                                     TxEnclaveAux::WithdrawUnbondedStakeTx {
                                         no_of_outputs,
                                         witness,

@@ -5,7 +5,7 @@ use crate::enclave_bridge::EnclaveProxy;
 use abci::*;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
-use chain_core::tx::data::input::{TxoIndex, TxoPointer};
+use chain_core::tx::data::input::{TxoPointer, TxoSize};
 use chain_core::tx::data::TxId;
 use chain_core::tx::{TxAux, TxEnclaveAux, TxPublicAux};
 use chain_storage::buffer::{flush_staking_storage, flush_storage, StoreKV};
@@ -15,7 +15,7 @@ use parity_scale_codec::Encode;
 /// in the TX_META storage and it will create a new entry for TX in TX_META with all outputs marked as unspent.
 fn update_utxos_commit(
     inputs: &[TxoPointer],
-    no_of_outputs: TxoIndex,
+    no_of_outputs: TxoSize,
     txid: TxId,
     db: &mut impl StoreKV,
 ) {

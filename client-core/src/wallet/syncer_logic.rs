@@ -5,7 +5,7 @@ use thiserror::Error;
 use chain_core::init::coin::{sum_coins, Coin, CoinError};
 use chain_core::tx::{
     data::{
-        input::{TxoIndex, TxoPointer},
+        input::{TxoPointer, TxoSize},
         output::TxOut,
         TxId,
     },
@@ -25,7 +25,7 @@ pub enum SyncerLogicError {
     #[error("Total output amount exceeds maximum allowed value(txid: {0})")]
     TotalOutputOutOfBound(String),
     #[error("Input index is invalid(txid: {0}, index: {1})")]
-    InputIndexInvalid(String, TxoIndex),
+    InputIndexInvalid(String, TxoSize),
     #[error("Inputs come from multiple wallets(txid: {0})")]
     InputFromMultipleWallets(String),
 }

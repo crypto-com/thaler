@@ -13,7 +13,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use crate::tx::data::TxId;
 
 // TODO: u16 and Vec size check in Decode implementation
-pub type TxoIndex = u16;
+pub type TxoSize = u16;
 
 /// Structure used for addressing a specific output of a transaction
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
@@ -31,7 +31,7 @@ pub struct TxoPointer {
     )]
     pub id: TxId,
     // TODO: u16 and Vec size check in Decode implementation
-    pub index: TxoIndex,
+    pub index: TxoSize,
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
@@ -94,7 +94,7 @@ impl TxoPointer {
     pub fn new(id: TxId, index: usize) -> Self {
         TxoPointer {
             id,
-            index: index as TxoIndex,
+            index: index as TxoSize,
         }
     }
 }

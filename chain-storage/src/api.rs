@@ -6,7 +6,7 @@ use parity_scale_codec::Encode;
 use chain_core::common::H256;
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::data::{
-    input::{TxoIndex, TxoPointer},
+    input::{TxoPointer, TxoSize},
     TxId,
 };
 
@@ -130,7 +130,7 @@ pub fn spend_utxos(db: &mut impl StoreKV, txins: &[TxoPointer]) {
     }
 }
 
-pub fn create_utxo(db: &mut impl StoreKV, no_of_outputs: TxoIndex, txid: &TxId) {
+pub fn create_utxo(db: &mut impl StoreKV, no_of_outputs: TxoSize, txid: &TxId) {
     insert_item(
         db,
         LookupItem::TxMetaSpent,

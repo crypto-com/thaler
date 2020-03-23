@@ -2,7 +2,7 @@ use chain_core::init::coin::Coin;
 use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::TransactionId;
-use chain_core::tx::{data::input::TxoIndex, PlainTxAux, TxEnclaveAux, TxObfuscated};
+use chain_core::tx::{data::input::TxoSize, PlainTxAux, TxEnclaveAux, TxObfuscated};
 use chain_tx_filter::BlockFilter;
 use chain_tx_validation::witness::verify_tx_recover_address;
 use chain_tx_validation::{
@@ -171,7 +171,7 @@ pub(crate) fn handle_validate_tx(
                 check_unseal(None, false, inputs.iter().map(|x| x.id), sealed_inputs);
             match (plaintx, unsealed_inputs) {
                 (Ok(PlainTxAux::TransferTx(tx, witness)), Some(inputs)) => {
-                    if tx.id() != payload.txid || tx.outputs.len() as TxoIndex != no_of_outputs {
+                    if tx.id() != payload.txid || tx.outputs.len() as TxoSize != no_of_outputs {
                         log::error!("input invalid txid or outputs index not match!");
                         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
                     }
@@ -221,7 +221,7 @@ pub(crate) fn handle_validate_tx(
             match (plaintx, request.account) {
                 (Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx)), Some(account)) => {
                     if tx.id() != payload.txid
-                        || no_of_outputs != tx.outputs.len() as TxoIndex
+                        || no_of_outputs != tx.outputs.len() as TxoSize
                         || account.address != address.unwrap()
                     {
                         return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;

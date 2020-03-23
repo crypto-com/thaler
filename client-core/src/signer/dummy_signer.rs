@@ -6,7 +6,7 @@ use chain_core::state::account::{
     WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::BlockHeight;
-use chain_core::tx::data::input::{TxoIndex, TxoPointer};
+use chain_core::tx::data::input::{TxoPointer, TxoSize};
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
@@ -69,7 +69,7 @@ impl DummySigner {
         // mock the enclave encrypted result
         let tx_enclave_aux = TxEnclaveAux::TransferTx {
             inputs: tx.inputs.clone(),
-            no_of_outputs: tx.outputs.len() as TxoIndex,
+            no_of_outputs: tx.outputs.len() as TxoSize,
             payload: TxObfuscated {
                 txid: [0; 32],
                 key_from: BlockHeight::genesis(),
@@ -89,7 +89,7 @@ impl DummySigner {
         let deposit_bond_tx = DepositBondTx {
             inputs: vec![TxoPointer {
                 id: TxId::default(),
-                index: TxoIndex::default(),
+                index: TxoSize::default(),
             }],
             to_staked_account: StakedStateAddress::BasicRedeem(RedeemAddress::default()),
             attributes: StakedStateOpAttributes::default(),
@@ -112,7 +112,7 @@ impl DummySigner {
         let ecdsa_signature =
             RecoverableSignature::from_compact(&[0; 64], RecoveryId::from_i32(1).unwrap()).unwrap();
         let witness = StakedStateOpWitness::new(ecdsa_signature);
-        let no_of_outputs = tx.outputs.len() as TxoIndex;
+        let no_of_outputs = tx.outputs.len() as TxoSize;
         let txid = tx.id();
         let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx);
         let padded_plain = self.pad_payload(plain);
