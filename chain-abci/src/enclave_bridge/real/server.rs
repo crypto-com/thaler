@@ -85,7 +85,8 @@ impl TxValidationServer {
                                     let info = ChainInfo {
                                         min_fee_computed: min_fee,
                                         chain_hex_id: self.network_id,
-                                        previous_block_time: last_state.block_time,
+                                        block_time: last_state.block_time,
+                                        block_height: last_state.block_height,
                                         unbonding_period: last_state
                                             .top_level
                                             .network_params

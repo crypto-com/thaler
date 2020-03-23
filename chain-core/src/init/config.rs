@@ -132,28 +132,15 @@ impl InitConfig {
     fn get_account(&self, genesis_time: Timespec) -> Vec<StakedState> {
         self.distribution
             .iter()
-            .map(|(address, (destination, amount))| match destination {
-                StakedStateDestination::Bonded => {
-                    let council_node = self.get_council_node(address);
-                    StakedState::new_init_bonded(
-                        *amount,
-                        genesis_time,
-                        StakedStateAddress::BasicRedeem(*address),
-                        council_node.ok(),
-                    )
-                }
-                StakedStateDestination::UnbondedFromGenesis => StakedState::new_init_unbonded(
-                    *amount,
-                    genesis_time,
+            .map(|(address, (destination, amount))| {
+                StakedState::from_genesis(
                     StakedStateAddress::BasicRedeem(*address),
-                ),
-                StakedStateDestination::UnbondedFromCustomTime(time) => {
-                    StakedState::new_init_unbonded(
-                        *amount,
-                        *time,
-                        StakedStateAddress::BasicRedeem(*address),
-                    )
-                }
+                    genesis_time,
+                    destination,
+                    *amount,
+                    // assume address already validated, so we just ignore any error here.
+                    self.get_council_node(address).ok(),
+                )
             })
             .collect()
     }
@@ -243,6 +230,10 @@ impl InitConfig {
         }
 
         let accounts = self.get_account(genesis_time);
+        for staking in accounts.iter() {
+            #[cfg(debug_assertions)]
+            staking.check_invariants(self.network_params.required_council_node_stake);
+        }
         let rewards_pool = RewardsPoolState::new(
             genesis_time,
             self.network_params.rewards_config.monetary_expansion_tau,

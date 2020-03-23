@@ -2,6 +2,7 @@ use abci::*;
 use bit_vec::BitVec;
 use chain_abci::app::*;
 use chain_abci::enclave_bridge::mock::MockClient;
+use chain_abci::staking_table::StakingTable;
 use chain_core::common::{MerkleTree, Proof, H256, HASH_SIZE_256};
 use chain_core::compute_app_hash;
 use chain_core::init::address::RedeemAddress;
@@ -184,8 +185,9 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         last_block_height: BlockHeight::genesis(),
         last_apphash: app_hash,
         block_time: 0,
+        block_height: BlockHeight::genesis(),
         genesis_time: 0,
-        validators: ValidatorState::default(),
+        staking_table: StakingTable::default(),
         top_level: ChainState {
             account_root: [0u8; 32],
             rewards_pool: RewardsPoolState::new(0, params.get_rewards_monetary_expansion_tau()),
@@ -480,11 +482,22 @@ fn two_beginblocks_should_panic() {
 }
 
 fn get_block_proposer(app: &ChainNodeApp<MockClient>) -> TendermintValidatorAddress {
-    app.last_state
+    let StakedStateAddress::BasicRedeem(staking_address) = app
+        .last_state
         .as_ref()
         .unwrap()
-        .validators
-        .get_first_tm_validator_address()
+        .staking_table
+        .validator_snapshot
+        .iter()
+        .next()
+        .unwrap()
+        .0;
+
+    get_account(staking_address, app)
+        .unwrap()
+        .validator
+        .unwrap()
+        .validator_address()
 }
 
 fn begin_block(app: &mut ChainNodeApp<MockClient>) {
@@ -958,13 +971,13 @@ fn all_valid_tx_types_should_commit() {
     let nodejointx = TxAux::PublicTx(TxPublicAux::NodeJoinTx(tx, witness));
     {
         let account = get_account(&addr, &app).expect("account not exist");
-        assert!(account.council_node.is_none());
+        assert!(account.validator.is_none());
         assert_eq!(
             app.last_state
                 .as_ref()
                 .unwrap()
-                .validators
-                .council_nodes_by_power
+                .staking_table
+                .validator_snapshot
                 .len(),
             1
         );
@@ -973,13 +986,13 @@ fn all_valid_tx_types_should_commit() {
     block_commit(&mut app, nodejointx, 5);
     {
         let account = get_account(&addr, &app).expect("account not exist");
-        assert!(account.council_node.is_some());
+        assert!(account.validator.is_some());
         assert_eq!(
             app.last_state
                 .as_ref()
                 .unwrap()
-                .validators
-                .council_nodes_by_power
+                .staking_table
+                .validator_snapshot
                 .len(),
             2
         );

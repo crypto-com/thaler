@@ -148,9 +148,9 @@ mod test {
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::state::account::{
-        CouncilNode, Nonce, Punishment, PunishmentKind, StakedState, StakedStateAddress,
+        CouncilNode, Nonce, StakedState, StakedStateAddress, Validator,
     };
-    use chain_core::state::tendermint::TendermintValidatorPubKey;
+    use chain_core::state::tendermint::{BlockHeight, TendermintValidatorPubKey};
     use kvdb_memorydb::create;
     use quickcheck::quickcheck;
     use quickcheck::Arbitrary;
@@ -167,22 +167,21 @@ mod test {
             g.fill_bytes(&mut raw_address);
             let address: StakedStateAddress =
                 StakedStateAddress::from(RedeemAddress::from(raw_address));
-            let punishment = if bool::arbitrary(g) {
-                let time = u64::arbitrary(g);
-                Some(Punishment {
-                    kind: PunishmentKind::NonLive,
-                    jailed_until: time,
-                    slash_amount: None,
-                })
-            } else {
-                None
-            };
-            let council_node = if bool::arbitrary(g) {
+            let validator = if bool::arbitrary(g) {
                 let mut raw_pubkey = [0u8; 32];
                 g.fill_bytes(&mut raw_pubkey);
-                Some(CouncilNode::new(TendermintValidatorPubKey::Ed25519(
-                    raw_pubkey,
-                )))
+                let jailed_until = if bool::arbitrary(g) {
+                    Some(u64::arbitrary(g))
+                } else {
+                    None
+                };
+                Some(Validator {
+                    council_node: CouncilNode::new(TendermintValidatorPubKey::Ed25519(raw_pubkey)),
+                    jailed_until,
+                    inactive_time: Some(0),
+                    inactive_block: Some(BlockHeight::genesis()),
+                    used_validator_addresses: vec![],
+                })
             } else {
                 None
             };
@@ -192,8 +191,8 @@ mod test {
                 unbonded: Coin::from(unbonded),
                 unbonded_from,
                 address,
-                punishment,
-                council_node,
+                validator,
+                last_slash: None,
             })
         }
     }

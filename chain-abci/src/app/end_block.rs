@@ -2,15 +2,14 @@ use std::convert::TryInto;
 
 use crate::app::app_init::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use abci::{Event, KVPair, RequestEndBlock, ResponseEndBlock};
+use abci::{Event, KVPair, PubKey, RequestEndBlock, ResponseEndBlock, ValidatorUpdate};
 use chain_core::common::TendermintEventType;
 use chain_tx_filter::BlockFilter;
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk};
-use protobuf::RepeatedField;
 
 impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// tags the block with the transaction filter + computes validator set changes
-    pub fn end_block_handler(&mut self, _req: &RequestEndBlock) -> ResponseEndBlock {
+    pub fn end_block_handler(&mut self, req: &RequestEndBlock) -> ResponseEndBlock {
         let mut resp = ResponseEndBlock::new();
         if !self.delivered_txs.is_empty() {
             let end_block_resp = self
@@ -34,15 +33,30 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             }
         }
         // TODO: skipchain-based validator changes?
-        self.last_state.as_mut().map(|mut state| {
-        if let Some(validators) = state.validators.get_validator_updates(
-            state.top_level.network_params.get_block_signing_window(),
+        let state = self.last_state.as_mut().expect("executing end block, but no app state stored (i.e. no initchain or recovery was executed)");
+        let val_updates = state.staking_table.end_block(
+            &staking_getter!(self, Some(state.top_level.account_root)),
             state.top_level.network_params.get_max_validators(),
-            state.block_time + (state.top_level.network_params.get_unbonding_period() as u64)) {
-            resp.set_validator_updates(RepeatedField::from(validators));
-        }
-        state.last_block_height = _req.height.try_into().unwrap();
-        }).expect("executing end block, but no app state stored (i.e. no initchain or recovery was executed)");
+        );
+
+        resp.set_validator_updates(
+            val_updates
+                .into_iter()
+                .map(|(pubkey, power)| {
+                    let mut validator = ValidatorUpdate::default();
+                    validator.set_power(power.into());
+
+                    let mut pk = PubKey::new();
+                    let (keytype, key) = pubkey.to_validator_update();
+                    pk.set_field_type(keytype);
+                    pk.set_data(key);
+                    validator.set_pub_key(pk);
+
+                    validator
+                })
+                .collect(),
+        );
+        state.last_block_height = req.height.try_into().unwrap();
         resp
     }
 }

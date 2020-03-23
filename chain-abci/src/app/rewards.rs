@@ -5,7 +5,7 @@ use crate::enclave_bridge::EnclaveProxy;
 use chain_core::common::fixed::monetary_expansion;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
-use chain_core::state::tendermint::{TendermintValidatorAddress, TendermintVotePower};
+use chain_storage::buffer::StakingGetter;
 
 // rate < 1_000_000, no overflow.
 fn mul_micro(n: u64, rate: u64) -> u64 {
@@ -41,9 +41,8 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         self.rewards_pool_updated = true;
 
         let total_staking = state
-            .validators
-            .validator_state_helper
-            .get_validator_total_bonded(&staking_getter!(self, account_root));
+            .staking_table
+            .reward_total_staking(&StakingGetter::new(&self.accounts, account_root));
 
         let minted = if let Ok(can_mint) =
             params.get_rewards_monetary_expansion_cap() - top_level.rewards_pool.minted
@@ -71,22 +70,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let total_rewards = (top_level.rewards_pool.period_bonus + minted).unwrap();
         top_level.rewards_pool.minted = (top_level.rewards_pool.minted + minted).unwrap();
 
-        let total_blocks = state.validators.get_total_blocks();
-        let share = (total_rewards / total_blocks).unwrap();
-        top_level.rewards_pool.period_bonus = (total_rewards % total_blocks).unwrap();
+        let (remainer, reward_distribution) = state
+            .staking_table
+            .reward_distribute(&mut staking_store!(self, account_root), total_rewards);
 
-        let distributed = state.validators.distribute_rewards(
-            share,
-            &mut staking_store!(self, account_root),
-            TendermintVotePower::from(state.minimum_effective()),
-        );
-
-        Some((distributed, minted))
-    }
-
-    pub fn rewards_record_proposer(&mut self, addr: &TendermintValidatorAddress) {
-        let state = self.last_state.as_mut().unwrap();
-        state.validators.record_proposed_block(addr);
+        top_level.rewards_pool.period_bonus = remainer;
+        Some((reward_distribution, minted))
     }
 }
 
@@ -134,7 +123,10 @@ mod tests {
         // check the rewards
         let state = app.last_state.as_ref().unwrap();
         let top_level = &state.top_level;
-        let staking = state.validators.lookup_address(&env.validator_address(0));
+        let staking = state
+            .staking_table
+            .lookup_address(&env.validator_address(0))
+            .unwrap();
         let acct = get_account(staking, &app);
         assert_eq!(acct.bonded, (env.share() + reward1).unwrap());
         assert_eq!(acct.nonce, 1);
@@ -157,7 +149,10 @@ mod tests {
 
         // check the rewards
         let state = app.last_state.as_ref().unwrap();
-        let staking = state.validators.lookup_address(&env.validator_address(1));
+        let staking = state
+            .staking_table
+            .lookup_address(&env.validator_address(1))
+            .unwrap();
         let acct = get_account(staking, &app);
         assert_eq!(acct.bonded, (env.share() + reward2).unwrap());
         assert_eq!(acct.nonce, 1);

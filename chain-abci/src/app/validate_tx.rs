@@ -1,14 +1,13 @@
-use super::ChainNodeState;
+use super::{BufferType, ChainNodeApp, ChainNodeState};
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::{verify_enclave_tx, verify_public_tx, TxAction, TxEnclaveAction};
+use crate::staking_table::{NodeJoinError, UnbondError, UnjailError};
+use crate::storage::{process_public_tx, verify_enclave_tx, TxEnclaveAction};
 use abci::*;
-use chain_core::state::account::StakedState;
-use chain_core::state::tendermint::TendermintVotePower;
+use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
-use chain_core::tx::{TxAux, TxPublicAux};
-use chain_storage::buffer::{GetKV, GetStaking, StoreKV, StoreStaking};
-use chain_tx_validation::{ChainInfo, Error};
+use chain_core::tx::TxAux;
+use chain_storage::buffer::{StoreKV, StoreStaking};
 use parity_scale_codec::Decode;
 
 /// Wrapper to abstract over CheckTx and DeliverTx requests
@@ -61,130 +60,127 @@ impl ResponseWithCodeAndLog for ResponseDeliverTx {
     }
 }
 
-fn handle_tx<T: EnclaveProxy>(
-    trie: &impl GetStaking,
-    kvdb: &impl GetKV,
-    tx_validator: &mut T,
-    txaux: &TxAux,
-    extra_info: &ChainInfo,
-) -> Result<TxAction, Error> {
-    match txaux {
-        TxAux::EnclaveTx(tx) => {
-            let action = verify_enclave_tx(tx_validator, &tx, extra_info, trie, kvdb)?;
-            Ok(TxAction::Enclave(action))
-        }
-        TxAux::PublicTx(tx) => Ok(TxAction::Public(tx.clone())),
-    }
+#[derive(thiserror::Error, Debug)]
+pub enum PublicTxError {
+    #[error("public tx wrong chain_hex_id")]
+    WrongChainHexId,
+    #[error("public tx unsupported version")]
+    UnsupportedVersion,
+    #[error("verify staking witness failed: {0}")]
+    StakingWitnessVerify(#[from] secp256k1::Error),
+    #[error("staking witness and address don't match")]
+    StakingWitnessNotMatch,
+    #[error("tx nonce don't match staking state")]
+    IncorrectNonce,
+    #[error("unjail tx process failed: {0}")]
+    Unjail(#[from] UnjailError),
+    #[error("node join tx process failed: {0}")]
+    NodeJoin(#[from] NodeJoinError),
+    #[error("unbond tx process failed: {0}")]
+    Unbond(#[from] UnbondError),
 }
 
-/// Gets CheckTx or DeliverTx requests, tries to parse its data into TxAux and validate that TxAux.
-/// Returns Some(TxAux, TxAction) if OK, or Err(String) if some problems.
-pub fn validate_tx_req<T: EnclaveProxy>(
-    trie: &impl GetStaking,
-    kvdb: &impl GetKV,
-    tx_validator: &mut T,
-    req: &impl RequestWithTx,
-    extra_info: &ChainInfo,
-) -> Result<(TxAux, TxAction), String> {
-    let dtx = TxAux::decode(&mut req.tx());
-    match dtx {
-        Err(e) => Err(format!("failed to deserialize tx: {}", e.what())),
-        Ok(txaux) => {
-            let result = handle_tx(trie, kvdb, tx_validator, &txaux, extra_info);
-            match result {
-                Ok(action) => Ok((txaux, action)),
-                Err(err) => Err(format!("verification failed: {}", err.to_string())),
+#[derive(thiserror::Error, Debug)]
+pub enum TxError {
+    #[error("deserialize TxAux failed: {0}")]
+    DeserializeTx(#[from] parity_scale_codec::Error),
+    #[error("enclave tx validation failed: {0}")]
+    Enclave(#[from] chain_tx_validation::Error),
+    #[error("public tx process failed: {0}")]
+    Public(#[from] PublicTxError),
+}
+
+impl<T: EnclaveProxy> ChainNodeApp<T> {
+    pub fn process_tx(
+        &mut self,
+        req: &impl RequestWithTx,
+        buffer_type: BufferType,
+    ) -> Result<(TxAux, Fee, Option<StakedStateAddress>), TxError> {
+        let extra_info = self.tx_extra_info(req.tx().len());
+        let state = match buffer_type {
+            BufferType::Consensus => self.last_state.as_mut().expect("expect last_state"),
+            BufferType::Mempool => self.mempool_state.as_mut().expect("expect last_state"),
+        };
+        let account_root = Some(state.top_level.account_root);
+        let txaux = TxAux::decode(&mut req.tx())?;
+        let txid = txaux.tx_id();
+        let (fee, maccount) = match &txaux {
+            TxAux::EnclaveTx(tx) => {
+                let action = verify_enclave_tx(
+                    &mut self.tx_validator,
+                    &tx,
+                    &extra_info,
+                    &staking_getter!(self, account_root, buffer_type),
+                    &kv_store!(self, buffer_type),
+                )?;
+                // execute the action
+                let maccount = execute_enclave_tx(
+                    &mut staking_store!(self, account_root, buffer_type),
+                    &mut kv_store!(self, buffer_type),
+                    state,
+                    &txid,
+                    &action,
+                );
+                (action.fee(), maccount)
             }
-        }
+            TxAux::PublicTx(tx) => process_public_tx(
+                &mut staking_store!(self, account_root, buffer_type),
+                &mut state.staking_table,
+                &extra_info,
+                &tx,
+            )?,
+        };
+        Ok((txaux, fee, maccount))
     }
 }
 
-pub fn execute_enclave_tx(
+fn execute_enclave_tx(
     trie: &mut impl StoreStaking,
     kvdb: &mut impl StoreKV,
     state: &mut ChainNodeState,
     txid: &TxId,
     action: &TxEnclaveAction,
-) -> (Fee, Option<StakedState>) {
+) -> Option<StakedStateAddress> {
     match action {
         TxEnclaveAction::Transfer {
             spend_utxo,
             sealed_log,
-            fee,
             ..
         } => {
             chain_storage::spend_utxos(kvdb, &spend_utxo);
             // Done in commit event
-            // chain_storage::create_utxo(kvdb, no_of_outputs, txid);
+            // storage.create_utxo(no_of_outputs, txid);
             chain_storage::store_sealed_log(kvdb, &txid, sealed_log);
-            (*fee, None)
+            None
         }
         TxEnclaveAction::Deposit {
-            fee,
             spend_utxo,
             deposit: (address, amount),
+            ..
         } => {
             chain_storage::spend_utxos(kvdb, &spend_utxo);
-            let mut account = trie.get_or_default(&address);
-            account.deposit(*amount);
-            trie.set_staking(account.clone());
-            update_account(state, &account);
-            (*fee, Some(account))
+            state
+                .staking_table
+                .deposit(trie, address, *amount)
+                .expect("deposit sanity check");
+            Some(*address)
         }
         TxEnclaveAction::Withdraw {
-            fee,
             withdraw: (address, amount),
             sealed_log,
             ..
         } => {
             // Done in commit event
-            // chain_storage::create_utxo(kvdb, no_of_outputs, txid);
+            // storage.create_utxo(no_of_outputs, txid);
             chain_storage::store_sealed_log(kvdb, &txid, sealed_log);
 
-            // no panic: tx is verified, account should be exist.
+            // no panic: tx is already verified, all the error in execution is not allowed.
             // operations are sequential in the state machine, so no concurrent updates
-            let mut account = trie.get(&address).unwrap();
-            assert_eq!(&account.unbonded, amount);
-            account.withdraw();
-            trie.set_staking(account.clone());
-            update_account(state, &account);
-            (*fee, Some(account))
+            state
+                .staking_table
+                .withdraw(trie, state.block_time, address, *amount)
+                .expect("withdraw sanity check");
+            Some(*address)
         }
     }
-}
-
-pub fn execute_public_tx(
-    trie: &mut impl StoreStaking,
-    state: &mut ChainNodeState,
-    txaux: &TxPublicAux,
-    extra_info: &ChainInfo,
-) -> Result<(Fee, Option<StakedState>), String> {
-    let fee_acc = verify_public_tx(txaux, extra_info, &*state, trie)
-        .map_err(|err| format!("verification failed: {}", err.to_string()))?;
-    let staking = fee_acc
-        .1
-        .clone()
-        .expect("account returned in unbond stake verification");
-    match txaux {
-        TxPublicAux::UnbondStakeTx(_, _) => trie.set_staking(staking.clone()),
-        TxPublicAux::UnjailTx(_, _) => trie.set_staking(staking.clone()),
-        TxPublicAux::NodeJoinTx(_, _) => {
-            state.validators.new_valid_node_join_update(&staking);
-            trie.set_staking(staking.clone())
-        }
-    };
-    update_account(state, &staking);
-    Ok(fee_acc)
-}
-
-fn update_account(state: &mut ChainNodeState, account: &StakedState) {
-    state.validators.validator_state_helper.voting_power_update(
-        account,
-        TendermintVotePower::from(
-            state
-                .top_level
-                .network_params
-                .get_required_council_node_stake(),
-        ),
-    );
 }
