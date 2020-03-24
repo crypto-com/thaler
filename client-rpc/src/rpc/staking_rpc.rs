@@ -245,7 +245,7 @@ where
                 tx_pending,
             )
             .map_err(to_rpc_error)?;
-        Ok(hex::encode(tx_id))
+        Ok(hex::encode(transaction.tx_id()))
     }
 
     fn state(&self, address: StakedStateAddress) -> Result<StakedState> {
