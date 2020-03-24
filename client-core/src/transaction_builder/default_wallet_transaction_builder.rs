@@ -194,7 +194,7 @@ mod default_wallet_transaction_builder_tests {
 
     use super::*;
     use chain_core::state::tendermint::BlockHeight;
-    use chain_core::tx::data::input::{TxoIndex, TxoPointer};
+    use chain_core::tx::data::input::{TxoPointer, TxoSize};
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{LinearFee, Milli};
     use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
@@ -226,7 +226,7 @@ mod default_wallet_transaction_builder_tests {
                 SignedTransaction::TransferTransaction(tx, _) => {
                     Ok(TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                         inputs: tx.inputs.clone(),
-                        no_of_outputs: tx.outputs.len() as TxoIndex,
+                        no_of_outputs: tx.outputs.len() as TxoSize,
                         payload: TxObfuscated {
                             txid: [0; 32],
                             key_from: BlockHeight::genesis(),

@@ -6,7 +6,7 @@ use chain_core::state::account::DepositBondTx;
 #[cfg(feature = "mock-enc-dec")]
 use chain_core::state::tendermint::BlockHeight;
 #[cfg(feature = "mock-enc-dec")]
-use chain_core::tx::data::input::TxoIndex;
+use chain_core::tx::data::input::TxoSize;
 use chain_core::tx::PlainTxAux;
 #[cfg(feature = "mock-enc-dec")]
 use chain_core::tx::TransactionId;
@@ -58,7 +58,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                     let mock = EncryptionResponse {
                         resp: Ok(TxEnclaveAux::TransferTx {
                             inputs: tx.inputs.clone(),
-                            no_of_outputs: tx.outputs.len() as TxoIndex,
+                            no_of_outputs: tx.outputs.len() as TxoSize,
                             payload: TxObfuscated {
                                 key_from: BlockHeight::genesis(),
                                 txid: tx.id(),
@@ -88,7 +88,7 @@ pub fn handle_enc_dec(_req: &RequestQuery, resp: &mut ResponseQuery, storage: &S
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                     let mock = EncryptionResponse {
                         resp: Ok(TxEnclaveAux::WithdrawUnbondedStakeTx {
-                            no_of_outputs: tx.outputs.len() as TxoIndex,
+                            no_of_outputs: tx.outputs.len() as TxoSize,
                             witness,
                             payload: TxObfuscated {
                                 key_from: BlockHeight::genesis(),

@@ -16,7 +16,7 @@ use chain_core::tx::{
         access::{TxAccess, TxAccessPolicy},
         address::ExtendedAddr,
         attribute::TxAttributes,
-        input::{TxoIndex, TxoPointer},
+        input::{TxoPointer, TxoSize},
         output::TxOut,
         Tx, TxId,
     },
@@ -144,7 +144,7 @@ pub fn test_sealing() {
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
     let account = get_account(&addr);
     let withdrawtx = TxEnclaveAux::WithdrawUnbondedStakeTx {
-        no_of_outputs: tx0.outputs.len() as TxoIndex,
+        no_of_outputs: tx0.outputs.len() as TxoSize,
         witness: witness0.clone(),
         payload: encrypt(
             enclave.geteid(),
@@ -202,7 +202,7 @@ pub fn test_sealing() {
     .into();
     let transfertx = TxEnclaveAux::TransferTx {
         inputs: tx1.inputs.clone(),
-        no_of_outputs: tx1.outputs.len() as TxoIndex,
+        no_of_outputs: tx1.outputs.len() as TxoSize,
         payload: encrypt(
             enclave.geteid(),
             EncryptionRequest::TransferTx(tx1, witness1),
@@ -235,7 +235,7 @@ pub fn test_sealing() {
     .into();
     let transfertx2 = TxEnclaveAux::TransferTx {
         inputs: tx2.inputs.clone(),
-        no_of_outputs: tx2.outputs.len() as TxoIndex,
+        no_of_outputs: tx2.outputs.len() as TxoSize,
         payload: encrypt(
             enclave.geteid(),
             EncryptionRequest::TransferTx(tx2, witness2),

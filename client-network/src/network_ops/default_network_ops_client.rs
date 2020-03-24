@@ -529,7 +529,7 @@ mod tests {
     use chain_core::state::tendermint::BlockHeight;
     use chain_core::state::tendermint::TendermintValidatorPubKey;
     use chain_core::state::ChainState;
-    use chain_core::tx::data::input::TxoIndex;
+    use chain_core::tx::data::input::TxoSize;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::Fee;
     use chain_core::tx::{PlainTxAux, TxEnclaveAux, TxObfuscated};
@@ -573,7 +573,7 @@ mod tests {
                 SignedTransaction::WithdrawUnbondedStakeTransaction(tx, _, witness) => {
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                     Ok(TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
-                        no_of_outputs: tx.outputs.len() as TxoIndex,
+                        no_of_outputs: tx.outputs.len() as TxoSize,
                         witness,
                         payload: TxObfuscated {
                             txid: tx.id(),

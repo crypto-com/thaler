@@ -437,7 +437,7 @@ pub mod tests {
     use chain_core::init::coin::CoinError;
     use chain_core::state::tendermint::BlockHeight;
     use chain_core::state::ChainState;
-    use chain_core::tx::data::input::TxoIndex;
+    use chain_core::tx::data::input::TxoSize;
     use chain_core::tx::data::TxId;
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
@@ -487,7 +487,7 @@ pub mod tests {
                 SignedTransaction::TransferTransaction(tx, _) => {
                     Ok(TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                         inputs: tx.inputs.clone(),
-                        no_of_outputs: tx.outputs.len() as TxoIndex,
+                        no_of_outputs: tx.outputs.len() as TxoSize,
                         payload: TxObfuscated {
                             txid: tx.id(),
                             key_from: BlockHeight::genesis(),
@@ -511,7 +511,7 @@ pub mod tests {
                 SignedTransaction::WithdrawUnbondedStakeTransaction(tx, _, witness) => {
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                     Ok(TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
-                        no_of_outputs: tx.outputs.len() as TxoIndex,
+                        no_of_outputs: tx.outputs.len() as TxoSize,
                         witness,
                         payload: TxObfuscated {
                             txid: tx.id(),

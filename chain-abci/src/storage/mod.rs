@@ -1,7 +1,7 @@
 use crate::enclave_bridge::EnclaveProxy;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{StakedState, StakedStateAddress};
-use chain_core::tx::data::input::{TxoIndex, TxoPointer};
+use chain_core::tx::data::input::{TxoPointer, TxoSize};
 use chain_core::tx::fee::Fee;
 use chain_core::tx::{TransactionId, TxEnclaveAux, TxObfuscated, TxPublicAux};
 use chain_storage::account::{
@@ -24,7 +24,7 @@ pub enum TxEnclaveAction {
     Transfer {
         fee: Fee,
         spend_utxo: Vec<TxoPointer>,
-        create_utxo: TxoIndex,
+        create_utxo: TxoSize,
         sealed_log: SealedLog,
     },
     Deposit {
@@ -35,7 +35,7 @@ pub enum TxEnclaveAction {
     Withdraw {
         fee: Fee,
         withdraw: (StakedStateAddress, Coin),
-        create_utxo: TxoIndex,
+        create_utxo: TxoSize,
         sealed_log: SealedLog,
     },
 }
@@ -44,7 +44,7 @@ impl TxEnclaveAction {
     fn transfer(
         fee: Fee,
         spend_utxo: Vec<TxoPointer>,
-        create_utxo: TxoIndex,
+        create_utxo: TxoSize,
         sealed_log: SealedLog,
     ) -> Self {
         Self::Transfer {
@@ -63,7 +63,7 @@ impl TxEnclaveAction {
     }
     fn withdraw(
         fee: Fee,
-        create_utxo: TxoIndex,
+        create_utxo: TxoSize,
         sealed_log: SealedLog,
         withdraw: (StakedStateAddress, Coin),
     ) -> Self {

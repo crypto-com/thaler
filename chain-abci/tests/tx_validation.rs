@@ -21,7 +21,7 @@ use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::data::{
     address::ExtendedAddr,
     attribute::TxAttributes,
-    input::{TxoIndex, TxoPointer},
+    input::{TxoPointer, TxoSize},
     output::TxOut,
 };
 use chain_core::tx::data::{Tx, TxId};
@@ -236,7 +236,7 @@ fn prepare_app_valid_transfer_tx(
     // TODO: mock enc
     let txaux = TxEnclaveAux::TransferTx {
         inputs: tx.inputs.clone(),
-        no_of_outputs: tx.outputs.len() as TxoIndex,
+        no_of_outputs: tx.outputs.len() as TxoSize,
         payload: TxObfuscated {
             txid: tx.id(),
             key_from: BlockHeight::genesis(),
@@ -435,7 +435,7 @@ fn prepare_app_valid_withdraw_tx(
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
     // TODO: mock enc
     let txaux = TxEnclaveAux::WithdrawUnbondedStakeTx {
-        no_of_outputs: tx.outputs.len() as TxoIndex,
+        no_of_outputs: tx.outputs.len() as TxoSize,
         witness: witness.clone(),
         payload: TxObfuscated {
             txid: tx.id(),
@@ -1006,7 +1006,7 @@ fn replace_tx_payload(
             PlainTxAux::TransferTx(tx, _),
         ) => TxEnclaveAux::TransferTx {
             inputs: tx.inputs.clone(),
-            no_of_outputs: tx.outputs.len() as TxoIndex,
+            no_of_outputs: tx.outputs.len() as TxoSize,
             payload: TxObfuscated {
                 txid: tx.id(),
                 key_from,
@@ -1047,7 +1047,7 @@ fn replace_tx_payload(
             },
             PlainTxAux::WithdrawUnbondedStakeTx(tx),
         ) => TxEnclaveAux::WithdrawUnbondedStakeTx {
-            no_of_outputs: tx.outputs.len() as TxoIndex,
+            no_of_outputs: tx.outputs.len() as TxoSize,
             witness: if let Some(w) = mwitness { w } else { witness },
             payload: TxObfuscated {
                 txid: tx.id(),
@@ -1439,7 +1439,7 @@ fn prepare_withdraw_transaction(secret_key: &SecretKey) -> TxEnclaveAux {
     let witness = get_account_op_witness(secp, &tx.id(), secret_key);
 
     TxEnclaveAux::WithdrawUnbondedStakeTx {
-        no_of_outputs: tx.outputs.len() as TxoIndex,
+        no_of_outputs: tx.outputs.len() as TxoSize,
         witness: witness.clone(),
         payload: TxObfuscated {
             txid: tx.id(),

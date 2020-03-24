@@ -22,7 +22,7 @@ use crate::state::tendermint::BlockHeight;
 use crate::state::validator::NodeJoinRequestTx;
 use crate::tx::data::{txid_hash, TxId};
 use aead::Payload;
-use data::input::{TxoIndex, TxoPointer};
+use data::input::{TxoPointer, TxoSize};
 use data::output::TxOut;
 
 const TX_AUX_SIZE: usize = 1024 * 60; // 60 KB
@@ -153,7 +153,7 @@ pub enum TxEnclaveAux {
     /// normal value transfer Tx with the vector of witnesses
     TransferTx {
         inputs: Vec<TxoPointer>,
-        no_of_outputs: TxoIndex,
+        no_of_outputs: TxoSize,
         payload: TxObfuscated,
     },
     /// Tx "spends" utxos to be deposited as bonded stake in an account (witnesses as in transfer)
@@ -163,7 +163,7 @@ pub enum TxEnclaveAux {
     },
     /// Tx that "creates" utxos out of account state; withdraws unbonded stake (witness for account)
     WithdrawUnbondedStakeTx {
-        no_of_outputs: TxoIndex,
+        no_of_outputs: TxoSize,
         witness: StakedStateOpWitness,
         payload: TxObfuscated,
     },

@@ -33,7 +33,7 @@ use chain_core::tx::{
         access::{TxAccess, TxAccessPolicy},
         address::ExtendedAddr,
         attribute::TxAttributes,
-        input::{TxoIndex, TxoPointer},
+        input::{TxoPointer, TxoSize},
         output::TxOut,
         txid_hash, Tx, TxId,
     },
@@ -445,7 +445,7 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
     // TODO: mock enc
     let txaux = TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
-        no_of_outputs: tx.outputs.len() as TxoIndex,
+        no_of_outputs: tx.outputs.len() as TxoSize,
         witness: witness.clone(),
         payload: TxObfuscated {
             txid: tx.id(),
@@ -820,7 +820,7 @@ fn all_valid_tx_types_should_commit() {
     let txid = &tx0.id();
     let witness0 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &txid, &secret_key));
     let withdrawtx = TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
-        no_of_outputs: tx0.outputs.len() as TxoIndex,
+        no_of_outputs: tx0.outputs.len() as TxoSize,
         witness: witness0,
         payload: TxObfuscated {
             txid: tx0.id(),
@@ -859,7 +859,7 @@ fn all_valid_tx_types_should_commit() {
     let plain_txaux = PlainTxAux::TransferTx(tx1.clone(), witness1);
     let transfertx = TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
         inputs: tx1.inputs.clone(),
-        no_of_outputs: tx1.outputs.len() as TxoIndex,
+        no_of_outputs: tx1.outputs.len() as TxoSize,
         payload: TxObfuscated {
             txid: tx1.id(),
             key_from: BlockHeight::genesis(),
