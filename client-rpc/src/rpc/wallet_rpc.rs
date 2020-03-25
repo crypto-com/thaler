@@ -121,7 +121,7 @@ pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_export")]
     fn export(&self, request: WalletRequest) -> Result<WalletInfo>;
 
-    #[rpc(name = "wallet_export")]
+    #[rpc(name = "wallet_import")]
     fn import(&self, request: CreateWalletRequest, wallet_info: WalletInfo) -> Result<SecKey>;
 }
 
