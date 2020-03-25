@@ -110,6 +110,10 @@ pub enum TransactionType {
     Unbond,
     /// Deposit transaction
     Deposit,
+    /// unjail transaction
+    Unjail,
+    /// Nodejoin transaction
+    Nodejoin,
 }
 
 impl fmt::Display for TransactionType {
@@ -119,6 +123,8 @@ impl fmt::Display for TransactionType {
             TransactionType::Withdraw => write!(f, "Withdraw"),
             TransactionType::Unbond => write!(f, "Unbond"),
             TransactionType::Deposit => write!(f, "Deposit"),
+            TransactionType::Unjail => write!(f, "Unfail"),
+            TransactionType::Nodejoin => write!(f, "Nodejoin"),
         }
     }
 }
@@ -252,6 +258,8 @@ impl From<&Transaction> for TransactionType {
             Transaction::WithdrawUnbondedStakeTransaction(_) => TransactionType::Withdraw,
             Transaction::UnbondStakeTransaction(_) => TransactionType::Unbond,
             Transaction::DepositStakeTransaction(_) => TransactionType::Deposit,
+            Transaction::UnjailTransaction(_) => TransactionType::Unjail,
+            Transaction::NodejoinTransaction(_) => TransactionType::Nodejoin,
         }
     }
 }

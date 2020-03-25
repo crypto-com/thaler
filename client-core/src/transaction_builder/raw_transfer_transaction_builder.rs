@@ -16,7 +16,9 @@ use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{TransactionId, TxAux};
 use chain_tx_validation::witness::verify_tx_address;
 use chain_tx_validation::{check_inputs_basic, check_outputs_basic};
-use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SignedTransaction};
+use client_common::{
+    Error, ErrorKind, PublicKey, Result, ResultExt, SignedTransaction, Transaction,
+};
 
 use crate::signer::{DummySigner, SignCondition, Signer};
 use crate::{TransactionObfuscation, UnspentTransactions};
@@ -227,7 +229,7 @@ where
     where
         S: Signer,
     {
-        let tx_id = self.tx_id();
+        let tx = Transaction::TransferTransaction(self.to_tx());
         let input_witness_pairs: Vec<(usize, TxInWitness)> = self
             .iter_inputs()
             .enumerate()
@@ -237,7 +239,7 @@ where
                     return Ok(None);
                 }
 
-                let witness = signer.schnorr_sign(&tx_id, signing_addr)?;
+                let witness = signer.schnorr_sign(&tx, signing_addr)?;
 
                 Ok(Some((i, witness)))
             })
@@ -502,6 +504,12 @@ where
         }
     }
 
+    /// Returns  transaction
+    pub fn to_transaction(&self) -> Transaction {
+        let transaction = self.to_tx();
+        Transaction::TransferTransaction(transaction)
+    }
+
     /// Encode incompleted raw transaction
     pub fn to_incomplete(&self) -> Vec<u8> {
         self.raw_transaction.encode()
@@ -589,12 +597,10 @@ mod raw_transfer_transaction_builder_tests {
                 TxoPointer::new(random(), 0),
                 TxOut::new(transfer_addr, Coin::new(100).unwrap()),
             ));
+            let tx = builder.to_transaction();
 
             builder
-                .add_witness(
-                    0,
-                    create_public_key_witness(private_key, public_key, builder.tx_id()),
-                )
+                .add_witness(0, create_public_key_witness(private_key, public_key, &tx))
                 .expect("should add witness to builder");
 
             let err = builder.verify().unwrap_err();
@@ -630,7 +636,7 @@ mod raw_transfer_transaction_builder_tests {
             builder
                 .add_witness(
                     0,
-                    create_public_key_witness(private_key, public_key, builder.tx_id()),
+                    create_public_key_witness(private_key, public_key, &builder.to_transaction()),
                 )
                 .expect("should add witness to builder");
 
@@ -663,7 +669,7 @@ mod raw_transfer_transaction_builder_tests {
             builder
                 .add_witness(
                     0,
-                    create_public_key_witness(private_key, public_key, builder.tx_id()),
+                    create_public_key_witness(private_key, public_key, &builder.to_transaction()),
                 )
                 .expect("should add witness to builder");
 
@@ -677,7 +683,8 @@ mod raw_transfer_transaction_builder_tests {
             let (private_key, public_key, transfer_addr) = create_key_pair_and_transfer_addr();
             let mut builder = create_2in2out_testing_raw_transaction_builder(transfer_addr);
 
-            let witness = create_public_key_witness(private_key, public_key, builder.tx_id());
+            let witness =
+                create_public_key_witness(private_key, public_key, &builder.to_transaction());
             let _ = builder.add_witness(0, witness.clone());
             let _ = builder.add_witness(1, witness);
 
@@ -716,7 +723,7 @@ mod raw_transfer_transaction_builder_tests {
             builder
                 .add_witness(
                     input_index,
-                    create_public_key_witness(private_key, public_key, builder.tx_id()),
+                    create_public_key_witness(private_key, public_key, &builder.to_transaction()),
                 )
                 .unwrap();
 
@@ -758,7 +765,7 @@ mod raw_transfer_transaction_builder_tests {
             builder
                 .add_witness(
                     input_index,
-                    create_public_key_witness(private_key, public_key, builder.tx_id()),
+                    create_public_key_witness(private_key, public_key, &builder.to_transaction()),
                 )
                 .unwrap();
 
@@ -781,17 +788,13 @@ mod raw_transfer_transaction_builder_tests {
             struct MockSigner;
 
             impl Signer for MockSigner {
-                fn schnorr_sign<T: AsRef<[u8]>>(
-                    &self,
-                    _: T,
-                    _: &ExtendedAddr,
-                ) -> Result<TxInWitness> {
+                fn schnorr_sign(&self, _: &Transaction, _: &ExtendedAddr) -> Result<TxInWitness> {
                     Err(Error::from(ErrorKind::InternalError))
                 }
 
-                fn schnorr_sign_transaction<T: AsRef<[u8]>>(
+                fn schnorr_sign_transaction(
                     &self,
-                    _: T,
+                    _: &Transaction,
                     _: &SelectedUnspentTransactions<'_>,
                 ) -> Result<TxWitness> {
                     unreachable!()
@@ -836,17 +839,13 @@ mod raw_transfer_transaction_builder_tests {
             struct MockSigner;
 
             impl Signer for MockSigner {
-                fn schnorr_sign<T: AsRef<[u8]>>(
-                    &self,
-                    _: T,
-                    _: &ExtendedAddr,
-                ) -> Result<TxInWitness> {
+                fn schnorr_sign(&self, _: &Transaction, _: &ExtendedAddr) -> Result<TxInWitness> {
                     Ok(create_dummy_witness())
                 }
 
-                fn schnorr_sign_transaction<T: AsRef<[u8]>>(
+                fn schnorr_sign_transaction(
                     &self,
-                    _: T,
+                    _: &Transaction,
                     _: &SelectedUnspentTransactions<'_>,
                 ) -> Result<TxWitness> {
                     unreachable!()
@@ -967,7 +966,7 @@ mod raw_transfer_transaction_builder_tests {
             let input_index = 1;
             let add_witness_result = builder.add_witness(
                 input_index,
-                create_public_key_witness(private_key, public_key, builder.tx_id()),
+                create_public_key_witness(private_key, public_key, &builder.to_transaction()),
             );
             assert!(add_witness_result.is_ok());
             assert!(builder
@@ -994,7 +993,8 @@ mod raw_transfer_transaction_builder_tests {
             let (private_key, public_key, transfer_addr) = create_key_pair_and_transfer_addr();
             let mut builder = create_2in2out_testing_raw_transaction_builder(transfer_addr);
 
-            let witness = create_public_key_witness(private_key, public_key, builder.tx_id());
+            let witness =
+                create_public_key_witness(private_key, public_key, &builder.to_transaction());
             builder
                 .add_witness(0, witness.clone())
                 .expect("should add witness to input index");
@@ -1045,7 +1045,8 @@ mod raw_transfer_transaction_builder_tests {
                 Coin::new(100).unwrap(),
             ));
 
-            let witness = create_public_key_witness(private_key, public_key, builder.tx_id());
+            let witness =
+                create_public_key_witness(private_key, public_key, &builder.to_transaction());
             builder
                 .add_witness(0, witness.clone())
                 .expect("should add witness to input index");
@@ -1077,7 +1078,8 @@ mod raw_transfer_transaction_builder_tests {
         fn estimate_fee_should_be_greater_than_or_equal_to_required_fee() {
             let (private_key, public_key, transfer_addr) = create_key_pair_and_transfer_addr();
             let mut builder = create_2in2out_testing_raw_transaction_builder(transfer_addr);
-            let witness = create_public_key_witness(private_key, public_key, builder.tx_id());
+            let witness =
+                create_public_key_witness(private_key, public_key, &builder.to_transaction());
             builder
                 .add_witness(0, witness.clone())
                 .expect("should add witness to input index");
@@ -1102,7 +1104,11 @@ mod raw_transfer_transaction_builder_tests {
         raw_transaction_builder
             .add_witness(
                 0,
-                create_public_key_witness(private_key, public_key, raw_transaction_builder.tx_id()),
+                create_public_key_witness(
+                    private_key,
+                    public_key,
+                    &raw_transaction_builder.to_transaction(),
+                ),
             )
             .expect("should add witness to input index");
 
@@ -1172,14 +1178,14 @@ mod raw_transfer_transaction_builder_tests {
     fn create_public_key_witness(
         private_key: PrivateKey,
         public_key: PublicKey,
-        tx_id: TxId,
+        tx: &Transaction,
     ) -> TxInWitness {
         let signing_addr = create_transfer_addr(public_key.clone());
 
         let signer =
             KeyPairSigner::new(private_key, public_key).expect("should create KeyPairSigner");
         signer
-            .schnorr_sign(tx_id, &signing_addr)
+            .schnorr_sign(tx, &signing_addr)
             .expect("should sign transaction id")
     }
 

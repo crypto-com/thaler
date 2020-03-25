@@ -74,7 +74,9 @@ where
             .map(|output| output.value)
             .unwrap_or_default();
 
-        let signer = self.signer_manager.create_signer(name, enckey);
+        let signer =
+            self.signer_manager
+                .create_signer(name, enckey, &self.signer_manager.hw_key_service);
 
         raw_builder.sign_all(signer)?;
 
@@ -200,8 +202,9 @@ mod default_wallet_transaction_builder_tests {
     use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_address;
     use client_common::storage::MemoryStorage;
-    use client_common::{PrivateKey, Transaction};
+    use client_common::Transaction;
 
+    use crate::service::HwKeyService;
     use crate::signer::WalletSignerManager;
     use crate::types::WalletKind;
     use crate::unspent_transactions::{Operation, Sorter};
@@ -295,7 +298,7 @@ mod default_wallet_transaction_builder_tests {
 
         let return_address = wallet_client.new_transfer_address(name, &enckey).unwrap();
 
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
         let transaction_builder = DefaultWalletTransactionBuilder::new(
@@ -309,7 +312,6 @@ mod default_wallet_transaction_builder_tests {
             Coin::new(1000).unwrap(),
         )];
         let attributes = TxAttributes::new(171);
-
         let (tx_aux, _selected_inputs, _return_amount) = transaction_builder
             .build_transfer_tx(
                 name,
@@ -418,7 +420,7 @@ mod default_wallet_transaction_builder_tests {
 
         let return_address = wallet_client.new_transfer_address(name, &enckey).unwrap();
 
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
         let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
 
         let transaction_builder = DefaultWalletTransactionBuilder::new(
@@ -432,7 +434,6 @@ mod default_wallet_transaction_builder_tests {
             Coin::new(1700).unwrap(),
         )];
         let attributes = TxAttributes::new(171);
-
         assert_eq!(
             ErrorKind::InvalidInput,
             transaction_builder

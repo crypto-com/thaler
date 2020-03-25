@@ -29,6 +29,7 @@ use crate::types::ProgressCallback;
 use crate::types::{CroJsonRpc, CroJsonRpcPtr};
 use std::ptr;
 
+use client_core::service::HwKeyService;
 use client_rpc::rpc::sync_rpc::{CBindingCallback, CBindingCore};
 
 #[cfg(not(feature = "mock-enc-dec"))]
@@ -66,7 +67,8 @@ fn make_wallet_client(
     storage: SledStorage,
     tendermint_client: WebsocketRpcClient,
 ) -> Result<AppWalletClient> {
-    let signer_manager = WalletSignerManager::new(storage.clone());
+    let hw_key_service = HwKeyService::default();
+    let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service.clone());
     let transaction_cipher = get_tx_query(tendermint_client.clone())?;
     let transaction_builder = DefaultWalletTransactionBuilder::new(
         signer_manager,
@@ -78,6 +80,7 @@ fn make_wallet_client(
         tendermint_client,
         transaction_builder,
         Some(50),
+        hw_key_service,
     ))
 }
 
@@ -85,8 +88,9 @@ fn make_ops_client(
     storage: SledStorage,
     tendermint_client: WebsocketRpcClient,
 ) -> Result<AppOpsClient> {
+    let hw_key_service = HwKeyService::default();
     let transaction_cipher = get_tx_query(tendermint_client.clone())?;
-    let signer_manager = WalletSignerManager::new(storage.clone());
+    let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service);
     let fee_algorithm = tendermint_client.genesis().unwrap().fee_policy();
     let wallet_client = make_wallet_client(storage, tendermint_client.clone())?;
     Ok(DefaultNetworkOpsClient::new(

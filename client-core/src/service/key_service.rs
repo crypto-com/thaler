@@ -1,7 +1,7 @@
 use zeroize::Zeroize;
 
 use client_common::Result;
-use client_common::{ErrorKind, PrivateKey, ResultExt, SecKey, SecureStorage, Storage};
+use client_common::{PrivateKey, SecKey, SecureStorage, Storage};
 
 const KEYSPACE: &str = "core_key";
 
@@ -59,12 +59,9 @@ where
 
     /// Delete private key
     pub fn delete_wallet_private_key(&self, wallet_name: &str, enckey: &SecKey) -> Result<()> {
-        self.storage
-            .get_secure(KEYSPACE, wallet_name.as_bytes(), enckey)?
-            .err_kind(ErrorKind::InvalidInput, || {
-                "private key not found for wallet"
-            })?;
         self.storage.delete(KEYSPACE, wallet_name.as_bytes())?;
+        self.storage
+            .get_secure(KEYSPACE, wallet_name.as_bytes(), enckey)?;
         Ok(())
     }
 

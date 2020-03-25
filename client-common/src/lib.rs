@@ -12,7 +12,7 @@ pub mod tendermint;
 #[doc(inline)]
 pub use error::{Error, ErrorKind, Result, ResultExt};
 #[doc(inline)]
-pub use key::{PrivateKey, PublicKey};
+pub use key::{PrivateKey, PrivateKeyAction, PublicKey};
 #[doc(inline)]
 pub use multi_sig_address::MultiSigAddress;
 #[doc(inline)]

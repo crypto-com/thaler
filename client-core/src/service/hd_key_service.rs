@@ -11,13 +11,18 @@ use crate::{HDSeed, Mnemonic};
 
 const KEYSPACE: &str = "core_hd_key";
 
-#[derive(Debug, PartialEq, Encode, Decode)]
-struct HdKey {
-    staking_index: u32,
-    transfer_index: u32,
+/// HD key
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+pub struct HdKey {
+    /// staking index
+    pub staking_index: u32,
+    /// transfer index
+    pub transfer_index: u32,
+    /// viewkey index
     // curently only one viewkey per wallet, but it's good to keep it for uniformity.
-    viewkey_index: u32,
-    seed: HDSeed,
+    pub viewkey_index: u32,
+    /// HDSeed
+    pub seed: HDSeed,
 }
 
 /// Enum for specifying different types of accounts

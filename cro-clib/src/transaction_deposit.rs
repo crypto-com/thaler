@@ -5,11 +5,10 @@ use chain_core::init::coin::Coin;
 pub use chain_core::init::network::Network;
 use chain_core::state::account::{DepositBondTx, StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::address::ExtendedAddr;
-use chain_core::tx::data::{input::TxoPointer, output::TxOut, TxId};
+use chain_core::tx::data::{input::TxoPointer, output::TxOut};
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use chain_core::tx::TransactionId;
-use client_common::SignedTransaction;
 use client_common::{ErrorKind, Result, ResultExt};
+use client_common::{SignedTransaction, Transaction};
 use client_core::transaction_builder::WitnessedUTxO;
 use parity_scale_codec::Encode;
 use std::convert::From;
@@ -160,8 +159,8 @@ fn sign_txin_deposit(
     let which_tx_in: usize = which_tx_in_user as usize;
     assert!(which_tx_in < user_tx.txin.len());
 
-    let txid: TxId = user_tx.tx.id();
-    let witness: TxInWitness = schnorr_sign(&txid, &address.publickey, &address.privatekey)?;
+    let tx = Transaction::DepositStakeTransaction(user_tx.tx.clone());
+    let witness: TxInWitness = schnorr_sign(&tx, &address.publickey, &address.privatekey)?;
     user_tx.txin[which_tx_in].witness = Some(witness);
     Ok(())
 }

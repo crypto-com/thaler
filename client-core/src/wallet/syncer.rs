@@ -182,10 +182,8 @@ where
     where
         O: TransactionObfuscation,
     {
-        let decryptor = TxObfuscationDecryptor::new(
-            config.obfuscation,
-            load_view_key(&config.storage, &name, &enckey)?,
-        );
+        let private_key = load_view_key(&config.storage, &name, &enckey)?;
+        let decryptor = TxObfuscationDecryptor::new(config.obfuscation, private_key);
         Ok(Self::with_config(
             SyncerConfig {
                 storage: config.storage,

@@ -7,7 +7,8 @@ use unicase::eq_ascii;
 use client_common::{error::ResultExt, Error, ErrorKind, PublicKey, Result};
 use client_core::WalletClient;
 
-use crate::ask_seckey;
+use crate::{ask_hardware_kind, ask_seckey};
+use client_core::types::WalletKind;
 
 const ADDRESS_TYPE_VARIANTS: [&str; 2] = ["transfer", "staking"];
 
@@ -114,12 +115,16 @@ impl AddressCommand {
     }
 
     fn new_address<T: WalletClient>(
-        wallet_client: T,
+        mut wallet_client: T,
         name: &str,
         address_type: &AddressType,
     ) -> Result<()> {
         let enckey = ask_seckey(None)?;
-
+        let wallet_kind = wallet_client.get_wallet_kind(name, &enckey)?;
+        if wallet_kind == WalletKind::HW {
+            let hw_kind = ask_hardware_kind(None)?;
+            wallet_client.update_hw_service(hw_kind);
+        }
         match address_type {
             AddressType::Staking => {
                 let address = wallet_client.new_staking_address(name, &enckey)?;

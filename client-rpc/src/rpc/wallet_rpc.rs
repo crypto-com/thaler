@@ -157,6 +157,7 @@ where
         request: CreateWalletRequest,
         kind: WalletKind,
     ) -> Result<(SecKey, Option<String>)> {
+        // TODO: add hardware wallet
         let (enckey, mnemonic) = self
             .client
             .new_wallet(&request.name, &request.passphrase, kind)
@@ -447,9 +448,10 @@ pub mod tests {
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
     use client_common::{
-        seckey::derive_enckey, Error, ErrorKind, PrivateKey, Result as CommonResult,
-        SignedTransaction, Transaction,
+        seckey::derive_enckey, Error, ErrorKind, Result as CommonResult, SignedTransaction,
+        Transaction,
     };
+    use client_core::service::HwKeyService;
     use client_core::signer::WalletSignerManager;
     use client_core::transaction_builder::DefaultWalletTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
@@ -871,13 +873,19 @@ pub mod tests {
     }
 
     fn make_test_wallet_client(storage: MemoryStorage) -> TestWalletClient {
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
         let transaction_builder = DefaultWalletTransactionBuilder::new(
             signer_manager,
             ZeroFeeAlgorithm::default(),
             MockTransactionCipher,
         );
-        DefaultWalletClient::new(storage, MockRpcClient, transaction_builder, None)
+        DefaultWalletClient::new(
+            storage,
+            MockRpcClient,
+            transaction_builder,
+            None,
+            HwKeyService::default(),
+        )
     }
 
     fn setup_wallet_rpc() -> WalletRpcImpl<TestWalletClient> {

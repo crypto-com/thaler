@@ -132,6 +132,7 @@ mod tests {
     use chain_core::tx::{TxEnclaveAux, TxObfuscated};
     use client_common::tendermint::lite;
     use client_common::tendermint::types::*;
+    use client_common::PrivateKey;
 
     fn transfer_transaction() -> TxEnclaveAux {
         TxEnclaveAux::TransferTx {

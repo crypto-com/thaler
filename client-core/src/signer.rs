@@ -11,7 +11,7 @@ pub use wallet_signer::{WalletSigner, WalletSignerManager};
 
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use client_common::Result;
+use client_common::{Result, Transaction};
 
 use crate::SelectedUnspentTransactions;
 
@@ -19,9 +19,9 @@ use crate::SelectedUnspentTransactions;
 pub trait Signer: Send + Sync {
     /// Signs given transaction with private keys corresponding to selected
     /// unspent transactions
-    fn schnorr_sign_transaction<T: AsRef<[u8]>>(
+    fn schnorr_sign_transaction(
         &self,
-        message: T,
+        tx: &Transaction,
         selected_unspent_transactions: &SelectedUnspentTransactions<'_>,
     ) -> Result<TxWitness>;
 
@@ -30,9 +30,9 @@ pub trait Signer: Send + Sync {
 
     /// Sign given message with private key corresponding to provided address
     /// using schnorr signature
-    fn schnorr_sign<'a, T: AsRef<[u8]>>(
+    fn schnorr_sign<'a>(
         &self,
-        message: T,
+        tx: &Transaction,
         signing_addr: &'a ExtendedAddr,
     ) -> Result<TxInWitness>;
 }

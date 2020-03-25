@@ -1,6 +1,6 @@
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use client_common::{ErrorKind, Result};
+use client_common::{ErrorKind, Result, Transaction};
 
 use crate::unspent_transactions::SelectedUnspentTransactions;
 use crate::{SignCondition, Signer};
@@ -10,9 +10,9 @@ use crate::{SignCondition, Signer};
 pub struct UnauthorizedSigner;
 
 impl Signer for UnauthorizedSigner {
-    fn schnorr_sign_transaction<T: AsRef<[u8]>>(
+    fn schnorr_sign_transaction(
         &self,
-        _: T,
+        _: &Transaction,
         _: &SelectedUnspentTransactions<'_>,
     ) -> Result<TxWitness> {
         Err(ErrorKind::PermissionDenied.into())
@@ -22,7 +22,7 @@ impl Signer for UnauthorizedSigner {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn schnorr_sign<T: AsRef<[u8]>>(&self, _: T, _: &ExtendedAddr) -> Result<TxInWitness> {
+    fn schnorr_sign(&self, _: &Transaction, _: &ExtendedAddr) -> Result<TxInWitness> {
         Err(ErrorKind::PermissionDenied.into())
     }
 }

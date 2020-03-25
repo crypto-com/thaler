@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 mod command;
 mod logo;
-use quest::{ask, error, password};
+use quest::{ask, error, password, text};
 use secstr::SecUtf8;
 use structopt::StructOpt;
 
@@ -12,6 +12,7 @@ use chain_core::init::{coin::Coin, network::init_chain_id};
 use client_common::{seckey::parse_hex_enckey, Error, ErrorKind, Result, ResultExt, SecKey};
 
 use crate::command::Command;
+use client_core::hd_wallet::HardwareKind;
 
 fn main() {
     env_logger::init();
@@ -71,6 +72,19 @@ pub(crate) fn ask_seckey(message: Option<&str>) -> Result<SecKey> {
     ask(message.unwrap_or("Enter authentication token: "));
     let key = password().err_kind(ErrorKind::InvalidInput, || "Unable to read enckey")?;
     parse_hex_enckey(&key)
+}
+
+pub(crate) fn ask_hardware_kind(message: Option<&str>) -> Result<HardwareKind> {
+    let s = if cfg!(feature = "mock-hardware-wallet") {
+        "Which hardware wallet type do you have: ledger|trezor|mock: "
+    } else {
+        "Which hardware wallet type do you have: ledger|trezor: "
+    };
+    ask(message.unwrap_or(s));
+    let key = text().err_kind(ErrorKind::InvalidInput, || {
+        "Unable to read hardware wallet type"
+    })?;
+    HardwareKind::from_str(&key)
 }
 
 pub(crate) fn coin_from_str(coin_str: &str) -> Result<Coin> {

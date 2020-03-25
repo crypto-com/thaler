@@ -12,6 +12,10 @@ pub mod key_chain;
 /// traits for hdwallet
 pub mod traits;
 
+mod wallet_kind;
+
+pub use wallet_kind::HardwareKind;
+
 pub use crate::hd_wallet::extended_key::{
     key_index::KeyIndex, ExtendedPrivKey, ExtendedPubKey, KeySeed,
 };

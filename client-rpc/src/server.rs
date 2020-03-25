@@ -19,6 +19,7 @@ use client_common::{ErrorKind, Result};
 use client_core::cipher::DefaultTransactionObfuscation;
 #[cfg(feature = "mock-enc-dec")]
 use client_core::cipher::MockAbciTransactionObfuscation;
+use client_core::service::HwKeyService;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::wallet::syncer::ObfuscationSyncerConfig;
@@ -93,7 +94,8 @@ impl Server {
         storage: SledStorage,
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppWalletClient> {
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let hw_key_service = HwKeyService::default();
+        let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service.clone());
         let transaction_cipher = get_tx_query(tendermint_client.clone())?;
         let transaction_builder = DefaultWalletTransactionBuilder::new(
             signer_manager,
@@ -105,6 +107,7 @@ impl Server {
             tendermint_client,
             transaction_builder,
             Some(self.block_height_ensure),
+            hw_key_service,
         ))
     }
 
@@ -113,8 +116,9 @@ impl Server {
         storage: SledStorage,
         tendermint_client: WebsocketRpcClient,
     ) -> Result<AppOpsClient> {
+        let hw_key_service = HwKeyService::default();
         let transaction_cipher = get_tx_query(tendermint_client.clone())?;
-        let signer_manager = WalletSignerManager::new(storage.clone());
+        let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service);
         let fee_algorithm = tendermint_client.genesis().unwrap().fee_policy();
         let wallet_client = self.make_wallet_client(storage, tendermint_client.clone())?;
         Ok(DefaultNetworkOpsClient::new(

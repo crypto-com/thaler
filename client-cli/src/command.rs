@@ -41,7 +41,12 @@ use self::transaction_command::TransactionCommand;
 use self::wallet_command::WalletCommand;
 use crate::logo::{get_jok, get_logo};
 use crate::{ask_seckey, storage_path, tendermint_url};
+use client_core::hd_wallet::HardwareKind;
+use client_core::service::HwKeyService;
+#[cfg(feature = "mock-hardware-wallet")]
+use client_core::service::MockHardwareService;
 use once_cell::sync::Lazy;
+use std::env;
 
 static VERSION: Lazy<String> = Lazy::new(|| {
     format!(
@@ -53,6 +58,12 @@ static VERSION: Lazy<String> = Lazy::new(|| {
         get_jok(),
     )
 });
+
+#[cfg(feature = "mock-hardware-wallet")]
+const HARDWARE_WALLET_KIND: [&str; 3] = ["ledger", "trezor", "mock"];
+
+#[cfg(not(feature = "mock-hardware-wallet"))]
+const HARDWARE_WALLET_KIND: [&str; 2] = ["ledger", "trezor"];
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -124,6 +135,14 @@ pub enum Command {
     Transaction {
         #[structopt(subcommand)]
         transaction_command: TransactionCommand,
+        #[structopt(
+            name = "hardware wallet type",
+            long = "hardware",
+            help = "Hardware wallet type",
+            possible_values = &HARDWARE_WALLET_KIND,
+            case_insensitive = false
+        )]
+        hardware: Option<HardwareKind>,
     },
     #[structopt(name = "state", about = "Get staked state of an address")]
     StakedState {
@@ -134,6 +153,14 @@ pub enum Command {
             help = "Staking address"
         )]
         address: StakedStateAddress,
+        #[structopt(
+            name = "hardware wallet type",
+            long = "hardware",
+            help = "Hardware wallet type",
+            possible_values = &HARDWARE_WALLET_KIND,
+            case_insensitive = false
+        )]
+        hardware: Option<HardwareKind>,
     },
     #[structopt(name = "sync", about = "Synchronize client with Crypto.com Chain")]
     Sync {
@@ -248,10 +275,19 @@ impl Command {
             }
             Command::Transaction {
                 transaction_command,
+                hardware,
             } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
-                let signer_manager = WalletSignerManager::new(storage.clone());
+                let hw_key_service = match hardware {
+                    None => HwKeyService::default(),
+                    #[cfg(feature = "mock-hardware-wallet")]
+                    Some(HardwareKind::Mock) => HwKeyService::Mock(MockHardwareService::new()),
+                    Some(HardwareKind::Trezor) => HwKeyService::default(),
+                    Some(HardwareKind::Ledger) => HwKeyService::default(),
+                };
+                let signer_manager =
+                    WalletSignerManager::new(storage.clone(), hw_key_service.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
                 let transaction_obfuscation = get_tx_query(tendermint_client.clone())?;
                 let transaction_builder = DefaultWalletTransactionBuilder::new(
@@ -265,6 +301,7 @@ impl Command {
                     tendermint_client.clone(),
                     transaction_builder,
                     None,
+                    hw_key_service,
                 );
                 let network_ops_client = DefaultNetworkOpsClient::new(
                     wallet_client,
@@ -276,10 +313,18 @@ impl Command {
                 transaction_command
                     .execute(network_ops_client.get_wallet_client(), &network_ops_client)
             }
-            Command::StakedState { address } => {
+            Command::StakedState { address, hardware } => {
+                let hw_key_service = match hardware {
+                    None => HwKeyService::default(),
+                    #[cfg(feature = "mock-hardware-wallet")]
+                    Some(HardwareKind::Mock) => HwKeyService::Mock(MockHardwareService::new()),
+                    Some(HardwareKind::Trezor) => HwKeyService::default(),
+                    Some(HardwareKind::Ledger) => HwKeyService::default(),
+                };
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
-                let signer_manager = WalletSignerManager::new(storage.clone());
+                let signer_manager =
+                    WalletSignerManager::new(storage.clone(), hw_key_service.clone());
                 let fee_algorithm = tendermint_client.genesis()?.fee_policy();
                 let transaction_obfuscation = get_tx_query(tendermint_client.clone())?;
                 let transaction_builder = DefaultWalletTransactionBuilder::new(
@@ -292,6 +337,7 @@ impl Command {
                     tendermint_client.clone(),
                     transaction_builder,
                     None,
+                    hw_key_service,
                 );
 
                 let network_ops_client = DefaultNetworkOpsClient::new(
