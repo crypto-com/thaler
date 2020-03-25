@@ -388,12 +388,13 @@ where
 
     fn delete_wallet(&self, name: &str, passphrase: &SecUtf8) -> Result<()> {
         // remove from wallet/sync_state/wallet_state/key_service
+
         let enckey = derive_enckey(passphrase, name).err_kind(ErrorKind::InvalidInput, || {
             "unable to derive encryption key from passphrase"
         })?;
 
         // the passphrase is verified here.
-        let wallet = self.wallet_service.delete(name, &enckey)?;
+        self.wallet_service.delete(name, &enckey)?;
         self.sync_state_service.delete_global_state(name)?;
         self.wallet_state_service
             .delete_wallet_state(name, &enckey)?;
@@ -402,10 +403,6 @@ where
         }
         self.key_service.delete_wallet_private_key(name, &enckey)?;
 
-        for root_hash in wallet.root_hashes.iter() {
-            self.root_hash_service
-                .delete_root_hash(name, root_hash, &enckey)?;
-        }
         Ok(())
     }
 

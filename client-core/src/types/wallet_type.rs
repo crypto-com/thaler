@@ -11,11 +11,21 @@ use client_common::{Error, ErrorKind, Result};
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Serialize, Deserialize, Encode, Decode)]
 pub enum WalletKind {
     /// Basic Wallet
-    Basic,
+    Basic = 0,
     /// HD Wallet
     HD,
     /// HW Wallet
     HW,
+}
+
+impl From<u64> for WalletKind {
+    fn from(code: u64) -> Self {
+        match code {
+            0 => WalletKind::Basic,
+            1 => WalletKind::HD,
+            _ => WalletKind::HW,
+        }
+    }
 }
 
 impl FromStr for WalletKind {

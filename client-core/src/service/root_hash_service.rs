@@ -1,10 +1,10 @@
 use parity_scale_codec::{Decode, Encode};
 
+use super::wallet_service::get_multisig_keyspace;
 use chain_core::common::{Proof, H256};
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use client_common::MultiSigAddress;
 use client_common::{ErrorKind, PublicKey, Result, ResultExt, SecKey, SecureStorage, Storage};
-
 const KEYSPACE: &str = "core_root_hash";
 
 /// Maintains mapping `multi-sig-public-key -> multi-sig address`
@@ -36,21 +36,25 @@ where
             MultiSigAddress::new(public_keys, self_public_key, required_signers)?;
 
         let root_hash = multi_sig_address.root_hash();
-        let mut storage_key = root_hash.clone().to_vec();
-        storage_key.extend(name.as_bytes().iter());
 
-        self.storage
-            .set_secure(KEYSPACE, storage_key, multi_sig_address.encode(), enckey)?;
+        // key: roothash
+        // value: multisig address info
+        let multisigaddress_keyspace = get_multisig_keyspace(name);
+        self.storage.set_secure(
+            multisigaddress_keyspace,
+            hex::encode(&root_hash),
+            multi_sig_address.encode(),
+            enckey,
+        )?;
 
         Ok((root_hash, multi_sig_address))
     }
 
     /// delete root hash
-    pub fn delete_root_hash(&self, name: &str, root_hash: &H256, enckey: &SecKey) -> Result<()> {
-        let mut storage_key = root_hash.to_vec();
-        storage_key.extend(name.as_bytes().iter());
-        self.storage.get_secure(KEYSPACE, &storage_key, enckey)?;
-        self.storage.delete(KEYSPACE, &storage_key)?;
+    pub fn delete_root_hash(&self, name: &str, root_hash: &H256, _enckey: &SecKey) -> Result<()> {
+        let multisigaddress_keyspace = get_multisig_keyspace(name);
+        self.storage
+            .delete(multisigaddress_keyspace, hex::encode(&root_hash))?;
         Ok(())
     }
 
@@ -91,11 +95,10 @@ where
         root_hash: &H256,
         enckey: &SecKey,
     ) -> Result<MultiSigAddress> {
-        let mut storage_key = root_hash.to_vec();
-        storage_key.extend(name.as_bytes().iter());
+        let multisigaddress_keyspace = get_multisig_keyspace(name);
         let address_bytes = self
             .storage
-            .get_secure(KEYSPACE, storage_key, enckey)?
+            .get_secure(multisigaddress_keyspace, hex::encode(root_hash), enckey)?
             .chain(|| (ErrorKind::InvalidInput, "Address not found"))?;
 
         MultiSigAddress::decode(&mut address_bytes.as_slice()).chain(|| {

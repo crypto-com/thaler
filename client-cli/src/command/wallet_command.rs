@@ -10,7 +10,7 @@ use crate::{ask_passphrase, ask_seckey};
 use client_core::service::WalletInfo;
 use client_core::wallet::WalletRequest;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::PathBuf;
 
 const WALLET_KIND_VARIANTS: [&str; 3] = ["basic", "hd", "hw"];
@@ -199,10 +199,7 @@ impl WalletCommand {
                 }
             }
             (None, Some(from_file)) => {
-                let mut file =
-                    File::open(from_file).chain(|| (ErrorKind::IoError, "Unable to open file"))?;
-                let mut settings: String = String::new();
-                file.read_to_string(&mut settings)
+                let settings = std::fs::read_to_string(from_file)
                     .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
                 let wallet_requests: Vec<WalletRequest> = serde_json::from_str(&settings)
                     .chain(|| (ErrorKind::InvalidInput, "Invalid wallet info"))?;
@@ -256,10 +253,9 @@ impl WalletCommand {
     }
 
     fn import<T: WalletClient>(wallet_client: T, file: &PathBuf) -> Result<()> {
-        let mut file = File::open(file).chain(|| (ErrorKind::IoError, "Unable to open file"))?;
-        let mut wallet_info_str = String::new();
-        file.read_to_string(&mut wallet_info_str)
+        let wallet_info_str = std::fs::read_to_string(file)
             .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
+
         let wallet_info_list: Vec<WalletInfo> = serde_json::from_str(&wallet_info_str)
             .chain(|| (ErrorKind::InvalidInput, "Invalid wallet info list"))?;
         for wallet_info in wallet_info_list {

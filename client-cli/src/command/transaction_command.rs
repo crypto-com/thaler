@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::convert::TryInto;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -289,11 +289,7 @@ impl TransactionCommand {
                 to_file,
             } => {
                 let enckey = ask_seckey(None)?;
-                let mut from_file =
-                    File::open(from_file).chain(|| (ErrorKind::IoError, "Unable to open file"))?;
-                let mut tx_unsigned = String::new();
-                from_file
-                    .read_to_string(&mut tx_unsigned)
+                let tx_unsigned = std::fs::read_to_string(from_file)
                     .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
                 let unsigned = UnsignedTransferTransaction::from_str(&tx_unsigned)?;
                 let signed = wallet_client.sign_raw_transfer_tx(name, &enckey, unsigned)?;
@@ -311,10 +307,7 @@ impl TransactionCommand {
             }
             TransactionCommand::Broadcast { name, file } => {
                 let enckey = ask_seckey(None)?;
-                let mut file =
-                    File::open(file).chain(|| (ErrorKind::IoError, "Unable to open file"))?;
-                let mut tx_signed = String::new();
-                file.read_to_string(&mut tx_signed)
+                let tx_signed = std::fs::read_to_string(file)
                     .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
                 let signed = SignedTransferTransaction::from_str(&tx_signed)?;
                 let tx_id = wallet_client.broadcast_signed_transfer_tx(name, &enckey, signed)?;

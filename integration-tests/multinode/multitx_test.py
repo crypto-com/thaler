@@ -29,11 +29,14 @@ wait_for_validators(rpc, 2)
 os.environ['ENCKEY'] = rpc.wallet.enckey()
 
 print('Prepare node0 transfer addresses')
+
+enckey = rpc.wallet.enckey()
 unbonded = rpc.address.list()[1]
 transfer1 = rpc.address.list(type='transfer')[0]
 
+
 time.sleep(3)  # wait for at least one block, FIXME remove after #828 fixed
-txid = rpc.staking.withdraw_all_unbonded(unbonded, transfer1)
+txid = rpc.staking.withdraw_all_unbonded(unbonded, transfer1, enckey=enckey)
 wait_for_tx(rpc, txid)
 rpc.wallet.sync()
 

@@ -40,6 +40,9 @@ pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_createStakingAddress")]
     fn create_staking_address(&self, request: WalletRequest) -> Result<String>;
 
+    #[rpc(name = "wallet_createStakingAddressBatch")]
+    fn create_staking_address_batch(&self, request: WalletRequest, count: u32) -> Result<u32>;
+
     #[rpc(name = "wallet_createWatchStakingAddress")]
     fn create_watch_staking_address(
         &self,
@@ -49,6 +52,9 @@ pub trait WalletRpc: Send + Sync {
 
     #[rpc(name = "wallet_createTransferAddress")]
     fn create_transfer_address(&self, request: WalletRequest) -> Result<String>;
+
+    #[rpc(name = "wallet_createTransferAddressBatch")]
+    fn create_transfer_address_batch(&self, request: WalletRequest, count: u32) -> Result<u32>;
 
     #[rpc(name = "wallet_createWatchTransferAddress")]
     fn create_watch_transfer_address(
@@ -222,6 +228,15 @@ where
             .map(|staked_state_addr| staked_state_addr.to_string())
             .map_err(to_rpc_error)
     }
+    fn create_staking_address_batch(&self, request: WalletRequest, count: u32) -> Result<u32> {
+        for _i in 0..count {
+            self.client
+                .new_staking_address(&request.name, &request.enckey)
+                .map(|staked_state_addr| staked_state_addr.to_string())
+                .map_err(to_rpc_error)?;
+        }
+        Ok(count)
+    }
 
     fn create_watch_staking_address(
         &self,
@@ -241,6 +256,15 @@ where
             .map_err(to_rpc_error)?;
 
         Ok(extended_address.to_string())
+    }
+
+    fn create_transfer_address_batch(&self, request: WalletRequest, count: u32) -> Result<u32> {
+        for _i in 0..count {
+            self.client
+                .new_transfer_address(&request.name, &request.enckey)
+                .map_err(to_rpc_error)?;
+        }
+        Ok(count)
     }
 
     fn create_watch_transfer_address(
