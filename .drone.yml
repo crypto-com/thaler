@@ -59,6 +59,25 @@ steps:
   - LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service
   - ./integration-tests/run_multinode.sh
 
+- name: sgx-test
+  image: cryptocom/chain-test:latest
+  pull: if-not-exists
+  privileged: true
+  volumes:
+  - name: sgx
+    path: /dev/sgx
+  environment:
+    SGX_TEST: 1
+    RUST_LOG: debug
+  commands:
+  - export CARGO_HOME=$PWD/drone/cargo
+  - export CARGO_TARGET_DIR=/tmp
+  - LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service
+  - make -C chain-tx-enclave/tx-validation
+  - cargo build --features sgx-test --manifest-path chain-abci/Cargo.toml
+  - cd $CARGO_TARGET_DIR/debug
+  - ./chain-abci
+
 - name: teardown
   image: cryptocom/chain-test:latest
   pull: if-not-exists
@@ -73,37 +92,6 @@ volumes:
   - name: sgx
     host:
       path: /dev/sgx
-
-trigger:
-  branch:
-  - master
-  - staging
-  - trying
-  event:
-  - push
-
----
-kind: pipeline
-type: exec
-name: sgx-cargo-1804-hw1
-
-platform:
-  os: linux
-  arch: amd64
-
-steps:
-- name: Build and Test
-  commands:
-  - ls -l /dev/sgx
-  - ls -l /var/run/aesmd/aesm.socket
-  - docker run --name hw1-${DRONE_COMMIT_SHA} --rm -v $PWD:/chain --device /dev/sgx cryptocom/chain:latest /bin/bash /chain/ci-scripts/tx-validation-hw-test.sh
-- name: Teardown
-  commands:
-   - docker stop hw1-${DRONE_COMMIT_SHA} || exit 0
-  when:
-    status:
-      - success
-      - failure
 
 trigger:
   branch:
@@ -140,6 +128,6 @@ trigger:
 
 ---
 kind: signature
-hmac: 869b4c42c6e67601bead8c4bf86076fe9b793a9e0c12fc8361984490f220de30
+hmac: e44c58d9f43a2054cfa9502d58fd59a2ece1f51d4ca93be1c5ec65ceaa30c057
 
 ...
