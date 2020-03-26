@@ -1,0 +1,14 @@
+[package]
+name = "ra-sp-client"
+version = "0.1.0"
+authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
+description = "TCP client for connecting to SP server for remote attestation of enclaves (this should be used in enclaves to connect to SP server)"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bincode = "1.2"
+thiserror = "1.0"
+
+ra-common = { path = "../ra-common" }

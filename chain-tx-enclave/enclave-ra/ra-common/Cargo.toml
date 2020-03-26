@@ -1,0 +1,13 @@
+[package]
+name = "ra-common"
+version = "0.1.0"
+authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
+description = "Common types used in different sub-crates related to remote attestation of enclaves"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+base64 = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0"
