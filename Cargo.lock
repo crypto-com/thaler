@@ -220,6 +220,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
 
 [[package]]
+name = "base64"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d5ca2cd0adc3f48f9e9ea5a6bbdf9ccc0bfade884847e484d452414c7ccffb3"
+
+[[package]]
 name = "bech32"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -687,7 +693,7 @@ dependencies = [
  "parity-scale-codec",
  "quickcheck",
  "rand 0.7.3",
- "rust-argon2 0.8.1",
+ "rust-argon2 0.8.2",
  "secp256k1zkp",
  "secstr",
  "serde",
@@ -3278,11 +3284,11 @@ dependencies = [
 
 [[package]]
 name = "rust-argon2"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "13d93898abbc08f4122732299b5cc3e81052c18c6218045eba4a80e02a086a42"
+checksum = "9dab61250775933275e84053ac235621dfb739556d5c54a2f2e9313b7cf43a19"
 dependencies = [
- "base64 0.11.0",
+ "base64 0.12.0",
  "blake2b_simd",
  "constant_time_eq",
  "crossbeam-utils",
