@@ -258,17 +258,16 @@ fn check_input_output_sums(
     outcoins: Coin,
     extra_info: &ChainInfo,
 ) -> Result<Fee, Error> {
-    // check sum(input amounts) >= sum(output amounts) + minimum fee
+    // check sum(input amounts) == sum(output amounts) + minimum fee
     let min_fee: Coin = extra_info.min_fee_computed.to_coin();
     let total_outsum = outcoins + min_fee;
     if let Err(_coin_err) = total_outsum {
         return Err(Error::InvalidSum); // FIXME: Err(Error::InvalidSum(coin_err));
     }
-    if incoins < total_outsum.unwrap() {
+    if incoins != total_outsum.unwrap() {
         return Err(Error::InputOutputDoNotMatch);
     }
-    let fee_paid = (incoins - outcoins).unwrap();
-    Ok(Fee::new(fee_paid))
+    Ok(Fee::new(min_fee))
 }
 
 /// checks TransferTx -- TODO: this will be moved to an enclave
@@ -383,7 +382,15 @@ pub fn verify_unbonding(
     if maintx.value == Coin::zero() {
         return Err(Error::ZeroCoin);
     }
-    check_input_output_sums(account.bonded, maintx.value, extra_info)?;
+    // check that it's enough for fee + amount to be unbonded
+    let min_fee: Coin = extra_info.min_fee_computed.to_coin();
+    let total_outsum = maintx.value + min_fee;
+    if let Err(_coin_err) = total_outsum {
+        return Err(Error::InvalidSum);
+    }
+    if account.bonded < total_outsum.unwrap() {
+        return Err(Error::InputOutputDoNotMatch);
+    }
     account.unbond(
         maintx.value,
         extra_info.min_fee_computed.to_coin(),

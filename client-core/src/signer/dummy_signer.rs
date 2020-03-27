@@ -1,3 +1,4 @@
+use crate::transaction_builder::WitnessedUTxO;
 use chain_core::common::MerkleTree;
 use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
@@ -50,14 +51,13 @@ impl DummySigner {
     }
 
     /// Schnorr sign consecutive imaginary inputs of provided length
-    pub fn schnorr_sign_inputs_len(
-        &self,
-        total_pubkeys_len: usize,
-        inputs_len: usize,
-    ) -> Result<TxWitness> {
-        let dummy_witness = self.sign_tx(total_pubkeys_len)?;
-        Ok(std::iter::repeat(dummy_witness)
-            .take(inputs_len)
+    pub fn schnorr_sign_inputs_len(&self, inputs: &[WitnessedUTxO]) -> Result<TxWitness> {
+        Ok(inputs
+            .iter()
+            .map(|x| {
+                self.sign_tx(x.threshold as usize)
+                    .expect("would that ever fail? why this dummy has results?")
+            })
             .collect::<Vec<TxInWitness>>()
             .into())
     }
@@ -81,9 +81,8 @@ impl DummySigner {
     }
 
     /// Mock the txaux for deposit transactions
-    pub fn mock_txaux_for_deposit(&self, input_len: usize) -> Result<TxAux> {
-        let total_pubkeys_len = 1;
-        let witness = self.schnorr_sign_inputs_len(total_pubkeys_len, input_len)?;
+    pub fn mock_txaux_for_deposit(&self, inputs: &[WitnessedUTxO]) -> Result<TxAux> {
+        let witness = self.schnorr_sign_inputs_len(inputs)?;
         let plain_payload = PlainTxAux::DepositStakeTx(witness);
         let padded_payload = self.pad_payload(plain_payload);
         let deposit_bond_tx = DepositBondTx {

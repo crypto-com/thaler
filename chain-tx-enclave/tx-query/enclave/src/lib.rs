@@ -159,38 +159,44 @@ fn get_sealed_request(req: &EncryptionRequest, txid: &TxId) -> Option<Vec<u8>> {
     Some(sealed_log)
 }
 
-fn construct_request(req: &EncryptionRequest) -> Option<QueryEncryptRequest> {
-    let (txid, sealed, tx_inputs) = match req {
+fn construct_request(req: &EncryptionRequest, req_len: usize) -> Option<QueryEncryptRequest> {
+    let (txid, sealed, tx_inputs, tx_size) = match req {
+        // TODO: are the size estimates ok?
         EncryptionRequest::TransferTx(tx, _) => {
             let txid = tx.id();
             let sealed = get_sealed_request(&req, &txid);
             let tx_inputs = Some(tx.inputs.clone());
-            (txid, sealed, tx_inputs)
+            (txid, sealed, tx_inputs, req_len + 34 * tx.inputs.len() + 74)
         }
         EncryptionRequest::DepositStake(tx, _) => {
             let txid = tx.id();
             let sealed = get_sealed_request(&req, &txid);
             let tx_inputs = Some(tx.inputs.clone());
-            (txid, sealed, tx_inputs)
+            (txid, sealed, tx_inputs, req_len + 34 * tx.inputs.len() + 74)
         }
-        EncryptionRequest::WithdrawStake(tx, _, _) => {
+        EncryptionRequest::WithdrawStake(tx, state, _) => {
             let txid = tx.id();
             let sealed = get_sealed_request(&req, &txid);
-            (txid, sealed, None)
+            let state_len = state.encode().len();
+            // FIXME: no need to send state in request
+            (txid, sealed, None, req_len - state_len + 73)
         }
     };
     sealed.map(|sealed_enc_request| QueryEncryptRequest {
         txid,
         sealed_enc_request,
         tx_inputs,
+        // TODO: checks, but this should fit, as all things are bounded more like u16::max
+        tx_size: tx_size as u32,
     })
 }
 
 fn handle_encryption_request(
     tls: &mut rustls::Stream<rustls::ServerSession, TcpStream>,
     req: EncryptionRequest,
+    req_len: usize,
 ) -> sgx_status_t {
-    let request = construct_request(&req);
+    let request = construct_request(&req, req_len);
     match request {
         None => {
             let _ = tls.sock.shutdown(Shutdown::Both);
@@ -281,7 +287,7 @@ pub extern "C" fn run_server(socket_fd: c_int, timeout: c_int) -> sgx_status_t {
     let mut plain = vec![0; ENCRYPTION_REQUEST_SIZE];
     match tls.read(&mut plain) {
         Ok(l) => match TxQueryInitRequest::decode(&mut &plain.as_slice()[0..l]) {
-            Ok(TxQueryInitRequest::Encrypt(req)) => handle_encryption_request(&mut tls, *req),
+            Ok(TxQueryInitRequest::Encrypt(req)) => handle_encryption_request(&mut tls, *req, l),
             Ok(TxQueryInitRequest::DecryptChallenge) => handle_decryption_request(&mut tls, plain),
             _ => {
                 let _ = conn.shutdown(Shutdown::Both);

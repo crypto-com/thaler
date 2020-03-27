@@ -80,8 +80,8 @@ impl TxValidationServer {
                                     let min_fee = last_state
                                         .top_level
                                         .network_params
-                                        .get_min_const_fee()
-                                        .expect("invalid fee policy");
+                                        .calculate_fee(req.tx_size as usize)
+                                        .expect("valid fee");
                                     let info = ChainInfo {
                                         min_fee_computed: min_fee,
                                         chain_hex_id: self.network_id,

@@ -42,13 +42,15 @@ where
     transaction_obfuscation: O,
 }
 
-impl<S, F, O> WalletTransactionBuilder for DefaultWalletTransactionBuilder<S, F, O>
+impl<F, S, O> DefaultWalletTransactionBuilder<S, F, O>
 where
     S: Storage,
     F: FeeAlgorithm + Clone,
     O: TransactionObfuscation,
 {
-    fn build_transfer_tx(
+    /// FIXME: temporary for broken fee estimation
+    #[allow(clippy::too_many_arguments)]
+    fn build_transfer_tx_ex(
         &self,
         name: &str,
         enckey: &SecKey,
@@ -56,12 +58,15 @@ where
         outputs: Vec<TxOut>,
         return_address: ExtendedAddr,
         attributes: TxAttributes,
+        // FIXME: this should be per unspent_transactions
+        threshold: u16,
     ) -> Result<(TxAux, Vec<TxoPointer>, Coin)> {
         let mut raw_builder = self.select_and_build(
             &unspent_transactions,
             outputs,
             return_address.clone(),
             attributes,
+            threshold,
         )?;
 
         let selected_inputs: Vec<TxoPointer> = raw_builder
@@ -83,6 +88,33 @@ where
         let tx_aux = raw_builder.to_tx_aux(self.transaction_obfuscation.clone())?;
 
         Ok((tx_aux, selected_inputs, return_amount))
+    }
+}
+
+impl<S, F, O> WalletTransactionBuilder for DefaultWalletTransactionBuilder<S, F, O>
+where
+    S: Storage,
+    F: FeeAlgorithm + Clone,
+    O: TransactionObfuscation,
+{
+    fn build_transfer_tx(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        unspent_transactions: UnspentTransactions,
+        outputs: Vec<TxOut>,
+        return_address: ExtendedAddr,
+        attributes: TxAttributes,
+    ) -> Result<(TxAux, Vec<TxoPointer>, Coin)> {
+        self.build_transfer_tx_ex(
+            name,
+            enckey,
+            unspent_transactions,
+            outputs,
+            return_address,
+            attributes,
+            1,
+        )
     }
 
     #[inline]
@@ -130,6 +162,8 @@ where
         outputs: Vec<TxOut>,
         return_address: ExtendedAddr,
         attributes: TxAttributes,
+        // FIXME: this should be per UnspentTransactions
+        threshold: u16,
     ) -> Result<RawTransferTransactionBuilder<F>> {
         let output_value = sum_coins(outputs.iter().map(|output| output.value)).chain(|| {
             (
@@ -152,6 +186,7 @@ where
                 return_address.clone(),
                 change_amount,
                 attributes.clone(),
+                threshold,
             );
 
             let new_fees = raw_tx_builder.estimate_fee()?;
@@ -172,11 +207,13 @@ where
         return_address: ExtendedAddr,
         change_amount: Coin,
         attributes: TxAttributes,
+        // FIXME: this should be per SelectedUnspentTransactions
+        threshold: u16,
     ) -> RawTransferTransactionBuilder<F> {
         let mut raw_tx_builder =
             RawTransferTransactionBuilder::new(attributes, self.fee_algorithm.clone());
         for input in selected_unspent_transactions.iter() {
-            raw_tx_builder.add_input(input.clone());
+            raw_tx_builder.add_input(input.clone(), threshold);
         }
         for output in outputs.iter() {
             raw_tx_builder.add_output(output.clone());
@@ -313,13 +350,14 @@ mod default_wallet_transaction_builder_tests {
         )];
         let attributes = TxAttributes::new(171);
         let (tx_aux, _selected_inputs, _return_amount) = transaction_builder
-            .build_transfer_tx(
+            .build_transfer_tx_ex(
                 name,
                 &enckey,
                 unspent_transactions.clone(),
                 outputs,
                 return_address,
                 attributes,
+                2,
             )
             .unwrap();
 
@@ -351,7 +389,12 @@ mod default_wallet_transaction_builder_tests {
                         }
                     }))
                     .unwrap();
-                    assert!((output_value + fee).unwrap() <= input_value);
+                    // FIXME: all these unit tests don't account for 16-byte tag in encryption
+                    // in those mock encrypt stuff, while the estimation does :/
+                    assert!(
+                        (output_value + fee).unwrap() <=
+                        (input_value - Coin::from(16u32)).unwrap()
+                    );
 
                     for (i, input) in transaction.inputs.iter().enumerate() {
                         let address = if input.id == [3; 32] {

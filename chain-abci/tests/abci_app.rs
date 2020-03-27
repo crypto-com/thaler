@@ -432,12 +432,17 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     let addr = RedeemAddress::from(&public_key);
     let app = init_chain_for(addr);
-
     let tx = WithdrawUnbondedTx::new(
         0,
         vec![
             TxOut::new_with_timelock(ExtendedAddr::OrTree([0; 32]), Coin::one(), 0),
             TxOut::new_with_timelock(ExtendedAddr::OrTree([1; 32]), Coin::unit(), 0),
+            // leftover -- in previous tests, it was all paid as a fee
+            TxOut::new_with_timelock(
+                ExtendedAddr::OrTree([2; 32]),
+                Coin::new(9999999999899999668).unwrap(),
+                0,
+            ),
         ],
         TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
     );
@@ -572,9 +577,9 @@ fn deliver_tx_should_add_valid_tx() {
     assert_eq!(1, app.delivered_txs.len());
     assert_eq!(1, cresp.events.len());
     assert_eq!(3, cresp.events[0].attributes.len());
-    // the unit test transaction just has two outputs: 1 CRO + 1 carson / base unit, the rest goes to a fee
+    // the unit test transaction just three outputs: 1 CRO + 1 carson / base unit + the rest
     assert_eq!(
-        &b"99999999998.99999998".to_vec(),
+        &b"0.00000330".to_vec(),
         &cresp.events[0].attributes[0].value
     );
     assert_eq!(
@@ -814,6 +819,7 @@ fn all_valid_tx_types_should_commit() {
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
             TxOut::new_with_timelock(eaddr.clone(), (Coin::one() + Coin::one()).unwrap(), 0),
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
+            TxOut::new_with_timelock(eaddr.clone(), Coin::new(9999999999599999619).unwrap(), 0), // rest
         ],
         TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
     );
@@ -843,11 +849,10 @@ fn all_valid_tx_types_should_commit() {
         let spend_utxos = get_tx_meta(&txid, &app);
         assert!(!spend_utxos.any());
     }
-    let halfcoin = Coin::from(5000_0000u32);
     let utxo1 = TxoPointer::new(*txid, 0);
     let mut tx1 = Tx::new();
     tx1.add_input(utxo1);
-    tx1.add_output(TxOut::new(eaddr, halfcoin));
+    tx1.add_output(TxOut::new(eaddr, Coin::from(99999685u32)));
     let txid1 = tx1.id();
     let witness1 = vec![TxInWitness::TreeSig(
         schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),
@@ -1018,7 +1023,7 @@ fn query_should_return_proof_for_committed_tx() {
 
     app.begin_block(&env.req_begin_block(1, 0));
 
-    let tx_aux = env.unbond_tx((Coin::max() / 10).unwrap(), 0, 0);
+    let tx_aux = env.unbond_tx(Coin::new(5000000000000000000).unwrap(), 0, 0);
     let rsp_tx = app.deliver_tx(&RequestDeliverTx {
         tx: tx_aux.encode(),
         ..Default::default()
