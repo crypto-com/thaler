@@ -165,6 +165,8 @@ pub struct QueryEncryptRequest {
     pub txid: TxId,
     /// EncryptionRequest sealed by TQE to "mrsigner"
     pub sealed_enc_request: SealedLog,
+    /// plain tx size
+    pub tx_size: u32,
     /// transaction inputs (if any)
     pub tx_inputs: Option<Vec<TxoPointer>>,
 }

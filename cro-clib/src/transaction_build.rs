@@ -69,6 +69,7 @@ fn add_txin(tx: &mut CroTx, txid_hex: &str, txindex: u16, addr: &str, coin: u64)
         prev_txo_pointer: txin_pointer,
         prev_tx_out: txin,
         witness: None,
+        threshold: 1,
     };
     tx.txin.push(utxo);
     assert!(tx.tx.inputs.len() == tx.txin.len());
@@ -122,6 +123,7 @@ pub unsafe extern "C" fn cro_tx_add_txin_raw(
         prev_txo_pointer: txin_pointer,
         prev_tx_out: txin,
         witness: None,
+        threshold: 1,
     };
     tx.txin.push(utxo);
     assert!(tx.tx.inputs.len() == tx.txin.len());

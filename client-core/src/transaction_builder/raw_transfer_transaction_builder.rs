@@ -34,12 +34,24 @@ pub struct WitnessedUTxO {
     /// signature and merkleproof of rawpubkey
     /// rawpubkey: combinded key of publickeys for multisig
     pub witness: Option<TxInWitness>,
+    /// max options -- for determining the merkle proof size estimate in the witness, e.g. 2-of-3 threshold has 3 leaves (each is combined 2-of-2 pubkey)
+    pub threshold: u16,
 }
 
 impl WitnessedUTxO {
     /// Returns if witness data presents
     pub fn has_witness(&self) -> bool {
         self.witness.is_some()
+    }
+
+    /// creates a dummy value
+    pub fn dummy() -> Self {
+        WitnessedUTxO {
+            prev_txo_pointer: TxoPointer::new(Default::default(), Default::default()),
+            prev_tx_out: TxOut::new(ExtendedAddr::OrTree([0u8; 32]), Default::default()),
+            witness: None,
+            threshold: 1,
+        }
     }
 }
 
@@ -161,10 +173,11 @@ where
     /// # Warning
     /// When a new input is appended, any previous witness will be cleared
     /// because transaction id will be changed
-    pub fn add_input(&mut self, input: (TxoPointer, TxOut)) {
+    pub fn add_input(&mut self, input: (TxoPointer, TxOut), threshold: u16) {
         self.raw_transaction.inputs.push(WitnessedUTxO {
             prev_txo_pointer: input.0,
             prev_tx_out: input.1,
+            threshold,
             witness: None,
         });
 
@@ -335,8 +348,7 @@ where
     /// Estimate transaction fee with dummy signatures
     pub fn estimate_fee(&self) -> Result<Coin> {
         let dummy_signer = DummySigner();
-        let total_pubkeys_len = 2;
-        let witness = dummy_signer.schnorr_sign_inputs_len(total_pubkeys_len, self.inputs_len())?;
+        let witness = dummy_signer.schnorr_sign_inputs_len(&self.raw_transaction.inputs)?;
         let tx_aux = dummy_signer.mock_txaux_for_tx(self.to_tx(), witness);
         let estimated_fee = self
             .fee_algorithm
@@ -439,6 +451,7 @@ where
     fn verify_fee(&self) -> Result<()> {
         let fee_expected = self.estimate_fee()?;
         let fee_in_tx = self.fee()?;
+        // FIXME: this should be !=, but unit tests don't have proper mocks
         if fee_in_tx < fee_expected {
             let fee_gap = (fee_expected - fee_in_tx).unwrap();
             return Err(Error::new(
@@ -593,10 +606,13 @@ mod raw_transfer_transaction_builder_tests {
             let fee_algorithm = create_testing_fee_algorithm();
             let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr, Coin::new(100).unwrap()),
-            ));
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr, Coin::new(100).unwrap()),
+                ),
+                1,
+            );
             let tx = builder.to_transaction();
 
             builder
@@ -619,10 +635,13 @@ mod raw_transfer_transaction_builder_tests {
             let fee_algorithm = create_testing_fee_algorithm();
             let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr, Coin::new(100).unwrap()),
-            ));
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr, Coin::new(100).unwrap()),
+                ),
+                1,
+            );
 
             builder.add_output(TxOut::new(
                 ExtendedAddr::OrTree(random()),
@@ -656,10 +675,13 @@ mod raw_transfer_transaction_builder_tests {
             let fee_algorithm = create_testing_fee_algorithm();
             let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr, Coin::new(100).unwrap()),
-            ));
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr, Coin::new(100).unwrap()),
+                ),
+                1,
+            );
 
             builder.add_output(TxOut::new(
                 ExtendedAddr::OrTree(random()),
@@ -707,7 +729,7 @@ mod raw_transfer_transaction_builder_tests {
                 TxoPointer::new(random(), 0),
                 TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(100).unwrap()),
             );
-            builder.add_input(input.clone());
+            builder.add_input(input.clone(), 1);
 
             assert_eq!(builder.inputs_len(), 1);
             assert_eq!(builder.input_at_index(0).unwrap().prev_txo_pointer, input.0);
@@ -729,10 +751,13 @@ mod raw_transfer_transaction_builder_tests {
 
             assert!(builder.input_at_index(input_index).unwrap().has_witness());
 
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr, Coin::new(100).unwrap()),
-            ));
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr, Coin::new(100).unwrap()),
+                ),
+                1,
+            );
 
             assert!(!builder.input_at_index(input_index).unwrap().has_witness());
         }
@@ -771,10 +796,13 @@ mod raw_transfer_transaction_builder_tests {
 
             assert!(builder.input_at_index(input_index).unwrap().has_witness());
 
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr, Coin::new(100).unwrap()),
-            ));
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr, Coin::new(100).unwrap()),
+                ),
+                1,
+            );
 
             assert!(!builder.input_at_index(input_index).unwrap().has_witness());
         }
@@ -810,18 +838,27 @@ mod raw_transfer_transaction_builder_tests {
             let fee_algorithm = create_testing_fee_algorithm();
             let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr.clone(), Coin::new(100).unwrap()),
-            ));
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(200).unwrap()),
-            ));
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr, Coin::new(200).unwrap()),
-            ));
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr.clone(), Coin::new(100).unwrap()),
+                ),
+                1,
+            );
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(200).unwrap()),
+                ),
+                1,
+            );
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr, Coin::new(200).unwrap()),
+                ),
+                1,
+            );
 
             builder.add_output(TxOut::new(
                 ExtendedAddr::OrTree(random()),
@@ -861,18 +898,27 @@ mod raw_transfer_transaction_builder_tests {
             let fee_algorithm = create_testing_fee_algorithm();
             let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr.clone(), Coin::new(100).unwrap()),
-            ));
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(200).unwrap()),
-            ));
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr, Coin::new(200).unwrap()),
-            ));
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr.clone(), Coin::new(100).unwrap()),
+                ),
+                1,
+            );
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(200).unwrap()),
+                ),
+                1,
+            );
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr, Coin::new(200).unwrap()),
+                ),
+                1,
+            );
 
             builder.add_output(TxOut::new(
                 ExtendedAddr::OrTree(random()),
@@ -896,18 +942,27 @@ mod raw_transfer_transaction_builder_tests {
             let fee_algorithm = create_testing_fee_algorithm();
             let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr.clone(), Coin::new(100).unwrap()),
-            ));
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(200).unwrap()),
-            ));
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr, Coin::new(200).unwrap()),
-            ));
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr.clone(), Coin::new(100).unwrap()),
+                ),
+                1,
+            );
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(ExtendedAddr::OrTree(random()), Coin::new(200).unwrap()),
+                ),
+                1,
+            );
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr, Coin::new(200).unwrap()),
+                ),
+                1,
+            );
 
             builder.add_output(TxOut::new(
                 ExtendedAddr::OrTree(random()),
@@ -1027,14 +1082,20 @@ mod raw_transfer_transaction_builder_tests {
             let fee_algorithm = create_testing_fee_algorithm();
             let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr.clone(), Coin::new(100).unwrap()),
-            ));
-            builder.add_input((
-                TxoPointer::new(random(), 0),
-                TxOut::new(transfer_addr, Coin::new(200).unwrap()),
-            ));
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr.clone(), Coin::new(100).unwrap()),
+                ),
+                1,
+            );
+            builder.add_input(
+                (
+                    TxoPointer::new(random(), 0),
+                    TxOut::new(transfer_addr, Coin::new(200).unwrap()),
+                ),
+                1,
+            );
 
             builder.add_output(TxOut::new(
                 ExtendedAddr::OrTree(random()),
@@ -1142,14 +1203,20 @@ mod raw_transfer_transaction_builder_tests {
         let fee_algorithm = create_testing_fee_algorithm();
         let mut builder = RawTransferTransactionBuilder::new(attributes, fee_algorithm);
 
-        builder.add_input((
-            TxoPointer::new(random(), 0),
-            TxOut::new(transfer_addr.clone(), Coin::new(501).unwrap()),
-        ));
-        builder.add_input((
-            TxoPointer::new(random(), 0),
-            TxOut::new(transfer_addr, Coin::new(500).unwrap()),
-        ));
+        builder.add_input(
+            (
+                TxoPointer::new(random(), 0),
+                TxOut::new(transfer_addr.clone(), Coin::new(501).unwrap()),
+            ),
+            1,
+        );
+        builder.add_input(
+            (
+                TxoPointer::new(random(), 0),
+                TxOut::new(transfer_addr, Coin::new(500).unwrap()),
+            ),
+            1,
+        );
 
         builder.add_output(TxOut::new(
             ExtendedAddr::OrTree(random()),

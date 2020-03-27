@@ -21,6 +21,7 @@ use client_common::{
     Error, ErrorKind, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction,
 };
 use client_core::signer::{DummySigner, Signer, WalletSignerManager};
+use client_core::transaction_builder::WitnessedUTxO;
 use client_core::types::TransactionPending;
 use client_core::{TransactionObfuscation, UnspentTransactions, WalletClient};
 use tendermint::Time;
@@ -141,7 +142,7 @@ where
     fn calculate_deposit_fee(&self) -> Result<Coin> {
         let dummy_signer = DummySigner();
         let tx_aux = dummy_signer
-            .mock_txaux_for_deposit(1)
+            .mock_txaux_for_deposit(&[WitnessedUTxO::dummy()])
             .chain(|| (ErrorKind::ValidationError, "Calculated fee failed"))?;
         let fee = self
             .fee_algorithm

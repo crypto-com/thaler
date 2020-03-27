@@ -123,6 +123,7 @@ fn add_txin_deposit(
         prev_txo_pointer: txin_pointer,
         prev_tx_out: txin,
         witness: None,
+        threshold: 1,
     };
     tx.txin.push(utxo);
     assert!(tx.tx.inputs.len() == tx.txin.len());

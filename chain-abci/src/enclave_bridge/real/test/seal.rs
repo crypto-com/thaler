@@ -186,12 +186,11 @@ pub fn test_sealing() {
         }
     };
 
-    let halfcoin = Coin::from(5000_0000u32);
     let utxo1 = TxoPointer::new(*txid, 0);
     let mut tx1 = Tx::new();
     tx1.attributes = TxAttributes::new(TEST_NETWORK_ID);
     tx1.add_input(utxo1.clone());
-    tx1.add_output(TxOut::new(eaddr.clone(), halfcoin));
+    tx1.add_output(TxOut::new(eaddr.clone(), Coin::one()));
     let txid1 = tx1.id();
     let witness1 = vec![TxInWitness::TreeSig(
         schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),
