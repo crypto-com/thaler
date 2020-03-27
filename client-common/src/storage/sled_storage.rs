@@ -257,6 +257,10 @@ mod tests {
     use super::SledStorage;
     use crate::Storage;
 
+    use blake2::Blake2s;
+    use chain_core::common::hash256;
+    use tempfile::tempdir;
+
     #[test]
     fn check_flow() {
         let storage = SledStorage::new("./storage-test").expect("Unable to start sled storage");
@@ -321,5 +325,44 @@ mod tests {
             storage.keyspaces().expect("Unable to get keyspaces").len(),
             "More than two keyspaces present"
         );
+    }
+
+    #[test]
+    fn check_sledstorage_ordering() {
+        let dir = tempdir().expect("get tempdir in check_sledstorage_ordering");
+        let dir_path = dir
+            .path()
+            .to_str()
+            .expect("get folder path in check_sledstorage_ordering");
+        let storage =
+            SledStorage::new(dir_path).expect("get sled storage in check_sledstorage_ordering");
+        let space = "default".as_bytes();
+        let count = 512;
+        let mut keylist: Vec<Vec<u8>> = vec![];
+        let mut valuelist: Vec<Vec<u8>> = vec![];
+        for i in 0..count {
+            let data = format!("data {}", i);
+            let hash = hash256::<Blake2s>(&data.as_bytes());
+            assert!(32 == hash.len());
+            let key_hex = hex::encode(&u64::to_be_bytes(i as u64));
+            keylist.push(key_hex.as_bytes().to_vec());
+            valuelist.push(hash.to_vec());
+            storage
+                .set(&space, key_hex.as_bytes(), hash.to_vec())
+                .expect("set data");
+        }
+        assert!(keylist.len() == count);
+        assert!(keylist.len() == valuelist.len());
+        let keys = storage.keys(&space).expect("get keys");
+        assert!(keylist.len() == keys.len());
+        for i in 0..count {
+            let key = keys[i].clone();
+            let value = storage
+                .get(&space, &key)
+                .expect("get value")
+                .expect("get value from option");
+            assert!(keylist[i] == key);
+            assert!(valuelist[i] == value);
+        }
     }
 }

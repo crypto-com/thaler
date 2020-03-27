@@ -700,6 +700,7 @@ dependencies = [
  "serde_json",
  "sha2 0.8.1",
  "sled",
+ "tempfile",
  "tendermint",
  "websocket",
  "zeroize 1.1.0",

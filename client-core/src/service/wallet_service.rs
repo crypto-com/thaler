@@ -182,6 +182,12 @@ fn read_pubkey<S: SecureStorage>(storage: &S, keyspace: &str, key: &str) -> Resu
     }
 }
 
+// compute index value to string from binary
+// so that db iteration is the same with index_value
+fn compute_key(index_value: u64) -> String {
+    hex::encode(&u64::to_be_bytes(index_value as u64))
+}
+
 fn write_pubkey<S: SecureStorage>(
     storage: &S,
     keyspace: &str,
@@ -285,7 +291,7 @@ pub fn load_wallet<S: SecureStorage>(
         let stakingkey_count: u64 =
             read_number(storage, &info_keyspace, "stakingkeyindex", Some(0))?;
         for i in 0..stakingkey_count {
-            let stakingkey = read_pubkey(storage, &staking_keyspace, &format!("{}", i))?;
+            let stakingkey = read_pubkey(storage, &staking_keyspace, &compute_key(i))?;
             new_wallet.staking_keys.insert(stakingkey);
         }
 
@@ -510,7 +516,7 @@ where
         let publickey_count: u64 = read_number(&self.storage, &info_keyspace, "publicindex", None)?;
 
         for i in 0..publickey_count {
-            let pubkey = read_pubkey(&self.storage, &public_keyspace, &format!("{}", i))?;
+            let pubkey = read_pubkey(&self.storage, &public_keyspace, &compute_key(i))?;
             ret.insert(pubkey);
         }
         Ok(ret)
@@ -531,7 +537,7 @@ where
         let staking_count: u64 =
             read_number(&self.storage, &info_keyspace, "stakingkeyindex", None)?;
         for i in 0..staking_count {
-            let pubkey = read_pubkey(&self.storage, &stakingkey_keyspace, &format!("{}", i))?;
+            let pubkey = read_pubkey(&self.storage, &stakingkey_keyspace, &compute_key(i))?;
             ret.insert(pubkey);
         }
         Ok(ret)
@@ -632,7 +638,7 @@ where
         write_pubkey(
             &self.storage,
             &public_keyspace,
-            &format!("{}", index_value),
+            &compute_key(index_value),
             &public_key,
         )?;
 
@@ -671,7 +677,7 @@ where
         write_pubkey(
             &self.storage,
             &stakingkey_keyspace,
-            &format!("{}", index_value),
+            &compute_key(index_value),
             &staking_key,
         )?;
 

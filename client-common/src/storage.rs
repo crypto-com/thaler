@@ -53,6 +53,8 @@ pub trait Storage: Send + Sync + Clone {
         F: Fn(Option<&[u8]>) -> Result<Option<Vec<u8>>>;
 
     /// Returns a vector of stored keys in a keyspace.
+    /// ordering can be arbitrary
+    /// to ensure ordering, consider sorting before iteration
     fn keys<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<Vec<Vec<u8>>>;
 
     /// Returns `true` if the storage contains a value for the specified key in given keyspace, `false` otherwise.

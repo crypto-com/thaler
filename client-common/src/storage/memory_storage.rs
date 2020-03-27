@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
 use crate::{Error, ErrorKind, Result, Storage};
@@ -6,7 +6,7 @@ use crate::{Error, ErrorKind, Result, Storage};
 /// Storage backed by `HashMap`
 #[allow(clippy::type_complexity)]
 #[derive(Debug, Default, Clone)]
-pub struct MemoryStorage(Arc<RwLock<HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<u8>>>>>);
+pub struct MemoryStorage(Arc<RwLock<BTreeMap<Vec<u8>, BTreeMap<Vec<u8>, Vec<u8>>>>>);
 
 impl Storage for MemoryStorage {
     fn clear<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<()> {
@@ -18,7 +18,7 @@ impl Storage for MemoryStorage {
         })?;
 
         if let Some(ref mut space) = memory.get_mut(keyspace.as_ref()) {
-            space.drain();
+            space.clear();
         }
 
         Ok(())
@@ -149,5 +149,45 @@ impl Storage for MemoryStorage {
         let keyspaces = memory.keys().map(Clone::clone).collect::<Vec<Vec<u8>>>();
 
         Ok(keyspaces)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use blake2::Blake2s;
+    use chain_core::common::hash256;
+
+    #[test]
+    fn check_memorystorage_ordering() {
+        let storage = MemoryStorage::default();
+        let space = "default".as_bytes();
+        let count = 65536;
+        let mut keylist: Vec<Vec<u8>> = vec![];
+        let mut valuelist: Vec<Vec<u8>> = vec![];
+        for i in 0..count {
+            let data = format!("data {}", i);
+            let hash = hash256::<Blake2s>(&data.as_bytes());
+            assert!(32 == hash.len());
+            let key_hex = hex::encode(&u64::to_be_bytes(i as u64));
+            keylist.push(key_hex.as_bytes().to_vec());
+            valuelist.push(hash.to_vec());
+            storage
+                .set(&space, key_hex.as_bytes(), hash.to_vec())
+                .expect("set data");
+        }
+        assert!(keylist.len() == count);
+        assert!(keylist.len() == valuelist.len());
+        let keys = storage.keys(&space).expect("get keys");
+        assert!(keylist.len() == keys.len());
+        for i in 0..count {
+            let key = keys[i].clone();
+            let value = storage
+                .get(&space, &key)
+                .expect("get value")
+                .expect("get value from option");
+            assert!(keylist[i] == key);
+            assert!(valuelist[i] == value);
+        }
     }
 }
