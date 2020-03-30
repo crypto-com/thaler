@@ -4,7 +4,6 @@
 //! Modifications Copyright (c) 2019-2020, Foris Limited (licensed under the Apache License, Version 2.0)
 //!
 
-use blake2::{Blake2s, Digest};
 use chain_core::common::H256;
 use chain_core::state::account::Count;
 use parity_scale_codec::{
@@ -20,31 +19,28 @@ use starling::tree::tree_data::TreeData;
 use std::collections::HashMap;
 
 #[derive(Clone)]
-pub struct Blake2sHasher(Blake2s);
-impl Hasher<H256> for Blake2sHasher {
+pub struct Blake3Hasher(blake3::Hasher);
+impl Hasher<H256> for Blake3Hasher {
     type HashType = Self;
 
     #[inline]
     fn new(_size: usize) -> Self {
-        let hasher = Blake2s::new();
+        let hasher = blake3::Hasher::new();
         Self(hasher)
     }
 
     #[inline]
     fn update(&mut self, data: &[u8]) {
-        self.0.input(data);
+        self.0.update(data);
     }
 
     #[inline]
     fn finalize(self) -> [u8; KEY_LEN] {
-        let result = self.0.result();
-        let mut finalized = [0; KEY_LEN];
-        finalized.copy_from_slice(result.as_ref());
-        finalized
+        self.0.finalize().into()
     }
 }
 
-pub type TreeHasher = Blake2sHasher;
+pub type TreeHasher = Blake3Hasher;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct TreeBranch {

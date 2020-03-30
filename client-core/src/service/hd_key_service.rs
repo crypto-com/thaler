@@ -282,12 +282,13 @@ mod tests {
             .expect("restore wallet");
 
         // NOTE: addresses changed here in 0.4 due to migration to x-only pubkeys used in BIP-340
+        // + switch to blake3
         for addr in &[
-            "dcro13jycspqf67hp3ejjjlyt5y23umwrutv3gxfynk4s5lqh50pgsp5skktpj6",
-            "dcro1qlavhgsvpv4q5pm3qg93jmrskzhwww2td4e8cl40vuej7yww97hs2dqms9",
-            "dcro17pfjfshdgmh0e7ea59fd4vuk8jpuqhnht296gy2jzmr5g7h2449qu7ndd7",
-            "dcro1vgg3rdajp9awxrz9smvwn9yhvr3l28yfjueul7wr0fmxwxq85yvs6j2lfz",
-            "dcro1tjt8l64wpuqp80hf94cceututwhc5t76hwty7guty5rm7svg9xjs2zm6q8",
+            "dcro1lgray2pkuqnkvd3hvhcvfta2ku5q0t3x8s03ehslu5xsauv4clfqv4yl40",
+            "dcro166l9msr047ek4g5e00x6fsycwpkpkcm40y28cd6l7x2t93tyy25sg43uex",
+            "dcro1plg2e79emeypwaq2w2aryvteq9qefxhujc9xplslawz70dk6s8hstaw9kp",
+            "dcro1jy5a4p5ucrn3kmkz03ju8fla7uql36m5fn0c62t5v2hm322f0xhqxdef5w",
+            "dcro1hz64mcwe4mkhaudu2m66syjq9gh6he8x25z289w7ak2wenhrkgrsu6uvdf",
         ] {
             assert_eq!(
                 wallet

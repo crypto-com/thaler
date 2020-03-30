@@ -1,9 +1,8 @@
 use crate::common::Timespec;
-use crate::common::{hash256, H256};
+use crate::common::H256;
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::fee::{Fee, FeeAlgorithm};
 use crate::tx::fee::{LinearFee, Milli, MilliError};
-use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -44,9 +43,9 @@ pub enum NetworkParameters {
 
 /// TODO: extract these to a trait?
 impl NetworkParameters {
-    /// retrieves the hash of the current state (currently blake2s(scale_code_bytes(network params)))
+    /// retrieves the hash of the current state (currently blake3(scale_code_bytes(network params)))
     pub fn hash(&self) -> H256 {
-        hash256::<Blake2s>(&self.encode())
+        blake3::hash(&self.encode()).into()
     }
 
     pub fn get_max_validators(&self) -> usize {

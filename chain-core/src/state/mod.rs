@@ -5,14 +5,13 @@ pub mod tendermint;
 /// data types related to council node operations in staked state
 pub mod validator;
 
-use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 use std::prelude::v1::Vec;
 
 use self::tendermint::BlockHeight;
-use crate::common::{hash256, MerkleTree, Timespec, H256};
+use crate::common::{MerkleTree, Timespec, H256};
 use crate::compute_app_hash;
 use crate::init::coin::Coin;
 use crate::init::params::NetworkParameters;
@@ -57,9 +56,9 @@ pub struct RewardsPoolState {
 }
 
 impl RewardsPoolState {
-    /// retrieves the hash of the current state (currently blake2s(scale_code_bytes(rewards_pool_state)))
+    /// retrieves the hash of the current state (currently blake3(scale_code_bytes(rewards_pool_state)))
     pub fn hash(&self) -> H256 {
-        hash256::<Blake2s>(&self.encode())
+        blake3::hash(&self.encode()).into()
     }
 
     pub fn new(genesis_time: Timespec, tau: u64) -> Self {

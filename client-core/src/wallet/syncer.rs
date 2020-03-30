@@ -603,6 +603,9 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
+    /// FIXME: these asset files need to be regenerated
+    /// https://github.com/crypto-com/chain/issues/1168
     fn check_wallet_syncer_app_hash_on_multiple_tx() {
         #[derive(Clone)]
         struct MockTendermintClient {}

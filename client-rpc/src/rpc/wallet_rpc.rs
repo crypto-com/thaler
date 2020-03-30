@@ -969,10 +969,12 @@ pub mod tests {
             .unwrap();
 
         // NOTE: this changed in 0.4 due to a migration to x-only pubkeys, as specified by BIP-340
+        // + switch to blake3
+
         let expect_addrs = [
-            "dcro1qlavhgsvpv4q5pm3qg93jmrskzhwww2td4e8cl40vuej7yww97hs2dqms9",
-            "dcro17pfjfshdgmh0e7ea59fd4vuk8jpuqhnht296gy2jzmr5g7h2449qu7ndd7",
-            "dcro1vgg3rdajp9awxrz9smvwn9yhvr3l28yfjueul7wr0fmxwxq85yvs6j2lfz",
+            "dcro166l9msr047ek4g5e00x6fsycwpkpkcm40y28cd6l7x2t93tyy25sg43uex",
+            "dcro1plg2e79emeypwaq2w2aryvteq9qefxhujc9xplslawz70dk6s8hstaw9kp",
+            "dcro1jy5a4p5ucrn3kmkz03ju8fla7uql36m5fn0c62t5v2hm322f0xhqxdef5w",
         ];
         let addrs = expect_addrs
             .iter()

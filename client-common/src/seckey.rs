@@ -3,11 +3,8 @@ use std::str::FromStr;
 
 use aes::{block_cipher_trait::BlockCipher, Aes256};
 use aes_gcm_siv::aead::generic_array::{typenum::Unsigned, GenericArray};
-use blake2::{Blake2s, Digest};
-use hmac::{Hmac, Mac};
 use secstr::{SecBox, SecUtf8};
 use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
-use sha2::Sha256;
 use zeroize::Zeroize;
 
 use crate::{Error, ErrorKind, Result};
@@ -15,6 +12,9 @@ use crate::{Error, ErrorKind, Result};
 /// Encryption key size
 pub type SecKeySize = <Aes256 as BlockCipher>::KeySize;
 /// Encryption key
+/// FIXME: generic capability parameter -- https://en.wikipedia.org/wiki/Capability-based_security
+/// ref for Rust: https://web.archive.org/web/20180129173236/http://zsck.co/writing/capability-based-apis.html
+/// APIs that need the key could then require what capability they need -- e.g. SecKey<View>
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SecKey(SecBox<GenericArray<u8, SecKeySize>>);
 
@@ -46,15 +46,20 @@ pub fn parse_hex_enckey(s: &str) -> Result<SecKey> {
     }
 }
 
+const GLOBAL_DATA_CONTEXT: &str =
+    "Crypto.com Chain Wallet 2020-03-30 16:59:10 global wallet data encryption";
+const SALT_CONTEXT: &str = "Crypto.com Chain Wallet 2020-03-30 16:59:10 salt from wallet name";
+
 /// derive encryption key from passphrase
+/// FIXME: derivation should derive multiple keys, e.g. for view/sync and spending operations
 pub fn derive_enckey(passphrase: &SecUtf8, name: &str) -> argon2::Result<SecKey> {
-    let salt = Blake2s::digest(name.as_bytes());
+    let mut salt = [0; 32];
+    blake3::derive_key(SALT_CONTEXT, name.as_bytes(), &mut salt);
     let mut extended =
         argon2::hash_raw(passphrase.unsecure().as_bytes(), &salt, &Default::default())?;
-    let mut mac = Hmac::<Sha256>::new_varkey(&extended).unwrap();
+    let mut arr = GenericArray::clone_from_slice(&[0; 32]);
+    blake3::derive_key(GLOBAL_DATA_CONTEXT, &extended, &mut arr);
     extended.zeroize();
-    mac.input(b"Wallet Data Encryption");
-    let arr = mac.result_reset().code();
     Ok(SecKey(SecBox::new(Box::new(arr))))
 }
 

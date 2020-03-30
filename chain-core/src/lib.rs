@@ -8,8 +8,6 @@
 #[macro_use]
 extern crate sgx_tstd as std;
 
-use std::prelude::v1::Vec;
-
 /// Miscellaneous definitions and generic merkle tree
 pub mod common;
 /// Types mainly related to InitChain command in ABCI
@@ -19,8 +17,7 @@ pub mod state;
 /// Transaction structure types and serialization/deserialization
 pub mod tx;
 
-use blake2::Blake2s;
-use common::{hash256, MerkleTree, Timespec, H256};
+use common::{MerkleTree, Timespec, H256};
 use init::params::NetworkParameters;
 use parity_scale_codec::{Decode, Encode};
 use state::tendermint::BlockHeight;
@@ -35,8 +32,8 @@ use tx::fee::Fee;
 pub const APP_VERSION: u64 = 0;
 
 /// computes the "global" application hash (used by Tendermint to check consistency + block replaying)
-/// currently: app_hash = blake2s(root of valid TX merkle tree
-/// || root of account/staked state trie || blake2s(scale bytes(rewards pool state)) || blake2s(scale bytes(network params)))
+/// currently: app_hash = blake3(root of valid TX merkle tree
+/// || root of account/staked state trie || blake3(scale bytes(rewards pool state)) || blake3(scale bytes(network params)))
 /// TODO: cache (as many parts remain static)
 /// MUST/TODO: include node whitelists
 pub fn compute_app_hash(
@@ -48,12 +45,12 @@ pub fn compute_app_hash(
     let valid_tx_part = valid_tx_id_tree.root_hash();
     let rewards_pool_part = reward_pool.hash();
     let network_params_part = params.hash();
-    let mut bs = Vec::new();
-    bs.extend(&valid_tx_part);
-    bs.extend(&account_state_root[..]);
-    bs.extend(&rewards_pool_part);
-    bs.extend(&network_params_part);
-    hash256::<Blake2s>(&bs)
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&valid_tx_part);
+    hasher.update(&account_state_root[..]);
+    hasher.update(&rewards_pool_part);
+    hasher.update(&network_params_part);
+    hasher.finalize().into()
 }
 
 /// External information needed for TX validation
