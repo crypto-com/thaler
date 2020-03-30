@@ -210,7 +210,7 @@ name = "base64"
 version = "0.10.1"
 source = "git+https://github.com/mesalock-linux/rust-base64-sgx#30ffdbffdc6f6a793bbc2cd4cf12a46fa2559841"
 dependencies = [
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
 ]
 
 [[package]]
@@ -496,7 +496,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_yaml",
- "sgx_types",
+ "sgx_types 1.1.0",
  "sgx_urts",
  "sha3",
  "starling",
@@ -523,7 +523,7 @@ dependencies = [
  "secp256k1zkp",
  "serde",
  "serde_json",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
  "sha2 0.8.1",
  "static_assertions 1.1.0",
  "thiserror",
@@ -557,7 +557,7 @@ dependencies = [
  "parity-scale-codec",
  "quickcheck",
  "secp256k1zkp",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
 ]
 
 [[package]]
@@ -567,7 +567,7 @@ dependencies = [
  "chain-core",
  "parity-scale-codec",
  "secp256k1zkp",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
  "thiserror",
 ]
 
@@ -578,7 +578,7 @@ source = "git+https://github.com/mesalock-linux/chrono-sgx#47b54df2b477655211972
 dependencies = [
  "num-integer 0.1.41",
  "num-traits 0.2.10",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
 ]
 
 [[package]]
@@ -1213,7 +1213,7 @@ dependencies = [
  "chain-tx-validation",
  "parity-scale-codec",
  "secp256k1zkp",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
 ]
 
 [[package]]
@@ -1247,8 +1247,8 @@ dependencies = [
  "parity-scale-codec",
  "secp256k1zkp",
  "sgx_tseal",
- "sgx_tstd",
- "sgx_types",
+ "sgx_tstd 1.1.0",
+ "sgx_types 1.1.0",
  "zeroize 1.1.0",
 ]
 
@@ -1259,7 +1259,7 @@ dependencies = [
  "env_logger",
  "hex 0.3.2",
  "log 0.4.8",
- "sgx_types",
+ "sgx_types 1.1.0",
  "sgx_urts",
 ]
 
@@ -1661,6 +1661,14 @@ dependencies = [
  "slab",
  "tokio 0.2.13",
  "tokio-util",
+]
+
+[[package]]
+name = "hashbrown"
+version = "0.7.1"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+dependencies = [
+ "autocfg 1.0.0",
 ]
 
 [[package]]
@@ -2262,7 +2270,7 @@ version = "0.4.10"
 source = "git+https://github.com/mesalock-linux/log-sgx#1f02c0fffc360b9efb6cd319f402c4a2b28d96e7"
 dependencies = [
  "cfg-if",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
 ]
 
 [[package]]
@@ -2456,7 +2464,7 @@ dependencies = [
  "autocfg 1.0.0",
  "num-integer 0.1.41",
  "num-traits 0.2.10",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
 ]
 
 [[package]]
@@ -2477,7 +2485,7 @@ source = "git+https://github.com/mesalock-linux/num-integer-sgx#83a8eb4ef29fd64d
 dependencies = [
  "autocfg 0.1.7",
  "num-traits 0.2.10",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
 ]
 
 [[package]]
@@ -2496,7 +2504,7 @@ version = "0.2.10"
 source = "git+https://github.com/mesalock-linux/num-traits-sgx#34a83e2bf71c99910b4bff3028efbb37a9922a48"
 dependencies = [
  "autocfg 0.1.7",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
 ]
 
 [[package]]
@@ -3325,10 +3333,10 @@ dependencies = [
 [[package]]
 name = "ring"
 version = "0.16.11"
-source = "git+https://github.com/mesalock-linux/ring-sgx?tag=v0.16.5#3b826c97624b54f0a24bbcd277ea49dadf73a64c"
+source = "git+https://github.com/mesalock-linux/ring-sgx?tag=v0.16.5#6053fe7eaef7de8a681bd0242a06b01fe9da4b02"
 dependencies = [
  "cc",
- "sgx_tstd",
+ "sgx_tstd 1.1.1",
  "spin",
  "untrusted",
 ]
@@ -3457,7 +3465,7 @@ dependencies = [
  "log 0.4.10",
  "ring 0.16.11",
  "sct 0.6.0 (git+https://github.com/mesalock-linux/sct.rs?branch=mesalock_sgx)",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
  "webpki 0.21.2 (git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx)",
 ]
 
@@ -3533,7 +3541,7 @@ version = "0.6.0"
 source = "git+https://github.com/mesalock-linux/sct.rs?branch=mesalock_sgx#606162b2e7319e57ac39958eec74db117e373c1c"
 dependencies = [
  "ring 0.16.11",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
  "untrusted",
 ]
 
@@ -3555,7 +3563,7 @@ dependencies = [
  "cc",
  "rand 0.7.3",
  "serde",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
  "zeroize 1.1.0",
 ]
 
@@ -3676,13 +3684,28 @@ version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 
 [[package]]
+name = "sgx_alloc"
+version = "1.1.1"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+
+[[package]]
 name = "sgx_backtrace_sys"
 version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "cc",
- "sgx_build_helper",
- "sgx_libc",
+ "sgx_build_helper 0.1.0",
+ "sgx_libc 1.1.0",
+]
+
+[[package]]
+name = "sgx_backtrace_sys"
+version = "1.1.1"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+dependencies = [
+ "cc",
+ "sgx_build_helper 0.1.3",
+ "sgx_libc 1.1.1",
 ]
 
 [[package]]
@@ -3691,16 +3714,34 @@ version = "0.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 
 [[package]]
+name = "sgx_build_helper"
+version = "0.1.3"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+
+[[package]]
 name = "sgx_demangle"
 version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
+
+[[package]]
+name = "sgx_demangle"
+version = "1.1.1"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
 
 [[package]]
 name = "sgx_libc"
 version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
- "sgx_types",
+ "sgx_types 1.1.0",
+]
+
+[[package]]
+name = "sgx_libc"
+version = "1.1.1"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+dependencies = [
+ "sgx_types 1.1.1",
 ]
 
 [[package]]
@@ -3708,9 +3749,9 @@ name = "sgx_rand"
 version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
- "sgx_trts",
- "sgx_tstd",
- "sgx_types",
+ "sgx_trts 1.1.0",
+ "sgx_tstd 1.1.0",
+ "sgx_types 1.1.0",
 ]
 
 [[package]]
@@ -3718,7 +3759,7 @@ name = "sgx_tcrypto"
 version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
- "sgx_types",
+ "sgx_types 1.1.0",
 ]
 
 [[package]]
@@ -3726,8 +3767,17 @@ name = "sgx_tprotected_fs"
 version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
- "sgx_trts",
- "sgx_types",
+ "sgx_trts 1.1.0",
+ "sgx_types 1.1.0",
+]
+
+[[package]]
+name = "sgx_tprotected_fs"
+version = "1.1.1"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+dependencies = [
+ "sgx_trts 1.1.1",
+ "sgx_types 1.1.1",
 ]
 
 [[package]]
@@ -3735,8 +3785,17 @@ name = "sgx_trts"
 version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
- "sgx_libc",
- "sgx_types",
+ "sgx_libc 1.1.0",
+ "sgx_types 1.1.0",
+]
+
+[[package]]
+name = "sgx_trts"
+version = "1.1.1"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+dependencies = [
+ "sgx_libc 1.1.1",
+ "sgx_types 1.1.1",
 ]
 
 [[package]]
@@ -3744,7 +3803,7 @@ name = "sgx_tse"
 version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
- "sgx_types",
+ "sgx_types 1.1.0",
 ]
 
 [[package]]
@@ -3753,9 +3812,9 @@ version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "sgx_tcrypto",
- "sgx_trts",
+ "sgx_trts 1.1.0",
  "sgx_tse",
- "sgx_types",
+ "sgx_types 1.1.0",
 ]
 
 [[package]]
@@ -3763,15 +3822,31 @@ name = "sgx_tstd"
 version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
- "sgx_alloc",
- "sgx_backtrace_sys",
- "sgx_demangle",
- "sgx_libc",
- "sgx_tprotected_fs",
- "sgx_trts",
+ "sgx_alloc 1.1.0",
+ "sgx_backtrace_sys 1.1.0",
+ "sgx_demangle 1.1.0",
+ "sgx_libc 1.1.0",
+ "sgx_tprotected_fs 1.1.0",
+ "sgx_trts 1.1.0",
  "sgx_tseal",
- "sgx_types",
- "sgx_unwind",
+ "sgx_types 1.1.0",
+ "sgx_unwind 0.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0)",
+]
+
+[[package]]
+name = "sgx_tstd"
+version = "1.1.1"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+dependencies = [
+ "hashbrown",
+ "sgx_alloc 1.1.1",
+ "sgx_backtrace_sys 1.1.1",
+ "sgx_demangle 1.1.1",
+ "sgx_libc 1.1.1",
+ "sgx_tprotected_fs 1.1.1",
+ "sgx_trts 1.1.1",
+ "sgx_types 1.1.1",
+ "sgx_unwind 0.1.0 (git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1)",
 ]
 
 [[package]]
@@ -3780,11 +3855,24 @@ version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 
 [[package]]
+name = "sgx_types"
+version = "1.1.1"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+
+[[package]]
 name = "sgx_unwind"
 version = "0.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
- "sgx_build_helper",
+ "sgx_build_helper 0.1.0",
+]
+
+[[package]]
+name = "sgx_unwind"
+version = "0.1.0"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.1#7f38d082750c32afc546f140e76ce3880e41f77c"
+dependencies = [
+ "sgx_build_helper 0.1.3",
 ]
 
 [[package]]
@@ -3793,7 +3881,7 @@ version = "1.1.0"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.0#71a88b647bb76a16cbc5c3e29403e2afb67f82fd"
 dependencies = [
  "libc",
- "sgx_types",
+ "sgx_types 1.1.0",
 ]
 
 [[package]]
@@ -4583,7 +4671,7 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "secp256k1zkp",
- "sgx_types",
+ "sgx_types 1.1.0",
  "sgx_urts",
  "zmq",
 ]
@@ -4610,8 +4698,8 @@ dependencies = [
  "sgx_tcrypto",
  "sgx_tse",
  "sgx_tseal",
- "sgx_tstd",
- "sgx_types",
+ "sgx_tstd 1.1.0",
+ "sgx_types 1.1.0",
  "webpki 0.21.2 (git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx)",
  "webpki-roots 0.19.0",
  "yasna 0.3.1 (git+https://github.com/mesalock-linux/yasna.rs-sgx)",
@@ -4659,11 +4747,11 @@ dependencies = [
  "secp256k1zkp",
  "sgx_rand",
  "sgx_tcrypto",
- "sgx_trts",
+ "sgx_trts 1.1.0",
  "sgx_tse",
  "sgx_tseal",
- "sgx_tstd",
- "sgx_types",
+ "sgx_tstd 1.1.0",
+ "sgx_types 1.1.0",
  "zeroize 1.1.0",
 ]
 
@@ -4949,10 +5037,10 @@ dependencies = [
 [[package]]
 name = "webpki"
 version = "0.21.2"
-source = "git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx#3140b375263232fdb7d64d6a368204e8d1289c28"
+source = "git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx#7e659ba78806b5dd249c16a372985272369ca4bf"
 dependencies = [
  "ring 0.16.11",
- "sgx_tstd",
+ "sgx_tstd 1.1.1",
  "untrusted",
 ]
 
@@ -4978,9 +5066,9 @@ dependencies = [
 [[package]]
 name = "webpki-roots"
 version = "0.19.0"
-source = "git+https://github.com/mesalock-linux/webpki-roots?branch=mesalock_sgx#3cdd237236e702e3bc93c960ca48cdfb42bec899"
+source = "git+https://github.com/mesalock-linux/webpki-roots?branch=mesalock_sgx#3a3c9e909cd2c0a05d2614c6b153b15141e81507"
 dependencies = [
- "sgx_tstd",
+ "sgx_tstd 1.1.1",
  "webpki 0.21.2 (git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx)",
 ]
 
@@ -5127,7 +5215,7 @@ dependencies = [
  "bit-vec 0.6.1",
  "chrono 0.4.10",
  "num-bigint 0.2.5",
- "sgx_tstd",
+ "sgx_tstd 1.1.0",
 ]
 
 [[package]]
