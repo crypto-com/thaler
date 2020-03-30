@@ -1,6 +1,5 @@
 use std::net::{TcpStream, ToSocketAddrs};
 
-use bincode::{deserialize_from, serialize_into};
 use thiserror::Error;
 
 use ra_common::{
@@ -27,9 +26,13 @@ impl SpRaClient {
     /// Get target info obtained from AESM
     pub fn get_target_info(&self) -> Result<Vec<u8>, SpRaClientError> {
         let request = Request::GetTargetInfo;
-        serialize_into(&self.stream, &request)?;
+        serde_json::to_writer(&self.stream, &request)?;
 
-        let response: Response = deserialize_from(&self.stream)?;
+        let response: Response = serde_json::Deserializer::from_reader(&self.stream)
+            .into_iter()
+            .next()
+            .transpose()?
+            .ok_or_else(|| SpRaClientError::NoResponse)?;
 
         match response {
             Response::GetTargetInfo { target_info } => Ok(target_info),
@@ -38,11 +41,19 @@ impl SpRaClient {
     }
 
     /// Generates a new quote from QE using AESM
-    pub fn get_quote(&self, report: Vec<u8>) -> Result<QuoteResult, SpRaClientError> {
-        let request = Request::GetQuote { report };
-        serialize_into(&self.stream, &request)?;
+    pub fn get_quote(
+        &self,
+        report: Vec<u8>,
+        nonce: [u8; 16],
+    ) -> Result<QuoteResult, SpRaClientError> {
+        let request = Request::GetQuote { report, nonce };
+        serde_json::to_writer(&self.stream, &request)?;
 
-        let response: Response = deserialize_from(&self.stream)?;
+        let response: Response = serde_json::Deserializer::from_reader(&self.stream)
+            .into_iter()
+            .next()
+            .transpose()?
+            .ok_or_else(|| SpRaClientError::NoResponse)?;
 
         match response {
             Response::GetQuote { quote_result } => Ok(quote_result),
@@ -56,9 +67,13 @@ impl SpRaClient {
         quote: Vec<u8>,
     ) -> Result<AttestationReport, SpRaClientError> {
         let request = Request::GetAttestationReport { quote };
-        serialize_into(&self.stream, &request)?;
+        serde_json::to_writer(&self.stream, &request)?;
 
-        let response: Response = deserialize_from(&self.stream)?;
+        let response: Response = serde_json::Deserializer::from_reader(&self.stream)
+            .into_iter()
+            .next()
+            .transpose()?
+            .ok_or_else(|| SpRaClientError::NoResponse)?;
 
         match response {
             Response::GetAttestationReport { attestation_report } => Ok(attestation_report),
@@ -69,10 +84,12 @@ impl SpRaClient {
 
 #[derive(Debug, Error)]
 pub enum SpRaClientError {
-    #[error("Bincode error: {0}")]
-    BincodeError(#[from] bincode::Error),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("JSON error: {0}")]
+    JsonError(#[from] serde_json::Error),
+    #[error("No response from SP server")]
+    NoResponse,
     #[error("Unexpected response: {0:?}")]
     UnexpectedResponse(Response),
 }

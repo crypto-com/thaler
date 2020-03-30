@@ -67,6 +67,7 @@ impl SpRaContext {
         &self,
         report: Vec<u8>,
         sig_rl: Vec<u8>,
+        nonce: [u8; 16],
     ) -> Result<QuoteResult, SpRaContextError> {
         let quote_result = self
             .aesm_client
@@ -76,7 +77,7 @@ impl SpRaContext {
                 self.spid.to_vec(),
                 sig_rl,
                 parse_quote_type(&self.quote_type)?,
-                vec![0; 16],
+                nonce.to_vec(),
             )
             .map_err(SpRaContextError::AesmError)?;
 

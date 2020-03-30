@@ -8,7 +8,7 @@ pub enum Request {
     /// Get target info obtained from AESM
     GetTargetInfo,
     /// Generates a new quote from QE using AESM
-    GetQuote { report: Vec<u8> },
+    GetQuote { report: Vec<u8>, nonce: [u8; 16] },
     /// Generate attestation report using IAS
     GetAttestationReport { quote: Vec<u8> },
 }

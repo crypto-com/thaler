@@ -1,14 +1,20 @@
 [package]
-name = "ra-sp-client"
+name = "ra-client"
 version = "0.1.0"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
-description = "TCP client for connecting to SP server for remote attestation of enclaves (this should be used in enclaves to connect to SP server)"
+description = "Types for connecting to an enclave over attested TLS connection"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chrono = "0.4"
+der-parser = "3.0"
+log = "0.4"
+rustls = { version = "0.17", features = ["dangerous_configuration"] }
 serde_json = "1.0"
 thiserror = "1.0"
+webpki = "0.21"
+x509-parser = "0.6"
 
 ra-common = { path = "../ra-common" }
