@@ -268,23 +268,18 @@ impl EnclaveProxy for MockClient {
                         TxEnclaveAux::WithdrawUnbondedStakeTx { .. },
                         Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx)),
                     ) => {
-                        let result = verify_unbonded_withdraw(
+                        let fee = verify_unbonded_withdraw(
                             &tx,
                             &info,
-                            account.expect("account exists in withdraw"),
-                        );
-                        match result {
-                            Ok((fee, _account)) => {
-                                let txwo = TxWithOutputs::StakeWithdraw(tx);
-                                self.add_view_keys(&txwo);
+                            &account.expect("account exists in withdraw"),
+                        )?;
+                        let txwo = TxWithOutputs::StakeWithdraw(tx);
+                        self.add_view_keys(&txwo);
 
-                                Ok(IntraEnclaveResponseOk::TxWithOutputs {
-                                    paid_fee: fee,
-                                    sealed_tx: txwo.encode(),
-                                })
-                            }
-                            Err(e) => Err(e),
-                        }
+                        Ok(IntraEnclaveResponseOk::TxWithOutputs {
+                            paid_fee: fee,
+                            sealed_tx: txwo.encode(),
+                        })
                     }
                     _ => Err(chain_tx_validation::Error::EnclaveRejected),
                 }
