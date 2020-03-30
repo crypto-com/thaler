@@ -327,9 +327,9 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -
 
             let range = chunk.collect::<Vec<u64>>();
 
-            // Get the last block to check if there are any changes
-            let block = self.env.client.block(range[range.len() - 1])?;
             if self.env.enable_fast_forward {
+                // Get the last block to check if there are any changes
+                let block = self.env.client.block(range[range.len() - 1])?;
                 if let Some(block) = self.fast_forward_block(&block)? {
                     // Fast forward batch if possible
                     self.handle_batch((batch, block).into())?;
@@ -374,13 +374,6 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -
                             .collect(),
                     ),
                 );
-                if self.env.enable_fast_forward {
-                    if let Some(block) = self.fast_forward_status(&status)? {
-                        // Fast forward to latest state if possible
-                        self.handle_batch((batch, block).into())?;
-                        return Ok(());
-                    }
-                }
 
                 let block = FilteredBlock::from_block(&self.wallet, &block, &block_result)?;
                 self.update_progress(block.block_height);
