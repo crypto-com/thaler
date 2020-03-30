@@ -1,9 +1,51 @@
+use std::str::FromStr;
+
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::Quote;
 
 pub static OID_EXTENSION_ATTESTATION_REPORT: &[u64] = &[2, 16, 840, 1, 113_730, 1, 13];
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
+pub enum EnclaveQuoteStatus {
+    Ok,
+    SignatureInvalid,
+    GroupRevoked,
+    SignatureRevoked,
+    KeyRevoked,
+    SigrlVersionMismatch,
+    GroupOutOfDate,
+    ConfigurationNeeded,
+    SwHardeningNeeded,
+    ConfigurationAndSwHardeningNeeded,
+}
+
+impl FromStr for EnclaveQuoteStatus {
+    type Err = EnclaveQuoteStatusParsingError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "OK" => Ok(Self::Ok),
+            "SIGNATURE_INVALID" => Ok(Self::SignatureInvalid),
+            "GROUP_REVOKED" => Ok(Self::GroupRevoked),
+            "SIGNATURE_REVOKED" => Ok(Self::SignatureRevoked),
+            "KEY_REVOKED" => Ok(Self::KeyRevoked),
+            "SIGRL_VERSION_MISMATCH" => Ok(Self::SigrlVersionMismatch),
+            "GROUP_OUT_OF_DATE" => Ok(Self::GroupOutOfDate),
+            "CONFIGURATION_NEEDED" => Ok(Self::ConfigurationNeeded),
+            "SW_HARDENING_NEEDED" => Ok(Self::SwHardeningNeeded),
+            "CONFIGURATION_AND_SW_HARDENING_NEEDED" => Ok(Self::ConfigurationAndSwHardeningNeeded),
+            _ => Err(EnclaveQuoteStatusParsingError::InvalidStatus(s.to_owned())),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum EnclaveQuoteStatusParsingError {
+    #[error("Invalid enclave quote status: {0}")]
+    InvalidStatus(String),
+}
 
 /// Attestation verification report body returned by IAS to SP
 #[derive(Debug, Serialize, Deserialize)]

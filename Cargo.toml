@@ -15,7 +15,9 @@ members = [
     "dev-utils",
     "enclave-protocol",
     "chain-tx-enclave/enclave-utils",
+    "chain-tx-enclave/enclave-ra/ra-client",
     "chain-tx-enclave/enclave-ra/ra-common",
+    "chain-tx-enclave/enclave-ra/ra-enclave",
     "chain-tx-enclave/enclave-ra/ra-sp-client",
     "chain-tx-enclave/enclave-ra/ra-sp-server",
     "chain-tx-enclave/tx-validation/enclave",
@@ -43,3 +45,6 @@ default-members = [
     "chain-tx-enclave/enclave-utils",
     "cro-clib",
 ]
+
+[patch.crates-io]
+ring = { git = "https://github.com/crypto-com/ring.git", rev = "f9afbd8a6d571f1a726e1bd1610328623622f2c0" }

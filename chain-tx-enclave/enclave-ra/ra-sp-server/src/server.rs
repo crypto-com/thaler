@@ -45,7 +45,14 @@ impl SpRaServer {
 
 fn handle_connection(context: &SpRaContext, stream: TcpStream) -> Result<(), SpRaServerError> {
     loop {
-        let request: Request = bincode::deserialize_from(&stream)?;
+        let request: Request = match serde_json::Deserializer::from_reader(&stream)
+            .into_iter()
+            .next()
+            .transpose()?
+        {
+            None => return Ok(()),
+            Some(request) => request,
+        };
 
         log::debug!("Received request: {:?}", request);
 
@@ -55,9 +62,9 @@ fn handle_connection(context: &SpRaContext, stream: TcpStream) -> Result<(), SpR
 
                 Response::GetTargetInfo { target_info }
             }
-            Request::GetQuote { report } => {
+            Request::GetQuote { report, nonce } => {
                 let sig_rl = context.get_sig_rl()?.unwrap_or_default();
-                let quote_result = context.get_quote(report, sig_rl)?;
+                let quote_result = context.get_quote(report, sig_rl, nonce)?;
 
                 Response::GetQuote { quote_result }
             }
@@ -70,16 +77,16 @@ fn handle_connection(context: &SpRaContext, stream: TcpStream) -> Result<(), SpR
 
         log::debug!("Sending response: {:?}", response);
 
-        bincode::serialize_into(&stream, &response)?;
+        serde_json::to_writer(&stream, &response)?;
     }
 }
 
 #[derive(Debug, Error)]
 pub enum SpRaServerError {
-    #[error("Bincode error: {0}")]
-    BincodeError(#[from] bincode::Error),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("JSON error: {0}")]
+    JsonError(#[from] serde_json::Error),
     #[error("RA context error: {0}")]
     RaContextError(#[from] SpRaContextError),
 }
