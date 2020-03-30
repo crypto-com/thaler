@@ -392,8 +392,7 @@ mod default_wallet_transaction_builder_tests {
                     // FIXME: all these unit tests don't account for 16-byte tag in encryption
                     // in those mock encrypt stuff, while the estimation does :/
                     assert!(
-                        (output_value + fee).unwrap() <=
-                        (input_value - Coin::from(16u32)).unwrap()
+                        (output_value + fee).unwrap() <= (input_value - Coin::from(16u32)).unwrap()
                     );
 
                     for (i, input) in transaction.inputs.iter().enumerate() {
