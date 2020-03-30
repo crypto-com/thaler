@@ -18,7 +18,7 @@ abci = "0.6"
 kvdb-memorydb = "0.5"
 protobuf = "2.7.0"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d50d5998a11064591d86583b297130d6d9636aa5", features = ["recovery", "endomorphism"] }
-parity-scale-codec = { features = ["derive"], version = "1.2" }
+parity-scale-codec = { features = ["derive"], version = "1.3" }
 base64 = "0.11"
 hex = "0.4"
 

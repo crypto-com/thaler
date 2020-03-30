@@ -19,7 +19,7 @@ sgx_tcrypto = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sd
 sgx_tse     = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_rand    = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tseal     = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-parity-scale-codec = { default-features = false, features = ["derive"], version = "1.2" }
+parity-scale-codec = { default-features = false, features = ["derive"], version = "1.3" }
 chain-core   = { path = "../../../chain-core", default-features = false, features = ["mesalock_sgx"] }
 enclave-protocol  = {  path = "../../../enclave-protocol", default-features = false, features = ["mesalock_sgx"] }
 enclave-t-common = { path = "../../enclave-t-common" }
