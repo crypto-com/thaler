@@ -15,6 +15,6 @@ rustls = { version = "0.17", features = ["dangerous_configuration"] }
 serde_json = "1.0"
 thiserror = "1.0"
 webpki = "0.21"
-x509-parser = "0.6"
+x509-parser = "0.7"
 
 ra-common = { path = "../ra-common" }
