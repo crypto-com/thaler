@@ -14,12 +14,11 @@ pub mod output;
 #[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 
-use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode, Error, Input};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 
-use crate::common::{hash256, H256};
+use crate::common::H256;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
 use crate::tx::TransactionId;
@@ -33,15 +32,15 @@ use crate::tx::TransactionId;
 const MAX_TX_SIZE: usize = 8100; // 8100 bytes
 
 /// Calculates hash of the input data -- if SCALE-serialized TX is passed in, it's equivalent to TxId.
-/// Currently, it uses blake2s.
+/// It uses blake3.
 pub fn txid_hash(buf: &[u8]) -> H256 {
-    hash256::<Blake2s>(buf)
+    blake3::hash(buf).into()
 }
 
 /// Key to identify the used TXID hash function, e.g. in ProofOps.
-pub const TXID_HASH_ID: &[u8; 7] = b"blake2s";
+pub const TXID_HASH_ID: &[u8; 6] = b"blake3";
 
-/// Transaction ID -- currently, blake2s hash of SCALE-serialized TX data
+/// Transaction ID -- currently, blake3 hash of SCALE-serialized TX data
 pub type TxId = H256;
 
 /// A Transaction containing tx inputs and tx outputs.

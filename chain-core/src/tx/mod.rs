@@ -45,7 +45,7 @@ impl TxWithOutputs {
         }
     }
 
-    /// returns the particular transaction type's id (currently blake2s_hash(SCALE-encoded tx))
+    /// returns the particular transaction type's id (currently blake3_hash(SCALE-encoded tx))
     pub fn id(&self) -> TxId {
         match self {
             TxWithOutputs::Transfer(tx) => tx.id(),
@@ -170,7 +170,7 @@ pub enum TxEnclaveAux {
 }
 
 impl TxEnclaveAux {
-    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
+    /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
     pub fn tx_id(&self) -> TxId {
         match self {
             TxEnclaveAux::TransferTx {
@@ -197,7 +197,7 @@ pub enum TxPublicAux {
 }
 
 impl TxPublicAux {
-    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
+    /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
     pub fn tx_id(&self) -> TxId {
         match self {
             TxPublicAux::UnbondStakeTx(tx, _) => tx.id(),
@@ -247,14 +247,14 @@ impl Decode for TxAux {
 }
 
 pub trait TransactionId: Encode {
-    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
+    /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
     fn id(&self) -> TxId {
         txid_hash(&self.encode())
     }
 }
 
 impl TxAux {
-    /// retrieves a TX ID (currently blake2s(scale_codec_bytes(tx)))
+    /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
     pub fn tx_id(&self) -> TxId {
         match self {
             TxAux::EnclaveTx(tx) => tx.tx_id(),

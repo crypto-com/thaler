@@ -1,4 +1,4 @@
-use crate::common::{hash256, Timespec, HASH_SIZE_256};
+use crate::common::{Timespec, HASH_SIZE_256};
 use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::tx::data::attribute::TxAttributes;
@@ -6,7 +6,6 @@ use crate::tx::data::input::TxoPointer;
 use crate::tx::data::output::TxOut;
 use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
 use crate::tx::TransactionId;
-use blake2::Blake2s;
 use core::cmp::Ordering;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
@@ -363,13 +362,14 @@ pub struct StakedState {
 }
 
 /// the tree used in StakedState storage db has a hardcoded 32-byte keys,
-/// this computes a key as blake2s(StakedState.address) where
+/// this computes a key as blake3(StakedState.address) where
 /// the StakedState address itself is ETH-style address (20 bytes from keccak hash of public key)
 pub fn to_stake_key(address: &StakedStateAddress) -> [u8; HASH_SIZE_256] {
     // TODO: prefix with zero
     match address {
-        StakedStateAddress::BasicRedeem(a) => hash256::<Blake2s>(a),
+        StakedStateAddress::BasicRedeem(a) => blake3::hash(a),
     }
+    .into()
 }
 
 impl StakedState {

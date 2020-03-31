@@ -1,17 +1,14 @@
-// FIXME: type bounds + more efficient binary repr.
-#![allow(clippy::type_repetition_in_bounds)]
 use std::prelude::v1::{Box, Vec};
 use std::vec::IntoIter;
 
-use blake2::Blake2s;
 use parity_scale_codec::{Decode, Encode};
 
-use super::{hash256, H256, H512, HASH_SIZE_256};
+use super::H256;
 
-/// Hash of leaf node with empty slice `hash(&[], NodeType::Leaf)`
+/// Hash of leaf node with empty slice `hash_leaf(&[])`
 const EMPTY_HASH: H256 = [
-    227, 77, 116, 219, 175, 79, 244, 198, 171, 216, 113, 204, 34, 4, 81, 210, 234, 38, 72, 132,
-    108, 119, 87, 251, 170, 200, 47, 229, 26, 214, 75, 234,
+    45, 58, 222, 223, 241, 27, 97, 241, 76, 136, 110, 53, 175, 160, 54, 115, 109, 205, 135, 167,
+    77, 39, 181, 193, 81, 2, 37, 208, 245, 146, 226, 19,
 ];
 
 /// Represents inner tree structure of Merkle Tree
@@ -43,7 +40,7 @@ impl<T> Tree<T> {
         T: AsRef<[u8]>,
     {
         Tree::Leaf {
-            hash: hash(&value, NodeType::Leaf),
+            hash: hash_leaf(&value),
             value,
         }
     }
@@ -52,7 +49,7 @@ impl<T> Tree<T> {
     #[inline]
     pub fn node(left: Box<Tree<T>>, right: Box<Tree<T>>) -> Self {
         Tree::Node {
-            hash: combined_hash(&left.hash(), &right.hash()),
+            hash: hash_intermediate(&left.hash(), &right.hash()),
             left,
             right,
         }
@@ -79,7 +76,7 @@ impl<T> Tree<T> {
             Tree::Leaf {
                 hash: node_hash, ..
             } => {
-                if &hash(value, NodeType::Leaf) == node_hash {
+                if &hash_leaf(value) == node_hash {
                     Some(Path {
                         leaf_hash: *node_hash,
                         nodes: vec![],
@@ -185,9 +182,9 @@ impl Path {
             };
 
             let calced_hash = if Side::Left == node.hash_side {
-                combined_hash(&node.child_hash, &ref_hash)
+                hash_intermediate(&node.child_hash, &ref_hash)
             } else {
-                combined_hash(&ref_hash, &node.child_hash)
+                hash_intermediate(&ref_hash, &node.child_hash)
             };
 
             if calced_hash != node.node_hash {
@@ -212,6 +209,7 @@ impl<T> Proof<T> {
     where
         T: AsRef<[u8]>,
     {
+        // FIXME: https://github.com/crypto-com/chain/issues/1329
         root_hash == self.path.hash() && self.path.verify()
     }
 
@@ -353,39 +351,21 @@ impl<T> MerkleTree<T> {
     }
 }
 
-/// A node can either be a leaf or intermediate node in a merkle tree
-#[derive(Debug)]
-pub enum NodeType {
-    Leaf,
-    Intermediate,
-}
-
-fn combine(left: &H256, right: &H256) -> H512 {
-    let mut hash = [0; HASH_SIZE_256 * 2];
-    hash[0..HASH_SIZE_256].copy_from_slice(left);
-    hash[HASH_SIZE_256..(HASH_SIZE_256 * 2)].copy_from_slice(right);
-
-    hash
-}
-
-pub fn hash<T: AsRef<[u8]>>(value: T, node_type: NodeType) -> H256 {
-    match node_type {
-        NodeType::Leaf => hash256::<Blake2s>(&prefix_with_byte(value, 0)),
-        NodeType::Intermediate => hash256::<Blake2s>(&prefix_with_byte(value, 1)),
-    }
-}
-
-fn prefix_with_byte<T: AsRef<[u8]>>(value: T, prefix: u8) -> Vec<u8> {
-    let value = value.as_ref();
-    let mut bytes = Vec::with_capacity(value.len() + 1);
-    bytes.push(prefix);
-    bytes.extend_from_slice(value);
-    bytes
+#[inline]
+fn hash_leaf<T: AsRef<[u8]>>(value: T) -> H256 {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&[0x00]);
+    hasher.update(value.as_ref());
+    hasher.finalize().into()
 }
 
 #[inline]
-fn combined_hash(left: &H256, right: &H256) -> H256 {
-    hash(&combine(left, right)[..], NodeType::Intermediate)
+fn hash_intermediate(left: &H256, right: &H256) -> H256 {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(&[0x01]);
+    hasher.update(left);
+    hasher.update(right);
+    hasher.finalize().into()
 }
 
 /// An iterator which iterates over pair of values
@@ -415,7 +395,7 @@ mod tests {
     #[test]
     fn check_empty_hash() {
         let values: [u8; 0] = [];
-        assert_eq!(EMPTY_HASH, hash(&values, NodeType::Leaf));
+        assert_eq!(EMPTY_HASH, hash_leaf(&values));
     }
 
     #[test]
@@ -435,7 +415,7 @@ mod tests {
         let values = vec!["one"];
         let tree = MerkleTree::new(values);
 
-        assert_eq!(hash("one", NodeType::Leaf), tree.root_hash());
+        assert_eq!(hash_leaf("one"), tree.root_hash());
         assert_eq!(0, tree.height());
         assert_eq!(1, tree.len());
         assert_eq!(None, tree.generate_proof("ten"));
@@ -450,12 +430,12 @@ mod tests {
         let values = vec!["one", "two"];
         let hashes = values
             .iter()
-            .map(|value| hash(value, NodeType::Leaf))
+            .map(|value| hash_leaf(value))
             .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
-        let root_hash = combined_hash(&hashes[0], &hashes[1]);
+        let root_hash = hash_intermediate(&hashes[0], &hashes[1]);
 
         assert_eq!(root_hash, tree.root_hash());
         assert_eq!(1, tree.height());
@@ -477,13 +457,13 @@ mod tests {
         let values = vec!["one", "two", "three"];
         let hashes = values
             .iter()
-            .map(|value| hash(value, NodeType::Leaf))
+            .map(|value| hash_leaf(value))
             .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
-        let h01 = combined_hash(&hashes[0], &hashes[1]);
-        let root_hash = combined_hash(&h01, &hashes[2]);
+        let h01 = hash_intermediate(&hashes[0], &hashes[1]);
+        let root_hash = hash_intermediate(&h01, &hashes[2]);
 
         assert_eq!(root_hash, tree.root_hash());
         assert_eq!(2, tree.height());
@@ -509,15 +489,15 @@ mod tests {
         let values = vec!["one", "two", "three", "four"];
         let hashes = values
             .iter()
-            .map(|value| hash(value, NodeType::Leaf))
+            .map(|value| hash_leaf(value))
             .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
-        let h01 = combined_hash(&hashes[0], &hashes[1]);
-        let h23 = combined_hash(&hashes[2], &hashes[3]);
+        let h01 = hash_intermediate(&hashes[0], &hashes[1]);
+        let h23 = hash_intermediate(&hashes[2], &hashes[3]);
 
-        let root_hash = combined_hash(&h01, &h23);
+        let root_hash = hash_intermediate(&h01, &h23);
 
         assert_eq!(root_hash, tree.root_hash());
         assert_eq!(2, tree.height());
@@ -547,16 +527,16 @@ mod tests {
         let values = vec!["one", "two", "three", "four", "five"];
         let hashes = values
             .iter()
-            .map(|value| hash(value, NodeType::Leaf))
+            .map(|value| hash_leaf(value))
             .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
-        let h01 = combined_hash(&hashes[0], &hashes[1]);
-        let h23 = combined_hash(&hashes[2], &hashes[3]);
-        let h4 = combined_hash(&h01, &h23);
+        let h01 = hash_intermediate(&hashes[0], &hashes[1]);
+        let h23 = hash_intermediate(&hashes[2], &hashes[3]);
+        let h4 = hash_intermediate(&h01, &h23);
 
-        let root_hash = combined_hash(&h4, &hashes[4]);
+        let root_hash = hash_intermediate(&h4, &hashes[4]);
 
         assert_eq!(root_hash, tree.root_hash());
         assert_eq!(3, tree.height());
@@ -590,18 +570,18 @@ mod tests {
         let values = vec!["one", "two", "three", "four", "five", "six"];
         let hashes = values
             .iter()
-            .map(|value| hash(value, NodeType::Leaf))
+            .map(|value| hash_leaf(value))
             .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
-        let h01 = combined_hash(&hashes[0], &hashes[1]);
-        let h23 = combined_hash(&hashes[2], &hashes[3]);
-        let h45 = combined_hash(&hashes[4], &hashes[5]);
+        let h01 = hash_intermediate(&hashes[0], &hashes[1]);
+        let h23 = hash_intermediate(&hashes[2], &hashes[3]);
+        let h45 = hash_intermediate(&hashes[4], &hashes[5]);
 
-        let h6 = combined_hash(&h01, &h23);
+        let h6 = hash_intermediate(&h01, &h23);
 
-        let root_hash = combined_hash(&h6, &h45);
+        let root_hash = hash_intermediate(&h6, &h45);
 
         assert_eq!(root_hash, tree.root_hash());
         assert_eq!(3, tree.height());
@@ -639,19 +619,19 @@ mod tests {
         let values = vec!["one", "two", "three", "four", "five", "six", "seven"];
         let hashes = values
             .iter()
-            .map(|value| hash(value, NodeType::Leaf))
+            .map(|value| hash_leaf(value))
             .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
-        let h01 = combined_hash(&hashes[0], &hashes[1]);
-        let h23 = combined_hash(&hashes[2], &hashes[3]);
-        let h45 = combined_hash(&hashes[4], &hashes[5]);
+        let h01 = hash_intermediate(&hashes[0], &hashes[1]);
+        let h23 = hash_intermediate(&hashes[2], &hashes[3]);
+        let h45 = hash_intermediate(&hashes[4], &hashes[5]);
 
-        let h6 = combined_hash(&h01, &h23);
-        let h7 = combined_hash(&h45, &hashes[6]);
+        let h6 = hash_intermediate(&h01, &h23);
+        let h7 = hash_intermediate(&h45, &hashes[6]);
 
-        let root_hash = combined_hash(&h6, &h7);
+        let root_hash = hash_intermediate(&h6, &h7);
 
         assert_eq!(root_hash, tree.root_hash());
         assert_eq!(3, tree.height());
@@ -695,20 +675,20 @@ mod tests {
         ];
         let hashes = values
             .iter()
-            .map(|value| hash(value, NodeType::Leaf))
+            .map(|value| hash_leaf(value))
             .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
-        let h01 = combined_hash(&hashes[0], &hashes[1]);
-        let h23 = combined_hash(&hashes[2], &hashes[3]);
-        let h45 = combined_hash(&hashes[4], &hashes[5]);
-        let h67 = combined_hash(&hashes[6], &hashes[7]);
+        let h01 = hash_intermediate(&hashes[0], &hashes[1]);
+        let h23 = hash_intermediate(&hashes[2], &hashes[3]);
+        let h45 = hash_intermediate(&hashes[4], &hashes[5]);
+        let h67 = hash_intermediate(&hashes[6], &hashes[7]);
 
-        let h8 = combined_hash(&h01, &h23);
-        let h9 = combined_hash(&h45, &h67);
+        let h8 = hash_intermediate(&h01, &h23);
+        let h9 = hash_intermediate(&h45, &h67);
 
-        let root_hash = combined_hash(&h8, &h9);
+        let root_hash = hash_intermediate(&h8, &h9);
 
         assert_eq!(root_hash, tree.root_hash());
         assert_eq!(3, tree.height());
@@ -756,21 +736,21 @@ mod tests {
         ];
         let hashes = values
             .iter()
-            .map(|value| hash(value, NodeType::Leaf))
+            .map(|value| hash_leaf(value))
             .collect::<Vec<H256>>();
 
         let tree = MerkleTree::new(values);
 
-        let h01 = combined_hash(&hashes[0], &hashes[1]);
-        let h23 = combined_hash(&hashes[2], &hashes[3]);
-        let h45 = combined_hash(&hashes[4], &hashes[5]);
-        let h67 = combined_hash(&hashes[6], &hashes[7]);
+        let h01 = hash_intermediate(&hashes[0], &hashes[1]);
+        let h23 = hash_intermediate(&hashes[2], &hashes[3]);
+        let h45 = hash_intermediate(&hashes[4], &hashes[5]);
+        let h67 = hash_intermediate(&hashes[6], &hashes[7]);
 
-        let h8 = combined_hash(&h01, &h23);
-        let h9 = combined_hash(&h45, &h67);
-        let h10 = combined_hash(&h8, &h9);
+        let h8 = hash_intermediate(&h01, &h23);
+        let h9 = hash_intermediate(&h45, &h67);
+        let h10 = hash_intermediate(&h8, &h9);
 
-        let root_hash = combined_hash(&h10, &hashes[8]);
+        let root_hash = hash_intermediate(&h10, &hashes[8]);
 
         assert_eq!(root_hash, tree.root_hash());
         assert_eq!(4, tree.height());

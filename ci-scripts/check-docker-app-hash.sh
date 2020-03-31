@@ -17,6 +17,8 @@ check_command_exist "jq"
 
 GENERATED_APP_HASH=$(./target/debug/dev-utils genesis generate --genesis_dev_config_path ./docker/config/devnet/dev-conf.json --tendermint_genesis_path ./docker/config/devnet/tendermint/genesis.json | jq -r '.app_hash')
 GENESIS_APP_HASH=$(cat ./docker/config/devnet/tendermint/genesis.json | jq -r '.app_hash')
+echo "Generated app hash: ${GENERATED_APP_HASH}"
+echo "Docker app hash: ${GENESIS_APP_HASH}"
 
 if [ x"${GENERATED_APP_HASH}" != x"${GENESIS_APP_HASH}" ]; then
     echo "Devnet genesis app_hash in docker is inconsistent with generated app_hash"

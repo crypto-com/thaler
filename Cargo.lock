@@ -305,18 +305,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blake2"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94cb07b0da6a73955f8fb85d24c466778e70cda767a568229b104f0264089330"
-dependencies = [
- "byte-tools 0.3.1",
- "crypto-mac",
- "digest 0.8.1",
- "opaque-debug",
-]
-
-[[package]]
 name = "blake2b_simd"
 version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -325,6 +313,21 @@ dependencies = [
  "arrayref",
  "arrayvec 0.5.1",
  "constant_time_eq",
+]
+
+[[package]]
+name = "blake3"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "861b9a725beee11d674d1880e402e5956fc0e521cc3822b5cdff380764e178bc"
+dependencies = [
+ "arrayref",
+ "arrayvec 0.5.1",
+ "cc",
+ "cfg-if",
+ "constant_time_eq",
+ "crypto-mac",
+ "digest 0.8.1",
 ]
 
 [[package]]
@@ -471,7 +474,6 @@ dependencies = [
  "abci",
  "base64 0.11.0",
  "bit-vec 0.6.1",
- "blake2",
  "byteorder",
  "cc",
  "chain-core",
@@ -514,7 +516,7 @@ dependencies = [
  "aead",
  "base64 0.11.0",
  "bech32",
- "blake2",
+ "blake3",
  "digest 0.8.1",
  "fixed",
  "hex 0.4.2",
@@ -535,7 +537,7 @@ name = "chain-storage"
 version = "0.4.0"
 dependencies = [
  "bit-vec 0.6.1",
- "blake2",
+ "blake3",
  "chain-core",
  "integer-encoding",
  "kvdb",
@@ -685,12 +687,11 @@ dependencies = [
  "aes",
  "aes-gcm-siv",
  "base64 0.11.0",
- "blake2",
+ "blake3",
  "chain-core",
  "chain-tx-filter",
  "chrono 0.4.11",
  "hex 0.4.2",
- "hmac",
  "indexmap",
  "itertools 0.9.0",
  "jsonrpc",
@@ -703,7 +704,6 @@ dependencies = [
  "secstr",
  "serde",
  "serde_json",
- "sha2 0.8.1",
  "sled",
  "tendermint",
  "websocket",
