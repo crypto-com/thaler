@@ -809,4 +809,17 @@ mod tests {
             .unwrap()
             .verify(&new_tree.root_hash()));
     }
+
+    #[test]
+    fn check_wrong_leaf_value() {
+        let values = vec!["one", "two", "three", "four"];
+        let tree = MerkleTree::new(values);
+
+        let mut proof = tree.generate_proof("one").unwrap();
+        assert!(proof.verify(&tree.root_hash()));
+
+        // Intentionally change the value in proof
+        proof.value = "two";
+        assert!(!proof.verify(&tree.root_hash()));
+    }
 }
