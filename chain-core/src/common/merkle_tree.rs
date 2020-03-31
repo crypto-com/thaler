@@ -209,8 +209,9 @@ impl<T> Proof<T> {
     where
         T: AsRef<[u8]>,
     {
-        // FIXME: https://github.com/crypto-com/chain/issues/1329
-        root_hash == self.path.hash() && self.path.verify()
+        root_hash == self.path.hash()
+            && self.path.verify()
+            && hash_leaf(&self.value) == self.path.leaf_hash
     }
 
     /// Returns a borrow of value contained in this proof
