@@ -209,8 +209,9 @@ impl<T> Proof<T> {
     where
         T: AsRef<[u8]>,
     {
-        // FIXME: https://github.com/crypto-com/chain/issues/1329
-        root_hash == self.path.hash() && self.path.verify()
+        root_hash == self.path.hash()
+            && self.path.verify()
+            && hash_leaf(&self.value) == self.path.leaf_hash
     }
 
     /// Returns a borrow of value contained in this proof
@@ -807,5 +808,18 @@ mod tests {
             .generate_proof("one")
             .unwrap()
             .verify(&new_tree.root_hash()));
+    }
+
+    #[test]
+    fn check_wrong_leaf_value() {
+        let values = vec!["one", "two", "three", "four"];
+        let tree = MerkleTree::new(values);
+
+        let mut proof = tree.generate_proof("one").unwrap();
+        assert!(proof.verify(&tree.root_hash()));
+
+        // Intentionally change the value in proof
+        proof.value = "two";
+        assert!(!proof.verify(&tree.root_hash()));
     }
 }
