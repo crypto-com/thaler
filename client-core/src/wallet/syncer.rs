@@ -353,11 +353,7 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -
                 states.into_iter()
             ) {
                 if let Some(app_hash) = app_hash {
-                    let header_app_hash = block
-                        .header
-                        .app_hash
-                        .err_kind(ErrorKind::VerifyError, || "header don't have app_hash")?;
-                    if app_hash != header_app_hash.as_bytes() {
+                    if app_hash != block.header.app_hash.as_slice() {
                         return Err(Error::new(
                             ErrorKind::VerifyError,
                             "state app hash don't match block header",
@@ -426,11 +422,7 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -
 
     /// Fast forwards state to given block if app hashes match
     fn fast_forward_block(&mut self, block: &Block) -> Result<Option<FilteredBlock>> {
-        let current_app_hash = block
-            .header
-            .app_hash
-            .err_kind(ErrorKind::TendermintRpcError, || "app_hash not found")?
-            .to_string();
+        let current_app_hash = hex::encode(&block.header.app_hash);
 
         if current_app_hash == self.sync_state.last_app_hash {
             let current_block_height = block.header.height.value();
@@ -494,11 +486,7 @@ impl FilteredBlock {
         block: &Block,
         block_result: &BlockResults,
     ) -> Result<FilteredBlock> {
-        let app_hash = block
-            .header
-            .app_hash
-            .ok_or_else(|| Error::new(ErrorKind::TendermintRpcError, "app_hash not found"))?
-            .to_string();
+        let app_hash = hex::encode(&block.header.app_hash);
         let block_height = block.header.height.value();
         let block_time = block.header.time;
 

@@ -12,8 +12,9 @@ use tendermint::amino_types::message::AminoMessage;
 use tendermint::lite::{Header, ValidatorSet};
 use tendermint::rpc::endpoint::status;
 use tendermint::{
-    account, amino_types, block, block::Height, chain, consensus, evidence, hash, node, public_key,
-    rpc::endpoint::commit::SignedHeader, validator, vote, Block, Hash, PublicKey, Signature, Time,
+    account, amino_types, block, block::signed_header::SignedHeader, block::Height, chain,
+    consensus, evidence, hash, node, public_key, validator, vote, Block, Hash, PublicKey,
+    Signature, Time,
 };
 
 use chain_abci::app::{compute_accounts_root, ChainNodeState};
@@ -137,7 +138,10 @@ impl Node {
     pub fn sign_header(&self, header: &block::Header, chain_id: &chain::Id) -> vote::Vote {
         let block_id = block::Id {
             hash: header.hash(),
-            parts: None,
+            parts: Some(block::parts::Header::new(
+                0,
+                Hash::new(hash::Algorithm::Sha256, &[0; 32]).unwrap(),
+            )),
         };
         let now = Time::now();
         let canonical_vote = amino_types::vote::CanonicalVote {
@@ -146,7 +150,10 @@ impl Node {
             round: 0,
             block_id: Some(amino_types::block_id::CanonicalBlockId {
                 hash: block_id.hash.as_bytes().to_vec(),
-                parts_header: None,
+                parts_header: Some(amino_types::block_id::CanonicalPartSetHeader {
+                    total: 0,
+                    hash: vec![0; 32],
+                }),
             }),
             timestamp: Some(amino_types::time::TimeMsg::from(now)),
             chain_id: chain_id.to_string(),
@@ -174,7 +181,7 @@ impl Node {
             id: self.node_id(),
             listen_addr: node::info::ListenAddress::new("tcp://0.0.0.0:26656".to_owned()),
             network: chain_id,
-            version: "0.32.7".parse().unwrap(),
+            version: serde_json::from_str("\"0.32.7\"").unwrap(),
             channels: serde_json::from_str("\"4020212223303800\"").unwrap(),
             moniker: self.name.parse().unwrap(),
             other: node::info::OtherInfo {
@@ -305,7 +312,7 @@ impl TestnetSpec {
             },
             validators,
             app_hash: Some(Hash::new(hash::Algorithm::Sha256, &app_hash).unwrap()),
-            app_state: config,
+            app_state: Some(config),
         };
 
         let staking_table = StakingTable::from_genesis(
@@ -414,7 +421,10 @@ impl BlockGenerator {
             .map_or(Height::default(), |height| height.increment());
         let last_block_id = self.blocks.last().map(|block| block::Id {
             hash: block.block.header.hash(),
-            parts: None,
+            parts: Some(block::parts::Header::new(
+                0,
+                Hash::new(hash::Algorithm::Sha256, &[0; 32]).unwrap(),
+            )),
         });
         let last_state = self
             .blocks
@@ -441,14 +451,17 @@ impl BlockGenerator {
             validators_hash: self.validators.hash(),
             next_validators_hash: self.validators.hash(),
             consensus_hash,
-            app_hash: Some(Hash::new(hash::Algorithm::Sha256, &last_state.last_apphash).unwrap()),
+            app_hash: last_state.last_apphash.to_vec(),
             last_results_hash: None,
             evidence_hash: None,
             proposer_address: node.validator_address(),
         };
         let block_id = block::Id {
             hash: header.hash(),
-            parts: None,
+            parts: Some(block::parts::Header::new(
+                0,
+                Hash::new(hash::Algorithm::Sha256, &[0; 32]).unwrap(),
+            )),
         };
         let votes: Vec<Option<vote::Vote>> = self
             .spec
@@ -473,7 +486,8 @@ impl BlockGenerator {
             block,
             commit,
             state,
-        })
+        });
+        self.current_height = Some(height);
     }
 
     pub fn signed_header(&self, height: Height) -> SignedHeader {
@@ -604,7 +618,8 @@ fn gen_network_params(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tendermint::lite::verifier;
+    use std::time::{Duration, SystemTime};
+    use tendermint::lite;
 
     #[test]
     fn check_lite_client() {
@@ -622,26 +637,18 @@ mod tests {
         let header1 = gen.signed_header(Height::default());
         let header2 = gen.signed_header(Height::default().increment());
 
-        assert!(
-            verifier::verify_trusting(
-                header1.header.clone(),
-                header1.clone(),
+        let _state = lite::verifier::verify_single(
+            lite::TrustedState::new(
+                lite::SignedHeader::new(header1.clone(), header1.header.clone()),
                 gen.validators.clone(),
-                gen.validators.clone(),
-            )
-            .is_ok(),
-            "verify failed"
-        );
-
-        assert!(
-            verifier::verify_trusting(
-                header2.header.clone(),
-                header2.clone(),
-                gen.validators.clone(),
-                gen.validators.clone(),
-            )
-            .is_ok(),
-            "verify failed"
-        );
+            ),
+            &lite::SignedHeader::new(header2.clone(), header2.header.clone()),
+            &gen.validators,
+            &gen.validators,
+            lite::TrustThresholdFraction::new(1, 3).unwrap(),
+            Duration::from_secs(10000),
+            SystemTime::now(),
+        )
+        .expect("verify failed");
     }
 }

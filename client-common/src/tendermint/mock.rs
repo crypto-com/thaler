@@ -200,7 +200,7 @@ pub fn node_info() -> node::Info {
         id: node::Id::from_str("7edc638f79308dfdfcd77b743e1375b8e1cea6f2").unwrap(),
         listen_addr: node::info::ListenAddress::new("tcp://0.0.0.0:26656".to_owned()),
         network: chain_id(),
-        version: "0.32.7".parse().unwrap(),
+        version: serde_json::from_str("\"0.32.7\"").unwrap(),
         channels: channel::Channels::default(),
         moniker: Moniker::from_str("test").unwrap(),
         other: node::info::OtherInfo {

@@ -626,7 +626,7 @@ mod tests {
             );
 
             Ok(AbciQuery {
-                value: Some(base64::encode(&staked_state.encode())),
+                value: Some(staked_state.encode()),
                 ..Default::default()
             })
         }
@@ -700,7 +700,7 @@ mod tests {
             );
 
             Ok(AbciQuery {
-                value: Some(base64::encode(&staked_state.encode())),
+                value: Some(staked_state.encode()),
                 ..Default::default()
             })
         }

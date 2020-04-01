@@ -72,8 +72,7 @@ rust: &rust
         (cargo-clippy --version || rustup component add clippy)
         cargo clippy -- -D warnings || travis_terminate 1
         (cargo-audit -h || cargo install cargo-audit)
-        # FIXME: https://github.com/crypto-com/chain/issues/1337
-        cargo audit || travis_terminate 0
+        cargo audit || travis_terminate 1
       fi
 
   after_success: |

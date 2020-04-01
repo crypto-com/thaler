@@ -9,16 +9,16 @@ use std::net::TcpStream;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{atomic::AtomicUsize, atomic::Ordering, Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tendermint::{lite::verifier, validator};
+use tendermint::{lite, validator};
 use tungstenite::{Message, WebSocket};
 
 use self::types::*;
 use crate::tendermint::types::*;
-use crate::tendermint::{lite, Client};
+use crate::tendermint::{lite::TrustedState, Client};
 use crate::{Error, ErrorKind, Result, ResultExt};
 use chain_core::state::ChainState;
 
@@ -265,7 +265,7 @@ impl WebsocketRpcClient {
         }
     }
 
-    fn validators_batch<'a, T: Iterator<Item = &'a u64>>(
+    fn validators_batch<T: Iterator<Item = u64>>(
         &self,
         heights: T,
     ) -> Result<Vec<ValidatorsResponse>> {
@@ -365,31 +365,41 @@ impl Client for WebsocketRpcClient {
 
     fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
         &self,
-        mut state: lite::TrustedState,
+        mut state: TrustedState,
         heights: T,
-    ) -> Result<(Vec<Block>, lite::TrustedState)> {
+    ) -> Result<(Vec<Block>, TrustedState)> {
         let commits = self.commit_batch(heights.clone())?;
         let validators: Vec<validator::Set> = self
-            .validators_batch(heights.clone())?
+            .validators_batch(heights.clone().map(|h| h.saturating_add(1)))?
             .into_iter()
             .map(|rsp| validator::Set::new(rsp.validators))
             .collect();
         let blocks = self.block_batch(heights)?;
         for (commit, next_vals, block) in izip!(&commits, &validators, &blocks) {
-            verifier::verify_trusting(
-                block.header.clone(),
-                commit.signed_header.clone(),
-                state.validators.clone(),
-                next_vals.clone(),
-            )
-            .map_err(|err| {
-                Error::new(
-                    ErrorKind::VerifyError,
-                    format!("block verify failed: {:?}", err),
+            let signed_header =
+                lite::SignedHeader::new(commit.signed_header.clone(), block.header.clone());
+            state = if let Some(state) = &state.0 {
+                lite::verifier::verify_single(
+                    state.clone(),
+                    &signed_header,
+                    state.validators(),
+                    next_vals,
+                    // FIXME make parameters configurable
+                    lite::TrustThresholdFraction::new(1, 3).unwrap(),
+                    Duration::from_secs(std::u32::MAX as u64),
+                    SystemTime::now(),
                 )
-            })?;
-            state.header = Some(block.header.clone());
-            state.validators = next_vals.clone();
+                .map_err(|err| {
+                    Error::new(
+                        ErrorKind::VerifyError,
+                        format!("block verify failed: {:?}", err),
+                    )
+                })?
+                .into()
+            } else {
+                // TODO verify block1 against genesis block
+                lite::TrustedState::new(signed_header, next_vals.clone()).into()
+            };
         }
         Ok((blocks, state))
     }
@@ -413,8 +423,6 @@ impl Client for WebsocketRpcClient {
         rsps.into_iter()
             .map(|rsp| {
                 if let Some(value) = rsp.response.value {
-                    let value = base64::decode(&value)
-                        .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?;
                     let state = serde_json::from_str(
                         &String::from_utf8(value)
                             .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?,
