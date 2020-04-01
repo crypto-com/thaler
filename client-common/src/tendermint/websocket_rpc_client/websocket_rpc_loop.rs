@@ -1,39 +1,44 @@
-#![cfg(feature = "websocket-rpc")]
 use std::collections::HashMap;
+use std::net::TcpStream;
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use websocket::receiver::Reader;
-use websocket::sender::Writer;
-use websocket::stream::sync::TcpStream;
-use websocket::{ClientBuilder, OwnedMessage};
-
-use crate::{ErrorKind, Result, ResultExt};
+use tungstenite::{connect, protocol::Role, Message, WebSocket};
 
 use super::{ConnectionState, JsonRpcResponse};
+use crate::{ErrorKind, Result, ResultExt};
 
 const MONITOR_RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
 /// Creates a new websocket connection with given url
-pub fn new_connection(url: &str) -> Result<(Reader<TcpStream>, Writer<TcpStream>)> {
-    ClientBuilder::new(url)
-        .chain(|| (ErrorKind::InvalidInput, format!("Malformed url: {}", url)))?
-        .connect_insecure()
-        .chain(|| {
-            (
-                ErrorKind::InitializationError,
-                format!("Unable to connect to websocket RPC at: {}", url),
-            )
-        })?
-        .split()
-        .chain(|| {
-            (
-                ErrorKind::InternalError,
-                "Unable to split websocket reader and writer",
-            )
-        })
+pub fn new_connection(url: &str) -> Result<(WebSocket<TcpStream>, WebSocket<TcpStream>)> {
+    let (websocket_writer, _) = connect(url).chain(|| {
+        (
+            ErrorKind::TendermintRpcError,
+            format!(
+                "Unable to connect to tendermint websocket server at: {}",
+                url
+            ),
+        )
+    })?;
+
+    let websocket_reader = try_clone(&websocket_writer)?;
+
+    Ok((websocket_reader, websocket_writer))
+}
+
+/// Tries to clone underlying TCP stream of a websocket
+fn try_clone(websocket: &WebSocket<TcpStream>) -> Result<WebSocket<TcpStream>> {
+    let new_stream = websocket.get_ref().try_clone().chain(|| {
+        (
+            ErrorKind::TendermintRpcError,
+            "Unable to clone tendermint RPC server's TCP stream",
+        )
+    })?;
+
+    Ok(WebSocket::from_raw_socket(new_stream, Role::Client, None))
 }
 
 /// Spawns websocket rpc loop in a new thread
@@ -48,24 +53,22 @@ pub fn new_connection(url: &str) -> Result<(Reader<TcpStream>, Writer<TcpStream>
 ///   - Send the response to the channel.
 pub fn spawn(
     channel_map: Arc<Mutex<HashMap<String, SyncSender<JsonRpcResponse>>>>,
-    mut websocket_reader: Reader<TcpStream>,
-    websocket_writer: Arc<Mutex<Writer<TcpStream>>>,
+    mut websocket_reader: WebSocket<TcpStream>,
+    websocket_writer: Arc<Mutex<WebSocket<TcpStream>>>,
 ) -> JoinHandle<()> {
-    thread::spawn(move || {
-        for message in websocket_reader.incoming_messages() {
-            match message {
-                Ok(message) => match message {
-                    OwnedMessage::Text(ref message) => handle_text(message, channel_map.clone()),
-                    OwnedMessage::Binary(ref message) => handle_slice(message, channel_map.clone()),
-                    OwnedMessage::Ping(data) => send_pong(websocket_writer.clone(), data),
-                    _ => {
-                        log::trace!("Received unknown message: {:?}", message);
-                    }
-                },
-                Err(err) => {
-                    log::error!("Websocket error message: {}", err);
-                    break;
+    thread::spawn(move || loop {
+        match websocket_reader.read_message() {
+            Ok(message) => match message {
+                Message::Text(ref message) => handle_text(message, channel_map.clone()),
+                Message::Binary(ref message) => handle_slice(message, channel_map.clone()),
+                Message::Ping(data) => send_pong(websocket_writer.clone(), data),
+                _ => {
+                    log::trace!("Received unknown message: {:?}", message);
                 }
+            },
+            Err(err) => {
+                log::error!("Websocket error message: {}", err);
+                break;
             }
         }
     })
@@ -85,7 +88,7 @@ pub fn monitor(
     url: String,
     channel_map: Arc<Mutex<HashMap<String, SyncSender<JsonRpcResponse>>>>,
     loop_handle: JoinHandle<()>,
-    websocket_writer: Arc<Mutex<Writer<TcpStream>>>,
+    websocket_writer: Arc<Mutex<WebSocket<TcpStream>>>,
 ) -> Arc<Mutex<ConnectionState>> {
     let connection_state = Arc::new(Mutex::new(ConnectionState::Connected));
     let connection_state_clone = connection_state.clone();
@@ -218,11 +221,11 @@ fn send_response(
 }
 
 /// Silently sends pong message on websocket (does nothing in case of error)
-fn send_pong(websocket_writer: Arc<Mutex<Writer<TcpStream>>>, data: Vec<u8>) {
+fn send_pong(websocket_writer: Arc<Mutex<WebSocket<TcpStream>>>, data: Vec<u8>) {
     let pong = websocket_writer
         .lock()
         .expect("Unable to acquire lock on websocket writer")
-        .send_message(&OwnedMessage::Pong(data));
+        .write_message(Message::Pong(data));
 
     log::trace!("Received ping, sending pong: {:?}", pong);
 }

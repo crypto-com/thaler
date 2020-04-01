@@ -1,4 +1,3 @@
-#![cfg(feature = "websocket-rpc")]
 mod types;
 mod websocket_rpc_loop;
 
@@ -6,6 +5,7 @@ pub use types::ConnectionState;
 
 use itertools::izip;
 use std::collections::HashMap;
+use std::net::TcpStream;
 use std::sync::mpsc::{sync_channel, Receiver, SyncSender};
 use std::sync::{atomic::AtomicUsize, atomic::Ordering, Arc, Mutex};
 use std::thread;
@@ -14,9 +14,7 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tendermint::{lite::verifier, validator};
-use websocket::sender::Writer;
-use websocket::stream::sync::TcpStream;
-use websocket::OwnedMessage;
+use tungstenite::{Message, WebSocket};
 
 use self::types::*;
 use crate::tendermint::types::*;
@@ -33,7 +31,7 @@ const WAIT_FOR_CONNECTION_COUNT: usize = 50;
 #[derive(Clone)]
 pub struct WebsocketRpcClient {
     connection_state: Arc<Mutex<ConnectionState>>,
-    websocket_writer: Arc<Mutex<Writer<TcpStream>>>,
+    websocket_writer: Arc<Mutex<WebSocket<TcpStream>>>,
     channel_map: Arc<Mutex<HashMap<String, SyncSender<JsonRpcResponse>>>>,
     unique_id: Arc<AtomicUsize>,
 }
@@ -138,7 +136,7 @@ impl WebsocketRpcClient {
         self.websocket_writer
             .lock()
             .expect("Unable to acquire lock on websocket writer: Lock is poisoned")
-            .send_message(&message)
+            .write_message(message)
             .chain(|| {
                 (
                     ErrorKind::InternalError,
@@ -438,7 +436,7 @@ impl Client for WebsocketRpcClient {
     }
 }
 
-fn prepare_message(id: &str, method: &str, params: &[Value]) -> Result<OwnedMessage> {
+fn prepare_message(id: &str, method: &str, params: &[Value]) -> Result<Message> {
     let request = JsonRpcRequest {
         id,
         jsonrpc: "2.0",
@@ -453,7 +451,7 @@ fn prepare_message(id: &str, method: &str, params: &[Value]) -> Result<OwnedMess
         )
     })?;
 
-    let message = OwnedMessage::Text(request_json);
+    let message = Message::Text(request_json);
 
     Ok(message)
 }

@@ -28,7 +28,6 @@ bit-vec = "0.6.1"
 num-bigint = "0.2.5"
 serde_json = "1.0.50"
 uuid = { version = "0.8.1", features = ["v4"] }
-websocket = "0.24.0"
 jsonrpc-core = "14.0"
 log ="0.4.8"
 serde = { version = "1.0", features = ["derive"] }
@@ -52,6 +51,5 @@ test-common = { path = "../test-common" }
 [features]
 default = ["sled"]
 sled = ["client-common/sled"]
-http-rpc = ["client-common/http-rpc"]
 websocket-rpc = ["client-common/websocket-rpc"]
 mock-hardware-wallet = []
