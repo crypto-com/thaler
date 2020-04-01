@@ -18,6 +18,7 @@ export NDK_HOME=$ANDROID_HOME/ndk/21.0.6113669
 export RUST_ANDROID=$HOME/rust_android/NDK
 ```
 
+
 ## for simple compile
 ```
 make android
