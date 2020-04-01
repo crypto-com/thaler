@@ -35,7 +35,6 @@ unbonded = rpc.address.list()[1]
 transfer1 = rpc.address.list(type='transfer')[0]
 
 
-time.sleep(3)  # wait for at least one block, FIXME remove after #828 fixed
 txid = rpc.staking.withdraw_all_unbonded(unbonded, transfer1, enckey=enckey)
 wait_for_tx(rpc, txid)
 rpc.wallet.sync()
@@ -69,7 +68,6 @@ for h in range(last_height, now_height+1):
     print(rpc.chain.block(h)['block_meta']['header']['num_txs'])
 
 print('Check sync ok')
-time.sleep(5)  # Wait a little bit for block generation
 rpc.wallet.sync()
 assert rpc.wallet.balance() == {
     'total': '250000000000000000',

@@ -123,8 +123,6 @@ where
 mod tests {
     use super::*;
 
-    use base64::encode;
-
     use chain_core::state::tendermint::BlockHeight;
     use chain_core::state::ChainState;
     use chain_core::tx::data::Tx;
@@ -199,7 +197,7 @@ mod tests {
                     .encode();
 
                     Ok(AbciQuery {
-                        value: Some(encode(&response)),
+                        value: Some(response),
                         ..Default::default()
                     })
                 }
@@ -210,7 +208,7 @@ mod tests {
                     .encode();
 
                     Ok(AbciQuery {
-                        value: Some(encode(&response)),
+                        value: Some(response),
                         ..Default::default()
                     })
                 }
