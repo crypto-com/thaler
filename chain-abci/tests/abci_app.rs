@@ -865,7 +865,7 @@ fn all_valid_tx_types_should_commit() {
     let utxo1 = TxoPointer::new(*txid, 0);
     let mut tx1 = Tx::new();
     tx1.add_input(utxo1);
-    tx1.add_output(TxOut::new(eaddr, Coin::from(99999685u32)));
+    tx1.add_output(TxOut::new(eaddr, Coin::from(99999717u32)));
     let txid1 = tx1.id();
     let witness1 = vec![TxInWitness::TreeSig(
         schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),

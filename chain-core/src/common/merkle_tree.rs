@@ -1,9 +1,9 @@
 use std::prelude::v1::{Box, Vec};
 use std::vec::IntoIter;
 
-use parity_scale_codec::{Decode, Encode};
-
 use super::H256;
+use blake3::Hash;
+use parity_scale_codec::{Decode, Encode};
 
 /// Hash of leaf node with empty slice `hash_leaf(&[])`
 const EMPTY_HASH: H256 = [
@@ -77,10 +77,7 @@ impl<T> Tree<T> {
                 hash: node_hash, ..
             } => {
                 if &hash_leaf(value) == node_hash {
-                    Some(Path {
-                        leaf_hash: *node_hash,
-                        nodes: vec![],
-                    })
+                    Some(Path { nodes: vec![] })
                 } else {
                     None
                 }
@@ -131,7 +128,6 @@ impl<T> Tree<T> {
 ///
 /// ```plain
 /// Path {
-///   leaf_hash: leaf_hash,
 ///   nodes: [ PathNode {
 ///     node_hash: node_hash0,
 ///     child_hash: child_hash0,
@@ -143,6 +139,8 @@ impl<T> Tree<T> {
 ///   } ]
 /// }
 /// ```
+///
+/// leaf_hash is computed from the value in the Proof
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub enum Side {
@@ -159,35 +157,34 @@ pub struct PathNode {
 
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 pub struct Path {
-    leaf_hash: H256,
     nodes: Vec<PathNode>, // order from inner node to outer node
 }
 
 impl Path {
-    fn hash(&self) -> &H256 {
+    fn hash(&self) -> Option<&H256> {
         match self.nodes.last() {
-            None => &self.leaf_hash,
-            Some(node) => &node.node_hash,
+            None => None,
+            Some(node) => Some(&node.node_hash),
         }
     }
 
-    fn verify(&self) -> bool {
+    fn verify(&self, leaf_hash: &H256) -> bool {
         for i in (0..self.nodes.len()).rev() {
             let node = &self.nodes[i];
 
             let ref_hash = if i == 0 {
-                self.leaf_hash
+                leaf_hash
             } else {
-                self.nodes[i - 1].node_hash
+                &self.nodes[i - 1].node_hash
             };
 
-            let calced_hash = if Side::Left == node.hash_side {
+            let calced_hash = Hash::from(if Side::Left == node.hash_side {
                 hash_intermediate(&node.child_hash, &ref_hash)
             } else {
                 hash_intermediate(&ref_hash, &node.child_hash)
-            };
+            });
 
-            if calced_hash != node.node_hash {
+            if calced_hash != Hash::from(node.node_hash) {
                 return false;
             }
         }
@@ -209,9 +206,10 @@ impl<T> Proof<T> {
     where
         T: AsRef<[u8]>,
     {
-        root_hash == self.path.hash()
-            && self.path.verify()
-            && hash_leaf(&self.value) == self.path.leaf_hash
+        let expected_root = Hash::from(*root_hash);
+        let leaf_hash = hash_leaf(self.value.as_ref());
+        let actual_root_hash = Hash::from(*self.path.hash().unwrap_or(&leaf_hash));
+        self.path.verify(&leaf_hash) && expected_root == actual_root_hash
     }
 
     /// Returns a borrow of value contained in this proof
@@ -222,8 +220,14 @@ impl<T> Proof<T> {
 
     /// Returns root hash of this proof
     #[inline]
-    pub fn root_hash(&self) -> &H256 {
-        self.path.hash()
+    pub fn root_hash(&self) -> H256
+    where
+        T: AsRef<[u8]>,
+    {
+        match self.path.hash() {
+            None => hash_leaf(self.value.as_ref()),
+            Some(v) => *v,
+        }
     }
 }
 
@@ -337,7 +341,9 @@ impl<T> MerkleTree<T> {
         T: AsRef<[u8]> + Clone,
     {
         self.generate_path(&value).map(|path| {
-            assert_eq!(&self.root_hash(), path.hash());
+            if let Some(p) = path.hash() {
+                assert_eq!(&self.root_hash(), p);
+            }
             Proof { path, value }
         })
     }
