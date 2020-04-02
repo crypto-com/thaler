@@ -536,10 +536,12 @@ dependencies = [
 name = "chain-storage"
 version = "0.4.0"
 dependencies = [
+ "anyhow",
  "bit-vec 0.6.1",
  "blake3",
  "chain-core",
  "integer-encoding",
+ "jellyfish-merkle",
  "kvdb",
  "kvdb-memorydb",
  "kvdb-rocksdb",
@@ -1973,6 +1975,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8b7a7c0c47db5545ed3fef7468ee7bb5b74691498139e4b3f6a20685dc6dd8e"
 
 [[package]]
+name = "jellyfish-merkle"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=42c0fb190b4034c7939f8876d3f539bd2ff74cd9#42c0fb190b4034c7939f8876d3f539bd2ff74cd9"
+dependencies = [
+ "anyhow",
+ "byteorder",
+ "libra-canonical-serialization",
+ "libra-crypto",
+ "libra-crypto-derive",
+ "libra-nibble",
+ "libra-types",
+ "mirai-annotations",
+ "num-derive",
+ "num-traits 0.2.11",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "jobserver"
 version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2193,6 +2214,66 @@ dependencies = [
 ]
 
 [[package]]
+name = "libra-canonical-serialization"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=42c0fb190b4034c7939f8876d3f539bd2ff74cd9#42c0fb190b4034c7939f8876d3f539bd2ff74cd9"
+dependencies = [
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "libra-crypto"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=42c0fb190b4034c7939f8876d3f539bd2ff74cd9#42c0fb190b4034c7939f8876d3f539bd2ff74cd9"
+dependencies = [
+ "anyhow",
+ "blake3",
+ "bytes 0.5.4",
+ "digest 0.8.1",
+ "hex 0.4.2",
+ "hmac",
+ "libra-crypto-derive",
+ "libra-nibble",
+ "mirai-annotations",
+ "once_cell",
+ "rand 0.6.5",
+ "serde",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
+name = "libra-crypto-derive"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=42c0fb190b4034c7939f8876d3f539bd2ff74cd9#42c0fb190b4034c7939f8876d3f539bd2ff74cd9"
+dependencies = [
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.17",
+]
+
+[[package]]
+name = "libra-nibble"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=42c0fb190b4034c7939f8876d3f539bd2ff74cd9#42c0fb190b4034c7939f8876d3f539bd2ff74cd9"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "libra-types"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=42c0fb190b4034c7939f8876d3f539bd2ff74cd9#42c0fb190b4034c7939f8876d3f539bd2ff74cd9"
+dependencies = [
+ "anyhow",
+ "libra-crypto",
+ "libra-crypto-derive",
+ "mirai-annotations",
+ "serde",
+]
+
+[[package]]
 name = "librocksdb-sys"
 version = "6.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2334,6 +2415,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "mirai-annotations"
+version = "1.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb967d27c8ae70e45f44a8f6b615f292fd865cf07f72573b1edd75f399790422"
+
+[[package]]
 name = "native-tls"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2431,6 +2518,17 @@ dependencies = [
  "autocfg 1.0.0",
  "num-integer 0.1.42",
  "num-traits 0.2.11",
+]
+
+[[package]]
+name = "num-derive"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c8b15b261814f992e33760b1fca9fe8b693d8a65299f20c9901688636cfb746"
+dependencies = [
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.17",
 ]
 
 [[package]]
