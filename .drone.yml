@@ -8,7 +8,7 @@ platform:
 
 steps:
 - name: build
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
@@ -16,7 +16,7 @@ steps:
   - ./docker/build.sh
 
 - name: unit-tests
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
@@ -24,7 +24,7 @@ steps:
   - cargo test
 
 - name: integration-tests
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   privileged: true
   volumes:
@@ -38,11 +38,11 @@ steps:
   commands:
   - export CARGO_TARGET_DIR=$PWD/drone/target
   - export PYTHON_VENV_DIR=$PWD/drone/venv
-  - LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service
+  - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service
   - ./integration-tests/run.sh
 
 - name: multinode-tests
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   privileged: true
   volumes:
@@ -56,11 +56,11 @@ steps:
   commands:
   - export CARGO_TARGET_DIR=$PWD/drone/target
   - export PYTHON_VENV_DIR=$PWD/drone/venv
-  - LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service
+  - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service
   - ./integration-tests/run_multinode.sh
 
 - name: sgx-test
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   privileged: true
   volumes:
@@ -72,14 +72,14 @@ steps:
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
   - export CARGO_TARGET_DIR=/tmp
-  - LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service
+  - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service
   - make -C chain-tx-enclave/tx-validation
   - cargo build --features sgx-test --manifest-path chain-abci/Cargo.toml
   - cd $CARGO_TARGET_DIR/debug
   - ./chain-abci
 
 - name: teardown
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   commands:
   - ./integration-tests/cleanup.sh
@@ -128,6 +128,6 @@ trigger:
 
 ---
 kind: signature
-hmac: e44c58d9f43a2054cfa9502d58fd59a2ece1f51d4ca93be1c5ec65ceaa30c057
+hmac: 8bda37c0da85ed0791136135e4e5900e56c31b94bb8e6b16f37a8e08a4f8511e
 
 ...

@@ -35,14 +35,14 @@ hex = "0.4"
 protobuf = "2.7.0"
 integer-encoding = "1.1.5"
 structopt = "0.3"
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d50d5998a11064591d86583b297130d6d9636aa5", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "745bc8d8dc80cb921d5788e863a3536d3b6498a1", features = ["recovery", "endomorphism"] }
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 thiserror = "1.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 enclave-u-common = { path = "../chain-tx-enclave/enclave-u-common" }
-sgx_types = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_urts = { rev = "v1.1.0", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_types = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_urts = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 zmq = "0.9"
 
 [build-dependencies]

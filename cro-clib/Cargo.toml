@@ -21,7 +21,7 @@ client-core = { path = "../client-core" }
 client-network = { path = "../client-network" }
 client-rpc = { path = "../client-rpc" }
 secstr = { version = "0.4.0", features = ["serde"] }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "d50d5998a11064591d86583b297130d6d9636aa5", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "745bc8d8dc80cb921d5788e863a3536d3b6498a1", features = ["recovery", "endomorphism"] }
 jsonrpc-core = "14.0"
 libc = "0.2.68"
 

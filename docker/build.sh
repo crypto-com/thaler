@@ -18,7 +18,8 @@ else
 fi
 
 cd ..
-
+# FIXME:  https://github.com/BLAKE3-team/BLAKE3/issues/57#issuecomment-602650773
+rustup default nightly-2020-03-22
 echo "Build $BUILD_MODE $BUILD_PROFILE"
 if [ $BUILD_MODE == "sgx" ]; then
     cargo build $CARGO_ARGS

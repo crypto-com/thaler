@@ -4,21 +4,18 @@ ARG NETWORK_ID=AB
 FROM ubuntu:18.04 AS RUNTIME_BASE
 LABEL maintainer="blockchain@crypto.com"
 
-ARG SGX_ENCLAVE=https://download.01.org/intel-sgx/sgx-linux/2.7.1/distro/ubuntu18.04-server/libsgx-enclave-common_2.7.101.3-bionic1_amd64.deb
 RUN set -e; \
     apt-get update; \
-    apt-get install -y libzmq3-dev libssl1.1 libprotobuf10; \
-    apt-get install -y curl; \
-    mkdir -p /opt/intel; \
-    curl ${SGX_ENCLAVE} -o /tmp/sgx.deb; \
-    dpkg -i /tmp/sgx.deb; \
-    rm /tmp/sgx.deb; \
-    apt-get purge --auto-remove -y curl; \
+    apt-get install -y wget libssl-dev libcurl4-openssl-dev libprotobuf-dev gnupg; \
+    echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bionic main' | tee /etc/apt/sources.list.d/intel-sgx.list; \
+    wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -; \
+    apt-get update; \
+    apt-get install -y libzmq3-dev libssl1.1 libprotobuf10 libsgx-launch libsgx-urts libsgx-epid libsgx-urts  libsgx-quote-ex libsgx-urts; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=tendermint/tendermint:v0.32.9 /usr/bin/tendermint /usr/bin/tendermint
 
-FROM baiduxlab/sgx-rust:1804-1.1.0 AS BUILDER_BASE
+FROM baiduxlab/sgx-rust:1804-1.1.1 AS BUILDER_BASE
 LABEL maintainer="blockchain@crypto.com"
 
 ARG SGX_MODE
@@ -32,6 +29,9 @@ ENV SGX_MODE=$SGX_MODE
 ENV NETWORK_ID=$NETWORK_ID
 
 RUN set -e; \
+    rustup set profile minimal; \
+    rustup toolchain install nightly-2020-03-22; \
+    rustup default nightly-2020-03-22; \
     apt-get update; \
     apt-get install -y \
       cmake \
