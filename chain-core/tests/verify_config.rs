@@ -4,7 +4,7 @@ use chain_core::init::config::{
     InitConfig, InitNetworkParameters, JailingParameters, RewardsParameters, SlashRatio,
     SlashingParameters,
 };
-use chain_core::state::account::StakedStateDestination;
+use chain_core::state::account::{ConfidentialInit, StakedStateDestination};
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::fee::{LinearFee, Milli};
 use serde::Deserialize;
@@ -34,7 +34,15 @@ fn test_verify_test_example_snapshot() {
         TendermintValidatorPubKey::from_base64(b"EIosObgfONUsnWCBGRpFlRFq5lSxjGIChRlVrVWVkcE=")
             .unwrap();
     let mut nodes = BTreeMap::new();
-    nodes.insert(node_address, ("no-name".to_owned(), None, node_pubkey));
+    nodes.insert(
+        node_address,
+        (
+            "no-name".to_owned(),
+            None,
+            node_pubkey,
+            ConfidentialInit { cert: vec![] },
+        ),
+    );
 
     let mut dist: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)> = BTreeMap::new();
 

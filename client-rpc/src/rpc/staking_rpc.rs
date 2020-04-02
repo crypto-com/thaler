@@ -6,7 +6,7 @@ use jsonrpc_derive::rpc;
 use crate::server::{rpc_error_from_string, to_rpc_error};
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
-    CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
+    ConfidentialInit, CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
@@ -444,5 +444,8 @@ fn get_node_metadata(validator_name: &str, validator_pubkey: &str) -> Result<Cou
         name: validator_name.to_string(),
         security_contact: None,
         consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
+        confidential_init: ConfidentialInit {
+            cert: b"FIXME".to_vec(),
+        },
     })
 }

@@ -1,4 +1,4 @@
-FROM baiduxlab/sgx-rust:1804-1.1.0
+FROM baiduxlab/sgx-rust:1804-1.1.1
 LABEL maintainer="Crypto.com"
 
 RUN echo 'source /opt/sgxsdk/environment' >> /root/.docker_bashrc && \

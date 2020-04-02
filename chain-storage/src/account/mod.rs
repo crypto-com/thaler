@@ -148,7 +148,7 @@ mod test {
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::state::account::{
-        CouncilNode, Nonce, StakedState, StakedStateAddress, Validator,
+        ConfidentialInit, CouncilNode, Nonce, StakedState, StakedStateAddress, Validator,
     };
     use chain_core::state::tendermint::{BlockHeight, TendermintValidatorPubKey};
     use kvdb_memorydb::create;
@@ -175,8 +175,14 @@ mod test {
                 } else {
                     None
                 };
+                // TODO: cert
+                let cert: Vec<u8> = Vec::arbitrary(g);
+                let init_confid = ConfidentialInit { cert };
                 Some(Validator {
-                    council_node: CouncilNode::new(TendermintValidatorPubKey::Ed25519(raw_pubkey)),
+                    council_node: CouncilNode::new(
+                        TendermintValidatorPubKey::Ed25519(raw_pubkey),
+                        init_confid,
+                    ),
                     jailed_until,
                     inactive_time: Some(0),
                     inactive_block: Some(BlockHeight::genesis()),

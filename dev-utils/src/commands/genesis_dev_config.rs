@@ -7,7 +7,7 @@ use chain_core::init::{
     coin::Coin,
     config::{JailingParameters, RewardsParameters, SlashRatio, SlashingParameters},
 };
-use chain_core::state::account::{ValidatorName, ValidatorSecurityContact};
+use chain_core::state::account::{ConfidentialInit, ValidatorName, ValidatorSecurityContact};
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 
 #[derive(Deserialize, Debug)]
@@ -25,6 +25,7 @@ pub struct GenesisDevConfig {
             ValidatorName,
             ValidatorSecurityContact,
             TendermintValidatorPubKey,
+            ConfidentialInit,
         ),
     >,
 }

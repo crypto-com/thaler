@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 chain-core = { path = "../chain-core" }
 chain-tx-filter = { path = "../chain-tx-filter" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "d50d5998a11064591d86583b297130d6d9636aa5", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "745bc8d8dc80cb921d5788e863a3536d3b6498a1", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
 rand = "0.7"
 log = "0.4.8"
 aes-gcm-siv = "0.4"

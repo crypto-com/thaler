@@ -17,7 +17,8 @@ use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::account::StakedStateOpAttributes;
 use chain_core::state::account::{
-    DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, Validator, WithdrawUnbondedTx,
+    ConfidentialInit, DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, Validator,
+    WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::tendermint::TendermintValidatorPubKey;
@@ -1493,7 +1494,12 @@ fn prepare_jailed_accounts() -> (
         0,
         addr.into(),
         Some(Validator {
-            council_node: CouncilNode::new(TendermintValidatorPubKey::Ed25519([0xcd; 32])),
+            council_node: CouncilNode::new(
+                TendermintValidatorPubKey::Ed25519([0xcd; 32]),
+                ConfidentialInit {
+                    cert: b"FIXME".to_vec(),
+                },
+            ),
             jailed_until: Some(100),
             inactive_time: Some(0),
             inactive_block: Some(BlockHeight::genesis()),
@@ -1737,6 +1743,9 @@ fn prepare_nodejoin_transaction(
             name: "test".to_string(),
             security_contact: None,
             consensus_pubkey: TendermintValidatorPubKey::Ed25519([1u8; 32]),
+            confidential_init: ConfidentialInit {
+                cert: b"FIXME".to_vec(),
+            },
         },
     };
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
@@ -1769,6 +1778,9 @@ fn prepare_valid_nodejoin_tx(
         if validator {
             Some(Validator::new(CouncilNode::new(
                 TendermintValidatorPubKey::Ed25519([1u8; 32]),
+                ConfidentialInit {
+                    cert: b"FIXME".to_vec(),
+                },
             )))
         } else {
             None

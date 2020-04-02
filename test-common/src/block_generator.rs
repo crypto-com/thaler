@@ -25,7 +25,9 @@ use chain_core::init::config::NetworkParameters;
 use chain_core::init::{
     address::RedeemAddress, coin::Coin, config::InitConfig, network::Network, params,
 };
-use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateDestination};
+use chain_core::state::account::{
+    ConfidentialInit, CouncilNode, StakedStateAddress, StakedStateDestination,
+};
 use chain_core::state::tendermint::{
     TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
@@ -91,6 +93,9 @@ impl Node {
             name: self.name.clone(),
             security_contact: Some(format!("{}@example.com", self.name)),
             consensus_pubkey: self.tendermint_pub_key(),
+            confidential_init: ConfidentialInit {
+                cert: b"FIXME".to_vec(),
+            },
         }
     }
 
@@ -247,7 +252,14 @@ impl TestnetSpec {
         for node in &self.nodes {
             council_nodes.insert(
                 node.redeem_address(0),
-                (node.name.clone(), None, node.tendermint_pub_key()),
+                (
+                    node.name.clone(),
+                    None,
+                    node.tendermint_pub_key(),
+                    ConfidentialInit {
+                        cert: b"FIXME".to_vec(),
+                    },
+                ),
             );
         }
 

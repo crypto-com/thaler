@@ -8,7 +8,9 @@ use std::str::FromStr;
 use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::coin::Coin;
 use chain_core::init::network::get_network_id;
-use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateOpAttributes};
+use chain_core::state::account::{
+    ConfidentialInit, CouncilNode, StakedStateAddress, StakedStateOpAttributes,
+};
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -985,5 +987,8 @@ fn ask_node_metadata() -> Result<CouncilNode> {
         name,
         security_contact: None,
         consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
+        confidential_init: ConfidentialInit {
+            cert: b"FIXME".to_vec(),
+        },
     })
 }
