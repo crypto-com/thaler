@@ -28,4 +28,5 @@ To suggest an ADR, please make use of the [ADR template](./adr-template.md) prov
 | ADR \# | Description | Status |
 | ------ | ----------- | ------ |
 | [001](./adr-001.md) | Storage Consolidation | Accepted |
-| [002](./adr-002.md) | Enclave Code | Proposed |
+| [002](./adr-002.md) | Enclave Code | Accepted |
+| [003](./adr-003.md) | Migration to Jellyfish Merkle Tree | Accepted |
