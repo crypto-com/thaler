@@ -9,7 +9,10 @@ use secstr::SecUtf8;
 use serde_json::json;
 
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
-use chain_core::state::tendermint::{TendermintValidator, TendermintValidatorPubKey};
+use chain_core::state::{
+    account::ConfidentialInit,
+    tendermint::{TendermintValidator, TendermintValidatorPubKey},
+};
 use client_common::storage::SledStorage;
 use client_common::tendermint::types::Time;
 use client_common::{Error, ErrorKind, Result, ResultExt};
@@ -181,9 +184,17 @@ impl InitCommand {
             .staking_account_address
             .parse::<RedeemAddress>()
             .unwrap();
-        self.genesis_dev_config
-            .council_nodes
-            .insert(address, ("dev test".to_owned(), None, pubkey));
+        self.genesis_dev_config.council_nodes.insert(
+            address,
+            (
+                "dev test".to_owned(),
+                None,
+                pubkey,
+                ConfidentialInit {
+                    cert: b"FIXME".to_vec(),
+                },
+            ),
+        );
         Ok(())
     }
 

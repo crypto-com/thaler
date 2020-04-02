@@ -15,7 +15,8 @@ mod tests {
     use chain_core::init::config::SlashRatio;
     use chain_core::init::params::NetworkParameters;
     use chain_core::state::account::{
-        CouncilNode, PunishmentKind, StakedState, StakedStateAddress, UnbondTx, Validator,
+        ConfidentialInit, CouncilNode, PunishmentKind, StakedState, StakedStateAddress, UnbondTx,
+        Validator,
     };
     use chain_core::state::tendermint::{BlockHeight, TendermintValidatorPubKey};
     use chain_core::state::validator::NodeJoinRequestTx;
@@ -53,6 +54,9 @@ mod tests {
         staking.bonded = bonded;
         staking.validator = Some(Validator::new(CouncilNode::new(
             TendermintValidatorPubKey::Ed25519(seed.clone()),
+            ConfidentialInit {
+                cert: b"FIXME".to_vec(),
+            },
         )));
         staking
     }
@@ -104,7 +108,12 @@ mod tests {
             nonce: 0,
             address: addr4,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(val_pk4.clone()),
+            node_meta: CouncilNode::new(
+                val_pk4.clone(),
+                ConfidentialInit {
+                    cert: b"FIXME".to_vec(),
+                },
+            ),
         };
         table.node_join(&mut store, 10, &node_join).unwrap();
         assert_eq!(table.end_block(&store, 3), vec![]);
@@ -195,7 +204,12 @@ mod tests {
             nonce: 0,
             address: addr1,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(val_pk_new),
+            node_meta: CouncilNode::new(
+                val_pk_new,
+                ConfidentialInit {
+                    cert: b"FIXME".to_vec(),
+                },
+            ),
         };
         assert!(matches!(
             table.node_join(&mut store, 3, &node_join),
@@ -230,7 +244,12 @@ mod tests {
             nonce: 1,
             address: addr1,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(val_pk_new),
+            node_meta: CouncilNode::new(
+                val_pk_new,
+                ConfidentialInit {
+                    cert: b"FIXME".to_vec(),
+                },
+            ),
         };
         // change to new validator key
         table.node_join(&mut store, 1, &node_join).unwrap();
@@ -243,7 +262,12 @@ mod tests {
             nonce: 0,
             address: addr_new,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(val_pk1),
+            node_meta: CouncilNode::new(
+                val_pk1,
+                ConfidentialInit {
+                    cert: b"FIXME".to_vec(),
+                },
+            ),
         };
         // can't join with used key
         assert!(matches!(

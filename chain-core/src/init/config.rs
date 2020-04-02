@@ -4,8 +4,8 @@ use crate::init::coin::{sum_coins, Coin, CoinError};
 pub use crate::init::params::*;
 use crate::init::MAX_COIN;
 use crate::state::account::{
-    CouncilNode, StakedState, StakedStateAddress, StakedStateDestination, ValidatorName,
-    ValidatorSecurityContact,
+    ConfidentialInit, CouncilNode, StakedState, StakedStateAddress, StakedStateDestination,
+    ValidatorName, ValidatorSecurityContact,
 };
 use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::RewardsPoolState;
@@ -87,6 +87,7 @@ pub struct InitConfig {
             ValidatorName,
             ValidatorSecurityContact,
             TendermintValidatorPubKey,
+            ConfidentialInit,
         ),
     >,
 }
@@ -108,6 +109,7 @@ impl InitConfig {
                 ValidatorName,
                 ValidatorSecurityContact,
                 TendermintValidatorPubKey,
+                ConfidentialInit,
             ),
         >,
     ) -> Self {
@@ -147,14 +149,15 @@ impl InitConfig {
 
     fn get_council_node(&self, address: &RedeemAddress) -> Result<CouncilNode, DistributionError> {
         self.check_validator_address(address)?;
-        let (name, security_contact, pubkey) = self
-            .council_nodes
-            .get(address)
-            .ok_or(DistributionError::InvalidValidatorAccount)?;
+        let (name, security_contact, pubkey, confidential_init) =
+            self.council_nodes
+                .get(address)
+                .ok_or(DistributionError::InvalidValidatorAccount)?;
         Ok(CouncilNode::new_with_details(
             name.clone(),
             security_contact.clone(),
             pubkey.clone(),
+            confidential_init.clone(),
         ))
     }
 

@@ -22,9 +22,9 @@ use chain_core::init::config::{
     SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
-    CouncilNode, StakedState, StakedStateAddress, StakedStateDestination, StakedStateOpAttributes,
-    StakedStateOpWitness, UnbondTx, Validator as ChainValidator, ValidatorName,
-    ValidatorSecurityContact,
+    ConfidentialInit, CouncilNode, StakedState, StakedStateAddress, StakedStateDestination,
+    StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, Validator as ChainValidator,
+    ValidatorName, ValidatorSecurityContact,
 };
 use chain_core::state::tendermint::{
     TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
@@ -122,6 +122,7 @@ pub fn get_nodes(
         ValidatorName,
         ValidatorSecurityContact,
         TendermintValidatorPubKey,
+        ConfidentialInit,
     ),
 > {
     addresses
@@ -129,7 +130,14 @@ pub fn get_nodes(
         .map(|acct| {
             (
                 acct.address,
-                (acct.name.clone(), None, acct.validator_pub_key.clone()),
+                (
+                    acct.name.clone(),
+                    None,
+                    acct.validator_pub_key.clone(),
+                    ConfidentialInit {
+                        cert: b"FIXME".to_vec(),
+                    },
+                ),
             )
         })
         .collect()

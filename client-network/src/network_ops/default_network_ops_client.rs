@@ -489,7 +489,9 @@ mod tests {
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::CoinError;
-    use chain_core::state::account::{StakedState, StakedStateOpAttributes, Validator};
+    use chain_core::state::account::{
+        ConfidentialInit, StakedState, StakedStateOpAttributes, Validator,
+    };
     use chain_core::state::tendermint::BlockHeight;
     use chain_core::state::tendermint::TendermintValidatorPubKey;
     use chain_core::state::ChainState;
@@ -617,7 +619,12 @@ mod tests {
                 0,
                 StakedStateAddress::BasicRedeem(RedeemAddress::default()),
                 Some(Validator {
-                    council_node: CouncilNode::new(TendermintValidatorPubKey::Ed25519([0xcd; 32])),
+                    council_node: CouncilNode::new(
+                        TendermintValidatorPubKey::Ed25519([0xcd; 32]),
+                        ConfidentialInit {
+                            cert: b"FIXME".to_vec(),
+                        },
+                    ),
                     jailed_until: Some(100),
                     inactive_time: Some(0),
                     inactive_block: Some(BlockHeight::genesis()),
@@ -1102,6 +1109,9 @@ mod tests {
             name: "test".to_owned(),
             security_contact: None,
             consensus_pubkey: TendermintValidatorPubKey::Ed25519(validator_pubkey),
+            confidential_init: ConfidentialInit {
+                cert: b"FIXME".to_vec(),
+            },
         };
 
         let transaction = network_ops_client

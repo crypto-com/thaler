@@ -14,7 +14,7 @@ use chain_core::init::config::{
     JailingParameters, RewardsParameters, SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
-    to_stake_key, CouncilNode, DepositBondTx, StakedState, StakedStateAddress,
+    to_stake_key, ConfidentialInit, CouncilNode, DepositBondTx, StakedState, StakedStateAddress,
     StakedStateDestination, StakedStateOpAttributes, StakedStateOpWitness, UnbondTx,
     WithdrawUnbondedTx,
 };
@@ -249,7 +249,14 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     let pub_key =
         TendermintValidatorPubKey::from_base64(b"MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
             .unwrap();
-    let node_pubkey = ("test".to_owned(), None, pub_key.clone());
+    let node_pubkey = (
+        "test".to_owned(),
+        None,
+        pub_key.clone(),
+        ConfidentialInit {
+            cert: b"FIXME".to_vec(),
+        },
+    );
     let validator = ValidatorUpdate {
         pub_key: Some(PubKey {
             field_type: "ed25519".to_owned(),
@@ -969,7 +976,12 @@ fn all_valid_tx_types_should_commit() {
         1,
         addr.into(),
         StakedStateOpAttributes::new(0),
-        CouncilNode::new(TendermintValidatorPubKey::Ed25519([2u8; 32])),
+        CouncilNode::new(
+            TendermintValidatorPubKey::Ed25519([2u8; 32]),
+            ConfidentialInit {
+                cert: b"FIXME".to_vec(),
+            },
+        ),
     );
     let secp = Secp256k1::new();
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));

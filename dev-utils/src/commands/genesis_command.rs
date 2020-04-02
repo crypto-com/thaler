@@ -245,7 +245,7 @@ pub fn generate_genesis(
 
 fn generate_validators(genesis_dev_config: &GenesisDevConfig) -> Result<Vec<TendermintValidator>> {
     let mut validators: Vec<TendermintValidator> = Vec::new();
-    for (redeem_addr, (validator_name, _, validator_pubkey)) in
+    for (redeem_addr, (validator_name, _, validator_pubkey, _confidential_init)) in
         genesis_dev_config.council_nodes.iter()
     {
         let address = TendermintValidatorAddress::from(validator_pubkey);

@@ -205,7 +205,8 @@ def app_state_cfg(cfg):
                 {
                     'type': 'tendermint/PubKeyEd25519',
                     'value': SigningKey(node['validator_seed']).pub_key_base64(),
-                }
+                },
+                {'cert': "RklYTUU="} # FIXME: to be designed and implemented
             ]
             for node in cfg['nodes'] if node['bonded_coin'] > 0
         },

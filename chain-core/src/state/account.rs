@@ -9,9 +9,10 @@ use crate::tx::TransactionId;
 use core::cmp::Ordering;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
-use serde::de;
-#[cfg(not(feature = "mesalock_sgx"))]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::{
+    de::{self, Error as _},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 use std::prelude::v1::Vec;
 #[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
@@ -123,6 +124,38 @@ impl FromStr for StakedStateAddress {
 pub type ValidatorName = String;
 pub type ValidatorSecurityContact = Option<String>;
 
+/// the initial data a node submits to join a MLS group
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+pub struct ConfidentialInit {
+    /// MLS credential with attestation payload
+    #[cfg_attr(
+        not(feature = "mesalock_sgx"),
+        serde(
+            serialize_with = "serialize_base64",
+            deserialize_with = "deserialize_base64"
+        )
+    )]
+    pub cert: Vec<u8>,
+}
+
+#[cfg(not(feature = "mesalock_sgx"))]
+fn serialize_base64<S>(cert: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    base64::encode(cert).serialize(serializer)
+}
+
+#[cfg(not(feature = "mesalock_sgx"))]
+fn deserialize_base64<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    base64::decode(String::deserialize(deserializer)?.as_bytes())
+        .map_err(|e| D::Error::custom(format!("{}", e)))
+}
+
 /// holds state about a node responsible for transaction validation / block signing and service node whitelist management
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
@@ -133,6 +166,9 @@ pub struct CouncilNode {
     pub security_contact: ValidatorSecurityContact,
     // Tendermint consensus validator-associated public key
     pub consensus_pubkey: TendermintValidatorPubKey,
+    // X.509 credential payload for MLS (https://tools.ietf.org/html/draft-ietf-mls-protocol-09)
+    // (expected that attestation payload will be a part of the cert extension, as done in TLS)
+    pub confidential_init: ConfidentialInit,
 }
 
 impl Encode for CouncilNode {
@@ -146,6 +182,7 @@ impl Encode for CouncilNode {
             }
         };
         self.consensus_pubkey.encode_to(dest);
+        self.confidential_init.cert.encode_to(dest);
     }
 }
 
@@ -170,20 +207,28 @@ impl Decode for CouncilNode {
             None => None,
         };
         let consensus_pubkey = TendermintValidatorPubKey::decode(input)?;
+        let confidential_init: Vec<u8> = Vec::decode(input)?;
         Ok(CouncilNode::new_with_details(
             name,
             security_contact,
             consensus_pubkey,
+            ConfidentialInit {
+                cert: confidential_init,
+            },
         ))
     }
 }
 
 impl CouncilNode {
-    pub fn new(consensus_pubkey: TendermintValidatorPubKey) -> Self {
+    pub fn new(
+        consensus_pubkey: TendermintValidatorPubKey,
+        confidential_init: ConfidentialInit,
+    ) -> Self {
         CouncilNode {
             name: "no-name".to_string(),
             security_contact: None,
             consensus_pubkey,
+            confidential_init,
         }
     }
 
@@ -191,11 +236,13 @@ impl CouncilNode {
         name: ValidatorName,
         security_contact: ValidatorSecurityContact,
         consensus_pubkey: TendermintValidatorPubKey,
+        confidential_init: ConfidentialInit,
     ) -> Self {
         CouncilNode {
             name,
             security_contact,
             consensus_pubkey,
+            confidential_init,
         }
     }
 }
@@ -203,6 +250,7 @@ impl CouncilNode {
 #[derive(Debug, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize))]
 /// Metadata of a validator
+/// used only within chain-abci -- TODO: move there?
 pub struct CouncilNodeMetadata {
     /// Name of validator
     pub name: ValidatorName,
@@ -767,10 +815,13 @@ mod test {
             } else {
                 None
             };
+            // TODO: generate well-formed credentials
+            let cert: Vec<u8> = Vec::arbitrary(g);
             CouncilNode::new_with_details(
                 name,
                 security_contact,
                 TendermintValidatorPubKey::Ed25519(raw_pubkey),
+                ConfidentialInit { cert },
             )
         }
     }
