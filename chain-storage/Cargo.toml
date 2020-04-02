@@ -16,6 +16,9 @@ bit-vec = { version = "0.6.1", features = ["serde_no_std"] }
 starling = "3.1.4"
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 integer-encoding = "1.1.5"
+anyhow = "1.0"
+jellyfish-merkle = { git = "https://github.com/crypto-com/jellyfish-merkle-tree.git", rev = "9d040b0b87e9e619482ac3ca89edc8429f6fa901" }
+libra-crypto = { git = "https://github.com/crypto-com/jellyfish-merkle-tree.git", rev = "9d040b0b87e9e619482ac3ca89edc8429f6fa901" }
 
 [dev-dependencies]
 quickcheck = "0.9"

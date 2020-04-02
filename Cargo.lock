@@ -133,6 +133,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9a60d744a80c30fcb657dfe2c1b22bcb3e814c1a1e3674f32bf5820b570fbff"
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -251,6 +257,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdcf67bb7ba7797a081cd19009948ab533af7c355d5caf1d08c777582d351e9c"
 
 [[package]]
+name = "bincode"
+version = "1.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5753e2a71534719bf3f4e57006c3a4f0d2c672a4b676eec84161f763eca87dbf"
+dependencies = [
+ "byteorder",
+ "serde",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.53.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -315,6 +331,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake2"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94cb07b0da6a73955f8fb85d24c466778e70cda767a568229b104f0264089330"
+dependencies = [
+ "byte-tools",
+ "crypto-mac",
+ "digest 0.8.1",
+ "opaque-debug",
+]
+
+[[package]]
 name = "blake2b_simd"
 version = "0.5.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -369,6 +397,12 @@ checksum = "fa79dedbb091f449f1f39e53edf88d5dbe95f895dae6135a8d7b881fb5af73f5"
 dependencies = [
  "byte-tools",
 ]
+
+[[package]]
+name = "bs58"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b170cd256a3f9fa6b9edae3e44a7dfdfc77e8124dbc3e2612d75f9c3e2396dae"
 
 [[package]]
 name = "bstr"
@@ -530,13 +564,16 @@ dependencies = [
 name = "chain-storage"
 version = "0.4.0"
 dependencies = [
+ "anyhow",
  "bit-vec 0.6.1",
  "blake3",
  "chain-core",
  "integer-encoding",
+ "jellyfish-merkle",
  "kvdb",
  "kvdb-memorydb",
  "kvdb-rocksdb",
+ "libra-crypto",
  "parity-scale-codec",
  "quickcheck",
  "starling",
@@ -1025,6 +1062,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "data-encoding"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "11c0346158a19b3627234e15596f5e465c360fcdb97d817bcb255e0510f5a788"
+
+[[package]]
 name = "dbl"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1282,6 +1325,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "endian-type"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c34f04666d835ff5d62e058c3995147c06f42fe86ff053337632bca83e42702d"
+
+[[package]]
 name = "env_logger"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1371,6 +1420,12 @@ dependencies = [
  "rustc-hex",
  "static_assertions 1.1.0",
 ]
+
+[[package]]
+name = "fixedbitset"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
 
 [[package]]
 name = "fnv"
@@ -1964,6 +2019,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8b7a7c0c47db5545ed3fef7468ee7bb5b74691498139e4b3f6a20685dc6dd8e"
 
 [[package]]
+name = "jellyfish-merkle"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=9d040b0b87e9e619482ac3ca89edc8429f6fa901#9d040b0b87e9e619482ac3ca89edc8429f6fa901"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "byteorder",
+ "libra-crypto",
+ "libra-crypto-derive",
+ "libra-nibble",
+ "libra-types",
+ "mirai-annotations",
+ "num-derive",
+ "num-traits 0.2.11",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "jobserver"
 version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2184,6 +2258,80 @@ dependencies = [
 ]
 
 [[package]]
+name = "libra-canonical-serialization"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=9d040b0b87e9e619482ac3ca89edc8429f6fa901#9d040b0b87e9e619482ac3ca89edc8429f6fa901"
+dependencies = [
+ "serde",
+ "thiserror",
+]
+
+[[package]]
+name = "libra-crypto"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=9d040b0b87e9e619482ac3ca89edc8429f6fa901#9d040b0b87e9e619482ac3ca89edc8429f6fa901"
+dependencies = [
+ "anyhow",
+ "bytes 0.5.4",
+ "digest 0.8.1",
+ "hex 0.4.2",
+ "hmac",
+ "libra-canonical-serialization",
+ "libra-crypto-derive",
+ "libra-nibble",
+ "mirai-annotations",
+ "once_cell",
+ "rand 0.6.5",
+ "serde",
+ "sha2",
+ "thiserror",
+ "tiny-keccak",
+]
+
+[[package]]
+name = "libra-crypto-derive"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=9d040b0b87e9e619482ac3ca89edc8429f6fa901#9d040b0b87e9e619482ac3ca89edc8429f6fa901"
+dependencies = [
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.17",
+]
+
+[[package]]
+name = "libra-nibble"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=9d040b0b87e9e619482ac3ca89edc8429f6fa901#9d040b0b87e9e619482ac3ca89edc8429f6fa901"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "libra-types"
+version = "0.1.0"
+source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=9d040b0b87e9e619482ac3ca89edc8429f6fa901#9d040b0b87e9e619482ac3ca89edc8429f6fa901"
+dependencies = [
+ "anyhow",
+ "bytes 0.5.4",
+ "chrono 0.4.11",
+ "hex 0.4.2",
+ "itertools 0.9.0",
+ "libra-canonical-serialization",
+ "libra-crypto",
+ "libra-crypto-derive",
+ "mirai-annotations",
+ "once_cell",
+ "parity-multiaddr",
+ "prost",
+ "prost-build",
+ "radix_trie",
+ "rand 0.6.5",
+ "serde",
+ "thiserror",
+ "tiny-keccak",
+]
+
+[[package]]
 name = "librocksdb-sys"
 version = "6.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2325,6 +2473,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "mirai-annotations"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f12a5b7d83c8fbf058cf1b33d26373763b2d6a0632b6bfecd4b4fa6a0507fea5"
+
+[[package]]
+name = "multimap"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d8883adfde9756c1d30b0f519c9b8c502a94b41ac62f696453c37c7fc0a958ce"
+
+[[package]]
 name = "net2"
 version = "0.2.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2334,6 +2494,12 @@ dependencies = [
  "libc",
  "winapi 0.3.8",
 ]
+
+[[package]]
+name = "nibble_vec"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8d77f3db4bce033f4d04db08079b2ef1c3d02b44e86f25d08886fafa7756ffa"
 
 [[package]]
 name = "nix"
@@ -2404,6 +2570,17 @@ dependencies = [
  "autocfg 1.0.0",
  "num-integer 0.1.42",
  "num-traits 0.2.11",
+]
+
+[[package]]
+name = "num-derive"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c8b15b261814f992e33760b1fca9fe8b693d8a65299f20c9901688636cfb746"
+dependencies = [
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.17",
 ]
 
 [[package]]
@@ -2533,6 +2710,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3aee0d9bdeedaea6cdd47f9281a9f8e1037d3037088b70e2af13c64ce65608ec"
 dependencies = [
  "elliptic-curve",
+]
+
+[[package]]
+name = "parity-multiaddr"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f77055f9e81921a8cc7bebeb6cded3d128931d51f1e3dd6251f0770a6d431477"
+dependencies = [
+ "arrayref",
+ "bs58",
+ "byteorder",
+ "data-encoding",
+ "parity-multihash",
+ "percent-encoding 2.1.0",
+ "serde",
+ "static_assertions 1.1.0",
+ "unsigned-varint",
+ "url 2.1.1",
+]
+
+[[package]]
+name = "parity-multihash"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a1cd2ba02391b81367bec529fb209019d718684fdc8ad6a712c2b536e46f775"
+dependencies = [
+ "blake2",
+ "bytes 0.5.4",
+ "rand 0.7.3",
+ "sha-1",
+ "sha2",
+ "sha3",
+ "unsigned-varint",
 ]
 
 [[package]]
@@ -2687,6 +2897,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4fd5641d01c8f18a23da7b6fe29298ff4b55afcccdf78973b24cf3175fee32e"
 
 [[package]]
+name = "petgraph"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29c127eea4a29ec6c85d153c59dc1213f33ec74cead30fe4730aecc88cc1fd92"
+dependencies = [
+ "fixedbitset",
+ "indexmap",
+]
+
+[[package]]
 name = "pin-project"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2806,6 +3026,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "prost"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce49aefe0a6144a45de32927c77bd2859a5f7677b55f220ae5b744e87389c212"
+dependencies = [
+ "bytes 0.5.4",
+ "prost-derive",
+]
+
+[[package]]
 name = "prost-amino"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2828,6 +3058,47 @@ dependencies = [
  "quote 0.6.13",
  "sha2",
  "syn 0.14.9",
+]
+
+[[package]]
+name = "prost-build"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "02b10678c913ecbd69350e8535c3aef91a8676c0773fc1d7b95cdd196d7f2f26"
+dependencies = [
+ "bytes 0.5.4",
+ "heck",
+ "itertools 0.8.2",
+ "log 0.4.8",
+ "multimap",
+ "petgraph",
+ "prost",
+ "prost-types",
+ "tempfile",
+ "which",
+]
+
+[[package]]
+name = "prost-derive"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "537aa19b95acde10a12fec4301466386f757403de4cd4e5b4fa78fb5ecb18f72"
+dependencies = [
+ "anyhow",
+ "itertools 0.8.2",
+ "proc-macro2 1.0.10",
+ "quote 1.0.3",
+ "syn 1.0.17",
+]
+
+[[package]]
+name = "prost-types"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1834f67c0697c001304b75be76f67add9c89742eda3a085ad8ee0bb38c3417aa"
+dependencies = [
+ "bytes 0.5.4",
+ "prost",
 ]
 
 [[package]]
@@ -2999,6 +3270,16 @@ name = "radium"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "def50a86306165861203e7f84ecffbbdfdea79f0e51039b33de1e952358c47ac"
+
+[[package]]
+name = "radix_trie"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d3681b28cd95acfb0560ea9441f82d6a4504fa3b15b97bd7b6e952131820e95"
+dependencies = [
+ "endian-type",
+ "nibble_vec",
+]
 
 [[package]]
 name = "rand"
@@ -4700,6 +4981,12 @@ checksum = "b57c6eace16c00eccb98a28e85db3370eab0685bdd5e13831d59e2bcb49a1d8a"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "unsigned-varint"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f38e01ad4b98f042e166c1bf9a13f9873a99d79eaa171ce7ca81e6dd0f895d8a"
 
 [[package]]
 name = "untrusted"

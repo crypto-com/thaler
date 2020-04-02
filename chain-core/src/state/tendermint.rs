@@ -56,6 +56,13 @@ impl BlockHeight {
     }
 }
 
+impl Into<u64> for BlockHeight {
+    #[inline]
+    fn into(self) -> u64 {
+        self.0
+    }
+}
+
 impl From<u64> for BlockHeight {
     fn from(n: u64) -> BlockHeight {
         BlockHeight(n)
