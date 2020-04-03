@@ -178,14 +178,12 @@ def app_state_cfg(cfg):
         "unbonding_period": 20,
         "required_council_node_stake": "1",
         "jailing_config": {
-            "jail_duration": 18,
             "block_signing_window": 20,
             "missed_block_threshold": 5
         },
         "slashing_config": {
             "liveness_slash_percent": "0.1",
             "byzantine_slash_percent": "0.2",
-            "slash_wait_period": 15
         },
         "rewards_config": {
             "monetary_expansion_cap": str(cfg['expansion_cap']),
