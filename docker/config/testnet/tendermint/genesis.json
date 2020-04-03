@@ -40,7 +40,6 @@
           },
           "jailing_config": {
               "block_signing_window": 360,
-              "jail_duration": 86400,
               "missed_block_threshold": 180
           },
           "max_validators": 50,
@@ -54,8 +53,7 @@
           },
           "slashing_config": {
               "byzantine_slash_percent": "0.200",
-              "liveness_slash_percent": "0.100",
-              "slash_wait_period": 10800
+              "liveness_slash_percent": "0.100"
           },
           "unbonding_period": 3600
       }

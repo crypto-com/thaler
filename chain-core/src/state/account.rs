@@ -6,7 +6,6 @@ use crate::tx::data::input::TxoPointer;
 use crate::tx::data::output::TxOut;
 use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
 use crate::tx::TransactionId;
-use core::cmp::Ordering;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{
@@ -20,7 +19,7 @@ use std::str::FromStr;
 #[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::address::ErrorAddress;
 use crate::state::tendermint::{
-    BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
+    BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey,
 };
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use std::convert::From;
@@ -245,23 +244,6 @@ impl CouncilNode {
             confidential_init,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize))]
-/// Metadata of a validator
-/// used only within chain-abci -- TODO: move there?
-pub struct CouncilNodeMetadata {
-    /// Name of validator
-    pub name: ValidatorName,
-    /// Current voting power of validator
-    pub voting_power: TendermintVotePower,
-    /// Address of staking account of validator
-    pub staking_address: StakedStateAddress,
-    /// Optional security email address of validator
-    pub security_contact: ValidatorSecurityContact,
-    /// Tendermint consensus validator-associated public key
-    pub tendermint_pubkey: TendermintValidatorPubKey,
 }
 
 /// Types of possible punishments
@@ -495,10 +477,6 @@ impl StakedState {
         }
     }
 
-    pub fn sort_key(&self) -> ValidatorSortKey {
-        ValidatorSortKey::new(self.bonded, self.address)
-    }
-
     #[cfg(debug_assertions)]
     pub fn check_invariants(&self, minimal_required_staking: Coin) {
         // check: Invariant 4.1
@@ -515,32 +493,6 @@ impl StakedState {
     /// Increment nonce by 1
     pub fn inc_nonce(&mut self) {
         self.nonce = self.nonce.wrapping_add(1);
-    }
-}
-
-/// order by bonded desc, staking_address
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-pub struct ValidatorSortKey {
-    pub bonded: Coin,
-    pub address: StakedStateAddress,
-}
-impl Ord for ValidatorSortKey {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.bonded.cmp(&other.bonded) {
-            Ordering::Equal => self.address.cmp(&other.address),
-            ordering => ordering.reverse(),
-        }
-    }
-}
-impl PartialOrd for ValidatorSortKey {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl ValidatorSortKey {
-    pub fn new(bonded: Coin, address: StakedStateAddress) -> Self {
-        Self { bonded, address }
     }
 }
 

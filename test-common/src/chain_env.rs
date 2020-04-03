@@ -94,14 +94,12 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
         required_council_node_stake: Coin::unit(),
         unbonding_period: 61,
         jailing_config: JailingParameters {
-            jail_duration: 60,
             block_signing_window: 5,
             missed_block_threshold: 1,
         },
         slashing_config: SlashingParameters {
             liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
-            slash_wait_period: 5,
         },
         rewards_config: RewardsParameters {
             monetary_expansion_cap: expansion_cap,

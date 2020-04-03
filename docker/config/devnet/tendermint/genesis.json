@@ -1,5 +1,5 @@
 {
-    "app_hash": "667EBBD3C77E2022FB7D29502F3FD7B7E190186E3344BF102789D8BE38239125",
+    "app_hash": "84CE3C97BEC1119DBB99BF9F7E7A256081976AF97D1970D7747A72CDC189416A",
     "app_state": {
       "council_nodes": {
         "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
@@ -33,7 +33,6 @@
         },
         "jailing_config": {
           "block_signing_window": 100,
-          "jail_duration": 86400,
           "missed_block_threshold": 50
         },
         "max_validators": 50,
@@ -47,8 +46,7 @@
         },
         "slashing_config": {
           "byzantine_slash_percent": "0.200",
-          "liveness_slash_percent": "0.100",
-          "slash_wait_period": 10800
+          "liveness_slash_percent": "0.100"
         },
         "unbonding_period": 86400
       }

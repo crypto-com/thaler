@@ -1,4 +1,3 @@
-use crate::common::Timespec;
 use crate::common::H256;
 use crate::init::coin::{Coin, CoinError};
 use crate::tx::fee::{Fee, FeeAlgorithm};
@@ -72,22 +71,6 @@ impl NetworkParameters {
         }
     }
 
-    pub fn get_jail_duration(&self) -> Timespec {
-        match self {
-            NetworkParameters::Genesis(params) => {
-                Timespec::from(params.jailing_config.jail_duration)
-            }
-        }
-    }
-
-    pub fn get_slash_wait_period(&self) -> Timespec {
-        match self {
-            NetworkParameters::Genesis(params) => {
-                Timespec::from(params.slashing_config.slash_wait_period)
-            }
-        }
-    }
-
     pub fn get_missed_block_threshold(&self) -> u16 {
         match self {
             NetworkParameters::Genesis(params) => params.jailing_config.missed_block_threshold,
@@ -158,8 +141,6 @@ impl NetworkParameters {
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct JailingParameters {
-    /// Minimum jailing time for punished accounts (in seconds)
-    pub jail_duration: u32,
     /// Number of blocks for which the moving average is calculated for uptime tracking
     pub block_signing_window: u16,
     /// Maximum number of blocks with faulty/missed validations allowed for an account in last `block_signing_window`
@@ -175,8 +156,6 @@ pub struct SlashingParameters {
     pub liveness_slash_percent: SlashRatio,
     /// Percentage of funds (bonded + unbonded) slashed when validator makes a byzantine fault
     pub byzantine_slash_percent: SlashRatio,
-    /// Time (in seconds) to wait before slashing funds from an account
-    pub slash_wait_period: u32,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]

@@ -4,15 +4,17 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use core::cmp::Ordering;
 use parity_scale_codec::{Decode, Encode};
+use serde::{Deserialize, Serialize};
 
 use chain_core::common::Timespec;
 use chain_core::init::coin::{sum_coins, Coin, CoinError};
 use chain_core::init::config::SlashRatio;
 use chain_core::init::params::NetworkParameters;
 use chain_core::state::account::{
-    CouncilNodeMetadata, PunishmentKind, SlashRecord, StakedState, StakedStateAddress,
-    ValidatorSortKey,
+    PunishmentKind, SlashRecord, StakedState, StakedStateAddress, ValidatorName,
+    ValidatorSecurityContact,
 };
 use chain_core::state::tendermint::{
     BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
@@ -22,6 +24,59 @@ use chain_storage::buffer::{Get, GetStaking, StakingGetter, StoreStaking};
 use crate::liveness::LivenessTracker;
 
 pub type RewardsDistribution = Vec<(StakedStateAddress, Coin)>;
+
+#[derive(Debug, Clone, Serialize)]
+/// Metadata of a validator
+pub struct CouncilNodeMetadata {
+    /// Name of validator
+    pub name: ValidatorName,
+    /// Current voting power of validator
+    pub voting_power: TendermintVotePower,
+    /// Address of staking account of validator
+    pub staking_address: StakedStateAddress,
+    /// Optional security email address of validator
+    pub security_contact: ValidatorSecurityContact,
+    /// Tendermint consensus validator-associated public key
+    pub tendermint_pubkey: TendermintValidatorPubKey,
+}
+
+/// order by bonded desc, staking_address
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, Serialize, Deserialize)]
+pub struct ValidatorSortKey {
+    pub bonded: Coin,
+    pub address: StakedStateAddress,
+}
+
+impl Ord for ValidatorSortKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.bonded.cmp(&other.bonded) {
+            Ordering::Equal => self.address.cmp(&other.address),
+            ordering => ordering.reverse(),
+        }
+    }
+}
+impl PartialOrd for ValidatorSortKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl ValidatorSortKey {
+    pub fn new(bonded: Coin, address: StakedStateAddress) -> Self {
+        Self { bonded, address }
+    }
+}
+
+impl Into<ValidatorSortKey> for &StakedState {
+    fn into(self) -> ValidatorSortKey {
+        ValidatorSortKey::new(self.bonded, self.address)
+    }
+}
+
+impl Into<ValidatorSortKey> for &mut StakedState {
+    fn into(self) -> ValidatorSortKey {
+        ValidatorSortKey::new(self.bonded, self.address)
+    }
+}
 
 /// StakedState indexes, and other tracking data structures.
 /// The heap of records are stored outside.
@@ -92,7 +147,7 @@ impl StakingTable {
             // no panic: Invariant 2.3 + 2.2 + 2.1
             // liveness and heap and idx_* are always consistent
             let mut staking = heap.get(addr).unwrap();
-            assert!(self.idx_sort.insert(staking.sort_key()));
+            assert!(self.idx_sort.insert((&staking).into()));
             let val = staking.validator.as_mut().unwrap();
             assert!(self
                 .idx_validator_address
@@ -254,7 +309,7 @@ impl StakingTable {
             .idx_validator_address
             .insert(val_addr, staking.address)
             .is_none());
-        assert_eq!(self.idx_sort.insert(staking.sort_key()), true);
+        assert_eq!(self.idx_sort.insert(staking.into()), true);
 
         let tracker = LivenessTracker::new();
         assert!(self.liveness.insert(staking.address, tracker).is_none());
@@ -270,11 +325,11 @@ impl StakingTable {
     ) -> Result<(), CoinError> {
         let bonded = (staking.bonded - amount)?;
         if staking.validator.is_some() {
-            assert!(self.idx_sort.remove(&staking.sort_key()));
+            assert!(self.idx_sort.remove(&staking.into()));
         }
         staking.bonded = bonded;
         if staking.validator.is_some() {
-            assert!(self.idx_sort.insert(staking.sort_key()));
+            assert!(self.idx_sort.insert(staking.into()));
         }
 
         if let Some(val) = staking.validator.as_mut() {
@@ -293,11 +348,11 @@ impl StakingTable {
     ) -> Result<(), CoinError> {
         let bonded = (staking.bonded + amount)?;
         if staking.validator.is_some() {
-            assert!(self.idx_sort.remove(&staking.sort_key()));
+            assert!(self.idx_sort.remove(&staking.into()));
         }
         staking.bonded = bonded;
         if staking.validator.is_some() {
-            assert!(self.idx_sort.insert(staking.sort_key()));
+            assert!(self.idx_sort.insert(staking.into()));
         }
 
         Ok(())
@@ -388,7 +443,7 @@ impl StakingTable {
                 self.idx_validator_address.remove(&val.validator_address()),
                 Some(*addr)
             );
-            assert!(self.idx_sort.remove(&staking.sort_key()));
+            assert!(self.idx_sort.remove(&(&staking).into()));
             assert!(self.liveness.remove(addr).is_some());
             self.proposer_stats.remove(addr);
 

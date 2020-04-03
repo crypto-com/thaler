@@ -607,14 +607,12 @@ fn gen_network_params(
         required_council_node_stake: Coin::unit(),
         unbonding_period: 86400,
         jailing_config: params::JailingParameters {
-            jail_duration: 86400,
             block_signing_window: 100,
             missed_block_threshold: 50,
         },
         slashing_config: params::SlashingParameters {
             liveness_slash_percent: params::SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: params::SlashRatio::from_str("0.2").unwrap(),
-            slash_wait_period: 10800,
         },
         rewards_config: params::RewardsParameters {
             monetary_expansion_cap: expansion_cap,
