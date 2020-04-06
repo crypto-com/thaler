@@ -1,6 +1,6 @@
 use std::fmt;
 
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::de::{
     self,
@@ -12,13 +12,12 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::tx::data::TxId;
 
-// TODO: u16 and Vec size check in Decode implementation
 pub type TxoSize = u16;
 
 /// Structure used for addressing a specific output of a transaction
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
 /// transaction.
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxoPointer {
     #[cfg_attr(
@@ -30,8 +29,26 @@ pub struct TxoPointer {
         serde(deserialize_with = "deserialize_transaction_id")
     )]
     pub id: TxId,
-    // TODO: u16 and Vec size check in Decode implementation
     pub index: TxoSize,
+}
+
+impl Encode for TxoPointer {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        dest.push(&self.id);
+        dest.push(&self.index);
+    }
+
+    fn size_hint(&self) -> usize {
+        self.id.size_hint() + self.index.size_hint()
+    }
+}
+
+impl Decode for TxoPointer {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let txid = TxId::decode(input)?;
+        let index = TxoSize::decode(input)?;
+        Ok(TxoPointer { id: txid, index })
+    }
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]

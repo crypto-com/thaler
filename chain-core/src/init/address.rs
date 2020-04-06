@@ -13,9 +13,9 @@
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
 #[cfg(not(feature = "mesalock_sgx"))]
 use bech32::{self, u5, FromBase32, ToBase32};
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, EncodeLike, Error as ScaleError, Input, Output};
 use std::ops;
-use std::prelude::v1::String;
+use std::prelude::v1::{String, Vec};
 #[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
 
@@ -164,9 +164,31 @@ pub const REDEEM_ADDRESS_BYTES: usize = 20;
 pub type RedeemAddressRaw = [u8; REDEEM_ADDRESS_BYTES];
 
 /// Eth-style Account address (20 bytes)
-#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[derive(Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "mesalock_sgx", derive(Debug))]
 pub struct RedeemAddress(pub RedeemAddressRaw);
+
+impl Encode for RedeemAddress {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        self.0.encode_to(dest)
+    }
+    fn encode(&self) -> Vec<u8> {
+        self.0.encode()
+    }
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        self.0.using_encoded(f)
+    }
+    fn size_hint(&self) -> usize {
+        self.0.size_hint()
+    }
+}
+impl EncodeLike<RedeemAddressRaw> for RedeemAddress {}
+impl Decode for RedeemAddress {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, ScaleError> {
+        let address = RedeemAddressRaw::decode(input)?;
+        Ok(RedeemAddress(address))
+    }
+}
 
 #[cfg(not(feature = "mesalock_sgx"))]
 impl RedeemAddress {

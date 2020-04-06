@@ -1,124 +1,31 @@
+mod address;
+mod op;
 use crate::common::{Timespec, HASH_SIZE_256};
-use crate::init::address::RedeemAddress;
-use crate::init::coin::{sum_coins, Coin, CoinError};
-use crate::tx::data::attribute::TxAttributes;
-use crate::tx::data::input::TxoPointer;
-use crate::tx::data::output::TxOut;
-use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
-use crate::tx::TransactionId;
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
-use serde::{
-    de::{self, Error as _},
-    Deserialize, Deserializer, Serialize, Serializer,
-};
-use std::prelude::v1::Vec;
-#[cfg(not(feature = "mesalock_sgx"))]
-use std::str::FromStr;
-// TODO: switch to normal signatures + explicit public key
-#[cfg(not(feature = "mesalock_sgx"))]
-use crate::init::address::ErrorAddress;
+use crate::init::coin::Coin;
 use crate::state::tendermint::{
     BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey,
 };
-use secp256k1::recovery::{RecoverableSignature, RecoveryId};
+pub use crate::state::validator::UnjailTx;
+pub use address::StakedStateAddress;
+pub use op::data::attribute::StakedStateOpAttributes;
+pub use op::data::deposit::DepositBondTx;
+pub use op::data::unbond::UnbondTx;
+pub use op::data::withdraw::WithdrawUnbondedTx;
+pub use op::witness::StakedStateOpWitness;
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+#[cfg(not(feature = "mesalock_sgx"))]
+use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::From;
 #[cfg(not(feature = "mesalock_sgx"))]
-use std::convert::TryFrom;
-#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
+use std::prelude::v1::Vec;
 use std::prelude::v1::{String, ToString};
-
-/// Each input is 34 bytes
-///
-/// Assuming maximum inputs allowed are 64,
-/// So, maximum deposit transaction size (34 * 64) + 21 (address) + 1 (attributes) = 2198 bytes
-const MAX_DEPOSIT_TX_SIZE: usize = 2200; // 2200 bytes
 
 /// reference counter in the sparse patricia merkle tree/trie
 pub type Count = u64;
 
 /// StakedState update counter
 pub type Nonce = u64;
-
-/// StakedState address type
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-pub enum StakedStateAddress {
-    BasicRedeem(RedeemAddress),
-}
-
-#[cfg(not(feature = "mesalock_sgx"))]
-impl Serialize for StakedStateAddress {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_str(&self.to_string())
-    }
-}
-
-#[cfg(not(feature = "mesalock_sgx"))]
-impl<'de> Deserialize<'de> for StakedStateAddress {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct StrVisitor;
-
-        impl<'de> de::Visitor<'de> for StrVisitor {
-            type Value = StakedStateAddress;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("staking address")
-            }
-
-            #[inline]
-            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
-            where
-                E: de::Error,
-            {
-                StakedStateAddress::from_str(value)
-                    .map_err(|err| de::Error::custom(err.to_string()))
-            }
-        }
-
-        deserializer.deserialize_str(StrVisitor)
-    }
-}
-
-#[cfg(not(feature = "mesalock_sgx"))]
-impl TryFrom<&[u8]> for StakedStateAddress {
-    type Error = ErrorAddress;
-
-    fn try_from(c: &[u8]) -> Result<Self, Self::Error> {
-        let addr = RedeemAddress::try_from(c)?;
-        Ok(StakedStateAddress::BasicRedeem(addr))
-    }
-}
-
-impl From<RedeemAddress> for StakedStateAddress {
-    fn from(addr: RedeemAddress) -> Self {
-        StakedStateAddress::BasicRedeem(addr)
-    }
-}
-
-#[cfg(not(feature = "mesalock_sgx"))]
-impl fmt::Display for StakedStateAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            StakedStateAddress::BasicRedeem(a) => write!(f, "{}", a),
-        }
-    }
-}
-
-#[cfg(not(feature = "mesalock_sgx"))]
-impl FromStr for StakedStateAddress {
-    type Err = ErrorAddress;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from_str(s)?))
-    }
-}
 
 pub type ValidatorName = String;
 pub type ValidatorSecurityContact = Option<String>;
@@ -170,8 +77,11 @@ pub struct CouncilNode {
     pub confidential_init: ConfidentialInit,
 }
 
+// TODO: size hint once MLS payloads are there
 impl Encode for CouncilNode {
     fn encode_to<W: Output>(&self, dest: &mut W) {
+        // in the case there's a need for other node types or wildly different metadata
+        dest.push_byte(0);
         self.name.encode_to(dest);
         match &self.security_contact {
             None => dest.push_byte(0),
@@ -189,6 +99,10 @@ const MAX_STRING_LEN: usize = 255;
 
 impl Decode for CouncilNode {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let tag = input.read_byte()?;
+        if tag != 0 {
+            return Err(Error::from("Unsupported Council Node variant"));
+        }
         let name_raw: Vec<u8> = Vec::decode(input)?;
         if name_raw.len() > MAX_STRING_LEN {
             return Err(Error::from("Validator name longer than 255 chars"));
@@ -496,23 +410,6 @@ impl StakedState {
     }
 }
 
-/// attributes in StakedState-related transactions
-#[derive(Debug, Default, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-pub struct StakedStateOpAttributes {
-    pub chain_hex_id: u8,
-    pub app_version: u64,
-}
-
-impl StakedStateOpAttributes {
-    pub fn new(chain_hex_id: u8) -> Self {
-        StakedStateOpAttributes {
-            chain_hex_id,
-            app_version: crate::APP_VERSION,
-        }
-    }
-}
-
 /// bond status for StakedState initialize
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
@@ -520,232 +417,6 @@ pub enum StakedStateDestination {
     Bonded,
     UnbondedFromGenesis,
     UnbondedFromCustomTime(Timespec),
-}
-
-/// takes UTXOs inputs, deposits them in the specified StakedState's bonded amount - fee
-/// (updates StakedState's bonded + nonce)
-#[derive(Debug, PartialEq, Eq, Clone, Encode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-pub struct DepositBondTx {
-    pub inputs: Vec<TxoPointer>,
-    pub to_staked_account: StakedStateAddress,
-    pub attributes: StakedStateOpAttributes,
-}
-
-impl Decode for DepositBondTx {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let size = input
-            .remaining_len()?
-            .ok_or_else(|| "Unable to calculate size of input")?;
-
-        if size > MAX_DEPOSIT_TX_SIZE {
-            return Err("Input too large".into());
-        }
-
-        let inputs = <Vec<TxoPointer>>::decode(input)?;
-        let to_staked_account = StakedStateAddress::decode(input)?;
-        let attributes = StakedStateOpAttributes::decode(input)?;
-
-        Ok(DepositBondTx {
-            inputs,
-            to_staked_account,
-            attributes,
-        })
-    }
-}
-
-impl TransactionId for DepositBondTx {}
-
-impl DepositBondTx {
-    pub fn new(
-        inputs: Vec<TxoPointer>,
-        to_staked_account: StakedStateAddress,
-        attributes: StakedStateOpAttributes,
-    ) -> Self {
-        DepositBondTx {
-            inputs,
-            to_staked_account,
-            attributes,
-        }
-    }
-}
-
-#[cfg(not(feature = "mesalock_sgx"))]
-impl fmt::Display for DepositBondTx {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for input in self.inputs.iter() {
-            writeln!(f, "-> {}", input)?;
-        }
-        writeln!(f, "   {} (bonded) ->", self.to_staked_account)?;
-        write!(f, "")
-    }
-}
-
-/// updates the StakedState (TODO: implicit from the witness?) by moving some of the bonded amount - fee into unbonded,
-/// and setting the unbonded_from to last_block_time+min_unbonding_time (network parameter)
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-pub struct UnbondTx {
-    pub from_staked_account: StakedStateAddress,
-    pub nonce: Nonce,
-    pub value: Coin,
-    pub attributes: StakedStateOpAttributes,
-}
-
-impl TransactionId for UnbondTx {}
-
-impl UnbondTx {
-    pub fn new(
-        from_staked_account: StakedStateAddress,
-        nonce: Nonce,
-        value: Coin,
-        attributes: StakedStateOpAttributes,
-    ) -> Self {
-        UnbondTx {
-            from_staked_account,
-            nonce,
-            value,
-            attributes,
-        }
-    }
-}
-
-#[cfg(not(feature = "mesalock_sgx"))]
-impl fmt::Display for UnbondTx {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(
-            f,
-            "{} unbonded: {} (nonce: {})",
-            self.from_staked_account, self.value, self.nonce
-        )?;
-        write!(f, "")
-    }
-}
-
-/// takes the StakedState (TODO: implicit from the witness?) and creates UTXOs
-/// (update's StakedState's unbonded + nonce)
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-pub struct WithdrawUnbondedTx {
-    pub nonce: Nonce,
-    pub outputs: Vec<TxOut>,
-    pub attributes: TxAttributes,
-}
-
-impl TransactionId for WithdrawUnbondedTx {}
-
-impl WithdrawUnbondedTx {
-    pub fn new(nonce: Nonce, outputs: Vec<TxOut>, attributes: TxAttributes) -> Self {
-        WithdrawUnbondedTx {
-            nonce,
-            outputs,
-            attributes,
-        }
-    }
-}
-
-impl WithdrawUnbondedTx {
-    /// returns the total transaction output amount (sum of all output amounts)
-    pub fn get_output_total(&self) -> Result<Coin, CoinError> {
-        sum_coins(self.outputs.iter().map(|x| x.value))
-    }
-}
-
-#[cfg(not(feature = "mesalock_sgx"))]
-impl fmt::Display for WithdrawUnbondedTx {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "-> (unbonded) (nonce: {})", self.nonce)?;
-        for output in self.outputs.iter() {
-            writeln!(f, "   {} ->", output)?;
-        }
-        write!(f, "")
-    }
-}
-
-/// Unjails an account
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-pub struct UnjailTx {
-    pub nonce: Nonce,
-    pub address: StakedStateAddress,
-    pub attributes: StakedStateOpAttributes,
-}
-
-impl TransactionId for UnjailTx {}
-
-impl UnjailTx {
-    #[inline]
-    pub fn new(
-        nonce: Nonce,
-        address: StakedStateAddress,
-        attributes: StakedStateOpAttributes,
-    ) -> Self {
-        Self {
-            nonce,
-            address,
-            attributes,
-        }
-    }
-}
-
-#[cfg(not(feature = "mesalock_sgx"))]
-impl fmt::Display for UnjailTx {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "unjailed: {} (nonce: {})", self.address, self.nonce)?;
-        write!(f, "")
-    }
-}
-
-/// A witness for StakedState operations
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-pub enum StakedStateOpWitness {
-    BasicRedeem(EcdsaSignature),
-}
-
-impl StakedStateOpWitness {
-    pub fn new(sig: EcdsaSignature) -> Self {
-        StakedStateOpWitness::BasicRedeem(sig)
-    }
-}
-
-impl Encode for StakedStateOpWitness {
-    fn encode_to<W: Output>(&self, dest: &mut W) {
-        match *self {
-            StakedStateOpWitness::BasicRedeem(ref sig) => {
-                dest.push_byte(0);
-                let (recovery_id, serialized_sig) = sig.serialize_compact();
-                // recovery_id is one of 0 | 1 | 2 | 3
-                let rid = recovery_id.to_i32() as u8;
-                dest.push_byte(rid);
-                serialized_sig.encode_to(dest);
-            }
-        }
-    }
-
-    fn size_hint(&self) -> usize {
-        match self {
-            StakedStateOpWitness::BasicRedeem(_) => 66,
-        }
-    }
-}
-
-impl Decode for StakedStateOpWitness {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let tag = input.read_byte()?;
-        match tag {
-            0 => {
-                let rid: u8 = input.read_byte()?;
-                let raw_sig = RawSignature::decode(input)?;
-                let recovery_id = RecoveryId::from_i32(i32::from(rid))
-                    .map_err(|_| Error::from("Unable to parse recovery ID"))?;
-                let sig = RecoverableSignature::from_compact(&raw_sig, recovery_id)
-                    .map_err(|_| Error::from("Unable to create recoverable signature"))?;
-                Ok(StakedStateOpWitness::BasicRedeem(sig))
-            }
-            _ => Err(Error::from("Invalid tag")),
-        }
-    }
 }
 
 #[cfg(test)]

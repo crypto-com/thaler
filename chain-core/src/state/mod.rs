@@ -2,7 +2,7 @@
 pub mod account;
 /// data types related to working with Tendermint
 pub mod tendermint;
-/// data types related to council node operations in staked state
+/// data types related to council node operations in staked state (nodejoin and unjail)
 pub mod validator;
 
 use parity_scale_codec::{Decode, Encode};

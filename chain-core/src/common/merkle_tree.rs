@@ -3,7 +3,7 @@ use std::vec::IntoIter;
 
 use super::H256;
 use blake3::Hash;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, EncodeLike, Error, Input, Output};
 
 /// Hash of leaf node with empty slice `hash_leaf(&[])`
 const EMPTY_HASH: H256 = [
@@ -142,22 +142,83 @@ impl<T> Tree<T> {
 ///
 /// leaf_hash is computed from the value in the Proof
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Side {
     Left,
     Right,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct PathNode {
     node_hash: H256,
     child_hash: H256, // hash of left child unless reversed
     hash_side: Side,  // the side of hash child
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+impl Encode for PathNode {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        // this wastes an extra length byte, as one could potentially lay out both items as 64 bytes
+        dest.push(&self.node_hash);
+        dest.push(&self.child_hash);
+        // this is slightly wasteful, as the path direction
+        // could be encoded with bitvector,
+        // but paths in TX are not expected to be long, so it won't make much difference
+        // NOTE: changing this OR Path encoding would break the TX wire format (transfer tx witness)
+        match self.hash_side {
+            Side::Left => dest.push_byte(0),
+            Side::Right => dest.push_byte(1),
+        };
+    }
+
+    fn size_hint(&self) -> usize {
+        self.node_hash.size_hint() + self.child_hash.size_hint() + 1
+    }
+}
+
+impl Decode for PathNode {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let node_hash = H256::decode(input)?;
+        let child_hash = H256::decode(input)?;
+        let hash_side = match input.read_byte()? {
+            0 => Ok(Side::Left),
+            1 => Ok(Side::Right),
+            _ => Err(Error::from("Invalid PathNode.hash_side")),
+        }?;
+        Ok(PathNode {
+            node_hash,
+            child_hash,
+            hash_side,
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Path {
     nodes: Vec<PathNode>, // order from inner node to outer node
+}
+
+impl Encode for Path {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        self.nodes.encode_to(dest);
+    }
+    fn encode(&self) -> Vec<u8> {
+        self.nodes.encode()
+    }
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        self.nodes.using_encoded(f)
+    }
+    fn size_hint(&self) -> usize {
+        self.nodes.size_hint()
+    }
+}
+
+impl EncodeLike<Vec<PathNode>> for Path {}
+
+impl Decode for Path {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let nodes: Vec<PathNode> = Vec::decode(input)?;
+        Ok(Path { nodes })
+    }
 }
 
 impl Path {
@@ -193,10 +254,35 @@ impl Path {
 }
 
 /// Inclusion proof of a value
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Proof<T> {
     path: Path,
     value: T,
+}
+
+impl<T> Encode for Proof<T>
+where
+    T: Encode,
+{
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        dest.push(&self.path);
+        dest.push(&self.value);
+    }
+
+    fn size_hint(&self) -> usize {
+        self.path.size_hint() + self.value.size_hint()
+    }
+}
+
+impl<T> Decode for Proof<T>
+where
+    T: Decode,
+{
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let path = Path::decode(input)?;
+        let value = T::decode(input)?;
+        Ok(Proof { path, value })
+    }
 }
 
 impl<T> Proof<T> {

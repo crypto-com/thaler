@@ -244,7 +244,7 @@ fn prepare_app_valid_transfer_tx(
     tx.add_output(TxOut::new(addr, Coin::new(9).unwrap()));
     let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
     let addr2 = get_address(&secp, &sk2).0;
-    tx.add_output(TxOut::new(addr2, Coin::new(99999666).unwrap()));
+    tx.add_output(TxOut::new(addr2, Coin::new(99999665).unwrap()));
 
     let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx.id(), &secret_key, &merkle_tree)];
     let plain_txaux = PlainTxAux::new(tx.clone(), witness.clone().into());
@@ -446,7 +446,7 @@ fn prepare_app_valid_withdraw_tx(
 
     let outputs = vec![
         TxOut::new_with_timelock(addr1, Coin::new(9).unwrap(), 0),
-        TxOut::new_with_timelock(addr2, Coin::new(99999745).unwrap(), 0),
+        TxOut::new_with_timelock(addr2, Coin::new(99999744).unwrap(), 0),
     ];
 
     let tx = WithdrawUnbondedTx::new(1, outputs, TxAttributes::new(DEFAULT_CHAIN_ID));

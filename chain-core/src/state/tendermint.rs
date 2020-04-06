@@ -1,6 +1,6 @@
 use crate::init::coin::Coin;
 use crate::init::MAX_COIN_DECIMALS;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, EncodeLike, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{
     de::{self, Error as _, Visitor},
@@ -14,10 +14,33 @@ use std::prelude::v1::{String, ToString, Vec};
 use thiserror::Error;
 
 /// Tendermint block height
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 #[cfg_attr(not(feature = "mesalock_sgx"), serde(transparent))]
 pub struct BlockHeight(u64);
+
+impl Encode for BlockHeight {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        self.0.encode_to(dest)
+    }
+    fn encode(&self) -> Vec<u8> {
+        self.0.encode()
+    }
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        self.0.using_encoded(f)
+    }
+    fn size_hint(&self) -> usize {
+        self.0.size_hint()
+    }
+}
+impl EncodeLike<u64> for BlockHeight {}
+
+impl Decode for BlockHeight {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let height = u64::decode(input)?;
+        Ok(BlockHeight(height))
+    }
+}
 
 impl std::fmt::Display for BlockHeight {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -115,7 +138,7 @@ where
 /// The protobuf structure currently has "String" to denote the type / length
 /// and variable length byte array. In this internal representation,
 /// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 #[cfg_attr(not(feature = "mesalock_sgx"), serde(tag = "type", content = "value"))]
 pub enum TendermintValidatorPubKey {
@@ -133,6 +156,36 @@ pub enum TendermintValidatorPubKey {
     // "type = "ed25519" anddata = <raw 32-byte public key>`"
     // there's also PubKeyMultisigThreshold, but that probably wouldn't be used for individual nodes / validators
     // TODO: some other schemes when they are added in TM?
+}
+
+impl Encode for TendermintValidatorPubKey {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        match *self {
+            TendermintValidatorPubKey::Ed25519(ref key) => {
+                dest.push_byte(0);
+                dest.push(key);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> usize {
+        (match self {
+            TendermintValidatorPubKey::Ed25519(ref key) => key.size_hint(),
+        }) + 1
+    }
+}
+
+impl Decode for TendermintValidatorPubKey {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> core::result::Result<Self, Error> {
+        let tag = input.read_byte()?;
+        match tag {
+            0 => {
+                let key: [u8; PUBLIC_KEY_SIZE] = Decode::decode(input)?;
+                Ok(TendermintValidatorPubKey::Ed25519(key))
+            }
+            _ => Err("No such variant in enum TendermintValidatorPubKey".into()),
+        }
+    }
 }
 
 /// Serialize the bytes of an Ed25519 public key as Base64. Used for serializing JSON

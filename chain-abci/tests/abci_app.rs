@@ -445,7 +445,7 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
             // leftover -- in previous tests, it was all paid as a fee
             TxOut::new_with_timelock(
                 ExtendedAddr::OrTree([2; 32]),
-                Coin::new(9999999999899999668).unwrap(),
+                Coin::new(9999999999899999667).unwrap(),
                 0,
             ),
         ],
@@ -595,7 +595,7 @@ fn deliver_tx_should_add_valid_tx() {
     assert_eq!(3, cresp.events[0].attributes.len());
     // the unit test transaction just three outputs: 1 CRO + 1 carson / base unit + the rest
     assert_eq!(
-        &b"0.00000330".to_vec(),
+        &b"0.00000331".to_vec(),
         &cresp.events[0].attributes[0].value
     );
     assert_eq!(
@@ -835,7 +835,7 @@ fn all_valid_tx_types_should_commit() {
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
             TxOut::new_with_timelock(eaddr.clone(), (Coin::one() + Coin::one()).unwrap(), 0),
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
-            TxOut::new_with_timelock(eaddr.clone(), Coin::new(9999999999599999619).unwrap(), 0), // rest
+            TxOut::new_with_timelock(eaddr.clone(), Coin::new(9999999999599999618).unwrap(), 0), // rest
         ],
         TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
     );
@@ -868,7 +868,7 @@ fn all_valid_tx_types_should_commit() {
     let utxo1 = TxoPointer::new(*txid, 0);
     let mut tx1 = Tx::new();
     tx1.add_input(utxo1);
-    tx1.add_output(TxOut::new(eaddr, Coin::from(99999717u32)));
+    tx1.add_output(TxOut::new(eaddr, Coin::from(99999716u32)));
     let txid1 = tx1.id();
     let witness1 = vec![TxInWitness::TreeSig(
         schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),

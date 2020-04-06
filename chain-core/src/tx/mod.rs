@@ -10,7 +10,7 @@ pub mod witness;
 #[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 
-use parity_scale_codec::{Decode, Encode, Error, Input};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 use self::data::Tx;
 use self::witness::TxWitness;
@@ -54,7 +54,7 @@ impl TxWithOutputs {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 /// Plain transaction parts "visible" inside enclaves
 pub enum PlainTxAux {
     /// both private; normal value transfer Tx with the vector of witnesses
@@ -63,6 +63,56 @@ pub enum PlainTxAux {
     DepositStakeTx(TxWitness),
     /// only the TX data / new outputs are private
     WithdrawUnbondedStakeTx(WithdrawUnbondedTx),
+}
+
+impl Encode for PlainTxAux {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        match *self {
+            PlainTxAux::TransferTx(ref tx, ref witness) => {
+                dest.push_byte(0);
+                dest.push(tx);
+                dest.push(witness);
+            }
+            PlainTxAux::DepositStakeTx(ref witness) => {
+                dest.push_byte(1);
+                dest.push(witness);
+            }
+            PlainTxAux::WithdrawUnbondedStakeTx(ref tx) => {
+                dest.push_byte(2);
+                dest.push(tx);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> usize {
+        1 + match self {
+            PlainTxAux::TransferTx(tx, witness) => tx.size_hint() + witness.size_hint(),
+            PlainTxAux::DepositStakeTx(witness) => witness.size_hint(),
+            PlainTxAux::WithdrawUnbondedStakeTx(tx) => tx.size_hint(),
+        }
+    }
+}
+
+impl Decode for PlainTxAux {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let tag = input.read_byte()?;
+        match tag {
+            0 => {
+                let tx = Tx::decode(input)?;
+                let witness = TxWitness::decode(input)?;
+                Ok(PlainTxAux::TransferTx(tx, witness))
+            }
+            1 => {
+                let witness = TxWitness::decode(input)?;
+                Ok(PlainTxAux::DepositStakeTx(witness))
+            }
+            2 => {
+                let tx = WithdrawUnbondedTx::decode(input)?;
+                Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx))
+            }
+            _ => Err("No such variant in enum PlainTxAux".into()),
+        }
+    }
 }
 
 impl PlainTxAux {
@@ -129,13 +179,44 @@ impl<'tx> Into<Payload<'tx, 'tx>> for &'tx TxToObfuscate {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 /// obfuscated TX payload
 pub struct TxObfuscated {
     pub key_from: BlockHeight,
     pub init_vector: [u8; 12],
     pub txpayload: Vec<u8>,
     pub txid: TxId,
+}
+
+impl Encode for TxObfuscated {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        dest.push(&self.key_from);
+        dest.push(&self.init_vector);
+        dest.push(&self.txpayload);
+        dest.push(&self.txid);
+    }
+
+    fn size_hint(&self) -> usize {
+        self.key_from.size_hint()
+            + self.init_vector.size_hint()
+            + self.txpayload.len()
+            + self.txid.size_hint()
+    }
+}
+
+impl Decode for TxObfuscated {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let key_from = BlockHeight::decode(input)?;
+        let init_vector: [u8; 12] = Decode::decode(input)?;
+        let txpayload: Vec<u8> = Vec::decode(input)?;
+        let txid = TxId::decode(input)?;
+        Ok(TxObfuscated {
+            key_from,
+            init_vector,
+            txpayload,
+            txid,
+        })
+    }
 }
 
 impl<'tx> Into<Payload<'tx, 'tx>> for &'tx TxObfuscated {
@@ -147,8 +228,9 @@ impl<'tx> Into<Payload<'tx, 'tx>> for &'tx TxObfuscated {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 /// transactions with parts that are only viewable inside TEE
+/// FIXME / NOTE: extra TDBE-related tx (containing MLS messages) will go under here
 pub enum TxEnclaveAux {
     /// normal value transfer Tx with the vector of witnesses
     TransferTx {
@@ -169,6 +251,95 @@ pub enum TxEnclaveAux {
     },
 }
 
+impl Encode for TxEnclaveAux {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        match *self {
+            TxEnclaveAux::TransferTx {
+                ref inputs,
+                ref no_of_outputs,
+                ref payload,
+            } => {
+                dest.push_byte(0);
+                dest.push(inputs);
+                dest.push(no_of_outputs);
+                dest.push(payload);
+            }
+            TxEnclaveAux::DepositStakeTx {
+                ref tx,
+                ref payload,
+            } => {
+                dest.push_byte(1);
+                dest.push(tx);
+                dest.push(payload);
+            }
+            TxEnclaveAux::WithdrawUnbondedStakeTx {
+                ref no_of_outputs,
+                ref witness,
+                ref payload,
+            } => {
+                dest.push_byte(2);
+                dest.push(no_of_outputs);
+                dest.push(witness);
+                dest.push(payload);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> usize {
+        1 + match self {
+            TxEnclaveAux::TransferTx {
+                ref inputs,
+                ref payload,
+                ..
+            } => inputs.size_hint() + 2 + payload.size_hint(),
+            TxEnclaveAux::DepositStakeTx {
+                ref tx,
+                ref payload,
+            } => tx.size_hint() + payload.size_hint(),
+            TxEnclaveAux::WithdrawUnbondedStakeTx {
+                ref witness,
+                ref payload,
+                ..
+            } => witness.size_hint() + 2 + payload.size_hint(),
+        }
+    }
+}
+
+impl Decode for TxEnclaveAux {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let tag = input.read_byte()?;
+        // note: 3.. tags expected for TDBE tx (MLS messages)
+        match tag {
+            0 => {
+                let inputs: Vec<TxoPointer> = Vec::decode(input)?;
+                let no_of_outputs = TxoSize::decode(input)?;
+                let payload = TxObfuscated::decode(input)?;
+                Ok(TxEnclaveAux::TransferTx {
+                    inputs,
+                    no_of_outputs,
+                    payload,
+                })
+            }
+            1 => {
+                let tx = DepositBondTx::decode(input)?;
+                let payload = TxObfuscated::decode(input)?;
+                Ok(TxEnclaveAux::DepositStakeTx { tx, payload })
+            }
+            2 => {
+                let no_of_outputs = TxoSize::decode(input)?;
+                let witness = StakedStateOpWitness::decode(input)?;
+                let payload = TxObfuscated::decode(input)?;
+                Ok(TxEnclaveAux::WithdrawUnbondedStakeTx {
+                    no_of_outputs,
+                    witness,
+                    payload,
+                })
+            }
+            _ => Err("No such variant in enum TxEnclaveAux".into()),
+        }
+    }
+}
+
 impl TxEnclaveAux {
     /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
     pub fn tx_id(&self) -> TxId {
@@ -186,7 +357,9 @@ impl TxEnclaveAux {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+/// Transactions that are directly processed in non-enclave execution environment (chain-abci)
+/// TODO/NOTE: other TX types expected -- update of council node metadata, bonus donation, ...
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TxPublicAux {
     /// Tx that modifies staked state -- moves some bonded stake into unbonded (witness for staked state)
     UnbondStakeTx(UnbondTx, StakedStateOpWitness),
@@ -194,6 +367,61 @@ pub enum TxPublicAux {
     UnjailTx(UnjailTx, StakedStateOpWitness),
     /// Tx that updates a staked state with council node / validator details
     NodeJoinTx(NodeJoinRequestTx, StakedStateOpWitness),
+}
+
+impl Encode for TxPublicAux {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        match *self {
+            TxPublicAux::UnbondStakeTx(ref tx, ref witness) => {
+                dest.push_byte(0);
+                dest.push(tx);
+                dest.push(witness);
+            }
+            TxPublicAux::UnjailTx(ref tx, ref witness) => {
+                dest.push_byte(1);
+                dest.push(tx);
+                dest.push(witness);
+            }
+            TxPublicAux::NodeJoinTx(ref tx, ref witness) => {
+                dest.push_byte(2);
+                dest.push(tx);
+                dest.push(witness);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> usize {
+        1 + match self {
+            TxPublicAux::UnbondStakeTx(tx, witness) => tx.size_hint() + witness.size_hint(),
+            TxPublicAux::UnjailTx(tx, witness) => tx.size_hint() + witness.size_hint(),
+            TxPublicAux::NodeJoinTx(tx, witness) => tx.size_hint() + witness.size_hint(),
+        }
+    }
+}
+
+impl Decode for TxPublicAux {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let tag = input.read_byte()?;
+        // note: 3.. tags reserved for other tx types (node metadata update etc.)
+        match tag {
+            0 => {
+                let tx = UnbondTx::decode(input)?;
+                let witness = StakedStateOpWitness::decode(input)?;
+                Ok(TxPublicAux::UnbondStakeTx(tx, witness))
+            }
+            1 => {
+                let tx = UnjailTx::decode(input)?;
+                let witness = StakedStateOpWitness::decode(input)?;
+                Ok(TxPublicAux::UnjailTx(tx, witness))
+            }
+            2 => {
+                let tx = NodeJoinRequestTx::decode(input)?;
+                let witness = StakedStateOpWitness::decode(input)?;
+                Ok(TxPublicAux::NodeJoinTx(tx, witness))
+            }
+            _ => Err("No such variant in enum TxPublicAux".into()),
+        }
+    }
 }
 
 impl TxPublicAux {
@@ -220,12 +448,42 @@ impl TxPublicAux {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Encode)]
-/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
+/// Outer transaction type (broadcast in Tendermint tx payloads)
+///
+/// # TX format evolution
+/// - If the change is more or less the same behaviour,
+/// it can be done on a particular tx type component
+/// -- e.g. if there's a new way to lock transaction output,
+/// it can be a variant in ExtendedAddr + a corresponding witness type.
+/// (could be even to e.g. support a different signature scheme)
+/// - If the extension is a different behaviour, it'll be a new transaction type (possibly under enclave or public auxiliary type).
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TxAux {
     /// transactions that need to be processed inside TEE
     EnclaveTx(TxEnclaveAux),
     PublicTx(TxPublicAux),
+}
+
+impl Encode for TxAux {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        match *self {
+            TxAux::EnclaveTx(ref tx) => {
+                dest.push_byte(0);
+                dest.push(tx);
+            }
+            TxAux::PublicTx(ref tx) => {
+                dest.push_byte(1);
+                dest.push(tx);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> usize {
+        1 + match self {
+            TxAux::EnclaveTx(tx) => tx.size_hint(),
+            TxAux::PublicTx(tx) => tx.size_hint(),
+        }
+    }
 }
 
 impl Decode for TxAux {

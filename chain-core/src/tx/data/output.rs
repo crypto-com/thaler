@@ -3,7 +3,7 @@ use std::fmt;
 #[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
 
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::de;
 #[cfg(not(feature = "mesalock_sgx"))]
@@ -14,8 +14,7 @@ use crate::init::coin::Coin;
 use crate::tx::data::address::ExtendedAddr;
 
 /// Tx Output composed of an address and a coin value
-/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxOut {
     #[cfg_attr(
@@ -29,6 +28,37 @@ pub struct TxOut {
     pub address: ExtendedAddr,
     pub value: Coin,
     pub valid_from: Option<Timespec>,
+}
+
+impl Encode for TxOut {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        dest.push(&self.address);
+        dest.push(&self.value);
+        dest.push(&self.valid_from);
+    }
+
+    fn size_hint(&self) -> usize {
+        self.address.size_hint() + self.value.size_hint() + self.valid_from.size_hint()
+    }
+}
+
+impl Decode for TxOut {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        // note: ExtendedAddr is enum;
+        // if there is some need for extending TxOut -- e.g. locking against
+        // more complex conditions (more complete merkelized abstract syntax tree)
+        // it can be done with new variants on ExtendedAddr
+        // or for backwards compatibility, there could be an extra Option<...> field in TxOut,
+        // but one needs to careful that "None" isn't required to be encoded
+        let address = ExtendedAddr::decode(input)?;
+        let value = Coin::decode(input)?;
+        let valid_from: Option<Timespec> = Option::decode(input)?;
+        Ok(TxOut {
+            address,
+            value,
+            valid_from,
+        })
+    }
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
