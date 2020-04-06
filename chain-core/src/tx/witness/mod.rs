@@ -33,6 +33,23 @@ impl TxWitness {
     }
 }
 
+impl Encode for TxWitness {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        self.0.encode_to(dest)
+    }
+    fn encode(&self) -> Vec<u8> {
+        self.0.encode()
+    }
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        self.0.using_encoded(f)
+    }
+    fn size_hint(&self) -> usize {
+        self.0.size_hint()
+    }
+}
+
+impl EncodeLike<Vec<TxInWitness>> for TxWitness {}
+
 impl Decode for TxWitness {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let size = input
