@@ -10,7 +10,7 @@ RUN set -e; \
     echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bionic main' | tee /etc/apt/sources.list.d/intel-sgx.list; \
     wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -; \
     apt-get update; \
-    apt-get install -y libzmq3-dev libssl1.1 libprotobuf10 libsgx-launch libsgx-urts libsgx-epid libsgx-urts  libsgx-quote-ex libsgx-urts; \
+    apt-get install -y libzmq3-dev libssl1.1 libprotobuf10 libsgx-launch libsgx-urts libsgx-epid libsgx-quote-ex; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=tendermint/tendermint:v0.32.9 /usr/bin/tendermint /usr/bin/tendermint
@@ -91,7 +91,7 @@ RUN set -e; \
       tx-query-app \
       tx_query_enclave.signed.so \
       tx_validation_enclave.signed.so ; \
-    do mv "./target/debug/${bin}" /output; done; \
+    do mv "./target/${BUILD_PROFILE}/${bin}" /output; done; \
     cargo clean;
 
 FROM RUNTIME_BASE

@@ -5,7 +5,8 @@ echo "[Config] SGX_MODE=${SGX_MODE}"
 echo "[Config] NETWORK_ID=${NETWORK_ID}"
 
 if [ x"${SGX_MODE}" == "xHW" ]; then
-  LD_LIBRARY_PATH=/opt/intel/libsgx-enclave-common/aesm /opt/intel/libsgx-enclave-common/aesm/aesm_service &
+  mkdir -p /var/run/aesmd/
+  NAME=aesm_service AESM_PATH=/opt/intel/sgx-aesm-service/aesm LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service &
 
   echo "[aesm_service] Running in background ..."
 fi
