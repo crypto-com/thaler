@@ -24,7 +24,7 @@ use client_core::signer::{DummySigner, Signer, WalletSignerManager};
 use client_core::transaction_builder::WitnessedUTxO;
 use client_core::types::TransactionPending;
 use client_core::{TransactionObfuscation, UnspentTransactions, WalletClient};
-use tendermint::Time;
+use tendermint::{block::Height, Time};
 
 /// Default implementation of `NetworkOpsClient`
 pub struct DefaultNetworkOpsClient<W, S, C, F, E>
@@ -120,14 +120,14 @@ where
     }
 
     fn get_last_block_time(&self) -> Result<Timespec> {
-        Ok(self
-            .client
-            .status()?
-            .sync_info
-            .latest_block_time
-            .duration_since(Time::unix_epoch())
-            .unwrap()
-            .as_secs())
+        let status = self.client.status()?;
+        Ok(to_timespec(
+            if status.sync_info.latest_block_height == Height(0) {
+                self.client.genesis()?.genesis_time
+            } else {
+                status.sync_info.latest_block_time
+            },
+        ))
     }
 }
 
@@ -478,6 +478,10 @@ where
     fn get_staked_state(&self, address: &StakedStateAddress) -> Result<StakedState> {
         self.get_staked_state_account(address)
     }
+}
+
+fn to_timespec(time: Time) -> Timespec {
+    time.duration_since(Time::unix_epoch()).unwrap().as_secs()
 }
 
 #[cfg(test)]
