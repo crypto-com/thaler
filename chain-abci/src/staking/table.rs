@@ -443,6 +443,9 @@ impl StakingTable {
                 self.idx_validator_address.remove(&val.validator_address()),
                 Some(*addr)
             );
+            for (val_addr, _) in val.used_validator_addresses.iter() {
+                assert_eq!(self.idx_validator_address.remove(val_addr), Some(*addr));
+            }
             assert!(self.idx_sort.remove(&(&staking).into()));
             assert!(self.liveness.remove(addr).is_some());
             self.proposer_stats.remove(addr);
