@@ -8,6 +8,8 @@ export const syncWallet = async (
 ): Promise<void> => {
 	console.log(`[Log] Synchronizing wallet "${walletRequest.name}"`);
 	await rpcClient.request("sync", [walletRequest]);
+
+	await sleep(1000);
 };
 
 // Continuously check for TxId existence until found

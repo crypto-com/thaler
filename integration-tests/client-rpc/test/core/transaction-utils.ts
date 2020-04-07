@@ -63,6 +63,45 @@ export const expectTransactionShouldBe = (
 	return true;
 };
 
+export interface UTOXResponse {
+	0: {
+		id: string;
+		index: BigNumber;
+	};
+	1: {
+		address: string;
+		valid_from: BigNumber;
+		value: string;
+	};
+}
+
+export interface UTXOAssertion {
+	txId: string;
+	index: number;
+	address?: string;
+	amount: string;
+}
+
+export const expectUTXOShouldEq = (
+	utxo: UTOXResponse,
+	expectedUTXO: UTXOAssertion,
+	message: string = 'UTXO mismatch',
+) => {
+	expect(utxo[0].id).to.eq(expectedUTXO.txId, `${message}: txId mismatch`);
+	expect(utxo[0].index.toString(10)).to.eq(
+		expectedUTXO.index.toString(),
+		`${message}: index mismatch`,
+	);
+
+	if (expectedUTXO.address) {
+		expect(utxo[1].address).to.eq(
+			expectedUTXO.address,
+			`${message}: address mismatch`,
+		);
+	}
+	expect(utxo[1].value).to.eq(expectedUTXO.amount, `${message}: amount mismatch`);
+};
+
 export const getFirstElementOfArray = (arr: any[]) => {
 	return arr[0];
 };

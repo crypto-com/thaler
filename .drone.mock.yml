@@ -4,7 +4,7 @@ name: default
 
 steps:
 - name: build
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   commands:
   - export BUILD_MODE=mock
@@ -13,7 +13,7 @@ steps:
   - ./docker/build.sh
 
 - name: unit-tests
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   commands:
   - export BUILD_MODE=mock
@@ -22,7 +22,7 @@ steps:
   - ./docker/unittest.sh
 
 - name: integration-tests
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   commands:
   - export BUILD_MODE=mock
@@ -31,7 +31,7 @@ steps:
   - ./integration-tests/run.sh
 
 - name: multinode-tests
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   commands:
   - export BUILD_MODE=mock
@@ -40,7 +40,7 @@ steps:
   - ./integration-tests/run_multinode.sh
 
 - name: teardown
-  image: cryptocom/chain-test:latest
+  image: cryptocom/chain-test:v1.1.1
   pull: if-not-exists
   commands:
   - export BUILD_MODE=mock
