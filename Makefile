@@ -275,6 +275,7 @@ run-client-rpc:
 	--chain-id=$(CHAIN_ID) \
 	--storage-dir=/crypto-chain/wallet \
 	--websocket-url=ws://$(prefix)tendermint:26657/websocket \
+	--disable-fast-forward
 
 .PHONY: sgx-query chain-abci tendermint client-rpc
 
