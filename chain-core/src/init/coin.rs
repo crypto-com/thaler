@@ -8,7 +8,7 @@ use crate::init::config::SlashRatio;
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS, MAX_COIN_UNITS};
 use crate::state::tendermint::TendermintVotePower;
 use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
-use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input};
+use parity_scale_codec::{Decode, Encode, EncodeLike, Error as ScaleError, Input, Output};
 
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::de::{Deserializer, Error, Visitor};
@@ -17,9 +17,10 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use static_assertions::const_assert;
 use std::convert::TryFrom;
+use std::prelude::v1::Vec;
 use std::{fmt, ops, result};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode, Default)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
 pub struct Coin(u64);
 
 /// error type relating to `Coin` operations
@@ -289,6 +290,22 @@ impl Decode for Coin {
         }
     }
 }
+
+impl Encode for Coin {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        self.0.encode_to(dest)
+    }
+    fn encode(&self) -> Vec<u8> {
+        self.0.encode()
+    }
+    fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+        self.0.using_encoded(f)
+    }
+    fn size_hint(&self) -> usize {
+        self.0.size_hint()
+    }
+}
+impl EncodeLike<u64> for Coin {}
 
 pub fn sum_coins<I>(coin_iter: I) -> CoinResult
 where

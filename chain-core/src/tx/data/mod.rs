@@ -14,7 +14,7 @@ pub mod output;
 #[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 
-use parity_scale_codec::{Decode, Encode, Error, Input};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 
@@ -44,14 +44,24 @@ pub const TXID_HASH_ID: &[u8; 6] = b"blake3";
 pub type TxId = H256;
 
 /// A Transaction containing tx inputs and tx outputs.
-/// TODO: max input/output size?
-/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, Default, PartialEq, Eq, Clone, Encode)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct Tx {
     pub inputs: Vec<TxoPointer>,
     pub outputs: Vec<TxOut>,
     pub attributes: TxAttributes,
+}
+
+impl Encode for Tx {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        dest.push(&self.inputs);
+        dest.push(&self.outputs);
+        dest.push(&self.attributes);
+    }
+
+    fn size_hint(&self) -> usize {
+        self.inputs.size_hint() + self.outputs.size_hint() + self.attributes.size_hint()
+    }
 }
 
 impl Decode for Tx {

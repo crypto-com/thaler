@@ -12,16 +12,14 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::H264;
 
-/// What can be access in TX -- TODO: revisit when enforced by HW encryption / enclaves
-/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode, PartialOrd, Ord)]
+/// What can be accessed in TX (enforced by enclave code in HW)
+/// Initial schema will only allow access to all TX data,
+/// but this may later be extended to restrict to e.g. particular tx outputs
+/// or metadata
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum TxAccess {
     AllData,
-    // TODO: u16 and Vec size check in Decode implementation
-    Output(u64),
-    // TODO: other components?
-    // TODO: TX ID could be computed as a root of a merkle tree from different TX components?
 }
 
 impl Default for TxAccess {
@@ -30,7 +28,33 @@ impl Default for TxAccess {
     }
 }
 
-/// Specifies who can access what -- TODO: revisit when enforced by HW encryption / enclaves
+impl Decode for TxAccess {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let tag = input.read_byte()?;
+        // NOTE: tag 1 likely reserved for txout restriction
+        match tag {
+            0 => Ok(TxAccess::AllData),
+            _ => Err("No such variant in enum TxAccess".into()),
+        }
+    }
+}
+
+impl Encode for TxAccess {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        match *self {
+            TxAccess::AllData => {
+                dest.push_byte(0);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> usize {
+        // NOTE: revisit if extended
+        1
+    }
+}
+
+/// Specifies who can access what
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxAccessPolicy {

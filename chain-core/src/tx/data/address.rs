@@ -1,4 +1,4 @@
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 #[cfg(not(feature = "mesalock_sgx"))]
@@ -15,16 +15,47 @@ use bech32::{self, u5, FromBase32, ToBase32};
 #[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::network::{get_bech32_human_part_from_network, get_network, Network};
 
-/// TODO: opaque types?
 type TreeRoot = H256;
 
-/// Currently, only Ethereum-style redeem address + MAST of Or operations (records the root).
-/// TODO: HD-addresses?
-/// TODO: custom Encode/Decode when data structures are finalized (for backwards/forwards compatibility, encoders/decoders should be able to work with old formats)
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Encode, Decode, Hash)]
+/// MAST of Or operations (records the root).
+/// Root of a Merkle tree where leafs are X-only
+/// (potentially summed up / combined) pubkeys
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum ExtendedAddr {
     OrTree(TreeRoot),
+}
+
+impl Encode for ExtendedAddr {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        match *self {
+            ExtendedAddr::OrTree(ref aa) => {
+                dest.push_byte(0);
+                dest.push(aa);
+            }
+        }
+    }
+
+    fn size_hint(&self) -> usize {
+        (match self {
+            ExtendedAddr::OrTree(ref aa) => aa.size_hint(),
+        }) + 1
+    }
+}
+
+impl Decode for ExtendedAddr {
+    fn decode<DecIn: Input>(input: &mut DecIn) -> Result<Self, Error> {
+        let tag = input.read_byte()?;
+        // NOTE: tag 1 may be used for other address types -- e.g. one to denote
+        // requiring a different witness type (leaf may be a combination of root + timelock)
+        match tag {
+            0 => Ok(ExtendedAddr::OrTree({
+                let address: TreeRoot = Decode::decode(input)?;
+                address
+            })),
+            _ => Err("No such variant in enum ExtendedAddr".into()),
+        }
+    }
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
