@@ -29,8 +29,8 @@ pub trait Client: Send + Sync + Clone {
     /// Fetch continuous blocks and verify them.
     fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
         &self,
-        _state: lite::TrustedState,
-        _heights: T,
+        state: lite::TrustedState,
+        heights: T,
     ) -> Result<(Vec<Block>, lite::TrustedState)>;
 
     /// Makes `broadcast_tx_sync` call to tendermint

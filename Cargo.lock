@@ -133,6 +133,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9a60d744a80c30fcb657dfe2c1b22bcb3e814c1a1e3674f32bf5820b570fbff"
+
+[[package]]
 name = "arrayref"
 version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -680,11 +686,13 @@ version = "0.4.0"
 dependencies = [
  "aes",
  "aes-gcm-siv",
+ "anyhow",
  "base64 0.11.0",
  "blake3",
  "chain-core",
  "chain-tx-filter",
  "chrono 0.4.11",
+ "futures-util",
  "hex 0.4.2",
  "indexmap",
  "itertools 0.9.0",
@@ -699,7 +707,8 @@ dependencies = [
  "serde_json",
  "sled",
  "tendermint",
- "tungstenite",
+ "tokio 0.2.14",
+ "tokio-tungstenite",
  "zeroize",
 ]
 
@@ -2322,6 +2331,24 @@ dependencies = [
  "net2",
  "winapi 0.2.8",
  "ws2_32-sys",
+]
+
+[[package]]
+name = "native-tls"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b0d88c06fe90d5ee94048ba40409ef1d9315d86f6f38c2efdaad4fb50c58b2d"
+dependencies = [
+ "lazy_static",
+ "libc",
+ "log 0.4.8",
+ "openssl",
+ "openssl-probe",
+ "openssl-sys",
+ "schannel",
+ "security-framework",
+ "security-framework-sys",
+ "tempfile",
 ]
 
 [[package]]
@@ -4281,8 +4308,10 @@ dependencies = [
  "futures-core",
  "iovec",
  "lazy_static",
+ "libc",
  "memchr",
  "mio",
+ "mio-uds",
  "num_cpus",
  "pin-project-lite",
  "slab",
@@ -4437,6 +4466,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-tls"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bde02a3a5291395f59b06ec6945a3077602fac2b07eeeaf0dee2122f3619828"
+dependencies = [
+ "native-tls",
+ "tokio 0.2.14",
+]
+
+[[package]]
+name = "tokio-tungstenite"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8b8fe88007ebc363512449868d7da4389c9400072a3f666f212c7280082882a"
+dependencies = [
+ "futures 0.3.4",
+ "log 0.4.8",
+ "native-tls",
+ "pin-project",
+ "tokio 0.2.14",
+ "tokio-tls",
+ "tungstenite",
+]
+
+[[package]]
 name = "tokio-udp"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4523,6 +4577,7 @@ dependencies = [
  "httparse",
  "input_buffer",
  "log 0.4.8",
+ "native-tls",
  "rand 0.7.3",
  "sha-1",
  "url 2.1.1",
