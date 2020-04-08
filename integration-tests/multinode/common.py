@@ -6,7 +6,7 @@ import xmlrpc.client
 import iso8601
 
 
-def wait_for_port(port, host='127.0.0.1', timeout=15.0):
+def wait_for_port(port, host='127.0.0.1', timeout=40.0):
     start_time = time.perf_counter()
     while True:
         try:
