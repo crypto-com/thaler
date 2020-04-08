@@ -1,13 +1,18 @@
 From ubuntu:18.04
 
-RUN apt-get update && apt-get install -y \
-    make \
-    libzmq3-dev \
-    libssl1.1 \
-    curl \
-    libprotobuf-dev \
-    libssl-dev && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt update && apt install -y \
+  make \
+  libzmq3-dev \
+  libssl1.1 \
+  curl \
+  wget \
+  gnupg \
+  libcurl4-openssl-dev \
+  libprotobuf-dev \
+  libssl-dev \
+  libgflags-dev \
+  libprotobuf10 && \
+  rm -rf /var/lib/apt/lists/*
 
 arg BUILD_MODE
 
@@ -25,17 +30,15 @@ COPY ./docker/wait-for-it.sh /usr/local/bin
 COPY ci-scripts/run_tx_query.sh /usr/local/bin
 COPY ci-scripts/run_chain_abci.sh /usr/local/bin
 
-# install sgx enclave pws
-ARG SGX_ENCLAVE=https://download.01.org/intel-sgx/sgx-linux/2.7.1/distro/ubuntu18.04-server/libsgx-enclave-common_2.7.101.3-bionic1_amd64.deb
-# TODO
-# update PSW to 2.8
-# ARG SGX_ENCLAVE=https://download.01.org/intel-sgx/sgx-linux/2.8/distro/ubuntu18.04-server/debian_pkgs/libs/libsgx-enclave-common/libsgx-enclave-common_2.8.100.3-bionic1_amd64.deb
-
+# install sgx enclave pws 2.9
 RUN mkdir -p /opt/intel && \
-    cd /opt/intel && \
-    set -eux; \
-    curl -L  ${SGX_ENCLAVE} -o common.deb &&\
-    dpkg -i common.deb; rm common.deb;
+  cd /opt/intel && \
+  set -eux; \
+  echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bionic main' | tee /etc/apt/sources.list.d/intel-sgx.list; \
+  wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -; \
+  apt-get update; \
+  apt-get install -y libsgx-launch libsgx-epid libsgx-quote-ex libsgx-urts libsgx-uae-service; \
+  rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/local/bin
 STOPSIGNAL SIGTERM

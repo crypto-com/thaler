@@ -7,30 +7,34 @@ edition = "2018"
 [dependencies]
 chain-core = { path = "../chain-core" }
 chain-tx-filter = { path = "../chain-tx-filter" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "745bc8d8dc80cb921d5788e863a3536d3b6498a1", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
-rand = "0.7"
-log = "0.4.8"
-aes-gcm-siv = "0.4"
+
 aes = "0.3"
-blake3 = "0.3.1"
-rust-argon2 = "0.8"
-hex = "0.4"
+aes-gcm-siv = "0.4"
+anyhow = "1.0"
 base64 = "0.11"
-secstr = { version = "0.4.0", features = ["serde"] }
-zeroize = "1.1"
-serde = { version = "1.0", features = ["derive"] }
+blake3 = "0.3.1"
 chrono = { version = "0.4", features = ["serde"] }
-sled = { version = "0.31.0", optional = true }
-serde_json = "1.0"
-parity-scale-codec = { features = ["derive"], version = "1.3" }
-tungstenite = { version = "0.10", default-features = false, optional = true }
-tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features=false, rev="44a3d5953bcabc7b9e2e8a0f56b2624b796a46f9" }
-itertools = "0.9"
+futures-util = { version = "0.3", optional = true }
+hex = "0.4"
 indexmap = "1.3"
+itertools = "0.9"
+log = "0.4.8"
+parity-scale-codec = { features = ["derive"], version = "1.3" }
+rand = "0.7"
+rust-argon2 = "0.8"
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "745bc8d8dc80cb921d5788e863a3536d3b6498a1", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
+secstr = { version = "0.4.0", features = ["serde"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sled = { version = "0.31.0", optional = true }
+tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features=false, rev="44a3d5953bcabc7b9e2e8a0f56b2624b796a46f9" }
+tokio = { version = "0.2", features = ["rt-threaded", "sync", "time", "tcp"], optional = true }
+tokio-tungstenite = { version = "0.10", features = ["tls"], optional = true }
+zeroize = "1.1"
 
 [dev-dependencies]
 quickcheck = "0.9"
 
 [features]
 default = ["sled", "websocket-rpc"]
-websocket-rpc = ["tungstenite"]
+websocket-rpc = ["futures-util", "tokio", "tokio-tungstenite"]
