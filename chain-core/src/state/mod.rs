@@ -30,6 +30,8 @@ pub struct ChainState {
 }
 
 impl ChainState {
+    /// computes the app hash based on the internal parameters
+    /// identifiers of valid transactions in a given block
     pub fn compute_app_hash(&self, txids: Vec<TxId>) -> H256 {
         compute_app_hash(
             &MerkleTree::new(txids),
@@ -40,6 +42,7 @@ impl ChainState {
     }
 }
 
+/// State from which periodic rewards are distributed and calculated
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct RewardsPoolState {
@@ -61,6 +64,8 @@ impl RewardsPoolState {
         blake3::hash(&self.encode()).into()
     }
 
+    /// creates an empty rewards pool at a provided genesis time
+    /// with tau_0 being the upper capped for reward minting
     pub fn new(genesis_time: Timespec, tau: u64) -> Self {
         RewardsPoolState {
             period_bonus: Coin::zero(),

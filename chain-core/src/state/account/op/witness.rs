@@ -8,10 +8,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum StakedStateOpWitness {
+    /// Eth-style recoverable signature
     BasicRedeem(EcdsaSignature),
 }
 
 impl StakedStateOpWitness {
+    /// creates a new Eth-style recoverable signature
     pub fn new(sig: EcdsaSignature) -> Self {
         StakedStateOpWitness::BasicRedeem(sig)
     }

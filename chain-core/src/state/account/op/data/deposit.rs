@@ -20,8 +20,11 @@ const MAX_DEPOSIT_TX_SIZE: usize = 2200; // 2200 bytes
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct DepositBondTx {
+    /// previous transaction outputs to spend
     pub inputs: Vec<TxoPointer>,
+    /// which (staking) state to deposit to
     pub to_staked_account: StakedStateAddress,
+    /// versioning info etc.
     pub attributes: StakedStateOpAttributes,
 }
 
@@ -62,6 +65,7 @@ impl Encode for DepositBondTx {
 impl TransactionId for DepositBondTx {}
 
 impl DepositBondTx {
+    /// create a new tx
     pub fn new(
         inputs: Vec<TxoPointer>,
         to_staked_account: StakedStateAddress,

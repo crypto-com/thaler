@@ -49,13 +49,28 @@
  */
 #define REDEEM_ADDRESS_BYTES 20
 
+/**
+ * network type
+ */
 typedef enum Network {
+  /**
+   * main network
+   */
   Mainnet,
+  /**
+   * public testnet
+   */
   Testnet,
+  /**
+   * local testing / regnet
+   */
   Devnet,
 } Network;
 
 /**
  * Returns the chosen network type
+ *
+ * # Safety
+ * chosen_network is pre-initialized and initialized only once
  */
 Network get_network(void);

@@ -14,9 +14,13 @@ use std::fmt;
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct UnbondTx {
+    /// which (staking) state to unbond from
     pub from_staked_account: StakedStateAddress,
+    /// expected counter to check against
     pub nonce: Nonce,
+    /// amount to unbond
     pub value: Coin,
+    /// versioning info etc.
     pub attributes: StakedStateOpAttributes,
 }
 
@@ -55,6 +59,7 @@ impl Encode for UnbondTx {
 impl TransactionId for UnbondTx {}
 
 impl UnbondTx {
+    /// creates a new tx to unbond certain amount
     pub fn new(
         from_staked_account: StakedStateAddress,
         nonce: Nonce,

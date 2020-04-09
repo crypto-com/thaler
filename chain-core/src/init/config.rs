@@ -14,17 +14,29 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 
+/// problems with initial config
 #[derive(Debug)]
 pub enum DistributionError {
+    /// coin arithmetic problems
     DistributionCoinError(CoinError),
+    /// lower than the expected supply
     DoesNotMatchMaxSupply(Coin),
+    /// council node uses non-specified address
     AddressNotInDistribution(RedeemAddress),
+    /// address should have that amount assigned
     DoesNotMatchRequiredAmount(RedeemAddress, Coin),
+    /// problems with encoded consensus pubkeys
     InvalidValidatorKey,
+    /// duplicate consensus pubkeys
     DuplicateValidatorKey,
+    /// associated state not in distribution
     InvalidValidatorAccount,
+    /// at least one validator needs to be specified
     NoValidators,
+    /// voting power too large or otherwise invalid
     InvalidVotingPower,
+    /// problems with reward configuration
+    /// TODO: embed the error type?
     InvalidRewardsParamter(&'static str),
 }
 
@@ -71,12 +83,12 @@ impl fmt::Display for DistributionError {
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct InitConfig {
-    // Redeem mapping of ERC20 snapshot: Eth address => (StakedStateDestination,CRO tokens)
-    // (doesn't include the rewards pool amount)
+    /// Redeem mapping of ERC20 snapshot: Eth address => (StakedStateDestination,CRO tokens)
+    /// (doesn't include the rewards pool amount)
     pub distribution: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
-    // initial network parameters
+    /// initial network parameters
     pub network_params: InitNetworkParameters,
-    // initial validators
+    /// initial validators
     pub council_nodes: BTreeMap<
         RedeemAddress,
         (
@@ -88,6 +100,11 @@ pub struct InitConfig {
     >,
 }
 
+/// the initial state at genesis:
+/// - initial states
+/// - initial rewards pool
+/// - initial tendermint validators
+/// TODO: some tdbe state?
 pub type GenesisState = (
     Vec<StakedState>,
     RewardsPoolState,

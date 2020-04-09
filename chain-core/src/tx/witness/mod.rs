@@ -10,6 +10,7 @@ use secp256k1::{self, recovery::RecoverableSignature, schnorrsig::SchnorrSignatu
 use crate::common::Proof;
 use crate::tx::witness::tree::{RawSignature, RawXOnlyPubkey};
 
+/// ETH-style recoverable ECDSA
 pub type EcdsaSignature = RecoverableSignature;
 
 /// Each witness is made up of a schnorr signature (64 bytes) + merkle proof
@@ -94,9 +95,11 @@ impl ::std::ops::DerefMut for TxWitness {
     }
 }
 
-// normally should be some structure: e.g. indicate a type of signature
+/// witness for transaction input
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TxInWitness {
+    /// BIP340-compatible Schnorr signature
+    /// + Merkle proof from the pubkey leaf to the address root
     TreeSig(SchnorrSignature, Proof<RawXOnlyPubkey>),
 }
 

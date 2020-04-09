@@ -17,6 +17,7 @@ use crate::tx::data::address::ExtendedAddr;
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxOut {
+    /// address to lock the output for
     #[cfg_attr(
         not(feature = "mesalock_sgx"),
         serde(serialize_with = "serialize_address")
@@ -26,7 +27,9 @@ pub struct TxOut {
         serde(deserialize_with = "deserialize_address")
     )]
     pub address: ExtendedAddr,
+    /// the amount to lock in base units
     pub value: Coin,
+    /// the optional timelock
     pub valid_from: Option<Timespec>,
 }
 

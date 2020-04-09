@@ -32,24 +32,29 @@ use crate::common::{H256, HASH_SIZE_256};
 #[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::network::{get_bech32_human_part_from_network, Network};
 
+/// errors with bech32 transfer addresses
 #[derive(Debug, PartialEq)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum CroAddressError {
-    // TODO: use directly bech32::Error or wrap it
+    /// TODO: use directly bech32::Error or wrap it
     Bech32Error(String),
+    /// wrong prefix
     InvalidNetwork,
+    /// problems when converting from text?
     ConvertError,
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
 impl ::std::error::Error for CroAddressError {}
 
-// CRO: mainnet transfer
-// TCRO: testnet transfer
-// DCRO: devnet/regnet transfer
+/// CRO: mainnet transfer
+/// TCRO: testnet transfer
+/// DCRO: devnet/regnet transfer
 #[cfg(not(feature = "mesalock_sgx"))]
 pub trait CroAddress<T> {
+    /// converts to bech32 textual version
     fn to_cro(&self, network: Network) -> Result<String, CroAddressError>;
+    /// converts from bech32 textual version
     fn from_cro(encoded: &str, network: Network) -> Result<T, CroAddressError>;
 }
 
@@ -161,6 +166,7 @@ impl std::error::Error for ErrorAddress {
 /// Fixed bytes number to represent `RedeemAddress` (Eth-style)
 pub const REDEEM_ADDRESS_BYTES: usize = 20;
 
+/// raw (without checking) Eth-style address
 pub type RedeemAddressRaw = [u8; REDEEM_ADDRESS_BYTES];
 
 /// Eth-style Account address (20 bytes)

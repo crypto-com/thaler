@@ -47,8 +47,11 @@ pub type TxId = H256;
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct Tx {
+    /// previous transaction outputs to be spent
     pub inputs: Vec<TxoPointer>,
+    /// new transaction outputs
     pub outputs: Vec<TxOut>,
+    /// versioning and network info + access info (who can see the TX content)
     pub attributes: TxAttributes,
 }
 

@@ -2,11 +2,15 @@ use std::sync::Once;
 static INIT_NETWORK: Once = Once::new();
 static INIT_NETWORK_ID: Once = Once::new();
 
+/// network type
 #[repr(C)]
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum Network {
+    /// main network
     Mainnet,
+    /// public testnet
     Testnet,
+    /// local testing / regnet
     Devnet,
 }
 
@@ -34,6 +38,7 @@ pub fn init_chain_id(chain_id_src: &str) {
     }
 }
 
+#[allow(unsafe_code)]
 fn init_network(network: Network) {
     unsafe {
         INIT_NETWORK.call_once(|| {
@@ -42,6 +47,7 @@ fn init_network(network: Network) {
     }
 }
 
+#[allow(unsafe_code)]
 fn init_network_id(id: u8) {
     unsafe {
         INIT_NETWORK_ID.call_once(|| {
@@ -50,13 +56,21 @@ fn init_network_id(id: u8) {
     }
 }
 
+#[allow(unsafe_code)]
 /// Returns the identifier of the chosen network (a single byte included in transaction metadata)
+///
+/// # Safety
+/// chosen_network is pre-initialized and initialized only once
 pub fn get_network_id() -> u8 {
     unsafe { chosen_network::NETWORK_ID }
 }
 
+#[allow(unsafe_code)]
 #[no_mangle]
 /// Returns the chosen network type
+///
+/// # Safety
+/// chosen_network is pre-initialized and initialized only once
 pub extern "C" fn get_network() -> Network {
     unsafe { chosen_network::NETWORK }
 }
@@ -93,7 +107,9 @@ pub fn get_bip44_coin_type_from_network(network: Network) -> u32 {
 
 mod chosen_network {
     use super::*;
+    /// the initialized network
     pub static mut NETWORK: Network = Network::Devnet;
+    // the corresponding initialized network id
     pub static mut NETWORK_ID: u8 = 0;
 }
 

@@ -19,6 +19,7 @@ use crate::common::H264;
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum TxAccess {
+    /// everything can be accessed
     AllData,
 }
 
@@ -58,6 +59,8 @@ impl Encode for TxAccess {
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxAccessPolicy {
+    /// the corresponding private key is used for authentication
+    /// in tx-query protocol
     #[cfg_attr(
         not(feature = "mesalock_sgx"),
         serde(serialize_with = "serialize_view_key")
@@ -67,6 +70,7 @@ pub struct TxAccessPolicy {
         serde(deserialize_with = "deserialize_view_key")
     )]
     pub view_key: PublicKey,
+    /// what can be accessed
     pub access: TxAccess,
 }
 
