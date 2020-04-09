@@ -23,6 +23,9 @@ type TreeRoot = H256;
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum ExtendedAddr {
+    /// ref: https://blockstream.com/2015/08/24/en-treesignatures/
+    /// but each operation is "OR"
+    /// (root of such tree)
     OrTree(TreeRoot),
 }
 

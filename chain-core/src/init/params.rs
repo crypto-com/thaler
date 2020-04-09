@@ -12,6 +12,8 @@ use std::str::FromStr;
 
 const MAX_SLASH_RATIO: Milli = Milli::new(1, 0); // 1.0
 
+/// network parameters specified at genesis
+/// ref: https://crypto-com.github.io/getting-started/network-parameters.html
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct InitNetworkParameters {
@@ -33,6 +35,7 @@ pub struct InitNetworkParameters {
     pub max_validators: u16,
 }
 
+/// so far only one specified at genesis
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum NetworkParameters {
@@ -47,79 +50,91 @@ impl NetworkParameters {
         blake3::hash(&self.encode()).into()
     }
 
+    /// cap on validators in tendermint
     pub fn get_max_validators(&self) -> usize {
         match self {
             NetworkParameters::Genesis(params) => params.max_validators as usize,
         }
     }
 
+    /// minimal stake required for node joining (to be a validator)
     pub fn get_required_council_node_stake(&self) -> Coin {
         match self {
             NetworkParameters::Genesis(params) => params.required_council_node_stake,
         }
     }
 
+    /// infraction configuration for byzantine fault
     pub fn get_byzantine_slash_percent(&self) -> SlashRatio {
         match self {
             NetworkParameters::Genesis(params) => params.slashing_config.byzantine_slash_percent,
         }
     }
 
+    /// infraction configuration for liveness fault
     pub fn get_liveness_slash_percent(&self) -> SlashRatio {
         match self {
             NetworkParameters::Genesis(params) => params.slashing_config.liveness_slash_percent,
         }
     }
 
+    /// infraction configuration for liveness fault
     pub fn get_missed_block_threshold(&self) -> u16 {
         match self {
             NetworkParameters::Genesis(params) => params.jailing_config.missed_block_threshold,
         }
     }
 
+    /// infraction configuration for liveness fault
     pub fn get_block_signing_window(&self) -> u16 {
         match self {
             NetworkParameters::Genesis(params) => params.jailing_config.block_signing_window,
         }
     }
 
+    /// The time duration of unbonding
     pub fn get_unbonding_period(&self) -> u32 {
         match self {
             NetworkParameters::Genesis(params) => params.unbonding_period,
         }
     }
 
+    /// The period of reward being distributed
     pub fn get_rewards_reward_period_seconds(&self) -> u64 {
         match self {
             NetworkParameters::Genesis(params) => params.rewards_config.reward_period_seconds,
         }
     }
 
+    /// The upper bound for the reward rate per annum
     pub fn get_rewards_monetary_expansion_r0(&self) -> Milli {
         match self {
             NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_r0,
         }
     }
 
+    /// Initial value of tau in the reward function
     pub fn get_rewards_monetary_expansion_tau(&self) -> u64 {
         match self {
             NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_tau,
         }
     }
 
+    /// The decay rate of tau.
     pub fn get_rewards_monetary_expansion_decay(&self) -> u64 {
         match self {
             NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_decay,
         }
     }
 
+    /// The total amount of tokens reserved for validator's reward in the basic unit
     pub fn get_rewards_monetary_expansion_cap(&self) -> Coin {
         match self {
             NetworkParameters::Genesis(params) => params.rewards_config.monetary_expansion_cap,
         }
     }
 
-    // TODO: will it be necessary?
+    /// constant fee -- TODO: will it be necessary? (used in the tx-query fee?)
     pub fn get_min_const_fee(&self) -> Result<Fee, CoinError> {
         match self {
             NetworkParameters::Genesis(params) => {
@@ -129,6 +144,7 @@ impl NetworkParameters {
         }
     }
 
+    /// calculates the fee based on the specified policy
     pub fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError> {
         match self {
             NetworkParameters::Genesis(params) => {
@@ -138,6 +154,7 @@ impl NetworkParameters {
     }
 }
 
+/// infraction parameters for jailing
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct JailingParameters {
@@ -148,6 +165,7 @@ pub struct JailingParameters {
     pub missed_block_threshold: u16,
 }
 
+/// infraction parameters for slashing
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct SlashingParameters {
@@ -158,6 +176,8 @@ pub struct SlashingParameters {
     pub byzantine_slash_percent: SlashRatio,
 }
 
+/// reward parameters
+/// ref: https://crypto-com.github.io/getting-started/reward-and-punishments.html#validator-rewards
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct RewardsParameters {
@@ -174,6 +194,8 @@ pub struct RewardsParameters {
 }
 
 impl RewardsParameters {
+    /// check if reward parameters are correct
+    /// TODO: hide values and check these in `new` + deserialize/decode?
     pub fn validate(&self) -> Result<(), &'static str> {
         if self.monetary_expansion_r0 > Milli::integral(1) {
             return Err("R0 can't > 1");
@@ -191,10 +213,13 @@ impl RewardsParameters {
     }
 }
 
+/// how much to slash from bonded+unbonded
 #[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Clone, Copy, Encode, Decode)]
 pub struct SlashRatio(Milli);
 
 impl SlashRatio {
+    /// extract the internal milli value
+    /// TODO: impl Into?
     #[inline]
     pub fn as_millis(self) -> u64 {
         self.0.as_millis()
@@ -277,6 +302,7 @@ impl<'de> Deserialize<'de> for SlashRatio {
     }
 }
 
+/// problems with parsing slash ratio
 #[derive(Debug)]
 pub enum SlashRatioError {
     /// Slashing ratio is greater than maximum allowed (i.e., 1.0)

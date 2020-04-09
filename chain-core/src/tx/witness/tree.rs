@@ -3,6 +3,9 @@ use parity_scale_codec::{Decode, Encode, EncodeLike, Error, Input, Output};
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 use std::prelude::v1::Vec;
+
+/// BIP340 X-only pubkey
+/// ("raw" as in unparsed, so potentially invalid)
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(not(feature = "mesalock_sgx"), serde(transparent))]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
@@ -53,4 +56,6 @@ impl From<H256> for RawXOnlyPubkey {
     }
 }
 
+/// BIP340 signature
+/// ("raw" as in unparsed, so potentially invalid)
 pub type RawSignature = H512;

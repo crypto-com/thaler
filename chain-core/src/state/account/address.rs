@@ -15,6 +15,7 @@ use std::str::FromStr;
 /// StakedState address type
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StakedStateAddress {
+    /// needs ecdsa witness
     BasicRedeem(RedeemAddress),
 }
 

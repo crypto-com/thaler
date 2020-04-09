@@ -12,6 +12,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::tx::data::TxId;
 
+/// the type for transaction output size or index
 pub type TxoSize = u16;
 
 /// Structure used for addressing a specific output of a transaction
@@ -20,6 +21,7 @@ pub type TxoSize = u16;
 #[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxoPointer {
+    /// the previous transaction identifier
     #[cfg_attr(
         not(feature = "mesalock_sgx"),
         serde(serialize_with = "serialize_transaction_id")
@@ -29,6 +31,7 @@ pub struct TxoPointer {
         serde(deserialize_with = "deserialize_transaction_id")
     )]
     pub id: TxId,
+    /// the output index in the previous transaction
     pub index: TxoSize,
 }
 
@@ -116,6 +119,7 @@ impl TxoPointer {
     }
 }
 
+/// converts transaction ID from hex string?
 #[cfg(not(feature = "mesalock_sgx"))]
 pub fn str2txid<S: AsRef<str>>(s: S) -> Result<TxId, ValueError> {
     let deserializer: StrDeserializer<ValueError> = s.as_ref().into_deserializer();

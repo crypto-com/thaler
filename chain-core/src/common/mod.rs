@@ -27,17 +27,25 @@ pub fn hash256<D: Digest>(data: &[u8]) -> H256 {
 /// Seconds since UNIX epoch
 pub type Timespec = u64;
 
+/// 32-byte for keys or hashes etc.
 pub type H256 = [u8; HASH_SIZE_256];
+/// 33-byte for pubkeys etc.
 pub type H264 = [u8; HASH_SIZE_256 + 1];
+/// 64-byte for sigs etc.
 pub type H512 = [u8; HASH_SIZE_256 * 2];
 
 /// Types of tendermint events created during `deliver_tx` / `end_block`
 #[derive(Debug, Clone, Copy)]
 pub enum TendermintEventType {
+    /// if transaction is valid
     ValidTransactions,
+    /// filter for view pub keys
     BlockFilter,
+    /// validators that were jailed
     JailValidators,
+    /// validators that were slashed -- TODO: it'll be the same? needed?
     SlashValidators,
+    /// when reward was distributed
     RewardsDistribution,
 }
 
@@ -56,12 +64,19 @@ impl fmt::Display for TendermintEventType {
 #[derive(Debug, Clone, Copy)]
 /// Attribute key of tendermint events
 pub enum TendermintEventKey {
+    /// affected state
     Account,
+    /// paid fee
     Fee,
+    /// transaction identifier (in valid transactions)
     TxId,
+    /// bloom filter of view keys
     EthBloom,
+    /// when reward was distributed
     RewardsDistribution,
+    /// new coins minted from rewards pool
     CoinMinted,
+    /// when state was slashed
     Slash,
 }
 
@@ -98,11 +113,13 @@ impl fmt::Display for TendermintEventKey {
 }
 
 impl TendermintEventKey {
+    /// to raw bytes
     #[inline]
     pub fn to_vec(self) -> Vec<u8> {
         self.to_string().as_bytes().to_owned()
     }
 
+    /// to base64-encoded string
     #[inline]
     pub fn to_base64_string(self) -> String {
         match self {
