@@ -13,7 +13,9 @@ steps:
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
   - export CARGO_TARGET_DIR=$PWD/drone/target
+  - cargo fmt -- --check --color=auto
   - ./docker/build.sh
+  - cargo clippy -- -D warnings
 
 - name: unit-tests
   image: cryptocom/chain-test:v1.1.1
