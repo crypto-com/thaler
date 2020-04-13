@@ -3,13 +3,10 @@ use crate::staking::StakingTable;
 use crate::tx_error::PublicTxError;
 use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{StakedState, StakedStateAddress, StakedStateOpAttributes};
+use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::input::{TxoPointer, TxoSize};
 use chain_core::tx::fee::Fee;
 use chain_core::tx::{TransactionId, TxEnclaveAux, TxObfuscated, TxPublicAux};
-use chain_storage::account::{
-    get_staked_state, AccountStorage, StakedStateError, StarlingFixedKey,
-};
 use chain_storage::buffer::{GetKV, GetStaking, StoreStaking};
 use chain_tx_validation::{verify_unjailed, witness::verify_tx_recover_address, ChainInfo, Error};
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, SealedLog};
@@ -81,19 +78,6 @@ impl TxEnclaveAction {
             Self::Deposit { fee, .. } => *fee,
             Self::Withdraw { fee, .. } => *fee,
         }
-    }
-}
-
-/// checks that the account can be retrieved from the trie storage
-pub fn get_account(
-    account_address: &StakedStateAddress,
-    last_root: &StarlingFixedKey,
-    accounts: &AccountStorage,
-) -> Result<StakedState, Error> {
-    match get_staked_state(account_address, last_root, accounts) {
-        Ok(a) => Ok(a),
-        Err(StakedStateError::NotFound) => Err(Error::AccountNotFound),
-        Err(StakedStateError::IoError(_e)) => Err(Error::IoError),
     }
 }
 

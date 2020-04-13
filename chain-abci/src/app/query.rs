@@ -2,13 +2,13 @@ use std::convert::{TryFrom, TryInto};
 
 use super::ChainNodeApp;
 use crate::enclave_bridge::{mock::handle_enc_dec, EnclaveProxy};
-use crate::storage::get_account;
 use abci::*;
 use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::ChainState;
 use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
+use chain_storage::jellyfish::get_with_proof;
 use chain_storage::LookupItem;
 use parity_scale_codec::{Decode, Encode};
 
@@ -181,15 +181,15 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             "account" => {
                 let account_address = StakedStateAddress::try_from(_req.data.as_slice());
                 if let (Some(state), Ok(address)) = (&self.last_state, account_address) {
-                    let account =
-                        get_account(&address, &state.top_level.account_root, &self.accounts);
+                    let (account, _proof) =
+                        get_with_proof(&self.storage, state.staking_version, &address);
                     match account {
-                        Ok(a) => {
+                        Some(a) => {
                             resp.value = a.encode();
                             // TODO: inclusion proof
                         }
-                        Err(e) => {
-                            resp.log += format!("account lookup failed: {}", e).as_ref();
+                        None => {
+                            resp.log += "account lookup failed: account not exists";
                             resp.code = 1;
                         }
                     }

@@ -71,7 +71,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             BufferType::Consensus => self.last_state.as_mut().expect("expect last_state"),
             BufferType::Mempool => self.mempool_state.as_mut().expect("expect last_state"),
         };
-        let account_root = Some(state.top_level.account_root);
         let txaux = TxAux::decode(&mut req.tx())?;
         let txid = txaux.tx_id();
         let (fee, maccount) = match &txaux {
@@ -80,12 +79,12 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     &mut self.tx_validator,
                     &tx,
                     &extra_info,
-                    &staking_getter!(self, account_root, buffer_type),
+                    &staking_getter!(self, state.staking_version, buffer_type),
                     &kv_store!(self, buffer_type),
                 )?;
                 // execute the action
                 let maccount = execute_enclave_tx(
-                    &mut staking_store!(self, account_root, buffer_type),
+                    &mut staking_store!(self, state.staking_version, buffer_type),
                     &mut kv_store!(self, buffer_type),
                     state,
                     &txid,
@@ -94,7 +93,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 (action.fee(), maccount)
             }
             TxAux::PublicTx(tx) => process_public_tx(
-                &mut staking_store!(self, account_root, buffer_type),
+                &mut staking_store!(self, state.staking_version, buffer_type),
                 &mut state.staking_table,
                 &extra_info,
                 &tx,

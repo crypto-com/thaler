@@ -12,11 +12,11 @@ use test_common::chain_env::{get_account, get_validator, ChainEnv};
 #[test]
 fn check_unbonding_without_removing_validator() {
     // Init Chain
-    let (env, storage, account_storage) =
+    let (env, storage) =
         ChainEnv::new_with_customizer(Coin::max(), Coin::zero(), 2, |parameters| {
             parameters.required_council_node_stake = (Coin::max() / 10).unwrap();
         });
-    let mut app = env.chain_node(storage, account_storage);
+    let mut app = env.chain_node(storage);
     let _rsp = app.init_chain(&env.req_init_chain());
 
     // Note: At this point, there are two validators with `Coin::max() / 2` staked amount each.
@@ -58,11 +58,11 @@ fn check_unbonding_without_removing_validator() {
 #[test]
 fn check_unbonding_with_removing_validator() {
     // Init Chain
-    let (env, storage, account_storage) =
+    let (env, storage) =
         ChainEnv::new_with_customizer(Coin::max(), Coin::zero(), 2, |parameters| {
             parameters.required_council_node_stake = (Coin::max() / 10).unwrap();
         });
-    let mut app = env.chain_node(storage, account_storage);
+    let mut app = env.chain_node(storage);
     let _rsp = app.init_chain(&env.req_init_chain());
     let state = app.last_state.as_ref().unwrap();
     let tm_address = &env.validator_address(0);
@@ -145,7 +145,7 @@ fn check_unbonding_with_removing_validator() {
 #[test]
 fn check_rejoin() {
     // Init Chain
-    let (env, storage, account_storage) = ChainEnv::new_with_customizer(
+    let (env, storage) = ChainEnv::new_with_customizer(
         (Coin::max() / 2).unwrap(),
         (Coin::max() / 2).unwrap(),
         2,
@@ -159,7 +159,7 @@ fn check_rejoin() {
             parameters.rewards_config.monetary_expansion_decay = 0;
         },
     );
-    let mut app = env.chain_node(storage, account_storage);
+    let mut app = env.chain_node(storage);
     let _rsp = app.init_chain(&env.req_init_chain());
     let state = app.last_state.as_ref().unwrap();
     let tm_address = &env.validator_address(0);

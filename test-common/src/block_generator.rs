@@ -17,7 +17,7 @@ use tendermint::{
     Signature, Time,
 };
 
-use chain_abci::app::{compute_accounts_root, ChainNodeState};
+use chain_abci::app::ChainNodeState;
 use chain_abci::staking::StakingTable;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
@@ -34,8 +34,8 @@ use chain_core::state::tendermint::{
 use chain_core::state::ChainState;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::TxAux;
-use chain_storage::account::{pure_account_storage, AccountStorage};
-use chain_storage::buffer::StakingGetter;
+use chain_storage::buffer::MemStore;
+use chain_storage::jellyfish::{put_stakings, StakingGetter};
 use client_common::tendermint::types::{
     AbciQuery, BlockResults, BroadcastTxResponse, Genesis, Results,
 };
@@ -274,8 +274,8 @@ impl TestnetSpec {
         }
     }
 
-    pub fn gen_genesis(&self) -> (Genesis, ChainNodeState, Arc<AccountStorage>) {
-        let mut account_storage = Arc::new(pure_account_storage(20).unwrap());
+    pub fn gen_genesis(&self) -> (Genesis, ChainNodeState) {
+        let mut store = MemStore::new();
 
         let config = self.init_config();
         let genesis_seconds = self
@@ -286,8 +286,7 @@ impl TestnetSpec {
         let (accounts, rewards_pool, nodes) = config
             .validate_config_get_genesis(genesis_seconds)
             .expect("distribution validation error");
-        let account_root =
-            compute_accounts_root(Arc::get_mut(&mut account_storage).unwrap(), &accounts);
+        let account_root = put_stakings(&mut store, 0, accounts.iter()).unwrap();
         let network_params = NetworkParameters::Genesis(config.network_params.clone());
         let app_hash = compute_app_hash(
             &MerkleTree::empty(),
@@ -328,10 +327,7 @@ impl TestnetSpec {
         };
 
         let staking_table = StakingTable::from_genesis(
-            &StakingGetter::new(
-                Arc::get_mut(&mut account_storage).unwrap(),
-                Some(account_root),
-            ),
+            &StakingGetter::new(&store, 0),
             network_params.get_required_council_node_stake(),
             network_params.get_max_validators(),
             &nodes.iter().map(|(addr, _)| *addr).collect::<Vec<_>>(),
@@ -346,7 +342,7 @@ impl TestnetSpec {
             staking_table,
         );
 
-        (genesis, state, account_storage)
+        (genesis, state)
     }
 
     pub fn validator_set(&self) -> validator::Set {
@@ -379,7 +375,6 @@ pub struct BlockGenerator {
     pub spec: TestnetSpec,
     pub genesis: Genesis,
     pub genesis_state: ChainNodeState,
-    pub account_storage: Arc<AccountStorage>,
     pub validators: validator::Set,
     pub blocks: Vec<BlockState>,
     pub current_height: Option<Height>,
@@ -388,13 +383,12 @@ pub struct BlockGenerator {
 
 impl BlockGenerator {
     pub fn new(spec: TestnetSpec) -> BlockGenerator {
-        let (genesis, genesis_state, account_storage) = spec.gen_genesis();
+        let (genesis, genesis_state) = spec.gen_genesis();
         let validators = spec.validator_set();
         BlockGenerator {
             spec,
             genesis,
             genesis_state,
-            account_storage,
             validators,
             blocks: vec![],
             current_height: None,

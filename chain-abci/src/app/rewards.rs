@@ -5,7 +5,7 @@ use crate::enclave_bridge::EnclaveProxy;
 use chain_core::common::fixed::monetary_expansion;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
-use chain_storage::buffer::StakingGetter;
+use chain_storage::jellyfish::StakingGetter;
 
 // rate < 1_000_000, no overflow.
 fn mul_micro(n: u64, rate: u64) -> u64 {
@@ -21,7 +21,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// Distribute rewards pool
     pub fn rewards_try_distribute(&mut self) -> Option<(RewardsDistribution, Coin)> {
         let state = self.last_state.as_mut().unwrap();
-        let account_root = Some(state.top_level.account_root);
         let top_level = &mut state.top_level;
         let params = &top_level.network_params;
 
@@ -42,7 +41,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         let total_staking = state
             .staking_table
-            .reward_total_staking(&StakingGetter::new(&self.accounts, account_root));
+            .reward_total_staking(&StakingGetter::new(&self.storage, state.staking_version));
 
         let minted = if let Ok(can_mint) =
             params.get_rewards_monetary_expansion_cap() - top_level.rewards_pool.minted
@@ -70,9 +69,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let total_rewards = (top_level.rewards_pool.period_bonus + minted).unwrap();
         top_level.rewards_pool.minted = (top_level.rewards_pool.minted + minted).unwrap();
 
-        let (remainer, reward_distribution) = state
-            .staking_table
-            .reward_distribute(&mut staking_store!(self, account_root), total_rewards);
+        let (remainer, reward_distribution) = state.staking_table.reward_distribute(
+            &mut staking_store!(self, state.staking_version),
+            total_rewards,
+        );
 
         top_level.rewards_pool.period_bonus = remainer;
         Some((reward_distribution, minted))
@@ -97,8 +97,8 @@ mod tests {
     fn check_rewards_distribution() {
         let expansion_cap = Coin::new(10_0000_0000_0000_0000).unwrap();
         let dist = Coin::new(10_0000_0000_0000_0000).unwrap();
-        let (env, storage, account_storage) = ChainEnv::new(dist, expansion_cap, 2);
-        let mut app = env.chain_node(storage, account_storage);
+        let (env, storage) = ChainEnv::new(dist, expansion_cap, 2);
+        let mut app = env.chain_node(storage);
         let _rsp = app.init_chain(&env.req_init_chain());
 
         let total_staking = dist;
@@ -163,8 +163,8 @@ mod tests {
 
     #[test]
     fn empty_block_should_not_change_app_hash() {
-        let (env, storage, account_storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
-        let mut app = env.chain_node(storage, account_storage);
+        let (env, storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
+        let mut app = env.chain_node(storage);
         let _rsp_init_chain = app.init_chain(&env.req_init_chain());
 
         let mut req = env.req_begin_block(1, 0);
