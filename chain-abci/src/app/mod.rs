@@ -14,8 +14,7 @@ use log::info;
 #[cfg(fuzzing)]
 pub use self::app_init::check_validators;
 pub use self::app_init::{
-    compute_accounts_root, get_validator_key, init_app_hash, BufferType, ChainNodeApp,
-    ChainNodeState,
+    get_validator_key, init_app_hash, BufferType, ChainNodeApp, ChainNodeState,
 };
 use crate::app::validate_tx::ResponseWithCodeAndLog;
 use crate::enclave_bridge::EnclaveProxy;
@@ -141,13 +140,11 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             .last_state
             .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
-        let account_root = Some(last_state.top_level.account_root);
-
         last_state.block_time = block_time;
         last_state.block_height = block_height;
 
         let slashes = last_state.staking_table.begin_block(
-            &mut staking_store!(self, account_root),
+            &mut staking_store!(self, last_state.staking_version),
             &last_state.top_level.network_params,
             block_time,
             block_height,
@@ -193,9 +190,10 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
 
         // FIXME: record based on votes
         if let Ok(proposer_address) = &proposer_address {
-            last_state
-                .staking_table
-                .reward_record(&staking_getter!(self, account_root), proposer_address);
+            last_state.staking_table.reward_record(
+                &staking_getter!(self, last_state.staking_version),
+                proposer_address,
+            );
         } else {
             log::error!("invalid proposer address");
         }

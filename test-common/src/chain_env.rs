@@ -33,7 +33,6 @@ use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::{data::TxId, TransactionId, TxAux, TxPublicAux};
-use chain_storage::account::{AccountStorage, AccountWrapper, StarlingFixedKey};
 use chain_storage::buffer::Get;
 use chain_storage::{Storage, NUM_COLUMNS};
 
@@ -80,12 +79,8 @@ pub fn get_enclave_bridge_mock() -> MockClient {
     MockClient::new(0)
 }
 
-pub fn create_storage() -> (Storage, AccountStorage) {
-    (
-        Storage::new_db(Arc::new(create(NUM_COLUMNS))),
-        AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20)
-            .expect("Unable to create account storage"),
-    )
+pub fn create_storage() -> Storage {
+    Storage::new_db(Arc::new(create(NUM_COLUMNS)))
 }
 
 pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
@@ -184,11 +179,7 @@ pub struct ChainEnv {
 }
 
 impl ChainEnv {
-    pub fn new(
-        dist_coin: Coin,
-        expansion_cap: Coin,
-        count: usize,
-    ) -> (ChainEnv, Storage, AccountStorage) {
+    pub fn new(dist_coin: Coin, expansion_cap: Coin, count: usize) -> (ChainEnv, Storage) {
         ChainEnv::new_with_customizer(dist_coin, expansion_cap, count, |_| {})
     }
 
@@ -197,8 +188,8 @@ impl ChainEnv {
         expansion_cap: Coin,
         count: usize,
         customize_network_params: F,
-    ) -> (ChainEnv, Storage, AccountStorage) {
-        let (storage, mut account_storage) = create_storage();
+    ) -> (ChainEnv, Storage) {
+        let mut storage = create_storage();
         let locked = (Coin::max() - dist_coin - expansion_cap).unwrap();
         let accounts: Vec<Account> = (0..count)
             .map(|i| {
@@ -238,14 +229,7 @@ impl ChainEnv {
             .validate_config_get_genesis(timestamp.get_seconds().try_into().unwrap())
             .expect("Error while validating distribution");
 
-        let mut keys: Vec<StarlingFixedKey> = states.iter().map(|account| account.key()).collect();
-        let wrapped: Vec<AccountWrapper> =
-            states.iter().map(|st| AccountWrapper(st.clone())).collect();
-
-        let new_account_root = account_storage
-            .insert(None, &mut keys, &wrapped)
-            .expect("initial insert");
-
+        let new_account_root = storage.put_stakings(0, &states);
         let genesis_app_hash = compute_app_hash(
             &MerkleTree::empty(),
             &new_account_root,
@@ -263,7 +247,6 @@ impl ChainEnv {
                 accounts,
             },
             storage,
-            account_storage,
         )
     }
 
@@ -271,17 +254,12 @@ impl ChainEnv {
         (self.dist_coin / (self.accounts.len() as u64)).unwrap()
     }
 
-    pub fn chain_node(
-        &self,
-        storage: Storage,
-        account_storage: AccountStorage,
-    ) -> ChainNodeApp<MockClient> {
+    pub fn chain_node(&self, storage: Storage) -> ChainNodeApp<MockClient> {
         ChainNodeApp::new_with_storage(
             get_enclave_bridge_mock(),
             &hex::encode_upper(self.genesis_app_hash),
             TEST_CHAIN_ID,
             storage,
-            account_storage,
             None,
             None,
         )

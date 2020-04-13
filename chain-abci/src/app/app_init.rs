@@ -21,17 +21,15 @@ use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::NetworkParameters;
 use chain_core::state::account::StakedStateDestination;
-use chain_core::state::account::{CouncilNode, StakedState, StakedStateAddress};
+use chain_core::state::account::{CouncilNode, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintVotePower};
 use chain_core::state::{ChainState, RewardsPoolState};
 use chain_core::tx::TxAux;
 use chain_core::ChainInfo;
-use chain_storage::account::AccountWrapper;
-use chain_storage::account::StarlingFixedKey;
-use chain_storage::account::{pure_account_storage, AccountStorage};
 use chain_storage::buffer::{
-    flush_storage, GetStaking, KVBuffer, StakingBuffer, StakingGetter, StoreKV, StoreStaking,
+    flush_storage, GetStaking, KVBuffer, StakingBuffer, StoreKV, StoreStaking,
 };
+use chain_storage::jellyfish::{compute_staking_root, StakingGetter, Version};
 use chain_storage::{Storage, StoredChainState};
 
 /// ABCI app state snapshot
@@ -50,6 +48,8 @@ pub struct ChainNodeState {
     pub staking_table: StakingTable,
     /// genesis time
     pub genesis_time: Timespec,
+    /// Version number of staking merkle tree
+    pub staking_version: Version,
 
     /// The parts of states which involved in computing app_hash
     pub top_level: ChainState,
@@ -73,7 +73,7 @@ impl ChainNodeState {
     pub fn genesis(
         genesis_apphash: H256,
         genesis_time: Timespec,
-        account_root: StarlingFixedKey,
+        account_root: H256,
         rewards_pool: RewardsPoolState,
         network_params: NetworkParameters,
         staking_table: StakingTable,
@@ -85,6 +85,7 @@ impl ChainNodeState {
             block_height: BlockHeight::genesis(),
             staking_table,
             genesis_time,
+            staking_version: 0,
             top_level: ChainState {
                 account_root,
                 rewards_pool,
@@ -104,8 +105,6 @@ pub enum BufferType {
 pub struct ChainNodeApp<T: EnclaveProxy> {
     /// the underlying key-value storage (+ possibly some info in the future)
     pub storage: Storage,
-    /// account trie storage
-    pub accounts: AccountStorage,
     /// valid transactions after DeliverTx before EndBlock/Commit
     pub delivered_txs: Vec<TxAux>,
     /// a reference to genesis (used when there is no committed state)
@@ -207,17 +206,6 @@ fn get_voting_power(
     }
 }
 
-pub fn compute_accounts_root(
-    account_storage: &mut AccountStorage,
-    accounts: &[StakedState],
-) -> H256 {
-    let mut keys: Vec<_> = accounts.iter().map(StakedState::key).collect();
-    let wrapped: Vec<_> = accounts.iter().cloned().map(AccountWrapper).collect();
-    account_storage
-        .insert(None, &mut keys, &wrapped)
-        .expect("insert failed")
-}
-
 pub fn init_app_hash(conf: &InitConfig, genesis_time: Timespec) -> H256 {
     let (accounts, rp, _nodes) = conf
         .validate_config_get_genesis(genesis_time)
@@ -225,7 +213,7 @@ pub fn init_app_hash(conf: &InitConfig, genesis_time: Timespec) -> H256 {
 
     compute_app_hash(
         &MerkleTree::empty(),
-        &compute_accounts_root(&mut pure_account_storage(20).unwrap(), &accounts),
+        &compute_staking_root(&accounts),
         &rp,
         &NetworkParameters::Genesis(conf.network_params.clone()),
     )
@@ -238,7 +226,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         genesis_app_hash: [u8; HASH_SIZE_256],
         chain_id: &str,
         storage: Storage,
-        accounts: AccountStorage,
         tx_query_address: Option<String>,
     ) -> Self {
         let stored_genesis = storage.get_genesis_app_hash();
@@ -261,7 +248,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             .expect("failed to decode two last hex digits in chain ID")[0];
         ChainNodeApp {
             storage,
-            accounts,
             delivered_txs: Vec::new(),
             chain_hex_id,
             genesis_app_hash,
@@ -287,7 +273,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// * `gah` - hex-encoded genesis app hash
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `storage` - underlying storage to be used (in-mem or persistent)
-    /// * `accounts` - underlying storage for account tries to be used (in-mem or persistent)
     /// * `tx_query_address` -  address of tx query enclave to supply to clients (if any)
     /// * `enclave_server` -  connection string which ZeroMQ server wrapper around the transaction validation enclave will listen on
     pub fn new_with_storage(
@@ -295,7 +280,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         gah: &str,
         chain_id: &str,
         mut storage: Storage,
-        accounts: AccountStorage,
         tx_query_address: Option<String>,
         enclave_server: Option<String>,
     ) -> Self {
@@ -344,7 +328,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
             // populate the indexing structures in staking table.
             last_state.staking_table.initialize(
-                &StakingGetter::new(&accounts, Some(last_state.top_level.account_root)),
+                &StakingGetter::new(&storage, last_state.staking_version),
                 last_state
                     .top_level
                     .network_params
@@ -356,7 +340,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 genesis_app_hash,
                 chain_id,
                 storage,
-                accounts,
                 tx_query_address,
             )
         } else {
@@ -374,7 +357,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             storage.write_genesis_chain_id(&genesis_app_hash, chain_id);
             ChainNodeApp {
                 storage,
-                accounts,
                 delivered_txs: Vec::new(),
                 chain_hex_id,
                 genesis_app_hash,
@@ -420,7 +402,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         }
 
         let network_params = NetworkParameters::Genesis(conf.network_params);
-        let new_account_root = compute_accounts_root(&mut self.accounts, &accounts);
+        let new_account_root = self.storage.put_stakings(0, &accounts);
         let genesis_app_hash = compute_app_hash(
             &MerkleTree::empty(),
             &new_account_root,
@@ -448,7 +430,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         let val_addresses = nodes.iter().map(|(addr, _)| *addr).collect::<Vec<_>>();
         let staking_table = StakingTable::from_genesis(
-            &StakingGetter::new(&self.accounts, Some(new_account_root)),
+            &staking_getter!(self, 0),
             network_params.get_required_council_node_stake(),
             network_params.get_max_validators(),
             &val_addresses,
@@ -475,27 +457,30 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     }
 
     pub fn staking_store(&mut self, buffer_type: BufferType) -> impl StoreStaking + '_ {
-        let root = self
+        let version = self
             .last_state
             .as_ref()
-            .map(|state| state.top_level.account_root);
-        staking_store!(self, root, buffer_type)
+            .map(|state| state.staking_version)
+            .unwrap_or(0);
+        staking_store!(self, version, buffer_type)
     }
 
     pub fn staking_getter(&self, buffer_type: BufferType) -> impl GetStaking + '_ {
-        let root = self
+        let version = self
             .last_state
             .as_ref()
-            .map(|state| state.top_level.account_root);
-        staking_getter!(self, root, buffer_type)
+            .map(|state| state.staking_version)
+            .unwrap_or(0);
+        staking_getter!(self, version, buffer_type)
     }
 
-    pub fn staking_getter_committed(&self) -> StakingGetter<'_> {
+    pub fn staking_getter_committed(&self) -> StakingGetter<'_, Storage> {
         StakingGetter::new(
-            &self.accounts,
+            &self.storage,
             self.last_state
                 .as_ref()
-                .map(|state| state.top_level.account_root),
+                .map(|state| state.staking_version)
+                .unwrap_or(0),
         )
     }
 

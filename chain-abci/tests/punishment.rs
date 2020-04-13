@@ -7,11 +7,11 @@ use test_common::chain_env::{get_account, ChainEnv};
 #[test]
 fn end_block_should_update_liveness_tracker() {
     // Init Chain
-    let (env, storage, account_storage) =
+    let (env, storage) =
         ChainEnv::new_with_customizer(Coin::max(), Coin::zero(), 1, |parameters| {
             parameters.required_council_node_stake = Coin::max();
         });
-    let mut app = env.chain_node(storage, account_storage);
+    let mut app = env.chain_node(storage);
     let _rsp = app.init_chain(&env.req_init_chain());
 
     // Begin Block
@@ -49,8 +49,8 @@ fn end_block_should_update_liveness_tracker() {
 #[test]
 fn begin_block_should_jail_byzantine_validators() {
     // Init Chain
-    let (env, storage, account_storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
-    let mut app = env.chain_node(storage, account_storage);
+    let (env, storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
+    let mut app = env.chain_node(storage);
     let _rsp_init_chain = app.init_chain(&env.req_init_chain());
 
     // Begin Block
@@ -73,8 +73,8 @@ fn begin_block_should_jail_byzantine_validators() {
 #[test]
 fn begin_block_should_punish_non_live_validators() {
     // Init Chain
-    let (env, storage, account_storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
-    let mut app = env.chain_node(storage, account_storage);
+    let (env, storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
+    let mut app = env.chain_node(storage);
     let _rsp_init_chain = app.init_chain(&env.req_init_chain());
 
     // Begin Block
@@ -100,8 +100,8 @@ fn begin_block_should_punish_non_live_validators() {
 #[test]
 fn begin_block_should_slash_byzantine_validators() {
     // Init Chain
-    let (env, storage, account_storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
-    let mut app = env.chain_node(storage, account_storage);
+    let (env, storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
+    let mut app = env.chain_node(storage);
     let _rsp_init_chain = app.init_chain(&env.req_init_chain());
 
     // Begin Block
@@ -133,8 +133,8 @@ fn begin_block_should_slash_byzantine_validators() {
 #[test]
 fn begin_block_should_slash_non_live_validators() {
     // Init Chain
-    let (env, storage, account_storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
-    let mut app = env.chain_node(storage, account_storage);
+    let (env, storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
+    let mut app = env.chain_node(storage);
     let _rsp_init_chain = app.init_chain(&env.req_init_chain());
 
     // Begin Block

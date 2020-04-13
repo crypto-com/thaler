@@ -35,7 +35,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         // TODO: skipchain-based validator changes?
         let state = self.last_state.as_mut().expect("executing end block, but no app state stored (i.e. no initchain or recovery was executed)");
         let val_updates = state.staking_table.end_block(
-            &staking_getter!(self, Some(state.top_level.account_root)),
+            &staking_getter!(self, state.staking_version),
             state.top_level.network_params.get_max_validators(),
         );
 

@@ -488,7 +488,6 @@ dependencies = [
  "integer-encoding",
  "kvdb",
  "kvdb-memorydb",
- "kvdb-rocksdb",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "protobuf",
@@ -501,7 +500,6 @@ dependencies = [
  "sgx_types",
  "sgx_urts",
  "sha3",
- "starling",
  "structopt",
  "test-common",
  "thiserror",
@@ -547,7 +545,6 @@ dependencies = [
  "kvdb-rocksdb",
  "parity-scale-codec",
  "quickcheck",
- "starling",
 ]
 
 [[package]]
@@ -4046,12 +4043,6 @@ name = "stable_deref_trait"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
-
-[[package]]
-name = "starling"
-version = "3.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e31f22b013888d2337d4a7f4443e13d67b0fcc87d6f1461b5c437089f60a3cce"
 
 [[package]]
 name = "static_assertions"

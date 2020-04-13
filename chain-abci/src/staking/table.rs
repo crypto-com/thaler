@@ -19,7 +19,7 @@ use chain_core::state::account::{
 use chain_core::state::tendermint::{
     BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
-use chain_storage::buffer::{Get, GetStaking, StakingGetter, StoreStaking};
+use chain_storage::buffer::{GetStaking, StoreStaking};
 
 use crate::liveness::LivenessTracker;
 
@@ -214,7 +214,7 @@ impl StakingTable {
     }
 
     /// The heap should not use the uncommited buffer.
-    pub fn reward_total_staking(&self, heap: &StakingGetter) -> Coin {
+    pub fn reward_total_staking(&self, heap: &impl GetStaking) -> Coin {
         // Sum of all the coins should not overflow max supply, TODO proof.
         sum_coins(
             self.chosen_validators

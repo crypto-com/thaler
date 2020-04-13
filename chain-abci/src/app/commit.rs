@@ -8,7 +8,8 @@ use chain_core::compute_app_hash;
 use chain_core::tx::data::input::{TxoPointer, TxoSize};
 use chain_core::tx::data::TxId;
 use chain_core::tx::{TxAux, TxEnclaveAux, TxPublicAux};
-use chain_storage::buffer::{flush_staking_storage, flush_storage, StoreKV};
+use chain_storage::buffer::{flush_storage, StoreKV};
+use chain_storage::jellyfish::flush_stakings;
 use parity_scale_codec::Encode;
 
 /// Given a db and a DB transaction, it will go through TX inputs and mark them as spent
@@ -91,14 +92,20 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             top_level.rewards_pool.last_block_height = new_state.last_block_height;
             self.rewards_pool_updated = false;
         }
+
         // flush staking storage
-        top_level.account_root = flush_staking_storage(
-            &mut self.accounts,
-            Some(top_level.account_root),
-            mem::take(&mut self.staking_buffer),
-        )
-        .expect("merkle trie io error")
-        .expect("merkle trie update should return Some(root)");
+        if !self.staking_buffer.is_empty() {
+            new_state.staking_version = new_state
+                .staking_version
+                .checked_add(1)
+                .expect("staking version overflow, no way to recover");
+            top_level.account_root = flush_stakings(
+                &mut kv_store!(self),
+                new_state.staking_version,
+                mem::take(&mut self.staking_buffer),
+            )
+            .expect("merkle trie io error");
+        }
 
         let app_hash = compute_app_hash(
             &tree,

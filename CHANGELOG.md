@@ -10,6 +10,7 @@
 * *chain-abci* [1100](https://github.com/crypto-com/chain/pull/1100): account nonce increased after reward distribution
 * *chain-abci* [1292](https://github.com/crypto-com/chain/pull/1292): implements new punishment and staking state transition specification and new nonce logic
 * *chain-storage* [1424](https://github.com/crypto-com/chain/pull/1424): add two columnes to the database
+* *chain-storage* [1428](https://github.com/crypto-com/chain/pull/1428): change merkle tree of staking states to jellyfish-merkle
 * *chain-core* [1162](https://github.com/crypto-com/chain/pull/1162): transaction witness contains BIP-340-compatible Schnorr signatures (instead of the previous WIP scheme)
 * *chain-core* [1325](https://github.com/crypto-com/chain/pull/1325): blake3 for message digest (txid) + tree hashing
 * *chain-core* [1222](https://github.com/crypto-com/chain/pull/1258): Add common outer type for public(non-enclave) tx, tx serialization is changed.
