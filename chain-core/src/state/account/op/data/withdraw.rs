@@ -15,8 +15,11 @@ use std::prelude::v1::Vec;
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct WithdrawUnbondedTx {
+    /// counter to check against
     pub nonce: Nonce,
+    /// new outputs to create
     pub outputs: Vec<TxOut>,
+    /// view policy, versining info etc.
     pub attributes: TxAttributes,
 }
 
@@ -49,6 +52,7 @@ impl Encode for WithdrawUnbondedTx {
 impl TransactionId for WithdrawUnbondedTx {}
 
 impl WithdrawUnbondedTx {
+    /// creates a new tx to withdraw unbonded stake
     pub fn new(nonce: Nonce, outputs: Vec<TxOut>, attributes: TxAttributes) -> Self {
         WithdrawUnbondedTx {
             nonce,

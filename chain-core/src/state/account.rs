@@ -24,10 +24,13 @@ use std::prelude::v1::{String, ToString};
 /// reference counter in the sparse patricia merkle tree/trie
 pub type Count = u64;
 
-/// StakedState update counter
+/// StakedState update counter:
+/// the number of transactions that have the witness of the staking address.
 pub type Nonce = u64;
 
+/// human-readable moniker
 pub type ValidatorName = String;
+/// optional security@... email
 pub type ValidatorSecurityContact = Option<String>;
 
 /// the initial data a node submits to join a MLS group
@@ -66,14 +69,14 @@ where
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct CouncilNode {
-    // validator name / moniker (just for reference / human use)
+    /// validator name / moniker (just for reference / human use)
     pub name: ValidatorName,
-    // optional security@... email address
+    /// optional security@... email address
     pub security_contact: ValidatorSecurityContact,
-    // Tendermint consensus validator-associated public key
+    /// Tendermint consensus validator-associated public key
     pub consensus_pubkey: TendermintValidatorPubKey,
-    // X.509 credential payload for MLS (https://tools.ietf.org/html/draft-ietf-mls-protocol-09)
-    // (expected that attestation payload will be a part of the cert extension, as done in TLS)
+    /// X.509 credential payload for MLS (https://tools.ietf.org/html/draft-ietf-mls-protocol-09)
+    /// (expected that attestation payload will be a part of the cert extension, as done in TLS)
     pub confidential_init: ConfidentialInit,
 }
 
@@ -133,6 +136,7 @@ impl Decode for CouncilNode {
 }
 
 impl CouncilNode {
+    /// create an empty council node (in testing etc.)
     pub fn new(
         consensus_pubkey: TendermintValidatorPubKey,
         confidential_init: ConfidentialInit,
@@ -145,6 +149,7 @@ impl CouncilNode {
         }
     }
 
+    /// new council node with full details
     pub fn new_with_details(
         name: ValidatorName,
         security_contact: ValidatorSecurityContact,
@@ -164,7 +169,9 @@ impl CouncilNode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum PunishmentKind {
+    /// liveness fault
     NonLive,
+    /// byzantine fault (double vote signing initially)
     ByzantineFault,
 }
 
@@ -182,11 +189,11 @@ impl fmt::Display for PunishmentKind {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct SlashRecord {
-    // why
+    /// why
     pub kind: PunishmentKind,
-    // when
+    /// when
     pub time: Timespec,
-    // how much
+    /// how much
     pub amount: Coin,
 }
 
@@ -210,17 +217,23 @@ impl fmt::Display for CouncilNode {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct Validator {
+    /// council node metadata
     pub council_node: CouncilNode,
+    /// if jailed, it's specified until what block time
     pub jailed_until: Option<Timespec>,
 
+    /// when it became inactive (from block time)
     pub inactive_time: Option<Timespec>,
+    /// which block it became inactive
     pub inactive_block: Option<BlockHeight>,
 
+    /// last N (10?) used consensus pubkeys/addresses
     #[cfg_attr(not(feature = "mesalock_sgx"), serde(skip))]
     pub used_validator_addresses: Vec<(TendermintValidatorAddress, Timespec)>,
 }
 
 impl Validator {
+    /// creates an empty validator with only council node metadata (for tests?)
     pub fn new(council_node: CouncilNode) -> Self {
         Self {
             council_node,
@@ -231,18 +244,22 @@ impl Validator {
         }
     }
 
+    /// extracts validator address from the pubkey
     pub fn validator_address(&self) -> TendermintValidatorAddress {
         TendermintValidatorAddress::from(&self.council_node.consensus_pubkey)
     }
 
+    /// checks if jailed
     pub fn is_jailed(&self) -> bool {
         self.jailed_until.is_some()
     }
 
+    /// checks if active
     pub fn is_active(&self) -> bool {
         self.inactive_time.is_none()
     }
 
+    /// extra dynamic assertions for fuzzer etc.
     #[cfg(debug_assertions)]
     pub fn check_invariants(&self) {
         // check: Invariant 1.1
@@ -255,6 +272,7 @@ impl Validator {
         assert_eq!(self.is_jailed() && self.is_active(), false);
     }
 
+    /// updates this state to be "jailed"
     pub fn jail(
         &mut self,
         block_time: Timespec,
@@ -268,12 +286,14 @@ impl Validator {
         }
     }
 
+    /// updates this state to be "inactive"
     pub fn inactivate(&mut self, block_time: Timespec, block_height: BlockHeight) {
         assert!(self.is_active());
         self.inactive_time = Some(block_time);
         self.inactive_block = Some(block_height);
     }
 
+    /// updates this state to be unjailed
     pub fn unjail(&mut self) {
         assert!(self.is_jailed());
         self.jailed_until = None;
@@ -295,13 +315,19 @@ impl Validator {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct StakedState {
+    /// "from" operations counter
     pub nonce: Nonce,
+    /// bonded amount used to determine voting power
     pub bonded: Coin,
+    /// amount unbonded for future withdrawal
     pub unbonded: Coin,
+    /// time when unbonded amount can be withdrawn
     pub unbonded_from: Timespec,
+    /// the address used (to check transaction withness against)
     pub address: StakedStateAddress,
+    /// validator metadata
     pub validator: Option<Validator>,
-    // record the last slash only for query
+    /// record the last slash only for query
     pub last_slash: Option<SlashRecord>,
 }
 
@@ -391,6 +417,7 @@ impl StakedState {
         }
     }
 
+    /// extra dynamic assertions
     #[cfg(debug_assertions)]
     pub fn check_invariants(&self, minimal_required_staking: Coin) {
         // check: Invariant 4.1
@@ -414,8 +441,11 @@ impl StakedState {
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub enum StakedStateDestination {
+    /// initialize in genesis as bonded
     Bonded,
+    /// initialize in genesis as unbonded with time to withdraw from genesis immediately
     UnbondedFromGenesis,
+    /// initialize in genesis as unbonded with some custom time it can be withdrawn at
     UnbondedFromCustomTime(Timespec),
 }
 

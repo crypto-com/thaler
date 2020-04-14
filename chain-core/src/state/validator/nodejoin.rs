@@ -19,9 +19,14 @@ use std::fmt;
 #[derive(Debug, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct NodeJoinRequestTx {
+    /// the expected nonce on the corresponding state
     pub nonce: Nonce,
+    /// the expected address on the corresponding state
     pub address: StakedStateAddress,
+    /// the versioning and network identifier
     pub attributes: StakedStateOpAttributes,
+    /// council node information, both consensus critical (validator pubkey...)
+    /// as well as informational (security contact...)
     pub node_meta: CouncilNode,
 }
 
@@ -54,6 +59,7 @@ impl Encode for NodeJoinRequestTx {
 impl TransactionId for NodeJoinRequestTx {}
 
 impl NodeJoinRequestTx {
+    /// constructs a new node join request transaction from the provided components
     #[inline]
     pub fn new(
         nonce: Nonce,

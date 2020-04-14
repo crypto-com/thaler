@@ -49,30 +49,38 @@ impl std::fmt::Display for BlockHeight {
 }
 
 impl BlockHeight {
+    /// n is the specified block height
     #[inline]
     pub fn new(n: u64) -> BlockHeight {
         BlockHeight(n)
     }
+    /// block height at genesis time
     #[inline]
     pub fn genesis() -> BlockHeight {
         BlockHeight(0)
     }
+    /// the internal block height value
+    /// TODO: impl Into?
     #[inline]
     pub fn value(self) -> u64 {
         self.0
     }
+    /// subtraction that may fail in underflow
     #[inline]
     pub fn checked_sub(self, n: u64) -> Option<BlockHeight> {
         self.0.checked_sub(n).map(BlockHeight)
     }
+    /// addition that may fail in overflow
     #[inline]
     pub fn checked_add(self, n: u64) -> Option<BlockHeight> {
         self.0.checked_add(n).map(BlockHeight)
     }
+    /// subtraction that rounds to 0
     #[inline]
     pub fn saturating_sub(self, n: u64) -> BlockHeight {
         BlockHeight(self.0.saturating_sub(n))
     }
+    /// addition that rounds to u64::max
     #[inline]
     pub fn saturating_add(self, n: u64) -> BlockHeight {
         BlockHeight(self.0.saturating_add(n))
@@ -95,20 +103,27 @@ impl TryFrom<i64> for BlockHeight {
 /// ed25519 public key size
 pub const PUBLIC_KEY_SIZE: usize = 32;
 
+/// aggregates all "validator" data
+/// (seems to be used in dev-utils + chain-abci)
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize))]
 pub struct TendermintValidator {
+    /// ref: https://docs.tendermint.com/master/spec/blockchain/encoding.html
+    /// the first 20-bytes of the SHA256 hash of the raw 32-byte public key:
     #[cfg_attr(
         feature = "serde",
         serde(serialize_with = "serialize_validator_address",)
     )]
     pub address: TendermintValidatorAddress,
+    /// council node human-readable name
     pub name: String,
     #[cfg_attr(
         feature = "serde",
         serde(serialize_with = "serialize_validator_power",)
     )]
+    /// voting power derived from the related state's bonded amount
     pub power: TendermintVotePower,
+    /// the public key used in the consensus
     pub pub_key: TendermintValidatorPubKey,
 }
 
@@ -150,6 +165,7 @@ pub enum TendermintValidatorPubKey {
             deserialize_with = "deserialize_ed25519_base64"
         )
     )]
+    /// Ed25519 pubkey (without TM prefix bytes 0x1624DE64) https://docs.tendermint.com/master/spec/blockchain/encoding.html
     Ed25519([u8; PUBLIC_KEY_SIZE]),
     // there's PubKeySecp256k1, but https://tendermint.com/docs/spec/abci/apps.html#validator-updates
     // "The pub_key currently supports only one type:"
@@ -216,16 +232,20 @@ impl fmt::Display for TendermintValidatorPubKey {
     }
 }
 
+/// Error of decoding a public key
 #[cfg(not(feature = "mesalock_sgx"))]
 #[derive(Error, Debug)]
 pub enum PubKeyDecodeError {
+    /// base64 encoding was incorrect
     #[error("Base64 decode error")]
     Base64(#[from] base64::DecodeError),
+    /// different resulting size
     #[error("Size of publickey is invalid, expected: {PUBLIC_KEY_SIZE}, got: {0}")]
     InvalidSize(usize),
 }
 
 impl TendermintValidatorPubKey {
+    /// decode from base64 payload
     #[cfg(not(feature = "mesalock_sgx"))]
     pub fn from_base64(input: &[u8]) -> Result<TendermintValidatorPubKey, PubKeyDecodeError> {
         let bytes = base64::decode(input)?;
@@ -236,6 +256,8 @@ impl TendermintValidatorPubKey {
         result.copy_from_slice(&bytes);
         Ok(TendermintValidatorPubKey::Ed25519(result))
     }
+
+    /// validatorupdate abci type expects two parts
     pub fn to_validator_update(&self) -> (String, Vec<u8>) {
         match self {
             TendermintValidatorPubKey::Ed25519(key) => {
@@ -245,6 +267,8 @@ impl TendermintValidatorPubKey {
             }
         }
     }
+
+    /// raw bytes
     pub fn as_bytes(&self) -> &[u8; PUBLIC_KEY_SIZE] {
         match self {
             Self::Ed25519(ref bytes) => bytes,
@@ -252,6 +276,7 @@ impl TendermintValidatorPubKey {
     }
 }
 
+/// tendermint validator address (the first 20 bytes of sha256 of the pubkey??)
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Encode, Decode)]
 pub struct TendermintValidatorAddress([u8; 20]);
 
@@ -410,7 +435,7 @@ pub enum TendermintVotePowerError {
     ///
     /// Min bound being: 0, Max bound being: `TENDERMINT_MAX_VOTE_POWER`.
     OutOfBound(i64),
-
+    /// voting power can't be negative
     Negative,
 }
 

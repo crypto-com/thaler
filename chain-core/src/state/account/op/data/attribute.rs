@@ -6,11 +6,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct StakedStateOpAttributes {
+    /// network identifier
     pub chain_hex_id: u8,
+    /// overall app version (shown in chain-abci)
     pub app_version: u64,
 }
 
 impl StakedStateOpAttributes {
+    /// initializes attributes with desired network id + current app version
     pub fn new(chain_hex_id: u8) -> Self {
         StakedStateOpAttributes {
             chain_hex_id,

@@ -134,12 +134,19 @@ impl fmt::Display for PlainTxAux {
 }
 
 /// plqin TX payload to be obfuscated
+/// (a helper structure)
 pub struct TxToObfuscate {
+    /// the raw plain transaction payload
+    /// PlainTxAux encoded using SCALE
     pub txpayload: Vec<u8>,
+    /// the corresponding transaction ID
     pub txid: TxId,
 }
 
 impl TxToObfuscate {
+    /// creates the helper structure (if txid matches)
+    /// note: txid is needed to be provided, as the obfuscated payload
+    /// of deposit tx only contains the witness payload
     pub fn from(tx: PlainTxAux, txid: TxId) -> Option<Self> {
         match &tx {
             PlainTxAux::TransferTx(itx, _) => {
@@ -182,9 +189,15 @@ impl<'tx> Into<Payload<'tx, 'tx>> for &'tx TxToObfuscate {
 #[derive(Debug, PartialEq, Eq, Clone)]
 /// obfuscated TX payload
 pub struct TxObfuscated {
+    /// to denote which key the payload was obfuscated with;
+    /// refers to the height at which TDBE key rotation finalized
     pub key_from: BlockHeight,
+    /// the "nonce" / IV to use with the obfuscation key
     pub init_vector: [u8; 12],
+    /// AEAD transaction payload
     pub txpayload: Vec<u8>,
+    /// transaction id -- to be used as authentication tag
+    /// when working with the AEAD transaction payload
     pub txid: TxId,
 }
 
@@ -234,19 +247,29 @@ impl<'tx> Into<Payload<'tx, 'tx>> for &'tx TxObfuscated {
 pub enum TxEnclaveAux {
     /// normal value transfer Tx with the vector of witnesses
     TransferTx {
+        /// inputs that the transaction spends (public information)
         inputs: Vec<TxoPointer>,
+        /// outputs to be created if valid
         no_of_outputs: TxoSize,
+        /// the payload that can only be validated inside TEE that's synced up with the network
         payload: TxObfuscated,
     },
     /// Tx "spends" utxos to be deposited as bonded stake in an account (witnesses as in transfer)
     DepositStakeTx {
+        /// most of the information is public here, e.g. what address it is depositing to
         tx: DepositBondTx,
+        /// the payload that can only be validated inside TEE that's synced up with the network
+        /// here, it's only the "witness"
         payload: TxObfuscated,
     },
     /// Tx that "creates" utxos out of account state; withdraws unbonded stake (witness for account)
     WithdrawUnbondedStakeTx {
+        /// outputs to be created if valid
         no_of_outputs: TxoSize,
+        /// witness for the corresponding staking address
         witness: StakedStateOpWitness,
+        /// the payload that can only be validated inside TEE that's synced up with the network
+        /// here's the transaction outputs + attributes
         payload: TxObfuscated,
     },
 }
@@ -434,6 +457,7 @@ impl TxPublicAux {
         }
     }
 
+    /// returns the transaction attributes (containing version, network identifier...s)
     pub fn attributes(&self) -> &StakedStateOpAttributes {
         match self {
             TxPublicAux::UnbondStakeTx(tx, _) => &tx.attributes,
@@ -459,8 +483,9 @@ impl TxPublicAux {
 /// - If the extension is a different behaviour, it'll be a new transaction type (possibly under enclave or public auxiliary type).
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TxAux {
-    /// transactions that need to be processed inside TEE
+    /// transactions that need to be processed inside TEE (or need TEE in their finalization)
     EnclaveTx(TxEnclaveAux),
+    /// transactions that are processed directly in untrusted environment (chain-abci)
     PublicTx(TxPublicAux),
 }
 
@@ -504,6 +529,13 @@ impl Decode for TxAux {
     }
 }
 
+/// This trait is for transaction data type to define the "txid"
+/// that's used as a message digest in signing.
+/// *IMPORTANT*: only auto-implement TransactionId for data types
+/// with transaction data, not the outer type that includes the witness data.
+/// For the outer type, you can use a custom function (like `tx_id`)
+/// or make sure you override the default implementation to take the identifier
+/// from the transaction data type.
 pub trait TransactionId: Encode {
     /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
     fn id(&self) -> TxId {

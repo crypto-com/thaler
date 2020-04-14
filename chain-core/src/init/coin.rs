@@ -20,6 +20,7 @@ use std::convert::TryFrom;
 use std::prelude::v1::Vec;
 use std::{fmt, ops, result};
 
+/// represets the base unit amount bounded by the maximum / total supply
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Default)]
 pub struct Coin(u64);
 
@@ -31,12 +32,16 @@ pub enum CoinError {
     /// Max bound being: `MAX_COIN`.
     OutOfBound(u64),
 
+    /// failed to parse the integer
     ParseIntError,
 
+    /// coin can't be negative
     Negative,
 
+    /// can't divide by zero
     DividByZero,
 
+    /// integer overflow
     Overflow,
 }
 
@@ -307,6 +312,7 @@ impl Encode for Coin {
 }
 impl EncodeLike<u64> for Coin {}
 
+/// helper for summing coins in some iterable structure
 pub fn sum_coins<I>(coin_iter: I) -> CoinResult
 where
     I: Iterator<Item = Coin>,

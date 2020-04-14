@@ -13,6 +13,7 @@ use crate::tx::data::access::TxAccessPolicy;
 #[derive(Debug, Default, PartialEq, Eq, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct TxAttributes {
+    /// the network identifier
     #[cfg_attr(
         not(feature = "mesalock_sgx"),
         serde(serialize_with = "serialize_chain_hex_id")
@@ -22,7 +23,9 @@ pub struct TxAttributes {
         serde(deserialize_with = "deserialize_chain_hex_id")
     )]
     pub chain_hex_id: u8,
+    /// who is allowed to view the transaction content (enforced by tx-query)
     pub allowed_view: Vec<TxAccessPolicy>,
+    /// the global chain-core app version that the transaction was generated with
     pub app_version: u64,
 }
 
