@@ -105,8 +105,6 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             .expect("No block header in begin block request from tendermint");
         let block_height = abci_block_height(header.height).expect("invalid block height");
         let block_time = abci_timespec(&header.time).expect("invalid block time");
-        let proposer_address =
-            TendermintValidatorAddress::try_from(header.proposer_address.as_slice());
 
         let voters = if let Some(last_commit_info) = req.last_commit_info.as_ref() {
             // ignore the invalid items (logged)
@@ -191,14 +189,14 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             response.events.push(slashing_event);
         }
 
-        // FIXME: record based on votes
-        if let Ok(proposer_address) = &proposer_address {
-            last_state
-                .staking_table
-                .reward_record(&staking_getter!(self, account_root), proposer_address);
-        } else {
-            log::error!("invalid proposer address");
+        for (voter_address, signed_last_block) in voters.iter() {
+            if *signed_last_block {
+                last_state
+                    .staking_table
+                    .reward_record(&staking_getter!(self, account_root), voter_address);
+            }
         }
+
         if let Some((distributed, minted)) = self.rewards_try_distribute() {
             response
                 .events

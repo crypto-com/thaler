@@ -103,7 +103,7 @@ mod tests {
 
         let total_staking = dist;
 
-        // propose block by first validator.
+        // sign block by first validator.
         let state = app.last_state.as_ref().unwrap();
         let top_level = &state.top_level;
         let reward1 = monetary_expansion(
@@ -112,7 +112,7 @@ mod tests {
             top_level.network_params.get_rewards_monetary_expansion_r0(),
             top_level.network_params.get_rewards_reward_period_seconds(),
         );
-        let mut req = env.req_begin_block(1, 0);
+        let mut req = env.req_begin_block(2, 0);
         req.mut_header().set_time(seconds_to_timestamp(
             state.block_time + top_level.network_params.get_rewards_reward_period_seconds(),
         ));
@@ -138,11 +138,10 @@ mod tests {
             top_level.network_params.get_rewards_monetary_expansion_r0(),
             top_level.network_params.get_rewards_reward_period_seconds(),
         );
-        let mut req = env.req_begin_block(2, 1);
+        let mut req = env.req_begin_block(3, 1);
         req.mut_header().set_time(seconds_to_timestamp(
             state.block_time + top_level.network_params.get_rewards_reward_period_seconds(),
         ));
-        req.set_last_commit_info(env.last_commit_info_signed());
         app.begin_block(&req);
         app.end_block(&RequestEndBlock::new());
         app.commit(&RequestCommit::new());

@@ -367,14 +367,28 @@ impl ChainEnv {
         }
     }
 
-    pub fn req_begin_block(&self, height: i64, proposed_by: usize) -> RequestBeginBlock {
+    pub fn req_begin_block(&self, height: i64, signed_by: usize) -> RequestBeginBlock {
         RequestBeginBlock {
             header: Some(Header {
                 time: Some(Timestamp::new()).into(),
                 chain_id: TEST_CHAIN_ID.to_owned(),
                 height,
-                proposer_address: Into::<[u8; 20]>::into(&self.validator_address(proposed_by))
-                    .to_vec(),
+                ..Default::default()
+            })
+            .into(),
+            last_commit_info: Some(LastCommitInfo {
+                round: 1,
+                votes: vec![VoteInfo {
+                    signed_last_block: true,
+                    validator: Some(Validator {
+                        address: Into::<[u8; 20]>::into(&self.validator_address(signed_by))
+                            .to_vec(),
+                        ..Default::default()
+                    })
+                    .into(),
+                    ..Default::default()
+                }]
+                .into(),
                 ..Default::default()
             })
             .into(),
@@ -385,7 +399,7 @@ impl ChainEnv {
     pub fn req_begin_block_with_time(
         &self,
         height: i64,
-        proposed_by: usize,
+        signed_by: usize,
         time_sec: i64,
     ) -> RequestBeginBlock {
         RequestBeginBlock {
@@ -397,8 +411,22 @@ impl ChainEnv {
                 .into(),
                 chain_id: TEST_CHAIN_ID.to_owned(),
                 height,
-                proposer_address: Into::<[u8; 20]>::into(&self.validator_address(proposed_by))
-                    .to_vec(),
+                ..Default::default()
+            })
+            .into(),
+            last_commit_info: Some(LastCommitInfo {
+                round: 1,
+                votes: vec![VoteInfo {
+                    signed_last_block: true,
+                    validator: Some(Validator {
+                        address: Into::<[u8; 20]>::into(&self.validator_address(signed_by))
+                            .to_vec(),
+                        ..Default::default()
+                    })
+                    .into(),
+                    ..Default::default()
+                }]
+                .into(),
                 ..Default::default()
             })
             .into(),
