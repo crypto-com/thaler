@@ -2010,9 +2010,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-client-transports"
-version = "14.0.5"
+version = "14.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a9ae166c4d1f702d297cd76d4b55758ace80272ffc6dbb139fdc1bf810de40b"
+checksum = "2307a7e78cf969759e390a8a2151ea12e783849a45bb00aa871b468ba58ea79e"
 dependencies = [
  "failure",
  "futures 0.1.29",
@@ -2039,9 +2039,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-core-client"
-version = "14.0.5"
+version = "14.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "080dc110be17701097df238fad3c816d4a478a1899dfbcf8ec8957dd40ec7304"
+checksum = "87f9382e831a6d630c658df103aac3f971da096deb57c136ea2b760d3b4e3f9f"
 dependencies = [
  "jsonrpc-client-transports",
 ]
@@ -2060,9 +2060,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-http-server"
-version = "14.0.6"
+version = "14.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "816d63997ea45d3634608edbef83ddb35e661f7c0b27b5b72f237e321f0e9807"
+checksum = "d52860f0549694aa4abb12766856f56952ab46d3fb9f0815131b2db3d9cc2f29"
 dependencies = [
  "hyper 0.12.35",
  "jsonrpc-core",
@@ -2075,9 +2075,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-pubsub"
-version = "14.0.6"
+version = "14.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b31c9b90731276fdd24d896f31bb10aecf2e5151733364ae81123186643d939"
+checksum = "c4ca5e391d6c6a2261d4adca029f427fe63ea546ad6cef2957c654c08495ec16"
 dependencies = [
  "jsonrpc-core",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2087,9 +2087,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-server-utils"
-version = "14.0.5"
+version = "14.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95b7635e618a0edbbe0d2a2bbbc69874277c49383fcf6c3c0414491cfb517d22"
+checksum = "1f06add502b48351e05dd95814835327fb115e4e9f834ca42fd522d3b769d4d2"
 dependencies = [
  "bytes 0.4.12",
  "globset",
