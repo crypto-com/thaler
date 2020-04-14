@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{ErrorKind, Result, ResultExt};
 use chain_core::state::account::{
-    DepositBondTx, StakedState, StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
+    DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
 };
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::data::input::TxoPointer;
@@ -119,10 +119,7 @@ pub enum SignedTransaction {
     /// Deposit stake transaction
     DepositStakeTransaction(DepositBondTx, TxWitness),
     /// Withdraw unbounded stake transaction
-    ///
-    /// NOTE: `StakedState` is needed because this type is primarily for encryption of transaction where we need
-    /// `StakedState`.
-    WithdrawUnbondedStakeTransaction(WithdrawUnbondedTx, Box<StakedState>, StakedStateOpWitness),
+    WithdrawUnbondedStakeTransaction(WithdrawUnbondedTx, StakedStateOpWitness),
 }
 
 impl TransactionId for SignedTransaction {
@@ -130,7 +127,7 @@ impl TransactionId for SignedTransaction {
         match self {
             SignedTransaction::TransferTransaction(ref transaction, _) => transaction.id(),
             SignedTransaction::DepositStakeTransaction(ref transaction, _) => transaction.id(),
-            SignedTransaction::WithdrawUnbondedStakeTransaction(ref transaction, _, _) => {
+            SignedTransaction::WithdrawUnbondedStakeTransaction(ref transaction, _) => {
                 transaction.id()
             }
         }

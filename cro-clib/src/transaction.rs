@@ -145,11 +145,8 @@ fn create_encoded_signed_withdraw(
     let transaction = WithdrawUnbondedTx::new(nonce, outputs, attributes);
     let tx = Transaction::WithdrawUnbondedStakeTransaction(transaction.clone());
     let signature = from_private.sign(&tx).map(StakedStateOpWitness::new)?;
-    let signed_transaction = SignedTransaction::WithdrawUnbondedStakeTransaction(
-        transaction,
-        Box::new(staked_state),
-        signature,
-    );
+    let signed_transaction =
+        SignedTransaction::WithdrawUnbondedStakeTransaction(transaction, signature);
     let encoded = signed_transaction.encode();
     Ok(encoded)
 }

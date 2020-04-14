@@ -1,7 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 
 use super::ChainNodeApp;
-use crate::enclave_bridge::{mock::handle_enc_dec, EnclaveProxy};
+use crate::enclave_bridge::EnclaveProxy;
 use abci::*;
 use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
 use chain_core::state::account::StakedStateAddress;
@@ -85,14 +85,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         }
 
         match _req.path.as_ref() {
-            // FIXME: remove when no longer necessary
-            "mockencrypt" => {
-                handle_enc_dec(&_req, &mut resp, &self.storage);
-            }
-            // FIXME: remove when no longer necessary
-            "mockdecrypt" => {
-                handle_enc_dec(&_req, &mut resp, &self.storage);
-            }
             "txquery" => match &self.tx_query_address {
                 Some(addr) => {
                     resp.value = addr.clone().into_bytes();

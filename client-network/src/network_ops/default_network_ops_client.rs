@@ -317,11 +317,8 @@ where
         let sign_key = self.wallet_client.sign_key(name, enckey, &public_key)?;
         let signature = sign_key.sign(&tx).map(StakedStateOpWitness::new)?;
 
-        let signed_transaction = SignedTransaction::WithdrawUnbondedStakeTransaction(
-            transaction,
-            Box::new(staked_state),
-            signature,
-        );
+        let signed_transaction =
+            SignedTransaction::WithdrawUnbondedStakeTransaction(transaction, signature);
         let tx_aux = self.transaction_cipher.encrypt(signed_transaction)?;
         let block_height = match self.wallet_client.get_current_block_height() {
             Ok(h) => h,
@@ -542,7 +539,7 @@ mod tests {
                         },
                     }))
                 }
-                SignedTransaction::WithdrawUnbondedStakeTransaction(tx, _, witness) => {
+                SignedTransaction::WithdrawUnbondedStakeTransaction(tx, witness) => {
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                     Ok(TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                         no_of_outputs: tx.outputs.len() as TxoSize,

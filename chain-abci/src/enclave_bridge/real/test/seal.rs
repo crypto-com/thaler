@@ -151,7 +151,7 @@ pub fn test_sealing() {
         witness: witness0.clone(),
         payload: encrypt(
             enclave.geteid(),
-            EncryptionRequest::WithdrawStake(tx0, Box::new(account.clone()), witness0),
+            EncryptionRequest::WithdrawStake(tx0, witness0),
         ),
     };
 

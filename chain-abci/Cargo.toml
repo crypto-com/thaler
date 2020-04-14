@@ -7,7 +7,6 @@ readme = "README.md"
 edition = "2018"
 
 [features]
-mock-enc-dec = []
 mock-validation = []
 default = []
 sgx-test = []

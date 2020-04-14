@@ -5,7 +5,6 @@ authors = ["Calvin Lau <calvin@crypto.com>"]
 edition = "2018"
 
 [features]
-mock-enc-dec = []
 default = []
 
 [dependencies]
