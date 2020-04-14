@@ -6,10 +6,7 @@ use chain_core::tx::fee::LinearFee;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{types::GenesisExt, Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result, ResultExt};
-#[cfg(not(feature = "mock-enc-dec"))]
 use client_core::cipher::DefaultTransactionObfuscation;
-#[cfg(feature = "mock-enc-dec")]
-use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::wallet::syncer::ObfuscationSyncerConfig;
@@ -32,10 +29,7 @@ use std::ptr;
 use client_core::service::HwKeyService;
 use client_rpc::rpc::sync_rpc::{CBindingCallback, CBindingCore};
 
-#[cfg(not(feature = "mock-enc-dec"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;
-#[cfg(feature = "mock-enc-dec")]
-type AppTransactionCipher = MockAbciTransactionObfuscation<WebsocketRpcClient>;
 
 type AppTxBuilder = DefaultWalletTransactionBuilder<SledStorage, LinearFee, AppTransactionCipher>;
 type AppWalletClient = DefaultWalletClient<SledStorage, WebsocketRpcClient, AppTxBuilder>;
@@ -50,17 +44,8 @@ type AppSyncerConfig =
     ObfuscationSyncerConfig<SledStorage, WebsocketRpcClient, AppTransactionCipher>;
 
 /// normal
-#[cfg(not(feature = "mock-enc-dec"))]
 fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
     DefaultTransactionObfuscation::from_tx_query(&tendermint_client)
-}
-
-/// temporary
-#[cfg(feature = "mock-enc-dec")]
-fn get_tx_query(
-    tendermint_client: WebsocketRpcClient,
-) -> Result<MockAbciTransactionObfuscation<WebsocketRpcClient>> {
-    Ok(MockAbciTransactionObfuscation::new(tendermint_client))
 }
 
 fn make_wallet_client(

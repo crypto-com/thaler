@@ -50,6 +50,8 @@ pub struct IntraEncryptRequest {
     pub sealed_enc_request: SealedLog,
     /// transaction inputs (if any)
     pub tx_inputs: Option<Vec<SealedLog>>,
+    /// related account if any
+    pub account: Option<StakedState>,
     /// last chain info
     pub info: ChainInfo,
 }
@@ -167,8 +169,10 @@ pub struct QueryEncryptRequest {
     pub sealed_enc_request: SealedLog,
     /// plain tx size
     pub tx_size: u32,
-    /// transaction inputs (if any)
+    /// transaction inputs (if any; for deposits/transfers)
     pub tx_inputs: Option<Vec<TxoPointer>>,
+    /// account sig (if any; for withdraws)
+    pub op_sig: Option<StakedStateOpWitness>,
 }
 
 /// requests sent from tx-query to chain-abci tx validation enclave app wrapper
@@ -217,7 +221,7 @@ pub enum TxQueryInitResponse {
 pub enum EncryptionRequest {
     TransferTx(Tx, TxWitness),
     DepositStake(DepositBondTx, TxWitness),
-    WithdrawStake(WithdrawUnbondedTx, Box<StakedState>, StakedStateOpWitness),
+    WithdrawStake(WithdrawUnbondedTx, StakedStateOpWitness),
 }
 
 impl Decode for EncryptionRequest {
@@ -241,7 +245,6 @@ impl Decode for EncryptionRequest {
             )),
             2 => Ok(EncryptionRequest::WithdrawStake(
                 WithdrawUnbondedTx::decode(input)?,
-                Box::new(StakedState::decode(input)?),
                 StakedStateOpWitness::decode(input)?,
             )),
             _ => Err("No such variant in enum EncryptionRequest".into()),

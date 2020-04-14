@@ -160,26 +160,36 @@ fn get_sealed_request(req: &EncryptionRequest, txid: &TxId) -> Option<Vec<u8>> {
 }
 
 fn construct_request(req: &EncryptionRequest, req_len: usize) -> Option<QueryEncryptRequest> {
-    let (txid, sealed, tx_inputs, tx_size) = match req {
+    let (txid, sealed, tx_inputs, tx_size, op_sig) = match req {
         // TODO: are the size estimates ok?
         EncryptionRequest::TransferTx(tx, _) => {
             let txid = tx.id();
             let sealed = get_sealed_request(&req, &txid);
             let tx_inputs = Some(tx.inputs.clone());
-            (txid, sealed, tx_inputs, req_len + 34 * tx.inputs.len() + 74)
+            (
+                txid,
+                sealed,
+                tx_inputs,
+                req_len + 34 * tx.inputs.len() + 74,
+                None,
+            )
         }
         EncryptionRequest::DepositStake(tx, _) => {
             let txid = tx.id();
             let sealed = get_sealed_request(&req, &txid);
             let tx_inputs = Some(tx.inputs.clone());
-            (txid, sealed, tx_inputs, req_len + 34 * tx.inputs.len() + 74)
+            (
+                txid,
+                sealed,
+                tx_inputs,
+                req_len + 34 * tx.inputs.len() + 74,
+                None,
+            )
         }
-        EncryptionRequest::WithdrawStake(tx, state, _) => {
+        EncryptionRequest::WithdrawStake(tx, witness) => {
             let txid = tx.id();
             let sealed = get_sealed_request(&req, &txid);
-            let state_len = state.encode().len();
-            // FIXME: no need to send state in request
-            (txid, sealed, None, req_len - state_len + 73)
+            (txid, sealed, None, req_len + 73, Some(witness.clone()))
         }
     };
     sealed.map(|sealed_enc_request| QueryEncryptRequest {
@@ -188,6 +198,7 @@ fn construct_request(req: &EncryptionRequest, req_len: usize) -> Option<QueryEnc
         tx_inputs,
         // TODO: checks, but this should fit, as all things are bounded more like u16::max
         tx_size: tx_size as u32,
+        op_sig,
     })
 }
 
@@ -238,7 +249,7 @@ fn handle_encryption_request(
                                 EncryptionRequest::DepositStake(tx, _) => {
                                     TxEnclaveAux::DepositStakeTx { tx, payload }
                                 }
-                                EncryptionRequest::WithdrawStake(tx, _, witness) => {
+                                EncryptionRequest::WithdrawStake(tx, witness) => {
                                     let no_of_outputs = tx.outputs.len() as TxoSize;
                                     TxEnclaveAux::WithdrawUnbondedStakeTx {
                                         no_of_outputs,

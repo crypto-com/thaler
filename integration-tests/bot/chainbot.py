@@ -568,6 +568,9 @@ class CLI:
             base_port=26650,
             chain_id='test-chain-y3m1e6-AB', root_path='./data', hostname='127.0.0.1',
             mock_mode=False):
+        if mock_mode:
+            print("TODO: mock mode is pending a revision")
+            sys.exit(1)
         cfg = self._gen(
             count, expansion_cap, dist, genesis_time,
             base_fee, per_byte_fee, base_port,

@@ -22,5 +22,4 @@ quest = "0.3"
 secstr = "0.4.0"
 
 [features]
-mock-enc-dec = ["chain-abci/mock-enc-dec"]
 mock-validation = ["chain-abci/mock-validation"]
