@@ -14,7 +14,7 @@ use chain_core::init::config::{
     JailingParameters, RewardsParameters, SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
-    to_stake_key, ConfidentialInit, CouncilNode, DepositBondTx, StakedState, StakedStateAddress,
+    ConfidentialInit, CouncilNode, DepositBondTx, StakedState, StakedStateAddress,
     StakedStateDestination, StakedStateOpAttributes, StakedStateOpWitness, UnbondTx,
     WithdrawUnbondedTx,
 };
@@ -41,9 +41,6 @@ use chain_core::tx::{
     witness::{TxInWitness, TxWitness},
     TxAux, TxEnclaveAux, TxPublicAux,
 };
-use chain_storage::account::AccountStorage;
-use chain_storage::account::AccountWrapper;
-use chain_storage::account::StarlingFixedKey;
 use chain_storage::buffer::Get;
 use chain_storage::{
     LookupItem, Storage, COL_NODE_INFO, GENESIS_APP_HASH_KEY, LAST_STATE_KEY, NUM_COLUMNS,
@@ -79,10 +76,6 @@ fn create_db() -> Arc<dyn KeyValueDB> {
     Arc::new(create(NUM_COLUMNS))
 }
 
-fn create_account_db() -> AccountStorage {
-    AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db")
-}
-
 const TEST_CHAIN_ID: &str = "test-00";
 
 #[test]
@@ -94,7 +87,6 @@ fn proper_hash_and_chainid_should_be_stored() {
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
-        create_account_db(),
         None,
         None,
     );
@@ -115,7 +107,6 @@ fn too_long_hash_should_panic() {
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
-        create_account_db(),
         None,
         None,
     );
@@ -131,7 +122,6 @@ fn chain_id_without_hex_digits_should_panic() {
         example_hash,
         "test",
         Storage::new_db(db.clone()),
-        create_account_db(),
         None,
         None,
     );
@@ -147,7 +137,6 @@ fn nonhex_hash_should_panic() {
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
-        create_account_db(),
         None,
         None,
     );
@@ -186,6 +175,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         block_height: BlockHeight::genesis(),
         genesis_time: 0,
         staking_table: StakingTable::default(),
+        staking_version: 0,
         top_level: ChainState {
             account_root: [0u8; 32],
             rewards_pool: RewardsPoolState::new(0, params.get_rewards_monetary_expansion_tau()),
@@ -216,7 +206,6 @@ fn previously_stored_hash_should_match() {
         example_hash2,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
-        create_account_db(),
         None,
         None,
     );
@@ -271,17 +260,8 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     let result = c.validate_config_get_genesis(t.get_seconds().try_into().unwrap());
     if let Ok((accounts, rp, _nodes)) = result {
         let tx_tree = MerkleTree::empty();
-        let mut account_tree =
-            AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db");
-
-        let mut keys: Vec<StarlingFixedKey> = accounts.iter().map(|x| x.key()).collect();
-        // TODO: get rid of the extra allocations
-        let wrapped: Vec<AccountWrapper> =
-            accounts.iter().map(|x| AccountWrapper(x.clone())).collect();
-        let new_account_root = account_tree
-            .insert(None, &mut keys, &wrapped)
-            .expect("initial insert");
-
+        let mut storage = Storage::new_db(db.clone());
+        let new_account_root = storage.put_stakings(0, &accounts);
         let genesis_app_hash = compute_app_hash(
             &tx_tree,
             &new_account_root,
@@ -294,8 +274,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
             get_enclave_bridge_mock(),
             &example_hash,
             TEST_CHAIN_ID,
-            Storage::new_db(db.clone()),
-            create_account_db(),
+            storage,
             None,
             None,
         );
@@ -322,15 +301,9 @@ fn init_chain_should_create_db_items() {
         ChainNodeState::decode(&mut app.storage.get_last_app_state().unwrap().as_slice()).unwrap();
 
     assert_eq!(genesis_app_hash, state.last_apphash);
-    let key = to_stake_key(&address.into());
-    assert_eq!(
-        1,
-        app.accounts
-            .get(&state.top_level.account_root, &mut [key])
-            .expect("account")
-            .iter()
-            .count()
-    );
+    app.staking_getter_committed()
+        .get(&address.into())
+        .expect("account not exists");
 }
 
 #[test]
@@ -376,7 +349,6 @@ fn init_chain_panics_with_different_app_hash() {
         &example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
-        create_account_db(),
         None,
         None,
     );
@@ -397,7 +369,6 @@ fn init_chain_panics_with_empty_app_bytes() {
         &example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
-        create_account_db(),
         None,
         None,
     );
@@ -1035,11 +1006,11 @@ fn all_valid_tx_types_should_commit() {
 
 #[test]
 fn query_should_return_proof_for_committed_tx() {
-    let (env, storage, account_storage) =
+    let (env, storage) =
         ChainEnv::new_with_customizer(Coin::max(), Coin::zero(), 2, |parameters| {
             parameters.required_council_node_stake = (Coin::max() / 10).unwrap();
         });
-    let mut app = env.chain_node(storage, account_storage);
+    let mut app = env.chain_node(storage);
     let _rsp = app.init_chain(&env.req_init_chain());
 
     app.begin_block(&env.req_begin_block(1, 0));

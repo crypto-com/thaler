@@ -1,10 +1,11 @@
-pub mod account;
 mod api;
 pub mod buffer;
 pub mod jellyfish;
 
-use crate::buffer::Get;
+use crate::buffer::{flush_storage, BufferStore, Get, KVBuffer};
+use crate::jellyfish::{put_stakings, Version};
 use chain_core::common::H256;
+use chain_core::state::account::StakedState;
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::data::TxId;
 use kvdb::{DBTransaction, KeyValueDB};
@@ -232,5 +233,17 @@ impl Storage {
         } else {
             Ok(())
         }
+    }
+
+    pub fn put_stakings(&mut self, version: Version, stakings: &[StakedState]) -> H256 {
+        let mut kv_buffer = KVBuffer::new();
+        let root_hash = put_stakings(
+            &mut BufferStore::new(self, &mut kv_buffer),
+            version,
+            stakings.iter(),
+        )
+        .unwrap();
+        flush_storage(self, kv_buffer).unwrap();
+        root_hash
     }
 }
