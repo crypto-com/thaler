@@ -165,7 +165,9 @@ fn check_rejoin() {
     let tm_address = &env.validator_address(0);
     let staking_address = *state.staking_table.lookup_address(&tm_address).unwrap();
     // Begin Block
-    app.begin_block(&env.req_begin_block(1, 0));
+    let mut req = env.req_begin_block(1, 0);
+    req.set_last_commit_info(env.last_commit_info_signed_by(0));
+    app.begin_block(&req);
 
     // Unbond Transaction (this'll change voting power to zero)
     let amount = Coin::one();

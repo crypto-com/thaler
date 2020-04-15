@@ -385,6 +385,8 @@ impl ChainEnv {
     }
 
     pub fn last_commit_info(&self, index: usize, signed_last_block: bool) -> LastCommitInfo {
+        let power: TendermintVotePower = self.share().into();
+
         LastCommitInfo {
             votes: self
                 .accounts
@@ -393,6 +395,7 @@ impl ChainEnv {
                 .map(|(i, _)| VoteInfo {
                     validator: Some(Validator {
                         address: <[u8; 20]>::from(&self.validator_address(i)).to_vec(),
+                        power: power.into(),
                         ..Default::default()
                     })
                     .into(),
@@ -405,6 +408,8 @@ impl ChainEnv {
     }
 
     pub fn last_commit_info_signed(&self) -> LastCommitInfo {
+        let power: TendermintVotePower = self.share().into();
+
         LastCommitInfo {
             votes: self
                 .accounts
@@ -413,6 +418,7 @@ impl ChainEnv {
                 .map(|(i, _)| VoteInfo {
                     validator: Some(Validator {
                         address: <[u8; 20]>::from(&self.validator_address(i)).to_vec(),
+                        power: power.into(),
                         ..Default::default()
                     })
                     .into(),
@@ -420,6 +426,25 @@ impl ChainEnv {
                     ..Default::default()
                 })
                 .collect(),
+            ..Default::default()
+        }
+    }
+
+    pub fn last_commit_info_signed_by(&self, signed_by: usize) -> LastCommitInfo {
+        let power: TendermintVotePower = self.share().into();
+
+        LastCommitInfo {
+            votes: vec![VoteInfo {
+                signed_last_block: true,
+                validator: Some(Validator {
+                    power: power.into(),
+                    address: Into::<[u8; 20]>::into(&self.validator_address(signed_by)).to_vec(),
+                    ..Default::default()
+                })
+                .into(),
+                ..Default::default()
+            }]
+            .into(),
             ..Default::default()
         }
     }

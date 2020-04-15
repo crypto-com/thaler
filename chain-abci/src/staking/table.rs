@@ -80,18 +80,18 @@ impl Into<ValidatorSortKey> for &mut StakedState {
 
 /// StakedState indexes, and other tracking data structures.
 /// The heap of records are stored outside.
-/// Primary key is `StakedStateAddress`, secodary index reference the primary key.
+/// Primary key is `StakedStateAddress`, secondary index reference the primary key.
 ///
-/// Invarient 2.1: The secondary indexes should always be consistent with the heap
+/// Invariant 2.1: The secondary indexes should always be consistent with the heap
 ///
-/// Invarient 2.2:
+/// Invariant 2.2:
 ///   All the secondary indexes should be partial index with condition `validator is not null`
 ///   This shouldn't be prone to DoS as long as minimum required stake is high enough.
 ///   Combined with 2.1, it means that all addresses recorded in `idx_*` should also exist on heap,
 ///   and have validator record;
 ///   Proof: always update index when validator record created or removed.
 ///
-/// Invarient 2.3:
+/// Invariant 2.3:
 ///   Key set of `liveness` should be the same as addresses in `idx_*`.
 ///   Combined with 2.1, it means that all liveness tracking addresses should exist on heap, and have
 ///   validator record.
@@ -101,7 +101,7 @@ pub struct StakingTable {
     // Selected validator voting powers of last executed end block
     chosen_validators: BTreeMap<StakedStateAddress, TendermintVotePower>,
     liveness: BTreeMap<StakedStateAddress, LivenessTracker>,
-    proposer_stats: BTreeMap<StakedStateAddress, u64>,
+    participator_stats: BTreeMap<StakedStateAddress, u64>,
 
     // Call `initialize` to populate the indexes after deserialized.
     // Keep the recent value of minimal_required_staking to do sanity check on validator states.
@@ -190,22 +190,22 @@ impl StakingTable {
     }
 
     /// Handle reward statistics record
-    /// TODO change to vote statistics
     pub fn reward_record(
         &mut self,
         heap: &impl GetStaking,
         val_addr: &TendermintValidatorAddress,
+        val_voting_power: TendermintVotePower,
     ) -> bool {
         if let Some(addr) = self.idx_validator_address.get(val_addr) {
-            // Invarient 2.1
+            // Invariant 2.1
             let staking = heap.get(addr).unwrap();
-            // Invarient 2.2
+            // Invariant 2.2
             let val = staking.validator.as_ref().unwrap();
             if val.is_active() {
-                self.proposer_stats
+                self.participator_stats
                     .entry(*addr)
-                    .and_modify(|count| *count = count.saturating_add(1))
-                    .or_insert(1);
+                    .and_modify(|count| *count = count.saturating_add(val_voting_power.into()))
+                    .or_insert_with(|| val_voting_power.into());
             }
             true
         } else {
@@ -230,19 +230,24 @@ impl StakingTable {
         heap: &mut impl StoreStaking,
         total_rewards: Coin,
     ) -> (Coin, RewardsDistribution) {
-        let total_blocks = self.proposer_stats.iter().map(|(_, count)| count).sum();
-        if total_blocks == 0 {
+        let sum_power: u64 = self
+            .participator_stats
+            .iter()
+            .map(|(_, count)| count)
+            .fold(0, |acc, value| acc.saturating_add(*value));
+        if sum_power == 0 {
             return (total_rewards, vec![]);
         }
-        // no panic, total_blocks is checked to be not zero.
-        let share = (total_rewards / total_blocks).unwrap();
 
         let mut distributed = Vec::new();
         let mut remainder = total_rewards;
-        let stats = std::mem::take(&mut self.proposer_stats);
+        let stats = std::mem::take(&mut self.participator_stats);
         for (addr, count) in stats.into_iter() {
             let mut staking = self.get_or_default(heap, &addr);
-            let amount = (share * count).unwrap();
+            let amount = Coin::new(
+                (((u64::from(total_rewards) as u128) * count as u128) / sum_power as u128) as u64,
+            )
+            .expect("Overflow while distributing rewards");
             remainder = (remainder - amount).unwrap();
             distributed.push((addr, amount));
             self.add_bonded(amount, &mut staking).unwrap();
@@ -250,7 +255,6 @@ impl StakingTable {
         }
         #[cfg(debug_assertions)]
         self.check_invariants(heap);
-        assert_eq!(remainder, (total_rewards % total_blocks).unwrap());
         (remainder, distributed)
     }
 
@@ -448,7 +452,7 @@ impl StakingTable {
             }
             assert!(self.idx_sort.remove(&(&staking).into()));
             assert!(self.liveness.remove(addr).is_some());
-            self.proposer_stats.remove(addr);
+            self.participator_stats.remove(addr);
 
             staking.validator = None;
             set_staking(heap, staking, self.minimal_required_staking);
@@ -532,7 +536,7 @@ impl StakingTable {
                         block_height,
                         params.get_unbonding_period() as Timespec,
                     );
-                    self.proposer_stats.remove(addr);
+                    self.participator_stats.remove(addr);
                     slashes.push((*addr, PunishmentKind::ByzantineFault));
                     set_staking(heap, staking, self.minimal_required_staking);
                 }
