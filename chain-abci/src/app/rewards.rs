@@ -116,6 +116,7 @@ mod tests {
         req.mut_header().set_time(seconds_to_timestamp(
             state.block_time + top_level.network_params.get_rewards_reward_period_seconds(),
         ));
+        req.set_last_commit_info(env.last_commit_info_signed_by(0));
         app.begin_block(&req);
         app.end_block(&RequestEndBlock::new());
         app.commit(&RequestCommit::new());
@@ -142,7 +143,7 @@ mod tests {
         req.mut_header().set_time(seconds_to_timestamp(
             state.block_time + top_level.network_params.get_rewards_reward_period_seconds(),
         ));
-        req.set_last_commit_info(env.last_commit_info_signed());
+        req.set_last_commit_info(env.last_commit_info_signed_by(1));
         app.begin_block(&req);
         app.end_block(&RequestEndBlock::new());
         app.commit(&RequestCommit::new());
