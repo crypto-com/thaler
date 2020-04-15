@@ -20,3 +20,8 @@ jellyfish-merkle = { git = "https://github.com/crypto-com/jellyfish-merkle-tree.
 
 [dev-dependencies]
 quickcheck = "0.9"
+criterion = "0.3"
+
+[[bench]]
+name = "jellyfish"
+harness = false
