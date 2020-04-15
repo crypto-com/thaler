@@ -12,9 +12,7 @@ use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::NetworkParameters;
-use chain_storage::account::AccountWrapper;
-use chain_storage::account::StarlingFixedKey;
-use chain_storage::{account::AccountStorage, Storage, NUM_COLUMNS};
+use chain_storage::{Storage, NUM_COLUMNS};
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
 use libfuzzer_sys::fuzz_target;
@@ -29,10 +27,6 @@ pub fn get_enclave_bridge_mock() -> MockClient {
 
 fn create_db() -> Arc<dyn KeyValueDB> {
     Arc::new(create(NUM_COLUMNS))
-}
-
-fn create_account_db() -> AccountStorage {
-    AccountStorage::new(Storage::new_db(Arc::new(create(1))), 20).expect("account db")
 }
 
 const TEST_CHAIN_ID: &str = "test-00";
@@ -124,7 +118,7 @@ fuzz_target!(|data: &[u8]| {
         if !messages.is_empty() {
             let defaultinit = (
                 init_request(),
-                "85E167039D10A799C69AD9BE72BD44FDAE1D35729328DE96011BB7F7E3E1FC92".to_owned(),
+                "77e18388a8618adcedc91678f29284ba762e1f54140800d7be6a06ab95b0773c".to_owned(),
                 TEST_CHAIN_ID.to_owned(),
                 get_enclave_bridge_mock(),
             );
@@ -148,20 +142,8 @@ fuzz_target!(|data: &[u8]| {
                                     defaultinit
                                 } else {
                                     let tx_tree = MerkleTree::empty();
-                                    let mut account_tree = AccountStorage::new(
-                                        Storage::new_db(Arc::new(create(1))),
-                                        20,
-                                    )
-                                    .expect("account db");
-                                    let wrapped: Vec<AccountWrapper> = accounts
-                                        .iter()
-                                        .map(|x| AccountWrapper(x.clone()))
-                                        .collect();
-                                    let mut keys: Vec<StarlingFixedKey> =
-                                        accounts.iter().map(|x| x.key()).collect();
-                                    let new_account_root = account_tree
-                                        .insert(None, &mut keys, &wrapped)
-                                        .expect("initial insert");
+                                    let mut storage = Storage::new_db(create_db());
+                                    let new_account_root = storage.put_stakings(0, &accounts);
 
                                     let genesis_app_hash = compute_app_hash(
                                         &tx_tree,
@@ -202,7 +184,6 @@ fuzz_target!(|data: &[u8]| {
                 &example_hash,
                 &chain_id,
                 Storage::new_db(create_db()),
-                create_account_db(),
                 None,
                 None,
             );
