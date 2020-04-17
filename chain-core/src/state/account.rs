@@ -278,12 +278,16 @@ impl Validator {
         block_time: Timespec,
         block_height: BlockHeight,
         jail_duration: Timespec,
-    ) {
+    ) -> Timespec {
         assert!(!self.is_jailed());
-        self.jailed_until = Some(block_time.saturating_add(jail_duration));
+        let jailed_until = block_time.saturating_add(jail_duration);
+
+        self.jailed_until = Some(jailed_until);
         if self.is_active() {
             self.inactivate(block_time, block_height);
         }
+
+        jailed_until
     }
 
     /// updates this state to be "inactive"

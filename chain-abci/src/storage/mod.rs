@@ -3,13 +3,34 @@ use crate::staking::StakingTable;
 use crate::tx_error::PublicTxError;
 use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes};
+use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateOpAttributes};
 use chain_core::tx::data::input::{TxoPointer, TxoSize};
 use chain_core::tx::fee::Fee;
 use chain_core::tx::{TransactionId, TxEnclaveAux, TxObfuscated, TxPublicAux};
 use chain_storage::buffer::{GetKV, GetStaking, StoreStaking};
 use chain_tx_validation::{verify_unjailed, witness::verify_tx_recover_address, ChainInfo, Error};
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, SealedLog};
+
+pub enum TxAction {
+    Enclave(TxEnclaveAction),
+    Public(TxPublicAction),
+}
+
+impl TxAction {
+    pub fn fee(&self) -> Fee {
+        match self {
+            Self::Enclave(action) => action.fee(),
+            Self::Public(action) => action.fee(),
+        }
+    }
+
+    pub fn staking_address(&self) -> Option<StakedStateAddress> {
+        match self {
+            Self::Enclave(action) => action.staking_address(),
+            Self::Public(action) => action.staking_address(),
+        }
+    }
+}
 
 /// fee: Written into block result events
 /// spend_utxo: Modify UTxO storage
@@ -77,6 +98,56 @@ impl TxEnclaveAction {
             Self::Transfer { fee, .. } => *fee,
             Self::Deposit { fee, .. } => *fee,
             Self::Withdraw { fee, .. } => *fee,
+        }
+    }
+
+    pub fn staking_address(&self) -> Option<StakedStateAddress> {
+        match self {
+            Self::Transfer { .. } => None,
+            Self::Deposit { deposit, .. } => Some(deposit.0),
+            Self::Withdraw { withdraw, .. } => Some(withdraw.0),
+        }
+    }
+}
+
+pub enum TxPublicAction {
+    Unbond {
+        fee: Fee,
+        unbond: (StakedStateAddress, Coin),
+        unbonded_from: Timespec,
+    },
+    NodeJoin(StakedStateAddress, CouncilNode),
+    Unjail(StakedStateAddress),
+}
+
+impl TxPublicAction {
+    fn unbond(fee: Fee, unbond: (StakedStateAddress, Coin), unbonded_from: Timespec) -> Self {
+        Self::Unbond {
+            fee,
+            unbond,
+            unbonded_from,
+        }
+    }
+    fn node_join(staking_address: StakedStateAddress, council_node: CouncilNode) -> Self {
+        Self::NodeJoin(staking_address, council_node)
+    }
+    fn unjail(staking_address: StakedStateAddress) -> Self {
+        Self::Unjail(staking_address)
+    }
+
+    pub fn fee(&self) -> Fee {
+        match self {
+            Self::Unbond { fee, .. } => *fee,
+            Self::NodeJoin(_, _) => Fee::new(Coin::zero()),
+            Self::Unjail(_) => Fee::new(Coin::zero()),
+        }
+    }
+
+    pub fn staking_address(&self) -> Option<StakedStateAddress> {
+        match self {
+            Self::Unbond { unbond, .. } => Some(unbond.0),
+            Self::NodeJoin(staking_address, _) => Some(*staking_address),
+            Self::Unjail(staking_address) => Some(*staking_address),
         }
     }
 }
@@ -217,7 +288,7 @@ pub fn process_public_tx(
     staking_table: &mut StakingTable,
     chain_info: &ChainInfo,
     txaux: &TxPublicAux,
-) -> Result<(Fee, Option<StakedStateAddress>), PublicTxError> {
+) -> Result<TxPublicAction, PublicTxError> {
     check_staking_attributes(txaux.attributes(), chain_info.chain_hex_id)?;
     match txaux {
         // TODO: delay checking witness, as address is contained in Tx?
@@ -226,14 +297,19 @@ pub fn process_public_tx(
             if address != maintx.from_staked_account {
                 return Err(PublicTxError::StakingWitnessNotMatch);
             }
-            staking_table.unbond(
+            let unbonded_from = staking_table.unbond(
                 staking_store,
                 chain_info.unbonding_period as Timespec,
                 chain_info.block_time,
                 chain_info.block_height,
                 &maintx,
             )?;
-            Ok((chain_info.min_fee_computed, Some(address)))
+
+            Ok(TxPublicAction::unbond(
+                chain_info.min_fee_computed,
+                (address, maintx.value),
+                unbonded_from,
+            ))
         }
         // TODO: delay checking witness, as address is contained in Tx?
         TxPublicAux::UnjailTx(maintx, witness) => {
@@ -243,7 +319,8 @@ pub fn process_public_tx(
             }
 
             staking_table.unjail(staking_store, chain_info.block_time, maintx)?;
-            Ok((Fee::new(Coin::zero()), Some(address)))
+
+            Ok(TxPublicAction::unjail(address))
         }
         // TODO: delay checking witness, as address is contained in Tx?
         TxPublicAux::NodeJoinTx(maintx, witness) => {
@@ -252,7 +329,8 @@ pub fn process_public_tx(
                 return Err(PublicTxError::StakingWitnessNotMatch);
             }
             staking_table.node_join(staking_store, chain_info.block_time, maintx)?;
-            Ok((Fee::new(Coin::zero()), Some(address)))
+
+            Ok(TxPublicAction::node_join(address, maintx.node_meta.clone()))
         }
     }
 }

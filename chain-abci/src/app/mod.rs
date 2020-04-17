@@ -6,6 +6,7 @@ mod commit;
 mod end_block;
 mod query;
 mod rewards;
+mod staking_event;
 pub mod validate_tx;
 
 use abci::Pair as KVPair;
@@ -17,14 +18,15 @@ pub use self::app_init::check_validators;
 pub use self::app_init::{
     get_validator_key, init_app_hash, BufferType, ChainNodeApp, ChainNodeState,
 };
+use crate::app::staking_event::StakingEvent;
 use crate::app::validate_tx::ResponseWithCodeAndLog;
 use crate::enclave_bridge::EnclaveProxy;
 use crate::staking::RewardsDistribution;
+use crate::storage::{TxAction, TxEnclaveAction, TxPublicAction};
 use chain_core::common::{TendermintEventKey, TendermintEventType, Timespec};
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{PunishmentKind, StakedStateAddress};
+use chain_core::state::account::PunishmentKind;
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
-use chain_core::tx::fee::Fee;
 use chain_core::tx::TxAux;
 use std::convert::{TryFrom, TryInto};
 
@@ -142,7 +144,7 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         last_state.block_time = block_time;
         last_state.block_height = block_height;
 
-        let slashes = last_state.staking_table.begin_block(
+        let punishment_outcomes = last_state.staking_table.begin_block(
             &mut staking_store!(self, last_state.staking_version),
             &last_state.top_level.network_params,
             block_time,
@@ -151,40 +153,39 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             &evidences,
         );
 
-        let mut jailing_event = Event::new();
-        jailing_event.field_type = TendermintEventType::JailValidators.to_string();
-        let mut slashing_event = Event::new();
-        slashing_event.field_type = TendermintEventType::SlashValidators.to_string();
+        let mut response = ResponseBeginBlock::new();
 
         let rewards_pool = &mut last_state.top_level.rewards_pool;
-        for (addr, amount, punishment_kind) in slashes.iter() {
-            rewards_pool.period_bonus = (rewards_pool.period_bonus + amount)
+        for punishment_outcome in punishment_outcomes.iter() {
+            // slashed_amount <= bonded + unbonded <= max supply
+            let slashed_amount = punishment_outcome
+                .slashed_coin
+                .sum()
+                .expect("sum of bonded and unbonded slash amount exceed maximum coin");
+            rewards_pool.period_bonus = (rewards_pool.period_bonus + slashed_amount)
                 .expect("rewards pool + fee greater than max coin?");
 
             self.rewards_pool_updated = true;
-            let mut kvpair = KVPair::new();
-            kvpair.key = TendermintEventKey::Account.into();
-            kvpair.value = addr.to_string().into_bytes();
 
-            if *punishment_kind == PunishmentKind::ByzantineFault {
-                jailing_event.attributes.push(kvpair.clone());
+            let event = StakingEvent::Slash(
+                &punishment_outcome.staking_address,
+                punishment_outcome.slashed_coin.bonded,
+                punishment_outcome.slashed_coin.unbonded,
+                punishment_outcome.punishment_kind,
+            );
+            response.events.push(event.into());
+
+            if punishment_outcome.punishment_kind == PunishmentKind::ByzantineFault {
+                let jailed_until = punishment_outcome
+                    .jailed_until
+                    .expect("jailed until should exist when being jailed");
+                let event = StakingEvent::Jail(
+                    &punishment_outcome.staking_address,
+                    jailed_until,
+                    punishment_outcome.punishment_kind,
+                );
+                response.events.push(event.into());
             }
-            slashing_event.attributes.push(kvpair);
-
-            let mut kvpair = KVPair::new();
-            kvpair.key = TendermintEventKey::Slash.into();
-            kvpair.value = amount.to_string().into_bytes();
-            slashing_event.attributes.push(kvpair);
-        }
-
-        let mut response = ResponseBeginBlock::new();
-
-        if !jailing_event.attributes.is_empty() {
-            response.events.push(jailing_event);
-        }
-
-        if !slashing_event.attributes.is_empty() {
-            response.events.push(slashing_event);
         }
 
         if let Some(last_commit_info) = req.last_commit_info.as_ref() {
@@ -204,9 +205,10 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         }
 
         if let Some((distributed, minted)) = self.rewards_try_distribute() {
-            response
-                .events
-                .push(write_reward_event(distributed, minted));
+            let events = generate_reward_events(distributed, minted);
+            for event in events.iter() {
+                response.events.push(event.to_owned());
+            }
         }
 
         response
@@ -219,13 +221,18 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         let mut resp = ResponseDeliverTx::new();
         let result = self.process_tx(req, BufferType::Consensus);
         match result {
-            Ok((txaux, fee, maccount)) => {
+            Ok((txaux, tx_action)) => {
+                let fee_amount = tx_action.fee().to_coin();
+                let tx_events = generate_tx_events(&txaux, tx_action);
+
                 resp.set_code(0);
-                resp.events.push(write_tx_event(&txaux, fee, maccount));
+
+                for event in tx_events.iter() {
+                    resp.events.push(event.to_owned());
+                }
 
                 self.delivered_txs.push(txaux);
 
-                let fee_amount = fee.to_coin();
                 if fee_amount > Coin::zero() {
                     let rewards_pool =
                         &mut self.last_state.as_mut().unwrap().top_level.rewards_pool;
@@ -292,47 +299,81 @@ fn abci_block_height(i: i64) -> Option<BlockHeight> {
     result
 }
 
-fn write_reward_event(distributed: RewardsDistribution, minted: Coin) -> Event {
-    let mut event = Event::new();
-    event.field_type = TendermintEventType::RewardsDistribution.to_string();
+fn generate_reward_events(distribution: RewardsDistribution, minted: Coin) -> Vec<Event> {
+    let mut events: Vec<Event> = Vec::new();
 
-    let mut kvpair = KVPair::new();
-    kvpair.key = TendermintEventKey::RewardsDistribution.into();
-    kvpair.value = serde_json::to_string(&distributed)
-        .expect("encode rewards result failed")
-        .as_bytes()
-        .to_owned();
-    event.attributes.push(kvpair);
+    for reward in distribution.iter() {
+        let event = StakingEvent::Reward(&reward.0, reward.1).into();
 
-    let mut kvpair = KVPair::new();
-    kvpair.key = TendermintEventKey::CoinMinted.into();
-    kvpair.value = minted.to_string().as_bytes().to_owned();
-    event.attributes.push(kvpair);
-
-    event
-}
-
-fn write_tx_event(txaux: &TxAux, fee: Fee, maccount: Option<StakedStateAddress>) -> abci::Event {
-    let mut event = Event::new();
-    event.field_type = TendermintEventType::ValidTransactions.to_string();
-
-    // write fee into event
-    let mut kvpair_fee = KVPair::new();
-    kvpair_fee.key = TendermintEventKey::Fee.into();
-    kvpair_fee.value = Vec::from(format!("{}", fee.to_coin()));
-    event.attributes.push(kvpair_fee);
-
-    if let Some(address) = maccount {
-        let mut kvpair = KVPair::new();
-        kvpair.key = TendermintEventKey::Account.into();
-        kvpair.value = Vec::from(format!("{}", address));
-        event.attributes.push(kvpair);
+        events.push(event);
     }
 
-    let mut kvpair = KVPair::new();
-    kvpair.key = TendermintEventKey::TxId.into();
-    kvpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
-    event.attributes.push(kvpair);
+    let mut reward_event = Event::new();
+    reward_event.field_type = TendermintEventType::Reward.to_string();
 
-    event
+    let mut minted_kvpair = KVPair::new();
+    minted_kvpair.key = TendermintEventKey::CoinMinted.into();
+    minted_kvpair.value = serde_json::to_string(&minted)
+        .expect("encode coin minted failed")
+        .as_bytes()
+        .to_owned();
+    reward_event.attributes.push(minted_kvpair);
+
+    events.push(reward_event);
+
+    events
+}
+
+fn generate_tx_events(txaux: &TxAux, tx_action: TxAction) -> Vec<abci::Event> {
+    let mut events = Vec::new();
+
+    let mut valid_txs_event = Event::new();
+    valid_txs_event.field_type = TendermintEventType::ValidTransactions.to_string();
+
+    let mut fee_kvpair = KVPair::new();
+    let fee = tx_action.fee();
+    fee_kvpair.key = TendermintEventKey::Fee.into();
+    fee_kvpair.value = Vec::from(format!("{}", fee.to_coin()));
+    valid_txs_event.attributes.push(fee_kvpair);
+
+    let mut txid_kvpair = KVPair::new();
+    txid_kvpair.key = TendermintEventKey::TxId.into();
+    txid_kvpair.value = Vec::from(hex::encode(txaux.tx_id()).as_bytes());
+    valid_txs_event.attributes.push(txid_kvpair);
+
+    events.push(valid_txs_event);
+
+    let maybe_tx_staking_event = generate_tx_staking_change_event(tx_action);
+    if let Some(tx_staking_event) = maybe_tx_staking_event {
+        events.push(tx_staking_event);
+    }
+
+    events
+}
+
+fn generate_tx_staking_change_event(tx_action: TxAction) -> Option<abci::Event> {
+    match tx_action {
+        TxAction::Enclave(tx_enclave_action) => match tx_enclave_action {
+            TxEnclaveAction::Transfer { .. } => None,
+            TxEnclaveAction::Deposit { deposit, .. } => {
+                Some(StakingEvent::Deposit(&deposit.0, deposit.1).into())
+            }
+            TxEnclaveAction::Withdraw { withdraw, .. } => {
+                Some(StakingEvent::Withdraw(&withdraw.0, withdraw.1).into())
+            }
+        },
+        TxAction::Public(tx_public_action) => match tx_public_action {
+            TxPublicAction::Unbond {
+                unbond,
+                unbonded_from,
+                ..
+            } => Some(StakingEvent::Unbond(&unbond.0, unbond.1, unbonded_from).into()),
+            TxPublicAction::NodeJoin(staking_address, council_node) => {
+                Some(StakingEvent::NodeJoin(&staking_address, council_node).into())
+            }
+            TxPublicAction::Unjail(staking_address) => {
+                Some(StakingEvent::Unjail(&staking_address).into())
+            }
+        },
+    }
 }

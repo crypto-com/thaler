@@ -558,24 +558,37 @@ fn deliver_valid_tx() -> (
 }
 
 #[test]
-fn deliver_tx_should_add_valid_tx() {
+fn deliver_tx_should_add_tx_events() {
     let (app, tx, _, cresp) = deliver_valid_tx();
     assert_eq!(0, cresp.code);
     assert_eq!(1, app.delivered_txs.len());
-    assert_eq!(1, cresp.events.len());
-    assert_eq!(3, cresp.events[0].attributes.len());
+    assert_eq!(2, cresp.events.len());
+
+    let valid_tx_event = &cresp.events[0];
+    assert_eq!(2, valid_tx_event.attributes.len());
     // the unit test transaction just three outputs: 1 CRO + 1 carson / base unit + the rest
     assert_eq!(
-        &b"0.00000331".to_vec(),
-        &cresp.events[0].attributes[0].value
-    );
-    assert_eq!(
-        &b"0x89aef553a06ab0c3173e79de1ce241a9ed3b992c".to_vec(),
-        &cresp.events[0].attributes[1].value
+        "0.00000331",
+        String::from_utf8(valid_tx_event.attributes[0].value.clone()).unwrap()
     );
     assert_eq!(
         &hex::encode(&tx.id()).as_bytes().to_vec(),
-        &cresp.events[0].attributes[2].value
+        &valid_tx_event.attributes[1].value
+    );
+
+    let staking_event = &cresp.events[1];
+    assert_eq!(2, valid_tx_event.attributes.len());
+    assert_eq!(
+        "0x89aef553a06ab0c3173e79de1ce241a9ed3b992c",
+        String::from_utf8(staking_event.attributes[0].value.clone()).unwrap()
+    );
+    assert_eq!(
+        "withdraw",
+        String::from_utf8(staking_event.attributes[1].value.clone()).unwrap()
+    );
+    assert_eq!(
+        "[{\"key\":\"Unbonded\",\"value\":\"-9999999999999999999\"}]",
+        String::from_utf8(staking_event.attributes[2].value.clone()).unwrap()
     );
 }
 

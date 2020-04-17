@@ -145,7 +145,7 @@ impl StakingTable {
         block_time: Timespec,
         block_height: BlockHeight,
         tx: &UnbondTx,
-    ) -> Result<(), PublicTxError> {
+    ) -> Result<Timespec, PublicTxError> {
         let mut staking = self.get_or_default(heap, &tx.from_staked_account);
         if tx.nonce != staking.nonce {
             return Err(PublicTxError::IncorrectNonce);
@@ -160,12 +160,14 @@ impl StakingTable {
         self.sub_bonded(block_time, block_height, tx.value, &mut staking)
             .map_err(UnbondError::CoinError)?;
         staking.unbonded = unbonded;
-        staking.unbonded_from = block_time.saturating_add(unbonding_period);
+
+        let unbonded_from = block_time.saturating_add(unbonding_period);
+        staking.unbonded_from = unbonded_from;
         staking.inc_nonce();
         set_staking(heap, staking, self.minimal_required_staking);
         #[cfg(debug_assertions)]
         self.check_invariants(heap);
-        Ok(())
+        Ok(unbonded_from)
     }
 
     /// Handle withdraw tx
