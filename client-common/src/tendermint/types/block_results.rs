@@ -4,7 +4,6 @@ use std::convert::TryFrom;
 use std::str::{from_utf8, FromStr};
 
 use chain_core::common::{TendermintEventKey, TendermintEventType};
-use chain_core::init::address::RedeemAddress;
 use chain_core::init::{coin::Coin, MAX_COIN_DECIMALS};
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::TxId;
@@ -53,16 +52,17 @@ impl BlockResults for BlockResultsResponse {
     fn contains_account(&self, target_account: &StakedStateAddress) -> Result<bool> {
         match &self.txs_results {
             None => Ok(false),
-            Some(deliver_txs) => {
-                for deliver_txs in deliver_txs.iter() {
-                    for event in deliver_txs.events.iter() {
-                        if event.type_str == TendermintEventType::ValidTransactions.to_string() {
-                            match find_account_from_event_attributes(&event.attributes)? {
-                                None => continue,
-                                Some(address) => {
-                                    if address == *target_account {
-                                        return Ok(true);
-                                    }
+            Some(deliver_tx) => {
+                for deliver_tx in deliver_tx.iter() {
+                    for event in deliver_tx.events.iter() {
+                        if event.type_str != TendermintEventType::StakingChange.to_string() {
+                            continue;
+                        }
+                        match find_staking_address_from_event_attributes(&event.attributes)? {
+                            None => continue,
+                            Some(address) => {
+                                if address == *target_account {
+                                    return Ok(true);
                                 }
                             }
                         }
@@ -179,34 +179,34 @@ fn find_tx_id_from_event_attributes(attributes: &[Attribute]) -> Result<Option<[
     }
 }
 
-fn find_account_from_event_attributes(
+fn find_staking_address_from_event_attributes(
     attributes: &[Attribute],
 ) -> Result<Option<StakedStateAddress>> {
-    let maybe_attribute = find_event_attribute_by_key(attributes, TendermintEventKey::Account)?;
+    let maybe_attribute =
+        find_event_attribute_by_key(attributes, TendermintEventKey::StakingAddress)?;
     match maybe_attribute {
         None => Ok(None),
         Some(attribute) => {
-            let account = base64::decode(&attribute.value.as_ref()).chain(|| {
+            let staking_address = base64::decode(&attribute.value.as_ref()).chain(|| {
                 (
                     ErrorKind::DeserializationError,
                     "Unable to decode base64 bytes of account in block results",
                 )
             })?;
-            let address = String::from_utf8(account).chain(|| {
+            let staking_address = String::from_utf8(staking_address).chain(|| {
                 (
                     ErrorKind::DeserializationError,
                     "Unable to decode string of account in block results",
                 )
             })?;
-            let redeem_address = RedeemAddress::from_str(&address).chain(|| {
+            let staking_address = StakedStateAddress::from_str(&staking_address).chain(|| {
                 (
                     ErrorKind::DeserializationError,
                     "Unable to decode account address in block results",
                 )
             })?;
-            let address = StakedStateAddress::from(redeem_address);
 
-            Ok(Some(address))
+            Ok(Some(staking_address))
         }
     }
 }
@@ -214,28 +214,15 @@ fn find_account_from_event_attributes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chain_core::init::address::RedeemAddress;
     use tendermint::abci::tag::{Key, Value};
 
-    mod find_account_from_event_attributes {
+    mod block_results_contains_account {
         use super::*;
 
         #[test]
-        fn should_return_err_when_event_value_is_invalid_base64_encoded() {
-            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDMwNw=="}, {"key": "YWNjb3VudA==", "value": "invalidbase64string"}, {"key": "dHhpZA==", "value": "ZjFmNzNkNmFjZWMyMTExOGRkMWUzNmY2ODRhYWUyMmM2Y2IxN2ZjNTFhZGEzNGEzNDIzMDlkNTMxY2I5YmU4ZA=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
-
-            let block_results: BlockResultsResponse =
-                serde_json::from_str(response_str).expect("invalid response str");
-            let target_account = StakedStateAddress::from(
-                RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
-            );
-            let result = block_results.contains_account(&target_account);
-            assert!(result.is_err());
-            assert_eq!(ErrorKind::DeserializationError, result.unwrap_err().kind());
-        }
-
-        #[test]
-        fn should_return_err_when_account_value_is_invalid_utf8_string() {
-            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDMwNw=="}, {"key": "YWNjb3VudA==", "value": "AJ+Slg=="}, {"key": "dHhpZA==", "value": "ZjFmNzNkNmFjZWMyMTExOGRkMWUzNmY2ODRhYWUyMmM2Y2IxN2ZjNTFhZGEzNGEzNDIzMDlkNTMxY2I5YmU4ZA=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
+        fn should_return_err_when_staking_address_value_is_invalid_utf8_string() {
+            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "staking_change", "attributes": [{"key": "c3Rha2luZ19hZGRyZXNz", "value": "AJ+Slg=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
             let block_results: BlockResultsResponse =
                 serde_json::from_str(&response_str).expect("invalid response str");
             let target_account = StakedStateAddress::from(
@@ -247,8 +234,8 @@ mod tests {
         }
 
         #[test]
-        fn should_return_err_when_account_address_is_invalid() {
-            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDMwNw=="}, {"key": "YWNjb3VudA==", "value": "invalidbase64string"}, {"key": "dHhpZA==", "value": "ZjFmNzNkNmFjZWMyMTExOGRkMWUzNmY2ODRhYWUyMmM2Y2IxN2ZjNTFhZGEzNGEzNDIzMDlkNTMxY2I5YmU4ZA=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
+        fn should_return_err_when_staking_address_is_invalid() {
+            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "staking_change", "attributes": [{"key": "c3Rha2luZ19hZGRyZXNz", "value": "invalidbase64string"}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
             let block_results: BlockResultsResponse = serde_json::from_str(response_str).unwrap();
             let target_account = StakedStateAddress::from(
                 RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
@@ -259,7 +246,7 @@ mod tests {
         }
 
         #[test]
-        fn should_return_ok_of_none_when_block_results_has_no_account_event() {
+        fn should_return_ok_of_none_when_block_results_has_no_staking_change_event() {
             let response_str = r#"{"height": "3", "txs_results": null, "begin_block_events": null, "end_block_events": null, "validator_updates": null, "consensus_param_updates": null}"#;
             let block_results: BlockResultsResponse =
                 serde_json::from_str(response_str).expect("invalid response str");
@@ -273,7 +260,7 @@ mod tests {
 
         #[test]
         fn should_return_ok_of_true_when_block_results_has_the_target_account_event() {
-            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "valid_txs", "attributes": [{"key": "ZmVl", "value": "MC4wMDAwMDMwNw=="}, {"key": "YWNjb3VudA==", "value": "MHgzMzUwMmVkMzlkMGM0ZTIwNDRmYjM3ZmRjZDUxNjE0OTNmNTkwMGMz"}, {"key": "dHhpZA==", "value": "ZjFmNzNkNmFjZWMyMTExOGRkMWUzNmY2ODRhYWUyMmM2Y2IxN2ZjNTFhZGEzNGEzNDIzMDlkNTMxY2I5YmU4ZA=="}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
+            let response_str = r#"{"height": "37", "txs_results": [{"code": 0, "data": null, "log": "", "info": "", "gasWanted": "0", "gasUsed": "0", "events": [{"type": "staking_change", "attributes": [{"key": "c3Rha2luZ19hZGRyZXNz", "value": "MHgzMzUwMmVkMzlkMGM0ZTIwNDRmYjM3ZmRjZDUxNjE0OTNmNTkwMGMz"}]}], "codespace": ""}], "begin_block_events": null, "end_block_events": [{"type": "block_filter", "attributes": [{"key": "ZXRoYmxvb20=", "value": "AAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="}]}], "validator_updates": null, "consensus_param_updates": null}"#;
             let block_results: BlockResultsResponse =
                 serde_json::from_str(response_str).expect("invalid response str");
             let target_account = StakedStateAddress::from(
@@ -327,7 +314,8 @@ mod tests {
             };
             let attributes = vec![account_attribute.clone()];
 
-            let result = find_event_attribute_by_key(&attributes, TendermintEventKey::Account);
+            let result =
+                find_event_attribute_by_key(&attributes, TendermintEventKey::StakingAddress);
             assert!(result.is_err());
             assert_eq!(ErrorKind::DeserializationError, result.unwrap_err().kind());
         }
@@ -342,7 +330,7 @@ mod tests {
             let attributes = vec![account_attribute.clone()];
 
             assert!(
-                find_event_attribute_by_key(&attributes, TendermintEventKey::Account)
+                find_event_attribute_by_key(&attributes, TendermintEventKey::StakingAddress)
                     .unwrap()
                     .is_none()
             );
@@ -351,13 +339,13 @@ mod tests {
         #[test]
         fn should_return_result_of_the_attribute_when_key_exist() {
             let account_attribute = Attribute {
-                key: Key::from_str(&TendermintEventKey::Account.to_base64_string()).unwrap(),
+                key: Key::from_str(&TendermintEventKey::StakingAddress.to_base64_string()).unwrap(),
                 value: Value::from_str("MHhlNGEyYTcxOWNhOTMzZDNmNzlhODUwNmFhOTZjZWZkZTM0MDViMGE3")
                     .unwrap(),
             };
             let attributes = vec![account_attribute.clone()];
             let attribute_finded =
-                find_event_attribute_by_key(&attributes, TendermintEventKey::Account)
+                find_event_attribute_by_key(&attributes, TendermintEventKey::StakingAddress)
                     .unwrap()
                     .unwrap()
                     .to_owned();

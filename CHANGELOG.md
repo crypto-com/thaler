@@ -5,6 +5,7 @@
 ## v0.4.0
 
 ### Breaking changes
+* *chain-abci* [1449](https://github.com/crypto-com/chain/pull/1449): introduce staking_change event, remove RewardsDistribution and SlashValidators event
 * *client-rpc* [1443](https://github.com/crypto-com/chain/pull/1443): add progress, and multi-thread to sync api
 * *chain-abci* [1239](https://github.com/crypto-com/chain/pull/1239): basic versioning
 * *chain-abci* [1090](https://github.com/crypto-com/chain/pull/1090): upper bounds of reward parameters changed

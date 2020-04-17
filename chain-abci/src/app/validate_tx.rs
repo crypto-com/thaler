@@ -1,11 +1,9 @@
 use super::{BufferType, ChainNodeApp, ChainNodeState};
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::{process_public_tx, verify_enclave_tx, TxEnclaveAction};
+use crate::storage::{process_public_tx, verify_enclave_tx, TxAction, TxEnclaveAction};
 use crate::tx_error::TxError;
 use abci::*;
-use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::TxId;
-use chain_core::tx::fee::Fee;
 use chain_core::tx::TxAux;
 use chain_storage::buffer::{StoreKV, StoreStaking};
 use parity_scale_codec::Decode;
@@ -65,7 +63,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         &mut self,
         req: &impl RequestWithTx,
         buffer_type: BufferType,
-    ) -> Result<(TxAux, Fee, Option<StakedStateAddress>), TxError> {
+    ) -> Result<(TxAux, TxAction), TxError> {
         let extra_info = self.tx_extra_info(req.tx().len());
         let state = match buffer_type {
             BufferType::Consensus => self.last_state.as_mut().expect("expect last_state"),
@@ -73,7 +71,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         };
         let txaux = TxAux::decode(&mut req.tx())?;
         let txid = txaux.tx_id();
-        let (fee, maccount) = match &txaux {
+        let tx_action = match &txaux {
             TxAux::EnclaveTx(tx) => {
                 let action = verify_enclave_tx(
                     &mut self.tx_validator,
@@ -83,23 +81,28 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     &kv_store!(self, buffer_type),
                 )?;
                 // execute the action
-                let maccount = execute_enclave_tx(
+                execute_enclave_tx(
                     &mut staking_store!(self, state.staking_version, buffer_type),
                     &mut kv_store!(self, buffer_type),
                     state,
                     &txid,
                     &action,
                 );
-                (action.fee(), maccount)
+
+                TxAction::Enclave(action)
             }
-            TxAux::PublicTx(tx) => process_public_tx(
-                &mut staking_store!(self, state.staking_version, buffer_type),
-                &mut state.staking_table,
-                &extra_info,
-                &tx,
-            )?,
+            TxAux::PublicTx(tx) => {
+                let action = process_public_tx(
+                    &mut staking_store!(self, state.staking_version, buffer_type),
+                    &mut state.staking_table,
+                    &extra_info,
+                    &tx,
+                )?;
+
+                TxAction::Public(action)
+            }
         };
-        Ok((txaux, fee, maccount))
+        Ok((txaux, tx_action))
     }
 }
 
@@ -109,7 +112,7 @@ fn execute_enclave_tx(
     state: &mut ChainNodeState,
     txid: &TxId,
     action: &TxEnclaveAction,
-) -> Option<StakedStateAddress> {
+) {
     match action {
         TxEnclaveAction::Transfer {
             spend_utxo,
@@ -120,7 +123,6 @@ fn execute_enclave_tx(
             // Done in commit event
             // storage.create_utxo(no_of_outputs, txid);
             chain_storage::store_sealed_log(kvdb, &txid, sealed_log);
-            None
         }
         TxEnclaveAction::Deposit {
             spend_utxo,
@@ -132,7 +134,6 @@ fn execute_enclave_tx(
                 .staking_table
                 .deposit(trie, address, *amount)
                 .expect("deposit sanity check");
-            Some(*address)
         }
         TxEnclaveAction::Withdraw {
             withdraw: (address, amount),
@@ -149,7 +150,6 @@ fn execute_enclave_tx(
                 .staking_table
                 .withdraw(trie, state.block_time, address, *amount)
                 .expect("withdraw sanity check");
-            Some(*address)
         }
     }
 }
