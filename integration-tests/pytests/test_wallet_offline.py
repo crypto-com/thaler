@@ -93,12 +93,26 @@ def test_wallet_offline():
     time.sleep(2)
     print("transfer address: ", transfer_address_watchonly)
     enckey_default = rpc.wallet.enckey()
-    print("default enckey:", enckey_default)
+    loop=0
+    current_balance = rpc.wallet.balance()
+    start=time.time();
+    while int(current_balance["pending"]) != 0 and loop < 60:
+        rpc.wallet.sync()
+        current_balance = rpc.wallet.balance()
+        time.sleep(1)
+        loop += 1     
+    end=time.time()
+    elapsed = end - start
+    assert 0==int(current_balance["pending"])
+    assert int(current_balance["available"]) > 0
+    current_balance=rpc.wallet.balance();
+    print("current balance: ", current_balance)    
+    print("waited time for sync: ", elapsed);
     wait_for_tx(rpc, rpc.wallet.send(to_address=transfer_address_watchonly,
                                      amount=amount,
-                                     view_keys=[view_key_offline]))
-    rpc.wallet.sync()
-    rpc.wallet.sync(name=name_watchonly, enckey = enckey_watchonly)
+                                     view_keys=[view_key_offline]))    
+    rpc.wallet.sync()    
+    rpc.wallet.sync(name=name_watchonly, enckey = enckey_watchonly)    
 
     balance_watchonly1 = rpc.wallet.balance(name_watchonly, enckey=enckey_watchonly)
     print("balance watchonly", balance_watchonly1)

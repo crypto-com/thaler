@@ -138,7 +138,7 @@ impl CBindingCallback for CBindingData {
         self.user_data
     }
 
-    fn progress(&self, current: u64, start: u64, end: u64) -> i32 {
+    fn progress(&mut self, current: u64, start: u64, end: u64) -> i32 {
         let back = &self.progress_callback;
         (back)(
             current,

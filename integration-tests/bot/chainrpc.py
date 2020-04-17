@@ -158,13 +158,13 @@ class Wallet(BaseService):
             to_address, str(amount), view_keys or [])
 
     def sync(self, name=DEFAULT_WALLET, enckey=None):
-        return self.call('sync', [name, enckey or get_enckey()])
+        return self.call('sync', [name, enckey or get_enckey()],{"blocking":True, "reset":False, "do_loop":False})
 
     def sync_all(self, name=DEFAULT_WALLET, enckey=None):
-        return self.call('sync_all', [name, enckey or get_enckey()])
+        return self.call('sync', [name, enckey or get_enckey()],{"blocking":True, "reset":True, "do_loop":False})
 
     def sync_unlock(self, name=DEFAULT_WALLET, enckey=None):
-        return self.call('sync_unlockWallet', [name, enckey or get_enckey()])
+        return self.call('sync', [name, enckey or get_enckey()],{"blocking":False, "reset":False, "do_loop":True})
 
     def sync_stop(self, name=DEFAULT_WALLET, enckey=None):
         return self.call('sync_stop', [name, enckey or get_enckey()])
