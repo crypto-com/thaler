@@ -6,7 +6,6 @@ edition = "2018"
 build = "build.rs"
 
 [features]
-mock-enc-dec = []
 default = []
 mock-hardware-wallet = ["client-core/mock-hardware-wallet"]
 

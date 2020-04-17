@@ -16,15 +16,11 @@ use structopt::StructOpt;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use client_common::storage::SledStorage;
-#[cfg(not(feature = "mock-enc-dec"))]
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result, ResultExt, SecKey, Storage};
-#[cfg(not(feature = "mock-enc-dec"))]
 use client_core::cipher::DefaultTransactionObfuscation;
-#[cfg(feature = "mock-enc-dec")]
-use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::types::BalanceChange;
@@ -32,8 +28,6 @@ use client_core::wallet::syncer::{ObfuscationSyncerConfig, ProgressReport, Walle
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_core::TransactionObfuscation;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
-#[cfg(feature = "mock-enc-dec")]
-use log::warn;
 
 use self::address_command::AddressCommand;
 use self::multisig_command::MultiSigCommand;
@@ -208,7 +202,6 @@ pub enum Command {
 }
 
 /// normal
-#[cfg(not(feature = "mock-enc-dec"))]
 fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
     let result = tendermint_client.query("txquery", &[])?.bytes()?;
     let address = std::str::from_utf8(&result).chain(|| {
@@ -228,15 +221,6 @@ fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransact
             "Unable to decode txquery address",
         ))
     }
-}
-
-/// temporary
-#[cfg(feature = "mock-enc-dec")]
-fn get_tx_query(
-    tendermint_client: WebsocketRpcClient,
-) -> Result<MockAbciTransactionObfuscation<WebsocketRpcClient>> {
-    warn!("WARNING: Using mock (non-enclave) infrastructure");
-    Ok(MockAbciTransactionObfuscation::new(tendermint_client))
 }
 
 impl Command {

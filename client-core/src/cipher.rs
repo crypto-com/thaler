@@ -1,12 +1,10 @@
 //! Utilities for encryption and decryption
 mod default;
-mod mock_abci_transaction_obfuscation;
 
 pub mod cert;
 pub mod sgx;
 
 pub use default::DefaultTransactionObfuscation;
-pub use mock_abci_transaction_obfuscation::MockAbciTransactionObfuscation;
 
 use chain_core::tx::data::TxId;
 use chain_core::tx::TxAux;

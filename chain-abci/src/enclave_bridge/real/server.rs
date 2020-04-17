@@ -1,7 +1,12 @@
 use crate::app::ChainNodeState;
 use crate::enclave_bridge::real::enclave_u::encrypt_tx;
+use chain_core::state::account::StakedState;
+use chain_core::state::account::StakedStateOpWitness;
 use chain_core::tx::data::TxId;
+use chain_storage::buffer::Get;
+use chain_storage::jellyfish::StakingGetter;
 use chain_storage::ReadOnlyStorage;
+use chain_tx_validation::witness::verify_tx_recover_address;
 use chain_tx_validation::ChainInfo;
 use enclave_protocol::IntraEnclaveRequest;
 use enclave_protocol::{EnclaveRequest, EnclaveResponse, IntraEncryptRequest, FLAGS};
@@ -54,6 +59,17 @@ impl TxValidationServer {
         Some(result)
     }
 
+    fn lookup_state(
+        &self,
+        txid: &TxId,
+        sig: &StakedStateOpWitness,
+        last_version: u64,
+    ) -> Option<StakedState> {
+        let account_getter = StakingGetter::new(&self.storage, last_version);
+        let address = verify_tx_recover_address(sig, txid).ok()?;
+        account_getter.get(&address)
+    }
+
     pub fn execute(&mut self) {
         log::info!("running zmq server");
         self.start_signal.send(()).unwrap();
@@ -75,8 +91,16 @@ impl TxValidationServer {
                                 Some(state) => {
                                     let last_state = ChainNodeState::decode(&mut state.as_slice())
                                         .expect("deserialize app state");
+                                    let account = match req.op_sig {
+                                        Some(sig) => self.lookup_state(
+                                            &req.txid,
+                                            &sig,
+                                            last_state.staking_version,
+                                        ),
+                                        _ => None,
+                                    };
                                     // TODO: fee in enclave?
-                                    // FIXME: staked state not in request, but looked up?
+
                                     let min_fee = last_state
                                         .top_level
                                         .network_params
@@ -97,6 +121,7 @@ impl TxValidationServer {
                                         sealed_enc_request: req.sealed_enc_request,
                                         tx_inputs,
                                         info,
+                                        account,
                                     };
                                     encrypt_tx(
                                         self.enclave.geteid(),

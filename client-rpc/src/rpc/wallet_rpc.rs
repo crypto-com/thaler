@@ -534,7 +534,7 @@ pub mod tests {
                         },
                     }))
                 }
-                SignedTransaction::WithdrawUnbondedStakeTransaction(tx, _, witness) => {
+                SignedTransaction::WithdrawUnbondedStakeTransaction(tx, witness) => {
                     let plain = PlainTxAux::WithdrawUnbondedStakeTx(tx.clone());
                     Ok(TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
                         no_of_outputs: tx.outputs.len() as TxoSize,

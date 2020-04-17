@@ -15,10 +15,7 @@ use client_common::storage::SledStorage;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result};
-#[cfg(not(feature = "mock-enc-dec"))]
 use client_core::cipher::DefaultTransactionObfuscation;
-#[cfg(feature = "mock-enc-dec")]
-use client_core::cipher::MockAbciTransactionObfuscation;
 use client_core::service::HwKeyService;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
@@ -27,13 +24,8 @@ use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
 use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
-#[cfg(feature = "mock-enc-dec")]
-use log::warn;
 
-#[cfg(not(feature = "mock-enc-dec"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;
-#[cfg(feature = "mock-enc-dec")]
-type AppTransactionCipher = MockAbciTransactionObfuscation<WebsocketRpcClient>;
 type AppTxBuilder = DefaultWalletTransactionBuilder<SledStorage, LinearFee, AppTransactionCipher>;
 type AppWalletClient = DefaultWalletClient<SledStorage, WebsocketRpcClient, AppTxBuilder>;
 type AppOpsClient = DefaultNetworkOpsClient<
@@ -57,18 +49,8 @@ pub(crate) struct Server {
 }
 
 /// normal
-#[cfg(not(feature = "mock-enc-dec"))]
 fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
     DefaultTransactionObfuscation::from_tx_query(&tendermint_client)
-}
-
-/// temporary
-#[cfg(feature = "mock-enc-dec")]
-fn get_tx_query(
-    tendermint_client: WebsocketRpcClient,
-) -> Result<MockAbciTransactionObfuscation<WebsocketRpcClient>> {
-    warn!("{}", "WARNING: Using mock (non-enclave) infrastructure");
-    Ok(MockAbciTransactionObfuscation::new(tendermint_client))
 }
 
 impl Server {

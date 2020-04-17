@@ -102,6 +102,15 @@ pub struct ReadOnlyStorage {
     db: Arc<dyn KeyValueDB>,
 }
 
+impl Get for ReadOnlyStorage {
+    type Key = (u32, Vec<u8>);
+    type Value = Vec<u8>;
+    fn get(&self, key: &Self::Key) -> Option<Self::Value> {
+        let (col, key) = key;
+        self.db.get(*col, &key).expect("kv storage io error")
+    }
+}
+
 impl ReadOnlyStorage {
     pub fn get_last_app_state(&self) -> Option<Vec<u8>> {
         self.db

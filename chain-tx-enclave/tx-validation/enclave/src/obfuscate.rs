@@ -77,7 +77,7 @@ pub extern "C" fn ecall_test_encrypt(
                     .expect("construct plain payload"),
             )
         }
-        Ok(EncryptionRequest::WithdrawStake(tx, _account, witness)) => {
+        Ok(EncryptionRequest::WithdrawStake(tx, witness)) => {
             let txid = tx.id();
             encrypt(
                 TxToObfuscate::from(PlainTxAux::WithdrawUnbondedStakeTx(tx), txid)
@@ -198,20 +198,24 @@ pub(crate) fn handle_encrypt_request(
                 sgx_status_t::SGX_ERROR_INVALID_PARAMETER
             }
         }
-        (Some(EncryptionRequest::WithdrawStake(tx, account, witness)), None) => {
-            let txid = tx.id();
-            let maddress = verify_tx_recover_address(&witness, &txid);
-            match maddress {
-                Ok(address) if address == account.address => {
-                    let result = verify_unbonded_withdraw_core(&tx, &request.info, &account);
-                    let response = construct_response(
-                        result.map(|_| ()),
-                        TxToObfuscate::from(PlainTxAux::WithdrawUnbondedStakeTx(tx), txid)
-                            .expect("construct plain payload"),
-                    );
-                    write_back_response(response, response_buf, response_len)
+        (Some(EncryptionRequest::WithdrawStake(tx, witness)), None) => {
+            if let Some(account) = request.account {
+                let txid = tx.id();
+                let maddress = verify_tx_recover_address(&witness, &txid);
+                match maddress {
+                    Ok(address) if address == account.address => {
+                        let result = verify_unbonded_withdraw_core(&tx, &request.info, &account);
+                        let response = construct_response(
+                            result.map(|_| ()),
+                            TxToObfuscate::from(PlainTxAux::WithdrawUnbondedStakeTx(tx), txid)
+                                .expect("construct plain payload"),
+                        );
+                        write_back_response(response, response_buf, response_len)
+                    }
+                    _ => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
                 }
-                _ => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+            } else {
+                sgx_status_t::SGX_ERROR_INVALID_PARAMETER
             }
         }
         (_, _) => sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
