@@ -7,7 +7,11 @@ export const syncWallet = async (
 	walletRequest: WalletRequest,
 ): Promise<void> => {
 	console.log(`[Log] Synchronizing wallet "${walletRequest.name}"`);
-	await rpcClient.request("sync", [walletRequest]);
+	await rpcClient.request("sync", [walletRequest, {
+		blocking: true,
+		reset: false,
+		do_loop: false,
+	}]);
 };
 
 // Continuously check for TxId existence until found
