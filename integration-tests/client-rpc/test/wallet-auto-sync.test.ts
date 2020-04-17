@@ -113,8 +113,16 @@ describe("Wallet Auto-sync", () => {
 			"Error when waiting transfer transaction confirmation",
 		);
 
-		await zeroFeeRpcClient.request("sync_unlockWallet", [senderWalletRequest]);
-		await zeroFeeRpcClient.request("sync_unlockWallet", [receiverWalletRequest]);
+		await zeroFeeRpcClient.request("sync", [senderWalletRequest,{
+			blocking: false,
+			reset: false,
+			do_loop: false,
+		}]);
+		await zeroFeeRpcClient.request("sync", [receiverWalletRequest,{
+			blocking: false,
+			reset: false,
+			do_loop: false,
+		}]);
 		console.info(
 			`[Log] Enabled auto-sync for wallets "${senderWalletRequest.name}" and "${receiverWalletName}"`,
 		);
