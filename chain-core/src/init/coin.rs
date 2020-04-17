@@ -105,7 +105,8 @@ impl fmt::Display for CoinError {
 
 impl ::std::error::Error for CoinError {}
 
-type CoinResult = Result<Coin, CoinError>;
+/// result type relating to `Coin` operations
+pub type CoinResult = Result<Coin, CoinError>;
 
 impl Coin {
     /// create a coin of value `0`.

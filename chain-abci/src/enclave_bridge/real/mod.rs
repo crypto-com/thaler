@@ -33,7 +33,7 @@ impl Default for TxValidationApp {
             }
             Err(x) => {
                 panic!(
-                    "[-] Init  TX Validation  Sercer Enclave Failed {}!",
+                    "[-] Init TX Validation Server Enclave Failed {}!",
                     x.as_str()
                 );
             }

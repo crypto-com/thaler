@@ -82,7 +82,10 @@ fn verify_public_tx(
     let mut buffer = HashMap::new();
 
     let mut store = StakingBufferStore::new(StakingGetter::new(storage, version), &mut buffer);
-    let (fee, maddress) = process_public_tx(&mut store, &mut tbl, extra_info, txaux)?;
+    let tx_action = process_public_tx(&mut store, &mut tbl, extra_info, txaux)?;
+
+    let fee = tx_action.fee();
+    let maddress = tx_action.staking_address();
     Ok((fee, maddress.map(|addr| store.get(&addr).unwrap())))
 }
 

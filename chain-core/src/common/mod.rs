@@ -41,12 +41,10 @@ pub enum TendermintEventType {
     ValidTransactions,
     /// filter for view pub keys
     BlockFilter,
-    /// validators that were jailed
-    JailValidators,
-    /// validators that were slashed -- TODO: it'll be the same? needed?
-    SlashValidators,
+    /// staking account related changes
+    StakingChange,
     /// when reward was distributed
-    RewardsDistribution,
+    Reward,
 }
 
 impl fmt::Display for TendermintEventType {
@@ -54,9 +52,8 @@ impl fmt::Display for TendermintEventType {
         match self {
             TendermintEventType::ValidTransactions => write!(f, "valid_txs"),
             TendermintEventType::BlockFilter => write!(f, "block_filter"),
-            TendermintEventType::JailValidators => write!(f, "jail_validators"),
-            TendermintEventType::SlashValidators => write!(f, "slash_validators"),
-            TendermintEventType::RewardsDistribution => write!(f, "rewards_distribution"),
+            TendermintEventType::StakingChange => write!(f, "staking_change"),
+            TendermintEventType::Reward => write!(f, "reward"),
         }
     }
 }
@@ -64,16 +61,20 @@ impl fmt::Display for TendermintEventType {
 #[derive(Debug, Clone, Copy)]
 /// Attribute key of tendermint events
 pub enum TendermintEventKey {
-    /// affected state
-    Account,
     /// paid fee
     Fee,
     /// transaction identifier (in valid transactions)
     TxId,
     /// bloom filter of view keys
     EthBloom,
-    /// when reward was distributed
-    RewardsDistribution,
+    /// affected staking address
+    StakingAddress,
+    /// staking operation type
+    StakingOpType,
+    /// staking state difference
+    StakingDiff,
+    /// staking operation reason
+    StakingOpReason,
     /// new coins minted from rewards pool
     CoinMinted,
     /// when state was slashed
@@ -101,11 +102,13 @@ impl PartialEq<Vec<u8>> for TendermintEventKey {
 impl fmt::Display for TendermintEventKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TendermintEventKey::Account => write!(f, "account"),
             TendermintEventKey::Fee => write!(f, "fee"),
             TendermintEventKey::TxId => write!(f, "txid"),
             TendermintEventKey::EthBloom => write!(f, "ethbloom"),
-            TendermintEventKey::RewardsDistribution => write!(f, "dist"),
+            TendermintEventKey::StakingAddress => write!(f, "staking_address"),
+            TendermintEventKey::StakingOpType => write!(f, "staking_optype"),
+            TendermintEventKey::StakingDiff => write!(f, "staking_diff"),
+            TendermintEventKey::StakingOpReason => write!(f, "staking_opreason"),
             TendermintEventKey::CoinMinted => write!(f, "minted"),
             TendermintEventKey::Slash => write!(f, "slash"),
         }
@@ -123,11 +126,13 @@ impl TendermintEventKey {
     #[inline]
     pub fn to_base64_string(self) -> String {
         match self {
-            TendermintEventKey::Account => String::from("YWNjb3VudA=="),
             TendermintEventKey::Fee => String::from("ZmVl"),
             TendermintEventKey::TxId => String::from("dHhpZA=="),
             TendermintEventKey::EthBloom => String::from("ZXRoYmxvb20="),
-            TendermintEventKey::RewardsDistribution => String::from("ZGlzdA=="),
+            TendermintEventKey::StakingAddress => String::from("c3Rha2luZ19hZGRyZXNz"),
+            TendermintEventKey::StakingOpType => String::from("c3Rha2luZ19vcHR5cGU="),
+            TendermintEventKey::StakingDiff => String::from("c3Rha2luZ19kaWZm"),
+            TendermintEventKey::StakingOpReason => String::from("c3Rha2luZ19vcHJlYXNvbg=="),
             TendermintEventKey::CoinMinted => String::from("bWludGVk"),
             TendermintEventKey::Slash => String::from("c2xhc2g="),
         }
