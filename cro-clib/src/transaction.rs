@@ -120,15 +120,17 @@ fn create_encoded_signed_withdraw(
             ),
         )
     })?;
-    let mut access_policies = BTreeSet::new();
-    for a in viewkeys {
-        let view_key = a.trim();
-        let publickey = PublicKey::from_str(view_key)?;
-        access_policies.insert(TxAccessPolicy {
-            view_key: publickey.into(),
-            access: TxAccess::AllData,
-        });
-    }
+    let access_policies = viewkeys
+        .iter()
+        .map(|s| {
+            let view_key = s.trim();
+            let public_key = PublicKey::from_str(view_key)?;
+            Ok(TxAccessPolicy {
+                view_key: public_key.into(),
+                access: TxAccess::AllData,
+            })
+        })
+        .collect::<Result<BTreeSet<_>>>()?;
     let attributes = TxAttributes::new_with_access(network, access_policies.into_iter().collect());
     let nonce = staked_state.nonce;
     let amount = staked_state.unbonded;
