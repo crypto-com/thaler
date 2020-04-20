@@ -18,6 +18,7 @@ use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultE
 use client_core::wallet::WalletRequest;
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_network::NetworkOpsClient;
+use std::collections::BTreeSet;
 
 #[rpc]
 pub trait StakingRpc: Send + Sync {
@@ -200,7 +201,7 @@ where
                 &request.enckey,
                 total_amount,
                 to_transfer_address,
-                vec![],
+                &mut BTreeSet::new(),
                 self.network_id,
             )
             .map_err(to_rpc_error)?;
@@ -308,10 +309,10 @@ where
                 )
             })
             .map_err(to_rpc_error)?;
-        let view_keys = view_keys
+        let mut view_keys = view_keys
             .iter()
             .map(|key| PublicKey::from_str(key))
-            .collect::<CommonResult<Vec<PublicKey>>>()
+            .collect::<CommonResult<BTreeSet<PublicKey>>>()
             .map_err(to_rpc_error)?;
 
         let view_key = self
@@ -319,19 +320,18 @@ where
             .view_key(&request.name, &request.enckey)
             .map_err(to_rpc_error)?;
 
-        let mut access_policies = vec![TxAccessPolicy {
-            view_key: view_key.into(),
-            access: TxAccess::AllData,
-        }];
+        view_keys.insert(view_key);
 
-        for key in view_keys.iter() {
-            access_policies.push(TxAccessPolicy {
+        let access_policies: BTreeSet<_> = view_keys
+            .iter()
+            .map(|key| TxAccessPolicy {
                 view_key: key.into(),
                 access: TxAccess::AllData,
-            });
-        }
+            })
+            .collect();
 
-        let attributes = TxAttributes::new_with_access(self.network_id, access_policies);
+        let attributes =
+            TxAttributes::new_with_access(self.network_id, access_policies.into_iter().collect());
 
         let (transaction, tx_pending) = self
             .ops_client

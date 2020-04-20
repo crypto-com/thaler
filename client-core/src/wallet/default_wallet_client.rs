@@ -38,6 +38,7 @@ use client_common::{
     seckey::derive_enckey, Error, ErrorKind, PrivateKey, PrivateKeyAction, PublicKey, Result,
     ResultExt, SecKey, SignedTransaction, Storage, Transaction, TransactionInfo,
 };
+use std::collections::BTreeSet;
 use std::time::Duration;
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
@@ -148,7 +149,7 @@ where
         enckey: &SecKey,
         amount: Coin,
         address: ExtendedAddr,
-        view_keys: Vec<PublicKey>,
+        view_keys: &mut BTreeSet<PublicKey>,
         network_id: u8,
     ) -> Result<TxId> {
         let current_block_height = self.get_current_block_height()?;
@@ -156,19 +157,18 @@ where
 
         let view_key = self.view_key(name, enckey)?;
 
-        let mut access_policies = vec![TxAccessPolicy {
-            view_key: view_key.into(),
-            access: TxAccess::AllData,
-        }];
+        view_keys.insert(view_key);
 
-        for key in view_keys.iter() {
-            access_policies.push(TxAccessPolicy {
+        let access_policies: BTreeSet<_> = view_keys
+            .iter()
+            .map(|key| TxAccessPolicy {
                 view_key: key.into(),
                 access: TxAccess::AllData,
-            });
-        }
+            })
+            .collect();
 
-        let attributes = TxAttributes::new_with_access(network_id, access_policies);
+        let attributes =
+            TxAttributes::new_with_access(network_id, access_policies.into_iter().collect());
 
         let return_address = self.new_transfer_address(name, enckey)?;
         let (transaction, selected_inputs, return_amount) =
@@ -205,7 +205,7 @@ where
         enckey: &SecKey,
         amount: Coin,
         address: ExtendedAddr,
-        view_keys: Vec<PublicKey>,
+        view_keys: &mut BTreeSet<PublicKey>,
         network_id: u8,
     ) -> Result<TxId> {
         let tx_id = self.send_to_address(name, enckey, amount, address, view_keys, network_id)?;
@@ -957,24 +957,21 @@ where
         unsigned_tx: UnsignedTransferTransaction,
     ) -> Result<SignedTransferTransaction> {
         let tx_out = TxOut::new(unsigned_tx.to_address, unsigned_tx.amount);
-
         let view_key = self.view_key(name, enckey)?;
-
-        let mut access_policies = unsigned_tx
-            .view_keys
+        let mut view_keys = unsigned_tx.view_keys;
+        view_keys.push(view_key);
+        let access_policies: BTreeSet<_> = view_keys
             .iter()
             .map(|key| TxAccessPolicy {
                 view_key: key.into(),
                 access: TxAccess::AllData,
             })
-            .collect::<Vec<_>>();
+            .collect();
 
-        access_policies.push(TxAccessPolicy {
-            view_key: view_key.into(),
-            access: TxAccess::AllData,
-        });
-
-        let attributes = TxAttributes::new_with_access(unsigned_tx.network_id, access_policies);
+        let attributes = TxAttributes::new_with_access(
+            unsigned_tx.network_id,
+            access_policies.into_iter().collect(),
+        );
 
         let return_address = unsigned_tx.return_address.clone();
 
