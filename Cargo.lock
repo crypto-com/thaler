@@ -501,6 +501,7 @@ dependencies = [
  "kvdb",
  "kvdb-memorydb",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mock-utils",
  "parity-scale-codec",
  "protobuf",
  "quickcheck",
@@ -744,6 +745,7 @@ dependencies = [
  "jsonrpc-core",
  "lazy_static",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "mock-utils",
  "non-empty-vec",
  "num-bigint 0.2.6",
  "parity-scale-codec",
@@ -2486,6 +2488,14 @@ name = "mirai-annotations"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb967d27c8ae70e45f44a8f6b615f292fd865cf07f72573b1edd75f399790422"
+
+[[package]]
+name = "mock-utils"
+version = "0.1.0"
+dependencies = [
+ "chain-core",
+ "parity-scale-codec",
+]
 
 [[package]]
 name = "native-tls"

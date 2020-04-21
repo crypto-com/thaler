@@ -1,0 +1,13 @@
+[package]
+name = "mock-utils"
+version = "0.1.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Mock enclave utilities"
+readme = "../../README.md"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chain-core = { path = "../../chain-core" }
+parity-scale-codec = { features = ["derive"], version = "1.3" }

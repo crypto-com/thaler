@@ -8,7 +8,7 @@ use parity_scale_codec::{Decode, Encode};
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
-#[cfg(all(not(feature = "mock-validation"), target_os = "linux"))]
+#[cfg(all(not(feature = "mock-enclave"), target_os = "linux"))]
 use crate::enclave_bridge::real::start_zmq;
 use crate::enclave_bridge::EnclaveProxy;
 use crate::staking::StakingTable;
@@ -290,7 +290,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             .expect("failed to decode two last hex digits in chain ID")[0];
 
         if let (Some(_), Some(_conn_str)) = (tx_query_address.as_ref(), enclave_server.as_ref()) {
-            #[cfg(all(not(feature = "mock-validation"), target_os = "linux"))]
+            #[cfg(all(not(feature = "mock-enclave"), target_os = "linux"))]
             let _ = start_zmq(_conn_str, chain_hex_id, storage.get_read_only());
         }
 

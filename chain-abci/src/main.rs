@@ -4,13 +4,13 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use chain_abci::app::ChainNodeApp;
-#[cfg(any(feature = "mock-validation", not(target_os = "linux")))]
+#[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 use chain_abci::enclave_bridge::mock::MockClient;
-#[cfg(all(not(feature = "mock-validation"), target_os = "linux"))]
+#[cfg(all(not(feature = "mock-enclave"), target_os = "linux"))]
 use chain_abci::enclave_bridge::real::TxValidationApp;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_storage::{Storage, StorageConfig, StorageType};
-#[cfg(any(feature = "mock-validation", not(target_os = "linux")))]
+#[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 use log::warn;
 use serde::Deserialize;
 use std::io::BufReader;
@@ -130,13 +130,13 @@ pub struct AbciOpt {
 }
 
 /// normal
-#[cfg(all(not(feature = "mock-validation"), target_os = "linux"))]
+#[cfg(all(not(feature = "mock-enclave"), target_os = "linux"))]
 fn get_enclave_proxy() -> TxValidationApp {
     TxValidationApp::default()
 }
 
 /// for development
-#[cfg(any(feature = "mock-validation", not(target_os = "linux")))]
+#[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 fn get_enclave_proxy() -> MockClient {
     warn!("Using mock (non-enclave) infrastructure");
     MockClient::new(get_network_id())

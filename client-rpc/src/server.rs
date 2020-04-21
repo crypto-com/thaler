@@ -4,6 +4,8 @@ use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
 use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
 use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
 use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
+#[cfg(feature = "mock-enclave")]
+use log::warn;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::thread;
@@ -15,7 +17,6 @@ use client_common::storage::SledStorage;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result};
-use client_core::cipher::DefaultTransactionObfuscation;
 use client_core::service::HwKeyService;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
@@ -25,7 +26,16 @@ use client_network::network_ops::DefaultNetworkOpsClient;
 use jsonrpc_core::{self, IoHandler};
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
 
+#[cfg(feature = "mock-enclave")]
+use client_core::cipher::mock::MockAbciTransactionObfuscation;
+#[cfg(not(feature = "mock-enclave"))]
+use client_core::cipher::DefaultTransactionObfuscation;
+
+#[cfg(not(feature = "mock-enclave"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;
+#[cfg(feature = "mock-enclave")]
+type AppTransactionCipher = MockAbciTransactionObfuscation<WebsocketRpcClient>;
+
 type AppTxBuilder = DefaultWalletTransactionBuilder<SledStorage, LinearFee, AppTransactionCipher>;
 type AppWalletClient = DefaultWalletClient<SledStorage, WebsocketRpcClient, AppTxBuilder>;
 type AppOpsClient = DefaultNetworkOpsClient<
@@ -49,8 +59,10 @@ pub(crate) struct Server {
 }
 
 /// normal
-fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
-    DefaultTransactionObfuscation::from_tx_query(&tendermint_client)
+fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<AppTransactionCipher> {
+    #[cfg(feature = "mock-enclave")]
+    warn!("{}", "WARNING: Using mock (non-enclave) infrastructure");
+    AppTransactionCipher::from_tx_query(&tendermint_client)
 }
 
 impl Server {

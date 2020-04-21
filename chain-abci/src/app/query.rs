@@ -226,6 +226,14 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     .expect("Unable to serialize validator metadata into json")
                     .into_bytes();
             }
+            "sealed" => {
+                self.lookup(
+                    &mut resp,
+                    LookupItem::TxSealed,
+                    &_req.data[..],
+                    "sealed log not found",
+                );
+            }
             _ => {
                 resp.log += "invalid path";
                 resp.code = 1;

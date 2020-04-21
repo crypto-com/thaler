@@ -9,6 +9,8 @@ use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use cli_table::format::{CellFormat, Color, Justify};
 use cli_table::{Cell, Row, Table};
 use hex::encode;
+#[cfg(feature = "mock-enclave")]
+use log::warn;
 use pbr::ProgressBar;
 use quest::{ask, success};
 use structopt::StructOpt;
@@ -16,11 +18,11 @@ use structopt::StructOpt;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use client_common::storage::SledStorage;
+#[cfg(not(feature = "mock-enclave"))]
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result, ResultExt, SecKey, Storage};
-use client_core::cipher::DefaultTransactionObfuscation;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::types::BalanceChange;
@@ -41,6 +43,11 @@ use client_core::service::HwKeyService;
 use client_core::service::MockHardwareService;
 use once_cell::sync::Lazy;
 use std::env;
+
+#[cfg(feature = "mock-enclave")]
+use client_core::cipher::mock::MockAbciTransactionObfuscation;
+#[cfg(not(feature = "mock-enclave"))]
+use client_core::cipher::DefaultTransactionObfuscation;
 
 static VERSION: Lazy<String> = Lazy::new(|| {
     format!(
@@ -202,6 +209,7 @@ pub enum Command {
 }
 
 /// normal
+#[cfg(not(feature = "mock-enclave"))]
 fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
     let result = tendermint_client.query("txquery", &[])?.bytes();
     let address = std::str::from_utf8(&result).chain(|| {
@@ -221,6 +229,15 @@ fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransact
             "Unable to decode txquery address",
         ))
     }
+}
+
+/// mock
+#[cfg(feature = "mock-enclave")]
+fn get_tx_query(
+    tendermint_client: WebsocketRpcClient,
+) -> Result<MockAbciTransactionObfuscation<WebsocketRpcClient>> {
+    warn!("WARNING: Using mock (non-enclave) infrastructure");
+    Ok(MockAbciTransactionObfuscation::new(tendermint_client))
 }
 
 impl Command {

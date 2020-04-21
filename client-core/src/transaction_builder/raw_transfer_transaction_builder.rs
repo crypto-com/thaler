@@ -555,13 +555,13 @@ mod raw_transfer_transaction_builder_tests {
     use chain_core::common::MerkleTree;
     use chain_core::common::H256;
     use chain_core::init::MAX_COIN;
-    use chain_core::state::tendermint::BlockHeight;
     use chain_core::tx::data::address::ExtendedAddr;
     use chain_core::tx::data::input::TxoSize;
     use chain_core::tx::fee::{LinearFee, Milli};
     use chain_core::tx::witness::tree::RawXOnlyPubkey;
-    use chain_core::tx::{TxEnclaveAux, TxObfuscated};
+    use chain_core::tx::TxEnclaveAux;
     use client_common::{MultiSigAddress, PrivateKey, PublicKey, Transaction};
+    use mock_utils::encrypt;
 
     use crate::signer::{KeyPairSigner, Signer};
     use crate::unspent_transactions::SelectedUnspentTransactions;
@@ -1296,19 +1296,12 @@ mod raw_transfer_transaction_builder_tests {
         }
 
         fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
-            let txpayload = transaction.encode();
-
             match transaction {
-                SignedTransaction::TransferTransaction(tx, _) => {
+                SignedTransaction::TransferTransaction(ref tx, _) => {
                     Ok(TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                         inputs: tx.inputs.clone(),
                         no_of_outputs: tx.outputs.len() as TxoSize,
-                        payload: TxObfuscated {
-                            txid: [0; 32],
-                            key_from: BlockHeight::genesis(),
-                            init_vector: [0u8; 12],
-                            txpayload,
-                        },
+                        payload: encrypt(&transaction.clone().into(), [0; 32]),
                     }))
                 }
                 _ => unreachable!(),

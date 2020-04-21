@@ -25,9 +25,9 @@ if [ $BUILD_MODE == "sgx" ]; then
     make -C chain-tx-enclave/tx-validation
     make -C chain-tx-enclave/tx-query
 else
-    cargo build $CARGO_ARGS --manifest-path client-rpc/Cargo.toml
-    cargo build $CARGO_ARGS --manifest-path client-cli/Cargo.toml
-    cargo build $CARGO_ARGS --manifest-path cro-clib/Cargo.toml
-    cargo build $CARGO_ARGS --features mock-validation --manifest-path dev-utils/Cargo.toml
-    cargo build $CARGO_ARGS --features mock-validation --manifest-path chain-abci/Cargo.toml
+    cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-rpc/Cargo.toml
+    cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-cli/Cargo.toml
+    cargo build $CARGO_ARGS --features mock-enclave --manifest-path cro-clib/Cargo.toml
+    cargo build $CARGO_ARGS --features mock-enclave --manifest-path dev-utils/Cargo.toml
+    cargo build $CARGO_ARGS --features mock-enclave --manifest-path chain-abci/Cargo.toml
 fi

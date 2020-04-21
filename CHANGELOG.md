@@ -4,7 +4,11 @@
 ## v0.5.0
 ### Breaking changes
 ### Features
+
+- *chain-abci* [1458](https://github.com/crypto-com/chain/pull/1458): new abci_query path "sealed", query sealed log of transaction id.
+
 ### Improvements
+
 ### Bug Fixes
 
 *April 22, 2020*

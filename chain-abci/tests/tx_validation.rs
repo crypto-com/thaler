@@ -47,7 +47,7 @@ use chain_tx_validation::{
 };
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
-use parity_scale_codec::Encode;
+use mock_utils::{encrypt, encrypt_payload, seal};
 use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, key::XOnlyPublicKey, Message, Secp256k1, Signing};
 use std::fmt::Debug;
@@ -205,11 +205,10 @@ fn prepate_init_tx(
     let old_tx_id = old_tx.id();
 
     let mut inittx = db.transaction();
-    // FIXME: https://github.com/crypto-com/chain/issues/885
     inittx.put(
         COL_ENCLAVE_TX,
         &old_tx_id[..],
-        &TxWithOutputs::Transfer(old_tx).encode(),
+        &seal(&TxWithOutputs::Transfer(old_tx)),
     );
 
     inittx.put(
@@ -240,20 +239,14 @@ fn prepare_app_valid_transfer_tx(
     tx.add_output(TxOut::new(addr, Coin::new(9).unwrap()));
     let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
     let addr2 = get_address(&secp, &sk2).0;
-    tx.add_output(TxOut::new(addr2, Coin::new(99999665).unwrap()));
+    tx.add_output(TxOut::new(addr2, Coin::new(99999649).unwrap()));
 
     let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx.id(), &secret_key, &merkle_tree)];
     let plain_txaux = PlainTxAux::new(tx.clone(), witness.clone().into());
-    // TODO: mock enc
     let txaux = TxEnclaveAux::TransferTx {
         inputs: tx.inputs.clone(),
         no_of_outputs: tx.outputs.len() as TxoSize,
-        payload: TxObfuscated {
-            txid: tx.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0; 12],
-            txpayload: plain_txaux.encode(),
-        },
+        payload: encrypt(&plain_txaux, tx.id()),
     };
     (
         db.clone(),
@@ -395,21 +388,15 @@ fn prepare_app_valid_withdraw_tx(
 
     let outputs = vec![
         TxOut::new_with_timelock(addr1, Coin::new(9).unwrap(), 0),
-        TxOut::new_with_timelock(addr2, Coin::new(99999744).unwrap(), 0),
+        TxOut::new_with_timelock(addr2, Coin::new(99999728).unwrap(), 0),
     ];
 
     let tx = WithdrawUnbondedTx::new(1, outputs, TxAttributes::new(DEFAULT_CHAIN_ID));
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
-    // TODO: mock enc
     let txaux = TxEnclaveAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx.outputs.len() as TxoSize,
         witness: witness.clone(),
-        payload: TxObfuscated {
-            txid: tx.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0; 12],
-            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
-        },
+        payload: encrypt(&PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()), tx.id()),
     };
     (txaux, tx, witness, account, secret_key, storage)
 }
@@ -418,14 +405,14 @@ fn prepare_app_valid_withdraw_tx(
 fn existing_account_withdraw_tx_should_verify() {
     let (txaux, _, _, _, _, storage) = prepare_app_valid_withdraw_tx(0);
     let extra_info = get_chain_info_enc(&txaux);
-    let result = verify_enclave_tx(
+    verify_enclave_tx(
         &mut get_enclave_bridge_mock(),
         &txaux,
         &extra_info,
         0,
         &storage,
-    );
-    assert!(result.is_ok());
+    )
+    .unwrap();
 }
 
 #[test]
@@ -595,15 +582,9 @@ fn prepare_app_valid_deposit_tx(
     );
 
     let witness: Vec<TxInWitness> = vec![get_tx_witness(secp, &tx.id(), &secret_key, &merkle_tree)];
-    // TODO: mock enc
     let txaux = TxEnclaveAux::DepositStakeTx {
         tx: tx.clone(),
-        payload: TxObfuscated {
-            txid: tx.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0u8; 12],
-            txpayload: PlainTxAux::DepositStakeTx(witness.clone().into()).encode(),
-        },
+        payload: encrypt(&PlainTxAux::DepositStakeTx(witness.clone().into()), tx.id()),
     };
     (
         db.clone(),
@@ -862,7 +843,7 @@ fn replace_tx_payload(
                 txid: tx.id(),
                 key_from,
                 init_vector,
-                txpayload: plain_tx.encode(),
+                txpayload: encrypt_payload(&plain_tx),
             },
         },
         (
@@ -882,7 +863,7 @@ fn replace_tx_payload(
                 txid: tx.id(),
                 key_from,
                 init_vector,
-                txpayload: plain_tx.encode(),
+                txpayload: encrypt_payload(&plain_tx),
             },
         },
         (
@@ -904,7 +885,7 @@ fn replace_tx_payload(
                 txid: tx.id(),
                 key_from,
                 init_vector,
-                txpayload: plain_tx.encode(),
+                txpayload: encrypt_payload(&plain_tx),
             },
         },
         _ => unreachable!(),
@@ -1194,12 +1175,7 @@ fn prepare_withdraw_transaction(secret_key: &SecretKey) -> TxEnclaveAux {
     TxEnclaveAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx.outputs.len() as TxoSize,
         witness,
-        payload: TxObfuscated {
-            txid: tx.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0; 12],
-            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx).encode(),
-        },
+        payload: encrypt(&PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()), tx.id()),
     }
 }
 
@@ -1220,12 +1196,7 @@ fn prepare_deposit_transaction(
 
     TxEnclaveAux::DepositStakeTx {
         tx: tx.clone(),
-        payload: TxObfuscated {
-            txid: tx.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0u8; 12],
-            txpayload: PlainTxAux::DepositStakeTx(witness.into()).encode(),
-        },
+        payload: encrypt(&PlainTxAux::DepositStakeTx(witness.into()), tx.id()),
     }
 }
 
