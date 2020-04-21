@@ -581,22 +581,17 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
 ) -> Result<(TxAux, TransactionPending)> {
     let from_address = ask_staking_address()?;
     let to_address = ask_transfer_address()?;
-    let view_keys = ask_view_keys()?;
-
+    let mut view_keys = ask_view_keys()?;
     let self_view_key = wallet_client.view_key(name, enckey)?;
+    view_keys.push(self_view_key);
 
-    let mut access_policies = BTreeSet::new();
-    access_policies.insert(TxAccessPolicy {
-        view_key: self_view_key.into(),
-        access: TxAccess::AllData,
-    });
-
-    for key in view_keys.iter() {
-        access_policies.insert(TxAccessPolicy {
+    let access_policies: BTreeSet<_> = view_keys
+        .iter()
+        .map(|key| TxAccessPolicy {
             view_key: key.into(),
             access: TxAccess::AllData,
-        });
-    }
+        })
+        .collect();
 
     let attributes =
         TxAttributes::new_with_access(get_network_id(), access_policies.into_iter().collect());
@@ -673,7 +668,7 @@ fn new_deposit_amount_transaction<T: WalletClient, N: NetworkOpsClient>(
         enckey,
         total_amount,
         to_transfer_address,
-        vec![],
+        &mut BTreeSet::new(),
         get_network_id(),
     )?;
 
@@ -723,22 +718,16 @@ fn new_transfer_transaction<T: WalletClient>(
     enckey: &SecKey,
 ) -> Result<(TxAux, TransactionPending)> {
     let outputs = ask_outputs()?;
-    let view_keys = ask_view_keys()?;
-
+    let mut view_keys = ask_view_keys()?;
     let self_view_key = wallet_client.view_key(name, enckey)?;
-
-    let mut access_policies = BTreeSet::new();
-    access_policies.insert(TxAccessPolicy {
-        view_key: self_view_key.into(),
-        access: TxAccess::AllData,
-    });
-
-    for key in view_keys.iter() {
-        access_policies.insert(TxAccessPolicy {
+    view_keys.push(self_view_key);
+    let access_policies: BTreeSet<_> = view_keys
+        .iter()
+        .map(|key| TxAccessPolicy {
             view_key: key.into(),
             access: TxAccess::AllData,
-        });
-    }
+        })
+        .collect();
 
     let attributes =
         TxAttributes::new_with_access(get_network_id(), access_policies.into_iter().collect());

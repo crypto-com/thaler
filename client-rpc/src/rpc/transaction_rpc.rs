@@ -9,6 +9,7 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::TransactionId;
 use client_common::PublicKey;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RawTransaction {
@@ -55,16 +56,16 @@ impl TransactionRpc for TransactionRpcImpl {
         outputs: Vec<TxOut>,
         view_keys: Vec<PublicKey>,
     ) -> Result<RawTransaction> {
-        let mut access_policies: Vec<TxAccessPolicy> = vec![];
-
-        for key in view_keys.iter() {
-            access_policies.push(TxAccessPolicy {
+        let access_policies: BTreeSet<_> = view_keys
+            .iter()
+            .map(|key| TxAccessPolicy {
                 view_key: key.into(),
                 access: TxAccess::AllData,
-            });
-        }
+            })
+            .collect();
 
-        let attributes = TxAttributes::new_with_access(self.network_id, access_policies);
+        let attributes =
+            TxAttributes::new_with_access(self.network_id, access_policies.into_iter().collect());
 
         let tx = Tx {
             inputs,
@@ -129,21 +130,21 @@ mod test {
             2,
             "Returned raw transaction should have all view_keys from parameter"
         );
-        assert_eq!(
-            raw_transaction.tx.attributes.allowed_view[0],
-            TxAccessPolicy {
+        assert!(raw_transaction
+            .tx
+            .attributes
+            .allowed_view
+            .contains(&TxAccessPolicy {
                 view_key: view_key_1.into(),
                 access: TxAccess::AllData,
-            },
-            "Returned raw transaction should have the same view key from parameter"
-        );
-        assert_eq!(
-            raw_transaction.tx.attributes.allowed_view[1],
-            TxAccessPolicy {
+            }));
+        assert!(raw_transaction
+            .tx
+            .attributes
+            .allowed_view
+            .contains(&TxAccessPolicy {
                 view_key: view_key_2.into(),
                 access: TxAccess::AllData,
-            },
-            "Returned raw transaction should have the same view key from parameter"
-        );
+            }));
     }
 }

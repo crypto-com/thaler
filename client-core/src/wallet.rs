@@ -9,6 +9,7 @@ pub use default_wallet_client::DefaultWalletClient;
 use indexmap::IndexSet;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
+use std::collections::BTreeSet;
 
 use chain_core::common::{Proof, H256};
 use chain_core::init::address::RedeemAddress;
@@ -70,7 +71,7 @@ pub trait WalletClient: Send + Sync {
         enckey: &SecKey,
         amount: Coin,
         address: ExtendedAddr,
-        view_keys: Vec<PublicKey>,
+        view_keys: &mut BTreeSet<PublicKey>,
         network_id: u8,
     ) -> Result<TxId>;
 
@@ -81,7 +82,7 @@ pub trait WalletClient: Send + Sync {
         enckey: &SecKey,
         amount: Coin,
         address: ExtendedAddr,
-        view_keys: Vec<PublicKey>,
+        view_keys: &mut BTreeSet<PublicKey>,
         network_id: u8,
     ) -> Result<TxId>;
 

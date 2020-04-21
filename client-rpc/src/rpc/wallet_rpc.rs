@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::str::FromStr;
 
 use jsonrpc_core::Result;
@@ -339,10 +340,10 @@ where
         let address = to_address
             .parse::<ExtendedAddr>()
             .map_err(|err| rpc_error_from_string(format!("{}", err)))?;
-        let view_keys = view_keys
+        let mut view_keys = view_keys
             .iter()
             .map(|view_key| PublicKey::from_str(view_key))
-            .collect::<CommonResult<Vec<PublicKey>>>()
+            .collect::<CommonResult<BTreeSet<PublicKey>>>()
             .map_err(to_rpc_error)?;
         let tx_id = self
             .client
@@ -351,7 +352,7 @@ where
                 &request.enckey,
                 amount,
                 address,
-                view_keys,
+                &mut view_keys,
                 self.network_id,
             )
             .map_err(to_rpc_error)?;
