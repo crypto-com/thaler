@@ -9,7 +9,7 @@ pub trait Client: Send + Sync + Clone {
     fn genesis(&self) -> Result<Genesis>;
 
     /// Makes `status` call to tendermint
-    fn status(&self) -> Result<Status>;
+    fn status(&self) -> Result<StatusResponse>;
 
     /// Makes `block` call to tendermint
     fn block(&self, height: u64) -> Result<Block>;
@@ -18,13 +18,13 @@ pub trait Client: Send + Sync + Clone {
     fn block_batch<'a, T: Iterator<Item = &'a u64>>(&self, heights: T) -> Result<Vec<Block>>;
 
     /// Makes `block_results` call to tendermint
-    fn block_results(&self, height: u64) -> Result<BlockResults>;
+    fn block_results(&self, height: u64) -> Result<BlockResultsResponse>;
 
     /// Makes batched `block_results` call to tendermint
     fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
         &self,
         heights: T,
-    ) -> Result<Vec<BlockResults>>;
+    ) -> Result<Vec<BlockResultsResponse>>;
 
     /// Fetch continuous blocks and verify them.
     fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(

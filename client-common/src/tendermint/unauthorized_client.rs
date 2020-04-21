@@ -13,7 +13,7 @@ impl Client for UnauthorizedClient {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn status(&self) -> Result<Status> {
+    fn status(&self) -> Result<StatusResponse> {
         Err(ErrorKind::PermissionDenied.into())
     }
 
@@ -25,14 +25,14 @@ impl Client for UnauthorizedClient {
         Err(ErrorKind::PermissionDenied.into())
     }
 
-    fn block_results(&self, _height: u64) -> Result<BlockResults> {
+    fn block_results(&self, _height: u64) -> Result<BlockResultsResponse> {
         Err(ErrorKind::PermissionDenied.into())
     }
 
     fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
         &self,
         _heights: T,
-    ) -> Result<Vec<BlockResults>> {
+    ) -> Result<Vec<BlockResultsResponse>> {
         Err(ErrorKind::PermissionDenied.into())
     }
 

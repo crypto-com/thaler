@@ -10,12 +10,12 @@ use chain_core::tx::data::TxId;
 use chain_core::tx::fee::LinearFee;
 use chain_core::tx::{TxAux, TxEnclaveAux, TxPublicAux};
 
-pub use self::block_results::*;
+pub use self::block_results::BlockResults;
 pub use tendermint::rpc::endpoint::{
     abci_query::AbciQuery, abci_query::Response as AbciQueryResponse,
-    block::Response as BlockResponse, broadcast::tx_sync::Response as BroadcastTxResponse,
-    commit::Response as CommitResponse, status::Response as Status,
-    validators::Response as ValidatorsResponse,
+    block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
+    broadcast::tx_sync::Response as BroadcastTxResponse, commit::Response as CommitResponse,
+    status::Response as StatusResponse, validators::Response as ValidatorsResponse,
 };
 pub use tendermint::rpc::endpoint::{broadcast, status};
 pub use tendermint::{
@@ -24,7 +24,7 @@ pub use tendermint::{
 };
 
 /// crypto-com instantiated genesis type
-pub type Genesis = GenericGenesis<InitConfig>;
+pub type Genesis = GenericGenesis<Option<InitConfig>>;
 
 /// crypto-com instantiated genesis type
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -104,7 +104,7 @@ impl GenesisExt for Genesis {
     fn fee_policy(&self) -> LinearFee {
         self.app_state
             .as_ref()
-            .unwrap()
+            .expect("parsed app state")
             .network_params
             .initial_fee_policy
     }
@@ -112,12 +112,12 @@ impl GenesisExt for Genesis {
 
 /// crypto-chain specific methods.
 pub trait AbciQueryExt {
-    /// decode query result with base64
-    fn bytes(&self) -> Result<Vec<u8>>;
+    /// get query result
+    fn bytes(&self) -> Vec<u8>;
 }
 
 impl AbciQueryExt for AbciQuery {
-    fn bytes(&self) -> Result<Vec<u8>> {
-        Ok(self.value.clone().unwrap_or_default())
+    fn bytes(&self) -> Vec<u8> {
+        self.value.clone().unwrap_or_default()
     }
 }

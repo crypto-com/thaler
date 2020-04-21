@@ -8,7 +8,7 @@ platform:
 
 steps:
 - name: build
-  image: cryptocom/chain-test:v1.1.1
+  image: cryptocom/chain-test:latest
   pull: if-not-exists
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
@@ -16,7 +16,7 @@ steps:
   - ./docker/build.sh
 
 - name: unit-tests
-  image: cryptocom/chain-test:v1.1.1
+  image: cryptocom/chain-test:latest
   pull: if-not-exists
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
@@ -24,7 +24,7 @@ steps:
   - cargo test
 
 - name: integration-tests
-  image: cryptocom/chain-test:v1.1.1
+  image: cryptocom/chain-test:latest
   pull: if-not-exists
   privileged: true
   volumes:
@@ -42,7 +42,7 @@ steps:
   - ./integration-tests/run.sh
 
 - name: multinode-tests
-  image: cryptocom/chain-test:v1.1.1
+  image: cryptocom/chain-test:latest
   pull: if-not-exists
   privileged: true
   volumes:
@@ -60,7 +60,7 @@ steps:
   - ./integration-tests/run_multinode.sh
 
 - name: sgx-test
-  image: cryptocom/chain-test:v1.1.1
+  image: cryptocom/chain-test:latest
   pull: if-not-exists
   privileged: true
   volumes:
@@ -79,7 +79,7 @@ steps:
   - ./chain-abci
 
 - name: teardown
-  image: cryptocom/chain-test:v1.1.1
+  image: cryptocom/chain-test:latest
   pull: if-not-exists
   commands:
   - ./integration-tests/cleanup.sh
@@ -128,6 +128,6 @@ trigger:
 
 ---
 kind: signature
-hmac: 8bda37c0da85ed0791136135e4e5900e56c31b94bb8e6b16f37a8e08a4f8511e
+hmac: 9a1fa3521f6d925ed079f7953dd0b2d721e207895928a04119659a9f99fe7de2
 
 ...

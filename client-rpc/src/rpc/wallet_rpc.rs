@@ -564,8 +564,8 @@ pub mod tests {
             unreachable!("genesis")
         }
 
-        fn status(&self) -> CommonResult<Status> {
-            Ok(Status {
+        fn status(&self) -> CommonResult<StatusResponse> {
+            Ok(StatusResponse {
                 sync_info: status::SyncInfo {
                     latest_block_height: Height::default(),
                     latest_app_hash: Some(
@@ -583,10 +583,12 @@ pub mod tests {
         fn block(&self, _height: u64) -> CommonResult<Block> {
             Ok(Block {
                 header: Header {
-                    app_hash: hex::decode(
+                    app_hash: Hash::from_str(
                         "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
                     )
-                    .unwrap(),
+                    .unwrap()
+                    .as_bytes()
+                    .to_vec(),
                     time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                     ..mock::header()
                 },
@@ -600,10 +602,12 @@ pub mod tests {
         ) -> CommonResult<Vec<Block>> {
             Ok(vec![Block {
                 header: Header {
-                    app_hash: hex::decode(
+                    app_hash: Hash::from_str(
                         "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C",
                     )
-                    .unwrap(),
+                    .unwrap()
+                    .as_bytes()
+                    .to_vec(),
                     time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
                     ..mock::header()
                 },
@@ -611,27 +615,15 @@ pub mod tests {
             }])
         }
 
-        fn block_results(&self, _height: u64) -> CommonResult<BlockResults> {
-            Ok(BlockResults {
-                height: Height::default(),
-                results: Results {
-                    deliver_tx: None,
-                    end_block: None,
-                },
-            })
+        fn block_results(&self, _height: u64) -> CommonResult<BlockResultsResponse> {
+            Ok(BlockResultsResponse::default())
         }
 
         fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             _heights: T,
-        ) -> CommonResult<Vec<BlockResults>> {
-            Ok(vec![BlockResults {
-                height: Height::default(),
-                results: Results {
-                    deliver_tx: None,
-                    end_block: None,
-                },
-            }])
+        ) -> CommonResult<Vec<BlockResultsResponse>> {
+            Ok(vec![BlockResultsResponse::default()])
         }
 
         fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
