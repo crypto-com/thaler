@@ -3,7 +3,6 @@ import getpass
 import logging
 import base64
 import binascii
-import json
 
 import fire
 from jsonrpcclient import request
@@ -51,10 +50,10 @@ def fix_address(addr):
 
 def fix_address_hex(addr):
     'fire convert staking addr to int automatically, fix it.'
-    if addr.startswith('0x'):
-        return addr[2:]
     if isinstance(addr, int):
         return '%040x' % addr
+    elif addr.startswith('0x'):
+        return addr[2:]
     else:
         return addr
 
@@ -312,7 +311,7 @@ class Blockchain(BaseService):
     def query(self, path, data=None, height=None, proof=False):
         return self.call_chain(
             'abci_query', path, fix_address_hex(data),
-            str(height) if height is not None else None, proof
+            str(height) if height is not None else "-1", proof
         )
 
     def broadcast_tx_commit(self, tx):
@@ -337,14 +336,25 @@ class Blockchain(BaseService):
         )
 
     def staking(self, address, height=None, prove=False):
+        import chaincodec
         rsp = self.query("staking", address, height, prove)
         rsp = rsp['response']
         assert rsp['code'] == 0, rsp
-        state, proof = json.loads(base64.b64decode(rsp['value']))
+        staking = chaincodec.decode(
+            'Option<StakedState>',
+            bytearray(base64.b64decode(rsp['value']))
+        )
         if prove:
-            return state, proof
+            proof = chaincodec.decode(
+                'SparseMerkleProof',
+                bytearray(base64.b64decode(rsp['proof']['ops'][0]['data']))
+            )
+            return {
+                'staking': staking,
+                'proof': proof
+            }
         else:
-            return state
+            return staking
 
 
 class RPC:

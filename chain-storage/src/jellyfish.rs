@@ -4,12 +4,12 @@ use std::mem;
 use anyhow::{ensure, Result};
 use jellyfish_merkle::{
     node_type::{LeafNode, Node, NodeKey},
-    HashValue, JellyfishMerkleTree, SparseMerkleProof, StaleNodeIndex, TreeReader,
+    HashValue, JellyfishMerkleTree, StaleNodeIndex, TreeReader,
 };
 use kvdb::KeyValueDB;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
-use chain_core::common::H256;
+use chain_core::common::{H256, HASH_SIZE_256};
 use chain_core::state::account::{to_stake_key, StakedState, StakedStateAddress};
 use chain_core::state::tendermint::BlockHeight;
 
@@ -113,6 +113,74 @@ pub fn compute_staking_root(stakings: &[StakedState]) -> H256 {
     put_stakings(&mut store, 0, stakings.iter()).expect("jellyfish error with in memory storage")
 }
 
+/// Wrap `SparseMerkleProof` to support SCALE encoding
+#[derive(Debug, Clone)]
+pub struct SparseMerkleProof(jellyfish_merkle::SparseMerkleProof);
+
+impl Encode for SparseMerkleProof {
+    fn encode_to<EncOut: Output>(&self, dest: &mut EncOut) {
+        // leaf
+        match self.0.leaf() {
+            None => dest.push_byte(0),
+            Some((hash1, hash2)) => {
+                dest.push_byte(1);
+                dest.write(hash1.as_ref());
+                dest.write(hash2.as_ref());
+            }
+        }
+
+        // siblings
+        let siblings = self
+            .0
+            .siblings()
+            .iter()
+            .map(HashValue::as_ref)
+            .collect::<Vec<_>>();
+        dest.push(&siblings);
+    }
+
+    fn size_hint(&self) -> usize {
+        let len = self.0.siblings().len();
+        HASH_SIZE_256 * 2 + 1 + mem::size_of::<u32>() + len * HASH_SIZE_256
+    }
+}
+
+impl Decode for SparseMerkleProof {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let leaf = match input.read_byte()? {
+            0 => None,
+            1 => Some((
+                HashValue::new(H256::decode(input)?),
+                HashValue::new(H256::decode(input)?),
+            )),
+            _ => return Err("Invalid variant in Option<_> SparseMerkleProof::leaf".into()),
+        };
+
+        let siblings = <Vec<H256>>::decode(input)?
+            .into_iter()
+            .map(HashValue::new)
+            .collect::<Vec<_>>();
+        Ok(SparseMerkleProof(jellyfish_merkle::SparseMerkleProof::new(
+            leaf, siblings,
+        )))
+    }
+}
+
+impl SparseMerkleProof {
+    pub fn verify(
+        &self,
+        root_hash: H256,
+        address: &StakedStateAddress,
+        value: Option<&StakedState>,
+    ) -> Result<()> {
+        self.0.verify(
+            HashValue::new(root_hash),
+            HashValue::new(to_stake_key(address)),
+            value.map(|staking| staking.encode().into()).as_ref(),
+        )
+    }
+}
+
 /// Get with proof from underlying storage.
 pub fn get_with_proof<S: GetKV>(
     storage: &S,
@@ -126,7 +194,7 @@ pub fn get_with_proof<S: GetKV>(
         blob.map(|blob| {
             StakedState::decode(&mut blob.as_ref()).expect("merkle trie storage corrupted")
         }),
-        proof,
+        SparseMerkleProof(proof),
     )
 }
 

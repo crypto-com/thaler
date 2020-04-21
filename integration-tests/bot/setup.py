@@ -15,9 +15,15 @@ setup(
         'mnemonic==0.19',
         'jsonpatch==1.24',
         'jsonrpcclient[requests]',
+        'scalecodec',
+        'base58',
+    ],
+    data_files=[
+        ('type_registry', ['type_registry.json']),
     ],
     scripts=[
         'chainbot.py',
         'chainrpc.py',
+        'chaincodec.py',
     ]
 )

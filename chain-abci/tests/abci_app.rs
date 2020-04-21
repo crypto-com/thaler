@@ -39,6 +39,7 @@ use chain_core::tx::{
     PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxPublicAux,
 };
 use chain_storage::buffer::Get;
+use chain_storage::jellyfish::SparseMerkleProof;
 use chain_storage::{
     LookupItem, Storage, COL_NODE_INFO, GENESIS_APP_HASH_KEY, LAST_STATE_KEY, NUM_COLUMNS,
 };
@@ -763,10 +764,15 @@ fn staking_query_should_return_an_account() {
     let mut qreq = RequestQuery::new();
     qreq.data = hex::decode(&addr).unwrap();
     qreq.path = "staking".into();
+    qreq.prove = true;
     let qresp = app.query(&qreq);
-    let (account, _): (StakedState, serde_json::Value) =
-        serde_json::from_slice(&qresp.value).unwrap();
-    assert_eq!(account.address, StakedStateAddress::from_str(addr).unwrap());
+    let mstaking = <Option<StakedState>>::decode(&mut qresp.value.as_slice()).unwrap();
+    let mut proof_bytes = qresp.proof.get_ref().ops[0].data.as_slice();
+    let _proof = SparseMerkleProof::decode(&mut proof_bytes).unwrap();
+    assert_eq!(
+        mstaking.unwrap().address,
+        StakedStateAddress::from_str(addr).unwrap()
+    );
 }
 
 fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64) {

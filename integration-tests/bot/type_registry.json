@@ -1,0 +1,78 @@
+{
+    "types": {
+        "StakedState": {
+            "type": "struct",
+            "type_mapping": [
+                ["nonce", "Nonce"],
+                ["bonded", "Coin"],
+                ["unbonded", "Coin"],
+                ["unbonded_from", "Timespec"],
+                ["address", "StakedStateAddress"],
+                ["validator", "Option<Validator>"],
+                ["last_slash", "Option<SlashRecord>"]
+            ]
+        },
+        "StakedStateAddress": {
+            "type": "enum",
+            "type_mapping": [
+                ["BasicRedeem", "RedeemAddress"]
+            ]
+        },
+        "Validator": {
+            "type": "struct",
+            "type_mapping": [
+                ["council_node", "CouncilNode"],
+                ["jailed_until", "Option<Timespec>"],
+                ["inactive_time", "Option<Timespec>"],
+                ["inactive_block", "Option<BlockHeight>"],
+                ["used_validator_addresses", "Vec<(TendermintValidatorAddress, Timespec)>"]
+            ]
+        },
+        "CouncilNode": {
+            "type": "struct",
+            "type_mapping": [
+                ["tag", "u8"],
+                ["name", "String"],
+                ["security_contact", "Option<String>"],
+                ["consensus_pubkey", "TendermintValidatorPubKey"],
+                ["confidential_init", "Vec<u8>"]
+            ]
+        },
+        "TendermintValidatorPubKey": {
+            "type": "struct",
+            "type_mapping": [
+                ["tag", "u8"],
+                ["key", "[u8; 32]"]
+            ]
+        },
+        "SlashRecord": {
+            "type": "struct",
+            "type_mapping": [
+                ["kind", "PunishmentKind"],
+                ["time", "Timespec"],
+                ["amount", "Coin"]
+            ]
+        },
+        "PunishmentKind": {
+            "type": "enum",
+            "value_list": [
+                "NonLive",
+                "ByzantineFault"
+            ]
+        },
+        "SparseMerkleProof": {
+            "type": "struct",
+            "type_mapping": [
+                ["leaf", "Option<(Hash, Hash)>"],
+                ["siblings", "Vec<Hash>"]
+            ]
+        },
+        "Timespec": "u64",
+        "Coin": "u64",
+        "BlockHeight": "u64",
+        "Nonce": "u64",
+        "RedeemAddress": "[u8; 20]",
+        "TendermintValidatorAddress": "[u8; 20]",
+        "Hash": "[u8; 32]"
+    }
+}

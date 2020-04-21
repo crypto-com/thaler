@@ -81,5 +81,6 @@ fi
 runtest "join" # non-live fault slash, re-join, unbond, re-join
 runtest "byzantine" # make byzantine fault and check jailed, then unjail and re-join again
 runtest "multitx" # make multiple transactions in one block
+runtest "reward" # check reward amount, no reward for jailed node
 
 ./cleanup.sh

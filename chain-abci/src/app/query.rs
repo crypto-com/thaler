@@ -191,21 +191,27 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 }
             }
             "staking" => {
-                let height: BlockHeight = _req.height.try_into().expect("Invalid block height");
-                let mversion = if height == BlockHeight::genesis() {
-                    self.last_state.as_ref().map(|state| state.staking_version)
-                } else {
+                let mversion = if let Ok(height) = _req.height.try_into() {
                     self.storage.get_historical_staking_version(height)
+                } else {
+                    self.last_state.as_ref().map(|state| state.staking_version)
                 };
                 let account_address = StakedStateAddress::try_from(_req.data.as_slice());
                 if let (Some(version), Ok(address)) = (mversion, account_address) {
-                    let (maccount, proof) = get_with_proof(&self.storage, version, &address);
-                    resp.value = serde_json::to_string(&(
-                        maccount,
-                        if _req.prove { Some(proof) } else { None },
-                    ))
-                    .unwrap()
-                    .into_bytes();
+                    let (mstaking, proof) = get_with_proof(&self.storage, version, &address);
+                    resp.value = mstaking.encode();
+                    if _req.prove {
+                        resp.set_proof(Proof {
+                            ops: vec![ProofOp {
+                                field_type: "staking".to_owned(),
+                                key: address.encode(),
+                                data: proof.encode(),
+                                ..Default::default()
+                            }]
+                            .into(),
+                            ..Default::default()
+                        });
+                    }
                 } else {
                     resp.log += "account lookup failed (either invalid address or node not correctly restored / initialized)";
                     resp.code = 3;
