@@ -212,7 +212,7 @@ where
 
 /// Dummy storage implemented with a HashMap in memory.
 #[derive(Debug, Clone)]
-pub struct MemStore<K: Hash + Eq, V>(HashMap<K, V>);
+pub struct MemStore<K: Hash + Eq, V>(pub HashMap<K, V>);
 
 impl<K: Hash + Eq, V> MemStore<K, V> {
     pub fn new() -> Self {

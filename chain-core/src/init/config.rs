@@ -236,8 +236,8 @@ impl InitConfig {
         }
 
         let accounts = self.get_account(genesis_time);
+        #[cfg(debug_assertions)]
         for staking in accounts.iter() {
-            #[cfg(debug_assertions)]
             staking.check_invariants(self.network_params.required_council_node_stake);
         }
         let rewards_pool = RewardsPoolState::new(
