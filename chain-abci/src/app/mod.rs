@@ -363,8 +363,8 @@ fn generate_tx_staking_change_event(tx_action: TxAction) -> Option<abci::Event> 
             }
         },
         TxAction::Public(tx_public_action) => match tx_public_action {
-            TxPublicAction::Unbond { unbond, .. } => {
-                Some(StakingEvent::Unbond(&unbond.0, unbond.1).into())
+            TxPublicAction::Unbond { unbond, unbonded_from, .. } => {
+                Some(StakingEvent::Unbond(&unbond.0, unbond.1, unbonded_from).into())
             }
             TxPublicAction::NodeJoin(staking_address, council_node) => {
                 Some(StakingEvent::NodeJoin(&staking_address, council_node).into())

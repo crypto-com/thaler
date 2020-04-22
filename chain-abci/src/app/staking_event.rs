@@ -10,7 +10,7 @@ use chain_core::state::account::{CouncilNode, PunishmentKind, StakedStateAddress
 
 pub(crate) enum StakingEvent<'a> {
     Deposit(&'a StakedStateAddress, Coin),
-    Unbond(&'a StakedStateAddress, Coin),
+    Unbond(&'a StakedStateAddress, Coin, Timespec),
     Withdraw(&'a StakedStateAddress, Coin),
     NodeJoin(&'a StakedStateAddress, CouncilNode),
     Reward(&'a StakedStateAddress, Coin),
@@ -27,8 +27,8 @@ impl<'a> From<StakingEvent<'a>> for Event {
             StakingEvent::Deposit(staking_address, deposit_amount) => {
                 builder.deposit(staking_address, deposit_amount)
             }
-            StakingEvent::Unbond(staking_address, unbond_amount) => {
-                builder.unbond(staking_address, unbond_amount)
+            StakingEvent::Unbond(staking_address, unbond_amount, unbonded_from) => {
+                builder.unbond(staking_address, unbond_amount, unbonded_from)
             }
             StakingEvent::Withdraw(staking_address, withdraw_amount) => {
                 builder.withdraw(staking_address, withdraw_amount)
@@ -80,7 +80,12 @@ impl StakingEventBuilder {
         );
     }
 
-    fn unbond(&mut self, staking_address: &StakedStateAddress, unbond_amount: Coin) {
+    fn unbond(
+        &mut self,
+        staking_address: &StakedStateAddress,
+        unbond_amount: Coin,
+        unbonded_from: Timespec,
+    ) {
         self.attributes
             .push(staking_address_attribute(staking_address));
         self.attributes.push(StakingEventOpType::Unbond.into());
@@ -89,6 +94,7 @@ impl StakingEventBuilder {
             StakingDiffField(vec![
                 StakingDiff::Bonded(StakingCoinChange::Decrease, unbond_amount),
                 StakingDiff::Unbonded(StakingCoinChange::Increase, unbond_amount),
+                StakingDiff::UnbondedFrom(unbonded_from),
             ])
             .into(),
         );
@@ -268,6 +274,7 @@ impl fmt::Display for StakingDiffField {
 enum StakingDiff {
     Bonded(StakingCoinChange, Coin),
     Unbonded(StakingCoinChange, Coin),
+    UnbondedFrom(Timespec),
     NodeJoin(CouncilNode),
     JailedUntil(Timespec),
 }
@@ -296,6 +303,12 @@ impl Serialize for StakingDiff {
                 )?;
                 state.end()
             }
+            StakingDiff::UnbondedFrom(unbonded_from) => {
+                let mut state = serializer.serialize_struct("UnbondedFrom", 2)?;
+                state.serialize_field("key", "UnbondedFrom")?;
+                state.serialize_field("value", &unbonded_from)?;
+                state.end()
+            }
             StakingDiff::NodeJoin(node) => {
                 let mut state = serializer.serialize_struct("NodeJoin", 2)?;
                 state.serialize_field("key", "CouncilNode")?;
@@ -305,7 +318,7 @@ impl Serialize for StakingDiff {
             StakingDiff::JailedUntil(jailed_until) => {
                 let mut state = serializer.serialize_struct("JailedUntil", 2)?;
                 state.serialize_field("key", "JailedUntil")?;
-                state.serialize_field("value", &jailed_until.to_string())?;
+                state.serialize_field("value", &jailed_until)?;
                 state.end()
             }
         }
@@ -393,6 +406,21 @@ mod tests {
             }
         }
 
+        mod unbonded_from {
+            use super::*;
+
+            #[test]
+            fn to_string_should_serialize_to_json() {
+                let any_unbonded_from: Timespec = 1587071014;
+                let staking_diff = StakingDiff::UnbondedFrom(any_unbonded_from);
+
+                assert_eq!(
+                    staking_diff.to_string(),
+                    "{\"key\":\"UnbondedFrom\",\"value\":1587071014}",
+                );
+            }
+        }
+
         mod node_join {
             use super::*;
 
@@ -429,7 +457,7 @@ mod tests {
 
                 assert_eq!(
                     staking_diff.to_string(),
-                    "{\"key\":\"JailedUntil\",\"value\":\"1587071014\"}",
+                    "{\"key\":\"JailedUntil\",\"value\":1587071014}",
                 );
             }
         }
@@ -459,10 +487,13 @@ mod tests {
             fn should_create_unbond_event() {
                 let any_staking_address = any_staking_address();
                 let any_amount = Coin::unit();
+                let any_unbonded_from: Timespec = 1587071014;
 
-                let event: Event = StakingEvent::Unbond(&any_staking_address, any_amount).into();
+                let event: Event =
+                    StakingEvent::Unbond(&any_staking_address, any_amount, any_unbonded_from)
+                        .into();
 
-                assert_unbonded_event(event, &any_staking_address, any_amount);
+                assert_unbonded_event(event, &any_staking_address, any_amount, any_unbonded_from);
             }
         }
 
@@ -619,6 +650,7 @@ mod tests {
             event: Event,
             staking_address: &StakedStateAddress,
             unbond_amount: Coin,
+            unbonded_from: Timespec,
         ) {
             assert_eq!(
                 event.field_type,
@@ -640,14 +672,15 @@ mod tests {
                 StakingEventOpType::Unbond.to_string(),
             );
 
-            let staking_diff_bonded_attribute = event.attributes.get(2).unwrap();
+            let staking_diff_attribute = event.attributes.get(2).unwrap();
             let expected_value = format!(
-                "[{{\"key\":\"Bonded\",\"value\":\"-{}\"}},{{\"key\":\"Unbonded\",\"value\":\"{}\"}}]",
+                "[{{\"key\":\"Bonded\",\"value\":\"-{}\"}},{{\"key\":\"Unbonded\",\"value\":\"{}\"}},{{\"key\":\"UnbondedFrom\",\"value\":{}}}]",
                 u64::from(unbond_amount),
                 u64::from(unbond_amount),
+                unbonded_from,
             );
             assert_kv_pair(
-                staking_diff_bonded_attribute,
+                staking_diff_attribute,
                 TendermintEventKey::StakingDiff.to_string(),
                 expected_value,
             );
@@ -795,7 +828,7 @@ mod tests {
             let staking_diff_attribute = event.attributes.get(2).unwrap();
             let expected_timespec = timespec.to_string();
             let expected_value = format!(
-                "[{{\"key\":\"JailedUntil\",\"value\":\"{}\"}}]",
+                "[{{\"key\":\"JailedUntil\",\"value\":{}}}]",
                 expected_timespec
             );
             assert_kv_pair(

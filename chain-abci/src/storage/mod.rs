@@ -114,14 +114,15 @@ pub enum TxPublicAction {
     Unbond {
         fee: Fee,
         unbond: (StakedStateAddress, Coin),
+        unbonded_from: Timespec,
     },
     NodeJoin(StakedStateAddress, CouncilNode),
     Unjail(StakedStateAddress),
 }
 
 impl TxPublicAction {
-    fn unbond(fee: Fee, unbond: (StakedStateAddress, Coin)) -> Self {
-        Self::Unbond { fee, unbond }
+    fn unbond(fee: Fee, unbond: (StakedStateAddress, Coin), unbonded_from: Timespec) -> Self {
+        Self::Unbond { fee, unbond, unbonded_from }
     }
     fn node_join(staking_address: StakedStateAddress, council_node: CouncilNode) -> Self {
         Self::NodeJoin(staking_address, council_node)
@@ -292,7 +293,7 @@ pub fn process_public_tx(
             if address != maintx.from_staked_account {
                 return Err(PublicTxError::StakingWitnessNotMatch);
             }
-            staking_table.unbond(
+            let unbonded_from = staking_table.unbond(
                 staking_store,
                 chain_info.unbonding_period as Timespec,
                 chain_info.block_time,
@@ -303,6 +304,7 @@ pub fn process_public_tx(
             Ok(TxPublicAction::unbond(
                 chain_info.min_fee_computed,
                 (address, maintx.value),
+                unbonded_from,
             ))
         }
         // TODO: delay checking witness, as address is contained in Tx?
