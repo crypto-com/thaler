@@ -42,6 +42,7 @@ TX_QUERY_PORT       = $(shell expr $(base_port) + 1)
 TENDERMINT_P2P_PORT = $(shell expr $(base_port) + 6)
 TENDERMINT_RPC_PORT = $(shell expr $(base_port) + 7)
 CLIENT_RPC_PORT     = $(shell expr $(base_port) + 9)
+TENDERMINT_PMS_PORT = $(shell expr $(base_port) + 10)
 
 # the chain version, such as v0.1.0, v0.2.0.
 tag ?=
@@ -255,6 +256,7 @@ run-tendermint:
 	-v $(data_path)/tendermint:/tendermint \
 	-p $(TENDERMINT_P2P_PORT):26656 \
 	-p $(TENDERMINT_RPC_PORT):26657 \
+	-p $(TENDERMINT_PMS_PORT):26660 \
 	$(IMAGE_TENDERMINT) \
 	node --proxy_app=$(prefix)chain-abci:26658 \
 	--rpc.laddr=tcp://0.0.0.0:26657 \

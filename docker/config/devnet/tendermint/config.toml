@@ -84,7 +84,7 @@ index_tags = ""
 index_all_tags = true
 
 [instrumentation]
-prometheus = false
+prometheus = true
 prometheus_listen_addr = ":26660"
 max_open_connections = 3
 namespace = "tendermint"
