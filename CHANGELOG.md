@@ -1,11 +1,24 @@
 # Changelog
 
 *Unreleased*
+## v0.5.0
+### Breaking changes
+### Features
+### Improvements
+### Bug Fixes
+
+*April 22, 2020*
+
+This is a major release for the third iteration of the public testnet.
+It contains implementation of revised incentive mechanisms, a new storage layer, 
+and a stabilized basic transaction format. It is based on Tendermint 0.33 and Rust SGX SDK 1.1.1.
+Note that releases after 0.4.0 will aim to preserve the transaction wire format.
 
 ## v0.4.0
 
 ### Breaking changes
 * *chain-abci* [1449](https://github.com/crypto-com/chain/pull/1449): introduce staking_change event, remove RewardsDistribution and SlashValidators event
+* *chain-abci* / *client* [1441](https://github.com/crypto-com/chain/pull/1441): codebase ported to Tendermint 0.33
 * *client-rpc* [1443](https://github.com/crypto-com/chain/pull/1443): add progress, and multi-thread to sync api
 * *chain-abci* [1239](https://github.com/crypto-com/chain/pull/1239): basic versioning
 * *chain-abci* [1090](https://github.com/crypto-com/chain/pull/1090): upper bounds of reward parameters changed
@@ -34,12 +47,11 @@
 * *chain-abci* [1092](https://github.com/crypto-com/chain/pull/1092): rewards may be recorded for inactive validators
 * *chain-abci* [1116](https://github.com/crypto-com/chain/pull/1116): uncommitted changes may be persisted
 
-## v0.3.1
-
 *February 24, 2020*
 
 This release contains a hotfix for two client issues in the 0.3.0 release (the binaries for chain-abci, enclaves, and dev-utils remain the same).
 
+## v0.3.1
 ### Bug Fixes
 * *client* [1117](https://github.com/crypto-com/chain/pull/1117): lightweight verification may fail with blocks with multiple transactions due to a different order of txids in btreemap
 * *client* [1118](https://github.com/crypto-com/chain/pull/1118): incorrect fee estimation
