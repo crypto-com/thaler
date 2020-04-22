@@ -67,6 +67,10 @@ impl StoredChainState for ChainNodeState {
     fn get_last_app_hash(&self) -> H256 {
         self.last_apphash
     }
+
+    fn get_staking_version(&self) -> Version {
+        self.staking_version
+    }
 }
 
 impl ChainNodeState {

@@ -760,8 +760,21 @@ fn query_should_return_an_account() {
     qreq.data = hex::decode(&addr).unwrap();
     qreq.path = "account".into();
     let qresp = app.query(&qreq);
-    let account = StakedState::decode(&mut qresp.value.as_slice());
-    assert!(account.is_ok());
+    let account = StakedState::decode(&mut qresp.value.as_slice()).unwrap();
+    assert_eq!(account.address, StakedStateAddress::from_str(addr).unwrap());
+}
+
+#[test]
+fn staking_query_should_return_an_account() {
+    let addr = "fe7c045110b8dbf29765047380898919c5cb56f9";
+    let mut app = init_chain_for(addr.parse().unwrap());
+    let mut qreq = RequestQuery::new();
+    qreq.data = hex::decode(&addr).unwrap();
+    qreq.path = "staking".into();
+    let qresp = app.query(&qreq);
+    let (account, _): (StakedState, serde_json::Value) =
+        serde_json::from_slice(&qresp.value).unwrap();
+    assert_eq!(account.address, StakedStateAddress::from_str(addr).unwrap());
 }
 
 fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64) {

@@ -3,6 +3,7 @@ import getpass
 import logging
 import base64
 import binascii
+import json
 
 import fire
 from jsonrpcclient import request
@@ -44,6 +45,16 @@ def fix_address(addr):
     'fire convert staking addr to int automatically, fix it.'
     if isinstance(addr, int):
         return '0x%040x' % addr
+    else:
+        return addr
+
+
+def fix_address_hex(addr):
+    'fire convert staking addr to int automatically, fix it.'
+    if addr.startswith('0x'):
+        return addr[2:]
+    if isinstance(addr, int):
+        return '%040x' % addr
     else:
         return addr
 
@@ -279,7 +290,7 @@ class Blockchain(BaseService):
     def latest_height(self):
         return self.status()['sync_info']['latest_block_height']
 
-    def validators(self, height=None, page = 0, num_per_page = 100):
+    def validators(self, height=None, page=0, num_per_page=100):
         return self.call_chain('validators', str(height) if height is not None else None, str(page), str(num_per_page))
 
     def block(self, height='latest'):
@@ -299,7 +310,10 @@ class Blockchain(BaseService):
         return self.call_chain('commit', str(height))
 
     def query(self, path, data=None, height=None, proof=False):
-        return self.call_chain('abci_query', path, fix_address(data), str(height) if height is not None else None, proof)
+        return self.call_chain(
+            'abci_query', path, fix_address_hex(data),
+            str(height) if height is not None else None, proof
+        )
 
     def broadcast_tx_commit(self, tx):
         return self.call_chain('broadcast_tx_commit', tx)
@@ -314,8 +328,23 @@ class Blockchain(BaseService):
         txid = base64.b64encode(binascii.unhexlify(txid)).decode()
         return self.call_chain('tx', txid, include_proof)
 
-    def tx_search(self, query, include_proof=False, page=1, per_page=100, order_by="asc"):
-        return self.call_chain('tx_search', query=query, prove=include_proof, page=str(page), per_page=str(per_page), order_by = order_by)
+    def tx_search(self, query, include_proof=False,
+                  page=1, per_page=100, order_by="asc"):
+        return self.call_chain(
+            'tx_search', query=query, prove=include_proof,
+            page=str(page), per_page=str(per_page),
+            order_by=order_by
+        )
+
+    def staking(self, address, height=None, prove=False):
+        rsp = self.query("staking", address, height, prove)
+        rsp = rsp['response']
+        assert rsp['code'] == 0, rsp
+        state, proof = json.loads(base64.b64decode(rsp['value']))
+        if prove:
+            return state, proof
+        else:
+            return state
 
 
 class RPC:

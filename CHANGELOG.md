@@ -3,6 +3,9 @@
 *Unreleased*
 ## v0.5.0
 ### Breaking changes
+
+- *chain-storage* [1466](https://github.com/crypto-com/chain/pull/1466): add a colume to store historical staking versions
+
 ### Features
 ### Improvements
 ### Bug Fixes

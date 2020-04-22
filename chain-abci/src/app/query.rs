@@ -190,6 +190,27 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     resp.code = 3;
                 }
             }
+            "staking" => {
+                let height: BlockHeight = _req.height.try_into().expect("Invalid block height");
+                let mversion = if height == BlockHeight::genesis() {
+                    self.last_state.as_ref().map(|state| state.staking_version)
+                } else {
+                    self.storage.get_historical_staking_version(height)
+                };
+                let account_address = StakedStateAddress::try_from(_req.data.as_slice());
+                if let (Some(version), Ok(address)) = (mversion, account_address) {
+                    let (maccount, proof) = get_with_proof(&self.storage, version, &address);
+                    resp.value = serde_json::to_string(&(
+                        maccount,
+                        if _req.prove { Some(proof) } else { None },
+                    ))
+                    .unwrap()
+                    .into_bytes();
+                } else {
+                    resp.log += "account lookup failed (either invalid address or node not correctly restored / initialized)";
+                    resp.code = 3;
+                }
+            }
             "state" => {
                 if self.tx_query_address.is_none() {
                     resp.code = 1;
