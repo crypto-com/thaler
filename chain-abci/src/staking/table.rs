@@ -9,7 +9,7 @@ use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use chain_core::common::Timespec;
-use chain_core::init::coin::{sum_coins, Coin, CoinError};
+use chain_core::init::coin::{sum_coins, Coin, CoinError, CoinResult};
 use chain_core::init::config::SlashRatio;
 use chain_core::init::params::NetworkParameters;
 use chain_core::state::account::{
@@ -75,6 +75,26 @@ impl Into<ValidatorSortKey> for &StakedState {
 impl Into<ValidatorSortKey> for &mut StakedState {
     fn into(self) -> ValidatorSortKey {
         ValidatorSortKey::new(self.bonded, self.address)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct PunishmentOutcome {
+    pub staking_address: StakedStateAddress,
+    pub slashed_coin: SlashedCoin,
+    pub punishment_kind: PunishmentKind,
+    pub jailed_until: Option<Timespec>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct SlashedCoin {
+    pub bonded: Coin,
+    pub unbonded: Coin,
+}
+
+impl SlashedCoin {
+    pub fn sum(&self) -> CoinResult {
+        self.bonded + self.unbonded
     }
 }
 
@@ -170,7 +190,7 @@ impl StakingTable {
         block_height: BlockHeight,
         voters: &[(TendermintValidatorAddress, bool)],
         evidences: &[(TendermintValidatorAddress, BlockHeight, Timespec)],
-    ) -> Vec<(StakedStateAddress, Coin, PunishmentKind)> {
+    ) -> Vec<PunishmentOutcome> {
         self.cleanup(heap, params.get_unbonding_period() as Timespec, block_time);
         self.punish(heap, params, block_time, block_height, voters, evidences)
     }
@@ -369,7 +389,7 @@ impl StakingTable {
         block_height: BlockHeight,
         staking: &mut StakedState,
         ratio: SlashRatio,
-    ) -> Coin {
+    ) -> SlashedCoin {
         let bonded_slashed = staking.bonded * ratio;
         let unbonded_slashed = staking.unbonded * ratio;
         // no panic: SlashRatio invariant(<= 1.0)
@@ -378,8 +398,10 @@ impl StakingTable {
         // no panic: SlashRatio invariant(<= 1.0)
         staking.unbonded = (staking.unbonded - unbonded_slashed).unwrap();
         // no panic: Invariant: 4.1 + SlashRatio invariant
-        // slashed_amount <= bonded + unbonded <= max supply
-        (bonded_slashed + unbonded_slashed).unwrap()
+        SlashedCoin {
+            bonded: bonded_slashed,
+            unbonded: unbonded_slashed,
+        }
     }
 
     fn choose_validators(
@@ -471,7 +493,7 @@ impl StakingTable {
         block_height: BlockHeight,
         voters: &[(TendermintValidatorAddress, bool)],
         evidences: &[(TendermintValidatorAddress, BlockHeight, Timespec)],
-    ) -> Vec<(StakedStateAddress, Coin, PunishmentKind)> {
+    ) -> Vec<PunishmentOutcome> {
         let mut slashes = Vec::new();
 
         // handle non-live
@@ -506,7 +528,7 @@ impl StakingTable {
                 // panic: Invariant 2.3 + 2.2
                 if val.is_active() {
                     val.inactivate(block_time, block_height);
-                    slashes.push((*addr, PunishmentKind::NonLive));
+                    slashes.push((*addr, PunishmentKind::NonLive, None));
                 }
 
                 tracker.reset();
@@ -531,13 +553,14 @@ impl StakingTable {
                 // panic: Invariant 2.2
                 let val = staking.validator.as_mut().unwrap();
                 if !val.is_jailed() {
-                    val.jail(
+                    let jailed_until = val.jail(
                         block_time,
                         block_height,
                         params.get_unbonding_period() as Timespec,
                     );
+                    let maybe_jailed_until = Some(jailed_until);
                     self.participator_stats.remove(addr);
-                    slashes.push((*addr, PunishmentKind::ByzantineFault));
+                    slashes.push((*addr, PunishmentKind::ByzantineFault, maybe_jailed_until));
                     set_staking(heap, staking, self.minimal_required_staking);
                 }
             }
@@ -550,9 +573,9 @@ impl StakingTable {
         // execute slashes
         let slashes = slashes
             .into_iter()
-            .map(|(addr, kind)| {
+            .map(|(addr, kind, maybe_jailed_until)| {
                 let mut staking = heap.get(&addr).unwrap();
-                let amount = self.slash(
+                let slashed_coin = self.slash(
                     block_time,
                     block_height,
                     &mut staking,
@@ -561,14 +584,25 @@ impl StakingTable {
                         PunishmentKind::ByzantineFault => params.get_byzantine_slash_percent(),
                     },
                 );
+
+                let total_slashed_amount = slashed_coin
+                    .sum()
+                    .expect("sum of bonded and unboned slash amount exceed maximum coin");
+
                 // Update the last slash record for query
                 staking.last_slash = Some(SlashRecord {
                     kind,
                     time: block_time,
-                    amount,
+                    amount: total_slashed_amount,
                 });
                 set_staking(heap, staking, self.minimal_required_staking);
-                (addr, amount, kind)
+
+                PunishmentOutcome {
+                    staking_address: addr,
+                    slashed_coin,
+                    punishment_kind: kind,
+                    jailed_until: maybe_jailed_until,
+                }
             })
             .collect::<Vec<_>>();
 

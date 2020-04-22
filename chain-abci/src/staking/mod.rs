@@ -11,6 +11,7 @@ mod tests {
     };
     use std::str::FromStr;
 
+    use chain_core::common::Timespec;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::init::config::SlashRatio;
@@ -25,6 +26,7 @@ mod tests {
     use test_common::chain_env::get_init_network_params;
 
     use super::*;
+    use crate::staking::table::{PunishmentOutcome, SlashedCoin};
     use crate::tx_error::{
         DepositError, NodeJoinError, PublicTxError, UnbondError, UnjailError, WithdrawError,
     };
@@ -177,20 +179,36 @@ mod tests {
         let slash_ratio: SlashRatio = "0.01".parse().unwrap();
         init_params.slashing_config.liveness_slash_percent = slash_ratio;
         init_params.slashing_config.byzantine_slash_percent = slash_ratio;
-        init_params.unbonding_period = 10;
+        let unbonding_period = 10;
+        init_params.unbonding_period = unbonding_period;
         let params = NetworkParameters::Genesis(init_params);
 
         let (mut table, mut store) = init_staking_table();
         let addr1 = staking_address(&[0xcc; 32]);
         let val_pk1 = validator_pubkey(&[0xcc; 32]);
         let evidence = (val_pk1.clone().into(), 1.into(), 0);
-        let slashes = table.begin_block(&mut store, &params, 0, 1.into(), &[], &[evidence.clone()]);
-        let slash = (
-            addr1,
-            Coin::new(11_0000_0000).unwrap() * slash_ratio,
-            PunishmentKind::ByzantineFault,
+        let block_time: u64 = 0;
+        let punishment_outcomes = table.begin_block(
+            &mut store,
+            &params,
+            block_time,
+            1.into(),
+            &[],
+            &[evidence.clone()],
         );
-        assert_eq!(slashes, vec![slash]);
+
+        let bonded_slashed = Coin::new(11_0000_0000).unwrap() * slash_ratio;
+        let unbonded_slashed = Coin::zero();
+        let punishment_outcome = PunishmentOutcome {
+            staking_address: addr1,
+            slashed_coin: SlashedCoin {
+                bonded: bonded_slashed,
+                unbonded: unbonded_slashed,
+            },
+            punishment_kind: PunishmentKind::ByzantineFault,
+            jailed_until: Some(block_time.saturating_add(unbonding_period as Timespec)),
+        };
+        assert_eq!(punishment_outcomes, vec![punishment_outcome]);
         let staking = store.get(&addr1).unwrap();
         assert!(staking.is_jailed());
         assert_eq!(
@@ -203,8 +221,9 @@ mod tests {
         assert_eq!(nonce, 0);
 
         // byzantine faults won't slashed again.
-        let slashes = table.begin_block(&mut store, &params, 1, 2.into(), &[], &[evidence]);
-        assert_eq!(slashes, vec![]);
+        let punishment_outcomes =
+            table.begin_block(&mut store, &params, 1, 2.into(), &[], &[evidence]);
+        assert_eq!(punishment_outcomes, vec![]);
 
         // transaction denied after jailed
         let unbond = UnbondTx {
@@ -380,7 +399,7 @@ mod tests {
         let params = NetworkParameters::Genesis(init_params);
 
         for i in 1..=3 {
-            let slashes = table.begin_block(
+            let punishment_outcomes = table.begin_block(
                 &mut store,
                 &params,
                 1 + i,
@@ -388,10 +407,10 @@ mod tests {
                 &[(val_pk1.clone().into(), false)],
                 &[],
             );
-            assert_eq!(slashes, vec![]);
+            assert_eq!(punishment_outcomes, vec![]);
         }
         // non-live fault
-        let slashes = table.begin_block(
+        let punishment_outcomes = table.begin_block(
             &mut store,
             &params,
             1,
@@ -399,13 +418,20 @@ mod tests {
             &[(val_pk1.clone().into(), false)],
             &[],
         );
-        assert_eq!(slashes[0].0, addr1);
-        assert_eq!(slashes[0].2, PunishmentKind::NonLive);
+        assert_eq!(punishment_outcomes[0].staking_address, addr1);
+        assert_eq!(
+            punishment_outcomes[0].punishment_kind,
+            PunishmentKind::NonLive
+        );
+        assert_eq!(
+            punishment_outcomes[0].jailed_until, None,
+            "NonLive should not jail"
+        );
     }
 
     /// Tests:
-    /// - liveness tracking not interuppted when temporarily not selected
-    /// - liveness tracking not interuppted when temporarily unbonded and re-joined again
+    /// - liveness tracking not interrupted when temporarily not selected
+    /// - liveness tracking not interrupted when temporarily unbonded and re-joined again
     #[test]
     fn check_liveness_tracking() {
         // check liveness tracking not interuppted by temporarily inactive.
@@ -432,7 +458,7 @@ mod tests {
 
         // miss two blocks
         for i in 1..=2 {
-            let slashes = table.begin_block(
+            let punishment_outcomes = table.begin_block(
                 &mut store,
                 &params,
                 1 + i,
@@ -440,7 +466,7 @@ mod tests {
                 &[(val_pk1.clone().into(), false)],
                 &[],
             );
-            assert_eq!(slashes, vec![]);
+            assert_eq!(punishment_outcomes, vec![]);
         }
 
         // validator1 not selected
@@ -450,8 +476,9 @@ mod tests {
         );
 
         for i in 3..=4 {
-            let slashes = table.begin_block(&mut store, &params, 1 + i, i.into(), &[], &[]);
-            assert_eq!(slashes, vec![]);
+            let punishment_outcomes =
+                table.begin_block(&mut store, &params, 1 + i, i.into(), &[], &[]);
+            assert_eq!(punishment_outcomes, vec![]);
         }
 
         // validator1 selected again
@@ -461,7 +488,7 @@ mod tests {
         );
 
         for i in 5..=6 {
-            let slashes = table.begin_block(
+            let punishment_outcomes = table.begin_block(
                 &mut store,
                 &params,
                 1 + i,
@@ -469,11 +496,11 @@ mod tests {
                 &[(val_pk1.clone().into(), false)],
                 &[],
             );
-            assert_eq!(slashes, vec![]);
+            assert_eq!(punishment_outcomes, vec![]);
         }
 
         // non-live fault
-        let slashes = table.begin_block(
+        let punishment_outcomes = table.begin_block(
             &mut store,
             &params,
             8,
@@ -481,19 +508,29 @@ mod tests {
             &[(val_pk1.clone().into(), false)],
             &[],
         );
-        assert_eq!(slashes[0].0, addr1);
-        assert_eq!(slashes[0].2, PunishmentKind::NonLive);
-        let slashed = slashes[0].1;
+        assert_eq!(punishment_outcomes[0].staking_address, addr1);
         assert_eq!(
-            slashed,
+            punishment_outcomes[0].punishment_kind,
+            PunishmentKind::NonLive
+        );
+        assert_eq!(
+            punishment_outcomes[0].jailed_until, None,
+            "NonLive should not jail"
+        );
+        let bonded_slashed = punishment_outcomes[0].slashed_coin.bonded;
+        let unbonded_slashed = punishment_outcomes[0].slashed_coin.unbonded;
+        assert_eq!(
+            bonded_slashed,
             Coin::new(11_0000_0000).unwrap() * SlashRatio::from_str("0.1").unwrap()
         );
+        assert_eq!(unbonded_slashed, Coin::zero(),);
         assert_eq!(
             table.end_block(&mut store, 3),
             vec![(val_pk1.clone(), Coin::zero().into())]
         );
 
         // re-join
+        let slashed = (bonded_slashed + unbonded_slashed).unwrap();
         table.deposit(&mut store, &addr1, slashed).unwrap();
         table.node_join(&mut store, 8, &node_join_tx(0)).unwrap();
         assert_eq!(
@@ -503,7 +540,7 @@ mod tests {
 
         // miss two blocks
         for i in 8..=9 {
-            let slashes = table.begin_block(
+            let punishment_outcomes = table.begin_block(
                 &mut store,
                 &params,
                 1 + i,
@@ -511,7 +548,7 @@ mod tests {
                 &[(val_pk1.clone().into(), false)],
                 &[],
             );
-            assert_eq!(slashes, vec![]);
+            assert_eq!(punishment_outcomes, vec![]);
         }
 
         let unbond = UnbondTx {
@@ -528,8 +565,9 @@ mod tests {
         );
 
         for i in 10..=11 {
-            let slashes = table.begin_block(&mut store, &params, 1 + i, i.into(), &[], &[]);
-            assert_eq!(slashes, vec![]);
+            let punishment_outcomes =
+                table.begin_block(&mut store, &params, 1 + i, i.into(), &[], &[]);
+            assert_eq!(punishment_outcomes, vec![]);
         }
 
         table
@@ -542,7 +580,7 @@ mod tests {
         );
 
         for i in 12..=13 {
-            let slashes = table.begin_block(
+            let punishment_outcomes = table.begin_block(
                 &mut store,
                 &params,
                 1 + i,
@@ -550,11 +588,11 @@ mod tests {
                 &[(val_pk1.clone().into(), false)],
                 &[],
             );
-            assert_eq!(slashes, vec![]);
+            assert_eq!(punishment_outcomes, vec![]);
         }
 
         // non-live fault again
-        let slashes = table.begin_block(
+        let punishment_outcomes = table.begin_block(
             &mut store,
             &params,
             15,
@@ -562,8 +600,15 @@ mod tests {
             &[(val_pk1.clone().into(), false)],
             &[],
         );
-        assert_eq!(slashes[0].0, addr1);
-        assert_eq!(slashes[0].2, PunishmentKind::NonLive);
+        assert_eq!(punishment_outcomes[0].staking_address, addr1);
+        assert_eq!(
+            punishment_outcomes[0].punishment_kind,
+            PunishmentKind::NonLive
+        );
+        assert_eq!(
+            punishment_outcomes[0].jailed_until, None,
+            "NonLive should not jail"
+        );
 
         assert_eq!(
             table.end_block(&mut store, 3),
@@ -577,48 +622,59 @@ mod tests {
     #[test]
     fn check_byzantine() {
         let (mut table, mut store) = init_staking_table();
+        let bonded = Coin::new(11_0000_0000).unwrap();
 
         let mut init_params = get_init_network_params(Coin::zero());
         init_params.slashing_config.liveness_slash_percent = "0.1".parse().unwrap();
-        init_params.slashing_config.byzantine_slash_percent = "0.1".parse().unwrap();
-        init_params.unbonding_period = 10;
+        let slash_percent = "0.1";
+        init_params.slashing_config.byzantine_slash_percent = slash_percent.parse().unwrap();
+        let unbonding_period = 10;
+        init_params.unbonding_period = unbonding_period;
         let params = NetworkParameters::Genesis(init_params);
 
         let addr1 = staking_address(&[0xcc; 32]);
         let val_pk1 = validator_pubkey(&[0xcc; 32]);
 
+        let unbond_amount = Coin::new(11_0000_0000).unwrap();
         let unbond = UnbondTx {
             from_staked_account: addr1,
             nonce: 0,
-            value: Coin::new(11_0000_0000).unwrap(),
+            value: unbond_amount,
             attributes: Default::default(),
         };
         table.unbond(&mut store, 10, 1, 1.into(), &unbond).unwrap();
-        assert_eq!(
-            store.get(&addr1).unwrap().unbonded,
-            Coin::new(11_0000_0000).unwrap()
-        );
+        assert_eq!(store.get(&addr1).unwrap().unbonded, unbond_amount);
+        let bonded = (bonded - unbond_amount).unwrap();
 
         assert_eq!(
             table.end_block(&mut store, 3),
             vec![(val_pk1.clone(), Coin::zero().into())]
         );
 
-        let slashes = table.begin_block(
+        let block_time = 2;
+        let punishment_outcomes = table.begin_block(
             &mut store,
             &params,
-            2,
+            block_time,
             2.into(),
             &[],
             &[(val_pk1.clone().into(), 1.into(), 1)],
         );
+        let slash_ratio = SlashRatio::from_str(slash_percent).unwrap();
+        let bonded_slashed = bonded * slash_ratio;
+        let unbonded_slashed = unbond_amount * slash_ratio;
+        let expected_jailed_until = block_time.saturating_add(unbonding_period as Timespec);
         assert_eq!(
-            slashes,
-            vec![(
-                addr1,
-                Coin::new(1_1000_0000).unwrap(),
-                PunishmentKind::ByzantineFault
-            )]
+            punishment_outcomes,
+            vec![PunishmentOutcome {
+                staking_address: addr1,
+                slashed_coin: SlashedCoin {
+                    bonded: bonded_slashed,
+                    unbonded: unbonded_slashed,
+                },
+                punishment_kind: PunishmentKind::ByzantineFault,
+                jailed_until: Some(expected_jailed_until),
+            }]
         );
         let staking = store.get(&addr1).unwrap();
         assert_eq!(staking.unbonded, Coin::new(9_9000_0000).unwrap());
@@ -662,21 +718,32 @@ mod tests {
         );
 
         let staking = store.get(&addr2).unwrap();
-        let to_slashed =
-            (staking.bonded + staking.unbonded).unwrap() * SlashRatio::from_str("0.1").unwrap();
+        let slash_ratio = SlashRatio::from_str("0.1").unwrap();
+        let bonded_slashed = staking.bonded * slash_ratio;
+        let unbonded_slashed = staking.unbonded * slash_ratio;
 
         // byzantine evidence of old key
-        let slashes = table.begin_block(
+        let block_time = 3;
+        let punishment_outcomes = table.begin_block(
             &mut store,
             &params,
-            3,
+            block_time,
             3.into(),
             &[],
             &[(val_pk2.clone().into(), 2.into(), 2)],
         );
+        let expected_jailed_until = block_time + unbonding_period as Timespec;
         assert_eq!(
-            slashes,
-            vec![(addr2, to_slashed, PunishmentKind::ByzantineFault)]
+            punishment_outcomes,
+            vec![PunishmentOutcome {
+                staking_address: addr2,
+                slashed_coin: SlashedCoin {
+                    bonded: bonded_slashed,
+                    unbonded: unbonded_slashed,
+                },
+                punishment_kind: PunishmentKind::ByzantineFault,
+                jailed_until: Some(expected_jailed_until),
+            }]
         );
         let staking = store.get(&addr2).unwrap();
         assert_eq!(
