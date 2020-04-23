@@ -747,10 +747,10 @@ impl StakingTable {
 pub(crate) fn set_staking(
     heap: &mut impl StoreStaking,
     staking: StakedState,
-    minimal_required_staking: Coin,
+    _minimal_required_staking: Coin,
 ) {
     #[cfg(debug_assertions)]
-    staking.check_invariants(minimal_required_staking);
+    staking.check_invariants(_minimal_required_staking);
     heap.set_staking(staking)
 }
 

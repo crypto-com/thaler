@@ -1,14 +1,11 @@
-#![allow(dead_code)]
-///! TODO: feature-guard when workspaces can be built with --features flag: https://github.com/rust-lang/cargo/issues/5015
-use super::*;
 use chain_core::state::account::DepositBondTx;
-use chain_core::tx::PlainTxAux;
-use chain_core::tx::TxEnclaveAux;
-use chain_core::tx::TxObfuscated;
-use chain_core::tx::TxWithOutputs;
+use chain_core::tx::{PlainTxAux, TxEnclaveAux, TxWithOutputs};
 use chain_tx_filter::BlockFilter;
 use chain_tx_validation::{verify_bonded_deposit_core, verify_transfer, verify_unbonded_withdraw};
 use enclave_protocol::IntraEnclaveResponseOk;
+use mock_utils::{decrypt, seal, unseal};
+
+use super::*;
 
 pub struct MockClient {
     chain_hex_id: u8,
@@ -60,57 +57,31 @@ impl EnclaveProxy for MockClient {
                 Ok(IntraEnclaveResponseOk::EndBlock(maybe_filter))
             }
             IntraEnclaveRequest::Encrypt(_) => {
-                // TODO: mock / simulate ?
+                // In mock mode, client will do the encryption on their own.
                 Err(chain_tx_validation::Error::EnclaveRejected)
             }
             IntraEnclaveRequest::ValidateTx { request, tx_inputs } => {
                 let (tx, account, info) =
                     (request.tx.clone(), request.account.clone(), request.info);
 
-                let (txpayload, inputs) = match (&tx, tx_inputs) {
-                    (
-                        TxEnclaveAux::TransferTx {
-                            payload: TxObfuscated { txpayload, .. },
-                            ..
-                        },
-                        Some(inputs),
-                    ) => (
-                        txpayload,
-                        inputs
-                            .iter()
-                            .map(|x| TxWithOutputs::decode(&mut x.as_slice()).expect("TODO mock"))
-                            .collect(),
-                    ),
+                let (payload, inputs) = match (&tx, tx_inputs) {
+                    (TxEnclaveAux::TransferTx { payload, .. }, Some(inputs)) => {
+                        (payload, inputs.iter().map(|log| unseal(&log)).collect())
+                    }
                     (
                         TxEnclaveAux::DepositStakeTx {
                             tx: DepositBondTx { .. },
-                            payload: TxObfuscated { txpayload, .. },
+                            payload,
                             ..
                         },
                         Some(inputs),
-                    ) => (
-                        txpayload,
-                        inputs
-                            .iter()
-                            .map(|x| TxWithOutputs::decode(&mut x.as_slice()).expect("TODO mock"))
-                            .collect(),
-                    ),
-                    (
-                        TxEnclaveAux::WithdrawUnbondedStakeTx {
-                            payload: TxObfuscated { txpayload, .. },
-                            ..
-                        },
-                        _,
-                    ) => (txpayload, vec![]),
+                    ) => (payload, inputs.iter().map(|log| unseal(&log)).collect()),
+                    (TxEnclaveAux::WithdrawUnbondedStakeTx { payload, .. }, _) => (payload, vec![]),
                     _ => unreachable!(),
                 };
-                // FIXME
-                let plain_tx = PlainTxAux::decode(&mut txpayload.as_slice());
+                let plain_tx = decrypt(&payload);
                 match (tx, plain_tx) {
-                    (
-                        TxEnclaveAux::TransferTx { .. },
-                        Ok(PlainTxAux::TransferTx(maintx, witness)),
-                    ) => {
+                    (TxEnclaveAux::TransferTx { .. }, PlainTxAux::TransferTx(maintx, witness)) => {
                         let result = verify_transfer(&maintx, &witness, &info, inputs);
                         match result {
                             Ok(fee) => {
@@ -119,7 +90,7 @@ impl EnclaveProxy for MockClient {
 
                                 Ok(IntraEnclaveResponseOk::TxWithOutputs {
                                     paid_fee: fee,
-                                    sealed_tx: txwo.encode(),
+                                    sealed_tx: seal(&txwo),
                                 })
                             }
                             Err(e) => Err(e),
@@ -127,7 +98,7 @@ impl EnclaveProxy for MockClient {
                     }
                     (
                         TxEnclaveAux::DepositStakeTx { tx, .. },
-                        Ok(PlainTxAux::DepositStakeTx(witness)),
+                        PlainTxAux::DepositStakeTx(witness),
                     ) => {
                         let result = verify_bonded_deposit_core(&tx, &witness, &info, inputs);
                         match result {
@@ -139,19 +110,20 @@ impl EnclaveProxy for MockClient {
                     }
                     (
                         TxEnclaveAux::WithdrawUnbondedStakeTx { .. },
-                        Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx)),
+                        PlainTxAux::WithdrawUnbondedStakeTx(tx),
                     ) => {
-                        let fee = verify_unbonded_withdraw(
+                        let result = verify_unbonded_withdraw(
                             &tx,
                             &info,
                             &account.expect("account exists in withdraw"),
-                        )?;
+                        );
+                        let fee = result?;
                         let txwo = TxWithOutputs::StakeWithdraw(tx);
                         self.add_view_keys(&txwo);
 
                         Ok(IntraEnclaveResponseOk::TxWithOutputs {
                             paid_fee: fee,
-                            sealed_tx: txwo.encode(),
+                            sealed_tx: seal(&txwo),
                         })
                     }
                     _ => Err(chain_tx_validation::Error::EnclaveRejected),

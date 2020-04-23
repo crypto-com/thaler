@@ -26,9 +26,6 @@ use chain_core::state::{ChainState, RewardsPoolState};
 use chain_core::tx::fee::{LinearFee, Milli};
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::witness::EcdsaSignature;
-use chain_core::tx::PlainTxAux;
-use chain_core::tx::TransactionId;
-use chain_core::tx::TxObfuscated;
 use chain_core::tx::{
     data::{
         access::{TxAccess, TxAccessPolicy},
@@ -39,7 +36,7 @@ use chain_core::tx::{
         txid_hash, Tx, TxId,
     },
     witness::{TxInWitness, TxWitness},
-    TxAux, TxEnclaveAux, TxPublicAux,
+    PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxPublicAux,
 };
 use chain_storage::buffer::Get;
 use chain_storage::{
@@ -49,6 +46,7 @@ use chain_tx_filter::BlockFilter;
 use hex::decode;
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
+use mock_utils::encrypt;
 use parity_scale_codec::{Decode, Encode};
 use secp256k1::schnorrsig::schnorr_sign;
 use secp256k1::{key::PublicKey, key::SecretKey, key::XOnlyPublicKey, Message, Secp256k1, Signing};
@@ -416,7 +414,7 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
             // leftover -- in previous tests, it was all paid as a fee
             TxOut::new_with_timelock(
                 ExtendedAddr::OrTree([2; 32]),
-                Coin::new(9999999999899999667).unwrap(),
+                Coin::new(9999999999899999651).unwrap(),
                 0,
             ),
         ],
@@ -424,16 +422,10 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
     );
 
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
-    // TODO: mock enc
     let txaux = TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx.outputs.len() as TxoSize,
         witness: witness.clone(),
-        payload: TxObfuscated {
-            txid: tx.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0; 12],
-            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()).encode(),
-        },
+        payload: encrypt(&PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()), tx.id()),
     });
     (app, txaux, tx)
 }
@@ -444,7 +436,7 @@ fn check_tx_should_accept_valid_tx() {
     let mut creq = RequestCheckTx::default();
     creq.set_tx(txaux.encode());
     let cresp = app.check_tx(&creq);
-    assert_eq!(0, cresp.code);
+    assert_eq!(0, cresp.code, "{}", cresp.log);
 }
 
 #[test]
@@ -568,7 +560,7 @@ fn deliver_tx_should_add_tx_events() {
     assert_eq!(2, valid_tx_event.attributes.len());
     // the unit test transaction just three outputs: 1 CRO + 1 carson / base unit + the rest
     assert_eq!(
-        "0.00000331",
+        "0.00000347",
         String::from_utf8(valid_tx_event.attributes[0].value.clone()).unwrap()
     );
     assert_eq!(
@@ -760,8 +752,21 @@ fn query_should_return_an_account() {
     qreq.data = hex::decode(&addr).unwrap();
     qreq.path = "account".into();
     let qresp = app.query(&qreq);
-    let account = StakedState::decode(&mut qresp.value.as_slice());
-    assert!(account.is_ok());
+    let account = StakedState::decode(&mut qresp.value.as_slice()).unwrap();
+    assert_eq!(account.address, StakedStateAddress::from_str(addr).unwrap());
+}
+
+#[test]
+fn staking_query_should_return_an_account() {
+    let addr = "fe7c045110b8dbf29765047380898919c5cb56f9";
+    let mut app = init_chain_for(addr.parse().unwrap());
+    let mut qreq = RequestQuery::new();
+    qreq.data = hex::decode(&addr).unwrap();
+    qreq.path = "staking".into();
+    let qresp = app.query(&qreq);
+    let (account, _): (StakedState, serde_json::Value) =
+        serde_json::from_slice(&qresp.value).unwrap();
+    assert_eq!(account.address, StakedStateAddress::from_str(addr).unwrap());
 }
 
 fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64) {
@@ -819,7 +824,7 @@ fn all_valid_tx_types_should_commit() {
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
             TxOut::new_with_timelock(eaddr.clone(), (Coin::one() + Coin::one()).unwrap(), 0),
             TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
-            TxOut::new_with_timelock(eaddr.clone(), Coin::new(9999999999599999618).unwrap(), 0), // rest
+            TxOut::new_with_timelock(eaddr.clone(), Coin::new(9999999999599999602).unwrap(), 0), // rest
         ],
         TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
     );
@@ -828,12 +833,7 @@ fn all_valid_tx_types_should_commit() {
     let withdrawtx = TxAux::EnclaveTx(TxEnclaveAux::WithdrawUnbondedStakeTx {
         no_of_outputs: tx0.outputs.len() as TxoSize,
         witness: witness0,
-        payload: TxObfuscated {
-            txid: tx0.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0u8; 12],
-            txpayload: PlainTxAux::WithdrawUnbondedStakeTx(tx0).encode(),
-        },
+        payload: encrypt(&PlainTxAux::WithdrawUnbondedStakeTx(tx0.clone()), tx0.id()),
     });
     {
         let account = get_account(&addr, &app).expect("acount not exist");
@@ -852,7 +852,7 @@ fn all_valid_tx_types_should_commit() {
     let utxo1 = TxoPointer::new(*txid, 0);
     let mut tx1 = Tx::new();
     tx1.add_input(utxo1);
-    tx1.add_output(TxOut::new(eaddr, Coin::from(99999716u32)));
+    tx1.add_output(TxOut::new(eaddr, Coin::from(99999700u32)));
     let txid1 = tx1.id();
     let witness1 = vec![TxInWitness::TreeSig(
         schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),
@@ -865,12 +865,7 @@ fn all_valid_tx_types_should_commit() {
     let transfertx = TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
         inputs: tx1.inputs.clone(),
         no_of_outputs: tx1.outputs.len() as TxoSize,
-        payload: TxObfuscated {
-            txid: tx1.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0u8; 12],
-            txpayload: plain_txaux.encode(),
-        },
+        payload: encrypt(&plain_txaux, tx1.id()),
     });
     {
         let spent_utxos = get_tx_meta(&txid, &app);
@@ -894,12 +889,7 @@ fn all_valid_tx_types_should_commit() {
     .into();
     let depositx = TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
         tx: tx2.clone(),
-        payload: TxObfuscated {
-            txid: tx2.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0u8; 12],
-            txpayload: PlainTxAux::DepositStakeTx(witness2).encode(),
-        },
+        payload: encrypt(&PlainTxAux::DepositStakeTx(witness2), tx2.id()),
     });
     {
         let spent_utxos0 = get_tx_meta(&txid, &app);
@@ -929,12 +919,7 @@ fn all_valid_tx_types_should_commit() {
     .into();
     let depositx = TxAux::EnclaveTx(TxEnclaveAux::DepositStakeTx {
         tx: tx3.clone(),
-        payload: TxObfuscated {
-            txid: tx3.id(),
-            key_from: BlockHeight::genesis(),
-            init_vector: [0u8; 12],
-            txpayload: PlainTxAux::DepositStakeTx(witness3).encode(),
-        },
+        payload: encrypt(&PlainTxAux::DepositStakeTx(witness3), tx3.id()),
     });
     {
         let spent_utxos0 = get_tx_meta(txid, &app);

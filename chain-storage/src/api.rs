@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 
 use bit_vec::BitVec;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 
+use crate::jellyfish::Version;
 use chain_core::common::H256;
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::data::{
@@ -13,7 +14,7 @@ use chain_core::tx::data::{
 use super::buffer::{GetKV, StoreKV};
 use super::{
     LookupItem, StoredChainState, CHAIN_ID_KEY, COL_APP_HASHS, COL_APP_STATES, COL_EXTRA,
-    COL_NODE_INFO, GENESIS_APP_HASH_KEY, LAST_STATE_KEY,
+    COL_NODE_INFO, COL_STAKING_VERSIONS, GENESIS_APP_HASH_KEY, LAST_STATE_KEY,
 };
 
 pub fn get_last_app_state(db: &impl GetKV) -> Option<Vec<u8>> {
@@ -65,6 +66,11 @@ pub fn get_historical_app_hash(db: &impl GetKV, height: BlockHeight) -> Option<H
     Some(stored_ah)
 }
 
+pub fn get_historical_staking_version(db: &impl GetKV, height: BlockHeight) -> Option<Version> {
+    let sah = db.get(&(COL_STAKING_VERSIONS, height.encode()))?;
+    Version::decode(&mut sah.as_slice()).ok()
+}
+
 pub fn store_chain_state<T: StoredChainState>(
     db: &mut impl StoreKV,
     genesis_state: &T,
@@ -79,6 +85,10 @@ pub fn store_chain_state<T: StoredChainState>(
     db.set(
         (COL_APP_HASHS, encoded_height.clone()),
         genesis_state.get_last_app_hash().to_vec(),
+    );
+    db.set(
+        (COL_STAKING_VERSIONS, encoded_height.clone()),
+        genesis_state.get_staking_version().encode(),
     );
     if write_history_states {
         db.set(

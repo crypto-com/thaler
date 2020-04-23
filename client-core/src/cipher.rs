@@ -2,6 +2,7 @@
 mod default;
 
 pub mod cert;
+pub mod mock;
 pub mod sgx;
 
 pub use default::DefaultTransactionObfuscation;

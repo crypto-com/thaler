@@ -23,7 +23,7 @@ hex = "0.4"
 
 [dependencies.chain-abci]
 path = ".."
-features = ["mock-validation"]
+features = ["mock-enclave"]
 
 # Prevent this from interfering with workspaces
 [workspace]

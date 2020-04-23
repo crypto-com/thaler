@@ -29,7 +29,7 @@ pub const COL_NODE_INFO: u32 = 4;
 pub const COL_MERKLE_PROOFS: u32 = 5;
 /// Column for tracking app hashes: height => app hash
 pub const COL_APP_HASHS: u32 = 6;
-/// Column for tracking app states: height => ChainNodeState, only available when tx_query_address set
+/// Column for tracking app states: height => ChainState, only available when tx_query_address set
 pub const COL_APP_STATES: u32 = 7;
 /// Column for sealed transction payload: TxId => sealed tx payload (to MRSIGNER on a particular machine)
 pub const COL_ENCLAVE_TX: u32 = 8;
@@ -37,8 +37,10 @@ pub const COL_ENCLAVE_TX: u32 = 8;
 pub const COL_TRIE_NODE: u32 = 9;
 /// Column for staled node key in merkle trie
 pub const COL_TRIE_STALED: u32 = 10;
+/// Column to store block height -> staking version
+pub const COL_STAKING_VERSIONS: u32 = 11;
 /// Number of columns in DB
-pub const NUM_COLUMNS: u32 = 11;
+pub const NUM_COLUMNS: u32 = 12;
 
 pub const CHAIN_ID_KEY: &[u8] = b"chain_id";
 pub const GENESIS_APP_HASH_KEY: &[u8] = b"genesis_app_hash";
@@ -134,6 +136,8 @@ pub trait StoredChainState {
     fn get_encoded_top_level(&self) -> Vec<u8>;
     /// the last committed application hash
     fn get_last_app_hash(&self) -> H256;
+    /// the staking version
+    fn get_staking_version(&self) -> Version;
 }
 
 #[repr(u32)]
@@ -217,6 +221,10 @@ impl Storage {
 
     pub fn get_historical_state(&self, height: BlockHeight) -> Option<Vec<u8>> {
         get_historical_state(self, height)
+    }
+
+    pub fn get_historical_staking_version(&self, height: BlockHeight) -> Option<Version> {
+        get_historical_staking_version(self, height)
     }
 
     pub fn get_historical_app_hash(&self, height: BlockHeight) -> Option<H256> {

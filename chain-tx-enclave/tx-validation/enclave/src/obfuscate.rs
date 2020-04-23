@@ -77,7 +77,7 @@ pub extern "C" fn ecall_test_encrypt(
                     .expect("construct plain payload"),
             )
         }
-        Ok(EncryptionRequest::WithdrawStake(tx, witness)) => {
+        Ok(EncryptionRequest::WithdrawStake(tx, _witness)) => {
             let txid = tx.id();
             encrypt(
                 TxToObfuscate::from(PlainTxAux::WithdrawUnbondedStakeTx(tx), txid)

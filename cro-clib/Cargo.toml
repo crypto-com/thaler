@@ -27,3 +27,6 @@ libc = "0.2.68"
 
 [build-dependencies]
 cbindgen = "0.14.0"
+
+[features]
+mock-enclave = ["client-rpc/mock-enclave"]

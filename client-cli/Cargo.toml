@@ -8,6 +8,7 @@ build = "build.rs"
 [features]
 default = []
 mock-hardware-wallet = ["client-core/mock-hardware-wallet"]
+mock-enclave = []
 
 [dependencies]
 chain-core = { path = "../chain-core"}

@@ -10,7 +10,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::TxWitness;
-use chain_core::tx::TransactionId;
+use chain_core::tx::{PlainTxAux, TransactionId, TxWithOutputs};
 
 /// A struct which the sender can download and the receiver can import
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -111,6 +111,15 @@ impl TransactionId for Transaction {
     }
 }
 
+impl From<TxWithOutputs> for Transaction {
+    fn from(tx: TxWithOutputs) -> Self {
+        match tx {
+            TxWithOutputs::Transfer(tx) => Self::TransferTransaction(tx),
+            TxWithOutputs::StakeWithdraw(tx) => Self::WithdrawUnbondedStakeTransaction(tx),
+        }
+    }
+}
+
 /// Enum representing a signed transaction
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
 pub enum SignedTransaction {
@@ -129,6 +138,18 @@ impl TransactionId for SignedTransaction {
             SignedTransaction::DepositStakeTransaction(ref transaction, _) => transaction.id(),
             SignedTransaction::WithdrawUnbondedStakeTransaction(ref transaction, _) => {
                 transaction.id()
+            }
+        }
+    }
+}
+
+impl Into<PlainTxAux> for SignedTransaction {
+    fn into(self) -> PlainTxAux {
+        match self {
+            Self::TransferTransaction(tx, witness) => PlainTxAux::TransferTx(tx, witness),
+            Self::DepositStakeTransaction(_tx, witness) => PlainTxAux::DepositStakeTx(witness),
+            Self::WithdrawUnbondedStakeTransaction(tx, _witness) => {
+                PlainTxAux::WithdrawUnbondedStakeTx(tx)
             }
         }
     }
