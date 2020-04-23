@@ -4316,7 +4316,7 @@ dependencies = [
 [[package]]
 name = "tendermint"
 version = "0.12.0-rc0"
-source = "git+https://github.com/crypto-com/tendermint-rs.git?rev=defa15f676eb4a3fca6c5a896be61fb63df408fc#defa15f676eb4a3fca6c5a896be61fb63df408fc"
+source = "git+https://github.com/crypto-com/tendermint-rs.git?rev=2469450f39c29020e64c2f1c2ee4de8965791b88#2469450f39c29020e64c2f1c2ee4de8965791b88"
 dependencies = [
  "anomaly",
  "async-trait",
