@@ -914,4 +914,12 @@ mod tests {
         proof.value = "two";
         assert!(!proof.verify(&tree.root_hash()));
     }
+
+    #[test]
+    fn check_big_tree() {
+        let values = ["one"; 65538];
+        let values = values.to_vec();
+        let tree = MerkleTree::new(values);
+        assert_eq!(tree.height, 17);
+    }
 }
