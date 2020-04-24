@@ -86,7 +86,7 @@ where
 }
 
 fn checked_unseal(payload: &[u8], _private_key: &PrivateKey) -> Option<TxWithOutputs> {
-    let tx = unseal(payload);
+    let tx = unseal(payload).unwrap();
     // TODO check view key
     Some(tx)
 }

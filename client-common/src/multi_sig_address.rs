@@ -1,4 +1,5 @@
 //! m-of-n multi-sig address
+use gcd::Gcd;
 use itertools::Itertools;
 use parity_scale_codec::{Decode, Encode};
 
@@ -6,6 +7,30 @@ use super::{Error, ErrorKind, PublicKey, Result};
 use chain_core::common::{MerkleTree, Proof, H256};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
+
+/// MerkleTree's max height limit in the MultiSigAddress
+/// it is safe for n choose m, where n <= 12
+const MAX_TREE_HEIGHT: u32 = 10;
+
+/// calculate n choose m combination amount  $C(n, m) = n! / (n! * (n - m)!)$
+/// https://stackoverflow.com/a/4701106
+fn combination(n: u64, m: u64) -> Result<u64> {
+    if m > n {
+        return Err(ErrorKind::InvalidInput.into());
+    }
+    let mut n = n;
+    let mut d = 1;
+    let mut result = 1;
+    while d <= m {
+        let gcd = result.gcd(d);
+        result /= gcd;
+        let t = n / (d / gcd);
+        result *= t;
+        d += 1;
+        n -= 1;
+    }
+    Ok(result)
+}
 
 // TODO: Remove pub
 /// m-of-n multi-sig address
@@ -44,6 +69,15 @@ impl MultiSigAddress {
             return Err(ErrorKind::InvalidInput.into());
         }
 
+        let n = total_signers as u64;
+        let m = required_signers as u64;
+        let combination_amount = combination(n, m)?;
+        if combination_amount > 2u64.pow(MAX_TREE_HEIGHT) {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "combination amount is too large",
+            ));
+        }
         let combinations = public_key_combinations(public_keys, required_signers)?;
         let merkle_tree = MerkleTree::new(combinations);
 
@@ -432,5 +466,32 @@ mod multi_sig_tests {
 
         let root_hash = multi_sig_address.root_hash();
         assert!(proof.verify(&root_hash));
+    }
+
+    #[test]
+    /// online check: https://www.dcode.fr/combinations
+    fn check_calculate_combination() {
+        let a = combination(5, 3).unwrap();
+        assert_eq!(10, a);
+        let a = combination(13, 7).unwrap();
+        assert_eq!(1716, a);
+        let a = combination(20, 10).unwrap();
+        assert_eq!(184756, a);
+        let a = combination(67, 33).unwrap();
+        assert_eq!(14_226_520_737_620_288_370, a);
+    }
+
+    #[test]
+    fn total_address_too_large_for_multisign_address() {
+        let public_keys = (0..13)
+            .map(|_| PublicKey::from(&PrivateKey::new().unwrap()))
+            .collect::<Vec<_>>();
+        let required_signers = 7;
+        let raw_pubkeys = public_key_combinations(public_keys.clone(), required_signers).unwrap();
+        assert_eq!(raw_pubkeys.len(), 1716);
+
+        let self_public_key = PublicKey::from(&PrivateKey::new().unwrap());
+        let multi_sig_address = MultiSigAddress::new(public_keys, self_public_key, 7);
+        assert!(multi_sig_address.is_err());
     }
 }

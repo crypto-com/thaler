@@ -65,9 +65,13 @@ impl EnclaveProxy for MockClient {
                     (request.tx.clone(), request.account.clone(), request.info);
 
                 let (payload, inputs) = match (&tx, tx_inputs) {
-                    (TxEnclaveAux::TransferTx { payload, .. }, Some(inputs)) => {
-                        (payload, inputs.iter().map(|log| unseal(&log)).collect())
-                    }
+                    (TxEnclaveAux::TransferTx { payload, .. }, Some(inputs)) => (
+                        payload,
+                        inputs
+                            .iter()
+                            .map(|log| unseal(&log))
+                            .collect::<Result<_, _>>()?,
+                    ),
                     (
                         TxEnclaveAux::DepositStakeTx {
                             tx: DepositBondTx { .. },
@@ -75,11 +79,17 @@ impl EnclaveProxy for MockClient {
                             ..
                         },
                         Some(inputs),
-                    ) => (payload, inputs.iter().map(|log| unseal(&log)).collect()),
+                    ) => (
+                        payload,
+                        inputs
+                            .iter()
+                            .map(|log| unseal(&log))
+                            .collect::<Result<_, _>>()?,
+                    ),
                     (TxEnclaveAux::WithdrawUnbondedStakeTx { payload, .. }, _) => (payload, vec![]),
                     _ => unreachable!(),
                 };
-                let plain_tx = decrypt(&payload);
+                let plain_tx = decrypt(&payload)?;
                 match (tx, plain_tx) {
                     (TxEnclaveAux::TransferTx { .. }, PlainTxAux::TransferTx(maintx, witness)) => {
                         let result = verify_transfer(&maintx, &witness, &info, inputs);
