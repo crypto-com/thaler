@@ -33,7 +33,7 @@ pub enum SyncerLogicError {
 /// Update wallet state with batch blocks
 pub(crate) fn handle_blocks(
     wallet: &Wallet,
-    wallet_state: &WalletState,
+    wallet_state: &mut WalletState,
     blocks: &[FilteredBlock],
     enclave_transactions: &[Transaction],
 ) -> Result<WalletStateMemento, SyncerLogicError> {
@@ -108,7 +108,7 @@ pub fn create_transaction_change(
 /// Update WalletStateMemento with transaction
 pub(crate) fn handle_transaction(
     wallet: &Wallet,
-    wallet_state: &WalletState,
+    wallet_state: &mut WalletState,
     memento: &mut WalletStateMemento,
     transaction: &Transaction,
     fee_paid: Fee,
@@ -139,12 +139,18 @@ pub(crate) fn handle_transaction(
         }
     }
 
-    memento.remove_pending_transaction(transaction_change.transaction_id);
-    memento.add_transaction_change(transaction_change);
+    memento.remove_pending_transaction(transaction_change.transaction_id.clone());
+    memento.add_transaction_change(transaction_change.clone());
+    // write to state
+    wallet_state.add_transaction_change(
+        transaction_change.transaction_id.clone(),
+        transaction_change,
+    );
+
     Ok(())
 }
 
-fn decorate_inputs(
+pub fn decorate_inputs(
     wallet_state: &WalletState,
     raw_inputs: &[TxoPointer],
     txid: &TxId,
@@ -332,7 +338,7 @@ mod tests {
             &[tx.clone()],
             &[unbond_transaction()],
         )];
-        let memento = handle_blocks(&wallets[0], &state, &blocks, &[tx.clone()]).unwrap();
+        let memento = handle_blocks(&wallets[0], &mut state, &blocks, &[tx.clone()]).unwrap();
         state.apply_memento(&memento).expect("apply memento");
         assert!(state.transaction_history.contains_key(&tx_cloned.id()));
     }
@@ -371,12 +377,12 @@ mod tests {
         let txs = [transactions[0].clone()];
         let blocks = [block_header(&[view_keys[0].clone()], &txs, &[])];
         {
-            let memento = handle_blocks(&wallets[0], &states[0], &blocks, &txs)
+            let memento = handle_blocks(&wallets[0], &mut states[0], &blocks, &txs)
                 .expect("handle block for wallet1");
             states[0].apply_memento(&memento).expect("apply memento1");
         }
         {
-            let memento = handle_blocks(&wallets[1], &states[1], &blocks, &[])
+            let memento = handle_blocks(&wallets[1], &mut states[1], &blocks, &[])
                 .expect("handle block for wallet2");
             states[1].apply_memento(&memento).expect("apply memento2");
         }
@@ -387,13 +393,13 @@ mod tests {
         let blocks = [block_header(&view_keys, &txs, &[])];
 
         {
-            let memento = handle_blocks(&wallets[0], &states[0], &blocks, &txs)
+            let memento = handle_blocks(&wallets[0], &mut states[0], &blocks, &txs)
                 .expect("handle block for wallet1");
             states[0].apply_memento(&memento).expect("apply memento1");
         }
 
         {
-            let memento = handle_blocks(&wallets[1], &states[1], &blocks, &txs)
+            let memento = handle_blocks(&wallets[1], &mut states[1], &blocks, &txs)
                 .expect("handle block for wallet2");
             states[1].apply_memento(&memento).expect("apply memento2");
         }

@@ -19,7 +19,10 @@ use client_common::{
 use super::syncer_logic::handle_blocks;
 use crate::service;
 use crate::service::{KeyService, SyncState, Wallet, WalletState, WalletStateMemento};
+use crate::wallet::WalletClient;
 use crate::TransactionObfuscation;
+use chain_core::tx::TransactionId;
+use std::collections::HashMap;
 
 /// Transaction decryptor interface for wallet synchronizer
 pub trait TxDecryptor: Clone + Send + Sync {
@@ -69,6 +72,7 @@ pub struct ObfuscationSyncerConfig<S: SecureStorage, C: Client, O: TransactionOb
 
     // configs
     pub enable_fast_forward: bool,
+    pub enable_address_recovery: bool,
     pub batch_size: usize,
     pub block_height_ensure: u64,
 }
@@ -80,6 +84,7 @@ impl<S: SecureStorage, C: Client, O: TransactionObfuscation> ObfuscationSyncerCo
         client: C,
         obfuscation: O,
         enable_fast_forward: bool,
+        enable_address_recovery: bool,
         batch_size: usize,
         block_height_ensure: u64,
     ) -> ObfuscationSyncerConfig<S, C, O> {
@@ -88,6 +93,7 @@ impl<S: SecureStorage, C: Client, O: TransactionObfuscation> ObfuscationSyncerCo
             client,
             obfuscation,
             enable_fast_forward,
+            enable_address_recovery,
             batch_size,
             block_height_ensure,
         }
@@ -103,17 +109,20 @@ pub struct SyncerConfig<S: SecureStorage, C: Client> {
 
     // configs
     enable_fast_forward: bool,
+    enable_address_recovery: bool,
     batch_size: usize,
     block_height_ensure: u64,
 }
 
 /// Wallet Syncer
 #[derive(Clone)]
-pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor> {
+pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor, T: WalletClient> {
     // common
     storage: S,
     client: C,
+    wallet_client: T,
     enable_fast_forward: bool,
+    enable_address_recovery: bool,
     batch_size: usize,
     block_height_ensure: u64,
 
@@ -123,11 +132,12 @@ pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor> {
     enckey: SecKey,
 }
 
-impl<S, C, D> WalletSyncer<S, C, D>
+impl<S, C, D, T> WalletSyncer<S, C, D, T>
 where
     S: SecureStorage,
     C: Client,
     D: TxDecryptor,
+    T: WalletClient,
 {
     /// Construct with common config
     pub fn with_config(
@@ -135,7 +145,8 @@ where
         decryptor: D,
         name: String,
         enckey: SecKey,
-    ) -> WalletSyncer<S, C, D> {
+        wallet_client: T,
+    ) -> WalletSyncer<S, C, D, T> {
         Self {
             storage: config.storage,
             client: config.client,
@@ -143,8 +154,10 @@ where
             name,
             enckey,
             enable_fast_forward: config.enable_fast_forward,
+            enable_address_recovery: config.enable_address_recovery,
             batch_size: config.batch_size,
             block_height_ensure: config.block_height_ensure,
+            wallet_client,
         }
     }
 
@@ -156,7 +169,7 @@ where
     }
 
     /// Load wallet state in memory, sync it to most recent latest, then drop the memory cache.
-    pub fn sync<F: FnMut(ProgressReport) -> bool>(&self, callback: F) -> Result<()> {
+    pub fn sync<F: FnMut(ProgressReport) -> bool>(&mut self, callback: F) -> Result<()> {
         WalletSyncerImpl::new(self, callback)?.sync()
     }
 }
@@ -169,18 +182,20 @@ fn load_view_key<S: SecureStorage>(storage: &S, name: &str, enckey: &SecKey) -> 
         })
 }
 
-impl<S, C, O> WalletSyncer<S, C, TxObfuscationDecryptor<O>>
+impl<S, C, O, T> WalletSyncer<S, C, TxObfuscationDecryptor<O>, T>
 where
     S: SecureStorage,
     C: Client,
     O: TransactionObfuscation,
+    T: WalletClient,
 {
     /// Construct with obfuscation config
     pub fn with_obfuscation_config(
         config: ObfuscationSyncerConfig<S, C, O>,
         name: String,
         enckey: SecKey,
-    ) -> Result<WalletSyncer<S, C, TxObfuscationDecryptor<O>>>
+        wallet_client: T,
+    ) -> Result<WalletSyncer<S, C, TxObfuscationDecryptor<O>, T>>
     where
         O: TransactionObfuscation,
     {
@@ -191,12 +206,14 @@ where
                 storage: config.storage,
                 client: config.client,
                 enable_fast_forward: config.enable_fast_forward,
+                enable_address_recovery: config.enable_address_recovery,
                 batch_size: config.batch_size,
                 block_height_ensure: config.block_height_ensure,
             },
             decryptor,
             name,
             enckey,
+            wallet_client,
         ))
     }
 }
@@ -208,8 +225,9 @@ struct WalletSyncerImpl<
     C: Client,
     D: TxDecryptor,
     F: FnMut(ProgressReport) -> bool,
+    T: WalletClient,
 > {
-    env: &'a WalletSyncer<S, C, D>,
+    env: &'a mut WalletSyncer<S, C, D, T>,
     progress_callback: F,
 
     // cached state
@@ -218,10 +236,16 @@ struct WalletSyncerImpl<
     wallet_state: WalletState,
 }
 
-impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -> bool>
-    WalletSyncerImpl<'a, S, C, D, F>
+impl<
+        'a,
+        S: SecureStorage,
+        C: Client,
+        D: TxDecryptor,
+        F: FnMut(ProgressReport) -> bool,
+        T: WalletClient,
+    > WalletSyncerImpl<'a, S, C, D, F, T>
 {
-    fn new(env: &'a WalletSyncer<S, C, D>, progress_callback: F) -> Result<Self> {
+    fn new(env: &'a mut WalletSyncer<S, C, D, T>, progress_callback: F) -> Result<Self> {
         let wallet = service::load_wallet(&env.storage, &env.name, &env.enckey)?
             .err_kind(ErrorKind::InvalidInput, || {
                 format!("wallet not found: {}", env.name)
@@ -277,6 +301,64 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -
         Ok(())
     }
 
+    fn handle_recover_addresses_for_transaction(
+        &mut self,
+        transaction: &Transaction,
+    ) -> Result<()> {
+        let _transaction_id = transaction.id();
+
+        let mut refetch = false;
+
+        let _inputs = transaction.inputs().to_vec();
+
+        let outputs = transaction.outputs().to_vec();
+
+        for (_i, output) in outputs.iter().enumerate() {
+            let newaddress = output.address.to_string();
+            let tmp_refetch = self.env.wallet_client.recover_addresses(
+                &newaddress,
+                &self.env.name,
+                &self.env.enckey,
+            )?;
+            if tmp_refetch {
+                refetch = true;
+            }
+        }
+
+        if refetch {
+            log::info!("refetch address ---------------------------");
+            let wallet = service::load_wallet(&self.env.storage, &self.env.name, &self.env.enckey)
+                .expect("get wallet");
+            self.wallet = wallet.expect("get wallet");
+        }
+        Ok(())
+    }
+
+    fn handle_recover_addresses(&mut self, blocks: &[FilteredBlock]) -> Result<()> {
+        let enclave_txids = blocks
+            .iter()
+            .flat_map(|block| block.enclave_transaction_ids.iter().copied())
+            .collect::<Vec<_>>();
+        let enclave_txs = self.env.decryptor.decrypt_tx(&enclave_txids)?;
+        let enclave_transactions = enclave_txs
+            .iter()
+            .map(|tx| (tx.id(), tx))
+            .collect::<HashMap<_, _>>();
+
+        for block in blocks {
+            for txid in block.enclave_transaction_ids.iter() {
+                if let (Some(tx), Some(_fee)) = (
+                    enclave_transactions.get(txid),
+                    block.valid_transaction_fees.get(txid),
+                ) {
+                    self.handle_recover_addresses_for_transaction(&tx)?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn handle_batch(&mut self, blocks: NonEmpty<FilteredBlock>) -> Result<()> {
         let enclave_txids = blocks
             .iter()
@@ -284,7 +366,14 @@ impl<'a, S: SecureStorage, C: Client, D: TxDecryptor, F: FnMut(ProgressReport) -
             .collect::<Vec<_>>();
         let enclave_txs = self.env.decryptor.decrypt_tx(&enclave_txids)?;
 
-        let memento = handle_blocks(&self.wallet, &self.wallet_state, &blocks, &enclave_txs)
+        if self.env.enable_address_recovery
+            && crate::types::WalletKind::HD == self.wallet.wallet_kind
+        {
+            // only hdwallet
+            self.handle_recover_addresses(&blocks)?;
+        }
+
+        let memento = handle_blocks(&self.wallet, &mut self.wallet_state, &blocks, &enclave_txs)
             .map_err(|err| Error::new(ErrorKind::InvalidInput, err.to_string()))?;
 
         let block = blocks.last();
@@ -570,17 +659,19 @@ mod tests {
             }
         }
 
-        let syncer = WalletSyncer::with_config(
+        let mut syncer = WalletSyncer::with_config(
             SyncerConfig {
                 storage,
                 client,
                 enable_fast_forward,
+                enable_address_recovery: false,
                 batch_size: 20,
                 block_height_ensure: 50,
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
             name.to_owned(),
             enckey,
+            wallet,
         );
         syncer.sync(|_| true).expect("Unable to synchronize");
     }
@@ -688,17 +779,20 @@ mod tests {
         let client = MockTendermintClient {};
 
         let enable_fast_forward = false;
-        let syncer = WalletSyncer::with_config(
+
+        let mut syncer = WalletSyncer::with_config(
             SyncerConfig {
                 storage,
                 client,
                 enable_fast_forward,
+                enable_address_recovery: false,
                 batch_size: 20,
                 block_height_ensure: 50,
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
             name.to_owned(),
             wallet_enckey,
+            wallet,
         );
 
         syncer.sync(|_| true).expect("sync should succeed");

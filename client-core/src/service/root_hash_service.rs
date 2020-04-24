@@ -22,6 +22,21 @@ where
         Self { storage }
     }
 
+    /// peek new root_hash
+    pub fn peek_new_root_hash(
+        &self,
+        public_keys: Vec<PublicKey>,
+        self_public_key: PublicKey,
+        required_signers: usize,
+    ) -> Result<(H256, MultiSigAddress)> {
+        let multi_sig_address =
+            MultiSigAddress::new(public_keys, self_public_key, required_signers)?;
+
+        let root_hash = multi_sig_address.root_hash();
+
+        Ok((root_hash, multi_sig_address))
+    }
+
     /// Creates and persists new multi-sig address and returns its root hash
     /// and MultiSigAddr pair
     pub fn new_root_hash(

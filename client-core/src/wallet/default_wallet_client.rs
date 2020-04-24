@@ -39,8 +39,8 @@ use client_common::{
     ResultExt, SecKey, SignedTransaction, Storage, Transaction, TransactionInfo,
 };
 use std::collections::BTreeSet;
+use std::str::FromStr;
 use std::time::Duration;
-
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Debug, Default, Clone)]
 pub struct DefaultWalletClient<S, C, T>
@@ -116,6 +116,60 @@ where
     C: Client,
     T: WalletTransactionBuilder,
 {
+    fn recover_addresses(
+        &mut self,
+        new_address: &str,
+        name: &str,
+        enckey: &SecKey,
+    ) -> Result<bool> {
+        let extended_addr = ExtendedAddr::from_str(new_address).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode extended addr",
+            )
+        })?;
+
+        let is_exist = self
+            .wallet_service
+            .find_root_hash(name, enckey, &extended_addr)
+            .is_ok();
+        if is_exist {
+            // no need
+            return Ok(false);
+        }
+
+        let index = self
+            .hd_key_service
+            .get_latest_transfer_index(new_address, name, enckey)?;
+        let mut found = false;
+        let count = 20;
+        for i in index..(index + count) {
+            let (publickey, _privatekey) = self.hd_key_service.peek_key_pair(name, enckey, i)?;
+            let (h256, _multisigaddr) = self.root_hash_service.peek_new_root_hash(
+                vec![publickey.clone()],
+                publickey.clone(),
+                1,
+            )?;
+            assert!(32 == h256.len());
+            let extended_addr_from_hash = ExtendedAddr::OrTree(h256);
+            if extended_addr == extended_addr_from_hash {
+                found = true;
+                break;
+            }
+        }
+
+        if !found {
+            return Ok(false);
+        }
+
+        let count = count;
+        for _i in 0..count {
+            self.new_transfer_address(name, enckey)
+                .expect("get new transfer address");
+        }
+
+        Ok(true)
+    }
     fn get_transaction(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<Transaction> {
         let wallet = self.wallet_service.get_wallet(name, enckey)?;
         let private_key = self

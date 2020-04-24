@@ -3,11 +3,11 @@ use super::sync_worker::WorkerShared;
 use crate::server::to_rpc_error;
 use client_common::tendermint::Client;
 use client_common::Storage;
-use client_core::synchronizer::PollingSynchronizer;
 use client_core::wallet::syncer::ProgressReport;
 use client_core::wallet::syncer::{ObfuscationSyncerConfig, WalletSyncer};
 use client_core::wallet::WalletRequest;
 use client_core::TransactionObfuscation;
+use client_core::WalletClient;
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 use serde::{Deserialize, Serialize};
@@ -73,31 +73,60 @@ pub trait SyncRpc: Send + Sync {
     fn sync_stop(&self, request: WalletRequest) -> Result<()>;
 }
 
-pub struct SyncRpcImpl<S, C, O>
+pub struct SyncRpcImpl<S, C, O, T>
 where
     S: Storage,
     C: Client,
     O: TransactionObfuscation,
+    T: WalletClient,
 {
     config: ObfuscationSyncerConfig<S, C, O>,
-    polling_synchronizer: PollingSynchronizer,
+
     progress_callback: Option<CBindingCore>,
     worker: WorkerShared,
+    wallet_client: T,
 }
 
-fn process_sync<S, C, O>(
+impl<S, C, O, T> SyncRpcImpl<S, C, O, T>
+where
+    S: Storage + 'static,
+    C: Client + 'static,
+    O: TransactionObfuscation + 'static,
+    T: WalletClient + 'static,
+{
+    pub fn new(
+        config: ObfuscationSyncerConfig<S, C, O>,
+        progress_callback: Option<CBindingCore>,
+
+        wallet_client: T,
+    ) -> Self {
+        SyncRpcImpl {
+            config,
+
+            progress_callback,
+            worker: Arc::new(Mutex::new(SyncWorker::new())),
+
+            wallet_client,
+        }
+    }
+}
+
+fn process_sync<S, C, O, T>(
     config: ObfuscationSyncerConfig<S, C, O>,
     request: WalletRequest,
     reset: bool,
     progress_callback: Option<CBindingCore>,
+    wallet_client: T,
 ) -> Result<()>
 where
     S: Storage,
     C: Client,
     O: TransactionObfuscation,
+    T: WalletClient,
 {
-    let syncer = WalletSyncer::with_obfuscation_config(config, request.name, request.enckey)
-        .map_err(to_rpc_error)?;
+    let mut syncer =
+        WalletSyncer::with_obfuscation_config(config, request.name, request.enckey, wallet_client)
+            .map_err(to_rpc_error)?;
     if reset {
         syncer.reset_state().map_err(to_rpc_error)?;
     }
@@ -151,11 +180,12 @@ where
         .map_err(to_rpc_error)
 }
 
-impl<S, C, O> SyncRpcImpl<S, C, O>
+impl<S, C, O, T> SyncRpcImpl<S, C, O, T>
 where
     S: Storage + 'static,
     C: Client + 'static,
     O: TransactionObfuscation + 'static,
+    T: WalletClient + 'static,
 {
     fn do_run_sync(
         &self,
@@ -165,6 +195,7 @@ where
     ) -> Result<RunSyncResult> {
         log::info!("run_sync");
         let config = self.config.clone();
+        let wallet_client = self.wallet_client.clone();
 
         let name = request.name.clone();
         let worker = self.worker.clone();
@@ -194,6 +225,7 @@ where
                     userrequest.clone(),
                     reset,
                     usercallback.clone(),
+                    wallet_client.clone(),
                 );
                 log::info!("process_sync finished {} {:?}", name, result);
                 if result.is_err() {
@@ -207,6 +239,11 @@ where
                 {
                     break;
                 }
+
+                localworker
+                    .lock()
+                    .expect("get sync worker lock")
+                    .set_complete(&name);
 
                 // notify
                 log::info!("wait for notification {}", name);
@@ -231,11 +268,12 @@ where
     }
 }
 
-impl<S, C, O> SyncRpc for SyncRpcImpl<S, C, O>
+impl<S, C, O, T> SyncRpc for SyncRpcImpl<S, C, O, T>
 where
     S: Storage + 'static,
     C: Client + 'static,
     O: TransactionObfuscation + 'static,
+    T: WalletClient + 'static,
 {
     #[inline]
     fn sync(&self, request: WalletRequest, sync_request: SyncRequest) -> Result<RunSyncResult> {
@@ -246,6 +284,7 @@ where
                 request,
                 sync_request.reset,
                 self.progress_callback.clone(),
+                self.wallet_client.clone(),
             )?;
             Ok(RunSyncResult::default())
         } else {
@@ -270,35 +309,12 @@ where
     }
 }
 
-impl<S, C, O> SyncRpcImpl<S, C, O>
-where
-    S: Storage + 'static,
-    C: Client + 'static,
-    O: TransactionObfuscation + 'static,
-{
-    pub fn new(
-        config: ObfuscationSyncerConfig<S, C, O>,
-        progress_callback: Option<CBindingCore>,
-    ) -> Self {
-        let mut polling_synchronizer = PollingSynchronizer::default();
-        polling_synchronizer.spawn(config.clone());
-
-        SyncRpcImpl {
-            config,
-            polling_synchronizer,
-            progress_callback,
-            worker: Arc::new(Mutex::new(SyncWorker::new())),
-        }
-    }
-}
-
-impl<S, C, O> Drop for SyncRpcImpl<S, C, O>
+impl<S, C, O, T> Drop for SyncRpcImpl<S, C, O, T>
 where
     S: Storage,
     C: Client,
     O: TransactionObfuscation,
+    T: WalletClient,
 {
-    fn drop(&mut self) {
-        self.polling_synchronizer.stop();
-    }
+    fn drop(&mut self) {}
 }

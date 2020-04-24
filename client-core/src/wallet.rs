@@ -54,7 +54,11 @@ pub struct WalletRequest {
 }
 
 /// Interface for a generic wallet
-pub trait WalletClient: Send + Sync {
+pub trait WalletClient: Send + Sync + Clone {
+    /// recover address beforehand
+    /// return true: need to refetch addresses in Wallet State
+    fn recover_addresses(&mut self, new_address: &str, name: &str, enckey: &SecKey)
+        -> Result<bool>;
     /// if the view key included in the transaction, return the Transaction
     fn get_transaction(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<Transaction>;
 
