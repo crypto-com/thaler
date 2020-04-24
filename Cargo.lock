@@ -2494,6 +2494,7 @@ name = "mock-utils"
 version = "0.1.0"
 dependencies = [
  "chain-core",
+ "chain-tx-validation",
  "parity-scale-codec",
 ]
 
