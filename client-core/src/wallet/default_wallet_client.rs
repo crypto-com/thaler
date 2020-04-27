@@ -214,7 +214,7 @@ where
             // query tx_id from tendermint
             let confirmed = self
                 .tendermint_client
-                .query("meta", &tx_id.to_vec())
+                .query("meta", &tx_id.to_vec(), None, false)
                 .is_ok();
             if !confirmed {
                 std::thread::sleep(Duration::from_secs(1));
@@ -863,7 +863,7 @@ where
         // check if the output is spent or not
         let v = self
             .tendermint_client
-            .query("meta", &tx_info.tx.id().to_vec())?
+            .query("meta", &tx_info.tx.id().to_vec(), None, false)?
             .bytes();
         let bit_flag = BitVec::from_bytes(&v);
         let spent_flags: Result<Vec<bool>> = tx_info

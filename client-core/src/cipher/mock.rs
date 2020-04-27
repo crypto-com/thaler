@@ -44,7 +44,7 @@ where
 
         let rsps = txids
             .iter()
-            .map(|txid| self.client.query("sealed", txid))
+            .map(|txid| self.client.query("sealed", txid, None, false))
             .collect::<Result<Vec<_>>>()
             .expect("abci_query failed");
 
@@ -147,7 +147,13 @@ mod tests {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
+        fn query(
+            &self,
+            _path: &str,
+            _data: &[u8],
+            _height: Option<Height>,
+            _prove: bool,
+        ) -> Result<AbciQuery> {
             Ok(AbciQuery {
                 value: Some(seal(&TxWithOutputs::Transfer(Tx::default()))),
                 ..Default::default()

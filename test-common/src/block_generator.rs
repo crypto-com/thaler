@@ -573,7 +573,13 @@ impl Client for GeneratorClient {
         unreachable!();
     }
 
-    fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
+    fn query(
+        &self,
+        _path: &str,
+        _data: &[u8],
+        _height: Option<Height>,
+        _prove: bool,
+    ) -> Result<AbciQuery> {
         unreachable!();
     }
 

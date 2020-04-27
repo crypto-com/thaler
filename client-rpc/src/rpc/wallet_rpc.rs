@@ -639,7 +639,13 @@ pub mod tests {
             unreachable!("broadcast_transaction")
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> CommonResult<AbciQuery> {
+        fn query(
+            &self,
+            _path: &str,
+            _data: &[u8],
+            _height: Option<Height>,
+            _prove: bool,
+        ) -> CommonResult<AbciQuery> {
             unreachable!("query")
         }
 

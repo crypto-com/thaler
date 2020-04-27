@@ -109,7 +109,7 @@ fn create_encoded_signed_withdraw(
     assert!(20 == from_address.raw.len());
     let tendermint_client = WebsocketRpcClient::new(&tendermint_url)?;
     let bytes = tendermint_client
-        .query("account", &from_address.raw)?
+        .query("account", &from_address.raw, None, false)?
         .bytes();
     let staked_state = StakedState::decode(&mut bytes.as_slice()).chain(|| {
         (
@@ -201,7 +201,9 @@ pub unsafe extern "C" fn cro_withdraw(
 
 fn query_staked_state(from_address: &CroAddress, tendermint_url: &str) -> Result<StakedState> {
     let tendermint_client = WebsocketRpcClient::new(&tendermint_url)?;
-    let result = tendermint_client.query("txquery", &[])?.bytes();
+    let result = tendermint_client
+        .query("txquery", &[], None, false)?
+        .bytes();
     let address = std::str::from_utf8(&result).chain(|| {
         (
             ErrorKind::ConnectionError,
@@ -219,7 +221,7 @@ fn query_staked_state(from_address: &CroAddress, tendermint_url: &str) -> Result
 
     assert!(20 == from_address.raw.len());
     let bytes = tendermint_client
-        .query("account", &from_address.raw)?
+        .query("account", &from_address.raw, None, false)?
         .bytes();
     let state = StakedState::decode(&mut bytes.as_slice()).chain(|| {
         (
@@ -264,7 +266,9 @@ fn encrypt_signed_transaction(
     signed_transaction_encoded: Vec<u8>,
 ) -> Result<Vec<u8>> {
     let tendermint_client = WebsocketRpcClient::new(&tendermint_url)?;
-    let result = tendermint_client.query("txquery", &[])?.bytes();
+    let result = tendermint_client
+        .query("txquery", &[], None, false)?
+        .bytes();
     let address = std::str::from_utf8(&result)
         .chain(|| (ErrorKind::DeserializationError, "Unable to decode address"))?;
     let signed_transaction: SignedTransaction =
