@@ -45,15 +45,27 @@ impl Milli {
     /// takes the integer part and 3-digit fractional part
     /// and returns the 3-digit fixed decimal number (i.fff)
     #[inline]
-    pub const fn new(i: u64, f: u64) -> Self {
+    pub(crate) const fn new(i: u64, f: u64) -> Self {
         Milli(i * 1000 + f % 1000)
+    }
+
+    /// takes the integer part and 3-digit fractional part
+    /// and returns the 3-digit fixed decimal number (i.fff)
+    /// if the result is too large to overflow, return MilliError
+    pub fn try_new(i: u64, f: u64) -> Result<Self, MilliError> {
+        let i = i.checked_mul(1000).ok_or(MilliError::IntegralOverflow)?;
+        let inner = i
+            .checked_add(f % 1000)
+            .ok_or(MilliError::IntegralOverflow)?;
+        Ok(Milli(inner))
     }
 
     /// takes the integer part
     /// and returns the 3-digit fixed decimal number (i.000)
     #[inline]
-    pub fn integral(i: u64) -> Self {
-        Milli(i * 1000)
+    pub fn integral(i: u64) -> Result<Self, MilliError> {
+        let inner = i.checked_mul(1000).ok_or(MilliError::IntegralOverflow)?;
+        Ok(Milli(inner))
     }
 
     /// returns the ceiled integer
@@ -96,6 +108,8 @@ pub enum MilliError {
     InvalidPartsLength(usize),
     /// Number parsing error
     InvalidInteger(ParseIntError),
+    /// too large to overflow
+    IntegralOverflow,
 }
 
 impl fmt::Display for MilliError {
@@ -105,6 +119,7 @@ impl fmt::Display for MilliError {
                 write!(f, "Invalid parts length: {} (2 expected)", len)
             }
             MilliError::InvalidInteger(ref err) => write!(f, "Integer parsing error: {}", err),
+            MilliError::IntegralOverflow => write!(f, "Milli is too large to overflow"),
         }
     }
 }
@@ -128,7 +143,7 @@ impl FromStr for Milli {
             _ => return Err(MilliError::InvalidPartsLength(len)),
         };
 
-        Ok(Milli::new(integral, fractional))
+        Milli::try_new(integral, fractional)
     }
 }
 
@@ -205,7 +220,7 @@ impl LinearFee {
 
     /// calculates the fee based on the provided transaction size
     pub fn estimate(&self, sz: usize) -> Result<Fee, CoinError> {
-        let msz = Milli::integral(sz as u64);
+        let msz = Milli::integral(sz as u64).map_err(|_| CoinError::Overflow)?;
         let fee = self.constant + self.coefficient * msz;
         let coin = Coin::new(fee.to_integral())?;
         Ok(Fee(coin))
@@ -297,6 +312,26 @@ mod test {
         assert_eq!(1150, Milli::from_str("1.15").unwrap().as_millis());
     }
 
+    #[test]
+    fn check_milli_overflow() {
+        use serde::Deserialize;
+
+        let i = std::u64::MAX;
+        let m = Milli::try_new(i, 10);
+        assert!(m.is_err());
+
+        #[derive(Deserialize, Debug)]
+        struct Test {
+            key: Milli,
+        }
+        let a = r#"{"key": 18446744073709551615}"#;
+        let t: Result<Test, _> = serde_json::from_str(a);
+        assert!(t.is_ok());
+        let b = r#"{"key": 18446744073709551616}"#;
+        let t: Result<Test, _> = serde_json::from_str(b);
+        assert!(t.is_err());
+    }
+
     quickcheck! {
         fn prop_milli_add(n1: u64, n2: u64) -> bool {
             test_milli_add_eq(n1, n2)
@@ -316,6 +351,5 @@ mod test {
             let v2 = Milli::from_millis(n2);
             v1 * v2 == v2 * v1
         }
-
     }
 }

@@ -96,7 +96,7 @@ pub struct CroFee {
 
 impl Default for CroFee {
     fn default() -> Self {
-        let fee = LinearFee::new(Milli::new(0, 0), Milli::new(0, 0));
+        let fee = LinearFee::new(Milli::try_new(0, 0).unwrap(), Milli::try_new(0, 0).unwrap());
         CroFee { fee }
     }
 }

@@ -150,9 +150,12 @@ fn get_address<C: Signing>(
 
 fn get_chain_info(txaux: &TxAux) -> ChainInfo {
     ChainInfo {
-        min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
-            .calculate_for_txaux(&txaux)
-            .expect("invalid fee policy"),
+        min_fee_computed: LinearFee::new(
+            Milli::try_new(1, 1).unwrap(),
+            Milli::try_new(1, 1).unwrap(),
+        )
+        .calculate_for_txaux(&txaux)
+        .expect("invalid fee policy"),
         chain_hex_id: DEFAULT_CHAIN_ID,
         block_time: 0,
         unbonding_period: 1,
@@ -1308,9 +1311,12 @@ fn check_unjail_transaction() {
     let txaux =
         prepare_unjail_transaction(&secret_key, StakedStateAddress::BasicRedeem(address), 1);
     let extra_info = ChainInfo {
-        min_fee_computed: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
-            .calculate_for_txaux(&TxAux::PublicTx(txaux.clone()))
-            .expect("invalid fee policy"),
+        min_fee_computed: LinearFee::new(
+            Milli::try_new(1, 1).unwrap(),
+            Milli::try_new(1, 1).unwrap(),
+        )
+        .calculate_for_txaux(&TxAux::PublicTx(txaux.clone()))
+        .expect("invalid fee policy"),
         chain_hex_id: DEFAULT_CHAIN_ID,
         block_time: 101,
         block_height: BlockHeight::genesis(),

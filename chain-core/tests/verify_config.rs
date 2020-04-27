@@ -55,8 +55,8 @@ fn test_verify_test_example_snapshot() {
         };
         dist.insert(account.address, (dest, amount));
     }
-    let constant_fee = Milli::new(1, 25);
-    let coefficient_fee = Milli::new(1, 1);
+    let constant_fee = Milli::try_new(1, 25).unwrap();
+    let coefficient_fee = Milli::try_new(1, 1).unwrap();
     let fee_policy = LinearFee::new(constant_fee, coefficient_fee);
     let expansion_cap = Coin::new(951_6484_5705_9733_7034).unwrap();
     let mut params = InitNetworkParameters {

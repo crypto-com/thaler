@@ -86,7 +86,10 @@ fn init_chain_for(addresses: &Vec<RedeemAddress>) -> ChainNodeApp {
     );
 
     let params = InitNetworkParameters {
-        initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
+        initial_fee_policy: LinearFee::new(
+            Milli::try_new(1, 1).unwrap(),
+            Milli::try_new(1, 1).unwrap(),
+        ),
         required_council_node_stake: remaining,
         unbonding_period: 1,
     };

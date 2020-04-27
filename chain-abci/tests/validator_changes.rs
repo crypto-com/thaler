@@ -154,7 +154,7 @@ fn check_rejoin() {
             parameters.unbonding_period = 3600 * 24 * 10000;
             parameters.rewards_config.reward_period_seconds = 365 * 24 * 3600;
             parameters.required_council_node_stake = (Coin::max() / 4).unwrap();
-            parameters.rewards_config.monetary_expansion_r0 = Milli::new(1, 0);
+            parameters.rewards_config.monetary_expansion_r0 = Milli::try_new(1, 0).unwrap();
             parameters.rewards_config.monetary_expansion_tau = 1000_0000_0000_0000_0000;
             parameters.rewards_config.monetary_expansion_decay = 0;
         },
