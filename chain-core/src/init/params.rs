@@ -197,7 +197,7 @@ impl RewardsParameters {
     /// check if reward parameters are correct
     /// TODO: hide values and check these in `new` + deserialize/decode?
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.monetary_expansion_r0 > Milli::integral(1) {
+        if self.monetary_expansion_r0 > Milli::integral(1).unwrap() {
             return Err("R0 can't > 1");
         }
         if self.monetary_expansion_tau == 0 {

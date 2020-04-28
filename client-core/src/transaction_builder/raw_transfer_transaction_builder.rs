@@ -1231,7 +1231,7 @@ mod raw_transfer_transaction_builder_tests {
     }
 
     fn create_testing_fee_algorithm() -> LinearFee {
-        LinearFee::new(Milli::new(1, 1), Milli::new(1, 1))
+        LinearFee::new(Milli::try_new(1, 1).unwrap(), Milli::try_new(1, 1).unwrap())
     }
 
     fn create_key_pair_and_transfer_addr() -> (PrivateKey, PublicKey, ExtendedAddr) {

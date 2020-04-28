@@ -336,7 +336,8 @@ mod default_wallet_transaction_builder_tests {
         let return_address = wallet_client.new_transfer_address(name, &enckey).unwrap();
 
         let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
-        let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
+        let fee_algorithm =
+            LinearFee::new(Milli::try_new(1, 1).unwrap(), Milli::try_new(1, 1).unwrap());
 
         let transaction_builder = DefaultWalletTransactionBuilder::new(
             signer_manager,
@@ -459,7 +460,8 @@ mod default_wallet_transaction_builder_tests {
         let return_address = wallet_client.new_transfer_address(name, &enckey).unwrap();
 
         let signer_manager = WalletSignerManager::new(storage.clone(), HwKeyService::default());
-        let fee_algorithm = LinearFee::new(Milli::new(1, 1), Milli::new(1, 1));
+        let fee_algorithm =
+            LinearFee::new(Milli::try_new(1, 1).unwrap(), Milli::try_new(1, 1).unwrap());
 
         let transaction_builder = DefaultWalletTransactionBuilder::new(
             signer_manager,

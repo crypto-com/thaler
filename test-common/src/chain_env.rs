@@ -85,7 +85,10 @@ pub fn create_storage() -> Storage {
 
 pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
     InitNetworkParameters {
-        initial_fee_policy: LinearFee::new(Milli::new(0, 0), Milli::new(0, 0)),
+        initial_fee_policy: LinearFee::new(
+            Milli::try_new(0, 0).unwrap(),
+            Milli::try_new(0, 0).unwrap(),
+        ),
         required_council_node_stake: Coin::unit(),
         unbonding_period: 61,
         jailing_config: JailingParameters {

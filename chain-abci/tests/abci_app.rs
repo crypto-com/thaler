@@ -142,7 +142,10 @@ fn nonhex_hash_should_panic() {
 
 fn get_dummy_network_params() -> NetworkParameters {
     NetworkParameters::Genesis(InitNetworkParameters {
-        initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
+        initial_fee_policy: LinearFee::new(
+            Milli::try_new(1, 1).unwrap(),
+            Milli::try_new(1, 1).unwrap(),
+        ),
         required_council_node_stake: Coin::unit(),
         unbonding_period: 86400,
         jailing_config: JailingParameters {
@@ -319,7 +322,10 @@ fn init_chain_panics_with_different_app_hash() {
     .cloned()
     .collect();
     let params = InitNetworkParameters {
-        initial_fee_policy: LinearFee::new(Milli::new(1, 1), Milli::new(1, 1)),
+        initial_fee_policy: LinearFee::new(
+            Milli::try_new(1, 1).unwrap(),
+            Milli::try_new(1, 1).unwrap(),
+        ),
         required_council_node_stake: Coin::unit(),
         unbonding_period: 1,
         jailing_config: JailingParameters {
