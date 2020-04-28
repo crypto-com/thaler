@@ -20,4 +20,4 @@ sgx_tstd = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.g
 [dev-dependencies]
 quickcheck = "0.9"
 hex = "0.4"
-ethbloom = "0.9.0"
+ethbloom = "0.9.1"
