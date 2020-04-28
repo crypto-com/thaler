@@ -60,6 +60,7 @@ supervisor.supervisor.startProcessGroup('node1')
 wait_for_port(BASE_PORT + 10 + 9)
 
 wait_for_blocks(rpc, 13)
+rpc.wallet.sync()
 state = rpc.staking.state(bonded_staking)
 assert state['validator']['jailed_until'] is not None, 'jailed for byzantine fault'
 punishment = state['last_slash']

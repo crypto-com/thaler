@@ -1,6 +1,7 @@
 # Changelog
 
 *Unreleased*
+
 ## v0.5.0
 ### Breaking changes
 
@@ -13,6 +14,17 @@
 ### Improvements
 
 ### Bug Fixes
+
+*Unreleased*
+
+## V0.4.1
+
+### Bug Fixes
+
+- *client-core* [1477](https://github.com/crypto-com/chain/pull/1477): Fix decoding issue of nil vote during wallet
+  synchronization.
+- *client-core* [1508](https://github.com/crypto-com/chain/pull/1508): Fix the decoding issue of block with evidences
+  during wallet synchronization.
 
 *April 22, 2020*
 
