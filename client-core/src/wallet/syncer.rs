@@ -1,9 +1,18 @@
 #![allow(missing_docs)]
+use indexmap::IndexMap;
+use itertools::{izip, Itertools};
+use non_empty_vec::NonEmpty;
+use std::collections::HashMap;
+use std::iter;
+
 use chain_core::common::H256;
 use chain_core::state::account::StakedStateAddress;
+use chain_core::state::ChainState;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
+use chain_core::tx::TransactionId;
+use chain_storage::jellyfish::compute_staking_root;
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::{
     Block, BlockExt, BlockResults, BlockResultsResponse, StatusResponse, Time,
@@ -12,16 +21,11 @@ use client_common::tendermint::Client;
 use client_common::{
     Error, ErrorKind, PrivateKey, Result, ResultExt, SecKey, SecureStorage, Transaction,
 };
-use indexmap::IndexMap;
-use itertools::{izip, Itertools};
-use non_empty_vec::NonEmpty;
 
 use super::syncer_logic::handle_blocks;
 use crate::service;
 use crate::service::{KeyService, SyncState, Wallet, WalletState, WalletStateMemento};
 use crate::TransactionObfuscation;
-use chain_core::tx::TransactionId;
-use std::collections::HashMap;
 
 pub trait AddressRecovery: Clone + Send + Sync {
     // new_address: transfer address in TxOut
@@ -261,11 +265,11 @@ impl<
                 format!("wallet not found: {}", env.name)
             })?;
 
-        let sync_state = service::load_sync_state(&env.storage, &env.name)?;
-        let sync_state = if let Some(sync_state) = sync_state {
+        let mstate = service::load_sync_state(&env.storage, &env.name)?;
+        let sync_state = if let Some(sync_state) = mstate {
             sync_state
         } else {
-            SyncState::genesis(env.client.genesis()?.validators)
+            get_genesis_sync_state(&env.client)?
         };
 
         let wallet_state =
@@ -384,6 +388,7 @@ impl<
         let block = blocks.last();
         self.sync_state.last_block_height = block.block_height;
         self.sync_state.last_app_hash = block.app_hash.clone();
+        self.sync_state.staking_root = block.staking_root;
         self.save(&memento)?;
 
         if !self.update_progress(block.block_height) {
@@ -466,7 +471,7 @@ impl<
                     ),
                 );
 
-                let block = FilteredBlock::from_block(&self.wallet, &block, &block_result)?;
+                let block = FilteredBlock::from_block(&self.wallet, &block, &block_result, &state)?;
                 self.update_progress(block.block_height);
                 batch.push(block);
             }
@@ -504,11 +509,15 @@ impl<
 
             let block = self.env.client.block(current_block_height)?;
             let block_result = self.env.client.block_results(current_block_height)?;
-
+            let states = self
+                .env
+                .client
+                .query_state_batch(iter::once(current_block_height))?;
             Ok(Some(FilteredBlock::from_block(
                 &self.wallet,
                 &block,
                 &block_result,
+                &states[0],
             )?))
         } else {
             Ok(None)
@@ -522,15 +531,36 @@ impl<
         if current_app_hash == self.sync_state.last_app_hash {
             let current_block_height = block.header.height.value();
             let block_result = self.env.client.block_results(current_block_height)?;
+            let states = self
+                .env
+                .client
+                .query_state_batch(iter::once(current_block_height))?;
             Ok(Some(FilteredBlock::from_block(
                 &self.wallet,
                 &block,
                 &block_result,
+                &states[0],
             )?))
         } else {
             Ok(None)
         }
     }
+}
+
+pub fn get_genesis_sync_state<C: Client>(client: &C) -> Result<SyncState> {
+    // FIXME verify against trusted genesis hash
+    let genesis = client.genesis()?;
+    let accounts = genesis.app_state.unwrap().get_account(
+        genesis
+            .genesis_time
+            .duration_since(Time::unix_epoch())
+            .expect("invalid genesis time")
+            .as_secs(),
+    );
+    Ok(SyncState::genesis(
+        genesis.validators,
+        compute_staking_root(&accounts),
+    ))
 }
 
 /// A struct for providing progress report for synchronization
@@ -572,6 +602,8 @@ pub(crate) struct FilteredBlock {
     pub enclave_transaction_ids: Vec<TxId>,
     /// List of un-encrypted transactions (only contains transactions of type `DepositStake` and `UnbondStake`)
     pub staking_transactions: Vec<Transaction>,
+    /// staking root after this block
+    pub staking_root: H256,
 }
 
 impl FilteredBlock {
@@ -580,6 +612,7 @@ impl FilteredBlock {
         wallet: &Wallet,
         block: &Block,
         block_result: &BlockResultsResponse,
+        state: &ChainState,
     ) -> Result<FilteredBlock> {
         let app_hash = hex::encode(&block.header.app_hash);
         let block_height = block.header.height.value();
@@ -607,6 +640,7 @@ impl FilteredBlock {
             enclave_transaction_ids,
             block_filter,
             staking_transactions,
+            staking_root: state.account_root,
         })
     }
 }
@@ -782,6 +816,7 @@ mod tests {
                 last_block_height: 1745,
                 last_app_hash: "3fe291fd64f1140acfe38988a9f8c5b0cb5da43a0214bbd4000035509ce34205"
                     .to_string(),
+                staking_root: [0u8; 32],
                 trusted_state,
             },
         )

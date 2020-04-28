@@ -602,6 +602,7 @@ fn new_withdraw_transaction<T: WalletClient, N: NetworkOpsClient>(
         &from_address,
         to_address,
         attributes,
+        true,
     )
 }
 
@@ -613,7 +614,8 @@ fn new_unbond_transaction<N: NetworkOpsClient>(
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let address = ask_staking_address()?;
     let value = ask_cro()?;
-    network_ops_client.create_unbond_stake_transaction(name, enckey, address, value, attributes)
+    network_ops_client
+        .create_unbond_stake_transaction(name, enckey, address, value, attributes, true)
 }
 
 fn new_deposit_transaction<T: WalletClient, N: NetworkOpsClient>(
@@ -644,6 +646,7 @@ fn new_deposit_transaction<T: WalletClient, N: NetworkOpsClient>(
         transactions,
         to_address,
         attributes,
+        true,
     )
 }
 
@@ -701,6 +704,7 @@ fn new_deposit_amount_transaction<T: WalletClient, N: NetworkOpsClient>(
         transactions,
         to_staking_address,
         attr,
+        true,
     )?;
     let tx_id = transaction.tx_id();
     success(&format!(
@@ -758,7 +762,7 @@ fn new_unjail_transaction<N: NetworkOpsClient>(
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let address = ask_staking_address()?;
 
-    network_ops_client.create_unjail_transaction(name, enckey, address, attributes)
+    network_ops_client.create_unjail_transaction(name, enckey, address, attributes, true)
 }
 
 fn new_node_join_transaction<N: NetworkOpsClient>(
@@ -776,6 +780,7 @@ fn new_node_join_transaction<N: NetworkOpsClient>(
         staking_account_address,
         attributes,
         node_metadata,
+        true,
     )
 }
 

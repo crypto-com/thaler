@@ -76,6 +76,7 @@ wait_for_blocktime(rpc, state['validator']['jailed_until'])
 txid = rpc.staking.unjail(bonded_staking)
 print('Wait for unjail transaction', txid)
 wait_for_tx(rpc, txid)
+rpc.wallet.sync()
 
 print('re-join')
 txid = rpc.staking.join(

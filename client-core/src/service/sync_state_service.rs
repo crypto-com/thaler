@@ -1,3 +1,4 @@
+use chain_core::common::H256;
 use client_common::tendermint::lite;
 use client_common::{ErrorKind, Result, ResultExt, Storage};
 use parity_scale_codec::{Decode, Encode};
@@ -15,15 +16,18 @@ pub struct SyncState {
     pub last_app_hash: String,
     /// current trusted state for lite client verification
     pub trusted_state: lite::TrustedState,
+    /// current trusted staking_root
+    pub staking_root: H256,
 }
 
 impl SyncState {
     /// construct genesis global state
-    pub fn genesis(genesis_validators: Vec<validator::Info>) -> SyncState {
+    pub fn genesis(genesis_validators: Vec<validator::Info>, staking_root: H256) -> SyncState {
         SyncState {
             last_block_height: 0,
             last_app_hash: "".to_owned(),
             trusted_state: lite::TrustedState::genesis(genesis_validators),
+            staking_root,
         }
     }
 }
@@ -131,6 +135,7 @@ mod tests {
                         "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
                             .to_string(),
                     trusted_state: TrustedState::genesis(vec![]),
+                    staking_root: [0u8; 32],
                 }
             )
             .is_ok());
@@ -174,7 +179,7 @@ mod tests {
             gen.validators.clone(),
         )
         .into();
-        let mut state = SyncState::genesis(vec![]);
+        let mut state = SyncState::genesis(vec![], [0u8; 32]);
         state.last_block_height = 1;
         state.last_app_hash =
             "0F46E113C21F9EACB26D752F9523746CF8D47ECBEA492736D176005911F973A5".to_owned();

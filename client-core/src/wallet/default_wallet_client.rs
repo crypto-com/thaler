@@ -5,7 +5,7 @@ use crate::transaction_builder::{SignedTransferTransaction, UnsignedTransferTran
 use crate::types::{
     AddressType, BalanceChange, TransactionChange, TransactionPending, WalletBalance, WalletKind,
 };
-use crate::wallet::syncer::AddressRecovery;
+use crate::wallet::syncer::{get_genesis_sync_state, AddressRecovery};
 use crate::wallet::syncer_logic::create_transaction_change;
 use crate::{
     InputSelectionStrategy, Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient,
@@ -1083,6 +1083,16 @@ where
                 "Transaction is not transfer transaction",
             ))
         }
+    }
+
+    fn get_sync_state(&self, name: &str) -> Result<SyncState> {
+        let mstate = self.sync_state_service.get_global_state(name)?;
+        let sync_state = if let Some(sync_state) = mstate {
+            sync_state
+        } else {
+            get_genesis_sync_state(&self.tendermint_client)?
+        };
+        Ok(sync_state)
     }
 }
 

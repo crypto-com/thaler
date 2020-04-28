@@ -149,7 +149,7 @@ impl InitConfig {
 
     /// returns the initial accounts
     /// assumes one called [validate_config_get_genesis], otherwise it may panic
-    fn get_account(&self, genesis_time: Timespec) -> Vec<StakedState> {
+    pub fn get_account(&self, genesis_time: Timespec) -> Vec<StakedState> {
         self.distribution
             .iter()
             .map(|(address, (destination, amount))| {

@@ -736,6 +736,7 @@ dependencies = [
  "bit-vec 0.6.1",
  "byteorder",
  "chain-core",
+ "chain-storage",
  "chain-tx-filter",
  "chain-tx-validation",
  "chrono 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -778,6 +779,7 @@ version = "0.5.0"
 dependencies = [
  "base64 0.11.0",
  "chain-core",
+ "chain-storage",
  "chain-tx-validation",
  "chrono 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common",

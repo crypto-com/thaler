@@ -50,7 +50,11 @@ use client_core::cipher::mock::MockAbciTransactionObfuscation;
 #[cfg(not(feature = "mock-enclave"))]
 use client_core::cipher::DefaultTransactionObfuscation;
 
+#[cfg(not(feature = "mock-enclave"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;
+#[cfg(feature = "mock-enclave")]
+type AppTransactionCipher = MockAbciTransactionObfuscation<WebsocketRpcClient>;
+
 type AppTxBuilder = DefaultWalletTransactionBuilder<SledStorage, LinearFee, AppTransactionCipher>;
 type AppWalletClient = DefaultWalletClient<SledStorage, WebsocketRpcClient, AppTxBuilder>;
 
@@ -152,6 +156,8 @@ pub enum Command {
     },
     #[structopt(name = "state", about = "Get staked state of an address")]
     StakedState {
+        #[structopt(name = "wallet name", short = "n", long = "name", help = "Wallet name")]
+        name: String,
         #[structopt(
             name = "staking address",
             short = "a",
@@ -327,7 +333,11 @@ impl Command {
                 transaction_command
                     .execute(network_ops_client.get_wallet_client(), &network_ops_client)
             }
-            Command::StakedState { address, hardware } => {
+            Command::StakedState {
+                name,
+                address,
+                hardware,
+            } => {
                 let hw_key_service = match hardware {
                     None => HwKeyService::default(),
                     #[cfg(feature = "mock-hardware-wallet")]
@@ -361,7 +371,7 @@ impl Command {
                     fee_algorithm,
                     transaction_obfuscation,
                 );
-                Self::get_staked_stake(&network_ops_client, address)
+                Self::get_staked_stake(&network_ops_client, &name, address)
             }
             Command::Sync {
                 name,
@@ -395,9 +405,10 @@ impl Command {
 
     fn get_staked_stake<N: NetworkOpsClient>(
         network_ops_client: &N,
+        name: &str,
         address: &StakedStateAddress,
     ) -> Result<()> {
-        let staked_state = network_ops_client.get_staked_state(address)?;
+        let staked_state = network_ops_client.get_staked_state(name, address, true)?;
 
         let bold = CellFormat::builder().bold(true).build();
         let justify_right = CellFormat::builder().justify(Justify::Right).build();
