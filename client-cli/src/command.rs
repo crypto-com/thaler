@@ -37,6 +37,7 @@ use self::transaction_command::TransactionCommand;
 use self::wallet_command::WalletCommand;
 use crate::logo::{get_jok, get_logo};
 use crate::{ask_seckey, storage_path, tendermint_url};
+use chain_core::tx::fee::LinearFee;
 use client_core::hd_wallet::HardwareKind;
 use client_core::service::HwKeyService;
 #[cfg(feature = "mock-hardware-wallet")]
@@ -48,6 +49,10 @@ use std::env;
 use client_core::cipher::mock::MockAbciTransactionObfuscation;
 #[cfg(not(feature = "mock-enclave"))]
 use client_core::cipher::DefaultTransactionObfuscation;
+
+type AppTransactionCipher = DefaultTransactionObfuscation;
+type AppTxBuilder = DefaultWalletTransactionBuilder<SledStorage, LinearFee, AppTransactionCipher>;
+type AppWalletClient = DefaultWalletClient<SledStorage, WebsocketRpcClient, AppTxBuilder>;
 
 static VERSION: Lazy<String> = Lazy::new(|| {
     format!(
@@ -193,6 +198,12 @@ pub enum Command {
             help = "Disable fast forward, which is not secure when connecting to outside nodes"
         )]
         disable_fast_forward: bool,
+        #[structopt(
+            name = "disable-address-recovery",
+            long,
+            help = "Disable address recovery, which is not necessary, if addresses already exist"
+        )]
+        disable_address_recovery: bool,
         #[structopt(
             name = "block-height-ensure",
             long,
@@ -357,6 +368,7 @@ impl Command {
                 batch_size,
                 force,
                 disable_fast_forward,
+                disable_address_recovery,
                 block_height_ensure,
             } => {
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
@@ -367,6 +379,7 @@ impl Command {
                     tendermint_client,
                     tx_obfuscation,
                     !*disable_fast_forward,
+                    !*disable_address_recovery,
                     *batch_size,
                     *block_height_ensure,
                 );
@@ -608,6 +621,8 @@ impl Command {
         enckey: SecKey,
         force: bool,
     ) -> Result<()> {
+        let wallet_client = get_wallet_client()?;
+
         let mut init_block_height = 0;
         let mut final_block_height = 0;
         let mut progress_bar = None;
@@ -641,7 +656,8 @@ impl Command {
             true
         };
 
-        let syncer = WalletSyncer::with_obfuscation_config(config, name, enckey)?;
+        let mut syncer =
+            WalletSyncer::with_obfuscation_config(config, name, enckey, wallet_client)?;
         if force {
             syncer.reset_state()?;
         }
@@ -653,4 +669,28 @@ impl Command {
 fn print_sync_warning() {
     ask("Warning! Information displayed here may be outdated. To get the latest information, do `client-cli sync --name <wallet name>`");
     println!();
+}
+
+fn get_wallet_client() -> Result<AppWalletClient> {
+    let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
+    let storage = SledStorage::new(storage_path())?;
+    let hw_key_service = HwKeyService::default();
+
+    let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service.clone());
+    let fee_algorithm = tendermint_client.genesis()?.fee_policy();
+    let transaction_obfuscation = get_tx_query(tendermint_client.clone())?;
+    let transaction_builder = DefaultWalletTransactionBuilder::new(
+        signer_manager,
+        fee_algorithm,
+        transaction_obfuscation,
+    );
+
+    let wallet_client = DefaultWalletClient::new(
+        storage,
+        tendermint_client,
+        transaction_builder,
+        None,
+        hw_key_service,
+    );
+    Ok(wallet_client)
 }

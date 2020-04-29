@@ -26,6 +26,9 @@ impl SyncWorkerNode {
         log::info!("stop sync wallet {} flag {}", self.progress.name, flag);
         self.stop = flag;
     }
+    fn set_complete(&mut self) {
+        self.progress.percent = 100.0;
+    }
 }
 
 impl CBindingCallback for SyncWorkerNode {
@@ -137,6 +140,12 @@ impl SyncWorker {
             value.lock().unwrap().stop
         } else {
             true
+        }
+    }
+
+    pub fn set_complete(&self, key: &str) {
+        if let Some(value) = self.works.get(key) {
+            value.lock().unwrap().set_complete();
         }
     }
 }
