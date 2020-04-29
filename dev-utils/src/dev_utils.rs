@@ -2,8 +2,9 @@ use structopt::StructOpt;
 
 use client_common::Result;
 
-use crate::commands::{GenesisCommand, InitCommand, RunCommand, StopCommand};
+use crate::commands::{GenesisCommand, InitCommand, RunCommand, StopCommand, TestVectorCommand};
 
+const NETWORKS: [&str; 3] = ["devnet", "testnet", "mainnet"];
 /// Enum used to specify subcommands under dev-utils
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -35,6 +36,30 @@ pub enum DevUtils {
     /// Used for stopping
     #[structopt(name = "stop", about = "stop all chain components")]
     Stop,
+
+    /// Create Test Vector
+    #[structopt(name = "test-vectors", about = "create test vector")]
+    TestVectors {
+        #[structopt(
+            name = "network",
+            short,
+            long,
+            possible_values = &NETWORKS,
+            case_insensitive = true,
+            default_value = "mainnet",
+            help = "network type",
+        )]
+        network: String,
+        #[structopt(
+            name = "seed",
+            short,
+            long,
+            case_insensitive = true,
+            default_value = "9ee5468093cf78ce008ace0b676b606d94548f8eac79e727e3cb0500ae739facca7bb5ee1f3dd698bc6fcd044117905d42d90fadf324c6187e1faba7e662410f",
+            help = "hex format seed to generate private key"
+        )]
+        seed: String,
+    },
 }
 
 impl DevUtils {
@@ -52,6 +77,10 @@ impl DevUtils {
             DevUtils::Stop => {
                 let mut stop_command = StopCommand::new();
                 stop_command.execute()
+            }
+            DevUtils::TestVectors { network, seed } => {
+                let test_vectors_command = TestVectorCommand::new(network.clone(), seed.clone());
+                test_vectors_command.execute()
             }
         }
     }
