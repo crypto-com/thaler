@@ -7,13 +7,17 @@ use chain_tx_validation::Error;
 const ENCRYPTION_KEY: u8 = 0x0f;
 const SEAL_KEY: u8 = 0xf0;
 pub fn decrypt(payload: &TxObfuscated) -> Result<PlainTxAux, Error> {
-    let unpad = unpad_payload(&payload.txpayload);
+    let unpad = unpad_payload(&payload.txpayload)?;
     let bs = unpad.iter().map(|b| b ^ ENCRYPTION_KEY).collect::<Vec<_>>();
     PlainTxAux::decode(&mut bs.as_slice()).map_err(|_| Error::EnclaveRejected)
 }
 
-fn unpad_payload(payload: &[u8]) -> &[u8] {
-    &payload[0..payload.len() - 16]
+fn unpad_payload(payload: &[u8]) -> Result<&[u8], Error> {
+    if let Some(n) = payload.len().checked_sub(16) {
+        Ok(&payload[0..n])
+    } else {
+        Err(Error::EnclaveRejected)
+    }
 }
 
 pub fn seal(tx: &TxWithOutputs) -> Vec<u8> {
