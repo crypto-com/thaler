@@ -54,6 +54,7 @@ pub(crate) struct Server {
     storage_dir: String,
     websocket_url: String,
     enable_fast_forward: bool,
+    enable_address_recovery: bool,
     batch_size: usize,
     block_height_ensure: u64,
 }
@@ -78,6 +79,7 @@ impl Server {
             storage_dir: options.storage_dir,
             websocket_url: options.websocket_url,
             enable_fast_forward: !options.disable_fast_forward,
+            enable_address_recovery: !options.disable_address_recovery,
             batch_size: options.batch_size,
             block_height_ensure: options.block_height_ensure,
         })
@@ -136,6 +138,7 @@ impl Server {
             tendermint_client,
             transaction_cipher,
             self.enable_fast_forward,
+            self.enable_address_recovery,
             self.batch_size,
             self.block_height_ensure,
         ))
@@ -161,7 +164,10 @@ impl Server {
 
         let syncer_config = self.make_syncer_config(storage.clone(), tendermint_client.clone())?;
 
-        let sync_rpc = SyncRpcImpl::new(syncer_config, None);
+        let sync_rpc_wallet_client =
+            self.make_wallet_client(storage.clone(), tendermint_client.clone())?;
+
+        let sync_rpc = SyncRpcImpl::new(syncer_config, None, sync_rpc_wallet_client);
 
         let wallet_rpc_wallet_client = self.make_wallet_client(storage, tendermint_client)?;
         let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);

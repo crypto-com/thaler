@@ -340,7 +340,8 @@ impl WalletState {
         Ok(())
     }
 
-    fn add_transaction_change(&mut self, txid: TxId, change: TransactionChange) {
+    /// add tx change
+    pub fn add_transaction_change(&mut self, txid: TxId, change: TransactionChange) {
         self.transaction_history.insert(txid, change);
         self.transaction_log.push(txid);
     }

@@ -9,6 +9,7 @@ use client_common::{
 use crate::types::AddressType;
 use crate::{HDSeed, Mnemonic};
 
+use std::convert::From;
 const KEYSPACE: &str = "core_hd_key";
 
 /// HD key
@@ -70,6 +71,27 @@ where
         Self { storage }
     }
 
+    /// automatically recover address in syncing
+    pub fn get_latest_transfer_index(&mut self, name: &str, enckey: &SecKey) -> Result<u32> {
+        let bytes: Vec<u8> = self.storage.get_secure(KEYSPACE, name, enckey)?.chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                format!("HD Key with name ({}) not found", name),
+            )
+        })?;
+
+        //  let hd_key_bytes = decrypt_bytes(name, enckey, &bytes)?;
+        let hd_key = HdKey::decode(&mut bytes.as_slice()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode HD key bytes",
+            )
+        })?;
+
+        let index = hd_key.transfer_index;
+        Ok(index)
+    }
+
     /// Returns true if wallet's HD key is present in storage
     pub fn has_wallet(&self, name: &str) -> Result<bool> {
         self.storage.contains_key(KEYSPACE, name)
@@ -107,6 +129,28 @@ where
         self.storage
             .set_secure(KEYSPACE, name, hd_key.encode(), enckey)
             .map(|_| ())
+    }
+
+    /// peek key pair by index
+    pub fn peek_pubkey(&self, name: &str, enckey: &SecKey, index: u32) -> Result<PublicKey> {
+        let bytes: Vec<u8> = self.storage.get_secure(KEYSPACE, name, enckey)?.chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                format!("HD Key with name ({}) not found", name),
+            )
+        })?;
+
+        //  let hd_key_bytes = decrypt_bytes(name, enckey, &bytes)?;
+        let hd_key = HdKey::decode(&mut bytes.as_slice()).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to decode HD key bytes",
+            )
+        })?;
+
+        hd_key
+            .seed
+            .get_pubkey(get_network(), HDAccountType::Transfer.index(), index)
     }
 
     /// Generates keypair for given wallet and address type
@@ -188,9 +232,8 @@ where
 mod tests {
     use super::*;
     use crate::wallet::{DefaultWalletClient, WalletClient};
-    use secstr::SecUtf8;
-
     use client_common::storage::MemoryStorage;
+    use secstr::SecUtf8;
 
     #[test]
     fn check_hd_key_encode_decode() {
@@ -297,6 +340,37 @@ mod tests {
                     .to_string(),
                 *addr
             );
+        }
+    }
+
+    #[test]
+    fn check_peek_pubkey() {
+        let storage = MemoryStorage::default();
+        let name = "testhdwallet";
+        let passphrase = SecUtf8::from("passphrase");
+        let service = HdKeyService::new(storage.clone());
+        let mnemonic =
+        Mnemonic::from_secstr(&SecUtf8::from("speed tortoise kiwi forward extend baby acoustic foil coach castle ship purchase unlock base hip erode tag keen present vibrant oyster cotton write fetch")).unwrap();
+
+        let wallet = DefaultWalletClient::new_read_only(storage.clone());
+        let enckey = wallet
+            .restore_wallet(&name, &passphrase, &mnemonic)
+            .expect("restore wallet");
+
+        assert_eq!(true, service.peek_pubkey("", &enckey, 0).is_err());
+
+        let adddress_type = AddressType::Staking;
+        let account_type: HDAccountType = adddress_type.into();
+        match account_type {
+            HDAccountType::Staking => {
+                assert!(true);
+            }
+            HDAccountType::Transfer => {
+                assert!(false);
+            }
+            HDAccountType::Viewkey => {
+                assert!(false);
+            }
         }
     }
 }

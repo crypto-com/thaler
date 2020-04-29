@@ -17,7 +17,7 @@ pub mod mnemonic;
 pub mod multi_sig;
 pub mod service;
 pub mod signer;
-pub mod synchronizer;
+
 pub mod transaction_builder;
 pub mod types;
 pub mod unspent_transactions;

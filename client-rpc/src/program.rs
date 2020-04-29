@@ -55,6 +55,12 @@ pub struct Options {
     )]
     pub disable_fast_forward: bool,
     #[structopt(
+        name = "disable-address-recovery",
+        long,
+        help = "Disable address recovery when syncing wallet, which is not necessary, when addresses already exist"
+    )]
+    pub disable_address_recovery: bool,
+    #[structopt(
         name = "batch-size",
         short,
         long,

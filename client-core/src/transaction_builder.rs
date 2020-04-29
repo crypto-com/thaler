@@ -23,7 +23,7 @@ use chain_core::tx::data::TxId;
 
 /// Interface for wallet transaction building from output addresses and amount.
 /// This trait is also responsible for UTXO selection.
-pub trait WalletTransactionBuilder: Send + Sync {
+pub trait WalletTransactionBuilder: Send + Sync + Clone {
     /// Builds a transfer transaction
     ///
     /// # Attributes

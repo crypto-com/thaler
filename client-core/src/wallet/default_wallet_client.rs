@@ -1,10 +1,3 @@
-use bit_vec::BitVec;
-use indexmap::IndexSet;
-use parity_scale_codec::Encode;
-use secp256k1::schnorrsig::SchnorrSignature;
-use secstr::SecUtf8;
-use zxcvbn::{feedback::Feedback, zxcvbn as estimate_password_strength};
-
 use crate::hd_wallet::HardwareKind;
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedWalletTransactionBuilder;
@@ -12,11 +5,13 @@ use crate::transaction_builder::{SignedTransferTransaction, UnsignedTransferTran
 use crate::types::{
     AddressType, BalanceChange, TransactionChange, TransactionPending, WalletBalance, WalletKind,
 };
+use crate::wallet::syncer::AddressRecovery;
 use crate::wallet::syncer_logic::create_transaction_change;
 use crate::{
     InputSelectionStrategy, Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient,
     WalletTransactionBuilder,
 };
+use bit_vec::BitVec;
 use chain_core::common::{Proof, H256};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
@@ -38,8 +33,13 @@ use client_common::{
     seckey::derive_enckey, Error, ErrorKind, PrivateKey, PrivateKeyAction, PublicKey, Result,
     ResultExt, SecKey, SignedTransaction, Storage, Transaction, TransactionInfo,
 };
+use indexmap::IndexSet;
+use parity_scale_codec::Encode;
+use secp256k1::schnorrsig::SchnorrSignature;
+use secstr::SecUtf8;
 use std::collections::BTreeSet;
 use std::time::Duration;
+use zxcvbn::{feedback::Feedback, zxcvbn as estimate_password_strength};
 
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Debug, Default, Clone)]
@@ -107,6 +107,64 @@ where
             None,
             hw_key_service,
         )
+    }
+}
+
+impl<S, C, T> AddressRecovery for DefaultWalletClient<S, C, T>
+where
+    S: Storage,
+    C: Client,
+    T: WalletTransactionBuilder,
+{
+    // new_address: transfer address in TxOut, it will check whether it belongs with 20 window, then it will create 20 new addresses
+    // return: true means new addresses are generated, so need to refresh current wallet state to bring new addresses
+    // return: false mean no new addresses, don't need to refresh wallet state
+    fn recover_addresses(
+        &mut self,
+        extended_addr: &ExtendedAddr,
+        name: &str,
+        enckey: &SecKey,
+    ) -> Result<bool> {
+        let is_exist = self
+            .wallet_service
+            .find_root_hash(name, enckey, &extended_addr)
+            .is_ok();
+        if is_exist {
+            // no need
+            return Ok(false);
+        }
+
+        let index = self
+            .hd_key_service
+            .get_latest_transfer_index(name, enckey)?;
+        let mut found = false;
+        let count = 20;
+        for i in index..(index + count) {
+            let publickey = self.hd_key_service.peek_pubkey(name, enckey, i)?;
+            let (h256, _multisigaddr) = RootHashService::<S>::peek_new_root_hash(
+                vec![publickey.clone()],
+                publickey.clone(),
+                1,
+            )?;
+            assert!(32 == h256.len());
+            let extended_addr_from_hash = ExtendedAddr::OrTree(h256);
+            if extended_addr == &extended_addr_from_hash {
+                found = true;
+                break;
+            }
+        }
+
+        if !found {
+            return Ok(false);
+        }
+
+        let count = count;
+        for _i in 0..count {
+            self.new_transfer_address(name, enckey)
+                .expect("get new transfer address");
+        }
+
+        Ok(true)
     }
 }
 
@@ -1286,6 +1344,7 @@ mod tests {
     use super::*;
     use crate::Mnemonic;
     use client_common::storage::MemoryStorage;
+    use std::str::FromStr;
 
     #[test]
     fn check_delete_wallet() {
@@ -1339,5 +1398,61 @@ mod tests {
         assert_ne!(transfer_address_2, transfer_address_22);
         let transfer_addresses = client.transfer_addresses(name2, &enckey2).unwrap();
         assert_eq!(transfer_addresses.len(), 2);
+    }
+
+    #[test]
+    fn check_address_recover() {
+        let words = Mnemonic::from_secstr(&SecUtf8::from("pony thank pluck sweet bless tuna couple eight stove fluid essay debate cinnamon elite only")).unwrap();
+        let name1 = "Default1";
+        let passphrase = SecUtf8::from("123456");
+        let mut client = DefaultWalletClient::new_read_only(MemoryStorage::default());
+        let enckey1 = client
+            .restore_wallet(name1, &passphrase, &words)
+            .expect("restore wallet 1 failed");
+
+        assert_eq!(
+            client
+                .recover_addresses(
+                    &ExtendedAddr::from_str(
+                        "dcro13jw3znc45e4s9rh0r8cj5j5ghx7snyxlhpvty8ura2qumcs3strqgwehc0"
+                    )
+                    .unwrap(),
+                    &name1,
+                    &enckey1
+                )
+                .unwrap(),
+            true
+        );
+        assert_eq!(
+            client
+                .recover_addresses(
+                    &ExtendedAddr::from_str(
+                        "dcro13jw3znc45e4s9rh0r8cj5j5ghx7snyxlhpvty8ura2qumcs3strqgwehc0"
+                    )
+                    .unwrap(),
+                    &name1,
+                    &enckey1
+                )
+                .unwrap(),
+            false
+        );
+    }
+
+    #[test]
+    fn check_restore_basic_wallet() {
+        let private_key =
+            PrivateKey::deserialize_from(&[0x01; 32]).expect("32 bytes, within curve order");
+
+        let name = "Default1";
+        let passphrase = SecUtf8::from("123456");
+        let client = DefaultWalletClient::new_read_only(MemoryStorage::default());
+        let seckey = client
+            .restore_basic_wallet(&name, &passphrase, &private_key)
+            .unwrap();
+        assert_eq!(
+            seckey.unsecure().to_vec(),
+            hex::decode("a2186c772bad48fc6acff4ccaa5d319153603089bd40db610b084b7eedd7d0b3")
+                .unwrap()
+        );
     }
 }
