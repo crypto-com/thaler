@@ -74,7 +74,10 @@ where
 
     /// Get account info
     fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
-        let bytes = self.client.query("account", staked_state_address)?.bytes();
+        let bytes = self
+            .client
+            .query("account", staked_state_address, None, false)?
+            .bytes();
 
         StakedState::decode(&mut bytes.as_slice()).chain(|| {
             (
@@ -609,7 +612,13 @@ mod tests {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
+        fn query(
+            &self,
+            _path: &str,
+            _data: &[u8],
+            _height: Option<Height>,
+            _prove: bool,
+        ) -> Result<AbciQuery> {
             let staked_state = StakedState::new(
                 0,
                 Coin::new(1000000).unwrap(),
@@ -694,7 +703,13 @@ mod tests {
             unreachable!()
         }
 
-        fn query(&self, _path: &str, _data: &[u8]) -> Result<AbciQuery> {
+        fn query(
+            &self,
+            _path: &str,
+            _data: &[u8],
+            _height: Option<Height>,
+            _prove: bool,
+        ) -> Result<AbciQuery> {
             let staked_state = StakedState::new(
                 0,
                 Coin::new(1000000).unwrap(),

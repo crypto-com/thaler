@@ -211,7 +211,9 @@ pub enum Command {
 /// normal
 #[cfg(not(feature = "mock-enclave"))]
 fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<DefaultTransactionObfuscation> {
-    let result = tendermint_client.query("txquery", &[])?.bytes();
+    let result = tendermint_client
+        .query("txquery", &[], None, false)?
+        .bytes();
     let address = std::str::from_utf8(&result).chain(|| {
         (
             ErrorKind::ConnectionError,

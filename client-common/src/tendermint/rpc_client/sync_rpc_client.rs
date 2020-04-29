@@ -1,4 +1,5 @@
 use std::{
+    convert::TryFrom,
     sync::{mpsc::sync_channel, Arc},
     time::{Duration, SystemTime},
 };
@@ -237,12 +238,23 @@ impl Client for SyncRpcClient {
     }
 
     /// Makes `abci_query` call to tendermint
-    fn query(&self, path: &str, data: &[u8]) -> Result<AbciQuery> {
+    fn query(
+        &self,
+        path: &str,
+        data: &[u8],
+        height: Option<Height>,
+        prove: bool,
+    ) -> Result<AbciQuery> {
+        let height = height
+            .map(|h| i64::try_from(h.value()))
+            .transpose()
+            .err_kind(ErrorKind::InvalidInput, || "invalid height")?
+            .unwrap_or(-1);
         let params = vec![
             json!(path),
             json!(hex::encode(data)),
-            json!(null),
-            json!(null),
+            json!(height.to_string()),
+            json!(prove),
         ];
         let result = self
             .call::<AbciQueryResponse>("abci_query", params)?

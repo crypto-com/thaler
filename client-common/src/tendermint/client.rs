@@ -37,7 +37,16 @@ pub trait Client: Send + Sync + Clone {
     fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResponse>;
 
     /// Makes `abci_query` call to tendermint
-    fn query(&self, path: &str, data: &[u8]) -> Result<AbciQuery>;
+    ///
+    /// height: `None` means latest
+    /// prove: Include proofs of the transactions inclusion in the block
+    fn query(
+        &self,
+        path: &str,
+        data: &[u8],
+        height: Option<Height>,
+        prove: bool,
+    ) -> Result<AbciQuery>;
 
     /// Match batch state `abci_query` call to tendermint
     fn query_state_batch<T: Iterator<Item = u64>>(&self, heights: T) -> Result<Vec<ChainState>>;
