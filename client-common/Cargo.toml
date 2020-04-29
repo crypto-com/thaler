@@ -12,7 +12,7 @@ aes = "0.3"
 aes-gcm-siv = "0.4"
 anyhow = "1.0"
 base64 = "0.11"
-blake3 = "0.3.2"
+blake3 = "0.3.3"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = { version = "0.3", optional = true }
 gcd = "2.0"
