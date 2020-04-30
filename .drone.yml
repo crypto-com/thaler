@@ -21,6 +21,7 @@ steps:
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
   - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export CRYPTO_CHAIN_ENABLE_SANITY_CHECKS=1
   - cargo test
 
 - name: integration-tests
@@ -38,6 +39,7 @@ steps:
   commands:
   - export CARGO_TARGET_DIR=$PWD/drone/target
   - export PYTHON_VENV_DIR=$PWD/drone/venv
+  - export CRYPTO_CHAIN_ENABLE_SANITY_CHECKS=1
   - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service
   - ./integration-tests/run.sh
 
@@ -56,6 +58,7 @@ steps:
   commands:
   - export CARGO_TARGET_DIR=$PWD/drone/target
   - export PYTHON_VENV_DIR=$PWD/drone/venv
+  - export CRYPTO_CHAIN_ENABLE_SANITY_CHECKS=1
   - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service
   - ./integration-tests/run_multinode.sh
 
@@ -128,6 +131,6 @@ trigger:
 
 ---
 kind: signature
-hmac: 9a1fa3521f6d925ed079f7953dd0b2d721e207895928a04119659a9f99fe7de2
+hmac: fbabf3a62adcb7697a34675624f62c408eda1197524bbab22a904694cb3c2fc8
 
 ...

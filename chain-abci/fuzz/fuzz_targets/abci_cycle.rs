@@ -1,17 +1,15 @@
 #![no_main]
 use abci::Application;
-use abci::{Request, Request_oneof_value, RequestInitChain, PubKey, ValidatorUpdate};
-use chain_core::state::tendermint::{
-    TendermintValidatorPubKey, TendermintVotePower,
-};
-use chain_core::init::coin::Coin;
+use abci::{PubKey, Request, RequestInitChain, Request_oneof_value, ValidatorUpdate};
 use chain_abci::app::check_validators;
 use chain_abci::app::*;
 use chain_abci::enclave_bridge::mock::MockClient;
 use chain_core::common::MerkleTree;
 use chain_core::compute_app_hash;
+use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::NetworkParameters;
+use chain_core::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use chain_storage::{Storage, NUM_COLUMNS};
 use kvdb::KeyValueDB;
 use kvdb_memorydb::create;
@@ -106,6 +104,7 @@ fn init_request() -> RequestInitChain {
 }
 
 fuzz_target!(|data: &[u8]| {
+    std::env::set_var("CRYPTO_CHAIN_ENABLE_SANITY_CHECKS", "1");
     let stuff: Result<Vec<Vec<u8>>, _> = Vec::decode(&mut data.to_owned().as_slice());
 
     let mut messages = Vec::<Request>::new();

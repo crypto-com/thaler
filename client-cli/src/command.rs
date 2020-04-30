@@ -50,7 +50,11 @@ use client_core::cipher::mock::MockAbciTransactionObfuscation;
 #[cfg(not(feature = "mock-enclave"))]
 use client_core::cipher::DefaultTransactionObfuscation;
 
+#[cfg(not(feature = "mock-enclave"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;
+#[cfg(feature = "mock-enclave")]
+type AppTransactionCipher = MockAbciTransactionObfuscation<WebsocketRpcClient>;
+
 type AppTxBuilder = DefaultWalletTransactionBuilder<SledStorage, LinearFee, AppTransactionCipher>;
 type AppWalletClient = DefaultWalletClient<SledStorage, WebsocketRpcClient, AppTxBuilder>;
 

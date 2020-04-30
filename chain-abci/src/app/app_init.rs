@@ -29,7 +29,7 @@ use chain_core::ChainInfo;
 use chain_storage::buffer::{
     flush_storage, GetStaking, KVBuffer, StakingBuffer, StoreKV, StoreStaking,
 };
-use chain_storage::jellyfish::{compute_staking_root, StakingGetter, Version};
+use chain_storage::jellyfish::{compute_staking_root, sum_staking_coins, StakingGetter, Version};
 use chain_storage::{Storage, StoredChainState};
 
 /// ABCI app state snapshot
@@ -50,6 +50,8 @@ pub struct ChainNodeState {
     pub genesis_time: Timespec,
     /// Version number of staking merkle tree
     pub staking_version: Version,
+    /// Record the sum of all the coins in UTxO set
+    pub utxo_coins: Coin,
 
     /// The parts of states which involved in computing app_hash
     pub top_level: ChainState,
@@ -90,6 +92,7 @@ impl ChainNodeState {
             staking_table,
             genesis_time,
             staking_version: 0,
+            utxo_coins: Coin::zero(),
             top_level: ChainState {
                 account_root,
                 rewards_pool,
@@ -506,5 +509,33 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             block_height: state.block_height,
             unbonding_period: state.top_level.network_params.get_unbonding_period(),
         }
+    }
+
+    /// Double check the circulating coins
+    ///
+    /// - utxo_coins = withdraw - deposit - transfer tx fee
+    /// - utxo_coins + staking + reward_pool = init_dist + minted
+    /// - init_dist = Coin::max() - expansion_cap  -- checked at init chain
+    pub fn check_circulating_coins(&self) -> Coin {
+        let state = self.last_state.as_ref().expect("expect last_state");
+        let staking = sum_staking_coins(
+            &kv_getter!(self, BufferType::Consensus),
+            state.staking_version,
+        )
+        .unwrap();
+        let total1 = ((state.utxo_coins + staking).unwrap()
+            + state.top_level.rewards_pool.period_bonus)
+            .unwrap();
+
+        let init_dist = (Coin::max()
+            - state
+                .top_level
+                .network_params
+                .get_rewards_monetary_expansion_cap())
+        .unwrap();
+        let total2 = (init_dist + state.top_level.rewards_pool.minted).unwrap();
+
+        assert_eq!(total1, total2);
+        total1
     }
 }

@@ -218,6 +218,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         genesis_time: 0,
         staking_table: StakingTable::default(),
         staking_version: 0,
+        utxo_coins: Coin::zero(),
         top_level: ChainState {
             account_root: [0u8; 32],
             rewards_pool: RewardsPoolState::new(0, params.get_rewards_monetary_expansion_tau()),

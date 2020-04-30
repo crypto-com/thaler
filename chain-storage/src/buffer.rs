@@ -210,6 +210,36 @@ where
     }
 }
 
+/// Read-only buffered storage
+pub struct BufferStoreGetter<'a, S: Get, H> {
+    storage: &'a S,
+    // None means deletion, Some means set.
+    buffer: &'a HashMap<S::Key, Option<S::Value>, H>,
+}
+
+impl<'a, S: Get, H: BuildHasher> BufferStoreGetter<'a, S, H> {
+    pub fn new(storage: &'a S, buffer: &'a HashMap<S::Key, Option<S::Value>, H>) -> Self {
+        Self { storage, buffer }
+    }
+}
+
+impl<'a, S, H> Get for BufferStoreGetter<'a, S, H>
+where
+    S: Get,
+    H: BuildHasher,
+    S::Key: Hash + Eq,
+    S::Value: Clone,
+{
+    type Key = S::Key;
+    type Value = S::Value;
+    fn get(&self, key: &Self::Key) -> Option<Self::Value> {
+        self.buffer
+            .get(key)
+            .cloned()
+            .unwrap_or_else(|| self.storage.get(key))
+    }
+}
+
 /// Dummy storage implemented with a HashMap in memory.
 #[derive(Debug, Clone)]
 pub struct MemStore<K: Hash + Eq, V>(pub HashMap<K, V>);
