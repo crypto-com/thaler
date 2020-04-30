@@ -12,10 +12,10 @@ RUN set -e; \
     apt-get update; \
     apt-get install -y libzmq3-dev libssl1.1 libprotobuf10 libsgx-launch libsgx-urts libsgx-epid libsgx-quote-ex; \
     rm -rf /var/lib/apt/lists/*
+# only for chain-test -- for some reason, multi-node integration tests fail
+COPY --from=tendermint/tendermint:v0.33.2 /usr/bin/tendermint /usr/bin/tendermint
 
-COPY --from=tendermint/tendermint:v0.33.3 /usr/bin/tendermint /usr/bin/tendermint
-
-FROM baiduxlab/sgx-rust:1804-1.1.1 AS BUILDER_BASE
+FROM baiduxlab/sgx-rust:1804-1.1.2 AS BUILDER_BASE
 LABEL maintainer="blockchain@crypto.com"
 
 ARG SGX_MODE
@@ -29,9 +29,6 @@ ENV SGX_MODE=$SGX_MODE
 ENV NETWORK_ID=$NETWORK_ID
 
 RUN set -e; \
-    rustup set profile minimal; \
-    rustup toolchain install nightly-2020-03-22; \
-    rustup default nightly-2020-03-22; \
     apt-get update; \
     apt-get install -y \
       cmake \
@@ -40,8 +37,8 @@ RUN set -e; \
       pkg-config \
       clang; \
     rm -rf /var/lib/apt/lists/*
-
-COPY --from=tendermint/tendermint:v0.33.3 /usr/bin/tendermint /usr/bin/tendermint
+# only for chain-test -- for some reason, multi-node integration tests fail
+COPY --from=tendermint/tendermint:v0.33.2 /usr/bin/tendermint /usr/bin/tendermint
 
 FROM BUILDER_BASE AS TEST
 LABEL maintainer="blockchain@crypto.com"
@@ -56,7 +53,10 @@ ENV NETWORK_ID=$NETWORK_ID
 RUN set -e; \
     apt-get update; \
     apt-get install -y software-properties-common; \
-    add-apt-repository -y ppa:deadsnakes/ppa; \
+    echo "deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu bionic main" | tee -a /etc/apt/sources.list; \
+    echo "deb-src http://ppa.launchpad.net/deadsnakes/ppa/ubuntu bionic main" | tee -a /etc/apt/sources.list; \
+    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F23C5A6CF475977595C89F51BA6932366A755776; \
+    # add-apt-repository -y ppa:deadsnakes/ppa; \
     apt-get install -y python3.8 python3-distutils; \
     curl -sL https://deb.nodesource.com/setup_10.x | bash; \
     apt-get install -y nodejs; \

@@ -13,12 +13,12 @@ default = []
 log = "0.4.8"
 env_logger = "0.7.0"
 enclave-u-common = { path = "../../enclave-u-common" }
-sgx_types = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_urts = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_types = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_urts = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 chain-core   = { path = "../../../chain-core" }
 enclave-protocol   = { path = "../../../enclave-protocol" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "745bc8d8dc80cb921d5788e863a3536d3b6498a1", features = ["recovery", "endomorphism"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["recovery", "endomorphism"] }
 zmq = "0.9"
 
 [build-dependencies]

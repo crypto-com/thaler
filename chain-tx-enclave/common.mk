@@ -56,11 +56,10 @@ Crypto_Library_Name := sgx_tcrypto
 KeyExchange_Library_Name := sgx_tkey_exchange
 ProtectedFs_Library_Name := sgx_tprotected_fs
 
-Compiler_RT_Lib := ../rust-sgx-sdk/compiler-rt/libcompiler-rt-patch.a
 RustEnclave_Link_Flags := -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfiles -L$(SGX_LIBRARY_PATH) \
 	-Wl,--whole-archive -l$(Trts_Library_Name) -Wl,--no-whole-archive \
 	-Wl,--start-group -lsgx_tcxx -lsgx_tstdc -l$(Service_Library_Name) -l$(Crypto_Library_Name) \
-   	$(Compiler_RT_Lib) $(Enclave_Static_Lib) -Wl,--end-group \
+   	$(Enclave_Static_Lib) -Wl,--end-group \
 	-Wl,-Bstatic -Wl,-Bsymbolic -Wl,--no-undefined \
 	-Wl,-pie,-eenclave_entry -Wl,--export-dynamic  \
 	-Wl,--defsym,__ImageBase=0 \
@@ -70,7 +69,7 @@ RustEnclave_Link_Flags := -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfi
 .PHONY: all
 all: $(Enclave_Signed_Lib)
 
-$(Enclave_Shared_Lib): $(Enclave_Static_Lib) $(Compiler_RT_Lib)
+$(Enclave_Shared_Lib): $(Enclave_Static_Lib)
 	@$(CXX) -o $@ $(RustEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 
@@ -82,12 +81,8 @@ $(Enclave_Static_Lib): FORCE
 	@cd ./enclave/ && cargo build ${CARGO_FLAGS}
 	@echo "CARGO => $@"
 
-$(Compiler_RT_Lib):
-	$(MAKE) -C ../rust-sgx-sdk/compiler-rt
-
 .PHONY: clean
 clean:
 	@rm -f $(Enclave_Shared_Lib) $(Enclave_Signed_Lib)
-	$(MAKE) -C ../rust-sgx-sdk/compiler-rt clean
 
 FORCE:

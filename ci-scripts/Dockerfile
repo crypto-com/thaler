@@ -1,4 +1,4 @@
-FROM baiduxlab/sgx-rust:1804-1.1.1
+FROM baiduxlab/sgx-rust:1804-1.1.2
 LABEL maintainer="Crypto.com"
 
 ENV PATH=/root/.cargo/bin:/root/.local/bin:$PATH
@@ -9,9 +9,6 @@ RUN echo 'source /opt/sgxsdk/environment' >> /root/.docker_bashrc && \
     echo 'source /root/.cargo/env' >> /root/.docker_bashrc
 
 RUN set -e; \
-    rustup set profile minimal; \
-    rustup toolchain install nightly-2020-03-22; \
-    rustup default nightly-2020-03-22; \
     apt-get update; \
     apt-get install -y \
     cmake \
