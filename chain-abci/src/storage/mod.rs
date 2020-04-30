@@ -303,6 +303,7 @@ pub fn process_public_tx(
                 chain_info.block_time,
                 chain_info.block_height,
                 &maintx,
+                chain_info.min_fee_computed,
             )?;
 
             Ok(TxPublicAction::unbond(

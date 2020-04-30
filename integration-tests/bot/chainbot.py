@@ -176,7 +176,7 @@ def app_state_cfg(cfg):
     return {
         "distribution": gen_distribution(cfg),
         "unbonding_period": 20,
-        "required_council_node_stake": "1",
+        "required_council_node_stake": "100000000",  # 10 coins
         "jailing_config": {
             "block_signing_window": 20,
             "missed_block_threshold": 5

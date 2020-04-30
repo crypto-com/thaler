@@ -86,7 +86,8 @@ wait_for_blocks(rpc, 3)
 
 assert len(rpc.chain.validators()['validators']) == 3
 
-txid = rpc.staking.unbond(addr, int(state['bonded']), enckey=enckey, name='target')
+rpc.wallet.sync(enckey=enckey, name='target')
+txid = rpc.staking.unbond(addr, int(state['bonded']) - 100000000 + 1, enckey=enckey, name='target')
 
 print('Wait for tx and 3 blocks')
 wait_for_blocks(rpc, 3)

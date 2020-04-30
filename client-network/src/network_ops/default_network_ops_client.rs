@@ -230,13 +230,6 @@ where
             )
         })?;
 
-        if staked_state.bonded < value {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
-                "Staking account does not have enough coins to unbond (synchronizing your wallet may help)",
-            ));
-        }
-
         let nonce = staked_state.nonce;
 
         let transaction = UnbondTx::new(address, nonce, value, attributes);
@@ -257,10 +250,26 @@ where
 
         let signature = sign_key.sign(&tx).map(StakedStateOpWitness::new)?;
 
-        Ok(TxAux::PublicTx(TxPublicAux::UnbondStakeTx(
-            transaction,
-            signature,
-        )))
+        let txaux = TxAux::PublicTx(TxPublicAux::UnbondStakeTx(transaction, signature));
+
+        let fee = self
+            .fee_algorithm
+            .calculate_for_txaux(&txaux)
+            .chain(|| {
+                (
+                    ErrorKind::IllegalInput,
+                    "Calculated fee is more than the maximum allowed value",
+                )
+            })?
+            .to_coin();
+        if staked_state.bonded < (value + fee).unwrap() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "Staking account does not have enough coins to unbond (synchronizing your wallet may help)",
+            ));
+        }
+
+        Ok(txaux)
     }
 
     fn create_withdraw_unbonded_stake_transaction(

@@ -1029,16 +1029,22 @@ fn all_valid_tx_types_should_commit() {
     );
     let witness4 = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx4.id(), &secret_key));
     let unbondtx = TxAux::PublicTx(TxPublicAux::UnbondStakeTx(tx4, witness4));
-    {
+    let bonded = {
         let account = get_account(&addr, &app).expect("account not exist");
         assert_eq!(account.unbonded, Coin::zero());
         assert_eq!(account.nonce, 2);
-    }
+        account.bonded
+    };
     block_commit(&mut app, unbondtx, 6);
     {
         let account = get_account(&addr, &app).expect("account not exist");
         assert_eq!(account.unbonded, Coin::unit());
         assert_eq!(account.nonce, 3);
+        // fee is non zero
+        assert!(
+            account.bonded < (bonded - Coin::unit()).unwrap(),
+            "bonded should subtract fee amount"
+        );
     }
 }
 
