@@ -26,7 +26,7 @@ ifneq ('$(LOCAL_VERSION)','$(REMOTE_VERSION)')
 	@$(GIT) clone $(REPO) $(SDK_PATH_GIT)
 	rsync -a $(SDK_PATH_GIT)/edl $(SDK_PATH)
 	rsync -a $(SDK_PATH_GIT)/common $(SDK_PATH)
-	rsync -a $(SDK_PATH_GIT)/compiler-rt $(SDK_PATH)
+	# rsync -a $(SDK_PATH_GIT)/compiler-rt $(SDK_PATH)
 	rm -rf $(SDK_PATH_GIT)
 	@echo $(REMOTE_VERSION) > $(VERSION_FILE)
 

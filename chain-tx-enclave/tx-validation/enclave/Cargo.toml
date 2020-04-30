@@ -14,17 +14,17 @@ default = []
 sgx-test = []
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
-sgx_tse       = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tstd      = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net","backtrace"] }
-sgx_rand      = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_trts      = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_types     = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tseal     = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_tcrypto   = { rev = "v1.1.1", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tse       = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tstd      = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net","backtrace"] }
+sgx_rand      = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_trts      = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_types     = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tseal     = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tcrypto   = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 enclave-macro = { path = "../../enclave-macro" }
 chain-tx-validation   = {  path = "../../../chain-tx-validation", default-features = false, features = ["mesalock_sgx"] }
 chain-core   = {  path = "../../../chain-core", default-features = false, features = ["mesalock_sgx"] }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "745bc8d8dc80cb921d5788e863a3536d3b6498a1", features = ["recovery", "endomorphism", "sgx"] }
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["recovery", "endomorphism", "sgx"] }
 parity-scale-codec = { default-features = false, version = "1.3" }
 enclave-protocol   = { path = "../../../enclave-protocol", default-features = false, features = ["mesalock_sgx"] }
 chain-tx-filter   = { path = "../../../chain-tx-filter", default-features = false, features = ["mesalock_sgx"] }
