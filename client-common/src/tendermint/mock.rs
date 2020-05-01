@@ -8,7 +8,7 @@ const DEFAULT_VALIDATOR_KEY: &str = "{
   \"value\": \"gJWgIetdLxRc/C2t/XjV65NCqZLTqHS9pU69kBzRmyOKCHDqT/6bKPmKajdBp+KCbYtu9ttTX7+MXrEQOw8Kqg==\"
 }";
 const BLOCK_VERSION: u64 = 10;
-const APP_VERSION: u64 = 0;
+const APP_VERSION: u64 = 1;
 const DEFAULT_GENESIS_JSON: &str = r#"{
     "genesis_time": "2019-11-18T05:49:16.254417Z",
     "chain_id": "test-chain-y3m1e6-AB",

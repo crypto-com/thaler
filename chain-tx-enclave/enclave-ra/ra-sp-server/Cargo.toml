@@ -1,6 +1,6 @@
 [package]
 name = "ra-sp-server"
-version = "0.1.0"
+version = "0.5.0"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 description = "Remote attestation service provider (proxy to IAS and AESM over TCP)"
 edition = "2018"

@@ -9,8 +9,11 @@
  * It denotes both binary schema and semantics (state machine rules)
  * ref: https://github.com/tendermint/tendermint/blob/master/docs/architecture/adr-016-protocol-versions.md#appversion
  * TODO: upgrades/new version signalling
+ *
+ * version 0 -- 0.4.0 release
+ * version 1 -- 0.5.0 release (wire format didn't change, but unbond tx semantics changed: https://github.com/crypto-com/chain/pull/1516)
  */
-#define APP_VERSION 0
+#define APP_VERSION 1
 
 /**
  * Size in bytes of a 256-bit hash

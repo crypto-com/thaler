@@ -31,7 +31,10 @@ use tx::fee::Fee;
 /// It denotes both binary schema and semantics (state machine rules)
 /// ref: https://github.com/tendermint/tendermint/blob/master/docs/architecture/adr-016-protocol-versions.md#appversion
 /// TODO: upgrades/new version signalling
-pub const APP_VERSION: u64 = 0;
+///
+/// version 0 -- 0.4.0 release
+/// version 1 -- 0.5.0 release (wire format didn't change, but unbond tx semantics changed: https://github.com/crypto-com/chain/pull/1516)
+pub const APP_VERSION: u64 = 1;
 
 /// computes the "global" application hash (used by Tendermint to check consistency + block replaying)
 /// currently: app_hash = blake3(root of valid TX merkle tree

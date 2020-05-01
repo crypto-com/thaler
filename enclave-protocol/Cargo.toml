@@ -1,6 +1,6 @@
 [package]
 name = "enclave-protocol"
-version = "0.4.0"
+version = "0.5.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Requests and responses exchanges over ZMQ between chain-abci app "
 readme = "../README.md"
