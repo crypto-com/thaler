@@ -41,7 +41,8 @@ use chain_core::tx::{
 use chain_storage::buffer::Get;
 use chain_storage::jellyfish::SparseMerkleProof;
 use chain_storage::{
-    LookupItem, Storage, COL_NODE_INFO, GENESIS_APP_HASH_KEY, LAST_STATE_KEY, NUM_COLUMNS,
+    LookupItem, Storage, CHAIN_ID_KEY, COL_EXTRA, COL_NODE_INFO, GENESIS_APP_HASH_KEY,
+    LAST_STATE_KEY, NUM_COLUMNS,
 };
 use chain_tx_filter::BlockFilter;
 use hex::decode;
@@ -57,6 +58,9 @@ use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::Arc;
 use test_common::chain_env::ChainEnv;
+
+const TEST_CHAIN_ID: &str = "test-00";
+const EXAMPLE_HASH: &str = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
 
 pub fn get_enclave_bridge_mock() -> MockClient {
     MockClient::new(0)
@@ -75,7 +79,23 @@ fn create_db() -> Arc<dyn KeyValueDB> {
     Arc::new(create(NUM_COLUMNS))
 }
 
-const TEST_CHAIN_ID: &str = "test-00";
+fn create_db_with_state_history() -> Arc<dyn KeyValueDB> {
+    let db = create_db();
+    let decoded_gah = decode(EXAMPLE_HASH).unwrap();
+    let mut genesis_app_hash = [0u8; HASH_SIZE_256];
+    genesis_app_hash.copy_from_slice(&decoded_gah[..]);
+    let mut inittx = db.transaction();
+    inittx.put(COL_NODE_INFO, GENESIS_APP_HASH_KEY, &genesis_app_hash);
+    inittx.put(
+        COL_NODE_INFO,
+        LAST_STATE_KEY,
+        &get_dummy_app_state(genesis_app_hash).encode(),
+    );
+    inittx.put(COL_EXTRA, CHAIN_ID_KEY, TEST_CHAIN_ID.as_bytes());
+
+    db.write(inittx).unwrap();
+    db
+}
 
 #[test]
 fn proper_hash_and_chainid_should_be_stored() {
@@ -90,6 +110,26 @@ fn proper_hash_and_chainid_should_be_stored() {
         None,
     );
     let decoded_gah = decode(example_hash).unwrap();
+    let stored_genesis = app.storage.get_genesis_app_hash();
+    assert_eq!(decoded_gah, stored_genesis);
+    let chain_id = app.storage.get_stored_chain_id();
+    assert_eq!(chain_id, TEST_CHAIN_ID.as_bytes());
+}
+
+#[test]
+fn proper_last_state_should_be_restored() {
+    let db = create_db_with_state_history();
+    let storage = Storage::new_db(db.clone());
+    assert!(storage.get_last_app_state().is_some());
+    let app = ChainNodeApp::new_with_storage(
+        get_enclave_bridge_mock(),
+        EXAMPLE_HASH,
+        TEST_CHAIN_ID,
+        storage,
+        None,
+        None,
+    );
+    let decoded_gah = decode(EXAMPLE_HASH).unwrap();
     let stored_genesis = app.storage.get_genesis_app_hash();
     assert_eq!(decoded_gah, stored_genesis);
     let chain_id = app.storage.get_stored_chain_id();
@@ -189,25 +229,13 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
 #[test]
 #[should_panic]
 fn previously_stored_hash_should_match() {
-    let db = create_db();
-    let example_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
-    let decoded_gah = decode(example_hash).unwrap();
-    let mut genesis_app_hash = [0u8; HASH_SIZE_256];
-    genesis_app_hash.copy_from_slice(&decoded_gah[..]);
-    let mut inittx = db.transaction();
-    inittx.put(COL_NODE_INFO, GENESIS_APP_HASH_KEY, &genesis_app_hash);
-    inittx.put(
-        COL_NODE_INFO,
-        LAST_STATE_KEY,
-        &get_dummy_app_state(genesis_app_hash).encode(),
-    );
-    db.write(inittx).unwrap();
-    let example_hash2 = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
+    let db = create_db_with_state_history();
+    let error_hash = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10963";
     let _app = ChainNodeApp::new_with_storage(
         get_enclave_bridge_mock(),
-        example_hash2,
+        error_hash,
         TEST_CHAIN_ID,
-        Storage::new_db(db.clone()),
+        Storage::new_db(db),
         None,
         None,
     );
