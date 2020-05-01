@@ -9,9 +9,13 @@
 
 ### Features
 
-- *chain-abci* [1458](https://github.com/crypto-com/chain/pull/1458): new abci_query path "sealed", query sealed log of transaction id.
+- *chain-abci* [1458](https://github.com/crypto-com/chain/pull/1458): new abci_query path "sealed", query sealed log of
+  transaction id
 
 ### Improvements
+
+- *chain-abci* [1521](https://github.com/crypto-com/chain/pull/1521): add network parameter validation rule:
+  `missed_block_threshold <= block_signing_window`
 
 ### Bug Fixes
 

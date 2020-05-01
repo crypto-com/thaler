@@ -1120,3 +1120,12 @@ fn query_should_return_proof_for_committed_tx() {
     }
     assert_eq!(proof.ops[1].data, txid_hash(&qresp.value));
 }
+
+#[test]
+#[should_panic]
+fn check_invalid_punishment_config() {
+    ChainEnv::new_with_customizer(Coin::max(), Coin::zero(), 2, |parameters| {
+        parameters.jailing_config.missed_block_threshold = 720;
+        parameters.jailing_config.block_signing_window = 360;
+    });
+}
