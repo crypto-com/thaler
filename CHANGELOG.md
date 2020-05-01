@@ -16,6 +16,8 @@
 ### Bug Fixes
 
 - *chain-abci* [1516](https://github.com/crypto-com/chain/pull/1516): Fix unbond tx didn't subtract fee from bonded
+- *client-core* [1524](https://github.com/crypto-com/chain/pull/1524): Fix the decoding issue of trusted state when nil
+  vote happens during wallet synchronization.
 
 *Unreleased*
 
