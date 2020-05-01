@@ -3,6 +3,7 @@ use chain_core::init::coin::Coin;
 use chain_core::state::account::{StakedStateAddress, UnbondTx, UnjailTx, Validator};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
 use chain_core::state::validator::NodeJoinRequestTx;
+use chain_core::tx::fee::Fee;
 use chain_storage::buffer::StoreStaking;
 
 use super::table::{set_staking, StakingTable};
@@ -145,6 +146,7 @@ impl StakingTable {
         block_time: Timespec,
         block_height: BlockHeight,
         tx: &UnbondTx,
+        fee: Fee,
     ) -> Result<Timespec, PublicTxError> {
         let mut staking = self.get_or_default(heap, &tx.from_staked_account);
         if tx.nonce != staking.nonce {
@@ -153,12 +155,18 @@ impl StakingTable {
         if staking.is_jailed() {
             return Err(UnbondError::IsJailed.into());
         }
+        let fee_amount = fee.to_coin();
         if tx.value == Coin::zero() {
             return Err(UnbondError::ZeroValue.into());
         }
         let unbonded = (staking.unbonded + tx.value).map_err(UnbondError::CoinError)?;
-        self.sub_bonded(block_time, block_height, tx.value, &mut staking)
-            .map_err(UnbondError::CoinError)?;
+        self.sub_bonded(
+            block_time,
+            block_height,
+            (tx.value + fee_amount).map_err(UnbondError::CoinError)?,
+            &mut staking,
+        )
+        .map_err(UnbondError::CoinError)?;
         staking.unbonded = unbonded;
 
         let unbonded_from = block_time.saturating_add(unbonding_period);

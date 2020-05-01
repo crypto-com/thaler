@@ -15,9 +15,11 @@
 
 ### Bug Fixes
 
+- *chain-abci* [1516](https://github.com/crypto-com/chain/pull/1516): Fix unbond tx didn't subtract fee from bonded
+
 *Unreleased*
 
-## V0.4.1
+## v0.4.1
 
 ### Bug Fixes
 

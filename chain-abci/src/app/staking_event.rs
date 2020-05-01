@@ -7,10 +7,11 @@ use abci::*;
 use chain_core::common::{TendermintEventKey, TendermintEventType, Timespec};
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{CouncilNode, PunishmentKind, StakedStateAddress};
+use chain_core::tx::fee::Fee;
 
 pub(crate) enum StakingEvent<'a> {
     Deposit(&'a StakedStateAddress, Coin),
-    Unbond(&'a StakedStateAddress, Coin, Timespec),
+    Unbond(&'a StakedStateAddress, Coin, Timespec, Fee),
     Withdraw(&'a StakedStateAddress, Coin),
     NodeJoin(&'a StakedStateAddress, CouncilNode),
     Reward(&'a StakedStateAddress, Coin),
@@ -27,8 +28,8 @@ impl<'a> From<StakingEvent<'a>> for Event {
             StakingEvent::Deposit(staking_address, deposit_amount) => {
                 builder.deposit(staking_address, deposit_amount)
             }
-            StakingEvent::Unbond(staking_address, unbond_amount, unbonded_from) => {
-                builder.unbond(staking_address, unbond_amount, unbonded_from)
+            StakingEvent::Unbond(staking_address, unbond_amount, unbonded_from, fee) => {
+                builder.unbond(staking_address, unbond_amount, unbonded_from, fee)
             }
             StakingEvent::Withdraw(staking_address, withdraw_amount) => {
                 builder.withdraw(staking_address, withdraw_amount)
@@ -85,6 +86,7 @@ impl StakingEventBuilder {
         staking_address: &StakedStateAddress,
         unbond_amount: Coin,
         unbonded_from: Timespec,
+        fee: Fee,
     ) {
         self.attributes
             .push(staking_address_attribute(staking_address));
@@ -92,7 +94,10 @@ impl StakingEventBuilder {
 
         self.attributes.push(
             StakingDiffField(vec![
-                StakingDiff::Bonded(StakingCoinChange::Decrease, unbond_amount),
+                StakingDiff::Bonded(
+                    StakingCoinChange::Decrease,
+                    (unbond_amount + fee.to_coin()).unwrap(),
+                ),
                 StakingDiff::Unbonded(StakingCoinChange::Increase, unbond_amount),
                 StakingDiff::UnbondedFrom(unbonded_from),
             ])
@@ -354,6 +359,7 @@ mod tests {
     use super::*;
     use chain_core::state::account::ConfidentialInit;
     use chain_core::state::tendermint::TendermintValidatorPubKey;
+    use chain_core::tx::fee::Fee;
     use std::str::FromStr;
 
     mod staking_diff_field {
@@ -489,9 +495,13 @@ mod tests {
                 let any_amount = Coin::unit();
                 let any_unbonded_from: Timespec = 1587071014;
 
-                let event: Event =
-                    StakingEvent::Unbond(&any_staking_address, any_amount, any_unbonded_from)
-                        .into();
+                let event: Event = StakingEvent::Unbond(
+                    &any_staking_address,
+                    any_amount,
+                    any_unbonded_from,
+                    Fee::new(Coin::zero()),
+                )
+                .into();
 
                 assert_unbonded_event(event, &any_staking_address, any_amount, any_unbonded_from);
             }

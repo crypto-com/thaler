@@ -22,6 +22,7 @@ mod tests {
     };
     use chain_core::state::tendermint::{BlockHeight, TendermintValidatorPubKey};
     use chain_core::state::validator::NodeJoinRequestTx;
+    use chain_core::tx::fee::Fee;
     use chain_storage::buffer::{Get, GetStaking, MemStore, StoreStaking};
     use test_common::chain_env::get_init_network_params;
 
@@ -153,7 +154,14 @@ mod tests {
             attributes: Default::default(),
         };
         table
-            .unbond(&mut store, 10, 0, BlockHeight::genesis(), &unbond)
+            .unbond(
+                &mut store,
+                10,
+                0,
+                BlockHeight::genesis(),
+                &unbond,
+                Fee::new(Coin::zero()),
+            )
             .unwrap();
         assert_eq!(
             table.end_block(&store, 3),
@@ -233,7 +241,7 @@ mod tests {
             attributes: Default::default(),
         };
         assert!(matches!(
-            table.unbond(&mut store, 10, 2, 3.into(), &unbond),
+            table.unbond(&mut store, 10, 2, 3.into(), &unbond, Fee::new(Coin::zero())),
             Err(PublicTxError::Unbond(UnbondError::IsJailed))
         ));
         assert!(matches!(
@@ -301,7 +309,9 @@ mod tests {
             value: amount,
             attributes: Default::default(),
         };
-        table.unbond(store, 10, 0, 1.into(), &unbond).unwrap();
+        table
+            .unbond(store, 10, 0, 1.into(), &unbond, Fee::new(Coin::zero()))
+            .unwrap();
         assert_eq!(
             table.end_block(&*store, 3),
             vec![(val_pk.clone(), Coin::zero().into())]
@@ -557,7 +567,16 @@ mod tests {
             value: Coin::new(11_0000_0000).unwrap(),
             attributes: Default::default(),
         };
-        table.unbond(&mut store, 10, 10, 9.into(), &unbond).unwrap();
+        table
+            .unbond(
+                &mut store,
+                10,
+                10,
+                9.into(),
+                &unbond,
+                Fee::new(Coin::zero()),
+            )
+            .unwrap();
 
         assert_eq!(
             table.end_block(&mut store, 3),
@@ -642,7 +661,9 @@ mod tests {
             value: unbond_amount,
             attributes: Default::default(),
         };
-        table.unbond(&mut store, 10, 1, 1.into(), &unbond).unwrap();
+        table
+            .unbond(&mut store, 10, 1, 1.into(), &unbond, Fee::new(Coin::zero()))
+            .unwrap();
         assert_eq!(store.get(&addr1).unwrap().unbonded, unbond_amount);
         let bonded = (bonded - unbond_amount).unwrap();
 
@@ -690,7 +711,9 @@ mod tests {
             value: Coin::new(12_0000_0000).unwrap(),
             attributes: Default::default(),
         };
-        table.unbond(&mut store, 10, 2, 2.into(), &unbond).unwrap();
+        table
+            .unbond(&mut store, 10, 2, 2.into(), &unbond, Fee::new(Coin::zero()))
+            .unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
             vec![(val_pk2.clone(), Coin::zero().into())]
