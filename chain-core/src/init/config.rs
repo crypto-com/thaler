@@ -38,6 +38,8 @@ pub enum DistributionError {
     /// problems with reward configuration
     /// TODO: embed the error type?
     InvalidRewardsParamter(&'static str),
+    /// Invalid punishment configuration parameter
+    InvalidPunishmentParamter,
 }
 
 impl fmt::Display for DistributionError {
@@ -73,6 +75,9 @@ impl fmt::Display for DistributionError {
             },
             DistributionError::InvalidRewardsParamter(err) => {
                 write!(f, "Invalid rewards parameters: {}", err)
+            }
+            DistributionError::InvalidPunishmentParamter => {
+                write!(f, "Invalid punishment parameters")
             }
         }
     }
@@ -183,6 +188,10 @@ impl InitConfig {
         &self,
         genesis_time: Timespec,
     ) -> Result<GenesisState, DistributionError> {
+        let jailing_config = &self.network_params.jailing_config;
+        if jailing_config.missed_block_threshold > jailing_config.block_signing_window {
+            return Err(DistributionError::InvalidPunishmentParamter);
+        }
         self.network_params
             .rewards_config
             .validate()
