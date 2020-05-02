@@ -482,7 +482,7 @@ checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
 name = "chain-abci"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "abci",
  "base64 0.11.0",
@@ -523,7 +523,7 @@ dependencies = [
 
 [[package]]
 name = "chain-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aead",
  "base64 0.11.0",
@@ -546,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "chain-storage"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "bit-vec 0.6.1",
@@ -564,7 +564,7 @@ dependencies = [
 
 [[package]]
 name = "chain-tx-filter"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "bit-vec 0.6.1",
  "chain-core",
@@ -578,7 +578,7 @@ dependencies = [
 
 [[package]]
 name = "chain-tx-validation"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chain-core",
  "parity-scale-codec",
@@ -668,7 +668,7 @@ dependencies = [
 
 [[package]]
 name = "client-cli"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64 0.11.0",
  "chain-core",
@@ -696,7 +696,7 @@ dependencies = [
 
 [[package]]
 name = "client-common"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aes",
  "aes-gcm-siv",
@@ -729,7 +729,7 @@ dependencies = [
 
 [[package]]
 name = "client-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base58",
  "base64 0.11.0",
@@ -774,7 +774,7 @@ dependencies = [
 
 [[package]]
 name = "client-network"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64 0.11.0",
  "chain-core",
@@ -791,7 +791,7 @@ dependencies = [
 
 [[package]]
 name = "client-rpc"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64 0.11.0",
  "chain-core",
@@ -923,7 +923,7 @@ dependencies = [
 
 [[package]]
 name = "cro-clib"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "cbindgen",
  "chain-core",
@@ -1154,7 +1154,7 @@ dependencies = [
 
 [[package]]
 name = "dev-utils"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chain-abci",
  "chain-core",
@@ -1275,14 +1275,14 @@ dependencies = [
 
 [[package]]
 name = "enclave-macro"
-version = "0.1.1"
+version = "0.5.0"
 dependencies = [
  "rand 0.7.3",
 ]
 
 [[package]]
 name = "enclave-protocol"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chain-core",
  "chain-tx-validation",
@@ -1316,7 +1316,7 @@ dependencies = [
 
 [[package]]
 name = "enclave-t-common"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "chain-core",
  "parity-scale-codec",
@@ -1329,7 +1329,7 @@ dependencies = [
 
 [[package]]
 name = "enclave-u-common"
-version = "0.1.1"
+version = "0.5.0"
 dependencies = [
  "env_logger",
  "hex 0.3.2",
@@ -1340,7 +1340,7 @@ dependencies = [
 
 [[package]]
 name = "enclave-utils"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -2500,7 +2500,7 @@ checksum = "a76c45e77b9af9f0a3fd33cfd462210c1c221029343ac5346306f28b86943ebd"
 
 [[package]]
 name = "mock-utils"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "chain-core",
  "chain-tx-validation",
@@ -3157,7 +3157,7 @@ dependencies = [
 
 [[package]]
 name = "ra-client"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "chrono 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "der-parser",
@@ -3172,7 +3172,7 @@ dependencies = [
 
 [[package]]
 name = "ra-common"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "base64 0.11.0",
  "serde",
@@ -3181,7 +3181,7 @@ dependencies = [
 
 [[package]]
 name = "ra-enclave"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "aes",
  "chrono 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3201,7 +3201,7 @@ dependencies = [
 
 [[package]]
 name = "ra-sp-client"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "ra-common",
  "serde_json",
@@ -3210,7 +3210,7 @@ dependencies = [
 
 [[package]]
 name = "ra-sp-server"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "aesm-client",
  "base64 0.11.0",
@@ -4397,7 +4397,7 @@ dependencies = [
 
 [[package]]
 name = "test-common"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "abci",
  "base64 0.11.0",
@@ -4819,7 +4819,7 @@ dependencies = [
 
 [[package]]
 name = "tx-query-app"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "cc",
  "chain-core",
@@ -4836,7 +4836,7 @@ dependencies = [
 
 [[package]]
 name = "tx-query-enclave"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "base64 0.10.1 (git+https://github.com/mesalock-linux/rust-base64-sgx)",
  "bit-vec 0.6.1",
@@ -4866,7 +4866,7 @@ dependencies = [
 
 [[package]]
 name = "tx-query2-app-runner"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aesm-client",
  "enclave-protocol",
@@ -4881,14 +4881,14 @@ dependencies = [
 
 [[package]]
 name = "tx-query2-enclave-app"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "enclave-protocol",
 ]
 
 [[package]]
 name = "tx-validation-enclave"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "aead",
  "aes-gcm-siv",

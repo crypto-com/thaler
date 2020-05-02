@@ -1,6 +1,6 @@
 [package]
 name = "ra-client"
-version = "0.1.0"
+version = "0.5.0"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 description = "Types for connecting to an enclave over attested TLS connection"
 edition = "2018"

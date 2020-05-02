@@ -1,38 +1,42 @@
 # Changelog
 
 *Unreleased*
+## v0.5.1 or v0.6.0 
+### Breaking changes
+### Features
+### Improvements
+### Bug Fixes
+
+*May 2, 2020*
+
+This release fixes some of the bugs discovered in v0.4 and is based on Rust SGX SDK 1.1.2 (Intel SDK 2.9.1).
+It also contains breaking changes due to features and improvements that did not make it to 0.4.
 
 ## v0.5.0
 ### Breaking changes
 
-- *chain-storage* [1466](https://github.com/crypto-com/chain/pull/1466): add a colume to store historical staking versions
+- *chain-storage* [1466](https://github.com/crypto-com/chain/pull/1466): add a column to store historical staking versions
+- *chain-abci* [1516](https://github.com/crypto-com/chain/pull/1516): state update changes after unbond tx 
 
 ### Features
 
-- *chain-abci* [1458](https://github.com/crypto-com/chain/pull/1458): new abci_query path "sealed", query sealed log of
-  transaction id
+- *chain-abci* [1458](https://github.com/crypto-com/chain/pull/1458): new abci_query path "sealed", query sealed log of transaction id.
+- *client* [1497](https://github.com/crypto-com/chain/pull/1497): address discovery and history recovery when recovering HD wallets
 
 ### Improvements
 
-- *chain-abci* [1521](https://github.com/crypto-com/chain/pull/1521): add network parameter validation rule:
-  `missed_block_threshold <= block_signing_window`
+- *chain-core* [1492](https://github.com/crypto-com/chain/pull/1492): overflow checks for fixed point number construction
+- *client* [1476](https://github.com/crypto-com/chain/pull/1476): the threshold address / merkle tree construction is bounded
 
 ### Bug Fixes
 
-- *chain-abci* [1516](https://github.com/crypto-com/chain/pull/1516): Fix unbond tx didn't subtract fee from bonded
-- *client-core* [1524](https://github.com/crypto-com/chain/pull/1524): Fix the decoding issue of trusted state when nil
-  vote happens during wallet synchronization.
-
-*Unreleased*
-
-## v0.4.1
-
-### Bug Fixes
-
-- *client-core* [1477](https://github.com/crypto-com/chain/pull/1477): Fix decoding issue of nil vote during wallet
+- *client* [1477](https://github.com/crypto-com/chain/pull/1477): Fix decoding issue of nil vote during wallet
   synchronization.
-- *client-core* [1508](https://github.com/crypto-com/chain/pull/1508): Fix the decoding issue of block with evidences
+- *client* [1508](https://github.com/crypto-com/chain/pull/1508): Fix the decoding issue of block with evidences
   during wallet synchronization.
+- *client* [1524](https://github.com/crypto-com/chain/pull/1524): Fix the decoding issue of trusted state when nil
+  vote happens during wallet synchronization.
+- *chain-abci* [1516](https://github.com/crypto-com/chain/pull/1516): fee was not subtracted from state after unbond tx 
 
 *April 22, 2020*
 

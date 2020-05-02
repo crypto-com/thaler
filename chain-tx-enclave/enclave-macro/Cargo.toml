@@ -1,6 +1,6 @@
 [package]
 name = "enclave-macro"
-version = "0.1.1"
+version = "0.5.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "A small collection of proc macros"
 readme = "../../README.md"
