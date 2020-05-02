@@ -55,6 +55,7 @@ wait_for_blocks(rpc, MISSED_BLOCK_THRESHOLD + 3)
 assert len(rpc.chain.validators()['validators']) == 2
 
 addr = rpc.address.list(enckey=enckey, name='target')[0]
+rpc.wallet.sync(enckey=enckey, name='target')
 state = rpc.staking.state(addr)
 punishment = state['last_slash']
 print('punishment', punishment)

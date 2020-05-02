@@ -22,7 +22,7 @@ parity-scale-codec = { features = ["derive"], version = "1.3" }
 base64 = "0.11"
 hex = "0.4"
 
-tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "e3c131a35936da7fc1928c3231db70e603f82fd3" }
+tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "e8d350960726b242fdaa67d293d71ba8cfdb8024" }
 chain-core = { path = "../chain-core" }
 chain-abci = { path = "../chain-abci" }
 chain-storage = { path = "../chain-storage" }
