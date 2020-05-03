@@ -84,7 +84,7 @@ endif
 
 IMAGE                  = crypto-chain
 IMAGE_RUST             = cryptocom/chain
-IMAGE_TENDERMINT       = tendermint/tendermint:v0.33.3
+IMAGE_TENDERMINT       = tendermint/tendermint:v0.33.4
 DOCKER_FILE            = docker/Dockerfile
 DOCKER_FILE_RELEASE    = docker/Dockerfile.release
 ITEMS_START            = sgx-query chain-abci tendermint client-rpc
