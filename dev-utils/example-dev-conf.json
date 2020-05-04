@@ -31,6 +31,9 @@
             {
                 "type": "tendermint/PubKeyEd25519",
                 "value": "pPxJH5wUamXcCvSxgywzmANuO0UNR5x3nCbUzsrCeX8="
+            },
+            {
+                "cert": "RklYTUU="
             }
         ]
     }

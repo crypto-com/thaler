@@ -9,7 +9,7 @@ use self::dev_utils::DevUtils;
 
 fn main() {
     if let Err(err) = execute() {
-        println!("Error: {}", err);
+        println!("Error: {:?}", err);
     }
 }
 

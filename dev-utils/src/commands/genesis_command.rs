@@ -307,3 +307,18 @@ fn write_tendermint_genesis(path: &PathBuf, genesis_str: &str) -> Result<()> {
                 .chain(|| (ErrorKind::IoError, "Failed to write Tenderint genesis file"))
         })
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_dev_config_file() {
+        let file = PathBuf::from("./example-dev-conf.json");
+        let genesis_dev_config_string =
+            fs::read_to_string(file).expect("can not find example-dev-config file");
+        let genesis_dev_config: std::result::Result<GenesisDevConfig, _> =
+            serde_json::from_str(&genesis_dev_config_string);
+        assert!(genesis_dev_config.is_ok());
+    }
+}
