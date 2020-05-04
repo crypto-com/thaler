@@ -15,7 +15,7 @@ use client_core::wallet::{CreateWalletRequest, WalletRequest};
 use client_core::{Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient};
 use parity_scale_codec::{Decode, Encode};
 
-use crate::server::{rpc_error_from_string, to_rpc_error};
+use crate::{rpc_error_from_string, to_rpc_error};
 
 #[rpc(server)]
 pub trait WalletRpc: Send + Sync {
