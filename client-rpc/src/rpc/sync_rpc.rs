@@ -61,7 +61,7 @@ impl Default for SyncRequest {
     }
 }
 
-#[rpc]
+#[rpc(server)]
 pub trait SyncRpc: Send + Sync {
     #[rpc(name = "sync")]
     fn sync(&self, request: WalletRequest, sync_reqeust: SyncRequest) -> Result<RunSyncResult>;

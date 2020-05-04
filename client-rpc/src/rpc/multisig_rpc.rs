@@ -11,7 +11,7 @@ use client_core::{MultiSigWalletClient, WalletClient};
 
 use crate::server::to_rpc_error;
 
-#[rpc]
+#[rpc(server)]
 pub trait MultiSigRpc: Send + Sync {
     #[rpc(name = "multiSig_newAddressPublicKey")]
     fn new_address_public_key(&self, request: WalletRequest) -> Result<String>;

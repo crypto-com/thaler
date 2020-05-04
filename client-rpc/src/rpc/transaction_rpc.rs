@@ -28,7 +28,7 @@ where
     serializer.serialize_str(&hex::encode(transaction_id))
 }
 
-#[rpc]
+#[rpc(server)]
 pub trait TransactionRpc: Send + Sync {
     #[rpc(name = "transaction_createRaw")]
     fn create_raw(
