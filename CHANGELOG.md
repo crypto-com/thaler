@@ -1,11 +1,19 @@
 # Changelog
 
 *Unreleased*
-## v0.5.1 or v0.6.0 
+## v0.5.2 or v0.6.0 
 ### Breaking changes
 ### Features
 ### Improvements
 ### Bug Fixes
+
+*May 4, 2020*
+
+This release contains a hotfix for version reporting of chain-abci.
+
+## v0.5.1
+### Bug Fixes
+- *chain-abci* [1528](https://github.com/crypto-com/chain/pull/1528): correct app version returned on the first startup 
 
 *May 2, 2020*
 
