@@ -47,11 +47,11 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     fn info(&mut self, _req: &RequestInfo) -> ResponseInfo {
         info!("received info request");
         let mut resp = ResponseInfo::new();
+        resp.app_version = chain_core::APP_VERSION;
+        resp.version = get_version();
         if let Some(app_state) = &self.last_state {
             resp.last_block_app_hash = app_state.last_apphash.to_vec();
             resp.last_block_height = app_state.last_block_height.value().try_into().unwrap();
-            resp.app_version = chain_core::APP_VERSION;
-            resp.version = get_version();
             resp.data = serde_json::to_string(&app_state).expect("serialize app state to json");
         } else {
             resp.last_block_app_hash = self.genesis_app_hash.to_vec();
