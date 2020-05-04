@@ -2,6 +2,23 @@
 name = "tx-query2-enclave-app"
 version = "0.5.0"
 authors = ["Crypto.com <chain@crypto.com>"]
+edition = "2018"
 
 [dependencies]
-enclave-protocol   = { path = "../../../enclave-protocol" }
+env_logger = { version = "0.7", default-features = false }
+log = "0.4"
+parity-scale-codec = "1.3"
+rand = "0.7"
+rs-libc = "0.2"
+rustls = "0.17"
+secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["edp"] }
+thread-pool = "0.1"
+zeroize = "1.1"
+
+chain-core = { path = "../../../chain-core", default-features = false, features = ["edp"] }
+enclave-protocol = { path = "../../../enclave-protocol", features = ["edp"] }
+enclave-utils = { path = "../../enclave-utils", features = ["sgxstd"] }
+ra-enclave = { path = "../../enclave-ra/ra-enclave" }
+
+[patch.crates-io]
+ring = { git = "https://github.com/crypto-com/ring.git", rev = "4e1862fb0df9efaf2d2c1ec8cacb1e53104f3daa" }

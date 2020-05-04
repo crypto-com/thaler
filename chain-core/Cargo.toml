@@ -8,6 +8,7 @@ edition = "2018"
 
 [features]
 default = ["serde", "bech32", "hex", "base64", "secp256k1zkp/serde", "secp256k1zkp/std"]
+edp = ["secp256k1zkp/edp"]
 mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx"]
 
 
