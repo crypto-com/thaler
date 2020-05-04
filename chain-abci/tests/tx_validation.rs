@@ -160,6 +160,7 @@ fn get_chain_info(txaux: &TxAux) -> ChainInfo {
         block_time: 0,
         unbonding_period: 1,
         block_height: BlockHeight::genesis(),
+        max_evidence_age: 0,
     }
 }
 
@@ -1321,6 +1322,7 @@ fn check_unjail_transaction() {
         block_time: 101,
         block_height: BlockHeight::genesis(),
         unbonding_period: 1,
+        max_evidence_age: 0,
     };
 
     let (fee, new_account) =

@@ -329,7 +329,12 @@ pub fn process_public_tx(
             if address != maintx.address {
                 return Err(PublicTxError::StakingWitnessNotMatch);
             }
-            staking_table.node_join(staking_store, chain_info.block_time, maintx)?;
+            staking_table.node_join(
+                staking_store,
+                chain_info.block_time,
+                chain_info.max_evidence_age,
+                maintx,
+            )?;
 
             Ok(TxPublicAction::node_join(address, maintx.node_meta.clone()))
         }

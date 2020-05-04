@@ -321,6 +321,19 @@ impl ChainEnv {
             app_state_bytes: serde_json::to_vec(&self.init_config).unwrap(),
             chain_id: TEST_CHAIN_ID.to_owned(),
             validators,
+            consensus_params: Some(ConsensusParams {
+                evidence: Some(EvidenceParams {
+                    max_age_duration: Some(::protobuf::well_known_types::Duration {
+                        seconds: 172_800,
+                        ..Default::default()
+                    })
+                    .into(),
+                    ..Default::default()
+                })
+                .into(),
+                ..Default::default()
+            })
+            .into(),
             ..Default::default()
         }
     }
@@ -343,7 +356,7 @@ impl ChainEnv {
                 ..Default::default()
             })
             .into(),
-            time: Some(::protobuf::well_known_types::Timestamp::default()).into(),
+            time: Some(Timestamp::default()).into(),
             ..Default::default()
         }
     }

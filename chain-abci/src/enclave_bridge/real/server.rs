@@ -115,6 +115,7 @@ impl TxValidationServer {
                                             .top_level
                                             .network_params
                                             .get_unbonding_period(),
+                                        max_evidence_age: last_state.max_evidence_age,
                                     };
                                     let request = IntraEncryptRequest {
                                         txid: req.txid,

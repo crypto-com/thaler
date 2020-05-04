@@ -1,5 +1,6 @@
 use abci::*;
 use parity_scale_codec::Encode;
+use protobuf::well_known_types::Timestamp;
 
 use chain_core::init::coin::Coin;
 use test_common::chain_env::{get_account, ChainEnv};
@@ -70,6 +71,34 @@ fn begin_block_should_jail_byzantine_validators() {
     assert_eq!(0, response_end_block.validator_updates.to_vec()[0].power);
 }
 
+#[test]
+fn begin_block_should_ignore_old_byzantine_evidence() {
+    // Init Chain
+    let (env, storage) = ChainEnv::new(Coin::max(), Coin::zero(), 1);
+    let mut app = env.chain_node(storage);
+    let _rsp_init_chain = app.init_chain(&env.req_init_chain());
+
+    // Begin Block
+    let mut req = RequestBeginBlock {
+        byzantine_validators: vec![env.byzantine_evidence(0)].into(),
+        ..env.req_begin_block(1, 0)
+    };
+    req.header.as_mut().unwrap().time = Some(Timestamp {
+        seconds: app.last_state.as_ref().unwrap().max_evidence_age as i64 + 1,
+        ..Default::default()
+    })
+    .into();
+    app.begin_block(&req);
+
+    let account = get_account(&env.accounts[0].staking_address(), &app);
+    assert!(!account.is_jailed());
+    let response_end_block = app.end_block(&RequestEndBlock {
+        height: 1,
+        ..Default::default()
+    });
+
+    assert!(response_end_block.validator_updates.to_vec().is_empty());
+}
 #[test]
 fn begin_block_should_punish_non_live_validators() {
     // Init Chain
