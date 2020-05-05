@@ -1,6 +1,9 @@
 #![no_main]
 use abci::Application;
-use abci::{PubKey, Request, RequestInitChain, Request_oneof_value, ValidatorUpdate};
+use abci::{
+    ConsensusParams, EvidenceParams, PubKey, Request, RequestInitChain, Request_oneof_value,
+    ValidatorUpdate,
+};
 use chain_abci::app::check_validators;
 use chain_abci::app::*;
 use chain_abci::enclave_bridge::mock::MockClient;
@@ -100,7 +103,29 @@ fn init_request() -> RequestInitChain {
     req.set_app_state_bytes(TEST_GENESIS.as_bytes().to_vec());
     req.set_chain_id(String::from(TEST_CHAIN_ID));
     req.set_validators(vec![validator].into());
+    req.set_consensus_params(ConsensusParams {
+        evidence: Some(EvidenceParams {
+            max_age_duration: Some(::protobuf::well_known_types::Duration {
+                seconds: 172_800,
+                ..Default::default()
+            })
+            .into(),
+            ..Default::default()
+        })
+        .into(),
+        ..Default::default()
+    });
+
     req
+}
+
+fn has_valid_consensus_params(req: &RequestInitChain) -> bool {
+    req.has_consensus_params()
+        && req.get_consensus_params().has_evidence()
+        && req
+            .get_consensus_params()
+            .get_evidence()
+            .has_max_age_duration()
 }
 
 fuzz_target!(|data: &[u8]| {
@@ -122,7 +147,9 @@ fuzz_target!(|data: &[u8]| {
                 get_enclave_bridge_mock(),
             );
             let (init, example_hash, chain_id, mock_bridge) = match messages[0].value {
-                Some(Request_oneof_value::init_chain(ref req)) => {
+                Some(Request_oneof_value::init_chain(ref req))
+                    if has_valid_consensus_params(req) =>
+                {
                     match (
                         serde_json::from_slice::<InitConfig>(&req.app_state_bytes),
                         req.time.as_ref(),
