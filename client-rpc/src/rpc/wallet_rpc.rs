@@ -17,7 +17,7 @@ use parity_scale_codec::{Decode, Encode};
 
 use crate::server::{rpc_error_from_string, to_rpc_error};
 
-#[rpc]
+#[rpc(server)]
 pub trait WalletRpc: Send + Sync {
     #[rpc(name = "wallet_balance")]
     fn balance(&self, request: WalletRequest) -> Result<WalletBalance>;

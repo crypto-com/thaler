@@ -20,7 +20,7 @@ use client_core::{MultiSigWalletClient, WalletClient};
 use client_network::NetworkOpsClient;
 use std::collections::BTreeSet;
 
-#[rpc]
+#[rpc(server)]
 pub trait StakingRpc: Send + Sync {
     #[rpc(name = "staking_depositStake")]
     fn deposit_stake(
