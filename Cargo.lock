@@ -490,7 +490,7 @@ dependencies = [
  "env_logger",
  "hex 0.4.2",
  "integer-encoding",
- "kvdb",
+ "kvdb 0.5.0",
  "kvdb-memorydb",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "mock-utils",
@@ -546,7 +546,7 @@ dependencies = [
  "criterion",
  "integer-encoding",
  "jellyfish-merkle",
- "kvdb",
+ "kvdb 0.5.0",
  "kvdb-memorydb",
  "kvdb-rocksdb",
  "parity-scale-codec",
@@ -1951,12 +1951,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f4ebd0bd29be0f11973e9b3e219005661042a019fd757798c36a47c87852625"
 
 [[package]]
-name = "interleaved-ordered"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "141340095b15ed7491bd3d4ced9d20cebfb826174b6bb03386381f62b01e3d77"
-
-[[package]]
 name = "iovec"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2127,25 +2121,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "kvdb"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e763b2a9b500ba47948061d1e8bc3b5f03a8a1f067dbcf822a4d2c84d2b54a3a"
+dependencies = [
+ "parity-util-mem",
+ "smallvec 1.4.0",
+]
+
+[[package]]
 name = "kvdb-memorydb"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4aa954d12cfac958822dfd77aab34f3eec71f103b918c4ab79ab59a36ee594ea"
 dependencies = [
- "kvdb",
+ "kvdb 0.5.0",
  "parity-util-mem",
  "parking_lot 0.10.2",
 ]
 
 [[package]]
 name = "kvdb-rocksdb"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3f14c3a10c8894d26175e57e9e26032e6d6c49c30cbe2468c5bf5f6b64bb0be"
+checksum = "84384eca250c7ff67877eda5336f28a86586aaee24acb945643590671f6bfce1"
 dependencies = [
  "fs-swap",
- "interleaved-ordered",
- "kvdb",
+ "kvdb 0.6.0",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus",
  "owning_ref",
@@ -3471,9 +3474,9 @@ dependencies = [
 
 [[package]]
 name = "rocksdb"
-version = "0.13.0"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12069b106981c6103d3eab7dd1c86751482d0779a520b7c14954c8b586c1e643"
+checksum = "61aa17a99a2413cd71c1106691bf59dad7de0cd5099127f90e9d99c429c40d4a"
 dependencies = [
  "libc",
  "librocksdb-sys",
