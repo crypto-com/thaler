@@ -127,7 +127,7 @@ mod tests {
                 },
             ),
         };
-        table.node_join(&mut store, 10, &node_join).unwrap();
+        table.node_join(&mut store, 10, 0, &node_join).unwrap();
         assert_eq!(table.end_block(&store, 3), vec![]);
         // node-join increase nonce by one
         assert_eq!(store.get(&addr4).unwrap().nonce, nonce + 1);
@@ -265,7 +265,7 @@ mod tests {
             ),
         };
         assert!(matches!(
-            table.node_join(&mut store, 3, &node_join),
+            table.node_join(&mut store, 3, 0, &node_join),
             Err(PublicTxError::NodeJoin(NodeJoinError::IsJailed))
         ));
         // failed execution don't increase nonce
@@ -329,7 +329,7 @@ mod tests {
             ),
         };
         // change to new validator key
-        let result = table.node_join(store, 1, &node_join);
+        let result = table.node_join(store, 1, 1, &node_join);
         if result.is_ok() {
             let staking = store.get(&addr).unwrap();
             assert_eq!(
@@ -390,7 +390,7 @@ mod tests {
         };
         // can't join with used key
         assert!(matches!(
-            table.node_join(&mut store, 1, &node_join),
+            table.node_join(&mut store, 1, 0, &node_join),
             Err(PublicTxError::NodeJoin(
                 NodeJoinError::DuplicateValidatorAddress
             ))
@@ -542,7 +542,7 @@ mod tests {
         // re-join
         let slashed = (bonded_slashed + unbonded_slashed).unwrap();
         table.deposit(&mut store, &addr1, slashed).unwrap();
-        table.node_join(&mut store, 8, &node_join_tx(0)).unwrap();
+        table.node_join(&mut store, 8, 0, &node_join_tx(0)).unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
             vec![(val_pk1.clone(), Coin::new(11_0000_0000).unwrap().into())]
@@ -592,7 +592,9 @@ mod tests {
         table
             .deposit(&mut store, &addr1, Coin::new(11_0000_0000).unwrap())
             .unwrap();
-        table.node_join(&mut store, 11, &node_join_tx(2)).unwrap();
+        table
+            .node_join(&mut store, 11, 0, &node_join_tx(2))
+            .unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
             vec![(val_pk1.clone(), Coin::new(11_0000_0000).unwrap().into())]
@@ -734,7 +736,7 @@ mod tests {
                 },
             ),
         };
-        table.node_join(&mut store, 2, &tx).unwrap();
+        table.node_join(&mut store, 2, 0, &tx).unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
             vec![(val_pk_new.clone(), Coin::new(12_0000_0000).unwrap().into())]

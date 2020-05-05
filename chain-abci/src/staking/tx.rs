@@ -11,8 +11,6 @@ use crate::tx_error::{
     DepositError, NodeJoinError, PublicTxError, UnbondError, UnjailError, WithdrawError,
 };
 
-// FIXME use consensus parameter after upgrade to tendermint 0.33
-const MAX_EVIDENCE_AGE: u64 = 10000;
 const MAX_USED_VALIDATOR_ADDR: usize = 10;
 
 impl StakingTable {
@@ -21,6 +19,7 @@ impl StakingTable {
         &mut self,
         heap: &mut impl StoreStaking,
         block_time: Timespec,
+        max_evidence_age: Timespec,
         tx: &NodeJoinRequestTx,
     ) -> Result<(), PublicTxError> {
         let mut staking = self.get_or_default(heap, &tx.address);
@@ -49,6 +48,7 @@ impl StakingTable {
                         block_time,
                         &old_val_addr,
                         MAX_USED_VALIDATOR_ADDR,
+                        max_evidence_age,
                     )
                     .ok_or(PublicTxError::NodeJoin(
                         NodeJoinError::UsedValidatorAddrFull,
@@ -213,12 +213,13 @@ fn add_old_val_addr(
     block_time: Timespec,
     old_val_addr: &TendermintValidatorAddress,
     max_bound: usize,
+    max_evidence_age: Timespec,
 ) -> Option<Vec<TendermintValidatorAddress>> {
     // Move the out of date ones out
     let out_of_date = used
         .iter()
         .filter_map(|(addr, ts)| {
-            if ts.saturating_add(MAX_EVIDENCE_AGE) <= block_time {
+            if ts.saturating_add(max_evidence_age) <= block_time {
                 Some(addr)
             } else {
                 None
@@ -227,7 +228,7 @@ fn add_old_val_addr(
         .cloned()
         .collect::<Vec<_>>();
     if used.len() - out_of_date.len() < max_bound {
-        used.retain(|(_, ts)| ts.saturating_add(MAX_EVIDENCE_AGE) > block_time);
+        used.retain(|(_, ts)| ts.saturating_add(max_evidence_age) > block_time);
         used.push((old_val_addr.clone(), block_time));
         Some(out_of_date)
     } else {

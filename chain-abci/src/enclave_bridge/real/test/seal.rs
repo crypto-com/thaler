@@ -161,6 +161,7 @@ pub fn test_sealing() {
         block_time: 1,
         block_height: BlockHeight::genesis(),
         unbonding_period: 0,
+        max_evidence_age: 0,
     };
 
     let request0 = IntraEnclaveRequest::ValidateTx {

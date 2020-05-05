@@ -71,4 +71,6 @@ pub struct ChainInfo {
     pub unbonding_period: u32,
     /// height of current processing block
     pub block_height: BlockHeight,
+    /// max evidence age in tendermint consensus parameter
+    pub max_evidence_age: Timespec,
 }

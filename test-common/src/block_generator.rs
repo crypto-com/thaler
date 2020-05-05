@@ -21,7 +21,7 @@ use tendermint::{
 
 use chain_abci::app::ChainNodeState;
 use chain_abci::staking::StakingTable;
-use chain_core::common::MerkleTree;
+use chain_core::common::{MerkleTree, Timespec};
 use chain_core::compute_app_hash;
 use chain_core::init::config::NetworkParameters;
 use chain_core::init::{
@@ -212,6 +212,7 @@ pub struct TestnetSpec {
     pub base_fee: Milli,
     pub per_byte_fee: Milli,
     pub genesis_time: Time,
+    pub max_evidence_age: Timespec,
     pub chain_id: chain::Id,
 }
 
@@ -223,6 +224,7 @@ impl TestnetSpec {
             base_fee: "0.0".parse().unwrap(),
             per_byte_fee: "0.0".parse().unwrap(),
             genesis_time: Time::now(),
+            max_evidence_age: 172_800,
             chain_id: *DEFAULT_CHAIN_ID,
         }
     }
@@ -338,6 +340,7 @@ impl TestnetSpec {
         let state = ChainNodeState::genesis(
             app_hash,
             genesis_seconds,
+            self.max_evidence_age,
             account_root,
             rewards_pool,
             network_params,

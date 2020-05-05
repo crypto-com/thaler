@@ -216,6 +216,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         block_time: 0,
         block_height: BlockHeight::genesis(),
         genesis_time: 0,
+        max_evidence_age: 172_800,
         staking_table: StakingTable::default(),
         staking_version: 0,
         utxo_coins: Coin::zero(),
@@ -314,6 +315,18 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
         req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
         req.set_chain_id(String::from(TEST_CHAIN_ID));
         req.set_validators(vec![validator].into());
+        req.set_consensus_params(ConsensusParams {
+            evidence: Some(EvidenceParams {
+                max_age_duration: Some(::protobuf::well_known_types::Duration {
+                    seconds: 172_800,
+                    ..Default::default()
+                })
+                .into(),
+                ..Default::default()
+            })
+            .into(),
+            ..Default::default()
+        });
         app.init_chain(&req);
         app
     } else {

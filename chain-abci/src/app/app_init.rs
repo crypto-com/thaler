@@ -48,6 +48,8 @@ pub struct ChainNodeState {
     pub staking_table: StakingTable,
     /// genesis time
     pub genesis_time: Timespec,
+    /// max evidence age from consensus parameter
+    pub max_evidence_age: Timespec,
     /// Version number of staking merkle tree
     pub staking_version: Version,
     /// Record the sum of all the coins in UTxO set
@@ -79,6 +81,7 @@ impl ChainNodeState {
     pub fn genesis(
         genesis_apphash: H256,
         genesis_time: Timespec,
+        max_evidence_age: Timespec,
         account_root: H256,
         rewards_pool: RewardsPoolState,
         network_params: NetworkParameters,
@@ -91,6 +94,7 @@ impl ChainNodeState {
             block_height: BlockHeight::genesis(),
             staking_table,
             genesis_time,
+            max_evidence_age,
             staking_version: 0,
             utxo_coins: Coin::zero(),
             top_level: ChainState {
@@ -385,6 +389,18 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// should validate initial genesis distribution, initialize everything in the key-value DB and check it matches the expected values
     /// provided as arguments.
     pub fn init_chain_handler(&mut self, req: &RequestInitChain) -> ResponseInitChain {
+        let max_evidence_age = req
+            .consensus_params
+            .as_ref()
+            .and_then(|params| {
+                params.evidence.as_ref().and_then(|evidence| {
+                    evidence
+                        .max_age_duration
+                        .as_ref()
+                        .and_then(|duration| duration.seconds.try_into().ok())
+                })
+            })
+            .expect("No valid max_evidence_age");
         let conf: InitConfig =
             serde_json::from_slice(&req.app_state_bytes).expect("failed to parse initial config");
 
@@ -446,6 +462,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let genesis_state = ChainNodeState::genesis(
             genesis_app_hash,
             genesis_time,
+            max_evidence_age,
             new_account_root,
             rp,
             network_params,
@@ -508,6 +525,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             block_time: state.block_time,
             block_height: state.block_height,
             unbonding_period: state.top_level.network_params.get_unbonding_period(),
+            max_evidence_age: state.max_evidence_age,
         }
     }
 

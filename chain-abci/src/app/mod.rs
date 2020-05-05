@@ -126,24 +126,31 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             vec![]
         };
 
-        // ignore the invalid items (logged)
-        let evidences = req
-            .byzantine_validators
-            .iter()
-            .filter_map(|ev| {
-                abci_validator(&ev.validator).and_then(|(addr, _)| {
-                    abci_block_height(ev.height)
-                        .and_then(|height| abci_timespec(&ev.time).map(|time| (addr, height, time)))
-                })
-            })
-            .collect::<Vec<_>>();
-
         let last_state = self
             .last_state
             .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
         last_state.block_time = block_time;
         last_state.block_height = block_height;
+
+        // ignore the invalid items (logged)
+        let evidences = req
+            .byzantine_validators
+            .iter()
+            .filter_map(|ev| {
+                abci_validator(&ev.validator).and_then(|(addr, _)| {
+                    abci_block_height(ev.height).and_then(|height| {
+                        abci_timespec(&ev.time).and_then(|time| {
+                            if time.saturating_add(last_state.max_evidence_age) > block_time {
+                                Some((addr, height, time))
+                            } else {
+                                None
+                            }
+                        })
+                    })
+                })
+            })
+            .collect::<Vec<_>>();
 
         let punishment_outcomes = last_state.staking_table.begin_block(
             &mut staking_store!(self, last_state.staking_version),
