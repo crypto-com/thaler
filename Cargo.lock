@@ -490,7 +490,7 @@ dependencies = [
  "env_logger",
  "hex 0.4.2",
  "integer-encoding",
- "kvdb",
+ "kvdb 0.6.0",
  "kvdb-memorydb",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "mock-utils",
@@ -546,7 +546,7 @@ dependencies = [
  "criterion",
  "integer-encoding",
  "jellyfish-merkle",
- "kvdb",
+ "kvdb 0.6.0",
  "kvdb-memorydb",
  "kvdb-rocksdb",
  "parity-scale-codec",
@@ -2127,12 +2127,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "kvdb"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e763b2a9b500ba47948061d1e8bc3b5f03a8a1f067dbcf822a4d2c84d2b54a3a"
+dependencies = [
+ "parity-util-mem",
+ "smallvec 1.4.0",
+]
+
+[[package]]
 name = "kvdb-memorydb"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4aa954d12cfac958822dfd77aab34f3eec71f103b918c4ab79ab59a36ee594ea"
 dependencies = [
- "kvdb",
+ "kvdb 0.5.0",
  "parity-util-mem",
  "parking_lot 0.10.2",
 ]
@@ -2145,7 +2155,7 @@ checksum = "b3f14c3a10c8894d26175e57e9e26032e6d6c49c30cbe2468c5bf5f6b64bb0be"
 dependencies = [
  "fs-swap",
  "interleaved-ordered",
- "kvdb",
+ "kvdb 0.5.0",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus",
  "owning_ref",
