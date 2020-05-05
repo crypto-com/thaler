@@ -1,8 +1,10 @@
 //! Utilities for encryption and decryption
 mod default;
 
+#[cfg(feature = "sgx-obfuscation")]
 pub mod cert;
 pub mod mock;
+#[cfg(feature = "sgx-obfuscation")]
 pub mod sgx;
 
 pub use default::DefaultTransactionObfuscation;

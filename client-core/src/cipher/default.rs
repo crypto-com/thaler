@@ -1,23 +1,33 @@
-use super::sgx::EnclaveAttr;
-use crate::TransactionObfuscation;
-use chain_core::tx::data::TxId;
-use chain_core::tx::{TxAux, TxWithOutputs};
-use client_common::tendermint::types::AbciQueryExt;
-use client_common::tendermint::Client;
-use client_common::SECP;
+use std::{
+    io::{Read, Write},
+    net::{Shutdown, TcpStream},
+    sync::Arc,
+};
+
+use parity_scale_codec::{Decode, Encode};
+
+use chain_core::tx::{data::TxId, TxAux, TxWithOutputs};
 use client_common::{
-    Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction,
+    tendermint::{types::AbciQueryExt, Client},
+    Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction, SECP,
 };
 use enclave_protocol::{
     DecryptionRequest, DecryptionResponse, EncryptionRequest, EncryptionResponse,
     TxQueryInitRequest, TxQueryInitResponse,
 };
-use parity_scale_codec::{Decode, Encode};
-use std::io::{Read, Write};
-use std::net::{Shutdown, TcpStream};
-use std::sync::Arc;
+#[cfg(feature = "edp-obfuscation")]
+use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierConfig};
 
-fn get_tls_config() -> Arc<rustls::ClientConfig> {
+#[cfg(feature = "sgx-obfuscation")]
+use super::sgx::EnclaveAttr;
+use crate::TransactionObfuscation;
+
+/// Intel Attestation Service (IAS) certificate obtained from https://software.intel.com/sites/default/files/managed/7b/de/RK_PUB.zip
+#[cfg(feature = "edp-obfuscation")]
+const IAS_CERT: &[u8] = include_bytes!("AttestationReportSigningCACert.pem");
+
+#[cfg(feature = "sgx-obfuscation")]
+fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
     // TODO: static config cache
     let mut client_cfg = rustls::ClientConfig::new();
     // TODO: client auth?
@@ -29,7 +39,23 @@ fn get_tls_config() -> Arc<rustls::ClientConfig> {
     client_cfg.versions.clear();
     // TODO: test/try 1.3 and possibly switch
     client_cfg.versions.push(rustls::ProtocolVersion::TLSv1_2);
-    Arc::new(client_cfg)
+    Ok(Arc::new(client_cfg))
+}
+
+#[cfg(feature = "edp-obfuscation")]
+fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
+    let verifier_config = EnclaveCertVerifierConfig {
+        signing_ca_cert_pem: IAS_CERT.into(),
+        valid_enclave_quote_statuses: vec!["OK".into()].into(),
+        report_validity_secs: 86400,
+    };
+    let verifier = EnclaveCertVerifier::new(verifier_config).chain(|| {
+        (
+            ErrorKind::InitializationError,
+            "Cannot initialize enclave certificate verifier",
+        )
+    })?;
+    Ok(Arc::new(verifier.into()))
 }
 
 /// Implementation of transaction obfuscation which directly talks to transaction decryption query and encryption enclaves
@@ -101,7 +127,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
             return Ok(vec![]);
         }
 
-        let client_config = get_tls_config();
+        let client_config = get_tls_config()?;
         let dns_name = self.tqe_hostname.as_ref();
         // FIXME: better response from enclave and retry mechanism
         for attempt in 0..3 {
@@ -207,7 +233,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
     }
 
     fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
-        let client_config = get_tls_config();
+        let client_config = get_tls_config()?;
         let dns_name = self.tqe_hostname.as_ref();
         let mut sess = rustls::ClientSession::new(&client_config, dns_name);
 
