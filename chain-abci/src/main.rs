@@ -3,14 +3,13 @@ use std::fs::File;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
-use chain_abci::app::ChainNodeApp;
+use chain_abci::app::{sanity_check_enabled, ChainNodeApp};
 #[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 use chain_abci::enclave_bridge::mock::MockClient;
 #[cfg(all(not(feature = "mock-enclave"), target_os = "linux"))]
 use chain_abci::enclave_bridge::real::TxValidationApp;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_storage::{Storage, StorageConfig, StorageType};
-#[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 use log::warn;
 use serde::Deserialize;
 use std::io::BufReader;
@@ -173,6 +172,9 @@ fn main() {
         get_network_id()
     );
     let tx_validator = get_enclave_proxy();
+    if sanity_check_enabled() {
+        warn!("Enabled sanity checks");
+    }
 
     let host = config.host.parse().expect("invalid host");
     let addr = SocketAddr::new(host, config.port);

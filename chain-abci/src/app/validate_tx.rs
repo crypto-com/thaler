@@ -67,7 +67,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let extra_info = self.tx_extra_info(req.tx().len());
         let state = match buffer_type {
             BufferType::Consensus => self.last_state.as_mut().expect("expect last_state"),
-            BufferType::Mempool => self.mempool_state.as_mut().expect("expect last_state"),
+            BufferType::Mempool => self.mempool_state.as_mut().expect("expect mempool_state"),
         };
         let txaux = TxAux::decode(&mut req.tx())?;
         let txid = txaux.tx_id();
@@ -88,6 +88,29 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                     &txid,
                     &action,
                 );
+
+                // update utxo coins
+                match action {
+                    TxEnclaveAction::Withdraw {
+                        withdraw: (_, coin),
+                        fee,
+                        ..
+                    } => {
+                        state.utxo_coins =
+                            (state.utxo_coins + (coin - fee.to_coin()).unwrap()).unwrap()
+                    }
+                    TxEnclaveAction::Deposit {
+                        deposit: (_, coin),
+                        fee,
+                        ..
+                    } => {
+                        state.utxo_coins =
+                            (state.utxo_coins - (coin + fee.to_coin()).unwrap()).unwrap()
+                    }
+                    TxEnclaveAction::Transfer { fee, .. } => {
+                        state.utxo_coins = (state.utxo_coins - fee.to_coin()).unwrap()
+                    }
+                }
 
                 TxAction::Enclave(action)
             }

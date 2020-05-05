@@ -51,3 +51,18 @@ macro_rules! kv_store {
         )
     };
 }
+
+macro_rules! kv_getter {
+    ($app:expr) => {
+        chain_storage::buffer::BufferStoreGetter::new(&$app.storage, &$app.kv_buffer)
+    };
+    ($app:expr, $buffer_type:expr) => {
+        chain_storage::buffer::BufferStoreGetter::new(
+            &$app.storage,
+            match $buffer_type {
+                crate::app::app_init::BufferType::Consensus => &$app.kv_buffer,
+                crate::app::app_init::BufferType::Mempool => &$app.mempool_kv_buffer,
+            },
+        )
+    };
+}

@@ -1,7 +1,9 @@
 use std::convert::TryInto;
 use std::mem;
+use std::sync::Arc;
 
 use anyhow::{ensure, Result};
+use jellyfish_merkle::iterator::JellyfishMerkleIterator;
 use jellyfish_merkle::{
     node_type::{LeafNode, Node, NodeKey},
     HashValue, JellyfishMerkleTree, StaleNodeIndex, TreeReader,
@@ -10,6 +12,7 @@ use kvdb::KeyValueDB;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 use chain_core::common::{H256, HASH_SIZE_256};
+use chain_core::init::coin::{sum_coins, Coin, CoinError};
 use chain_core::state::account::{to_stake_key, StakedState, StakedStateAddress};
 use chain_core::state::tendermint::BlockHeight;
 
@@ -230,6 +233,36 @@ fn decode_stale_node_index(data: &[u8]) -> Result<StaleNodeIndex> {
     })
 }
 
+/// Iterate through all stakings
+pub fn iter_stakings<S: GetKV>(
+    storage: &S,
+    version: Version,
+) -> impl Iterator<Item = StakedState> + '_ {
+    JellyfishMerkleIterator::new(
+        Arc::new(KVReader::new(storage)),
+        version,
+        HashValue::new([0u8; 32]),
+    )
+    .expect("jellyfish storage internal error")
+    .map(|mblob| {
+        let (key, blob) = mblob.expect("jellyfish storage internal error");
+        let staking = StakedState::decode(&mut blob.as_ref()).expect("jellyfish storage corrupted");
+        assert_eq!(key, HashValue::new(staking.key()));
+        staking
+    })
+}
+
+/// Sum all `bonded + unbonded` of all stakings
+pub fn sum_staking_coins<S: GetKV>(
+    storage: &S,
+    version: Version,
+) -> std::result::Result<Coin, CoinError> {
+    sum_coins(
+        iter_stakings(storage, version)
+            .flat_map(|staking| vec![staking.bonded, staking.unbonded].into_iter()),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use jellyfish_merkle::node_type::Node;
@@ -293,7 +326,11 @@ mod tests {
     fn check_basic() {
         let mut app = App::new();
         let stakings = (0..10)
-            .map(|i| StakedState::default(StakedStateAddress::BasicRedeem([0x01 + i; 20].into())))
+            .map(|i| StakedState {
+                bonded: Coin::one(),
+                unbonded: Coin::one(),
+                ..StakedState::default(StakedStateAddress::BasicRedeem([0x01 + i; 20].into()))
+            })
             .collect::<Vec<_>>();
         let root_hashes = stakings
             .iter()
@@ -335,6 +372,11 @@ mod tests {
         );
 
         check_proof(&mut app, &stakings, &root_hashes, &staking0);
+
+        assert_eq!(
+            sum_staking_coins(&app.storage, app.version - 1),
+            Ok(Coin::new(20_0000_0000).unwrap())
+        );
     }
 
     fn check_proof(

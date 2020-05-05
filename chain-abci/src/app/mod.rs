@@ -12,6 +12,8 @@ pub mod validate_tx;
 use abci::Pair as KVPair;
 use abci::*;
 use log::info;
+use std::convert::{TryFrom, TryInto};
+use std::env;
 
 #[cfg(fuzzing)]
 pub use self::app_init::check_validators;
@@ -28,7 +30,6 @@ use chain_core::init::coin::Coin;
 use chain_core::state::account::PunishmentKind;
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::tx::TxAux;
-use std::convert::{TryFrom, TryInto};
 
 fn get_version() -> String {
     format!(
@@ -259,7 +260,13 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
     /// Consensus Connection: Commit the block with the latest state from the application.
     fn commit(&mut self, _req: &RequestCommit) -> ResponseCommit {
         info!("received commit request");
-        ChainNodeApp::commit_handler(self, _req)
+        let resp = ChainNodeApp::commit_handler(self, _req);
+
+        if sanity_check_enabled() {
+            self.check_circulating_coins();
+        }
+
+        resp
     }
 }
 
@@ -377,4 +384,8 @@ fn generate_tx_staking_change_event(tx_action: TxAction) -> Option<abci::Event> 
             }
         },
     }
+}
+
+pub fn sanity_check_enabled() -> bool {
+    env::var("CRYPTO_CHAIN_ENABLE_SANITY_CHECKS") == Ok("1".to_owned())
 }

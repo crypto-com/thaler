@@ -314,11 +314,8 @@ impl Encode for Coin {
 impl EncodeLike<u64> for Coin {}
 
 /// helper for summing coins in some iterable structure
-pub fn sum_coins<I>(coin_iter: I) -> CoinResult
-where
-    I: Iterator<Item = Coin>,
-{
-    coin_iter.fold(Coin::new(0), |acc, ref c| acc.and_then(|v| v + *c))
+pub fn sum_coins(mut coins: impl Iterator<Item = Coin>) -> Result<Coin, CoinError> {
+    coins.try_fold(Coin::zero(), |acc, coin| acc + coin)
 }
 
 #[cfg(test)]
