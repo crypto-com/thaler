@@ -238,6 +238,7 @@ mod tests {
     use secstr::SecUtf8;
     use std::str::FromStr;
 
+    use chain_core::common::H256;
     use chain_core::init::{address::RedeemAddress, coin::Coin};
     use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes, UnbondTx};
     use chain_core::tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
@@ -297,6 +298,7 @@ mod tests {
         view_keys: &[PublicKey],
         enclave_txs: &[Transaction],
         other_txs: &[Transaction],
+        staking_root: H256,
     ) -> FilteredBlock {
         let mut block_filter = BlockFilter::default();
         for view_key in view_keys {
@@ -320,6 +322,7 @@ mod tests {
             enclave_transaction_ids: enclave_txs.iter().map(|tx| tx.id()).collect(),
             block_filter,
             staking_transactions: other_txs.to_vec(),
+            staking_root,
         }
     }
 
@@ -337,6 +340,7 @@ mod tests {
             &view_keys,
             &[tx.clone()],
             &[unbond_transaction()],
+            [0u8; 32],
         )];
         let memento = handle_blocks(&wallets[0], &mut state, &blocks, &[tx.clone()]).unwrap();
         state.apply_memento(&memento).expect("apply memento");
@@ -375,7 +379,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let txs = [transactions[0].clone()];
-        let blocks = [block_header(&[view_keys[0].clone()], &txs, &[])];
+        let blocks = [block_header(&[view_keys[0].clone()], &txs, &[], [0u8; 32])];
         {
             let memento = handle_blocks(&wallets[0], &mut states[0], &blocks, &txs)
                 .expect("handle block for wallet1");
@@ -390,7 +394,7 @@ mod tests {
         assert_eq!(states[0].unspent_transactions.len(), 1);
 
         let txs = [transactions[1].clone()];
-        let blocks = [block_header(&view_keys, &txs, &[])];
+        let blocks = [block_header(&view_keys, &txs, &[], [0u8; 32])];
 
         {
             let memento = handle_blocks(&wallets[0], &mut states[0], &blocks, &txs)

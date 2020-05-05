@@ -121,3 +121,11 @@ impl FromStr for StakedStateAddress {
         Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from_str(s)?))
     }
 }
+
+impl AsRef<[u8]> for StakedStateAddress {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            StakedStateAddress::BasicRedeem(a) => &a,
+        }
+    }
+}

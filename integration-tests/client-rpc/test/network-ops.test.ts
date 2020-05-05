@@ -321,15 +321,20 @@ describe("Staking", () => {
 			waitTxIdConfirmed(tendermintClient, depositStakeTxId),
 			"Error when waiting deposit stake transaction confirmation",
 		);
+		await asyncMiddleman(
+			syncWallet(rpcClient, walletRequest),
+			"Error when synchronizing wallet",
+		);
 
 		const expectedState: ExpectedStakingState = {
 			address: stakingAddress,
 			bonded: stakingAmount,
 			unbonded: "0",
 		};
-		await waitStakingState(stakingAddress, expectedState);
+
+		await waitStakingState(walletRequest, stakingAddress, expectedState);
 		const stakingStateAfterDeposit = await asyncMiddleman(
-			rpcClient.request("staking_state", [stakingAddress]),
+			rpcClient.request("staking_state", [walletRequest.name, stakingAddress]),
 			"Error when query staking state after deposit",
 		);
 		assertStakingState(
@@ -338,10 +343,6 @@ describe("Staking", () => {
 			"Staking state is incorrect after deposit stake",
 		);
 
-		await asyncMiddleman(
-			syncWallet(rpcClient, walletRequest),
-			"Error when synchronizing wallet",
-		);
 		const expectedBalance = {
 			total: "0",
 			pending: "0",
@@ -397,15 +398,19 @@ describe("Staking", () => {
 			waitTxIdConfirmed(tendermintClient, unbondTxId),
 			"Error when waiting unbond stake transaction confirmation",
 		);
+		await asyncMiddleman(
+			syncWallet(rpcClient, walletRequest),
+			"Error when synchronizing default wallet",
+		);
 
 		const expectedState: ExpectedStakingState = {
 			address: stakingAddress,
 			bonded: remainingBondedAmount,
 			unbonded: unbondAmount,
 		};
-		await waitStakingState(stakingAddress, expectedState);
+		await waitStakingState(walletRequest, stakingAddress, expectedState);
 		const stakingStateAfterUnbond = await asyncMiddleman(
-			rpcClient.request("staking_state", [stakingAddress]),
+			rpcClient.request("staking_state", [walletRequest.name, stakingAddress]),
 			"Error when query staking state after unbond",
 		);
 		assertStakingState(
@@ -443,6 +448,11 @@ describe("Staking", () => {
 		console.log("[Log] Waiting for unbond period to exceed");
 		await sleep(20000);
 
+		await asyncMiddleman(
+			syncWallet(rpcClient, walletRequest),
+			"Error when synchronizing wallet after withdraw",
+		);
+
 		const withdrawTxId = await asyncMiddleman(
 			rpcClient.request("staking_withdrawAllUnbondedStake", [
 				walletRequest,
@@ -477,19 +487,19 @@ describe("Staking", () => {
 			waitTxIdConfirmed(tendermintClient, withdrawTxId),
 			"Error when waiting withdraw transaction confirmation",
 		);
-
 		await asyncMiddleman(
 			syncWallet(rpcClient, walletRequest),
 			"Error when synchronizing wallet after withdraw",
 		);
+
 		const expectedState: ExpectedStakingState = {
 			address: stakingAddress,
 			bonded: remainingBondedAmount,
 			unbonded: "0",
 		};
-		await waitStakingState(stakingAddress, expectedState);
+		await waitStakingState(walletRequest, stakingAddress, expectedState);
 		const stakingStateAfterWithdraw = await asyncMiddleman(
-			rpcClient.request("staking_state", [stakingAddress]),
+			rpcClient.request("staking_state", [walletRequest.name, stakingAddress]),
 			"Error when querying staking state after withdraw",
 		);
 		assertStakingState(
@@ -527,14 +537,19 @@ describe("Staking", () => {
 	}
 
 	const waitStakingState = async (
+		walletRequest: WalletRequest,
 		stakingAddress: string,
 		expectedState: ExpectedStakingState,
 	) => {
 		while (true) {
 			await sleep(2000);
 			console.log(`[Log] Checking latest staking state`);
+			await asyncMiddleman(
+				syncWallet(rpcClient, walletRequest),
+				"Error when synchronizing default wallet",
+			);
 			const stakingState = await asyncMiddleman(
-				rpcClient.request("staking_state", [stakingAddress]),
+				rpcClient.request("staking_state", [walletRequest.name, stakingAddress]),
 				"Error when query staking state",
 			);
 

@@ -60,7 +60,7 @@ stop_node(supervisor, 'node1')
 
 # jailed and slashed
 slashed = int(last_bonded * 0.2)
-state = rpc.staking.state(bonded_staking2)
+state = rpc.chain.staking(bonded_staking2)
 assert state['validator']['jailed_until'] is not None
 assert int(state['bonded']) == last_bonded - slashed
 
@@ -69,8 +69,8 @@ wait_for_blocktime(rpc, block_time + 10)
 # minted = 6182420000
 minted = monetary_expansion(last_bonded, int(145000000000000000 * 0.99986))
 
-state = rpc.staking.state(bonded_staking2)
+state = rpc.chain.staking(bonded_staking2)
 assert int(state['bonded']) == last_bonded - slashed, 'jailed node don\'t get rewarded'
 
-state = rpc.staking.state(bonded_staking)
+state = rpc.chain.staking(bonded_staking)
 assert int(state['bonded']) == last_bonded + minted + slashed

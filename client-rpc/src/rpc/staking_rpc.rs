@@ -39,7 +39,7 @@ pub trait StakingRpc: Send + Sync {
     ) -> Result<String>;
 
     #[rpc(name = "staking_state")]
-    fn state(&self, address: StakedStateAddress) -> Result<StakedState>;
+    fn state(&self, name: String, address: StakedStateAddress) -> Result<StakedState>;
 
     #[rpc(name = "staking_unbondStake")]
     fn unbond_stake(
@@ -144,6 +144,7 @@ where
                 transactions,
                 to_address,
                 attributes,
+                true,
             )
             .map_err(to_rpc_error)?;
 
@@ -230,6 +231,7 @@ where
                 transactions,
                 to_staking_address,
                 attr,
+                true,
             )
             .map_err(to_rpc_error)?;
 
@@ -249,9 +251,9 @@ where
         Ok(hex::encode(transaction.tx_id()))
     }
 
-    fn state(&self, address: StakedStateAddress) -> Result<StakedState> {
+    fn state(&self, name: String, address: StakedStateAddress) -> Result<StakedState> {
         self.ops_client
-            .get_staked_state(&address)
+            .get_staked_state(&name, &address, true)
             .map_err(to_rpc_error)
     }
 
@@ -276,7 +278,14 @@ where
 
         let transaction = self
             .ops_client
-            .create_unbond_stake_transaction(&request.name, &request.enckey, addr, amount, attr)
+            .create_unbond_stake_transaction(
+                &request.name,
+                &request.enckey,
+                addr,
+                amount,
+                attr,
+                true,
+            )
             .map_err(to_rpc_error)?;
 
         self.client
@@ -341,6 +350,7 @@ where
                 &from_address,
                 to_address,
                 attributes,
+                true,
             )
             .map_err(to_rpc_error)?;
 
@@ -373,7 +383,13 @@ where
 
         let transaction = self
             .ops_client
-            .create_unjail_transaction(&request.name, &request.enckey, unjail_address, attributes)
+            .create_unjail_transaction(
+                &request.name,
+                &request.enckey,
+                unjail_address,
+                attributes,
+                true,
+            )
             .map_err(to_rpc_error)?;
 
         self.client
@@ -409,6 +425,7 @@ where
                 staking_account_address,
                 attributes,
                 node_metadata,
+                true,
             )
             .map_err(to_rpc_error)?;
         self.client

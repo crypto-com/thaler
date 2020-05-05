@@ -28,6 +28,7 @@ pub trait NetworkOpsClient: Send + Sync {
         transaction: Vec<(TxoPointer, TxOut)>,
         to_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
+        verify_staking: bool,
     ) -> Result<(TxAux, TransactionPending)>;
 
     /// creates a new transaction for unbonding stake transaction
@@ -38,6 +39,7 @@ pub trait NetworkOpsClient: Send + Sync {
         address: StakedStateAddress,
         value: Coin,
         attributes: StakedStateOpAttributes,
+        verify_staking: bool,
     ) -> Result<TxAux>;
 
     /// Creates a new transaction for withdrawing unbonded stake from an account
@@ -48,6 +50,7 @@ pub trait NetworkOpsClient: Send + Sync {
         from_address: &StakedStateAddress,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
+        verify_staking: bool,
     ) -> Result<(TxAux, TransactionPending)>;
 
     /// Creates a new transaction for withdrawing all unbonded stake from an account
@@ -58,6 +61,7 @@ pub trait NetworkOpsClient: Send + Sync {
         from_address: &StakedStateAddress,
         to_address: ExtendedAddr,
         attributes: TxAttributes,
+        verify_staking: bool,
     ) -> Result<(TxAux, TransactionPending)>;
 
     /// Creates a new transaction for un-jailing a previously jailed account
@@ -67,6 +71,7 @@ pub trait NetworkOpsClient: Send + Sync {
         enckey: &SecKey,
         address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
+        verify_staking: bool,
     ) -> Result<TxAux>;
 
     /// Creates a new transaction for a node joining validator set
@@ -77,8 +82,14 @@ pub trait NetworkOpsClient: Send + Sync {
         staking_account_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
         node_metadata: CouncilNode,
+        verify_staking: bool,
     ) -> Result<TxAux>;
 
     /// Returns staked stake corresponding to given address
-    fn get_staked_state(&self, address: &StakedStateAddress) -> Result<StakedState>;
+    fn get_staked_state(
+        &self,
+        name: &str,
+        address: &StakedStateAddress,
+        verify: bool,
+    ) -> Result<StakedState>;
 }
