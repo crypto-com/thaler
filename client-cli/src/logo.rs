@@ -1,6 +1,28 @@
 //! cryptocurrency cat logo and jok
-use console::Emoji;
 use rand::Rng;
+
+fn wants_emoji() -> bool {
+    cfg!(target_os = "macos")
+}
+
+#[derive(Copy, Clone)]
+struct Emoji<'a, 'b>(pub &'a str, pub &'b str);
+
+impl<'a, 'b> Emoji<'a, 'b> {
+    pub fn new(emoji: &'a str, fallback: &'b str) -> Emoji<'a, 'b> {
+        Emoji(emoji, fallback)
+    }
+}
+
+impl<'a, 'b> std::fmt::Display for Emoji<'a, 'b> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        if wants_emoji() {
+            write!(f, "{}", self.0)
+        } else {
+            write!(f, "{}", self.1)
+        }
+    }
+}
 
 /// return the cryptocurrency cat logo
 pub fn get_logo() -> String {
