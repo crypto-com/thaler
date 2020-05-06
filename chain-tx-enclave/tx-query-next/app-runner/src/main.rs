@@ -8,7 +8,7 @@ use aesm_client::AesmClient;
 use enclave_runner::usercalls::{AsyncStream, UsercallExtension};
 use enclave_runner::EnclaveBuilder;
 use futures::future::{Future, FutureExt};
-use log::{error, info};
+use log::info;
 use sgxs_loaders::isgx::Device as IsgxDevice;
 
 use self::zmq_helper::ZmqHelper;
@@ -42,10 +42,12 @@ impl UsercallExtension for ZmqService {
 }
 
 fn main() {
+    env_logger::init();
+
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 3 {
-        error!("Please provide: <ENCLAVE_PATH> <ZMQ_CONN_STR>
+        println!("Please provide: <ENCLAVE_PATH> <ZMQ_CONN_STR>
         ENCLAVE_PATH: the path to *.sgxs file (note signature file be with it)
         ZMQ_CONN_STR: the ZMQ connection string (e.g. \"ipc://enclave.ipc\" or \"tcp://127.0.0.1:25933\") of the tx-validation server (now in chain-abci)
         ");

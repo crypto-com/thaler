@@ -24,6 +24,8 @@ if [ $BUILD_MODE == "sgx" ]; then
     cargo build $CARGO_ARGS -p tx-query-app
     make -C chain-tx-enclave/tx-validation
     make -C chain-tx-enclave/tx-query
+    cargo build $CARGO_ARGS -p ra-sp-server
+    ./build_tx_query.sh
 else
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-rpc/server/Cargo.toml
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-cli/Cargo.toml
