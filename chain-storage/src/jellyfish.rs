@@ -207,7 +207,7 @@ pub fn collect_stale_node_indices<S: KeyValueDB>(
     stale_since: BlockHeight,
 ) -> Vec<StaleNodeIndex> {
     storage
-        .iter_from_prefix(COL_TRIE_STALED, &stale_since.value().to_be_bytes())
+        .iter_with_prefix(COL_TRIE_STALED, &stale_since.value().to_be_bytes())
         .map(|(key, _)| decode_stale_node_index(&key).expect("storage corrupted"))
         .collect::<Vec<_>>()
 }
