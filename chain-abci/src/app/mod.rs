@@ -27,6 +27,7 @@ use crate::staking::RewardsDistribution;
 use crate::storage::{TxAction, TxEnclaveAction, TxPublicAction};
 use chain_core::common::{TendermintEventKey, TendermintEventType, Timespec};
 use chain_core::init::coin::Coin;
+use chain_core::init::config::NetworkParameters;
 use chain_core::state::account::PunishmentKind;
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::tx::TxAux;
@@ -38,6 +39,23 @@ fn get_version() -> String {
         env!("VERGEN_BUILD_DATE"),
         env!("VERGEN_SHA_SHORT")
     )
+}
+
+/// Encapsulate some information for begin block event
+pub struct BeginBlockInfo<'a> {
+    pub params: &'a NetworkParameters,
+    pub block_time: Timespec,
+    pub block_height: BlockHeight,
+    pub max_evidence_age: Timespec,
+    pub voters: &'a [(TendermintValidatorAddress, bool)],
+    pub evidences: &'a [(TendermintValidatorAddress, BlockHeight, Timespec)],
+}
+
+impl<'a> BeginBlockInfo<'a> {
+    /// Get unbonding period which is the same as `max_evidence_age`
+    pub fn get_unbonding_period(&self) -> Timespec {
+        self.max_evidence_age
+    }
 }
 
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
@@ -154,11 +172,14 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
 
         let punishment_outcomes = last_state.staking_table.begin_block(
             &mut staking_store!(self, last_state.staking_version),
-            &last_state.top_level.network_params,
-            block_time,
-            block_height,
-            &voters,
-            &evidences,
+            &BeginBlockInfo {
+                params: &last_state.top_level.network_params,
+                block_time: last_state.block_time,
+                block_height: last_state.block_height,
+                max_evidence_age: last_state.max_evidence_age,
+                voters: &voters,
+                evidences: &evidences,
+            },
         );
 
         let mut response = ResponseBeginBlock::new();

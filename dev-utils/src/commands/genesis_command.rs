@@ -224,7 +224,6 @@ pub fn generate_genesis(
     let network_params = InitNetworkParameters {
         initial_fee_policy: fee_policy,
         required_council_node_stake: genesis_dev_config.required_council_node_stake,
-        unbonding_period: genesis_dev_config.unbonding_period,
         jailing_config: genesis_dev_config.jailing_config,
         slashing_config: genesis_dev_config.slashing_config,
         rewards_config: genesis_dev_config.rewards_config,

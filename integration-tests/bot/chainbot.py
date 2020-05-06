@@ -175,7 +175,6 @@ def extract_enckey(s):
 def app_state_cfg(cfg):
     return {
         "distribution": gen_distribution(cfg),
-        "unbonding_period": 20,
         "required_council_node_stake": "100000000",  # 10 coins
         "jailing_config": {
             "block_signing_window": 20,
@@ -349,7 +348,7 @@ async def gen_genesis(cfg):
             },
             "evidence": {
                "max_age_num_blocks": "100000",
-               "max_age_duration": "172800000000000"
+               "max_age_duration": "20000000000"
             },
             "validator": {
                 "pub_key_types": [

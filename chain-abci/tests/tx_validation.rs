@@ -158,9 +158,8 @@ fn get_chain_info(txaux: &TxAux) -> ChainInfo {
         .expect("invalid fee policy"),
         chain_hex_id: DEFAULT_CHAIN_ID,
         block_time: 0,
-        unbonding_period: 1,
         block_height: BlockHeight::genesis(),
-        max_evidence_age: 0,
+        max_evidence_age: 1,
     }
 }
 
@@ -1321,7 +1320,6 @@ fn check_unjail_transaction() {
         chain_hex_id: DEFAULT_CHAIN_ID,
         block_time: 101,
         block_height: BlockHeight::genesis(),
-        unbonding_period: 1,
         max_evidence_age: 0,
     };
 

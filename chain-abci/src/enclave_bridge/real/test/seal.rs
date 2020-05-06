@@ -160,7 +160,6 @@ pub fn test_sealing() {
         chain_hex_id: TEST_NETWORK_ID,
         block_time: 1,
         block_height: BlockHeight::genesis(),
-        unbonding_period: 0,
         max_evidence_age: 0,
     };
 

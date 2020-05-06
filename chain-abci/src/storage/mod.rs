@@ -299,7 +299,7 @@ pub fn process_public_tx(
             }
             let unbonded_from = staking_table.unbond(
                 staking_store,
-                chain_info.unbonding_period as Timespec,
+                chain_info.get_unbonding_period(),
                 chain_info.block_time,
                 chain_info.block_height,
                 &maintx,

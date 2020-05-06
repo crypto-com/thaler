@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use chain_core::common::Timespec;
 use chain_core::init::coin::{sum_coins, Coin, CoinError, CoinResult};
 use chain_core::init::config::SlashRatio;
-use chain_core::init::params::NetworkParameters;
 use chain_core::state::account::{
     PunishmentKind, SlashRecord, StakedState, StakedStateAddress, ValidatorName,
     ValidatorSecurityContact,
@@ -21,6 +20,7 @@ use chain_core::state::tendermint::{
 };
 use chain_storage::buffer::{GetStaking, StoreStaking};
 
+use crate::app::BeginBlockInfo;
 use crate::liveness::LivenessTracker;
 
 pub type RewardsDistribution = Vec<(StakedStateAddress, Coin)>;
@@ -185,14 +185,10 @@ impl StakingTable {
     pub fn begin_block(
         &mut self,
         heap: &mut impl StoreStaking,
-        params: &NetworkParameters,
-        block_time: Timespec,
-        block_height: BlockHeight,
-        voters: &[(TendermintValidatorAddress, bool)],
-        evidences: &[(TendermintValidatorAddress, BlockHeight, Timespec)],
+        info: &BeginBlockInfo,
     ) -> Vec<PunishmentOutcome> {
-        self.cleanup(heap, params.get_unbonding_period() as Timespec, block_time);
-        self.punish(heap, params, block_time, block_height, voters, evidences)
+        self.cleanup(heap, info.get_unbonding_period(), info.block_time);
+        self.punish(heap, info)
     }
 
     /// Handle abci end_block event
@@ -488,17 +484,14 @@ impl StakingTable {
     fn punish(
         &mut self,
         heap: &mut impl StoreStaking,
-        params: &NetworkParameters,
-        block_time: Timespec,
-        block_height: BlockHeight,
-        voters: &[(TendermintValidatorAddress, bool)],
-        evidences: &[(TendermintValidatorAddress, BlockHeight, Timespec)],
+        info: &BeginBlockInfo,
     ) -> Vec<PunishmentOutcome> {
         let mut slashes = Vec::new();
 
         // handle non-live
         // convert to staking address, ignore invalid validator addresses
-        let mut voters = voters
+        let mut voters = info
+            .voters
             .iter()
             .filter_map(|(val_addr, signed)| {
                 self.idx_validator_address
@@ -512,12 +505,12 @@ impl StakingTable {
             // if not in voters, default to true(live)
             let signed = voters.remove(addr).unwrap_or(true);
             tracker.update(
-                params.get_block_signing_window() as usize,
-                block_height,
+                info.params.get_block_signing_window() as usize,
+                info.block_height,
                 signed,
             );
 
-            if !tracker.is_live(params.get_missed_block_threshold() as usize) {
+            if !tracker.is_live(info.params.get_missed_block_threshold() as usize) {
                 // non-live fault detected
                 // panic: Invariant 2.3 + 2.1
                 let mut staking = heap.get(addr).unwrap();
@@ -527,7 +520,7 @@ impl StakingTable {
                 // slash and inactivate if it's active
                 // panic: Invariant 2.3 + 2.2
                 if val.is_active() {
-                    val.inactivate(block_time, block_height);
+                    val.inactivate(info.block_time, info.block_height);
                     slashes.push((*addr, PunishmentKind::NonLive, None));
                 }
 
@@ -540,8 +533,8 @@ impl StakingTable {
         }
 
         // handle byzantine evidences, ignore invalid addresses
-        for (val_addr, _, ev_time) in evidences.iter() {
-            if block_time >= ev_time.saturating_add(params.get_unbonding_period() as u64) {
+        for (val_addr, _, ev_time) in info.evidences.iter() {
+            if info.block_time >= ev_time.saturating_add(info.get_unbonding_period()) {
                 // ignore evidence too long ago
                 log::warn!("evidence older than unbonding period detected");
                 continue;
@@ -554,9 +547,9 @@ impl StakingTable {
                 let val = staking.validator.as_mut().unwrap();
                 if !val.is_jailed() {
                     let jailed_until = val.jail(
-                        block_time,
-                        block_height,
-                        params.get_unbonding_period() as Timespec,
+                        info.block_time,
+                        info.block_height,
+                        info.get_unbonding_period(),
                     );
                     let maybe_jailed_until = Some(jailed_until);
                     self.participator_stats.remove(addr);
@@ -576,12 +569,12 @@ impl StakingTable {
             .map(|(addr, kind, maybe_jailed_until)| {
                 let mut staking = heap.get(&addr).unwrap();
                 let slashed_coin = self.slash(
-                    block_time,
-                    block_height,
+                    info.block_time,
+                    info.block_height,
                     &mut staking,
                     match kind {
-                        PunishmentKind::NonLive => params.get_liveness_slash_percent(),
-                        PunishmentKind::ByzantineFault => params.get_byzantine_slash_percent(),
+                        PunishmentKind::NonLive => info.params.get_liveness_slash_percent(),
+                        PunishmentKind::ByzantineFault => info.params.get_byzantine_slash_percent(),
                     },
                 );
 
@@ -592,7 +585,7 @@ impl StakingTable {
                 // Update the last slash record for query
                 staking.last_slash = Some(SlashRecord {
                     kind,
-                    time: block_time,
+                    time: info.block_time,
                     amount: total_slashed_amount,
                 });
                 set_staking(heap, staking, self.minimal_required_staking);

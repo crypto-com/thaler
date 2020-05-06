@@ -23,8 +23,6 @@ pub struct InitNetworkParameters {
     pub initial_fee_policy: LinearFee,
     /// minimal? council node stake
     pub required_council_node_stake: Coin,
-    /// stake unbonding time (in seconds)
-    pub unbonding_period: u32,
     /// Jailing configuration
     pub jailing_config: JailingParameters,
     /// Slashing configuration
@@ -89,13 +87,6 @@ impl NetworkParameters {
     pub fn get_block_signing_window(&self) -> u16 {
         match self {
             NetworkParameters::Genesis(params) => params.jailing_config.block_signing_window,
-        }
-    }
-
-    /// The time duration of unbonding
-    pub fn get_unbonding_period(&self) -> u32 {
-        match self {
-            NetworkParameters::Genesis(params) => params.unbonding_period,
         }
     }
 

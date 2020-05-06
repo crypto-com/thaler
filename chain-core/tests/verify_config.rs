@@ -62,7 +62,6 @@ fn test_verify_test_example_snapshot() {
     let mut params = InitNetworkParameters {
         initial_fee_policy: fee_policy,
         required_council_node_stake: Coin::new(5000_0000_0000_0000).unwrap(),
-        unbonding_period: 86400,
         jailing_config: JailingParameters {
             block_signing_window: 100,
             missed_block_threshold: 50,

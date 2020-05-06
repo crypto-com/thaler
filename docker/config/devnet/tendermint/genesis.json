@@ -1,5 +1,5 @@
 {
-    "app_hash": "64E09203F3CCE28BBAF78CE03BCE494835CB13D1808299DEE2A8BD76CF30D4AB",
+    "app_hash": "6101EB4F69CCB1AEF735C9780C01264ADAA6972C44DE49A57B5662F9CEA753BC",
     "app_state": {
       "council_nodes": {
         "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
@@ -47,8 +47,7 @@
         "slashing_config": {
           "byzantine_slash_percent": "0.200",
           "liveness_slash_percent": "0.100"
-        },
-        "unbonding_period": 86400
+        }
       }
     },
     "chain_id": "test-chain-y3m1e6-AB",

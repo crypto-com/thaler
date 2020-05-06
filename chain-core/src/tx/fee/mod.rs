@@ -30,6 +30,11 @@ impl Fee {
     pub fn to_coin(self) -> Coin {
         self.0
     }
+
+    /// Return zero fee
+    pub fn zero() -> Fee {
+        Fee(Coin::zero())
+    }
 }
 
 /// Represents a 3 digit fixed decimal
