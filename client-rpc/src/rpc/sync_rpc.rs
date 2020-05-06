@@ -1,6 +1,6 @@
 use super::sync_worker::SyncWorker;
 use super::sync_worker::WorkerShared;
-use crate::server::to_rpc_error;
+use crate::to_rpc_error;
 use client_common::tendermint::Client;
 use client_common::Storage;
 use client_core::wallet::syncer::AddressRecovery;

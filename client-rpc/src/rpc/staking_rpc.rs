@@ -3,7 +3,7 @@ use std::str::FromStr;
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
 
-use crate::server::{rpc_error_from_string, to_rpc_error};
+use crate::{rpc_error_from_string, to_rpc_error};
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
     ConfidentialInit, CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,

@@ -19,7 +19,7 @@ chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 client-network = { path = "../client-network" }
-client-rpc = { path = "../client-rpc" }
+client-rpc-core = { path = "../client-rpc" }
 secstr = { version = "0.4.0", features = ["serde"] }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["recovery", "endomorphism"] }
 jsonrpc-core = "14.1"
@@ -27,6 +27,3 @@ libc = "0.2.68"
 
 [build-dependencies]
 cbindgen = "0.14.2"
-
-[features]
-mock-enclave = ["client-rpc/mock-enclave"]

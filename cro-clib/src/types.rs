@@ -4,7 +4,7 @@ use chain_core::tx::fee::{LinearFee, Milli};
 use client_common::{PrivateKey, PublicKey};
 use client_core::transaction_builder::WitnessedUTxO;
 use client_core::HDSeed;
-use client_rpc::rpc::sync_rpc::CBindingCore;
+use client_rpc_core::rpc::sync_rpc::CBindingCore;
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::os::raw::c_int;

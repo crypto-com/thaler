@@ -1,21 +1,23 @@
 use jsonrpc_core::IoHandler;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
+use std::ptr;
 
 use chain_core::tx::fee::LinearFee;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{types::GenesisExt, Client, WebsocketRpcClient};
 use client_common::{ErrorKind, Result, ResultExt};
 use client_core::cipher::DefaultTransactionObfuscation;
+use client_core::service::HwKeyService;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::wallet::syncer::ObfuscationSyncerConfig;
 use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
-use client_rpc::rpc::{
+use client_rpc_core::rpc::{
     multisig_rpc::{MultiSigRpc, MultiSigRpcImpl},
     staking_rpc::{StakingRpc, StakingRpcImpl},
-    sync_rpc::{SyncRpc, SyncRpcImpl},
+    sync_rpc::{CBindingCallback, CBindingCore, SyncRpc, SyncRpcImpl},
     transaction_rpc::{TransactionRpc, TransactionRpcImpl},
     wallet_rpc::{WalletRpc, WalletRpcImpl},
 };
@@ -24,10 +26,6 @@ use crate::types::get_string;
 use crate::types::CroResult;
 use crate::types::ProgressCallback;
 use crate::types::{CroJsonRpc, CroJsonRpcPtr};
-use std::ptr;
-
-use client_core::service::HwKeyService;
-use client_rpc::rpc::sync_rpc::{CBindingCallback, CBindingCore};
 
 type AppTransactionCipher = DefaultTransactionObfuscation;
 

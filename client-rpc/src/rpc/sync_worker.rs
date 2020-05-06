@@ -1,5 +1,5 @@
 use super::sync_rpc::{CBindingCallback, RunSyncProgressResult};
-use crate::server::rpc_error_from_string;
+use crate::rpc_error_from_string;
 use jsonrpc_core::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
