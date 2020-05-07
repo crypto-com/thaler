@@ -1,11 +1,18 @@
 # Changelog
 
 *Unreleased*
-## v0.5.2 or v0.6.0 
+## v0.6.0 
 ### Breaking changes
 ### Features
 ### Improvements
 ### Bug Fixes
+
+*May 7, 2020*
+
+This release contains a hotfix for client-cli sync issue.
+## v0.5.2
+### Bug Fixes
+- *client* [1553](https://github.com/crypto-com/chain/pull/1553): client-cli cannot sync
 
 *May 4, 2020*
 

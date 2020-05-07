@@ -384,8 +384,9 @@ impl Command {
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
                 let tx_obfuscation = get_tx_query(tendermint_client.clone())?;
                 let enckey = ask_seckey(None)?;
+                let storage = SledStorage::new(storage_path())?;
                 let config = ObfuscationSyncerConfig::new(
-                    SledStorage::new(storage_path())?,
+                    storage.clone(),
                     tendermint_client,
                     tx_obfuscation,
                     !*disable_fast_forward,
@@ -393,7 +394,7 @@ impl Command {
                     *batch_size,
                     *block_height_ensure,
                 );
-                Self::resync(config, name.clone(), enckey, *force)
+                Self::resync(config, name.clone(), enckey, *force, storage)
             }
             Command::MultiSig { multisig_command } => {
                 let storage = SledStorage::new(storage_path())?;
@@ -631,8 +632,9 @@ impl Command {
         name: String,
         enckey: SecKey,
         force: bool,
+        storage: SledStorage,
     ) -> Result<()> {
-        let wallet_client = get_wallet_client()?;
+        let wallet_client = get_wallet_client(storage)?;
 
         let mut init_block_height = 0;
         let mut final_block_height = 0;
@@ -682,9 +684,8 @@ fn print_sync_warning() {
     println!();
 }
 
-fn get_wallet_client() -> Result<AppWalletClient> {
+fn get_wallet_client(storage: SledStorage) -> Result<AppWalletClient> {
     let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
-    let storage = SledStorage::new(storage_path())?;
     let hw_key_service = HwKeyService::default();
 
     let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service.clone());
