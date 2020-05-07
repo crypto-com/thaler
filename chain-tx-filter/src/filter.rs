@@ -72,19 +72,19 @@ impl Bloom {
 
     /// Adds the other bloom filter to the current one
     pub fn add(&mut self, other: &Bloom) {
-        self.0.union(&other.0);
+        self.0.or(&other.0);
     }
 
     /// Set respective bits in the bloom with the array
     pub fn set(&mut self, arr: &[u8]) {
-        self.0.union(&single_set(arr));
+        self.0.or(&single_set(arr));
     }
 
     /// Check that an array is in the bloom
     pub fn check(&self, arr: &[u8]) -> bool {
         let s1 = single_set(arr);
         let mut s2 = s1.clone();
-        s2.intersect(&self.0);
+        s2.and(&self.0);
 
         s2 == s1
     }
