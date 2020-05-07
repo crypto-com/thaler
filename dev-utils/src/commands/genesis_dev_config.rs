@@ -13,7 +13,6 @@ use chain_core::state::tendermint::TendermintValidatorPubKey;
 #[derive(Deserialize, Debug)]
 pub struct GenesisDevConfig {
     pub distribution: BTreeMap<RedeemAddress, Coin>,
-    pub unbonding_period: u32,
     pub required_council_node_stake: Coin,
     pub jailing_config: JailingParameters,
     pub slashing_config: SlashingParameters,
@@ -34,7 +33,6 @@ impl GenesisDevConfig {
     pub fn new(expansion_cap: Coin) -> Self {
         GenesisDevConfig {
             distribution: BTreeMap::new(),
-            unbonding_period: 86400,
             required_council_node_stake: Coin::new(1_250_000_000_000_000_000).unwrap(),
             jailing_config: JailingParameters {
                 block_signing_window: 100,

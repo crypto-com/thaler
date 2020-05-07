@@ -67,10 +67,15 @@ pub struct ChainInfo {
     pub chain_hex_id: u8,
     /// block time of current processing block
     pub block_time: Timespec,
-    /// how much time is required to wait until stake state's unbonded amount can be withdrawn
-    pub unbonding_period: u32,
     /// height of current processing block
     pub block_height: BlockHeight,
     /// max evidence age in tendermint consensus parameter
     pub max_evidence_age: Timespec,
+}
+
+impl ChainInfo {
+    /// Get unbonding period, which is the same as max evidence age
+    pub fn get_unbonding_period(&self) -> Timespec {
+        self.max_evidence_age
+    }
 }

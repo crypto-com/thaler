@@ -111,10 +111,6 @@ impl TxValidationServer {
                                         chain_hex_id: self.network_id,
                                         block_time: last_state.block_time,
                                         block_height: last_state.block_height,
-                                        unbonding_period: last_state
-                                            .top_level
-                                            .network_params
-                                            .get_unbonding_period(),
                                         max_evidence_age: last_state.max_evidence_age,
                                     };
                                     let request = IntraEncryptRequest {

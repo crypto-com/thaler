@@ -3,6 +3,9 @@
 *Unreleased*
 ## v0.6.0 
 ### Breaking changes
+
+*chain-abci* [1547](https://github.com/crypto-com/chain/pull/1547): Remove `unbonding_period` in network parameter, use max evidence duration in consensus parameter instead.
+
 ### Features
 ### Improvements
 ### Bug Fixes

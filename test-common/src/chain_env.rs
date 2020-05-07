@@ -13,7 +13,7 @@ use secp256k1::{
 
 use chain_abci::app::{BufferType, ChainNodeApp};
 use chain_abci::enclave_bridge::mock::MockClient;
-use chain_core::common::{MerkleTree, H256};
+use chain_core::common::{MerkleTree, Timespec, H256};
 use chain_core::compute_app_hash;
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::Coin;
@@ -90,7 +90,6 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
             Milli::try_new(0, 0).unwrap(),
         ),
         required_council_node_stake: Coin::unit(),
-        unbonding_period: 61,
         jailing_config: JailingParameters {
             block_signing_window: 5,
             missed_block_threshold: 1,
@@ -176,6 +175,7 @@ pub struct ChainEnv {
     pub genesis_app_hash: H256,
     pub timestamp: Timestamp,
     pub init_config: InitConfig,
+    pub max_evidence_age: Timespec,
     pub council_nodes: Vec<(StakedStateAddress, CouncilNode)>,
 
     pub accounts: Vec<Account>,
@@ -246,6 +246,7 @@ impl ChainEnv {
                 genesis_app_hash,
                 timestamp,
                 init_config,
+                max_evidence_age: 172_800,
                 council_nodes,
                 accounts,
             },
@@ -324,7 +325,7 @@ impl ChainEnv {
             consensus_params: Some(ConsensusParams {
                 evidence: Some(EvidenceParams {
                     max_age_duration: Some(::protobuf::well_known_types::Duration {
-                        seconds: 172_800,
+                        seconds: self.max_evidence_age.try_into().unwrap(),
                         ..Default::default()
                     })
                     .into(),

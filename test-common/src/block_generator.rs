@@ -613,7 +613,6 @@ fn gen_network_params(
             coefficient: per_byte_fee,
         },
         required_council_node_stake: Coin::unit(),
-        unbonding_period: 86400,
         jailing_config: params::JailingParameters {
             block_signing_window: 100,
             missed_block_threshold: 50,

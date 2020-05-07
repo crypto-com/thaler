@@ -188,7 +188,6 @@ fn get_dummy_network_params() -> NetworkParameters {
             Milli::try_new(1, 1).unwrap(),
         ),
         required_council_node_stake: Coin::unit(),
-        unbonding_period: 86400,
         jailing_config: JailingParameters {
             block_signing_window: 100,
             missed_block_threshold: 50,
@@ -370,7 +369,6 @@ fn init_chain_panics_with_different_app_hash() {
             Milli::try_new(1, 1).unwrap(),
         ),
         required_council_node_stake: Coin::unit(),
-        unbonding_period: 1,
         jailing_config: JailingParameters {
             block_signing_window: 100,
             missed_block_threshold: 50,

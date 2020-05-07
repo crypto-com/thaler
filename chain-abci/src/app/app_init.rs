@@ -104,6 +104,10 @@ impl ChainNodeState {
             },
         }
     }
+
+    pub fn get_unbonding_period(&self) -> Timespec {
+        self.max_evidence_age
+    }
 }
 
 /// Two types of storage buffer
@@ -524,7 +528,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             chain_hex_id: self.chain_hex_id,
             block_time: state.block_time,
             block_height: state.block_height,
-            unbonding_period: state.top_level.network_params.get_unbonding_period(),
             max_evidence_age: state.max_evidence_age,
         }
     }

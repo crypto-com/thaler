@@ -58,10 +58,11 @@ fn check_unbonding_without_removing_validator() {
 #[test]
 fn check_unbonding_with_removing_validator() {
     // Init Chain
-    let (env, storage) =
+    let (mut env, storage) =
         ChainEnv::new_with_customizer(Coin::max(), Coin::zero(), 2, |parameters| {
             parameters.required_council_node_stake = (Coin::max() / 10).unwrap();
         });
+    env.max_evidence_age = 61;
     let mut app = env.chain_node(storage);
     let _rsp = app.init_chain(&env.req_init_chain());
     let state = app.last_state.as_ref().unwrap();
@@ -145,13 +146,12 @@ fn check_unbonding_with_removing_validator() {
 #[test]
 fn check_rejoin() {
     // Init Chain
-    let (env, storage) = ChainEnv::new_with_customizer(
+    let (mut env, storage) = ChainEnv::new_with_customizer(
         (Coin::max() / 2).unwrap(),
         (Coin::max() / 2).unwrap(),
         2,
         |parameters| {
             // tweaking times + parameters, something more than 0.0... gets minted
-            parameters.unbonding_period = 3600 * 24 * 10000;
             parameters.rewards_config.reward_period_seconds = 365 * 24 * 3600;
             parameters.required_council_node_stake = (Coin::max() / 4).unwrap();
             parameters.rewards_config.monetary_expansion_r0 = Milli::try_new(1, 0).unwrap();
@@ -159,6 +159,7 @@ fn check_rejoin() {
             parameters.rewards_config.monetary_expansion_decay = 0;
         },
     );
+    env.max_evidence_age = 3600 * 24 * 10000;
     let mut app = env.chain_node(storage);
     let _rsp = app.init_chain(&env.req_init_chain());
     let state = app.last_state.as_ref().unwrap();

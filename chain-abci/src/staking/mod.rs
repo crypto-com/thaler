@@ -11,7 +11,6 @@ mod tests {
     };
     use std::str::FromStr;
 
-    use chain_core::common::Timespec;
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::Coin;
     use chain_core::init::config::SlashRatio;
@@ -27,6 +26,7 @@ mod tests {
     use test_common::chain_env::get_init_network_params;
 
     use super::*;
+    use crate::app::BeginBlockInfo;
     use crate::staking::table::{PunishmentOutcome, SlashedCoin};
     use crate::tx_error::{
         DepositError, NodeJoinError, PublicTxError, UnbondError, UnjailError, WithdrawError,
@@ -160,7 +160,7 @@ mod tests {
                 0,
                 BlockHeight::genesis(),
                 &unbond,
-                Fee::new(Coin::zero()),
+                Fee::zero(),
             )
             .unwrap();
         assert_eq!(
@@ -187,9 +187,15 @@ mod tests {
         let slash_ratio: SlashRatio = "0.01".parse().unwrap();
         init_params.slashing_config.liveness_slash_percent = slash_ratio;
         init_params.slashing_config.byzantine_slash_percent = slash_ratio;
-        let unbonding_period = 10;
-        init_params.unbonding_period = unbonding_period;
         let params = NetworkParameters::Genesis(init_params);
+        let info = BeginBlockInfo {
+            params: &params,
+            max_evidence_age: 10,
+            block_time: 0,
+            block_height: 0.into(),
+            voters: &[],
+            evidences: &[],
+        };
 
         let (mut table, mut store) = init_staking_table();
         let addr1 = staking_address(&[0xcc; 32]);
@@ -198,11 +204,12 @@ mod tests {
         let block_time: u64 = 0;
         let punishment_outcomes = table.begin_block(
             &mut store,
-            &params,
-            block_time,
-            1.into(),
-            &[],
-            &[evidence.clone()],
+            &BeginBlockInfo {
+                block_time,
+                block_height: 1.into(),
+                evidences: &[evidence.clone()],
+                ..info
+            },
         );
 
         let bonded_slashed = Coin::new(11_0000_0000).unwrap() * slash_ratio;
@@ -214,7 +221,7 @@ mod tests {
                 unbonded: unbonded_slashed,
             },
             punishment_kind: PunishmentKind::ByzantineFault,
-            jailed_until: Some(block_time.saturating_add(unbonding_period as Timespec)),
+            jailed_until: Some(block_time.saturating_add(info.get_unbonding_period())),
         };
         assert_eq!(punishment_outcomes, vec![punishment_outcome]);
         let staking = store.get(&addr1).unwrap();
@@ -229,8 +236,15 @@ mod tests {
         assert_eq!(nonce, 0);
 
         // byzantine faults won't slashed again.
-        let punishment_outcomes =
-            table.begin_block(&mut store, &params, 1, 2.into(), &[], &[evidence]);
+        let punishment_outcomes = table.begin_block(
+            &mut store,
+            &BeginBlockInfo {
+                block_time: 1,
+                block_height: 2.into(),
+                evidences: &[evidence],
+                ..info
+            },
+        );
         assert_eq!(punishment_outcomes, vec![]);
 
         // transaction denied after jailed
@@ -241,7 +255,7 @@ mod tests {
             attributes: Default::default(),
         };
         assert!(matches!(
-            table.unbond(&mut store, 10, 2, 3.into(), &unbond, Fee::new(Coin::zero())),
+            table.unbond(&mut store, 10, 2, 3.into(), &unbond, Fee::zero()),
             Err(PublicTxError::Unbond(UnbondError::IsJailed))
         ));
         assert!(matches!(
@@ -310,7 +324,7 @@ mod tests {
             attributes: Default::default(),
         };
         table
-            .unbond(store, 10, 0, 1.into(), &unbond, Fee::new(Coin::zero()))
+            .unbond(store, 10, 0, 1.into(), &unbond, Fee::zero())
             .unwrap();
         assert_eq!(
             table.end_block(&*store, 3),
@@ -407,26 +421,36 @@ mod tests {
         init_params.jailing_config.block_signing_window = 5;
         init_params.jailing_config.missed_block_threshold = 4;
         let params = NetworkParameters::Genesis(init_params);
+        let info = BeginBlockInfo {
+            params: &params,
+            max_evidence_age: 61,
+            block_time: 0,
+            block_height: 0.into(),
+            voters: &[],
+            evidences: &[],
+        };
 
         for i in 1..=3 {
             let punishment_outcomes = table.begin_block(
                 &mut store,
-                &params,
-                1 + i,
-                i.into(),
-                &[(val_pk1.clone().into(), false)],
-                &[],
+                &BeginBlockInfo {
+                    block_time: 1 + i,
+                    block_height: i.into(),
+                    voters: &[(val_pk1.clone().into(), false)],
+                    ..info
+                },
             );
             assert_eq!(punishment_outcomes, vec![]);
         }
         // non-live fault
         let punishment_outcomes = table.begin_block(
             &mut store,
-            &params,
-            1,
-            5.into(),
-            &[(val_pk1.clone().into(), false)],
-            &[],
+            &BeginBlockInfo {
+                block_time: 1,
+                block_height: 5.into(),
+                voters: &[(val_pk1.clone().into(), false)],
+                ..info
+            },
         );
         assert_eq!(punishment_outcomes[0].staking_address, addr1);
         assert_eq!(
@@ -465,16 +489,25 @@ mod tests {
         init_params.jailing_config.block_signing_window = 50;
         init_params.jailing_config.missed_block_threshold = 5;
         let params = NetworkParameters::Genesis(init_params);
+        let info = BeginBlockInfo {
+            params: &params,
+            max_evidence_age: 61,
+            block_time: 0,
+            block_height: 0.into(),
+            voters: &[],
+            evidences: &[],
+        };
 
         // miss two blocks
         for i in 1..=2 {
             let punishment_outcomes = table.begin_block(
                 &mut store,
-                &params,
-                1 + i,
-                i.into(),
-                &[(val_pk1.clone().into(), false)],
-                &[],
+                &BeginBlockInfo {
+                    block_time: 1 + i,
+                    block_height: i.into(),
+                    voters: &[(val_pk1.clone().into(), false)],
+                    ..info
+                },
             );
             assert_eq!(punishment_outcomes, vec![]);
         }
@@ -486,8 +519,14 @@ mod tests {
         );
 
         for i in 3..=4 {
-            let punishment_outcomes =
-                table.begin_block(&mut store, &params, 1 + i, i.into(), &[], &[]);
+            let punishment_outcomes = table.begin_block(
+                &mut store,
+                &BeginBlockInfo {
+                    block_time: 1 + i,
+                    block_height: i.into(),
+                    ..info
+                },
+            );
             assert_eq!(punishment_outcomes, vec![]);
         }
 
@@ -500,11 +539,12 @@ mod tests {
         for i in 5..=6 {
             let punishment_outcomes = table.begin_block(
                 &mut store,
-                &params,
-                1 + i,
-                i.into(),
-                &[(val_pk1.clone().into(), false)],
-                &[],
+                &BeginBlockInfo {
+                    block_time: 1 + i,
+                    block_height: i.into(),
+                    voters: &[(val_pk1.clone().into(), false)],
+                    ..info
+                },
             );
             assert_eq!(punishment_outcomes, vec![]);
         }
@@ -512,11 +552,12 @@ mod tests {
         // non-live fault
         let punishment_outcomes = table.begin_block(
             &mut store,
-            &params,
-            8,
-            7.into(),
-            &[(val_pk1.clone().into(), false)],
-            &[],
+            &BeginBlockInfo {
+                block_time: 8,
+                block_height: 7.into(),
+                voters: &[(val_pk1.clone().into(), false)],
+                ..info
+            },
         );
         assert_eq!(punishment_outcomes[0].staking_address, addr1);
         assert_eq!(
@@ -552,11 +593,12 @@ mod tests {
         for i in 8..=9 {
             let punishment_outcomes = table.begin_block(
                 &mut store,
-                &params,
-                1 + i,
-                i.into(),
-                &[(val_pk1.clone().into(), false)],
-                &[],
+                &BeginBlockInfo {
+                    block_time: 1 + i,
+                    block_height: i.into(),
+                    voters: &[(val_pk1.clone().into(), false)],
+                    ..info
+                },
             );
             assert_eq!(punishment_outcomes, vec![]);
         }
@@ -568,14 +610,7 @@ mod tests {
             attributes: Default::default(),
         };
         table
-            .unbond(
-                &mut store,
-                10,
-                10,
-                9.into(),
-                &unbond,
-                Fee::new(Coin::zero()),
-            )
+            .unbond(&mut store, 10, 10, 9.into(), &unbond, Fee::zero())
             .unwrap();
 
         assert_eq!(
@@ -584,8 +619,14 @@ mod tests {
         );
 
         for i in 10..=11 {
-            let punishment_outcomes =
-                table.begin_block(&mut store, &params, 1 + i, i.into(), &[], &[]);
+            let punishment_outcomes = table.begin_block(
+                &mut store,
+                &BeginBlockInfo {
+                    block_time: 1 + i,
+                    block_height: i.into(),
+                    ..info
+                },
+            );
             assert_eq!(punishment_outcomes, vec![]);
         }
 
@@ -603,11 +644,12 @@ mod tests {
         for i in 12..=13 {
             let punishment_outcomes = table.begin_block(
                 &mut store,
-                &params,
-                1 + i,
-                i.into(),
-                &[(val_pk1.clone().into(), false)],
-                &[],
+                &BeginBlockInfo {
+                    block_time: 1 + i,
+                    block_height: i.into(),
+                    voters: &[(val_pk1.clone().into(), false)],
+                    ..info
+                },
             );
             assert_eq!(punishment_outcomes, vec![]);
         }
@@ -615,11 +657,12 @@ mod tests {
         // non-live fault again
         let punishment_outcomes = table.begin_block(
             &mut store,
-            &params,
-            15,
-            14.into(),
-            &[(val_pk1.clone().into(), false)],
-            &[],
+            &BeginBlockInfo {
+                block_time: 15,
+                block_height: 14.into(),
+                voters: &[(val_pk1.clone().into(), false)],
+                ..info
+            },
         );
         assert_eq!(punishment_outcomes[0].staking_address, addr1);
         assert_eq!(
@@ -649,9 +692,15 @@ mod tests {
         init_params.slashing_config.liveness_slash_percent = "0.1".parse().unwrap();
         let slash_percent = "0.1";
         init_params.slashing_config.byzantine_slash_percent = slash_percent.parse().unwrap();
-        let unbonding_period = 10;
-        init_params.unbonding_period = unbonding_period;
         let params = NetworkParameters::Genesis(init_params);
+        let info = BeginBlockInfo {
+            params: &params,
+            block_time: 0,
+            block_height: 0.into(),
+            max_evidence_age: 10,
+            voters: &[],
+            evidences: &[],
+        };
 
         let addr1 = staking_address(&[0xcc; 32]);
         let val_pk1 = validator_pubkey(&[0xcc; 32]);
@@ -664,7 +713,7 @@ mod tests {
             attributes: Default::default(),
         };
         table
-            .unbond(&mut store, 10, 1, 1.into(), &unbond, Fee::new(Coin::zero()))
+            .unbond(&mut store, 10, 1, 1.into(), &unbond, Fee::zero())
             .unwrap();
         assert_eq!(store.get(&addr1).unwrap().unbonded, unbond_amount);
         let bonded = (bonded - unbond_amount).unwrap();
@@ -677,16 +726,17 @@ mod tests {
         let block_time = 2;
         let punishment_outcomes = table.begin_block(
             &mut store,
-            &params,
-            block_time,
-            2.into(),
-            &[],
-            &[(val_pk1.clone().into(), 1.into(), 1)],
+            &BeginBlockInfo {
+                block_time,
+                block_height: 2.into(),
+                evidences: &[(val_pk1.clone().into(), 1.into(), 1)],
+                ..info
+            },
         );
         let slash_ratio = SlashRatio::from_str(slash_percent).unwrap();
         let bonded_slashed = bonded * slash_ratio;
         let unbonded_slashed = unbond_amount * slash_ratio;
-        let expected_jailed_until = block_time.saturating_add(unbonding_period as Timespec);
+        let expected_jailed_until = block_time.saturating_add(info.get_unbonding_period());
         assert_eq!(
             punishment_outcomes,
             vec![PunishmentOutcome {
@@ -714,7 +764,7 @@ mod tests {
             attributes: Default::default(),
         };
         table
-            .unbond(&mut store, 10, 2, 2.into(), &unbond, Fee::new(Coin::zero()))
+            .unbond(&mut store, 10, 2, 2.into(), &unbond, Fee::zero())
             .unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
@@ -751,13 +801,14 @@ mod tests {
         let block_time = 3;
         let punishment_outcomes = table.begin_block(
             &mut store,
-            &params,
-            block_time,
-            3.into(),
-            &[],
-            &[(val_pk2.clone().into(), 2.into(), 2)],
+            &BeginBlockInfo {
+                block_time,
+                block_height: 3.into(),
+                evidences: &[(val_pk2.clone().into(), 2.into(), 2)],
+                ..info
+            },
         );
-        let expected_jailed_until = block_time + unbonding_period as Timespec;
+        let expected_jailed_until = block_time + info.get_unbonding_period();
         assert_eq!(
             punishment_outcomes,
             vec![PunishmentOutcome {
