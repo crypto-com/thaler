@@ -1,6 +1,6 @@
 [package]
 name = "client-cli"
-version = "0.5.0"
+version = "0.5.2"
 authors = ["Devashish Dixit <devashish@crypto.com>"]
 edition = "2018"
 build = "build.rs"
