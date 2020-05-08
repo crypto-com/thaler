@@ -214,6 +214,7 @@ impl InitCommand {
                 .duration_since(Time::unix_epoch())
                 .unwrap()
                 .as_secs(),
+            &None,
         )
         .unwrap();
         self.app_hash = result.0;

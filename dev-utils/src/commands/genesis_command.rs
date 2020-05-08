@@ -50,6 +50,7 @@ pub enum GenesisCommand {
             help = "Replace Tendermint genesis.json file in place"
         )]
         in_place: bool,
+
         #[structopt(
             name = "no_backup",
             short,
@@ -57,6 +58,14 @@ pub enum GenesisCommand {
             help = "Don't create backup file when modify in place, default is creating backup file genesis.bak.json in the same directory"
         )]
         no_backup: bool,
+
+        #[structopt(
+            name = "unbonded_address",
+            short,
+            long,
+            help = "If unbonded address is provided, all other staking addresses will be `Bonded` from genesis except from `unbonded_address`"
+        )]
+        unbonded_address: Option<String>,
     },
 }
 
@@ -68,11 +77,13 @@ impl GenesisCommand {
                 genesis_dev_config_path,
                 in_place,
                 no_backup,
+                unbonded_address,
             } => generate_genesis_command(
                 tendermint_genesis_path,
                 genesis_dev_config_path,
                 *in_place,
                 *no_backup,
+                unbonded_address,
             )
             .map(|_| ()),
         }
@@ -84,6 +95,7 @@ fn generate_genesis_command(
     genesis_dev_config_path: &PathBuf,
     in_place: bool,
     no_backup: bool,
+    unbonded_address: &Option<String>,
 ) -> Result<()> {
     let tendermint_genesis_path = match tendermint_genesis_path {
         Some(path) => path.clone(),
@@ -132,7 +144,8 @@ fn generate_genesis_command(
     .duration_since(Time::unix_epoch())
     .expect("invalid genesis time")
     .as_secs();
-    let (app_hash, app_state, validators) = generate_genesis(&genesis_dev_config, genesis_time)?;
+    let (app_hash, app_state, validators) =
+        generate_genesis(&genesis_dev_config, genesis_time, unbonded_address)?;
 
     let app_hash = serde_json::to_value(app_hash).chain(|| {
         (
@@ -205,15 +218,31 @@ fn find_tendermint_path_from_home() -> Option<PathBuf> {
 pub fn generate_genesis(
     genesis_dev_config: &GenesisDevConfig,
     genesis_time: Timespec,
+    unbonded_address: &Option<String>,
 ) -> Result<(String, InitConfig, Vec<TendermintValidator>)> {
     let mut dist: BTreeMap<RedeemAddress, (StakedStateDestination, Coin)> = BTreeMap::new();
 
+    let unbonded_address = unbonded_address
+        .as_ref()
+        .map(|address| {
+            RedeemAddress::from_str(address)
+                .chain(|| (ErrorKind::InvalidInput, "Invalid unbonded address provided"))
+        })
+        .transpose()?;
+
     for (address, amount) in genesis_dev_config.distribution.iter() {
-        let dest = if genesis_dev_config.council_nodes.contains_key(&address) {
+        let dest = if let Some(ref unbonded_address) = unbonded_address {
+            if address == unbonded_address {
+                StakedStateDestination::UnbondedFromGenesis
+            } else {
+                StakedStateDestination::Bonded
+            }
+        } else if genesis_dev_config.council_nodes.contains_key(&address) {
             StakedStateDestination::Bonded
         } else {
             StakedStateDestination::UnbondedFromGenesis
         };
+
         dist.insert(*address, (dest, *amount));
     }
     let constant_fee = Milli::from_str(&genesis_dev_config.initial_fee_policy.base_fee)
