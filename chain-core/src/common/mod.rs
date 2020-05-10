@@ -5,8 +5,6 @@ use std::string::ToString;
 
 use digest::Digest;
 
-/// Fixed point arithmetic
-pub mod fixed;
 /// Generic merkle tree
 mod merkle_tree;
 

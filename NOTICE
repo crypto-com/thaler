@@ -42,3 +42,8 @@ This project contains portions of code derived from the following libraries:
  * Copyright: Copyright (c) 2019 Vishwa
  * License: The MIT License (MIT)
  * Repository: https://github.com/v1shwa/random-port-generator 
+
+* fixed
+ * Copyright: Copyright © 2018–2020 Trevor Spiteri
+ * License: Apache License 2.0
+ * Repository: https://gitlab.com/tspiteri/fixed

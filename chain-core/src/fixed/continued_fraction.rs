@@ -1,9 +1,11 @@
+use std::convert::TryInto;
 use std::iter;
 use std::prelude::v1::Vec;
 
 use crate::init::coin::Coin;
 use crate::tx::fee::Milli;
-pub use fixed::types::I65F63 as Fixed;
+
+use super::Fixed;
 
 // with I65F63, exp2(EXP_LOWER_BOUND, 1) == 0
 const EXP_LOWER_BOUND: i32 = -30;
@@ -22,7 +24,7 @@ fn continued_fraction(
             .collect::<Vec<_>>()
             .iter()
             .rev()
-            .fold(Fixed::from_num(0), |acc, &(x, y)| y / (x + acc))
+            .fold(Fixed::from(0), |acc, &(x, y)| y / (x + acc))
 }
 
 /// Continued fraction series for `exp(x / y)`
@@ -33,10 +35,10 @@ fn continued_fraction(
 /// ```
 fn exp2_series(x: Fixed, y: Fixed) -> (impl Iterator<Item = Fixed>, impl Iterator<Item = Fixed>) {
     let x2 = x * x;
-    let series_a = vec![Fixed::from_num(1), y * 2 - x]
+    let series_a = vec![Fixed::from(1), y * 2 - x]
         .into_iter()
         .chain((0..).map(move |i| y * (i * 4 + 6)));
-    let series_b = iter::once(2 * x).chain(iter::repeat(x2));
+    let series_b = iter::once(x * 2).chain(iter::repeat(x2));
     (series_a, series_b)
 }
 
@@ -53,10 +55,10 @@ pub fn exp2(x: Fixed, y: Fixed) -> Fixed {
 /// series_b:    2x,   (1x)^2,  (2x)^2,  (3x)^2,  ...
 /// ```
 fn log2_series(x: Fixed, y: Fixed) -> (impl Iterator<Item = Fixed>, impl Iterator<Item = Fixed>) {
-    let n1 = 2 * y + x;
+    let n1 = y * 2 + x;
     let x2 = x * x;
-    let series_a = iter::once(Fixed::from_num(0)).chain((1..).step_by(2).map(move |i| n1 * i));
-    let series_b = iter::once(2 * x).chain((1..).map(move |i| -x2 * (i * i)));
+    let series_a = iter::once(Fixed::from(0)).chain((1..).step_by(2).map(move |i| n1 * i));
+    let series_b = iter::once(x * 2).chain((1..).map(move |i| -x2 * (i * i)));
     (series_a, series_b)
 }
 
@@ -70,28 +72,28 @@ pub fn log2(x: Fixed, y: Fixed) -> Fixed {
 pub fn monetary_expansion(staking: Coin, tau: u64, r0: Milli, period: u64) -> Coin {
     assert!(tau != 0);
 
-    let r0 = Fixed::from_num(r0.as_millis());
-    let period = Fixed::from_num(period);
+    let r0 = Fixed::from(r0.as_millis());
+    let period = Fixed::from(period);
 
-    let staking = Fixed::from_num(u64::from(staking));
-    let tau = Fixed::from_num(tau);
+    let staking = Fixed::from(u64::from(staking));
+    let tau = Fixed::from(tau);
 
-    let base = Fixed::from_num(10000000_00000000_u64);
-    let year = Fixed::from_num(365 * 24 * 60 * 60);
+    let base = Fixed::from(10000000_00000000_u64);
+    let year = Fixed::from(365 * 24 * 60 * 60);
 
     let staking_ = staking / base;
     let tau_ = tau / base;
-    let n0 = if -staking_ / tau_ < Fixed::from_num(EXP_LOWER_BOUND) {
-        exp2(Fixed::from_num(EXP_LOWER_BOUND), Fixed::from_num(1))
+    let n0 = if -staking_ / tau_ < Fixed::from(EXP_LOWER_BOUND) {
+        exp2(Fixed::from(EXP_LOWER_BOUND), Fixed::from(1))
     } else {
         exp2(-staking_, tau_)
     };
-    let n1 = log2(n0 * r0, Fixed::from_num(1000));
+    let n1 = log2(n0 * r0, Fixed::from(1000));
     let n2 = exp2(n1 * period, year);
-    let n3 = staking * (n2 - Fixed::from_num(1));
+    let n3 = staking * (n2 - Fixed::from(1));
     // drop fraction part, no wrap
-    let n4 = n3.checked_to_num::<u64>().unwrap();
-    Coin::new(n4 - n4 % 10000).unwrap()
+    let n4: u64 = n3.try_into().expect("shouldn't be negative");
+    Coin::new(n4 - n4 % 10000).expect("coin overflow")
 }
 
 #[cfg(test)]
@@ -105,58 +107,55 @@ mod tests {
     const MIN_ERROR: f64 = 0.000_000_001;
 
     fn exp_error(x: Fixed, y: Fixed) -> f64 {
-        let a = E.powf((x / y).to_num::<f64>());
-        let b = exp2(x, y).to_num::<f64>();
+        let a = E.powf(f64::from(x / y));
+        let b = f64::from(exp2(x, y));
         (a - b).abs()
     }
 
     fn log_error(x: Fixed, y: Fixed) -> f64 {
-        let a = (1. + (x / y).to_num::<f64>()).ln();
-        let b = log2(x, y).to_num::<f64>();
+        let a = (1. + f64::from(x / y)).ln();
+        let b = f64::from(log2(x, y));
         (a - b).abs()
     }
 
     #[test]
     fn check_exp_lower_bound() {
-        let err = exp_error(Fixed::from_num(EXP_LOWER_BOUND), Fixed::from_num(1));
+        let err = exp_error(Fixed::from(EXP_LOWER_BOUND), Fixed::from(1));
         assert!(err < MIN_ERROR);
     }
 
     #[test]
     fn check_exp_edge_cases() {
-        let base = Fixed::from_num(10000000_00000000_u64);
-        let err = exp_error(
-            Fixed::from_num(-1) / base,
-            Fixed::from_num(std::u64::MAX) / base,
-        );
+        let base = Fixed::from(10000000_00000000_u64);
+        let err = exp_error(Fixed::from(-1) / base, Fixed::from(std::u64::MAX) / base);
         assert!(err < MIN_ERROR);
     }
 
     quickcheck! {
         fn check_exp_error(i: u64) -> bool {
-            let err = exp_error(Fixed::from_num(i), Fixed::from_num(10));
+            let err = exp_error(Fixed::from(i), Fixed::from(10));
             err < MIN_ERROR
         }
     }
 
     #[test]
     fn check_log_large_error() {
-        let err = log_error(Fixed::from_num(100), Fixed::from_num(100));
+        let err = log_error(Fixed::from(100), Fixed::from(100));
         assert!(err < MIN_ERROR);
     }
 
     #[test]
     fn check_log_edge_case() {
         let err = log_error(
-            exp2(Fixed::from_num(EXP_LOWER_BOUND), Fixed::from_num(1)),
-            Fixed::from_num(1),
+            exp2(Fixed::from(EXP_LOWER_BOUND), Fixed::from(1)),
+            Fixed::from(1),
         );
         assert!(err < MIN_ERROR);
     }
 
     quickcheck! {
         fn check_log_error(i: u64) -> bool {
-            let err = log_error(Fixed::from_num(i % 100), Fixed::from_num(100));
+            let err = log_error(Fixed::from(i % 100), Fixed::from(100));
             err < MIN_ERROR
         }
     }
