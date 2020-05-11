@@ -49,7 +49,6 @@ const TEST_GENESIS: &str = "{
         \"coefficient\": 1001
       },
       \"required_council_node_stake\": \"1\",
-      \"unbonding_period\": 86400,
       \"jailing_config\": {
         \"block_signing_window\": 100,
         \"missed_block_threshold\": 50
@@ -142,7 +141,7 @@ fuzz_target!(|data: &[u8]| {
         if !messages.is_empty() {
             let defaultinit = (
                 init_request(),
-                "77e18388a8618adcedc91678f29284ba762e1f54140800d7be6a06ab95b0773c".to_owned(),
+                "21b28d516526ad2d7fe0c2264ae46c7d6b0c8b723f58247f9ec4460156af4d6e".to_owned(),
                 TEST_CHAIN_ID.to_owned(),
                 get_enclave_bridge_mock(),
             );
