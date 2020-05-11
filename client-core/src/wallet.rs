@@ -24,7 +24,8 @@ use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResponse;
 use client_common::{
-    PrivateKey, PrivateKeyAction, PublicKey, Result, SecKey, Transaction, TransactionInfo,
+    MultiSigAddress, PrivateKey, PrivateKeyAction, PublicKey, Result, SecKey, Transaction,
+    TransactionInfo,
 };
 use serde::{Deserialize, Serialize};
 
@@ -242,6 +243,9 @@ pub trait WalletClient: Send + Sync {
         self_public_key: PublicKey,
         m: usize,
     ) -> Result<ExtendedAddr>;
+
+    /// get the multisig addresses
+    fn get_multisig_addresses(&self, name: &str, enckey: &SecKey) -> Result<Vec<MultiSigAddress>>;
 
     /// Generates inclusion proof for set of public keys in multi-sig address
     fn generate_proof(

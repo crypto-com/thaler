@@ -103,7 +103,7 @@ where
 
     /// Returns MultiSig address from storage with the given root_hash
     /// decrypted with enckey
-    fn get_multi_sig_address_from_root_hash(
+    pub fn get_multi_sig_address_from_root_hash(
         &self,
         name: &str,
         root_hash: &H256,
