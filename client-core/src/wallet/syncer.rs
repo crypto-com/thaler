@@ -548,7 +548,6 @@ impl<
 }
 
 pub fn get_genesis_sync_state<C: Client>(client: &C) -> Result<SyncState> {
-    // FIXME verify against trusted genesis hash
     let genesis = client.genesis()?;
     let accounts = genesis.app_state.unwrap().get_account(
         genesis

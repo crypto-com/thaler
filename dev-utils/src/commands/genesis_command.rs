@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use hex::encode_upper;
+use quest::{ask, error, success, text};
 use structopt::StructOpt;
 
 use chain_abci::app::init_app_hash;
@@ -18,10 +19,11 @@ use chain_core::state::tendermint::{
     TendermintValidator, TendermintValidatorAddress, TendermintVotePower,
 };
 use chain_core::tx::fee::{LinearFee, Milli};
-use client_common::tendermint::types::Time;
+use client_common::tendermint::{types::Time, Client};
 use client_common::{ErrorKind, Result, ResultExt};
 
 use crate::commands::genesis_dev_config::GenesisDevConfig;
+use client_common::tendermint::WebsocketRpcClient;
 
 #[derive(Debug, StructOpt)]
 pub enum GenesisCommand {
@@ -67,6 +69,19 @@ pub enum GenesisCommand {
         )]
         unbonded_address: Option<String>,
     },
+    #[structopt(name = "check-hash", about = "check the genesis hash")]
+    Check {
+        #[structopt(name = "hash", short, long, help = "hex formatted genesis hash ")]
+        hash: Option<String>,
+        #[structopt(
+            name = "websocket-url",
+            short,
+            long,
+            default_value = "ws://127.0.0.1:26657/websocket",
+            help = "tendermint websocket url"
+        )]
+        websocket_url: String,
+    },
 }
 
 impl GenesisCommand {
@@ -86,8 +101,36 @@ impl GenesisCommand {
                 unbonded_address,
             )
             .map(|_| ()),
+            GenesisCommand::Check {
+                hash,
+                websocket_url,
+            } => check_genesis_hash(hash.clone(), websocket_url),
         }
     }
+}
+
+fn check_genesis_hash(hash: Option<String>, websocket_url: &str) -> Result<()> {
+    let tendermint_client = WebsocketRpcClient::new(websocket_url)?;
+    let genesis = tendermint_client.genesis()?;
+    let hash_in_tendermint = hex::encode(genesis.app_hash);
+    let hash = match hash {
+        None => {
+            ask("Enter hex formatted genesis hash to check: ");
+            let hash_str = text().chain(|| (ErrorKind::InvalidInput, "Invalid input"))?;
+            hash_str.trim().into()
+        }
+        Some(s) => s,
+    };
+    if hash.to_uppercase() == hash_in_tendermint.to_uppercase() {
+        success("Genesis hash match");
+    } else {
+        let err_msg = format!(
+            "Geneis hash is matched to tendermint genesis hash: {}",
+            hash_in_tendermint
+        );
+        error(&err_msg);
+    }
+    Ok(())
 }
 
 fn generate_genesis_command(
