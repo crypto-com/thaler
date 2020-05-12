@@ -30,8 +30,8 @@ use client_common::tendermint::types::Time;
 use client_common::tendermint::types::{AbciQueryExt, BlockResults, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};
 use client_common::{
-    seckey::derive_enckey, Error, ErrorKind, PrivateKey, PrivateKeyAction, PublicKey, Result,
-    ResultExt, SecKey, SignedTransaction, Storage, Transaction, TransactionInfo,
+    seckey::derive_enckey, Error, ErrorKind, MultiSigAddress, PrivateKey, PrivateKeyAction,
+    PublicKey, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction, TransactionInfo,
 };
 use indexmap::IndexSet;
 use parity_scale_codec::Encode;
@@ -742,6 +742,17 @@ where
         self.wallet_service.add_root_hash(name, enckey, root_hash)?;
 
         Ok(multi_sig_address.into())
+    }
+
+    fn get_multisig_addresses(&self, name: &str, enckey: &SecKey) -> Result<Vec<MultiSigAddress>> {
+        let root_hashes = self.wallet_service.root_hashes(name, enckey)?;
+        root_hashes
+            .iter()
+            .map(|hash| {
+                self.root_hash_service
+                    .get_multi_sig_address_from_root_hash(name, hash, enckey)
+            })
+            .collect::<Result<Vec<MultiSigAddress>>>()
     }
 
     fn generate_proof(

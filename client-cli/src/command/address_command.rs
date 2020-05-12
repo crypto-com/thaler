@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use quest::{ask, success, text};
+use quest::{ask, error, success, text};
 use structopt::StructOpt;
 use unicase::eq_ascii;
 
@@ -8,6 +8,7 @@ use client_common::{error::ResultExt, Error, ErrorKind, PublicKey, Result};
 use client_core::WalletClient;
 
 use crate::{ask_hardware_kind, ask_seckey};
+use chain_core::tx::data::address::ExtendedAddr;
 use client_core::types::WalletKind;
 
 const ADDRESS_TYPE_VARIANTS: [&str; 2] = ["transfer", "staking"];
@@ -157,26 +158,50 @@ impl AddressCommand {
         match address_type {
             AddressType::Staking => {
                 let addresses = wallet_client.staking_addresses(name, &enckey)?;
-
                 if !addresses.is_empty() {
                     for address in addresses {
                         ask("Address: ");
                         success(&format!("{}", address));
                     }
                 } else {
-                    success("No addresses found!")
+                    ask("Address: ");
+                    error("No addresses found!")
                 }
             }
             AddressType::Transfer | AddressType::TransferWatch => {
-                let addresses = wallet_client.transfer_addresses(name, &enckey)?;
+                let multisig_addresses = wallet_client.get_multisig_addresses(name, &enckey)?;
+                let mut solo_addresses = vec![];
+                let mut multi_addresses = vec![];
+                for addr in multisig_addresses {
+                    let m = addr.m;
+                    let n = addr.n;
+                    let e_addr = ExtendedAddr::from(addr);
+                    if m == 1 && n == 1 {
+                        solo_addresses.push(e_addr.to_string());
+                    } else {
+                        let m_addr = format!("{}({}/{})", e_addr, m, n);
+                        multi_addresses.push(m_addr)
+                    }
+                }
 
-                if !addresses.is_empty() {
-                    for address in addresses {
+                if !solo_addresses.is_empty() {
+                    for address in solo_addresses.iter() {
                         ask("Address: ");
-                        success(&format!("{}", address));
+                        success(address);
                     }
                 } else {
-                    success("No addresses found!")
+                    ask("Address: ");
+                    error("No addresses found!")
+                }
+
+                if !multi_addresses.is_empty() {
+                    for address in multi_addresses.iter() {
+                        ask("MultiSig Address: ");
+                        success(address)
+                    }
+                } else {
+                    ask("MultiSig Address: ");
+                    error("No mutisig addresses found!")
                 }
             }
         }
@@ -205,7 +230,7 @@ impl AddressCommand {
     }
 }
 
-fn ask_public_key(message: Option<&str>) -> Result<PublicKey> {
+pub fn ask_public_key(message: Option<&str>) -> Result<PublicKey> {
     ask(message.unwrap_or("Enter public key: "));
     let pubkey_str = text().chain(|| (ErrorKind::InvalidInput, "Invalid input"))?;
     let pubkey_str = pubkey_str.trim();
