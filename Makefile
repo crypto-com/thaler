@@ -72,14 +72,19 @@ ifeq ($(chain), devnet)
 	CHAIN_ID   = test-chain-y3m1e6-AB
 	NETWORK_ID = AB
 	SGX_MODE   = $(sgx_mode)
+	CRYPTO_GENESIS_HASH = C7FC2A7BBD4EED7BFA9418FBD28E2E5E0908FA9389F5C007157B70A501CE49B5
 else ifeq ($(chain), testnet)
 	CHAIN_ID   = testnet-thaler-crypto-com-chain-42
 	NETWORK_ID = 42
 	SGX_MODE   = HW
+	# TODO: change it with version update
+	CRYPTO_GENESIS_HASH = DC05002AAEAB58DA40701073A76A018C9AB02C87BD89ADCB6EE7FE5B419526C8
 else ifeq ($(chain), mainnet)
 	CHAIN_ID   = thaler-crypto-com-chain-42
 	NETWORK_ID = 42
 	SGX_MODE   = HW
+	# TODO: use mainnet's genesis app hash
+	CRYPTO_GENESIS_HASH = F62DDB49D7EB8ED0883C735A0FB7DE7F2A3FA322FCD2AA832F452A62B38607D5
 endif
 
 IMAGE                  = crypto-chain
@@ -193,7 +198,7 @@ build-sgx-validation:
 
 
 create-network:
-	@if [ `docker network ls -f NAME=$(NETWORK) | wc -l ` -eq 2 ]; then \
+	@if [ `docker network ls -f NAME=$(prefix)$(NETWORK) | wc -l ` -eq 2 ]; then \
 		echo "network already exist"; \
 	else \
 		docker network create $(prefix)crypto-chain; \
@@ -268,6 +273,7 @@ run-client-rpc:
 	--net $(NETWORK) \
 	--restart=always \
 	-e RUST_LOG=$(RUST_LOG) \
+	-e CRYPTO_GENESIS_HASH=$(CRYPTO_GENESIS_HASH) \
 	--name $(prefix)client-rpc \
 	-v $(data_path)/wallet:/crypto-chain/wallet \
 	-p $(CLIENT_RPC_PORT):26659 \
