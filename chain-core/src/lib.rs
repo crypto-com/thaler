@@ -19,6 +19,9 @@ pub mod state;
 /// Transaction structure types and serialization/deserialization
 pub mod tx;
 
+/// Fixed point arithemetic
+pub mod fixed;
+
 use common::{MerkleTree, Timespec, H256};
 use init::params::NetworkParameters;
 use parity_scale_codec::{Decode, Encode};

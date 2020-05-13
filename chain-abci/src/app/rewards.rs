@@ -2,7 +2,7 @@ use std::cmp::min;
 
 use crate::app::ChainNodeApp;
 use crate::enclave_bridge::EnclaveProxy;
-use chain_core::common::fixed::monetary_expansion;
+use chain_core::fixed::monetary_expansion;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::StakedStateAddress;
 use chain_storage::jellyfish::StakingGetter;
