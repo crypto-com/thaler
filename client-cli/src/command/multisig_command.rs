@@ -146,7 +146,7 @@ fn new_multisign_address<T: WalletClient>(
         .chain(|| (ErrorKind::InvalidInput, "Invalid public key"))?;
 
     let self_public_key = match self_public_key {
-        None => ask_public_key(Some("input self pulblic key: "))?,
+        None => ask_public_key(Some("input self public key: "))?,
         Some(p) => PublicKey::from_str(p)?,
     };
     wallet_client
