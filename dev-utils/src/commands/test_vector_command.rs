@@ -25,6 +25,8 @@ use client_common::key::PrivateKeyAction;
 use client_common::{MultiSigAddress, PrivateKey, PublicKey, Result, Transaction};
 use client_core::service::{HDAccountType, HdKey};
 use client_core::HDSeed;
+use secp256k1::Secp256k1;
+use secp256k1::{key::XOnlyPublicKey, SecretKey};
 
 #[derive(Debug)]
 pub struct TestVectorCommand {
@@ -82,6 +84,7 @@ struct DepositStakeVector {
     staking_address: String,
     witness: String,
     transaction: String,
+    tx_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -113,7 +116,7 @@ struct TestVectors {
 
 struct TestVectorWallet {
     hd_key: HdKey,
-    view_key: PublicKey,
+    view_key: (PublicKey, PrivateKey),
     transfer_addresses: Vec<(ExtendedAddr, PublicKey, PrivateKey)>,
     staking_address: Option<(StakedStateAddress, PublicKey, PrivateKey)>,
 }
@@ -151,11 +154,8 @@ impl TestVectorWallet {
     pub fn create_staking_address(&mut self, network: Network) {
         let (pub_key, priv_key) = self.create_keypair(network, HDAccountType::Staking);
         self.hd_key.staking_index += 1;
-        self.staking_address = Some((
-            StakedStateAddress::from(RedeemAddress::from(&pub_key)),
-            pub_key,
-            priv_key,
-        ));
+        let addr = StakedStateAddress::from(RedeemAddress::from(&pub_key));
+        self.staking_address = Some((addr, pub_key, priv_key));
     }
 
     pub fn gen_proof(public_key: PublicKey) -> Result<Option<Proof<RawXOnlyPubkey>>> {
@@ -181,20 +181,23 @@ impl VectorFactory {
             transfer_index: 0,
             viewkey_index: 0,
         };
-        let (view_key, _) = hd_key
+        let (view_key, priv_key) = hd_key
             .seed
             .derive_key_pair(network, HDAccountType::Viewkey.index(), 0)
             .expect("invalid seed");
-
         let mut wallet = TestVectorWallet {
             hd_key,
-            view_key,
+            view_key: (view_key, priv_key),
             transfer_addresses: vec![],
             staking_address: None,
         };
         let _ = wallet.create_transfer_address(network);
         wallet.create_staking_address(network);
-        let chain_hex_id = 0;
+        let chain_hex_id = match network {
+            Network::Testnet => 0x42,
+            Network::Mainnet => 0x2A,
+            Network::Devnet => 0x0, // TODO: custom argument?
+        };
         let test_vectors = TestVectors::default();
         Self {
             network,
@@ -208,17 +211,14 @@ impl VectorFactory {
         let amount = Coin::from(1000);
         let view_key = self.wallet.view_key.clone();
         let nonce = 0;
-        let (_, from_addr, sign_key) = self.wallet.staking_address.clone().unwrap();
+        let (from_addr, _, sign_key) = self.wallet.staking_address.clone().unwrap();
         let to_addr = self.wallet.transfer_addresses[0].0.clone();
         let output = TxOut::new_with_timelock(to_addr.clone(), amount, 0);
-        let transaction = WithdrawUnbondedTx::new(
-            nonce,
-            vec![output],
-            TxAttributes::new_with_access(
-                0,
-                vec![TxAccessPolicy::new(view_key.into(), TxAccess::AllData)],
-            ),
+        let attributes = TxAttributes::new_with_access(
+            self.chain_hex_id,
+            vec![TxAccessPolicy::new(view_key.0.into(), TxAccess::AllData)],
         );
+        let transaction = WithdrawUnbondedTx::new(nonce, vec![output], attributes);
         let tx = Transaction::WithdrawUnbondedStakeTransaction(transaction.clone());
         let txid = tx.id();
         let witness = sign_key.sign(&tx).map(StakedStateOpWitness::new)?;
@@ -230,7 +230,7 @@ impl VectorFactory {
             witness: hex::encode(witness.encode()),
             plain_tx_aux: hex::encode(plain_tx_aux.encode()),
             tx_id: hex::encode(txid),
-            view_keys: vec![hex::encode(self.wallet.view_key.serialize())],
+            view_keys: vec![hex::encode(self.wallet.view_key.0.serialize())],
         };
         self.test_vectors.withdraw_unbonded_vector = Some(withdraw_unbonded_vector);
         Ok(txid)
@@ -252,7 +252,7 @@ impl VectorFactory {
         let access_policies = view_keys
             .iter()
             .map(|key| TxAccessPolicy {
-                view_key: key.into(),
+                view_key: key.0.clone().into(),
                 access: TxAccess::AllData,
             })
             .collect();
@@ -286,22 +286,21 @@ impl VectorFactory {
         let sign_key = self.wallet.transfer_addresses[0].2.clone();
         let utxo = TxoPointer::new(withdraw_unbonded_tx_id, 0);
         let staking_address = self.wallet.staking_address.clone().unwrap().0;
-        let tx = DepositBondTx::new(
-            vec![utxo],
-            staking_address,
-            StakedStateOpAttributes::new(self.chain_hex_id),
-        );
+        let attributes = StakedStateOpAttributes::new(self.chain_hex_id);
+        let tx = DepositBondTx::new(vec![utxo], staking_address, attributes);
         let proof = TestVectorWallet::gen_proof(public_key)?.unwrap();
         let witness: TxWitness = vec![TxInWitness::TreeSig(
             sign_key.schnorr_sign(&Transaction::DepositStakeTransaction(tx.clone()))?,
             proof,
         )]
         .into();
+        let tx_id = tx.id();
 
         let deposit_vector = DepositStakeVector {
             staking_address: format!("{}", staking_address),
             witness: hex::encode(witness.encode()),
             transaction: hex::encode(tx.encode()),
+            tx_id: hex::encode(tx_id),
         };
         self.test_vectors.deposit_stake_vector = Some(deposit_vector);
         Ok(())
@@ -309,12 +308,18 @@ impl VectorFactory {
 
     fn create_nodejoin_tx(&mut self) -> Result<()> {
         let (staking_address, _, sign_key) = self.wallet.staking_address.clone().unwrap();
-        let tendermint_validator_pubkey = TendermintValidatorPubKey::Ed25519([1; 32]);
+        let pk = hex::decode("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a")
+            .unwrap();
+        let mut pkl = [0u8; 32];
+        pkl.copy_from_slice(&pk);
+        let tendermint_validator_pubkey = TendermintValidatorPubKey::Ed25519(pkl);
         let tx = NodeJoinRequestTx::new(
             1,
             staking_address,
             StakedStateOpAttributes::new(self.chain_hex_id),
-            CouncilNode::new(
+            CouncilNode::new_with_details(
+                "example".to_string(),
+                Some("security@example.com".to_string()),
                 tendermint_validator_pubkey.clone(),
                 ConfidentialInit {
                     cert: b"FIXME".to_vec(),
@@ -360,12 +365,36 @@ impl VectorFactory {
     }
 
     pub fn create_test_vectors(&mut self) -> Result<()> {
-        self.test_vectors.wallet_view_key = Some(hex::encode(self.wallet.view_key.serialize()));
+        self.test_vectors.wallet_view_key = Some(hex::encode(self.wallet.view_key.0.serialize()));
         let tx_id = self.create_withdraw_unbonded_tx().unwrap();
         self.create_transfer_tx(tx_id.clone())?;
         self.create_deposit_stake_tx(tx_id.clone())?;
         self.create_nodejoin_tx()?;
         self.create_unbonded_stake_tx()?;
+        println!(
+            "view secret key: {}",
+            hex::encode(self.wallet.view_key.1.serialize())
+        );
+        if let Some((ref address, ref public, ref secret)) = self.wallet.staking_address {
+            println!("staking address: {:?}", address);
+            println!("secret: {}", hex::encode(secret.serialize()));
+            println!("public key: {}", hex::encode(public.serialize()));
+        }
+
+        for (address, public, secret) in self.wallet.transfer_addresses.iter() {
+            println!("transfer address");
+            println!("mainnet: {}", address.to_cro(Network::Mainnet).unwrap());
+            println!(
+                "public testnet: {}",
+                address.to_cro(Network::Testnet).unwrap()
+            );
+            let xonly =
+                XOnlyPublicKey::from_secret_key(&Secp256k1::new(), &SecretKey::from(secret));
+            println!("secret: {}", hex::encode(secret.serialize()));
+            println!("public key: {}", hex::encode(public.serialize()));
+            println!("X only public key: {}", hex::encode(&xonly.serialize()));
+        }
+
         println!(
             "{}",
             serde_json::to_string_pretty(&self.test_vectors).unwrap()
