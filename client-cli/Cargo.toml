@@ -16,7 +16,7 @@ client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 client-network = { path = "../client-network" }
 rand = "0.7"
-once_cell = "1.3"
+once_cell = "1.4"
 structopt = "0.3"
 quest = "0.3"
 secstr = { version = "0.4.0", features = ["serde"] }
