@@ -6,7 +6,10 @@ use std::env;
 #[derive(StructOpt, Debug)]
 #[structopt(
     name = "client-rpc",
-    about = "JSON-RPC server for wallet management and blockchain query"
+    about = r#"JSON-RPC server for wallet management and blockchain query
+ENVIRONMENT VARIABLES:
+    CRYPTO_GENESIS_HASH             Set the genesis hash(Optional)
+    "#
 )]
 pub struct Options {
     #[structopt(

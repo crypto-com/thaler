@@ -18,10 +18,11 @@ use chain_core::state::tendermint::{
     TendermintValidator, TendermintValidatorAddress, TendermintVotePower,
 };
 use chain_core::tx::fee::{LinearFee, Milli};
-use client_common::tendermint::types::Time;
+use client_common::tendermint::types::{Genesis, Time};
 use client_common::{ErrorKind, Result, ResultExt};
 
 use crate::commands::genesis_dev_config::GenesisDevConfig;
+use client_core::wallet::syncer::compute_genesis_hash;
 
 #[derive(Debug, StructOpt)]
 pub enum GenesisCommand {
@@ -67,6 +68,16 @@ pub enum GenesisCommand {
         )]
         unbonded_address: Option<String>,
     },
+    #[structopt(name = "hash", about = "Calculate the genesis' hash in genesis.json")]
+    Hash {
+        #[structopt(
+            name = "tendermint_genesis_path",
+            short,
+            long,
+            help = "Path to the Tendermint genesis.json file (e.g. ~/.tendermint/config/genesis.json)"
+        )]
+        tendermint_genesis_path: Option<PathBuf>,
+    },
 }
 
 impl GenesisCommand {
@@ -86,8 +97,41 @@ impl GenesisCommand {
                 unbonded_address,
             )
             .map(|_| ()),
+            GenesisCommand::Hash {
+                tendermint_genesis_path,
+            } => get_genesis_hash(tendermint_genesis_path),
         }
     }
+}
+
+fn get_genesis_hash(tendermint_genesis_path: &Option<PathBuf>) -> Result<()> {
+    let tendermint_genesis_path = match tendermint_genesis_path {
+        Some(path) => path.clone(),
+        None => find_default_tendermint_path().chain(|| {
+            (
+                ErrorKind::InvalidInput,
+                "Unable to find Tendermint folder in $TMHOME or $HOME",
+            )
+        })?,
+    };
+
+    let tendermint_genesis_config = fs::read_to_string(&tendermint_genesis_path).chain(|| {
+        (
+            ErrorKind::InvalidInput,
+            "Something went wrong reading the Tendermint genesis file",
+        )
+    })?;
+
+    let tendermint_genesis: Genesis =
+        serde_json::from_str(&tendermint_genesis_config).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "failed to parse Tendermint genesis file",
+            )
+        })?;
+    let hash = compute_genesis_hash(&tendermint_genesis)?;
+    println!("{}", hash);
+    Ok(())
 }
 
 fn generate_genesis_command(

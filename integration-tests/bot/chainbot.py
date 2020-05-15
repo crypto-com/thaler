@@ -211,7 +211,7 @@ def app_state_cfg(cfg):
     }
 
 
-def programs(node, app_hash, root_path, cfg):
+def programs(node, app_hash, genesis_hash, root_path, cfg):
     node_path = root_path / Path(node['name'])
     base_port = node['base_port']
     tx_validation_port = base_port + 0
@@ -239,7 +239,7 @@ def programs(node, app_hash, root_path, cfg):
          f"--storage-dir={node_path / Path('wallet')} "
          f"--websocket-url=ws://127.0.0.1:{tendermint_rpc_port}/websocket "
          f"--disable-fast-forward",
-         def_env),
+         dict(def_env, CRYPTO_GENESIS_HASH=genesis_hash)),
     ]
 
     return {
@@ -258,7 +258,7 @@ def programs(node, app_hash, root_path, cfg):
     }
 
 
-def tasks_ini(node_cfgs, app_hash, root_path, cfg):
+def tasks_ini(node_cfgs, app_hash, genesis_hash, root_path, cfg):
     ini = {
         'supervisord': {
             'pidfile': '%(here)s/supervisord.pid',
@@ -275,7 +275,7 @@ def tasks_ini(node_cfgs, app_hash, root_path, cfg):
     }
 
     for node in node_cfgs:
-        prgs = programs(node, app_hash, root_path, cfg)
+        prgs = programs(node, app_hash, genesis_hash, root_path, cfg)
         ini['group:%s' % node['name']] = {
             'programs': ','.join(name.split(':', 1)[1]
                                  for name in prgs.keys()),
@@ -333,7 +333,15 @@ async def fix_genesis(genesis, cfg):
                 f'--genesis_dev_config_path "{fp_cfg.name}" '
                 f'--tendermint_genesis_path "{fp_genesis.name}"'
             )
-        return json.load(open(fp_genesis.name))
+            hash = await interact(
+                f'dev-utils genesis hash -t "{fp_genesis.name}"'
+            )
+            if not hash:
+                raise Exception("get genesis hash failed")
+        return {
+            "genesis_hash": hash.decode().strip(),
+            "genesis": json.load(open(fp_genesis.name))
+        }
 
 
 async def gen_genesis(cfg):
@@ -455,7 +463,9 @@ async def init_cluster(cfg):
             await init_wallet(wallet_path, node['mnemonic'], cfg['chain_id'], 2, 2)
 
     peers = gen_peers(cfg['nodes'])
-    genesis = await gen_genesis(cfg)
+    genesis_info = await gen_genesis(cfg)
+    genesis = genesis_info["genesis"]
+    genesis_hash = genesis_info["genesis_hash"]
     app_hash = genesis['app_hash']
 
     json.dump(
@@ -507,7 +517,7 @@ async def init_cluster(cfg):
     if not logs_path.exists():
         logs_path.mkdir()
     write_tasks_ini(open(root_path / Path('tasks.ini'), 'w'),
-                    tasks_ini(cfg['nodes'], app_hash, root_path, cfg))
+                    tasks_ini(cfg['nodes'], app_hash, genesis_hash, root_path, cfg))
 
 
 def gen_mnemonic():

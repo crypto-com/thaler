@@ -15,7 +15,7 @@ use chain_core::tx::TransactionId;
 use chain_storage::jellyfish::compute_staking_root;
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::{
-    Block, BlockExt, BlockResults, BlockResultsResponse, StatusResponse, Time,
+    Block, BlockExt, BlockResults, BlockResultsResponse, Genesis, StatusResponse, Time,
 };
 use client_common::tendermint::Client;
 use client_common::{
@@ -547,9 +547,54 @@ impl<
     }
 }
 
+/// testnet v0.5
+const CRYPTO_GENESIS_HASH: &str =
+    "DC05002AAEAB58DA40701073A76A018C9AB02C87BD89ADCB6EE7FE5B419526C8";
+
+/// compute the hash of genesis
+pub fn compute_genesis_hash(genesis: &Genesis) -> Result<String> {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(genesis.app_hash.as_ref());
+    for validator in genesis
+        .validators
+        .iter()
+        .sorted_by(|&a, &b| Ord::cmp(&hex::encode(a.address), &hex::encode(&b.address)))
+    {
+        let hash = validator.hash_bytes();
+        let hash: H256 = blake3::hash(&hash).into();
+        hasher.update(&hash);
+    }
+    let genesis_time = genesis.genesis_time.to_string();
+    let hash_time: H256 = blake3::hash(genesis_time.as_bytes()).into();
+    hasher.update(&hash_time);
+    let consensus_params = serde_json::to_string(&genesis.consensus_params)
+        .chain(|| (ErrorKind::VerifyError, "Invalid genesis from tendermint"))?;
+    let hash_consensus: H256 = blake3::hash(consensus_params.as_bytes()).into();
+    hasher.update(&hash_consensus);
+    let hash_chain_id: H256 = blake3::hash(genesis.chain_id.as_bytes()).into();
+    hasher.update(&hash_chain_id);
+    let result = hex::encode(hasher.finalize().as_bytes()).to_uppercase();
+    Ok(result)
+}
+
+fn check_genesis_hash(genesis: &Genesis) -> Result<()> {
+    let hash_setted =
+        std::env::var("CRYPTO_GENESIS_HASH").unwrap_or_else(|_| CRYPTO_GENESIS_HASH.into());
+    let hash_online = compute_genesis_hash(genesis)?;
+    if hash_setted == hash_online {
+        Ok(())
+    } else {
+        let msg = format!(
+            "genesis app hash from tendermint {} is not match setted genesis hash {}",
+            hash_online, hash_setted
+        );
+        Err(Error::new(ErrorKind::VerifyError, msg))
+    }
+}
+
 pub fn get_genesis_sync_state<C: Client>(client: &C) -> Result<SyncState> {
-    // FIXME verify against trusted genesis hash
     let genesis = client.genesis()?;
+    check_genesis_hash(&genesis)?;
     let accounts = genesis.app_state.unwrap().get_account(
         genesis
             .genesis_time
@@ -718,6 +763,9 @@ mod tests {
             enckey,
             wallet,
         );
+        let genesis = syncer.client.genesis().unwrap();
+        let hash = compute_genesis_hash(&genesis).unwrap();
+        std::env::set_var("CRYPTO_GENESIS_HASH", hash);
         syncer.sync(|_| true).expect("Unable to synchronize");
     }
 
@@ -895,8 +943,10 @@ mod tests {
             enckey,
             wallet,
         );
+        let genesis = syncer.client.genesis().unwrap();
+        let hash = compute_genesis_hash(&genesis).unwrap();
+        std::env::set_var("CRYPTO_GENESIS_HASH", hash);
         let mut syncimpl = WalletSyncerImpl::new(&mut syncer, |_| true).unwrap();
-
         let mut tx_core = Tx::new();
         let output = TxOut {
             address: ExtendedAddr::OrTree([0; 32]),
@@ -948,6 +998,9 @@ mod tests {
             enckey.clone(),
             wallet,
         );
+        let genesis = syncer.client.genesis().unwrap();
+        let hash = compute_genesis_hash(&genesis).unwrap();
+        std::env::set_var("CRYPTO_GENESIS_HASH", hash);
         let mut syncimpl = WalletSyncerImpl::new(&mut syncer, |_| true).unwrap();
 
         let mut tx_core = Tx::new();
