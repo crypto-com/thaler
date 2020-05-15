@@ -16,6 +16,7 @@ use std::sync::Mutex;
 use std::thread;
 // seconds
 const NOTIFICATION_TIME: u64 = 2;
+const ERROR_NOTIFICATION_TIME: u64 = 30;
 pub trait CBindingCallback: Send + Sync {
     fn progress(&mut self, current: u64, start: u64, end: u64) -> i32;
     fn set_user(&mut self, user: u64);
@@ -232,8 +233,14 @@ where
                     recover_address.clone(),
                 );
                 log::info!("process_sync finished {} {:?}", name, result);
-                if result.is_err() {
-                    break;
+                if let Err(error_message) = result {
+                    localworker
+                        .lock()
+                        .expect("get sync worker lock")
+                        .set_error_message(&name, &error_message.message.to_string());
+
+                    log::info!("wait for error notification {}", name);
+                    std::thread::sleep(std::time::Duration::from_secs(ERROR_NOTIFICATION_TIME));
                 }
 
                 if localworker

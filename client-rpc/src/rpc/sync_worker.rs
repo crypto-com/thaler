@@ -143,6 +143,18 @@ impl SyncWorker {
         }
     }
 
+    pub fn set_error_message(&self, key: &str, error_message: &str) {
+        if let Some(value) = self.works.get(key) {
+            let mut progress: &mut RunSyncProgressResult =
+                &mut value.as_ref().lock().unwrap().progress;
+            progress.message = format!("sync_error = {}", error_message);
+            progress.percent = 100.0;
+            progress.current = 0;
+            progress.start = 0;
+            progress.end = 0;
+        }
+    }
+
     pub fn set_complete(&self, key: &str) {
         if let Some(value) = self.works.get(key) {
             value.lock().unwrap().set_complete();
