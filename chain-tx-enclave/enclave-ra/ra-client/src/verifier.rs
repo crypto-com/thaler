@@ -11,6 +11,7 @@ use rustls::{
     TLSError,
 };
 use thiserror::Error;
+use time::Timespec;
 use webpki::{
     DNSName, DNSNameRef, EndEntityCert, SignatureAlgorithm, TLSServerTrustAnchors, Time,
     TrustAnchor, ECDSA_P256_SHA256, RSA_PKCS1_2048_8192_SHA256,
@@ -53,17 +54,27 @@ impl EnclaveCertVerifier {
         })
     }
 
-    /// Verifies certificate
-    fn verify_cert(&self, certificate: &[u8]) -> Result<(), EnclaveCertVerifierError> {
+    /// Verifies certificate and return the public key
+    /// the returned public key is in uncompressed raw format (65 bytes)
+    pub fn verify_cert(
+        &self,
+        certificate: &[u8],
+        now: DateTime<Utc>,
+    ) -> Result<Vec<u8>, EnclaveCertVerifierError> {
         let (_, certificate) = parse_x509_der(certificate)
             .map_err(|_| EnclaveCertVerifierError::CertificateParsingError)?;
 
-        if certificate
+        let not_before = certificate
             .tbs_certificate
             .validity
-            .time_to_expiration()
-            .is_none()
-        {
+            .not_before
+            .to_timespec();
+        let not_after = certificate.tbs_certificate.validity.not_after.to_timespec();
+        let now_spec = Timespec::new(now.timestamp(), now.timestamp_subsec_nanos() as i32);
+        if now_spec < not_before {
+            return Err(EnclaveCertVerifierError::CertificateExpired);
+        }
+        if now_spec.sec >= not_after.sec {
             return Err(EnclaveCertVerifierError::CertificateExpired);
         }
 
@@ -79,12 +90,12 @@ impl EnclaveCertVerifier {
         for extension in certificate.tbs_certificate.extensions {
             if extension.oid == attestation_report_oid {
                 attestation_report_received = true;
-                self.verify_attestation_report(extension.value, public_key)?;
+                self.verify_attestation_report(extension.value, public_key, now)?;
             }
         }
 
         if attestation_report_received {
-            Ok(())
+            Ok(public_key.to_vec())
         } else {
             Err(EnclaveCertVerifierError::MissingAttestationReport)
         }
@@ -95,6 +106,7 @@ impl EnclaveCertVerifier {
         &self,
         attestation_report: &[u8],
         public_key: &[u8],
+        now: DateTime<Utc>,
     ) -> Result<(), EnclaveCertVerifierError> {
         log::info!("Verifying attestation report");
 
@@ -129,7 +141,7 @@ impl EnclaveCertVerifier {
             )?;
         }
 
-        self.verify_attestation_report_body(&attestation_report.body, public_key)?;
+        self.verify_attestation_report_body(&attestation_report.body, public_key, now)?;
 
         log::info!("Attestation report is valid!");
         Ok(())
@@ -139,6 +151,7 @@ impl EnclaveCertVerifier {
         &self,
         attestation_report_body: &[u8],
         public_key: &[u8],
+        now: DateTime<Utc>,
     ) -> Result<(), EnclaveCertVerifierError> {
         let attestation_report_body: AttestationReportBody =
             serde_json::from_slice(attestation_report_body)?;
@@ -148,7 +161,7 @@ impl EnclaveCertVerifier {
 
         let attestation_report_time: DateTime<Utc> = attestation_report_timestamp.parse()?;
 
-        if attestation_report_time + self.report_validity_duration < Utc::now() {
+        if attestation_report_time + self.report_validity_duration < now {
             return Err(EnclaveCertVerifierError::OldAttestationReport);
         }
 
@@ -176,7 +189,7 @@ impl EnclaveCertVerifier {
             }
 
             if let Some(ref mr_enclave) = enclave_info.mr_enclave {
-                if mr_enclave != quote.report_body.measurement.mr_enclave {
+                if mr_enclave != &quote.report_body.measurement.mr_enclave {
                     return Err(EnclaveCertVerifierError::MeasurementMismatch);
                 }
             }
@@ -219,7 +232,7 @@ impl ServerCertVerifier for EnclaveCertVerifier {
         }
 
         for cert in presented_certs {
-            self.verify_cert(&cert.0)?;
+            self.verify_cert(&cert.0, Utc::now())?;
         }
 
         Ok(ServerCertVerified::assertion())
@@ -241,7 +254,7 @@ impl ClientCertVerifier for EnclaveCertVerifier {
         }
 
         for cert in presented_certs {
-            self.verify_cert(&cert.0)?;
+            self.verify_cert(&cert.0, Utc::now())?;
         }
 
         Ok(ClientCertVerified::assertion())

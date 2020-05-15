@@ -27,6 +27,7 @@ members = [
     "chain-tx-enclave/tx-query-next/app-runner",
     "chain-tx-enclave/tx-query-next/enclave-app",
     "chain-tx-enclave/mock-utils",
+    "chain-tx-enclave/mls",
     "cro-clib",
 ]
 
@@ -46,6 +47,7 @@ default-members = [
     "dev-utils",
     "enclave-protocol",
     "chain-tx-enclave/enclave-utils",
+    "chain-tx-enclave/mls",
     "cro-clib",
 ]
 
