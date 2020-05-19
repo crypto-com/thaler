@@ -1,7 +1,5 @@
-use std::convert::TryFrom;
-
 use chrono::{DateTime, Duration, Utc};
-use rustls::{Certificate as RustlsCertificate, NoClientAuth, PrivateKey, ServerConfig, TLSError};
+use rustls::{Certificate as RustlsCertificate, ClientConfig, PrivateKey, ServerConfig, TLSError};
 
 #[derive(Debug, Clone)]
 /// Holds a X.509 certificate and its creation time
@@ -20,14 +18,14 @@ impl Certificate {
         let current_time = Utc::now();
         self.created + validity_duration >= current_time
     }
-}
 
-impl TryFrom<Certificate> for ServerConfig {
-    type Error = TLSError;
+    /// Sets current certificate in given `rustls` server config
+    pub fn configure_server_config(self, server_config: &mut ServerConfig) -> Result<(), TLSError> {
+        server_config.set_single_cert(vec![self.certificate], self.private_key)
+    }
 
-    fn try_from(certificate: Certificate) -> Result<Self, Self::Error> {
-        let mut config = ServerConfig::new(NoClientAuth::new());
-        config.set_single_cert(vec![certificate.certificate], certificate.private_key)?;
-        Ok(config)
+    /// Sets current certificate in given `rustls` client config
+    pub fn configure_client_config(self, client_config: &mut ClientConfig) -> Result<(), TLSError> {
+        client_config.set_single_client_cert(vec![self.certificate], self.private_key)
     }
 }

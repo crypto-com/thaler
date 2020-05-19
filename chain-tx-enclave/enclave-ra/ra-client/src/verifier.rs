@@ -6,13 +6,14 @@ use ra_common::{
     AttestationReport, AttestationReportBody, EnclaveQuoteStatus, OID_EXTENSION_ATTESTATION_REPORT,
 };
 use rustls::{
-    internal::pemfile::certs, Certificate, ClientConfig, RootCertStore, ServerCertVerified,
-    ServerCertVerifier, TLSError,
+    internal::pemfile::certs, Certificate, ClientCertVerified, ClientCertVerifier, ClientConfig,
+    DistinguishedNames, RootCertStore, ServerCertVerified, ServerCertVerifier, ServerConfig,
+    TLSError,
 };
 use thiserror::Error;
 use webpki::{
-    DNSNameRef, EndEntityCert, SignatureAlgorithm, TLSServerTrustAnchors, Time, TrustAnchor,
-    ECDSA_P256_SHA256, RSA_PKCS1_2048_8192_SHA256,
+    DNSName, DNSNameRef, EndEntityCert, SignatureAlgorithm, TLSServerTrustAnchors, Time,
+    TrustAnchor, ECDSA_P256_SHA256, RSA_PKCS1_2048_8192_SHA256,
 };
 use x509_parser::parse_x509_der;
 
@@ -169,6 +170,18 @@ impl EnclaveCertVerifier {
 
         Ok(())
     }
+
+    /// Converts enclave certificate verifier into client config expected by `rustls`
+    pub fn into_client_config(self) -> ClientConfig {
+        let mut config = ClientConfig::new();
+        config.dangerous().set_certificate_verifier(Arc::new(self));
+        config
+    }
+
+    /// Converts enclave certificate verifier into server config expected by `rustls`
+    pub fn into_server_config(self) -> ServerConfig {
+        ServerConfig::new(Arc::new(self))
+    }
 }
 
 impl ServerCertVerifier for EnclaveCertVerifier {
@@ -191,13 +204,25 @@ impl ServerCertVerifier for EnclaveCertVerifier {
     }
 }
 
-impl From<EnclaveCertVerifier> for ClientConfig {
-    fn from(verifier: EnclaveCertVerifier) -> Self {
-        let mut config = Self::new();
-        config
-            .dangerous()
-            .set_certificate_verifier(Arc::new(verifier));
-        config
+impl ClientCertVerifier for EnclaveCertVerifier {
+    fn client_auth_root_subjects(&self, _sni: Option<&DNSName>) -> Option<DistinguishedNames> {
+        None
+    }
+
+    fn verify_client_cert(
+        &self,
+        presented_certs: &[Certificate],
+        _sni: Option<&DNSName>,
+    ) -> Result<ClientCertVerified, TLSError> {
+        if presented_certs.is_empty() {
+            return Err(TLSError::NoCertificatesPresented);
+        }
+
+        for cert in presented_certs {
+            self.verify_cert(&cert.0)?;
+        }
+
+        Ok(ClientCertVerified::assertion())
     }
 }
 

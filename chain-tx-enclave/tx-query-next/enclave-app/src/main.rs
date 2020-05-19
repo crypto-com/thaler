@@ -3,14 +3,13 @@ mod handler;
 pub use rs_libc::alloc::*;
 
 use std::{
-    convert::TryInto,
     io::{Read, Write},
     net::{TcpListener, TcpStream},
     sync::{Arc, Mutex},
 };
 
 use parity_scale_codec::{Decode, Encode};
-use rustls::{ServerConfig, ServerSession, StreamOwned};
+use rustls::{NoClientAuth, ServerConfig, ServerSession, StreamOwned};
 use thread_pool::ThreadPool;
 
 use enclave_protocol::{
@@ -46,11 +45,13 @@ fn main() -> std::io::Result<()> {
     let certificate = context
         .get_certificate()
         .expect("Unable to create remote attestation certificate");
-    let tls_server_config: Arc<ServerConfig> = Arc::new(
-        certificate
-            .try_into()
-            .expect("Unable to create TLS server config"),
-    );
+
+    let mut tls_server_config = ServerConfig::new(NoClientAuth::new());
+    certificate
+        .configure_server_config(&mut tls_server_config)
+        .expect("Unable to create TLS server config");
+
+    let tls_server_config = Arc::new(tls_server_config);
 
     log::info!("Successfully created remote attestation certificate!");
     log::info!("Starting TLS Server at: {}", addrs);

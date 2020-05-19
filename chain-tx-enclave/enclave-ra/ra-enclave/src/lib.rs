@@ -16,7 +16,8 @@
 //! let context = EnclaveRaContext::new(&config).unwrap();
 //! let certificate = context.get_certificate().unwrap();
 //!
-//! let tls_server_config: ServerConfig = certificate.try_into().unwrap();
+//! let mut server_config = ServerConfig::new(NoClientAuth::new());
+//! certificate.configure_server_config(&mut server_config).unwrap();
 //!
 //! // This `server_config` can now be used to create a `rustls::Stream`.
 //! ```
