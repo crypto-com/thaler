@@ -1,70 +1,23 @@
 use crate::program::Options;
-use client_rpc_core::rpc::{
-    multisig_rpc::{MultiSigRpc, MultiSigRpcImpl},
-    staking_rpc::{StakingRpc, StakingRpcImpl},
-    sync_rpc::{SyncRpc, SyncRpcImpl},
-    transaction_rpc::{TransactionRpc, TransactionRpcImpl},
-    wallet_rpc::{WalletRpc, WalletRpcImpl},
-};
+
+use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
 #[cfg(feature = "mock-enclave")]
 use log::warn;
 use std::net::SocketAddr;
-use std::thread;
-use std::time::Duration;
 
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
-use chain_core::tx::fee::LinearFee;
-use client_common::storage::SledStorage;
-use client_common::tendermint::types::GenesisExt;
-use client_common::tendermint::{Client, WebsocketRpcClient};
-use client_common::{ErrorKind, Result};
-use client_core::service::HwKeyService;
-use client_core::signer::WalletSignerManager;
-use client_core::transaction_builder::DefaultWalletTransactionBuilder;
-use client_core::wallet::syncer::ObfuscationSyncerConfig;
-use client_core::wallet::DefaultWalletClient;
-use client_network::network_ops::DefaultNetworkOpsClient;
-use jsonrpc_core::{self, IoHandler};
-use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
+use client_common::Result;
+use client_core::wallet::syncer::SyncerOptions;
+use client_rpc_core::RpcHandler;
 
-#[cfg(feature = "mock-enclave")]
-use client_core::cipher::mock::MockAbciTransactionObfuscation;
-#[cfg(not(feature = "mock-enclave"))]
-use client_core::cipher::DefaultTransactionObfuscation;
-
-#[cfg(not(feature = "mock-enclave"))]
-type AppTransactionCipher = DefaultTransactionObfuscation;
-#[cfg(feature = "mock-enclave")]
-type AppTransactionCipher = MockAbciTransactionObfuscation<WebsocketRpcClient>;
-
-type AppTxBuilder = DefaultWalletTransactionBuilder<SledStorage, LinearFee, AppTransactionCipher>;
-type AppWalletClient = DefaultWalletClient<SledStorage, WebsocketRpcClient, AppTxBuilder>;
-type AppOpsClient = DefaultNetworkOpsClient<
-    AppWalletClient,
-    SledStorage,
-    WebsocketRpcClient,
-    LinearFee,
-    AppTransactionCipher,
->;
-type AppSyncerConfig =
-    ObfuscationSyncerConfig<SledStorage, WebsocketRpcClient, AppTransactionCipher>;
 pub(crate) struct Server {
     host: String,
     port: u16,
     network_id: u8,
     storage_dir: String,
     websocket_url: String,
-    enable_fast_forward: bool,
-    enable_address_recovery: bool,
-    batch_size: usize,
-    block_height_ensure: u64,
-}
 
-/// normal
-fn get_tx_query(tendermint_client: WebsocketRpcClient) -> Result<AppTransactionCipher> {
-    #[cfg(feature = "mock-enclave")]
-    warn!("{}", "WARNING: Using mock (non-enclave) infrastructure");
-    AppTransactionCipher::from_tx_query(&tendermint_client)
+    sync_options: SyncerOptions,
 }
 
 impl Server {
@@ -79,133 +32,41 @@ impl Server {
             network_id,
             storage_dir: options.storage_dir,
             websocket_url: options.websocket_url,
-            enable_fast_forward: !options.disable_fast_forward,
-            enable_address_recovery: !options.disable_address_recovery,
-            batch_size: options.batch_size,
-            block_height_ensure: options.block_height_ensure,
+            sync_options: SyncerOptions {
+                enable_fast_forward: !options.disable_fast_forward,
+                enable_address_recovery: !options.disable_address_recovery,
+                batch_size: options.batch_size,
+                block_height_ensure: options.block_height_ensure,
+            },
         })
     }
 
-    fn make_wallet_client(
-        &self,
-        storage: SledStorage,
-        tendermint_client: WebsocketRpcClient,
-    ) -> Result<AppWalletClient> {
-        let hw_key_service = HwKeyService::default();
-        let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service.clone());
-        let transaction_cipher = get_tx_query(tendermint_client.clone())?;
-        let transaction_builder = DefaultWalletTransactionBuilder::new(
-            signer_manager,
-            tendermint_client.genesis().unwrap().fee_policy(),
-            transaction_cipher,
-        );
-        Ok(DefaultWalletClient::new(
-            storage,
-            tendermint_client,
-            transaction_builder,
-            Some(self.block_height_ensure),
-            hw_key_service,
-        ))
+    #[cfg(not(feature = "mock-enclave"))]
+    fn create_rpc_handler(&self) -> Result<RpcHandler> {
+        RpcHandler::new(
+            &self.storage_dir,
+            &self.websocket_url,
+            self.network_id,
+            self.sync_options.clone(),
+            None,
+        )
     }
 
-    pub fn make_ops_client(
-        &self,
-        storage: SledStorage,
-        tendermint_client: WebsocketRpcClient,
-    ) -> Result<AppOpsClient> {
-        let hw_key_service = HwKeyService::default();
-        let transaction_cipher = get_tx_query(tendermint_client.clone())?;
-        let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service);
-        let fee_algorithm = tendermint_client.genesis().unwrap().fee_policy();
-        let wallet_client = self.make_wallet_client(storage, tendermint_client.clone())?;
-        Ok(DefaultNetworkOpsClient::new(
-            wallet_client,
-            signer_manager,
-            tendermint_client,
-            fee_algorithm,
-            transaction_cipher,
-        ))
-    }
-
-    pub fn make_syncer_config(
-        &self,
-        storage: SledStorage,
-        tendermint_client: WebsocketRpcClient,
-    ) -> Result<AppSyncerConfig> {
-        let transaction_cipher = get_tx_query(tendermint_client.clone())?;
-
-        Ok(AppSyncerConfig::new(
-            storage,
-            tendermint_client,
-            transaction_cipher,
-            self.enable_fast_forward,
-            self.enable_address_recovery,
-            self.batch_size,
-            self.block_height_ensure,
-        ))
-    }
-
-    pub fn start_client(
-        &self,
-        io: &mut IoHandler,
-        storage: SledStorage,
-        tendermint_client: WebsocketRpcClient,
-    ) -> Result<()> {
-        let multisig_rpc_wallet_client =
-            self.make_wallet_client(storage.clone(), tendermint_client.clone())?;
-        let multisig_rpc = MultiSigRpcImpl::new(multisig_rpc_wallet_client);
-
-        let transaction_rpc = TransactionRpcImpl::new(self.network_id);
-
-        let staking_rpc_wallet_client =
-            self.make_wallet_client(storage.clone(), tendermint_client.clone())?;
-        let ops_client = self.make_ops_client(storage.clone(), tendermint_client.clone())?;
-        let staking_rpc =
-            StakingRpcImpl::new(staking_rpc_wallet_client, ops_client, self.network_id);
-
-        let syncer_config = self.make_syncer_config(storage.clone(), tendermint_client.clone())?;
-
-        let sync_rpc_wallet_client =
-            self.make_wallet_client(storage.clone(), tendermint_client.clone())?;
-
-        let sync_rpc = SyncRpcImpl::new(syncer_config, None, sync_rpc_wallet_client);
-
-        let wallet_rpc_wallet_client = self.make_wallet_client(storage, tendermint_client)?;
-        let wallet_rpc = WalletRpcImpl::new(wallet_rpc_wallet_client, self.network_id);
-
-        io.extend_with(multisig_rpc.to_delegate());
-        io.extend_with(transaction_rpc.to_delegate());
-        io.extend_with(staking_rpc.to_delegate());
-        io.extend_with(sync_rpc.to_delegate());
-        io.extend_with(wallet_rpc.to_delegate());
-        Ok(())
+    #[cfg(feature = "mock-enclave")]
+    fn create_rpc_handler(&self) -> Result<RpcHandler> {
+        warn!("{}", "WARNING: Using mock (non-enclave) infrastructure");
+        RpcHandler::new_mock(
+            &self.storage_dir,
+            &self.websocket_url,
+            self.network_id,
+            self.sync_options.clone(),
+            None,
+        )
     }
 
     pub(crate) fn start(&mut self) -> Result<()> {
-        let mut io = IoHandler::new();
-        let storage = SledStorage::new(&self.storage_dir)?;
-
-        let tendermint_client = loop {
-            match WebsocketRpcClient::new(&self.websocket_url) {
-                Ok(client) => {
-                    break Ok(client);
-                }
-                Err(error) => {
-                    if ErrorKind::InitializationError == error.kind() {
-                        log::error!("{:?}", error);
-                    } else {
-                        break Err(error);
-                    }
-                }
-            }
-
-            thread::sleep(Duration::from_secs(2));
-        }?;
-
-        self.start_client(&mut io, storage, tendermint_client)
-            .unwrap();
-
-        let server = ServerBuilder::new(io)
+        let handler = self.create_rpc_handler()?;
+        let server = ServerBuilder::new(handler.io)
             // TODO: Either make CORS configurable or make it more strict
             .cors(DomainsValidation::AllowOnly(vec![
                 AccessControlAllowOrigin::Any,

@@ -1,6 +1,9 @@
 use std::fmt::Debug;
 
+pub mod handler;
 pub mod rpc;
+
+pub use handler::RpcHandler;
 
 pub fn to_rpc_error<E: ToString + Debug>(error: E) -> jsonrpc_core::Error {
     log::error!("{:?}", error);
