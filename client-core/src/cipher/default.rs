@@ -55,7 +55,7 @@ fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
             "Cannot initialize enclave certificate verifier",
         )
     })?;
-    Ok(Arc::new(verifier.into()))
+    Ok(Arc::new(verifier.into_client_config()))
 }
 
 /// Implementation of transaction obfuscation which directly talks to transaction decryption query and encryption enclaves
