@@ -27,7 +27,7 @@ fi
 # environment variables for integration tests
 export PASSPHRASE=123456
 export BASE_PORT=${BASE_PORT:-26650}
-export CLIENT_RPC_PORT=$(($BASE_PORT + 9))
+export TENDERMINT_RPC_PORT=$(($BASE_PORT + 7))
 
 function wait_http() {
     echo "Wait for http port $1"
@@ -47,11 +47,13 @@ function wait_http() {
 function runtest() {
     echo "Preparing... $1"
     chainbot.py prepare multinode/$1_cluster.json --base_port $BASE_PORT $CHAINBOT_ARGS
+    export CRYPTO_GENESIS_HASH=`python -c "import json; print(json.load(open('data/info.json'))['genesis_hash'])"`
+    echo "genesis hash: $CRYPTO_GENESIS_HASH"
 
     echo "Startup..."
     supervisord -n -c data/tasks.ini &
-    if ! wait_http $CLIENT_RPC_PORT; then
-        echo 'client-rpc of first node still not ready, giveup.'
+    if ! wait_http $TENDERMINT_RPC_PORT; then
+        echo 'tendermint of first node still not ready, giveup.'
         RETCODE=1
     else
         set +e

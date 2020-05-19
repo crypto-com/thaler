@@ -1,6 +1,8 @@
+import os
 from datetime import datetime
 import time
 import iso8601
+import weakref
 
 
 def wait_for_tx(rpc, txid, timeout=10):
@@ -21,3 +23,19 @@ def wait_for_blocktime(rpc, t):
         print('block_time:', block_time)
         if block_time > t:
             break
+
+
+_rpc_cache = weakref.WeakValueDictionary()
+
+
+def get_rpc(i=0):
+    rpc = _rpc_cache.get(i)
+    if rpc is None:
+        from chainrpc import RPC
+        base_port = int(os.environ.get('BASE_PORT', 26650))
+        rpc = RPC(
+            os.path.join(os.path.dirname(__file__), '../data/node%d/wallet' % i),
+            base_port + 7
+        )
+        _rpc_cache[i] = rpc
+    return rpc

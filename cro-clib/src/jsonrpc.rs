@@ -275,7 +275,7 @@ unsafe fn create_rpc(
         })),
     });
     let options = SyncerOptions {
-        enable_fast_forward: true,
+        enable_fast_forward: false,
         enable_address_recovery: true,
         batch_size: 50,
         block_height_ensure: 50,

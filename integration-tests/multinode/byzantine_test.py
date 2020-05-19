@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import os
-from chainrpc import RPC
 from chainbot import SigningKey
-from common import UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, stop_node, wait_for_tx, wait_for_blocktime
+from common import get_rpc, UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, stop_node, wait_for_tx, wait_for_blocktime
 
 '''
 - 3 nodes
@@ -15,11 +14,10 @@ from common import UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, w
 
 # keep these values same as jail_cluster.json
 VALIDATOR_SEED = '3d96c3c476e463bdcd751c9bf1715b7da37229ac00be33f34496797ca892b68a'
-BASE_PORT = int(os.environ.get('BASE_PORT', 25560))
-TARGET_PORT = BASE_PORT + 2 * 10
 
+BASE_PORT = int(os.environ.get('BASE_PORT', 26650))
 supervisor = UnixStreamXMLRPCClient('data/supervisor.sock')
-rpc = RPC(BASE_PORT)
+rpc = get_rpc()
 
 # stop node1
 print('Stop node1')
@@ -57,7 +55,7 @@ assert len(rpc.chain.validators()['validators']) == 2
 
 # start node1
 supervisor.supervisor.startProcessGroup('node1')
-wait_for_port(BASE_PORT + 10 + 9)
+wait_for_port(BASE_PORT + 10 + 7)
 
 wait_for_blocks(rpc, 13)
 rpc.wallet.sync()

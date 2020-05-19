@@ -211,7 +211,7 @@ def app_state_cfg(cfg):
     }
 
 
-def programs(node, app_hash, genesis_hash, root_path, cfg):
+def programs(node, app_hash, root_path, cfg):
     node_path = root_path / Path(node['name'])
     base_port = node['base_port']
     tx_validation_port = base_port + 0
@@ -239,7 +239,7 @@ def programs(node, app_hash, genesis_hash, root_path, cfg):
          f"--storage-dir={node_path / Path('wallet')} "
          f"--websocket-url=ws://127.0.0.1:{tendermint_rpc_port}/websocket "
          f"--disable-fast-forward",
-         dict(def_env, CRYPTO_GENESIS_HASH=genesis_hash)),
+         dict(def_env, CRYPTO_GENESIS_HASH=cfg['genesis_hash'])),
     ]
 
     return {
@@ -247,7 +247,7 @@ def programs(node, app_hash, genesis_hash, root_path, cfg):
             'command': cmd,
             'stdout_logfile': f"%(here)s/logs/{name}-%(group_name)s.log",
             'environment': ','.join(f'{k}={v}' for k, v in env.items()),
-            'autostart': 'true',
+            'autostart': 'false' if name == 'client-rpc' and not cfg.get('start_client_rpc') else 'true',
             'autorestart': 'true',
             'redirect_stderr': 'true',
             'priority': str(priority),
@@ -258,7 +258,7 @@ def programs(node, app_hash, genesis_hash, root_path, cfg):
     }
 
 
-def tasks_ini(node_cfgs, app_hash, genesis_hash, root_path, cfg):
+def tasks_ini(node_cfgs, app_hash, root_path, cfg):
     ini = {
         'supervisord': {
             'pidfile': '%(here)s/supervisord.pid',
@@ -275,7 +275,7 @@ def tasks_ini(node_cfgs, app_hash, genesis_hash, root_path, cfg):
     }
 
     for node in node_cfgs:
-        prgs = programs(node, app_hash, genesis_hash, root_path, cfg)
+        prgs = programs(node, app_hash, root_path, cfg)
         ini['group:%s' % node['name']] = {
             'programs': ','.join(name.split(':', 1)[1]
                                  for name in prgs.keys()),
@@ -333,15 +333,13 @@ async def fix_genesis(genesis, cfg):
                 f'--genesis_dev_config_path "{fp_cfg.name}" '
                 f'--tendermint_genesis_path "{fp_genesis.name}"'
             )
-            hash = await interact(
+            genesis_hash = (await interact(
                 f'dev-utils genesis hash -t "{fp_genesis.name}"'
-            )
-            if not hash:
+            )).decode().strip()
+            if not genesis_hash:
                 raise Exception("get genesis hash failed")
-        return {
-            "genesis_hash": hash.decode().strip(),
-            "genesis": json.load(open(fp_genesis.name))
-        }
+
+        return genesis_hash, json.load(open(fp_genesis.name))
 
 
 async def gen_genesis(cfg):
@@ -368,7 +366,8 @@ async def gen_genesis(cfg):
     }
 
     patch = jsonpatch.JsonPatch(cfg['chain_config_patch'])
-    return await fix_genesis(genesis, patch.apply(app_state_cfg(cfg)))
+    cfg['genesis_hash'], genesis = await fix_genesis(genesis, patch.apply(app_state_cfg(cfg)))
+    return genesis
 
 
 def gen_validators(cfgs):
@@ -463,9 +462,7 @@ async def init_cluster(cfg):
             await init_wallet(wallet_path, node['mnemonic'], cfg['chain_id'], 2, 2)
 
     peers = gen_peers(cfg['nodes'])
-    genesis_info = await gen_genesis(cfg)
-    genesis = genesis_info["genesis"]
-    genesis_hash = genesis_info["genesis_hash"]
+    genesis = await gen_genesis(cfg)
     app_hash = genesis['app_hash']
 
     json.dump(
@@ -517,7 +514,7 @@ async def init_cluster(cfg):
     if not logs_path.exists():
         logs_path.mkdir()
     write_tasks_ini(open(root_path / Path('tasks.ini'), 'w'),
-                    tasks_ini(cfg['nodes'], app_hash, genesis_hash, root_path, cfg))
+                    tasks_ini(cfg['nodes'], app_hash, root_path, cfg))
 
 
 def gen_mnemonic():
@@ -591,7 +588,7 @@ class CLI:
     def _prepare(self, cfg):
         asyncio.run(init_cluster(cfg))
 
-    def prepare(self, spec=None, base_port=None, mock_mode=None):
+    def prepare(self, spec=None, base_port=None, mock_mode=None, start_client_rpc=None):
         '''Prepare tendermint testnet based on specification
         :param spec: Path of specification file, [default: stdin]
         '''
@@ -601,6 +598,8 @@ class CLI:
                 node['base_port'] = base_port + i * 10
         if mock_mode is not None:
             cfg['mock_mode'] = mock_mode
+        if start_client_rpc is not None:
+            cfg['start_client_rpc'] = start_client_rpc
         self._prepare(cfg)
         print(
             'Prepared succesfully',
