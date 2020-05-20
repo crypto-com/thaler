@@ -48,6 +48,7 @@ fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
         signing_ca_cert_pem: IAS_CERT.into(),
         valid_enclave_quote_statuses: vec!["OK".into()].into(),
         report_validity_secs: 86400,
+        enclave_info: None, // TODO: Get enclave details from command line or env variables?
     };
     let verifier = EnclaveCertVerifier::new(verifier_config).chain(|| {
         (
