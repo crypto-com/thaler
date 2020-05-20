@@ -17,7 +17,7 @@ use webpki::{
 };
 use x509_parser::parse_x509_der;
 
-use crate::EnclaveCertVerifierConfig;
+use crate::{EnclaveCertVerifierConfig, EnclaveInfo};
 
 static SUPPORTED_SIG_ALGS: &[&SignatureAlgorithm] = &[&ECDSA_P256_SHA256];
 
@@ -25,6 +25,7 @@ pub struct EnclaveCertVerifier {
     root_cert_store: RootCertStore,
     valid_enclave_quote_statuses: HashSet<EnclaveQuoteStatus>,
     report_validity_duration: Duration,
+    enclave_info: Option<EnclaveInfo>,
 }
 
 impl EnclaveCertVerifier {
@@ -48,6 +49,7 @@ impl EnclaveCertVerifier {
             root_cert_store,
             valid_enclave_quote_statuses,
             report_validity_duration,
+            enclave_info: config.enclave_info,
         })
     }
 
@@ -168,6 +170,26 @@ impl EnclaveCertVerifier {
             return Err(EnclaveCertVerifierError::PublicKeyMismatch);
         }
 
+        if let Some(ref enclave_info) = self.enclave_info {
+            if enclave_info.mr_signer != quote.report_body.measurement.mr_signer {
+                return Err(EnclaveCertVerifierError::MeasurementMismatch);
+            }
+
+            if let Some(ref mr_enclave) = enclave_info.mr_enclave {
+                if mr_enclave != quote.report_body.measurement.mr_enclave {
+                    return Err(EnclaveCertVerifierError::MeasurementMismatch);
+                }
+            }
+
+            if enclave_info.cpu_svn > quote.report_body.cpu_svn {
+                return Err(EnclaveCertVerifierError::MeasurementMismatch);
+            }
+
+            if enclave_info.isv_svn > quote.report_body.isv_svn {
+                return Err(EnclaveCertVerifierError::MeasurementMismatch);
+            }
+        }
+
         Ok(())
     }
 
@@ -242,6 +264,8 @@ pub enum EnclaveCertVerifierError {
     IoError(#[from] std::io::Error),
     #[error("JSON error: {0}")]
     JsonError(#[from] serde_json::Error),
+    #[error("Enclave details does not match with the ones provided in configuration")]
+    MeasurementMismatch,
     #[error("Attestation report not available in server certificate")]
     MissingAttestationReport,
     #[error("Attestation report is older than report validify duration")]
