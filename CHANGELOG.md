@@ -10,6 +10,17 @@
 ### Improvements
 ### Bug Fixes
 
+*May 20, 2020*
+
+This release contains a hotfix for client-cli deposit transaction issue.
+
+## V0.5.3
+
+### Bug Fixes
+
+- *client* [1652](https://github.com/crypto-com/chain/pull/1625): Add staking address check and double confirmation in
+  client-cli for deposit transaction, remove the restriction in client-rpc.
+
 *May 7, 2020*
 
 This release contains a hotfix for client-cli sync issue.

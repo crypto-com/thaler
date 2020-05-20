@@ -12,7 +12,7 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{Result, SecKey};
+use client_common::{ErrorKind, Result, ResultExt, SecKey};
 use client_core::types::TransactionPending;
 
 /// Interface for performing network operations on Crypto.com Chain
@@ -91,5 +91,16 @@ pub trait NetworkOpsClient: Send + Sync {
         name: &str,
         address: &StakedStateAddress,
         verify: bool,
-    ) -> Result<StakedState>;
+    ) -> Result<StakedState> {
+        self.get_staking(name, address, verify)?
+            .err_kind(ErrorKind::InvalidInput, || "staking not found")
+    }
+
+    /// Returns staked stake corresponding to given address
+    fn get_staking(
+        &self,
+        name: &str,
+        address: &StakedStateAddress,
+        verify: bool,
+    ) -> Result<Option<StakedState>>;
 }

@@ -618,6 +618,55 @@ fn new_unbond_transaction<N: NetworkOpsClient>(
         .create_unbond_stake_transaction(name, enckey, address, value, attributes, true)
 }
 
+/// Check the staking address exists:
+/// - belong to our own wallet
+/// - exists on the chain
+/// - not jailed
+fn check_staking_address_for_deposit<T: WalletClient, N: NetworkOpsClient>(
+    wallet_client: &T,
+    network_ops: &N,
+    name: &str,
+    enckey: &SecKey,
+    address: &StakedStateAddress,
+) -> Result<()> {
+    // if the to_address belongs to current wallet, we do not check the state
+    let staking_addresses = wallet_client.staking_addresses(name, enckey)?;
+    if !staking_addresses.contains(address) {
+        let staking = network_ops.get_staked_state(name, address, true).err_kind(ErrorKind::ValidationError,|| "Address not found in the current wallet and is not yet initialized on the blockchain")?;
+        if staking.is_jailed() {
+            return Err(Error::new(
+                ErrorKind::ValidationError,
+                "staking address is jailed",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn double_confirm_staking_address<T: WalletClient, N: NetworkOpsClient>(
+    wallet_client: &T,
+    network_ops: &N,
+    name: &str,
+    enckey: &SecKey,
+    address: &StakedStateAddress,
+) -> Result<()> {
+    if let Err(err) =
+        check_staking_address_for_deposit(wallet_client, network_ops, name, enckey, address)
+    {
+        // double confirmation
+        ask(&format!("{}\nAre you sure to proceed? [yN]", err));
+        match yesno(false).chain(|| (ErrorKind::IoError, "Unable to read yes/no"))? {
+            None => return Err(ErrorKind::InvalidInput.into()),
+            Some(value) => {
+                if !value {
+                    return Err(Error::new(ErrorKind::InvalidInput, "User canceled"));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn new_deposit_transaction<T: WalletClient, N: NetworkOpsClient>(
     wallet_client: &T,
     network_ops_client: &N,
@@ -627,6 +676,7 @@ fn new_deposit_transaction<T: WalletClient, N: NetworkOpsClient>(
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let inputs = ask_inputs()?;
     let to_address = ask_staking_address()?;
+    double_confirm_staking_address(wallet_client, network_ops_client, name, enckey, &to_address)?;
     if !wallet_client.has_unspent_transactions(name, enckey, &inputs)? {
         return Err(Error::new(
             ErrorKind::InvalidInput,
@@ -657,6 +707,13 @@ fn new_deposit_amount_transaction<T: WalletClient, N: NetworkOpsClient>(
     enckey: &SecKey,
 ) -> Result<()> {
     let to_staking_address = ask_staking_address()?;
+    double_confirm_staking_address(
+        wallet_client,
+        network_ops_client,
+        name,
+        enckey,
+        &to_staking_address,
+    )?;
     let attr = StakedStateOpAttributes::new(get_network_id());
     let amount = ask_cro()?;
     let fee = network_ops_client.calculate_deposit_fee()?;
