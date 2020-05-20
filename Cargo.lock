@@ -721,7 +721,7 @@ dependencies = [
  "client-common 0.5.0",
  "client-core 0.5.0",
  "client-network 0.5.3",
- "client-rpc-core 0.5.0",
+ "client-rpc-core 0.5.3",
  "dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 14.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -732,7 +732,7 @@ dependencies = [
 
 [[package]]
 name = "client-rpc-core"
-version = "0.5.0"
+version = "0.5.3"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.5.0",
@@ -838,7 +838,7 @@ dependencies = [
  "client-common 0.5.0",
  "client-core 0.5.0",
  "client-network 0.5.3",
- "client-rpc-core 0.5.0",
+ "client-rpc-core 0.5.3",
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 14.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.70 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3214,7 +3214,7 @@ dependencies = [
 
 [[package]]
 name = "rs-libc"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cc 1.0.54 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4421,7 +4421,7 @@ dependencies = [
  "parity-scale-codec 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ra-enclave 0.5.0",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "rs-libc 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rs-libc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustls 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=f8759809f6e3fed793b37166f7cd91c57cdb2eab)",
  "thread-pool 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5174,7 +5174,7 @@ dependencies = [
 "checksum rlp 0.4.5 (registry+https://github.com/rust-lang/crates.io-index)" = "4a7d3f9bed94764eac15b8f14af59fac420c236adaff743b7bcc88e265cb4345"
 "checksum rocksdb 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)" = "61aa17a99a2413cd71c1106691bf59dad7de0cd5099127f90e9d99c429c40d4a"
 "checksum rpassword 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d37473170aedbe66ffa3ad3726939ba677d83c646ad4fd99e5b4bc38712f45ec"
-"checksum rs-libc 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "71ecb2603155fa7473cac8df6f080f06bea5282a7a900dd71d361a351883d4f9"
+"checksum rs-libc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "be0b66dae43e662009880c5cd71fd335699cb77b06e31f5d53ee8fb89c7d247e"
 "checksum rust-argon2 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2bc8af4bda8e1ff4932523b94d3dd20ee30a87232323eda55903ffd71d2fb017"
 "checksum rust-argon2 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9dab61250775933275e84053ac235621dfb739556d5c54a2f2e9313b7cf43a19"
 "checksum rustc-demangle 0.1.16 (registry+https://github.com/rust-lang/crates.io-index)" = "4c691c0e608126e00913e33f0ccf3727d5fc84573623b8d65b2df340b5201783"
