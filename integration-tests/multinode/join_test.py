@@ -56,7 +56,7 @@ assert len(rpc.chain.validators()['validators']) == 2
 
 addr = rpc.address.list(enckey=enckey, name='target')[0]
 rpc.wallet.sync(enckey=enckey, name='target')
-state = rpc.staking.state(addr)
+state = rpc.staking.state(addr, name='target')
 punishment = state['last_slash']
 print('punishment', punishment)
 assert punishment['kind'] == 'NonLive'
@@ -97,7 +97,7 @@ rpc.wallet.sync(enckey=enckey, name='target')
 
 assert len(rpc.chain.validators()['validators']) == 2
 
-unbonded_from = rpc.staking.state(addr)['unbonded_from']
+unbonded_from = rpc.staking.state(addr, name='target')['unbonded_from']
 print('Wait until unbonded_from', unbonded_from)
 wait_for_blocktime(rpc, unbonded_from)
 
@@ -127,7 +127,7 @@ print('Wait for transaction', txid)
 wait_for_tx(rpc, txid)
 rpc.wallet.sync(enckey=enckey, name='target')
 
-print('Bonded state:', rpc.staking.state(addr))
+print('Bonded state:', rpc.staking.state(addr, name='target'))
 
 print('Join node0')
 txid = rpc.staking.join(

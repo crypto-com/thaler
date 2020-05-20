@@ -14,6 +14,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TxAux, TxPublicAux};
+use chain_storage::jellyfish::SparseMerkleProof;
 use chain_tx_validation::{check_inputs_basic, check_outputs_basic, verify_unjailed};
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::Client;
@@ -70,34 +71,6 @@ where
     /// Returns current underlying wallet client
     pub fn get_wallet_client(&self) -> &W {
         &self.wallet_client
-    }
-
-    /// Get account info
-    fn get_account(&self, staked_state_address: &[u8]) -> Result<StakedState> {
-        let bytes = self
-            .client
-            .query("account", staked_state_address, None, false)?
-            .bytes();
-
-        StakedState::decode(&mut bytes.as_slice()).chain(|| {
-            (
-                ErrorKind::DeserializationError,
-                format!(
-                    "Cannot deserialize staked state for address: {}",
-                    hex::encode(staked_state_address)
-                ),
-            )
-        })
-    }
-
-    /// Get staked state info
-    fn get_staked_state_account(
-        &self,
-        to_staked_account: &StakedStateAddress,
-    ) -> Result<StakedState> {
-        match to_staked_account {
-            StakedStateAddress::BasicRedeem(ref a) => self.get_account(&a.0),
-        }
     }
 
     /// Calculate the withdraw unbounded fee
@@ -164,19 +137,16 @@ where
         transactions: Vec<(TxoPointer, TxOut)>,
         to_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
+        verify_staking: bool,
     ) -> Result<(TxAux, TransactionPending)> {
-        // if the to_address belongs to current wallet, we do not check the state
-        let staking_addresses = self.wallet_client.staking_addresses(name, enckey)?;
-        if !staking_addresses.contains(&to_address) {
-            let staked_state = self.get_staked_state(&to_address)?;
-            verify_unjailed(&staked_state).map_err(|e| {
+        if let Some(staking) = self.get_staking(name, &to_address, verify_staking)? {
+            verify_unjailed(&staking).map_err(|e| {
                 Error::new(
                     ErrorKind::ValidationError,
                     format!("Failed to validate staking account: {}", e),
                 )
             })?;
         }
-
         let inputs = transactions
             .iter()
             .map(|(input, _)| input.clone())
@@ -220,8 +190,9 @@ where
         address: StakedStateAddress,
         value: Coin,
         attributes: StakedStateOpAttributes,
+        verify_staking: bool,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(&address)?;
+        let staked_state = self.get_staked_state(name, &address, verify_staking)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -279,9 +250,10 @@ where
         from_address: &StakedStateAddress,
         outputs: Vec<TxOut>,
         attributes: TxAttributes,
+        verify_staking: bool,
     ) -> Result<(TxAux, TransactionPending)> {
         let last_block_time = self.get_last_block_time()?;
-        let staked_state = self.get_staked_state(from_address)?;
+        let staked_state = self.get_staked_state(name, from_address, verify_staking)?;
 
         if staked_state.unbonded_from > last_block_time {
             return Err(Error::new(
@@ -348,8 +320,9 @@ where
         enckey: &SecKey,
         address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
+        verify_staking: bool,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(&address)?;
+        let staked_state = self.get_staked_state(name, &address, verify_staking)?;
 
         if !staked_state.is_jailed() {
             return Err(Error::new(
@@ -394,8 +367,9 @@ where
         from_address: &StakedStateAddress,
         to_address: ExtendedAddr,
         attributes: TxAttributes,
+        verify_staking: bool,
     ) -> Result<(TxAux, TransactionPending)> {
-        let staked_state = self.get_staked_state(from_address)?;
+        let staked_state = self.get_staked_state(name, from_address, verify_staking)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -432,6 +406,7 @@ where
             from_address,
             outputs,
             attributes,
+            verify_staking,
         )
     }
 
@@ -442,8 +417,9 @@ where
         staking_account_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
         node_metadata: CouncilNode,
+        verify_staking: bool,
     ) -> Result<TxAux> {
-        let staked_state = self.get_staked_state(&staking_account_address)?;
+        let staked_state = self.get_staked_state(name, &staking_account_address, verify_staking)?;
 
         verify_unjailed(&staked_state).map_err(|e| {
             Error::new(
@@ -480,9 +456,63 @@ where
         )))
     }
 
-    #[inline]
-    fn get_staked_state(&self, address: &StakedStateAddress) -> Result<StakedState> {
-        self.get_staked_state_account(address)
+    fn get_staking(
+        &self,
+        name: &str,
+        address: &StakedStateAddress,
+        verify: bool,
+    ) -> Result<Option<StakedState>> {
+        let mstaking = if verify {
+            let sync_state = self.wallet_client.get_sync_state(name)?;
+            let rsp = self.client.query(
+                "staking",
+                address.as_ref(),
+                Some(sync_state.last_block_height.into()),
+                true,
+            )?;
+            let mstaking = <Option<StakedState>>::decode(&mut rsp.bytes().as_slice())
+                .err_kind(ErrorKind::DeserializationError, || {
+                    format!("Cannot deserialize staked state for address: {}", address)
+                })?;
+
+            let mbytes = if let Some(proof) = rsp.proof.as_ref() {
+                if let Some(evidence) = proof.ops.first() {
+                    Some(evidence.data.as_slice())
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            let mut proof_bytes = mbytes.err_kind(ErrorKind::TendermintRpcError, || {
+                format!("There is no proof for address: {}", address)
+            })?;
+            let proof = SparseMerkleProof::decode(&mut proof_bytes).err_kind(
+                ErrorKind::DeserializationError,
+                || {
+                    format!(
+                        "Cannot deserialize staked state proof for address: {}",
+                        address
+                    )
+                },
+            )?;
+
+            proof
+                .verify(sync_state.staking_root, address, mstaking.as_ref())
+                .err_kind(ErrorKind::VerifyError, || "Verify staking state failed")?;
+
+            mstaking
+        } else {
+            let bytes = self
+                .client
+                .query("staking", address.as_ref(), None, false)?
+                .bytes();
+            <Option<StakedState>>::decode(&mut bytes.as_slice())
+                .err_kind(ErrorKind::DeserializationError, || {
+                    format!("Cannot deserialize staked state for address: {}", address)
+                })?
+        };
+        Ok(mstaking)
     }
 }
 
@@ -649,7 +679,7 @@ mod tests {
             );
 
             Ok(AbciQuery {
-                value: Some(staked_state.encode()),
+                value: Some(Some(staked_state).encode()),
                 ..Default::default()
             })
         }
@@ -729,7 +759,7 @@ mod tests {
             );
 
             Ok(AbciQuery {
-                value: Some(staked_state.encode()),
+                value: Some(Some(staked_state).encode()),
                 ..Default::default()
             })
         }
@@ -791,6 +821,7 @@ mod tests {
                     transactions,
                     to_staked_account,
                     attributes,
+                    false
                 )
                 .unwrap_err()
                 .kind()
@@ -830,7 +861,7 @@ mod tests {
         let attributes = StakedStateOpAttributes::new(0);
 
         assert!(network_ops_client
-            .create_unbond_stake_transaction(name, &enckey, address, value, attributes)
+            .create_unbond_stake_transaction(name, &enckey, address, value, attributes, false)
             .is_ok());
     }
 
@@ -872,6 +903,7 @@ mod tests {
                 &from_address,
                 vec![TxOut::new(ExtendedAddr::OrTree([0; 32]), Coin::unit())],
                 TxAttributes::new(171),
+                false,
             )
             .unwrap();
 
@@ -931,6 +963,7 @@ mod tests {
                 &from_address,
                 to_address,
                 TxAttributes::new(171),
+                false,
             )
             .unwrap();
 
@@ -997,6 +1030,7 @@ mod tests {
                     ))),
                     vec![TxOut::new(ExtendedAddr::OrTree([0; 32]), Coin::unit())],
                     TxAttributes::new(171),
+                    false
                 )
                 .unwrap_err()
                 .kind()
@@ -1035,6 +1069,7 @@ mod tests {
                     ))),
                     Vec::new(),
                     TxAttributes::new(171),
+                    false
                 )
                 .unwrap_err()
                 .kind()
@@ -1078,6 +1113,7 @@ mod tests {
                 &enckey,
                 from_address,
                 StakedStateOpAttributes::new(171),
+                false,
             )
             .unwrap();
         match transaction {
@@ -1143,6 +1179,7 @@ mod tests {
                 staking_account_address,
                 StakedStateOpAttributes::new(171),
                 node_metadata,
+                false,
             )
             .unwrap();
 

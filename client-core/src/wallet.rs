@@ -29,7 +29,7 @@ use client_common::{
 use serde::{Deserialize, Serialize};
 
 use crate::hd_wallet::HardwareKind;
-use crate::service::WalletInfo;
+use crate::service::{SyncState, WalletInfo};
 use crate::transaction_builder::{SignedTransferTransaction, UnsignedTransferTransaction};
 use crate::types::{AddressType, TransactionChange, TransactionPending, WalletBalance, WalletKind};
 use crate::{InputSelectionStrategy, Mnemonic, UnspentTransactions};
@@ -379,6 +379,9 @@ pub trait WalletClient: Send + Sync {
         enckey: &SecKey,
         signed_tx: SignedTransferTransaction,
     ) -> Result<TxId>;
+
+    /// Get current sync state of wallet, return genesis one if not exists.
+    fn get_sync_state(&self, name: &str) -> Result<SyncState>;
 }
 
 /// Interface for a generic wallet for multi-signature transactions

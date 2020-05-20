@@ -107,7 +107,8 @@ def test_pending_tx(addresses):
 
     # test withdraw tx
     wait_for_tx(rpc, rpc.staking.unbond(staking, 800000000, name=name, enckey=enckey))
-    wait_for_blocktime(rpc, rpc.staking.state(staking)['unbonded_from'])
+    rpc.wallet.sync(name=name, enckey=enckey)
+    wait_for_blocktime(rpc, rpc.staking.state(staking, name=name)['unbonded_from'])
     txid = rpc.staking.withdraw_all_unbonded(staking, transfer1, name=name, enckey=enckey)
     assert rpc.wallet.balance(name=name, enckey=enckey) == {
         'total': '900000000',

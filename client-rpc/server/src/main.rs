@@ -1,5 +1,4 @@
 mod program;
-mod rpc;
 mod server;
 
 fn main() {

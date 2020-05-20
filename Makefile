@@ -158,7 +158,7 @@ build-chain:
 			echo "========  build client-cli   =========" && \
 			cd ../client-cli && $(CARGO_BUILD_CMD_CLI)&& \
 			echo "========  build client-rpc   =========" && \
-			cd ../client-rpc && $(CARGO_BUILD_CMD_CLI)'; \
+			cd ../client-rpc/server && $(CARGO_BUILD_CMD_CLI)'; \
 	fi
 
 # build the enclave queury binary

@@ -1,0 +1,23 @@
+[package]
+name = "client-rpc"
+version = "0.5.3"
+authors = ["Crypto.com <chain@crypto.com>"]
+edition = "2018"
+
+[features]
+mock-enclave = []
+default = []
+
+[dependencies]
+client-rpc-core = { path = ".." }
+client-core = { path = "../../client-core" }
+client-common = { path = "../../client-common" }
+client-network = { path= "../../client-network"}
+chain-core = { path = "../../chain-core" }
+
+jsonrpc-core = "14.1"
+jsonrpc-http-server = "14.1"
+structopt = "0.3"
+dirs = "2.0.2"
+env_logger="0.7.1"
+log ="0.4.8"

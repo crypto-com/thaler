@@ -9,7 +9,7 @@ use client_core::types::AddressType;
 use client_core::wallet::WalletRequest;
 use client_core::{MultiSigWalletClient, WalletClient};
 
-use crate::server::to_rpc_error;
+use crate::to_rpc_error;
 
 #[rpc]
 pub trait MultiSigRpc: Send + Sync {

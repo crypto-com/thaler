@@ -109,9 +109,9 @@ fn create_encoded_signed_withdraw(
     assert!(20 == from_address.raw.len());
     let tendermint_client = WebsocketRpcClient::new(&tendermint_url)?;
     let bytes = tendermint_client
-        .query("account", &from_address.raw, None, false)?
+        .query("staking", &from_address.raw, None, false)?
         .bytes();
-    let staked_state = StakedState::decode(&mut bytes.as_slice()).chain(|| {
+    let mstaking = <Option<StakedState>>::decode(&mut bytes.as_slice()).chain(|| {
         (
             ErrorKind::DeserializationError,
             format!(
@@ -120,6 +120,7 @@ fn create_encoded_signed_withdraw(
             ),
         )
     })?;
+    let staked_state = mstaking.err_kind(ErrorKind::InvalidInput, || "staking not found")?;
     let access_policies = viewkeys
         .iter()
         .map(|s| {
@@ -221,9 +222,9 @@ fn query_staked_state(from_address: &CroAddress, tendermint_url: &str) -> Result
 
     assert!(20 == from_address.raw.len());
     let bytes = tendermint_client
-        .query("account", &from_address.raw, None, false)?
+        .query("staking", &from_address.raw, None, false)?
         .bytes();
-    let state = StakedState::decode(&mut bytes.as_slice()).chain(|| {
+    let mstaking = <Option<StakedState>>::decode(&mut bytes.as_slice()).chain(|| {
         (
             ErrorKind::DeserializationError,
             format!(
@@ -232,7 +233,7 @@ fn query_staked_state(from_address: &CroAddress, tendermint_url: &str) -> Result
             ),
         )
     })?;
-    Ok(state)
+    mstaking.err_kind(ErrorKind::InvalidInput, || "staking not found")
 }
 
 /// staked -> utxo

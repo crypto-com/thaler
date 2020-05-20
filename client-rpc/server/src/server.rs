@@ -1,12 +1,13 @@
 use crate::program::Options;
-use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
-use crate::rpc::staking_rpc::{StakingRpc, StakingRpcImpl};
-use crate::rpc::sync_rpc::{SyncRpc, SyncRpcImpl};
-use crate::rpc::transaction_rpc::{TransactionRpc, TransactionRpcImpl};
-use crate::rpc::wallet_rpc::{WalletRpc, WalletRpcImpl};
+use client_rpc_core::rpc::{
+    multisig_rpc::{MultiSigRpc, MultiSigRpcImpl},
+    staking_rpc::{StakingRpc, StakingRpcImpl},
+    sync_rpc::{SyncRpc, SyncRpcImpl},
+    transaction_rpc::{TransactionRpc, TransactionRpcImpl},
+    wallet_rpc::{WalletRpc, WalletRpcImpl},
+};
 #[cfg(feature = "mock-enclave")]
 use log::warn;
-use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::thread;
 use std::time::Duration;
@@ -216,23 +217,5 @@ impl Server {
         server.wait();
 
         Ok(())
-    }
-}
-
-pub(crate) fn to_rpc_error<E: ToString + Debug>(error: E) -> jsonrpc_core::Error {
-    log::error!("{:?}", error);
-    jsonrpc_core::Error {
-        code: jsonrpc_core::ErrorCode::InternalError,
-        message: error.to_string(),
-        data: None,
-    }
-}
-
-pub(crate) fn rpc_error_from_string(error: String) -> jsonrpc_core::Error {
-    log::error!("{}", error);
-    jsonrpc_core::Error {
-        code: jsonrpc_core::ErrorCode::InternalError,
-        message: error,
-        data: None,
     }
 }
