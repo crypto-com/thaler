@@ -589,7 +589,7 @@ dependencies = [
 
 [[package]]
 name = "client-cli"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.5.0",
@@ -597,7 +597,7 @@ dependencies = [
  "cli-table 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common 0.5.0",
  "client-core 0.5.0",
- "client-network 0.5.0",
+ "client-network 0.5.3",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -697,7 +697,7 @@ dependencies = [
 
 [[package]]
 name = "client-network"
-version = "0.5.0"
+version = "0.5.3"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.5.0",
@@ -720,7 +720,7 @@ dependencies = [
  "chain-core 0.5.0",
  "client-common 0.5.0",
  "client-core 0.5.0",
- "client-network 0.5.0",
+ "client-network 0.5.3",
  "client-rpc-core 0.5.0",
  "dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -738,7 +738,7 @@ dependencies = [
  "chain-core 0.5.0",
  "client-common 0.5.0",
  "client-core 0.5.0",
- "client-network 0.5.0",
+ "client-network 0.5.3",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 14.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -837,7 +837,7 @@ dependencies = [
  "chain-core 0.5.0",
  "client-common 0.5.0",
  "client-core 0.5.0",
- "client-network 0.5.0",
+ "client-network 0.5.3",
  "client-rpc-core 0.5.0",
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "jsonrpc-core 14.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1050,7 +1050,7 @@ dependencies = [
  "chrono 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common 0.5.0",
  "client-core 0.5.0",
- "client-network 0.5.0",
+ "client-network 0.5.3",
  "dirs 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",

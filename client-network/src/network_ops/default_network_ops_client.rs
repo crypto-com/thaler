@@ -139,18 +139,14 @@ where
         attributes: StakedStateOpAttributes,
         verify_staking: bool,
     ) -> Result<(TxAux, TransactionPending)> {
-        // if the to_address belongs to current wallet, we do not check the state
-        let staking_addresses = self.wallet_client.staking_addresses(name, enckey)?;
-        if !staking_addresses.contains(&to_address) {
-            let staked_state = self.get_staked_state(name, &to_address, verify_staking)?;
-            verify_unjailed(&staked_state).map_err(|e| {
+        if let Some(staking) = self.get_staking(name, &to_address, verify_staking)? {
+            verify_unjailed(&staking).map_err(|e| {
                 Error::new(
                     ErrorKind::ValidationError,
                     format!("Failed to validate staking account: {}", e),
                 )
             })?;
         }
-
         let inputs = transactions
             .iter()
             .map(|(input, _)| input.clone())
@@ -460,13 +456,12 @@ where
         )))
     }
 
-    #[inline]
-    fn get_staked_state(
+    fn get_staking(
         &self,
         name: &str,
         address: &StakedStateAddress,
         verify: bool,
-    ) -> Result<StakedState> {
+    ) -> Result<Option<StakedState>> {
         let mstaking = if verify {
             let sync_state = self.wallet_client.get_sync_state(name)?;
             let rsp = self.client.query(
@@ -517,7 +512,7 @@ where
                     format!("Cannot deserialize staked state for address: {}", address)
                 })?
         };
-        mstaking.err_kind(ErrorKind::InvalidInput, || "staking not found")
+        Ok(mstaking)
     }
 }
 
