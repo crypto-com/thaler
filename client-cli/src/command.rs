@@ -26,7 +26,9 @@ use client_common::{ErrorKind, Result, ResultExt, SecKey, Storage};
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::types::BalanceChange;
-use client_core::wallet::syncer::{ObfuscationSyncerConfig, ProgressReport, WalletSyncer};
+use client_core::wallet::syncer::{
+    ObfuscationSyncerConfig, ProgressReport, SyncerOptions, WalletSyncer,
+};
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_core::TransactionObfuscation;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
@@ -390,10 +392,12 @@ impl Command {
                     storage.clone(),
                     tendermint_client,
                     tx_obfuscation,
-                    !*disable_fast_forward,
-                    !*disable_address_recovery,
-                    *batch_size,
-                    *block_height_ensure,
+                    SyncerOptions {
+                        enable_fast_forward: !*disable_fast_forward,
+                        enable_address_recovery: !*disable_address_recovery,
+                        batch_size: *batch_size,
+                        block_height_ensure: *block_height_ensure,
+                    },
                 );
                 Self::resync(config, name.clone(), enckey, *force, storage)
             }

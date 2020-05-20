@@ -76,6 +76,15 @@ impl<O: TransactionObfuscation> TxDecryptor for TxObfuscationDecryptor<O> {
     }
 }
 
+/// Configuration options for synchronizer
+#[derive(Clone, Debug)]
+pub struct SyncerOptions {
+    pub enable_fast_forward: bool,
+    pub enable_address_recovery: bool,
+    pub batch_size: usize,
+    pub block_height_ensure: u64,
+}
+
 /// Common configs for wallet syncer with `TransactionObfuscation`
 #[derive(Clone)]
 pub struct ObfuscationSyncerConfig<S: SecureStorage, C: Client, O: TransactionObfuscation> {
@@ -85,10 +94,7 @@ pub struct ObfuscationSyncerConfig<S: SecureStorage, C: Client, O: TransactionOb
     pub obfuscation: O,
 
     // configs
-    pub enable_fast_forward: bool,
-    pub enable_address_recovery: bool,
-    pub batch_size: usize,
-    pub block_height_ensure: u64,
+    pub options: SyncerOptions,
 }
 
 impl<S: SecureStorage, C: Client, O: TransactionObfuscation> ObfuscationSyncerConfig<S, C, O> {
@@ -97,19 +103,13 @@ impl<S: SecureStorage, C: Client, O: TransactionObfuscation> ObfuscationSyncerCo
         storage: S,
         client: C,
         obfuscation: O,
-        enable_fast_forward: bool,
-        enable_address_recovery: bool,
-        batch_size: usize,
-        block_height_ensure: u64,
+        options: SyncerOptions,
     ) -> ObfuscationSyncerConfig<S, C, O> {
         ObfuscationSyncerConfig {
             storage,
             client,
             obfuscation,
-            enable_fast_forward,
-            enable_address_recovery,
-            batch_size,
-            block_height_ensure,
+            options,
         }
     }
 }
@@ -122,10 +122,7 @@ pub struct SyncerConfig<S: SecureStorage, C: Client> {
     client: C,
 
     // configs
-    enable_fast_forward: bool,
-    enable_address_recovery: bool,
-    batch_size: usize,
-    block_height_ensure: u64,
+    options: SyncerOptions,
 }
 
 /// Wallet Syncer
@@ -135,10 +132,7 @@ pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor, T: AddressR
     storage: S,
     client: C,
     recover_address: T,
-    enable_fast_forward: bool,
-    enable_address_recovery: bool,
-    batch_size: usize,
-    block_height_ensure: u64,
+    options: SyncerOptions,
 
     // wallet
     decryptor: D,
@@ -167,10 +161,7 @@ where
             decryptor,
             name,
             enckey,
-            enable_fast_forward: config.enable_fast_forward,
-            enable_address_recovery: config.enable_address_recovery,
-            batch_size: config.batch_size,
-            block_height_ensure: config.block_height_ensure,
+            options: config.options,
             recover_address,
         }
     }
@@ -219,10 +210,7 @@ where
             SyncerConfig {
                 storage: config.storage,
                 client: config.client,
-                enable_fast_forward: config.enable_fast_forward,
-                enable_address_recovery: config.enable_address_recovery,
-                batch_size: config.batch_size,
-                block_height_ensure: config.block_height_ensure,
+                options: config.options,
             },
             decryptor,
             name,
@@ -375,7 +363,7 @@ impl<
             .collect::<Vec<_>>();
         let enclave_txs = self.env.decryptor.decrypt_tx(&enclave_txids)?;
 
-        if self.env.enable_address_recovery
+        if self.env.options.enable_address_recovery
             && crate::types::WalletKind::HD == self.wallet.wallet_kind
         {
             // only hdwallet
@@ -413,11 +401,11 @@ impl<
 
         // Send batch RPC requests to tendermint in chunks of `batch_size` requests per batch call
         for chunk in ((self.sync_state.last_block_height + 1)..=current_block_height)
-            .chunks(self.env.batch_size)
+            .chunks(self.env.options.batch_size)
             .into_iter()
         {
-            let mut batch = Vec::with_capacity(self.env.batch_size);
-            if self.env.enable_fast_forward {
+            let mut batch = Vec::with_capacity(self.env.options.batch_size);
+            if self.env.options.enable_fast_forward {
                 if let Some(block) = self.fast_forward_status(&status)? {
                     // Fast forward to latest state if possible
                     self.handle_batch((batch, block).into())?;
@@ -427,7 +415,7 @@ impl<
 
             let range = chunk.collect::<Vec<u64>>();
 
-            if self.env.enable_fast_forward {
+            if self.env.options.enable_fast_forward {
                 // Get the last block to check if there are any changes
                 let block = self.env.client.block(range[range.len() - 1])?;
                 if let Some(block) = self.fast_forward_block(&block)? {
@@ -488,8 +476,8 @@ impl<
         let state =
             service::load_wallet_state(&self.env.storage, &self.env.name, &self.env.enckey)?
                 .chain(|| (ErrorKind::StorageError, "get wallet state failed"))?;
-        for tx_id in
-            state.get_rollback_pending_tx(current_block_height, self.env.block_height_ensure)
+        for tx_id in state
+            .get_rollback_pending_tx(current_block_height, self.env.options.block_height_ensure)
         {
             memento.remove_pending_transaction(tx_id);
         }
@@ -753,10 +741,12 @@ mod tests {
             SyncerConfig {
                 storage,
                 client,
-                enable_fast_forward,
-                enable_address_recovery: false,
-                batch_size: 20,
-                block_height_ensure: 50,
+                options: SyncerOptions {
+                    enable_fast_forward,
+                    enable_address_recovery: false,
+                    batch_size: 20,
+                    block_height_ensure: 50,
+                },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
             name.to_owned(),
@@ -885,10 +875,12 @@ mod tests {
             SyncerConfig {
                 storage,
                 client,
-                enable_fast_forward,
-                enable_address_recovery: false,
-                batch_size: 20,
-                block_height_ensure: 50,
+                options: SyncerOptions {
+                    enable_fast_forward,
+                    enable_address_recovery: false,
+                    batch_size: 20,
+                    block_height_ensure: 50,
+                },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
             name.to_owned(),
@@ -933,10 +925,12 @@ mod tests {
             SyncerConfig {
                 storage,
                 client,
-                enable_fast_forward: false,
-                enable_address_recovery: true,
-                batch_size: 20,
-                block_height_ensure: 50,
+                options: SyncerOptions {
+                    enable_fast_forward: false,
+                    enable_address_recovery: true,
+                    batch_size: 20,
+                    block_height_ensure: 50,
+                },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
             name.to_owned(),
@@ -988,10 +982,12 @@ mod tests {
             SyncerConfig {
                 storage,
                 client,
-                enable_fast_forward: false,
-                enable_address_recovery: true,
-                batch_size: 20,
-                block_height_ensure: 50,
+                options: SyncerOptions {
+                    enable_fast_forward: false,
+                    enable_address_recovery: true,
+                    batch_size: 20,
+                    block_height_ensure: 50,
+                },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
             name.to_owned(),

@@ -29,5 +29,10 @@ else
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-cli/Cargo.toml
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path dev-utils/Cargo.toml
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path chain-abci/Cargo.toml
-    cargo build $CARGO_ARGS --manifest-path cro-clib/Cargo.toml
 fi
+
+echo "Build dynamic cro-clib"
+cargo install cargo-crate-type
+cargo crate-type -f cro-clib/Cargo.toml dynamic
+cargo build $CARGO_ARGS -p cro-clib
+cargo crate-type -f cro-clib/Cargo.toml static
