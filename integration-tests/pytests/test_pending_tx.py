@@ -1,10 +1,9 @@
 from uuid import uuid1
 
 import pytest
-from chainrpc import RPC
-from .common import wait_for_tx, wait_for_blocktime
+from .common import wait_for_tx, wait_for_blocktime, get_rpc
 
-rpc = RPC()
+rpc = get_rpc()
 
 
 @pytest.mark.zerofee

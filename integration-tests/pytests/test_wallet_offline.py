@@ -4,13 +4,10 @@ import pexpect
 import os
 import tempfile
 import pytest
-from chainrpc import RPC
-from .common import wait_for_tx, wait_for_blocktime
-
-rpc = RPC()
+from .common import wait_for_tx, get_rpc
 
 PASSWD = "123456"
-rpc = RPC()
+rpc = get_rpc()
 
 # TODO:it strange that python can not read client-cli output, so deadcode the information
 # ./client-cli wallet auth-token -n ${wallet_name}
@@ -172,7 +169,5 @@ def test_wallet_offline():
     assert balance_receiver["total"] == "50"
 
 
-
 if __name__ == "__main__":
-    test_offline_wallet()
-
+    test_wallet_offline()

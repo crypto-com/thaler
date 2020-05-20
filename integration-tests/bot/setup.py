@@ -25,5 +25,6 @@ setup(
         'chainbot.py',
         'chainrpc.py',
         'chaincodec.py',
+        'chainbinding.py',
     ]
 )

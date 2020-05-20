@@ -1,8 +1,7 @@
 import pytest
-from chainrpc import RPC
-from .common import wait_for_tx
+from .common import wait_for_tx, get_rpc
 
-rpc = RPC()
+rpc = get_rpc()
 
 
 @pytest.mark.withfee

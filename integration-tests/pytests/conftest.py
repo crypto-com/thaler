@@ -1,7 +1,7 @@
 import os
 import time
 import pytest
-from chainrpc import RPC
+from .common import get_rpc
 
 
 def pytest_configure(config):
@@ -23,7 +23,7 @@ class TestAddresses:
 
 @pytest.fixture
 def addresses():
-    rpc = RPC()
+    rpc = get_rpc()
     enckey = rpc.wallet.enckey()
     os.environ['ENCKEY'] = enckey
     rpc.wallet.sync()

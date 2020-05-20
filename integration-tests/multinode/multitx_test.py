@@ -1,8 +1,7 @@
 import os
 import time
-from chainrpc import RPC
 from common import (
-    UnixStreamXMLRPCClient, wait_for_validators, stop_node,
+    get_rpc, UnixStreamXMLRPCClient, wait_for_validators, stop_node,
     wait_for_tx, latest_block_height
 )
 
@@ -19,9 +18,8 @@ Procedure:
 '''
 
 
-BASE_PORT = int(os.environ.get('BASE_PORT', 25560))
 supervisor = UnixStreamXMLRPCClient('data/supervisor.sock')
-rpc = RPC(BASE_PORT)
+rpc = get_rpc()
 
 print('Wait for 2 validators online')
 wait_for_validators(rpc, 2)

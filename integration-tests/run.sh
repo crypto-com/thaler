@@ -50,7 +50,9 @@ function wait_http() {
 function runtest() {
     echo "Preparing... $1"
     LOWERED_TYPE=`echo $1 | tr "[:upper:]" "[:lower:]"`
-    chainbot.py prepare ${LOWERED_TYPE}_cluster.json --base_port $BASE_PORT $CHAINBOT_ARGS
+    chainbot.py prepare ${LOWERED_TYPE}_cluster.json --base_port $BASE_PORT --start_client_rpc $CHAINBOT_ARGS
+    export CRYPTO_GENESIS_HASH=`python -c "import json; print(json.load(open('data/info.json'))['genesis_hash'])"`
+    echo "genesis hash: $CRYPTO_GENESIS_HASH"
 
     echo "Startup..."
     supervisord -n -c data/tasks.ini &
@@ -64,6 +66,8 @@ function runtest() {
         TEST_ONLY=$1 npm run test
         RETCODE=$?
         popd
+
+        supervisorctl -c data/tasks.ini stop node0:client-rpc-node0
 
         if [ $RETCODE -eq 0 ]; then
 			if [ $1 == "WITH_FEE" ]; then

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import os
-from chainrpc import RPC
 from chainbot import SigningKey
-from common import UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, wait_for_tx, stop_node, wait_for_blocktime
+from common import get_rpc, UnixStreamXMLRPCClient, wait_for_validators, wait_for_port, wait_for_blocks, wait_for_tx, stop_node, wait_for_blocktime
 
 '''
 three node, 1/3 voting power each.
@@ -34,11 +33,11 @@ TARGET_NODE_MNEMONIC = 'symptom labor zone shrug chicken bargain hood define tor
 TARGET_NODE_VALIDATOR_SEED = '5c1b9c06ae7485cd0f9d75819f964db3b1306ebd397f5bbdc1dd386a32b7c1c0'
 MISSED_BLOCK_THRESHOLD = 5
 JAIL_DURATION = 10
-BASE_PORT = int(os.environ.get('BASE_PORT', 25560))
+BASE_PORT = int(os.environ.get('BASE_PORT', 26650))
 TARGET_PORT = BASE_PORT + 2 * 10
 
 supervisor = UnixStreamXMLRPCClient('data/supervisor.sock')
-rpc = RPC(BASE_PORT)
+rpc = get_rpc()
 
 # wait for 3 validators online
 print('Wait for 3 validators online')
@@ -64,7 +63,7 @@ print('slash amount', punishment['amount'])
 
 print('Starting', TARGET_NODE)
 supervisor.supervisor.startProcessGroup(TARGET_NODE)
-wait_for_port(TARGET_PORT + 9)
+wait_for_port(TARGET_PORT + 7)
 print('Started', TARGET_NODE)
 
 jailed_until = state['validator']['jailed_until']

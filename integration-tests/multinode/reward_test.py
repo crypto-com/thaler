@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import os
 import math
-from chainrpc import RPC
-from common import UnixStreamXMLRPCClient, wait_for_blocks, stop_node, wait_for_blocktime, wait_for_port, latest_block_time
+from common import get_rpc, UnixStreamXMLRPCClient, wait_for_blocks, stop_node, wait_for_blocktime, wait_for_port, latest_block_time
 
 '''
 wait for first reward distribution (the second block)
@@ -25,12 +24,12 @@ def monetary_expansion(S, tau):
     return N - N % 10000
 
 
-BASE_PORT = int(os.environ.get('BASE_PORT', 25560))
+BASE_PORT = int(os.environ.get('BASE_PORT', 26650))
 supervisor = UnixStreamXMLRPCClient('data/supervisor.sock')
-wait_for_port(BASE_PORT + 20 + 9)
+wait_for_port(BASE_PORT + 20 + 7)
 
-rpc = RPC(BASE_PORT)
-rpc2 = RPC(BASE_PORT + 20)
+rpc = get_rpc()
+rpc2 = get_rpc(2)
 init_bonded = 90000000000000000
 
 os.environ['ENCKEY'] = rpc.wallet.enckey()

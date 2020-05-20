@@ -1,9 +1,7 @@
-import time
-from chainrpc import RPC
 from uuid import uuid1
-from .common import wait_for_tx
+from .common import wait_for_tx, get_rpc
 
-rpc = RPC()
+rpc = get_rpc()
 
 
 def test_watch_only_wallet(addresses):
