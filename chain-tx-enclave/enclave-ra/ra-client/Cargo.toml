@@ -16,6 +16,6 @@ serde_json = "1.0"
 thiserror = "1.0"
 webpki = "0.21"
 x509-parser = "0.7"
-time = "0.1"
+time = "0.2"
 
 ra-common = { path = "../ra-common" }
