@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+#[derive(Clone)]
 pub struct EnclaveCertVerifierConfig<'a> {
     /// PEM encode bytes containing attestation report signing CA certificate
     pub signing_ca_cert_pem: Cow<'a, [u8]>,
@@ -11,6 +12,7 @@ pub struct EnclaveCertVerifierConfig<'a> {
     pub enclave_info: Option<EnclaveInfo>,
 }
 
+#[derive(Clone)]
 pub struct EnclaveInfo {
     /// 256-bit hash of enclave author's public key
     pub mr_signer: [u8; 32],
