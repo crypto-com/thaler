@@ -25,9 +25,9 @@ pub fn get_random_challenge() -> H256 {
 }
 
 pub fn verify_decryption_request(decryption_request: &DecryptionRequest, challenge: H256) -> bool {
-    !decryption_request
+    decryption_request
         .verify(&Secp256k1::verification_only(), challenge)
-        .is_err()
+        .is_ok()
 }
 
 pub fn handle_decryption_request(

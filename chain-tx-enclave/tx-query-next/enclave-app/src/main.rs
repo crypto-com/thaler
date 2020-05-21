@@ -40,18 +40,9 @@ fn main() -> std::io::Result<()> {
         certificate_validity_secs: 86400,
     };
 
-    let context =
-        EnclaveRaContext::new(&config).expect("Unable to create new remote attestation context");
-    let certificate = context
-        .get_certificate()
-        .expect("Unable to create remote attestation certificate");
-
-    let mut tls_server_config = ServerConfig::new(NoClientAuth::new());
-    certificate
-        .configure_server_config(&mut tls_server_config)
-        .expect("Unable to create TLS server config");
-
-    let tls_server_config = Arc::new(tls_server_config);
+    let context = Arc::new(
+        EnclaveRaContext::new(&config).expect("Unable to create new remote attestation context"),
+    );
 
     log::info!("Successfully created remote attestation certificate!");
     log::info!("Starting TLS Server at: {}", addrs);
@@ -61,11 +52,21 @@ fn main() -> std::io::Result<()> {
     let (thread_pool_sender, thread_pool) = ThreadPool::fixed_size(num_threads);
 
     for stream in listener.incoming() {
-        let tls_server_config = tls_server_config.clone();
+        let context = context.clone();
         let zmq_stream = zmq_stream.clone();
 
         thread_pool_sender
             .send(move || {
+                let certificate = context
+                    .get_certificate()
+                    .expect("Unable to create remote attestation certificate");
+                let mut tls_server_config = ServerConfig::new(NoClientAuth::new());
+                certificate
+                    .configure_server_config(&mut tls_server_config)
+                    .expect("Unable to create TLS server config");
+
+                let tls_server_config = Arc::new(tls_server_config);
+
                 let tls_session = ServerSession::new(&tls_server_config);
                 let stream = StreamOwned::new(tls_session, stream.unwrap());
 
@@ -149,7 +150,6 @@ fn handle_connection<T: Read + Write>(mut stream: T, zmq_stream: Arc<Mutex<TcpSt
                 }
                 Err(err) => {
                     log::error!("Error while decoding tx-query init request: {}", err);
-                    return;
                 }
             };
         }
