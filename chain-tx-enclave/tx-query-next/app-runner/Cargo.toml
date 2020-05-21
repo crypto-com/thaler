@@ -7,9 +7,9 @@ edition = "2018"
 [dependencies]
 log = "0.4.8"
 env_logger = "0.7.1"
-enclave-runner = "0.3"
+enclave-runner = "0.4"
 sgxs-loaders = "0.2"
-aesm-client = {version = "0.4", features = ["sgxs"] }
+aesm-client = {version = "0.5", features = ["sgxs"] }
 zmq = "0.9"
 tokio = "0.1.22"
 enclave-protocol   = { path = "../../../enclave-protocol" }
