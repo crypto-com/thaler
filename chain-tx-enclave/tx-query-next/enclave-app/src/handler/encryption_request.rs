@@ -13,6 +13,7 @@ use enclave_protocol::{
 };
 use enclave_utils::SealedData;
 
+#[allow(clippy::boxed_local)]
 pub fn handle_encryption_request(
     encryption_request: Box<EncryptionRequest>,
     request_len: usize,

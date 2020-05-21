@@ -20,5 +20,5 @@ enclave-protocol = { path = "../../../enclave-protocol", features = ["edp"] }
 enclave-utils = { path = "../../enclave-utils", features = ["sgxstd"] }
 ra-enclave = { path = "../../enclave-ra/ra-enclave" }
 
-[patch.crates-io]
-ring = { git = "https://github.com/crypto-com/ring.git", rev = "4e1862fb0df9efaf2d2c1ec8cacb1e53104f3daa" }
+# [patch.crates-io]
+# ring = { git = "https://github.com/crypto-com/ring.git", rev = "4e1862fb0df9efaf2d2c1ec8cacb1e53104f3daa" }
