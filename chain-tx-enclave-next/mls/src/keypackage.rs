@@ -23,7 +23,7 @@ pub const MLS10_128_DHKEMP256_AES128GCM_SHA256_P256: CipherSuite = 2;
 pub const CREDENTIAL_TYPE_X509: u8 = 1;
 
 /// spec: draft-ietf-mls-protocol.md#key-packages
-#[derive(Debug)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct KeyPackagePayload {
     pub version: ProtocolVersion,
     pub cipher_suite: CipherSuite,
@@ -121,7 +121,7 @@ impl KeyPackagePayload {
 
 /// Key package, only send `(payload, signature)` to other nodes.
 /// spec: draft-ietf-mls-protocol.md#key-packages
-#[derive(Debug)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct KeyPackage {
     pub payload: KeyPackagePayload,
     pub signature: Vec<u8>,
@@ -222,6 +222,8 @@ pub enum Error {
     UnsupportedCipherSuite(CipherSuite),
     #[error("init key and credential public key don't match")]
     InitKeyDontMatch,
+    #[error("duplicate key package")]
+    DuplicateKeyPackage,
 }
 
 #[derive(thiserror::Error, Debug)]

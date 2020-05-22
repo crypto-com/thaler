@@ -1,5 +1,53 @@
 use rustls::internal::msgs::codec::{u24, Codec, Reader};
 
+pub fn encode_option<T: Codec>(bytes: &mut Vec<u8>, t: &Option<T>) {
+    match t {
+        None => bytes.push(0u8),
+        Some(v) => {
+            bytes.push(1u8);
+            v.encode(bytes);
+        }
+    }
+}
+
+/// option-option needed for rustls Codec
+#[allow(clippy::option_option)]
+pub fn decode_option<T: Codec>(r: &mut Reader) -> Option<Option<T>> {
+    let present = u8::read(r)?;
+    match present {
+        0 => Some(None),
+        1 => {
+            let v = T::read(r)?;
+            Some(Some(v))
+        }
+        _ => None,
+    }
+}
+
+pub fn encode_vec_u32<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
+    let mut sub: Vec<u8> = Vec::new();
+    for i in items {
+        i.encode(&mut sub);
+    }
+
+    debug_assert!(sub.len() <= 0xffff_ffff);
+    (sub.len() as u32).encode(bytes);
+    bytes.append(&mut sub);
+}
+
+pub fn read_vec_u32<T: Codec>(r: &mut Reader) -> Option<Vec<T>> {
+    let mut ret: Vec<T> = Vec::new();
+    let len = u32::read(r)? as usize;
+
+    let mut sub = r.sub(len)?;
+
+    while sub.any_left() {
+        ret.push(T::read(&mut sub)?);
+    }
+
+    Some(ret)
+}
+
 /// more efficient then `codec::encode_vec_u24`
 #[inline]
 pub fn encode_vec_u8_u24(bytes: &mut Vec<u8>, items: &[u8]) {
