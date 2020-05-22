@@ -2859,7 +2859,6 @@ dependencies = [
  "rustls 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.53 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "time 0.1.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "webpki 0.21.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "x509-parser 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
