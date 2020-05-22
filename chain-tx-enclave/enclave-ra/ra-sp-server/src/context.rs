@@ -56,6 +56,7 @@ impl SpRaContext {
         let gid = self
             .quote_info
             .gid()
+            .as_slice()
             .try_into()
             .map_err(SpRaContextError::InvalidGid)?;
 
@@ -72,7 +73,6 @@ impl SpRaContext {
         let quote_result = self
             .aesm_client
             .get_quote(
-                &self.quote_info,
                 report,
                 self.spid.to_vec(),
                 sig_rl,

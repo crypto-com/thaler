@@ -35,6 +35,7 @@ rust: &rust
         - binutils-dev
         - libc6-dev
         - libzmq3-dev
+        - protobuf-compiler
   cache:
     directories:
       - $HOME/.cargo
