@@ -46,6 +46,7 @@ default-members = [
     "test-common",
     "dev-utils",
     "enclave-protocol",
+    "chain-tx-enclave/enclave-ra/ra-sp-server",
     "chain-tx-enclave/enclave-utils",
     "chain-tx-enclave/mls",
     "cro-clib",
