@@ -11,12 +11,11 @@ use rustls::{
     TLSError,
 };
 use thiserror::Error;
-use time::Timespec;
 use webpki::{
     DNSName, DNSNameRef, EndEntityCert, SignatureAlgorithm, TLSServerTrustAnchors, Time,
     TrustAnchor, ECDSA_P256_SHA256, RSA_PKCS1_2048_8192_SHA256,
 };
-use x509_parser::parse_x509_der;
+use x509_parser::{parse_x509_der, x509};
 
 use crate::{EnclaveCertVerifierConfig, EnclaveInfo};
 
@@ -64,17 +63,15 @@ impl EnclaveCertVerifier {
         let (_, certificate) = parse_x509_der(certificate)
             .map_err(|_| EnclaveCertVerifierError::CertificateParsingError)?;
 
-        let not_before = certificate
-            .tbs_certificate
-            .validity
-            .not_before
-            .to_timespec();
-        let not_after = certificate.tbs_certificate.validity.not_after.to_timespec();
-        let now_spec = Timespec::new(now.timestamp(), now.timestamp_subsec_nanos() as i32);
-        if now_spec < not_before {
+        let x509::Validity {
+            not_before,
+            not_after,
+        } = certificate.tbs_certificate.validity;
+        let now_sec = now.timestamp();
+        if now_sec < not_before.to_timespec().sec {
             return Err(EnclaveCertVerifierError::CertificateExpired);
         }
-        if now_spec.sec >= not_after.sec {
+        if now_sec >= not_after.to_timespec().sec {
             return Err(EnclaveCertVerifierError::CertificateExpired);
         }
 
