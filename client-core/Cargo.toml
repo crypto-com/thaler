@@ -14,7 +14,7 @@ enclave-protocol = { path = "../enclave-protocol" }
 chain-tx-validation = { path = "../chain-tx-validation" }
 chain-storage = { path = "../chain-storage" }
 mock-utils = { path = "../chain-tx-enclave/mock-utils" }
-ra-client = { path = "../chain-tx-enclave/enclave-ra/ra-client", optional = true }
+ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client", optional = true }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 chrono = { version = "0.4", features = ["serde"] }

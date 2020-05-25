@@ -22,12 +22,12 @@
 //! // This `server_config` can now be used to create a `rustls::Stream`.
 //! ```
 mod certificate;
+#[cfg(target_env = "sgx")]
 mod cmac;
 mod config;
+#[cfg(target_env = "sgx")]
 mod context;
 
-pub use self::{
-    certificate::Certificate,
-    config::EnclaveRaConfig,
-    context::{EnclaveRaContext, EnclaveRaContextError},
-};
+pub use self::{certificate::Certificate, config::EnclaveRaConfig};
+#[cfg(target_env = "sgx")]
+pub use {EnclaveRaContext, EnclaveRaContextError};
