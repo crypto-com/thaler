@@ -10,6 +10,7 @@ use chain_core::tx::{TransactionId, TxEnclaveAux, TxObfuscated, TxPublicAux};
 use chain_storage::buffer::{GetKV, GetStaking, StoreStaking};
 use chain_tx_validation::{verify_unjailed, witness::verify_tx_recover_address, ChainInfo, Error};
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, SealedLog};
+use ra_client::EnclaveCertVerifier;
 
 pub enum TxAction {
     Enclave(TxEnclaveAction),
@@ -286,6 +287,7 @@ fn check_staking_attributes(
 pub fn process_public_tx(
     staking_store: &mut impl StoreStaking,
     staking_table: &mut StakingTable,
+    enclave_cert_verifier: &EnclaveCertVerifier,
     chain_info: &ChainInfo,
     txaux: &TxPublicAux,
 ) -> Result<TxPublicAction, PublicTxError> {
@@ -333,6 +335,7 @@ pub fn process_public_tx(
                 staking_store,
                 chain_info.block_time,
                 chain_info.max_evidence_age,
+                enclave_cert_verifier,
                 maintx,
             )?;
 

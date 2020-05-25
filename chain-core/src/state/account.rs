@@ -45,15 +45,15 @@ pub struct ConfidentialInit {
             deserialize_with = "deserialize_base64"
         )
     )]
-    pub cert: Vec<u8>,
+    pub keypackage: Vec<u8>,
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
-fn serialize_base64<S>(cert: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_base64<S>(keypackage: &[u8], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    base64::encode(cert).serialize(serializer)
+    base64::encode(keypackage).serialize(serializer)
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
@@ -75,7 +75,7 @@ pub struct CouncilNode {
     pub security_contact: ValidatorSecurityContact,
     /// Tendermint consensus validator-associated public key
     pub consensus_pubkey: TendermintValidatorPubKey,
-    /// X.509 credential payload for MLS (https://tools.ietf.org/html/draft-ietf-mls-protocol-09)
+    /// serialized keypackage for MLS (https://tools.ietf.org/html/draft-ietf-mls-protocol-09)
     /// (expected that attestation payload will be a part of the cert extension, as done in TLS)
     pub confidential_init: ConfidentialInit,
 }
@@ -94,7 +94,7 @@ impl Encode for CouncilNode {
             }
         };
         self.consensus_pubkey.encode_to(dest);
-        self.confidential_init.cert.encode_to(dest);
+        self.confidential_init.keypackage.encode_to(dest);
     }
 }
 
@@ -123,14 +123,12 @@ impl Decode for CouncilNode {
             None => None,
         };
         let consensus_pubkey = TendermintValidatorPubKey::decode(input)?;
-        let confidential_init: Vec<u8> = Vec::decode(input)?;
+        let keypackage: Vec<u8> = Vec::decode(input)?;
         Ok(CouncilNode::new_with_details(
             name,
             security_contact,
             consensus_pubkey,
-            ConfidentialInit {
-                cert: confidential_init,
-            },
+            ConfidentialInit { keypackage },
         ))
     }
 }
@@ -472,13 +470,13 @@ mod test {
             } else {
                 None
             };
-            // TODO: generate well-formed credentials
-            let cert: Vec<u8> = Vec::arbitrary(g);
+            // TODO: generate well-formed keypackage
+            let keypackage: Vec<u8> = Vec::arbitrary(g);
             CouncilNode::new_with_details(
                 name,
                 security_contact,
                 TendermintValidatorPubKey::Ed25519(raw_pubkey),
-                ConfidentialInit { cert },
+                ConfidentialInit { keypackage },
             )
         }
     }

@@ -29,6 +29,7 @@ else
         chain-storage \
         chain-tx-filter \
         chain-tx-validation \
+        chain-tx-enclave-next/mls \
         cro-clib
     do
         cargo test $CARGO_ARGS --manifest-path $pkg/Cargo.toml

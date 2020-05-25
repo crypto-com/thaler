@@ -130,7 +130,7 @@ pub fn get_nodes(
                     None,
                     acct.validator_pub_key.clone(),
                     ConfidentialInit {
-                        cert: b"FIXME".to_vec(),
+                        keypackage: b"FIXME".to_vec(),
                     },
                 ),
             )

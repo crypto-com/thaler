@@ -118,6 +118,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 let action = process_public_tx(
                     &mut staking_store!(self, state.staking_version, buffer_type),
                     &mut state.staking_table,
+                    &self.enclave_cert_verifier,
                     &extra_info,
                     &tx,
                 )?;

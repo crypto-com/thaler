@@ -1,3 +1,5 @@
+use rustls::internal::msgs::codec::Codec;
+
 use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{StakedStateAddress, UnbondTx, UnjailTx, Validator};
@@ -5,6 +7,8 @@ use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::fee::Fee;
 use chain_storage::buffer::StoreStaking;
+use mls::KeyPackage;
+use ra_client::EnclaveCertVerifier;
 
 use super::table::{set_staking, StakingTable};
 use crate::tx_error::{
@@ -20,6 +24,7 @@ impl StakingTable {
         heap: &mut impl StoreStaking,
         block_time: Timespec,
         max_evidence_age: Timespec,
+        ra_verifier: &EnclaveCertVerifier,
         tx: &NodeJoinRequestTx,
     ) -> Result<(), PublicTxError> {
         let mut staking = self.get_or_default(heap, &tx.address);
@@ -29,6 +34,16 @@ impl StakingTable {
         if staking.bonded < self.minimal_required_staking {
             return Err(NodeJoinError::BondedNotEnough.into());
         }
+
+        // FIXME verify keypackage
+        if let Ok(keypackage) = KeyPackage::read_bytes(&tx.node_meta.confidential_init.keypackage)
+            .ok_or(NodeJoinError::KeyPackageDecodeError)
+        {
+            let _ = keypackage
+                .verify(ra_verifier, block_time)
+                .map_err(NodeJoinError::KeyPackageVerifyError);
+        }
+
         let val_addr = TendermintValidatorAddress::from(&tx.node_meta.consensus_pubkey);
         if let Some(val) = &mut staking.validator {
             if val.is_jailed() {

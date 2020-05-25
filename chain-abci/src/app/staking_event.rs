@@ -437,7 +437,7 @@ mod tests {
 
                 assert_eq!(
                     staking_diff.to_string(),
-                    "{\"key\":\"CouncilNode\",\"value\":{\"name\":\"Council Node\",\"security_contact\":\"security@crypto.com\",\"consensus_pubkey\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"},\"confidential_init\":{\"cert\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"}}}",
+                    "{\"key\":\"CouncilNode\",\"value\":{\"name\":\"Council Node\",\"security_contact\":\"security@crypto.com\",\"consensus_pubkey\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"},\"confidential_init\":{\"keypackage\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"}}}",
                 );
             }
 
@@ -446,7 +446,7 @@ mod tests {
                 let any_security_contact = Some(String::from("security@crypto.com"));
                 let any_pub_key = TendermintValidatorPubKey::Ed25519([0u8; 32]);
                 let any_cert = ConfidentialInit {
-                    cert: [0u8; 32].to_vec(),
+                    keypackage: [0u8; 32].to_vec(),
                 };
 
                 CouncilNode::new_with_details(any_name, any_security_contact, any_pub_key, any_cert)
@@ -541,7 +541,7 @@ mod tests {
                 let any_security_contact = Some(String::from("security@crypto.com"));
                 let any_pub_key = TendermintValidatorPubKey::Ed25519([0u8; 32]);
                 let any_cert = ConfidentialInit {
-                    cert: [0u8; 32].to_vec(),
+                    keypackage: [0u8; 32].to_vec(),
                 };
 
                 CouncilNode::new_with_details(any_name, any_security_contact, any_pub_key, any_cert)

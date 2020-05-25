@@ -28,6 +28,12 @@ pub struct EnclaveCertVerifier {
     enclave_info: Option<EnclaveInfo>,
 }
 
+impl Default for EnclaveCertVerifier {
+    fn default() -> Self {
+        EnclaveCertVerifier::new(Default::default()).expect("default verifier config is invalid")
+    }
+}
+
 impl EnclaveCertVerifier {
     /// Creates a new instance of enclave certificate verifier
     pub fn new(config: EnclaveCertVerifierConfig) -> Result<Self, EnclaveCertVerifierError> {

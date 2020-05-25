@@ -82,7 +82,8 @@ fn verify_public_tx(
     let mut buffer = HashMap::new();
 
     let mut store = StakingBufferStore::new(StakingGetter::new(storage, version), &mut buffer);
-    let tx_action = process_public_tx(&mut store, &mut tbl, extra_info, txaux)?;
+    let tx_action =
+        process_public_tx(&mut store, &mut tbl, &Default::default(), extra_info, txaux)?;
 
     let fee = tx_action.fee();
     let maddress = tx_action.staking_address();
@@ -1154,7 +1155,7 @@ fn prepare_jailed_accounts() -> (
             council_node: CouncilNode::new(
                 TendermintValidatorPubKey::Ed25519([0xcd; 32]),
                 ConfidentialInit {
-                    cert: b"FIXME".to_vec(),
+                    keypackage: b"FIXME".to_vec(),
                 },
             ),
             jailed_until: Some(100),
@@ -1346,7 +1347,7 @@ fn prepare_nodejoin_transaction(
             security_contact: None,
             consensus_pubkey: TendermintValidatorPubKey::Ed25519([1u8; 32]),
             confidential_init: ConfidentialInit {
-                cert: b"FIXME".to_vec(),
+                keypackage: b"FIXME".to_vec(),
             },
         },
     };
@@ -1380,7 +1381,7 @@ fn prepare_valid_nodejoin_tx(
             Some(Validator::new(CouncilNode::new(
                 TendermintValidatorPubKey::Ed25519([1u8; 32]),
                 ConfidentialInit {
-                    cert: b"FIXME".to_vec(),
+                    keypackage: b"FIXME".to_vec(),
                 },
             )))
         } else {
