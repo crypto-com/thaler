@@ -115,13 +115,14 @@ else ifeq ($(chain), mainnet)
 	bash -c "cp docker/config/mainnet/tendermint/{config.toml,genesis.json} $(data_path)/tendermint/config/"
 endif
 
+source=https://download.01.org/intel-sgx/sgx-linux/2.9.1/distro/ubuntu18.04-server/sgx_linux_x64_driver_1.33.bin
 install-sgx-driver:
 ifeq ($(SGX_MODE), HW)
 	@if [ -e "/dev/isgx" ] || [ -e "/dev/sgx" ]; then \
 		echo "\033[32msgx driver already installed\033[0m"; \
 	else \
 		echo "\033[32install sgx driver\033[0m"; \
-		curl --proto '=https' -sSf https://download.01.org/intel-sgx/sgx-linux/2.7.1/distro/ubuntu18.04-server/sgx_linux_x64_driver_2.6.0_4f5bb63.bin > /tmp/driver.bin && \
+		curl --proto '=https' -sSf $(source) > /tmp/driver.bin && \
 		chmod +x /tmp/driver.bin &&\
 		sudo /tmp/driver.bin && \
 		rm /tmp/driver.bin; \
@@ -198,10 +199,10 @@ build-sgx-validation:
 
 
 create-network:
-	@if [ `docker network ls -f NAME=$(prefix)$(NETWORK) | wc -l ` -eq 2 ]; then \
+	@if [ `docker network ls -f NAME=$(NETWORK) | wc -l ` -eq 2 ]; then \
 		echo "network already exist"; \
 	else \
-		docker network create $(prefix)crypto-chain; \
+		docker network create $(NETWORK); \
 	fi
 
 rm-network:
