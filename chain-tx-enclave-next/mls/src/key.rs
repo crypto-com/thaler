@@ -14,6 +14,7 @@ pub struct PublicKey(Vec<u8>);
 
 impl PublicKey {
     /// Verify P-256 signature
+    /// FIXME: types to distinguish between signature and message payloads
     pub fn verify_signature(&self, msg: &[u8], sig: &[u8]) -> Result<(), error::Unspecified> {
         ECDSA_P256_SHA256_ASN1.verify(self.0.as_slice().into(), msg.into(), sig.into())
     }

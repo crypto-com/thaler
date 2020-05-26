@@ -111,8 +111,14 @@ impl Codec for LeafNodeHashInput {
 /// TODO: https://github.com/mlswg/mls-protocol/pull/327/files
 #[derive(Clone)]
 pub struct Tree {
+    /// all tree nodes stored in a vector
     pub nodes: Vec<Node>,
+    /// the used ciphersuite (for hashing etc.)
+    /// TODO: unify with keypackage one
     pub cs: CipherSuite,
+    /// position of the participant in the tree
+    /// TODO: leaf vs node position?
+    pub my_pos: usize,
 }
 
 /// The level of a node in the tree.  Leaves are level 0, their
@@ -326,10 +332,12 @@ impl Tree {
         Ok(Self {
             nodes: vec![Node::Leaf(Some(creator_kp))],
             cs,
+            my_pos: 0,
         })
     }
 }
 
+#[cfg(test)]
 mod test {
 
     #[test]

@@ -12,7 +12,7 @@ thiserror = "1.0"
 rustls = "0.17"
 x509-parser = "0.7"
 sha2 = "0.8.1"
-
+hkdf = "0.8"
 ra-client = { path = "../enclave-ra/ra-client" }
 
 [target.'cfg(target_env = "sgx")'.dependencies]
