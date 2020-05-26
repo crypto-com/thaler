@@ -40,7 +40,7 @@ fn test_verify_test_example_snapshot() {
             "no-name".to_owned(),
             None,
             node_pubkey,
-            ConfidentialInit { cert: vec![] },
+            ConfidentialInit { keypackage: vec![] },
         ),
     );
 

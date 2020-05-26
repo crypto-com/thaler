@@ -462,7 +462,7 @@ fn get_node_metadata(validator_name: &str, validator_pubkey: &str) -> Result<Cou
         security_contact: None,
         consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
         confidential_init: ConfidentialInit {
-            cert: b"FIXME".to_vec(),
+            keypackage: b"FIXME".to_vec(),
         },
     })
 }

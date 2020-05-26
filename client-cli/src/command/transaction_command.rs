@@ -1039,7 +1039,7 @@ fn ask_node_metadata() -> Result<CouncilNode> {
         security_contact: None,
         consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
         confidential_init: ConfidentialInit {
-            cert: b"FIXME".to_vec(),
+            keypackage: b"FIXME".to_vec(),
         },
     })
 }

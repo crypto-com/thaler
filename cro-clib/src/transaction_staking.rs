@@ -112,7 +112,7 @@ fn create_encoded_signed_join(
         // 32 bytes
         consensus_pubkey: pubkey,
         confidential_init: ConfidentialInit {
-            cert: b"FIXME".to_vec(),
+            keypackage: b"FIXME".to_vec(),
         },
     };
     let transaction: NodeJoinRequestTx = NodeJoinRequestTx {

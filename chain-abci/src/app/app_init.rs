@@ -31,6 +31,7 @@ use chain_storage::buffer::{
 };
 use chain_storage::jellyfish::{compute_staking_root, sum_staking_coins, StakingGetter, Version};
 use chain_storage::{Storage, StoredChainState};
+use ra_client::EnclaveCertVerifier;
 
 /// ABCI app state snapshot
 #[derive(Serialize, Deserialize, Clone, Encode, Decode)]
@@ -136,6 +137,8 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub rewards_pool_updated: bool,
     /// address of tx query enclave to supply to clients (if any)
     pub tx_query_address: Option<String>,
+    /// Enclave certificate verifier
+    pub enclave_cert_verifier: EnclaveCertVerifier,
 
     /// consensus buffer of staking merkle trie storage
     pub staking_buffer: StakingBuffer,
@@ -242,6 +245,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         chain_id: &str,
         storage: Storage,
         tx_query_address: Option<String>,
+        enclave_cert_verifier: EnclaveCertVerifier,
     ) -> Self {
         let stored_genesis = storage.get_genesis_app_hash();
 
@@ -261,6 +265,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         }
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
+
         ChainNodeApp {
             storage,
             delivered_txs: Vec::new(),
@@ -271,6 +276,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             tx_validator,
             rewards_pool_updated: false,
             tx_query_address,
+            enclave_cert_verifier,
 
             staking_buffer: HashMap::new(),
             mempool_staking_buffer: HashMap::new(),
@@ -308,6 +314,9 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             #[cfg(all(not(feature = "mock-enclave"), target_os = "linux"))]
             let _ = start_zmq(_conn_str, chain_hex_id, storage.get_read_only());
         }
+
+        let enclave_cert_verifier = EnclaveCertVerifier::new(Default::default())
+            .expect("enclave cert verifier init failed");
 
         if let Some(data) = storage.get_last_app_state() {
             info!("last app state stored");
@@ -356,6 +365,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 chain_id,
                 storage,
                 tx_query_address,
+                enclave_cert_verifier,
             )
         } else {
             info!("no last app state stored");
@@ -380,6 +390,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 tx_validator,
                 rewards_pool_updated: false,
                 tx_query_address,
+                enclave_cert_verifier,
 
                 staking_buffer: HashMap::new(),
                 mempool_staking_buffer: HashMap::new(),

@@ -97,7 +97,7 @@ impl Node {
             security_contact: Some(format!("{}@example.com", self.name)),
             consensus_pubkey: self.tendermint_pub_key(),
             confidential_init: ConfidentialInit {
-                cert: b"FIXME".to_vec(),
+                keypackage: b"FIXME".to_vec(),
             },
         }
     }
@@ -259,7 +259,7 @@ impl TestnetSpec {
                     None,
                     node.tendermint_pub_key(),
                     ConfidentialInit {
-                        cert: b"FIXME".to_vec(),
+                        keypackage: b"FIXME".to_vec(),
                     },
                 ),
             );

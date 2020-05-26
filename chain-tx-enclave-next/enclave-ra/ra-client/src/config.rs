@@ -1,5 +1,8 @@
 use std::borrow::Cow;
 
+const IAS_CERT: &[u8] =
+    include_bytes!("../../../../client-core/src/cipher/AttestationReportSigningCACert.pem");
+
 #[derive(Clone)]
 pub struct EnclaveCertVerifierConfig<'a> {
     /// PEM encode bytes containing attestation report signing CA certificate
@@ -10,6 +13,24 @@ pub struct EnclaveCertVerifierConfig<'a> {
     pub report_validity_secs: u32,
     /// Information about the enclave that'll be verifier if present
     pub enclave_info: Option<EnclaveInfo>,
+}
+
+impl<'a> EnclaveCertVerifierConfig<'a> {
+    pub fn new() -> Self {
+        Self {
+            signing_ca_cert_pem: IAS_CERT.into(),
+            valid_enclave_quote_statuses: vec!["OK".into()].into(),
+            report_validity_secs: 86400,
+            // FIXME construct enclave_info from env var or config file
+            enclave_info: None,
+        }
+    }
+}
+
+impl<'a> Default for EnclaveCertVerifierConfig<'a> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[derive(Clone)]

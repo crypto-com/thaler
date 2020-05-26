@@ -668,7 +668,7 @@ mod tests {
                     council_node: CouncilNode::new(
                         TendermintValidatorPubKey::Ed25519([0xcd; 32]),
                         ConfidentialInit {
-                            cert: b"FIXME".to_vec(),
+                            keypackage: b"FIXME".to_vec(),
                         },
                     ),
                     jailed_until: Some(100),
@@ -1168,7 +1168,7 @@ mod tests {
             security_contact: None,
             consensus_pubkey: TendermintValidatorPubKey::Ed25519(validator_pubkey),
             confidential_init: ConfidentialInit {
-                cert: b"FIXME".to_vec(),
+                keypackage: b"FIXME".to_vec(),
             },
         };
 

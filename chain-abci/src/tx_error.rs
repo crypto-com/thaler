@@ -1,4 +1,5 @@
 use chain_core::init::coin::{Coin, CoinError};
+use mls::keypackage;
 
 #[derive(thiserror::Error, Debug)]
 pub enum TxError {
@@ -50,6 +51,10 @@ pub enum NodeJoinError {
     IsJailed,
     #[error("the used_validator_addresses queue is full")]
     UsedValidatorAddrFull,
+    #[error("key package decode failed")]
+    KeyPackageDecodeError,
+    #[error("invalid key package: {0}")]
+    KeyPackageVerifyError(#[from] keypackage::Error),
 }
 
 #[derive(thiserror::Error, Debug)]

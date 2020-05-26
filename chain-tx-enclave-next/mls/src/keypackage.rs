@@ -1,7 +1,7 @@
 //! Key package of mls protocol (draft-ietf-mls-protocol.md#key-packages)
 use std::time::{Duration, UNIX_EPOCH};
 
-use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierConfig, EnclaveCertVerifierError};
+use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierError};
 #[cfg(target_env = "sgx")]
 use ra_enclave::{Certificate, EnclaveRaContext, EnclaveRaContextError};
 use rustls::internal::msgs::codec::{self, Codec, Reader};
@@ -79,7 +79,7 @@ impl KeyPackagePayload {
     }
 
     /// Verify key package payload
-    pub fn verify(&self, ra_config: EnclaveCertVerifierConfig, now: Timespec) -> Result<(), Error> {
+    pub fn verify(&self, ra_verifier: &EnclaveCertVerifier, now: Timespec) -> Result<(), Error> {
         if self.cipher_suite != MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 {
             return Err(Error::UnsupportedCipherSuite(self.cipher_suite));
         }
@@ -108,8 +108,7 @@ impl KeyPackagePayload {
 
         let x509 = self.credential.x509().ok_or(Error::InvalidCredential)?;
 
-        let verifier = EnclaveCertVerifier::new(ra_config).map_err(Error::VerifierInitError)?;
-        let cert_pubkey = verifier
+        let cert_pubkey = ra_verifier
             .verify_cert(x509, (UNIX_EPOCH + Duration::from_secs(now)).into())
             .map_err(Error::CertificateVerifyError)?;
         if cert_pubkey.as_slice() != self.init_key.as_ref() {
@@ -141,8 +140,8 @@ impl Codec for KeyPackage {
 
 impl KeyPackage {
     /// Verify key package and signature
-    pub fn verify(&self, ra_config: EnclaveCertVerifierConfig, now: Timespec) -> Result<(), Error> {
-        self.payload.verify(ra_config, now)?;
+    pub fn verify(&self, ra_verifier: &EnclaveCertVerifier, now: Timespec) -> Result<(), Error> {
+        self.payload.verify(ra_verifier, now)?;
         self.payload
             .init_key
             .verify_signature(&self.payload.get_encoding(), &self.signature)
@@ -214,8 +213,6 @@ pub enum Error {
     NotAfter(Timespec),
     #[error("key package can't be used before timestamp: {0}")]
     NotBefore(Timespec),
-    #[error("certificate verifier initialize error: {0}")]
-    VerifierInitError(EnclaveCertVerifierError),
     #[error("certificate verify error: {0}")]
     CertificateVerifyError(EnclaveCertVerifierError),
     #[error("unsupported cipher suite: {0}")]

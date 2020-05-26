@@ -272,7 +272,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
         None,
         pub_key.clone(),
         ConfidentialInit {
-            cert: b"FIXME".to_vec(),
+            keypackage: b"FIXME".to_vec(),
         },
     );
     let validator = ValidatorUpdate {
@@ -996,7 +996,7 @@ fn all_valid_tx_types_should_commit() {
         CouncilNode::new(
             TendermintValidatorPubKey::Ed25519([2u8; 32]),
             ConfidentialInit {
-                cert: b"FIXME".to_vec(),
+                keypackage: b"FIXME".to_vec(),
             },
         ),
     );

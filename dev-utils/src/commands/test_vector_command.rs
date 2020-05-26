@@ -322,7 +322,7 @@ impl VectorFactory {
                 Some("security@example.com".to_string()),
                 tendermint_validator_pubkey.clone(),
                 ConfidentialInit {
-                    cert: b"FIXME".to_vec(),
+                    keypackage: b"FIXME".to_vec(),
                 },
             ),
         );

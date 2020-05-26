@@ -191,7 +191,7 @@ impl InitCommand {
                 None,
                 pubkey,
                 ConfidentialInit {
-                    cert: b"FIXME".to_vec(),
+                    keypackage: b"FIXME".to_vec(),
                 },
             ),
         );

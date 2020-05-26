@@ -82,7 +82,7 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
                     "type": "tendermint/PubKeyEd25519",
                     "value": "2H0sZxyy5iOU6q0/F+ZCQ3MyJJxg8odE5NMsGIyfFV0="
                 },
-                {"cert": "RklYTUU="}
+                {"keypackage": "RklYTUU="}
             ]
         }
     }

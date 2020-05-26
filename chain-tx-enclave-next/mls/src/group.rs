@@ -3,7 +3,7 @@ use crate::keypackage::Timespec;
 use crate::keypackage::{self as kp, KeyPackage, OwnedKeyPackage};
 use crate::message::*;
 use crate::tree::*;
-use ra_client::EnclaveCertVerifierConfig;
+use ra_client::EnclaveCertVerifier;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 
@@ -100,7 +100,7 @@ impl GroupAux {
     pub fn init_group(
         creator_kp: OwnedKeyPackage,
         others: &[KeyPackage],
-        ra_config: EnclaveCertVerifierConfig,
+        ra_verifier: &EnclaveCertVerifier,
         genesis_time: Timespec,
     ) -> Result<(Self, Vec<MLSPlaintext>, MLSPlaintext, Welcome), kp::Error> {
         let mut kps = BTreeSet::new();
@@ -108,14 +108,14 @@ impl GroupAux {
             if kps.contains(kp) {
                 return Err(kp::Error::DuplicateKeyPackage);
             } else {
-                kp.verify(ra_config.clone(), genesis_time)?;
+                kp.verify(&ra_verifier, genesis_time)?;
                 kps.insert(kp.clone());
             }
         }
         if kps.contains(&creator_kp.keypackage) {
             Err(kp::Error::DuplicateKeyPackage)
         } else {
-            creator_kp.keypackage.verify(ra_config, genesis_time)?;
+            creator_kp.keypackage.verify(&ra_verifier, genesis_time)?;
             let (context, tree) = GroupContext::init(creator_kp.keypackage.clone())?;
             let mut group = GroupAux::new(context, tree, creator_kp);
             let add_proposals: Vec<MLSPlaintext> =
