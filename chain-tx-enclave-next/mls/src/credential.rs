@@ -4,7 +4,7 @@ use rustls::internal::msgs::codec::{Codec, Reader};
 use crate::utils;
 
 /// Don't support basic credential, only for parsing.
-#[derive(Debug)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct BasicCredential {
     identity: Vec<u8>,
     sig_schema: u16,
@@ -12,7 +12,7 @@ pub struct BasicCredential {
 }
 
 /// Credential in keypackage
-#[derive(Debug)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub enum Credential {
     /// don't support, only for parsing
     Basic(BasicCredential),

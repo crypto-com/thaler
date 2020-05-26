@@ -4,7 +4,7 @@ use std::convert::{TryFrom, TryInto};
 use crate::keypackage::{CipherSuite, ProtocolVersion, Timespec};
 
 /// spec: draft-ietf-mls-protocol.md#key-packages
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Copy, Clone, Ord, PartialOrd, Eq)]
 pub enum ExtensionType {
     Invalid = 0,
     SupportedVersions = 1,
@@ -155,7 +155,7 @@ impl MLSExtension for ParentHashExt {
 }
 
 /// Extension entry included in `KeyPackage`
-#[derive(Debug)]
+#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct ExtensionEntry {
     pub etype: ExtensionType,
     pub data: Vec<u8>,
