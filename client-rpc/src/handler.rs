@@ -14,6 +14,7 @@ use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
 
 use crate::rpc::{
+    info_rpc::{InfoRpc, InfoRpcImpl},
     multisig_rpc::{MultiSigRpc, MultiSigRpcImpl},
     staking_rpc::{StakingRpc, StakingRpcImpl},
     sync_rpc::{CBindingCore, SyncRpc, SyncRpcImpl},
@@ -75,7 +76,9 @@ impl RpcHandler {
 
         let multisig_rpc = MultiSigRpcImpl::new(wallet_client.clone());
         let transaction_rpc = TransactionRpcImpl::new(network_id);
-        let staking_rpc = StakingRpcImpl::new(wallet_client.clone(), ops_client, network_id);
+        let staking_rpc =
+            StakingRpcImpl::new(wallet_client.clone(), ops_client.clone(), network_id);
+        let info_rpc = InfoRpcImpl::new(ops_client);
 
         let sync_wallet_client =
             make_wallet_client(storage, tendermint_client, fee_policy, obfuscator)?;
@@ -88,6 +91,7 @@ impl RpcHandler {
         io.extend_with(staking_rpc.to_delegate());
         io.extend_with(sync_rpc.to_delegate());
         io.extend_with(wallet_rpc.to_delegate());
+        io.extend_with(info_rpc.to_delegate());
 
         Ok(RpcHandler { io })
     }

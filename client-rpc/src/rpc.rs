@@ -1,3 +1,4 @@
+pub mod info_rpc;
 pub mod multisig_rpc;
 pub mod staking_rpc;
 pub mod sync_rpc;

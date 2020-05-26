@@ -2,7 +2,6 @@
 mod default_network_ops_client;
 
 pub use self::default_network_ops_client::DefaultNetworkOpsClient;
-
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
     CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
@@ -12,6 +11,7 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
+use client_common::tendermint::types::{Genesis, StatusResponse};
 use client_common::{ErrorKind, Result, ResultExt, SecKey};
 use client_core::types::TransactionPending;
 
@@ -103,4 +103,10 @@ pub trait NetworkOpsClient: Send + Sync {
         address: &StakedStateAddress,
         verify: bool,
     ) -> Result<Option<StakedState>>;
+
+    /// Return genesis of tendermint
+    fn get_genesis(&self) -> Result<Genesis>;
+
+    /// Return status response
+    fn get_status(&self) -> Result<StatusResponse>;
 }
