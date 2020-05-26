@@ -75,7 +75,7 @@ const TEST_GENESIS: &str = "{
           \"value\": \"MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=\"
         },
         {
-          \"cert\": \"RklYTUU=\"
+          \"keypackage\": \"RklYTUU=\"
         }
       ]
     }
