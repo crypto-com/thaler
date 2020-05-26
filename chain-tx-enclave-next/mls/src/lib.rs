@@ -9,3 +9,4 @@ pub mod tree;
 pub mod utils;
 
 pub use keypackage::{KeyPackage, OwnedKeyPackage};
+pub use rustls::internal::msgs::codec::{self, Codec, Reader};

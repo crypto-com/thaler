@@ -16,10 +16,12 @@ kvdb = "0.6"
 kvdb-memorydb = "0.6"
 chain-storage = { path = "../../chain-storage" }
 chain-core = { path = "../../chain-core" }
+test-common = { path = "../../test-common" }
 abci = "0.7"
 protobuf = "2.10.0"
 serde_json = "1.0"
 hex = "0.4"
+base64 = "0.11"
 
 [dependencies.chain-abci]
 path = ".."

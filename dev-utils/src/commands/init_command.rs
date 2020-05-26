@@ -9,15 +9,13 @@ use secstr::SecUtf8;
 use serde_json::json;
 
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
-use chain_core::state::{
-    account::ConfidentialInit,
-    tendermint::{TendermintValidator, TendermintValidatorPubKey},
-};
+use chain_core::state::tendermint::{TendermintValidator, TendermintValidatorPubKey};
 use client_common::storage::SledStorage;
 use client_common::tendermint::types::Time;
 use client_common::{Error, ErrorKind, Result, ResultExt};
 use client_core::types::WalletKind;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
+use test_common::chain_env::mock_confidential_init;
 
 use super::genesis_command::generate_genesis;
 use super::genesis_dev_config::GenesisDevConfig;
@@ -190,9 +188,8 @@ impl InitCommand {
                 "dev test".to_owned(),
                 None,
                 pubkey,
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
+                // FIXME real keypackage
+                mock_confidential_init(),
             ),
         );
         Ok(())

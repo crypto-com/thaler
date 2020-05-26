@@ -351,7 +351,7 @@ impl WalletState {
         match memento_operation {
             MementoOperation::AddTransactionChange(ref transaction_id, ref transaction_change) => {
                 if !self.transaction_history.contains_key(transaction_id) {
-                    self.add_transaction_change(transaction_id.clone(), transaction_change.clone());
+                    self.add_transaction_change(*transaction_id, transaction_change.clone());
                 }
             }
             MementoOperation::AddUnspentTransaction(ref input, ref output) => {

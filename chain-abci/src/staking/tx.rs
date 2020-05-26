@@ -1,4 +1,4 @@
-use rustls::internal::msgs::codec::Codec;
+use log::warn;
 
 use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
@@ -7,8 +7,8 @@ use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::fee::Fee;
 use chain_storage::buffer::StoreStaking;
-use mls::KeyPackage;
-use ra_client::EnclaveCertVerifier;
+use mls::{Codec, KeyPackage};
+use ra_client::ENCLAVE_CERT_VERIFIER;
 
 use super::table::{set_staking, StakingTable};
 use crate::tx_error::{
@@ -24,9 +24,9 @@ impl StakingTable {
         heap: &mut impl StoreStaking,
         block_time: Timespec,
         max_evidence_age: Timespec,
-        ra_verifier: &EnclaveCertVerifier,
+        recent_isv_svn: u16,
         tx: &NodeJoinRequestTx,
-    ) -> Result<(), PublicTxError> {
+    ) -> Result<u16, PublicTxError> {
         let mut staking = self.get_or_default(heap, &tx.address);
         if tx.nonce != staking.nonce {
             return Err(PublicTxError::IncorrectNonce);
@@ -35,14 +35,17 @@ impl StakingTable {
             return Err(NodeJoinError::BondedNotEnough.into());
         }
 
-        // FIXME verify keypackage
-        if let Ok(keypackage) = KeyPackage::read_bytes(&tx.node_meta.confidential_init.keypackage)
-            .ok_or(NodeJoinError::KeyPackageDecodeError)
-        {
-            let _ = keypackage
-                .verify(ra_verifier, block_time)
-                .map_err(NodeJoinError::KeyPackageVerifyError);
-        }
+        let keypackage = KeyPackage::read_bytes(&tx.node_meta.confidential_init.keypackage)
+            .ok_or(NodeJoinError::KeyPackageDecodeError)?;
+        let info = keypackage
+            .verify(&ENCLAVE_CERT_VERIFIER, block_time)
+            .map_err(NodeJoinError::KeyPackageVerifyError)?;
+        let new_isv_svn = if info.quote.report_body.isv_svn > recent_isv_svn {
+            warn!("more recent version of enclave");
+            info.quote.report_body.isv_svn
+        } else {
+            recent_isv_svn
+        };
 
         let val_addr = TendermintValidatorAddress::from(&tx.node_meta.consensus_pubkey);
         if let Some(val) = &mut staking.validator {
@@ -94,9 +97,11 @@ impl StakingTable {
         }
         staking.inc_nonce();
         set_staking(heap, staking, self.minimal_required_staking);
+
         #[cfg(debug_assertions)]
         self.check_invariants(heap);
-        Ok(())
+
+        Ok(new_isv_svn)
     }
 
     /// Handle `UnjailTx`

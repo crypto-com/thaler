@@ -57,7 +57,7 @@ class RpcBinding:
         dll.cro_destroy_jsonrpc(self._p)
 
     def call(self, req):
-        rsp = ctypes.create_string_buffer(10240)
+        rsp = ctypes.create_string_buffer(102400)
         retcode = dll.cro_run_jsonrpc(self._p, req.encode(), rsp, len(rsp), None)
         assert retcode == 0, rsp.value
         return rsp.value

@@ -27,9 +27,7 @@ use chain_core::init::config::NetworkParameters;
 use chain_core::init::{
     address::RedeemAddress, coin::Coin, config::InitConfig, network::Network, params,
 };
-use chain_core::state::account::{
-    ConfidentialInit, CouncilNode, StakedStateAddress, StakedStateDestination,
-};
+use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateDestination};
 use chain_core::state::tendermint::{
     TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
@@ -45,6 +43,8 @@ use client_core::{service::HDAccountType, HDSeed, Mnemonic};
 use tendermint::block::BlockIDFlag::BlockIDFlagCommit;
 use tendermint::block::{CommitSig, CommitSigs};
 use tendermint::hash::Algorithm;
+
+use crate::chain_env::mock_confidential_init;
 
 lazy_static! {
     static ref DEFAULT_NODES: Vec<Node> = vec![Node::new(
@@ -96,9 +96,7 @@ impl Node {
             name: self.name.clone(),
             security_contact: Some(format!("{}@example.com", self.name)),
             consensus_pubkey: self.tendermint_pub_key(),
-            confidential_init: ConfidentialInit {
-                keypackage: b"FIXME".to_vec(),
-            },
+            confidential_init: mock_confidential_init(),
         }
     }
 
@@ -258,9 +256,7 @@ impl TestnetSpec {
                     node.name.clone(),
                     None,
                     node.tendermint_pub_key(),
-                    ConfidentialInit {
-                        keypackage: b"FIXME".to_vec(),
-                    },
+                    mock_confidential_init(),
                 ),
             );
         }
@@ -285,15 +281,15 @@ impl TestnetSpec {
             .duration_since(Time::unix_epoch())
             .expect("invalid genesis time")
             .as_secs();
-        let (accounts, rewards_pool, nodes) = config
+        let genesis_state = config
             .validate_config_get_genesis(genesis_seconds)
             .expect("distribution validation error");
-        let account_root = put_stakings(&mut store, 0, accounts.iter()).unwrap();
+        let account_root = put_stakings(&mut store, 0, genesis_state.accounts.iter()).unwrap();
         let network_params = NetworkParameters::Genesis(config.network_params.clone());
         let app_hash = compute_app_hash(
             &MerkleTree::empty(),
             &account_root,
-            &rewards_pool,
+            &genesis_state.rewards_pool,
             &network_params,
         );
 
@@ -334,7 +330,11 @@ impl TestnetSpec {
             &StakingGetter::new(&store, 0),
             network_params.get_required_council_node_stake(),
             network_params.get_max_validators(),
-            &nodes.iter().map(|(addr, _)| *addr).collect::<Vec<_>>(),
+            &genesis_state
+                .validators
+                .iter()
+                .map(|(addr, _)| *addr)
+                .collect::<Vec<_>>(),
         );
 
         let state = ChainNodeState::genesis(
@@ -342,9 +342,10 @@ impl TestnetSpec {
             genesis_seconds,
             self.max_evidence_age,
             account_root,
-            rewards_pool,
+            genesis_state.rewards_pool,
             network_params,
             staking_table,
+            genesis_state.isv_svn,
         );
 
         (genesis, state)
@@ -530,7 +531,7 @@ impl Client for GeneratorClient {
         let gen = self.gen.read().unwrap();
         let node = &gen.spec.nodes[gen.node_index];
         Ok(status::Response {
-            node_info: node.node_info(gen.genesis.chain_id.clone()),
+            node_info: node.node_info(gen.genesis.chain_id),
             sync_info: gen.sync_info(),
             validator_info: node.validator_info(gen.spec.share()),
         })

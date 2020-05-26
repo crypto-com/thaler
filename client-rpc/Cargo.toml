@@ -9,6 +9,7 @@ chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 client-network = { path= "../client-network"}
+test-common = { path = "../test-common" }
 
 base64 = "0.11"
 jsonrpc-core = "14.1"

@@ -31,7 +31,6 @@ use chain_storage::buffer::{
 };
 use chain_storage::jellyfish::{compute_staking_root, sum_staking_coins, StakingGetter, Version};
 use chain_storage::{Storage, StoredChainState};
-use ra_client::EnclaveCertVerifier;
 
 /// ABCI app state snapshot
 #[derive(Serialize, Deserialize, Clone, Encode, Decode)]
@@ -55,6 +54,9 @@ pub struct ChainNodeState {
     pub staking_version: Version,
     /// Record the sum of all the coins in UTxO set
     pub utxo_coins: Coin,
+    /// Record the biggest enclave ISVSVN (Security Version Number of the Enclave) we've seen in
+    /// keypackage so far
+    pub enclave_isv_svn: u16,
 
     /// The parts of states which involved in computing app_hash
     pub top_level: ChainState,
@@ -79,6 +81,7 @@ impl StoredChainState for ChainNodeState {
 }
 
 impl ChainNodeState {
+    #[allow(clippy::too_many_arguments)]
     pub fn genesis(
         genesis_apphash: H256,
         genesis_time: Timespec,
@@ -87,6 +90,7 @@ impl ChainNodeState {
         rewards_pool: RewardsPoolState,
         network_params: NetworkParameters,
         staking_table: StakingTable,
+        enclave_isv_svn: u16,
     ) -> Self {
         ChainNodeState {
             last_block_height: BlockHeight::genesis(),
@@ -98,6 +102,7 @@ impl ChainNodeState {
             max_evidence_age,
             staking_version: 0,
             utxo_coins: Coin::zero(),
+            enclave_isv_svn,
             top_level: ChainState {
                 account_root,
                 rewards_pool,
@@ -137,8 +142,6 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub rewards_pool_updated: bool,
     /// address of tx query enclave to supply to clients (if any)
     pub tx_query_address: Option<String>,
-    /// Enclave certificate verifier
-    pub enclave_cert_verifier: EnclaveCertVerifier,
 
     /// consensus buffer of staking merkle trie storage
     pub staking_buffer: StakingBuffer,
@@ -225,14 +228,14 @@ fn get_voting_power(
 }
 
 pub fn init_app_hash(conf: &InitConfig, genesis_time: Timespec) -> H256 {
-    let (accounts, rp, _nodes) = conf
+    let state = conf
         .validate_config_get_genesis(genesis_time)
         .expect("distribution validation error");
 
     compute_app_hash(
         &MerkleTree::empty(),
-        &compute_staking_root(&accounts),
-        &rp,
+        &compute_staking_root(&state.accounts),
+        &state.rewards_pool,
         &NetworkParameters::Genesis(conf.network_params.clone()),
     )
 }
@@ -245,7 +248,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         chain_id: &str,
         storage: Storage,
         tx_query_address: Option<String>,
-        enclave_cert_verifier: EnclaveCertVerifier,
     ) -> Self {
         let stored_genesis = storage.get_genesis_app_hash();
 
@@ -276,7 +278,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             tx_validator,
             rewards_pool_updated: false,
             tx_query_address,
-            enclave_cert_verifier,
 
             staking_buffer: HashMap::new(),
             mempool_staking_buffer: HashMap::new(),
@@ -314,9 +315,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             #[cfg(all(not(feature = "mock-enclave"), target_os = "linux"))]
             let _ = start_zmq(_conn_str, chain_hex_id, storage.get_read_only());
         }
-
-        let enclave_cert_verifier = EnclaveCertVerifier::new(Default::default())
-            .expect("enclave cert verifier init failed");
 
         if let Some(data) = storage.get_last_app_state() {
             info!("last app state stored");
@@ -365,7 +363,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 chain_id,
                 storage,
                 tx_query_address,
-                enclave_cert_verifier,
             )
         } else {
             info!("no last app state stored");
@@ -390,7 +387,6 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 tx_validator,
                 rewards_pool_updated: false,
                 tx_query_address,
-                enclave_cert_verifier,
 
                 staking_buffer: HashMap::new(),
                 mempool_staking_buffer: HashMap::new(),
@@ -426,7 +422,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             .get_seconds()
             .try_into()
             .expect("invalid genesis time");
-        let (accounts, rp, nodes) = conf
+        let state = conf
             .validate_config_get_genesis(genesis_time)
             .expect("distribution validation error");
 
@@ -440,11 +436,11 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         }
 
         let network_params = NetworkParameters::Genesis(conf.network_params);
-        let new_account_root = self.storage.put_stakings(0, &accounts);
+        let new_account_root = self.storage.put_stakings(0, &state.accounts);
         let genesis_app_hash = compute_app_hash(
             &MerkleTree::empty(),
             &new_account_root,
-            &rp,
+            &state.rewards_pool,
             &network_params,
         );
 
@@ -454,19 +450,23 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
 
         check_and_store_consensus_params(
             req.consensus_params.as_ref(),
-            &nodes,
+            &state.validators,
             &network_params,
             &mut self.storage,
         );
 
         check_validators(
-            &nodes,
+            &state.validators,
             req.validators.clone().into_vec(),
             &conf.distribution,
         )
         .expect("validators in genesis configuration are not consistent with app_state");
 
-        let val_addresses = nodes.iter().map(|(addr, _)| *addr).collect::<Vec<_>>();
+        let val_addresses = state
+            .validators
+            .iter()
+            .map(|(addr, _)| *addr)
+            .collect::<Vec<_>>();
         let staking_table = StakingTable::from_genesis(
             &staking_getter!(self, 0),
             network_params.get_required_council_node_stake(),
@@ -479,9 +479,10 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             genesis_time,
             max_evidence_age,
             new_account_root,
-            rp,
+            state.rewards_pool,
             network_params,
             staking_table,
+            state.isv_svn,
         );
         chain_storage::store_genesis_state(
             &mut kv_store!(self),

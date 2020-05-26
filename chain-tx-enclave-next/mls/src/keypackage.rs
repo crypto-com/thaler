@@ -1,7 +1,9 @@
 //! Key package of mls protocol (draft-ietf-mls-protocol.md#key-packages)
+#[cfg(target_env = "sgx")]
+use std::convert::TryInto;
 use std::time::{Duration, UNIX_EPOCH};
 
-use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierError};
+use ra_client::{CertVerifyResult, EnclaveCertVerifier, EnclaveCertVerifierError};
 #[cfg(target_env = "sgx")]
 use ra_enclave::{Certificate, EnclaveRaContext, EnclaveRaContextError};
 use rustls::internal::msgs::codec::{self, Codec, Reader};
@@ -18,7 +20,7 @@ pub type Timespec = u64;
 pub type CipherSuite = u16;
 
 pub const PROTOCOL_VERSION_MLS10: ProtocolVersion = 0;
-pub const DEFAULT_LIFE_TIME: Timespec = 30 * 24 * 3600;
+pub const DEFAULT_LIFE_TIME: Timespec = 90 * 24 * 3600; // certificate has 90 days valid duration
 pub const MLS10_128_DHKEMP256_AES128GCM_SHA256_P256: CipherSuite = 2;
 pub const CREDENTIAL_TYPE_X509: u8 = 1;
 
@@ -79,7 +81,11 @@ impl KeyPackagePayload {
     }
 
     /// Verify key package payload
-    pub fn verify(&self, ra_verifier: &EnclaveCertVerifier, now: Timespec) -> Result<(), Error> {
+    pub fn verify(
+        &self,
+        ra_verifier: &EnclaveCertVerifier,
+        now: Timespec,
+    ) -> Result<CertVerifyResult, Error> {
         if self.cipher_suite != MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 {
             return Err(Error::UnsupportedCipherSuite(self.cipher_suite));
         }
@@ -108,13 +114,13 @@ impl KeyPackagePayload {
 
         let x509 = self.credential.x509().ok_or(Error::InvalidCredential)?;
 
-        let cert_pubkey = ra_verifier
+        let info = ra_verifier
             .verify_cert(x509, (UNIX_EPOCH + Duration::from_secs(now)).into())
             .map_err(Error::CertificateVerifyError)?;
-        if cert_pubkey.as_slice() != self.init_key.as_ref() {
+        if info.public_key.as_slice() != self.init_key.as_ref() {
             return Err(Error::InitKeyDontMatch);
         }
-        Ok(())
+        Ok(info)
     }
 }
 
@@ -140,12 +146,17 @@ impl Codec for KeyPackage {
 
 impl KeyPackage {
     /// Verify key package and signature
-    pub fn verify(&self, ra_verifier: &EnclaveCertVerifier, now: Timespec) -> Result<(), Error> {
-        self.payload.verify(ra_verifier, now)?;
+    pub fn verify(
+        &self,
+        ra_verifier: &EnclaveCertVerifier,
+        now: Timespec,
+    ) -> Result<CertVerifyResult, Error> {
+        let info = self.payload.verify(ra_verifier, now)?;
         self.payload
             .init_key
             .verify_signature(&self.payload.get_encoding(), &self.signature)
-            .map_err(Error::SignatureVerifyError)
+            .map_err(Error::SignatureVerifyError)?;
+        Ok(info)
     }
 }
 
@@ -173,8 +184,11 @@ impl OwnedKeyPackage {
         let extensions = vec![
             ext::SupportedVersionsExt(vec![PROTOCOL_VERSION_MLS10]).entry(),
             ext::SupportedCipherSuitesExt(vec![MLS10_128_DHKEMP256_AES128GCM_SHA256_P256]).entry(),
-            ext::LifeTimeExt::new(not_before.to_timespec().sec, not_after.to_timespec().sec)
-                .entry(),
+            ext::LifeTimeExt::new(
+                not_before.to_timespec().sec.try_into().unwrap(),
+                not_after.to_timespec().sec.try_into().unwrap(),
+            )
+            .entry(),
         ];
 
         let private_key = PrivateKey::from_pkcs8(&private_key.0).expect("invalid private key");

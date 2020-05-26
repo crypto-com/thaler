@@ -139,13 +139,10 @@ pub(crate) fn handle_transaction(
         }
     }
 
-    memento.remove_pending_transaction(transaction_change.transaction_id.clone());
+    memento.remove_pending_transaction(transaction_change.transaction_id);
     memento.add_transaction_change(transaction_change.clone());
     // write to state
-    wallet_state.add_transaction_change(
-        transaction_change.transaction_id.clone(),
-        transaction_change,
-    );
+    wallet_state.add_transaction_change(transaction_change.transaction_id, transaction_change);
 
     Ok(())
 }

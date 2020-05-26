@@ -16,14 +16,13 @@ mod tests {
     use chain_core::init::config::SlashRatio;
     use chain_core::init::params::NetworkParameters;
     use chain_core::state::account::{
-        ConfidentialInit, CouncilNode, PunishmentKind, StakedState, StakedStateAddress, UnbondTx,
-        UnjailTx, Validator,
+        PunishmentKind, StakedState, StakedStateAddress, UnbondTx, UnjailTx, Validator,
     };
     use chain_core::state::tendermint::{BlockHeight, TendermintValidatorPubKey};
     use chain_core::state::validator::NodeJoinRequestTx;
     use chain_core::tx::fee::Fee;
     use chain_storage::buffer::{Get, GetStaking, MemStore, StoreStaking};
-    use test_common::chain_env::get_init_network_params;
+    use test_common::chain_env::{get_init_network_params, mock_council_node};
 
     use super::*;
     use crate::app::BeginBlockInfo;
@@ -58,11 +57,8 @@ mod tests {
     fn new_validator(seed: &[u8; 32], bonded: Coin) -> StakedState {
         let mut staking = StakedState::default(staking_address(seed));
         staking.bonded = bonded;
-        staking.validator = Some(Validator::new(CouncilNode::new(
+        staking.validator = Some(Validator::new(mock_council_node(
             TendermintValidatorPubKey::Ed25519(seed.clone()),
-            ConfidentialInit {
-                keypackage: b"FIXME".to_vec(),
-            },
         )));
         staking
     }
@@ -120,16 +116,9 @@ mod tests {
             nonce,
             address: addr4,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(
-                val_pk4.clone(),
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
-            ),
+            node_meta: mock_council_node(val_pk4.clone()),
         };
-        table
-            .node_join(&mut store, 10, 0, &Default::default(), &node_join)
-            .unwrap();
+        table.node_join(&mut store, 10, 0, 0, &node_join).unwrap();
         assert_eq!(table.end_block(&store, 3), vec![]);
         // node-join increase nonce by one
         assert_eq!(store.get(&addr4).unwrap().nonce, nonce + 1);
@@ -273,15 +262,10 @@ mod tests {
             nonce,
             address: addr1,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(
-                val_pk_new,
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
-            ),
+            node_meta: mock_council_node(val_pk_new),
         };
         assert!(matches!(
-            table.node_join(&mut store, 3, 0, &Default::default(), &node_join),
+            table.node_join(&mut store, 3, 0, 0, &node_join),
             Err(PublicTxError::NodeJoin(NodeJoinError::IsJailed))
         ));
         // failed execution don't increase nonce
@@ -337,15 +321,10 @@ mod tests {
             nonce: staking.nonce + 1,
             address: addr,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(
-                val_pk_new.clone(),
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
-            ),
+            node_meta: mock_council_node(val_pk_new.clone()),
         };
         // change to new validator key
-        let result = table.node_join(store, 1, 1, &Default::default(), &node_join);
+        let result = table.node_join(store, 1, 1, 0, &node_join);
         if result.is_ok() {
             let staking = store.get(&addr).unwrap();
             assert_eq!(
@@ -353,7 +332,7 @@ mod tests {
                 vec![(val_pk_new, staking.bonded.into())]
             );
         }
-        result
+        result.map(|_| ())
     }
 
     #[test]
@@ -397,16 +376,11 @@ mod tests {
             nonce: 0,
             address: addr_new,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(
-                val_pk1,
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
-            ),
+            node_meta: mock_council_node(val_pk1),
         };
         // can't join with used key
         assert!(matches!(
-            table.node_join(&mut store, 1, 0, &Default::default(), &node_join),
+            table.node_join(&mut store, 1, 0, 0, &node_join),
             Err(PublicTxError::NodeJoin(
                 NodeJoinError::DuplicateValidatorAddress
             ))
@@ -479,12 +453,7 @@ mod tests {
             nonce,
             address: addr1,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(
-                val_pk1.clone(),
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
-            ),
+            node_meta: mock_council_node(val_pk1.clone()),
         };
 
         let mut init_params = get_init_network_params(Coin::zero());
@@ -586,7 +555,7 @@ mod tests {
         let slashed = (bonded_slashed + unbonded_slashed).unwrap();
         table.deposit(&mut store, &addr1, slashed).unwrap();
         table
-            .node_join(&mut store, 8, 0, &Default::default(), &node_join_tx(0))
+            .node_join(&mut store, 8, 0, 0, &node_join_tx(0))
             .unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
@@ -638,7 +607,7 @@ mod tests {
             .deposit(&mut store, &addr1, Coin::new(11_0000_0000).unwrap())
             .unwrap();
         table
-            .node_join(&mut store, 11, 0, &Default::default(), &node_join_tx(2))
+            .node_join(&mut store, 11, 0, 0, &node_join_tx(2))
             .unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
@@ -783,16 +752,9 @@ mod tests {
             nonce: 1,
             address: addr2,
             attributes: Default::default(),
-            node_meta: CouncilNode::new(
-                val_pk_new.clone(),
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
-            ),
+            node_meta: mock_council_node(val_pk_new.clone()),
         };
-        table
-            .node_join(&mut store, 2, 0, &Default::default(), &tx)
-            .unwrap();
+        table.node_join(&mut store, 2, 0, 0, &tx).unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
             vec![(val_pk_new.clone(), Coin::new(12_0000_0000).unwrap().into())]

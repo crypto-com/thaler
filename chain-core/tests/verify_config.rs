@@ -4,12 +4,13 @@ use chain_core::init::config::{
     InitConfig, InitNetworkParameters, JailingParameters, RewardsParameters, SlashRatio,
     SlashingParameters,
 };
-use chain_core::state::account::{ConfidentialInit, StakedStateDestination};
+use chain_core::state::account::StakedStateDestination;
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::fee::{LinearFee, Milli};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use test_common::chain_env::mock_confidential_init;
 
 #[derive(Deserialize)]
 pub struct Distribution {
@@ -40,7 +41,7 @@ fn test_verify_test_example_snapshot() {
             "no-name".to_owned(),
             None,
             node_pubkey,
-            ConfidentialInit { keypackage: vec![] },
+            mock_confidential_init(),
         ),
     );
 
@@ -81,12 +82,10 @@ fn test_verify_test_example_snapshot() {
     };
 
     let config = InitConfig::new(dist.clone(), params.clone(), nodes.clone());
-    let result = config.validate_config_get_genesis(0);
-    assert!(result.is_ok());
+    config.validate_config_get_genesis(0).unwrap();
 
     // add 1 into rewards_pool
     params.rewards_config.monetary_expansion_cap = Coin::new(951_6484_5705_9733_7035).unwrap();
     let config = InitConfig::new(dist, params, nodes);
-    let result = config.validate_config_get_genesis(0);
-    assert!(result.is_err());
+    assert!(config.validate_config_get_genesis(0).is_err());
 }

@@ -542,9 +542,7 @@ mod tests {
 
     use chain_core::init::address::RedeemAddress;
     use chain_core::init::coin::CoinError;
-    use chain_core::state::account::{
-        ConfidentialInit, StakedState, StakedStateOpAttributes, Validator,
-    };
+    use chain_core::state::account::{StakedState, StakedStateOpAttributes, Validator};
     use chain_core::state::tendermint::BlockHeight;
     use chain_core::state::tendermint::TendermintValidatorPubKey;
     use chain_core::state::ChainState;
@@ -563,6 +561,7 @@ mod tests {
     use client_core::signer::WalletSignerManager;
     use client_core::types::WalletKind;
     use client_core::wallet::DefaultWalletClient;
+    use test_common::chain_env::mock_confidential_init;
 
     #[derive(Debug, Clone)]
     struct MockTransactionCipher;
@@ -680,9 +679,7 @@ mod tests {
                 Some(Validator {
                     council_node: CouncilNode::new(
                         TendermintValidatorPubKey::Ed25519([0xcd; 32]),
-                        ConfidentialInit {
-                            keypackage: b"FIXME".to_vec(),
-                        },
+                        mock_confidential_init(),
                     ),
                     jailed_until: Some(100),
                     inactive_time: Some(0),
@@ -1180,9 +1177,7 @@ mod tests {
             name: "test".to_owned(),
             security_contact: None,
             consensus_pubkey: TendermintValidatorPubKey::Ed25519(validator_pubkey),
-            confidential_init: ConfidentialInit {
-                keypackage: b"FIXME".to_vec(),
-            },
+            confidential_init: mock_confidential_init(),
         };
 
         let transaction = network_ops_client

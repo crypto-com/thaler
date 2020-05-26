@@ -55,7 +55,7 @@ impl MultiSigBuilder {
         let public_key = &self.session.public_key.clone();
         if !self.session.has_nonce_commitment(public_key)? {
             self.session
-                .add_nonce_commitment(public_key, nonce_commitment.clone())?;
+                .add_nonce_commitment(public_key, nonce_commitment)?;
         }
 
         Ok(nonce_commitment)
@@ -83,7 +83,7 @@ impl MultiSigBuilder {
 
         let public_key = &self.session.public_key.clone();
         if !self.session.has_nonce(public_key)? {
-            self.session.add_nonce(public_key, nonce.clone())?;
+            self.session.add_nonce(public_key, nonce)?;
         }
 
         Ok(nonce)
@@ -91,7 +91,7 @@ impl MultiSigBuilder {
 
     /// Adds a nonce from a public key to session.
     pub fn add_nonce(&mut self, public_key: &PublicKey, nonce: &H256) -> Result<()> {
-        self.session.add_nonce(public_key, nonce.clone())?;
+        self.session.add_nonce(public_key, *nonce)?;
 
         Ok(())
     }

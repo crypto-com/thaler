@@ -370,7 +370,7 @@ where
         // root hash
         write_number(&self.storage, &info_keyspace, "roothashindex", 0)?;
         for root_hash in wallet.root_hashes.iter() {
-            self.add_root_hash(name, enckey, root_hash.clone())?;
+            self.add_root_hash(name, enckey, *root_hash)?;
         }
 
         Ok(())

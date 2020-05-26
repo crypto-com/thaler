@@ -173,6 +173,10 @@ def extract_enckey(s):
 
 
 def app_state_cfg(cfg):
+    mock_keypackage = open(os.path.join(
+        os.path.dirname(__file__),
+        '../../chain-tx-enclave-next/mls/tests/test_vectors/keypackage.bin'
+    ), 'rb').read()
     return {
         "distribution": gen_distribution(cfg),
         "required_council_node_stake": "100000000",  # 10 coins
@@ -203,7 +207,7 @@ def app_state_cfg(cfg):
                     'type': 'tendermint/PubKeyEd25519',
                     'value': SigningKey(node['validator_seed']).pub_key_base64(),
                 },
-                {'keypackage': "RklYTUU="} # FIXME: to be designed and implemented
+                {'keypackage': base64.b64encode(mock_keypackage).decode()}  # FIXME: to be designed and implemented
             ]
             for node in cfg['nodes'] if node['bonded_coin'] > 0
         },

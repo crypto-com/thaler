@@ -2,8 +2,10 @@ use std::{collections::HashSet, sync::Arc, time::SystemTime};
 
 use chrono::{DateTime, Duration, Utc};
 use der_parser::oid::Oid;
+use lazy_static::lazy_static;
 use ra_common::{
-    AttestationReport, AttestationReportBody, EnclaveQuoteStatus, OID_EXTENSION_ATTESTATION_REPORT,
+    AttestationReport, AttestationReportBody, EnclaveQuoteStatus, Quote,
+    OID_EXTENSION_ATTESTATION_REPORT,
 };
 use rustls::{
     internal::pemfile::certs, Certificate, ClientCertVerified, ClientCertVerifier, ClientConfig,
@@ -20,6 +22,10 @@ use x509_parser::{parse_x509_der, x509};
 use crate::{EnclaveCertVerifierConfig, EnclaveInfo};
 
 static SUPPORTED_SIG_ALGS: &[&SignatureAlgorithm] = &[&ECDSA_P256_SHA256];
+
+lazy_static! {
+    pub static ref ENCLAVE_CERT_VERIFIER: EnclaveCertVerifier = EnclaveCertVerifier::default();
+}
 
 pub struct EnclaveCertVerifier {
     root_cert_store: RootCertStore,
@@ -65,7 +71,7 @@ impl EnclaveCertVerifier {
         &self,
         certificate: &[u8],
         now: DateTime<Utc>,
-    ) -> Result<Vec<u8>, EnclaveCertVerifierError> {
+    ) -> Result<CertVerifyResult, EnclaveCertVerifierError> {
         let (_, certificate) = parse_x509_der(certificate)
             .map_err(|_| EnclaveCertVerifierError::CertificateParsingError)?;
 
@@ -75,33 +81,30 @@ impl EnclaveCertVerifier {
         } = certificate.tbs_certificate.validity;
         let now_sec = now.timestamp();
         if now_sec < not_before.to_timespec().sec {
-            return Err(EnclaveCertVerifierError::CertificateExpired);
+            return Err(EnclaveCertVerifierError::CertificateNotBegin);
         }
         if now_sec >= not_after.to_timespec().sec {
             return Err(EnclaveCertVerifierError::CertificateExpired);
         }
 
         let attestation_report_oid = Oid::from(OID_EXTENSION_ATTESTATION_REPORT);
-        let mut attestation_report_received = false;
-
         let public_key = certificate
             .tbs_certificate
             .subject_pki
             .subject_public_key
             .data;
 
-        for extension in certificate.tbs_certificate.extensions {
-            if extension.oid == attestation_report_oid {
-                attestation_report_received = true;
-                self.verify_attestation_report(extension.value, public_key, now)?;
-            }
-        }
-
-        if attestation_report_received {
-            Ok(public_key.to_vec())
-        } else {
-            Err(EnclaveCertVerifierError::MissingAttestationReport)
-        }
+        let extension = certificate
+            .tbs_certificate
+            .extensions
+            .iter()
+            .find(|ext| ext.oid == attestation_report_oid)
+            .ok_or(EnclaveCertVerifierError::MissingAttestationReport)?;
+        let quote = self.verify_attestation_report(extension.value, public_key, now)?;
+        Ok(CertVerifyResult {
+            public_key: public_key.to_vec(),
+            quote,
+        })
     }
 
     /// Verifies attestation report
@@ -110,9 +113,7 @@ impl EnclaveCertVerifier {
         attestation_report: &[u8],
         public_key: &[u8],
         now: DateTime<Utc>,
-    ) -> Result<(), EnclaveCertVerifierError> {
-        log::info!("Verifying attestation report");
-
+    ) -> Result<Quote, EnclaveCertVerifierError> {
         let trust_anchors: Vec<TrustAnchor> = self
             .root_cert_store
             .roots
@@ -144,10 +145,7 @@ impl EnclaveCertVerifier {
             )?;
         }
 
-        self.verify_attestation_report_body(&attestation_report.body, public_key, now)?;
-
-        log::info!("Attestation report is valid!");
-        Ok(())
+        self.verify_attestation_report_body(&attestation_report.body, public_key, now)
     }
 
     fn verify_attestation_report_body(
@@ -155,7 +153,7 @@ impl EnclaveCertVerifier {
         attestation_report_body: &[u8],
         public_key: &[u8],
         now: DateTime<Utc>,
-    ) -> Result<(), EnclaveCertVerifierError> {
+    ) -> Result<Quote, EnclaveCertVerifierError> {
         let attestation_report_body: AttestationReportBody =
             serde_json::from_slice(attestation_report_body)?;
 
@@ -206,7 +204,7 @@ impl EnclaveCertVerifier {
             }
         }
 
-        Ok(())
+        Ok(quote)
     }
 
     /// Converts enclave certificate verifier into client config expected by `rustls`
@@ -268,6 +266,8 @@ impl ClientCertVerifier for EnclaveCertVerifier {
 pub enum EnclaveCertVerifierError {
     #[error("Enclave certificate expired")]
     CertificateExpired,
+    #[error("Enclave certificate not begin yet")]
+    CertificateNotBegin,
     #[error("Failed to parse server certificate")]
     CertificateParsingError,
     #[error("Unable to parse date time: {0}")]
@@ -300,4 +300,12 @@ impl From<EnclaveCertVerifierError> for TLSError {
     fn from(e: EnclaveCertVerifierError) -> Self {
         TLSError::General(e.to_string())
     }
+}
+
+/// Extracted information after success verify attestation certificate
+pub struct CertVerifyResult {
+    /// the returned public key is in uncompressed raw format (65 bytes)
+    pub public_key: Vec<u8>,
+    /// the quote
+    pub quote: Quote,
 }

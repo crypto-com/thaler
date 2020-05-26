@@ -12,6 +12,7 @@ use client_common::{ErrorKind, PrivateKeyAction, Result, ResultExt, Transaction}
 use parity_scale_codec::Encode;
 use std::os::raw::c_char;
 use std::ptr;
+use std::slice;
 use std::str::FromStr;
 use std::string::ToString;
 
@@ -82,6 +83,7 @@ pub unsafe extern "C" fn cro_unjai(
 /// validator_contact_user: validator contact, null terminated string
 /// validator_pubkey_user: validator pubkey,ed25519 pubkey raw size= 32 bytes , base64 encoded  null terminated string,  
 
+#[allow(clippy::too_many_arguments)]
 fn create_encoded_signed_join(
     network: u8,
     nonce: u64,
@@ -90,6 +92,7 @@ fn create_encoded_signed_join(
     validator_name: &str,
     validator_contact: &str,
     validator_pubkey: &str,
+    keypackage: Vec<u8>,
 ) -> Result<Vec<u8>> {
     let to_address = StakedStateAddress::from_str(&to_address_user).chain(|| {
         (
@@ -111,9 +114,7 @@ fn create_encoded_signed_join(
         security_contact: Some(validator_contact.to_string()),
         // 32 bytes
         consensus_pubkey: pubkey,
-        confidential_init: ConfidentialInit {
-            keypackage: b"FIXME".to_vec(),
-        },
+        confidential_init: ConfidentialInit { keypackage },
     };
     let transaction: NodeJoinRequestTx = NodeJoinRequestTx {
         nonce,
@@ -149,6 +150,8 @@ pub unsafe extern "C" fn cro_join(
     validator_name_user: *const c_char,
     validator_contact_user: *const c_char,
     validator_pubkey_user: *const c_char,
+    keypackage: *const u8,
+    keypackage_len: usize,
     output: *mut u8,
     output_length: *mut u32,
 ) -> CroResult {
@@ -166,6 +169,7 @@ pub unsafe extern "C" fn cro_join(
         &validator_name,
         &validator_contact,
         &validator_pubkey,
+        slice::from_raw_parts(keypackage, keypackage_len).to_vec(),
     ) {
         Ok(encoded) => {
             ptr::copy_nonoverlapping(encoded.as_ptr(), output, encoded.len());

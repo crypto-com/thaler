@@ -17,8 +17,7 @@ use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::account::StakedStateOpAttributes;
 use chain_core::state::account::{
-    ConfidentialInit, DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, Validator,
-    WithdrawUnbondedTx,
+    DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, Validator, WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::tendermint::TendermintValidatorPubKey;
@@ -53,6 +52,7 @@ use secp256k1::{key::PublicKey, key::SecretKey, key::XOnlyPublicKey, Message, Se
 use std::fmt::Debug;
 use std::mem;
 use std::sync::Arc;
+use test_common::chain_env::{mock_confidential_init, mock_council_node};
 
 fn verify_enclave_tx<T: EnclaveProxy>(
     tx_validator: &mut T,
@@ -82,8 +82,7 @@ fn verify_public_tx(
     let mut buffer = HashMap::new();
 
     let mut store = StakingBufferStore::new(StakingGetter::new(storage, version), &mut buffer);
-    let tx_action =
-        process_public_tx(&mut store, &mut tbl, &Default::default(), extra_info, txaux)?;
+    let tx_action = process_public_tx(&mut store, &mut tbl, 0, extra_info, txaux)?;
 
     let fee = tx_action.fee();
     let maddress = tx_action.staking_address();
@@ -1152,12 +1151,7 @@ fn prepare_jailed_accounts() -> (
         0,
         addr.into(),
         Some(Validator {
-            council_node: CouncilNode::new(
-                TendermintValidatorPubKey::Ed25519([0xcd; 32]),
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
-            ),
+            council_node: mock_council_node(TendermintValidatorPubKey::Ed25519([0xcd; 32])),
             jailed_until: Some(100),
             inactive_time: Some(0),
             inactive_block: Some(BlockHeight::genesis()),
@@ -1346,9 +1340,7 @@ fn prepare_nodejoin_transaction(
             name: "test".to_string(),
             security_contact: None,
             consensus_pubkey: TendermintValidatorPubKey::Ed25519([1u8; 32]),
-            confidential_init: ConfidentialInit {
-                keypackage: b"FIXME".to_vec(),
-            },
+            confidential_init: mock_confidential_init(),
         },
     };
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
@@ -1378,11 +1370,8 @@ fn prepare_valid_nodejoin_tx(
         0,
         addr.into(),
         if validator {
-            Some(Validator::new(CouncilNode::new(
+            Some(Validator::new(mock_council_node(
                 TendermintValidatorPubKey::Ed25519([1u8; 32]),
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
             )))
         } else {
             None

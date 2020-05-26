@@ -318,6 +318,8 @@ CroResult cro_join(uint8_t network,
                    const char *validator_name_user,
                    const char *validator_contact_user,
                    const char *validator_pubkey_user,
+                   const uint8_t *keypackage,
+                   uintptr_t keypackage_len,
                    uint8_t *output,
                    uint32_t *output_length);
 

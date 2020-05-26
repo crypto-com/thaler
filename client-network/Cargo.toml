@@ -22,3 +22,4 @@ tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-
 
 [dev-dependencies]
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["serde", "zeroize", "rand", "recovery", "endomorphism"] }
+test-common = { path = "../test-common" }

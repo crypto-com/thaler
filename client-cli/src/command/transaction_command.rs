@@ -8,9 +8,7 @@ use std::str::FromStr;
 use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::coin::Coin;
 use chain_core::init::network::get_network_id;
-use chain_core::state::account::{
-    ConfidentialInit, CouncilNode, StakedStateAddress, StakedStateOpAttributes,
-};
+use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateOpAttributes};
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -23,6 +21,7 @@ use client_core::transaction_builder::SignedTransferTransaction;
 use client_core::types::{BalanceChange, TransactionPending};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
+use test_common::chain_env::mock_confidential_init;
 
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use cli_table::format::{CellFormat, Color, Justify};
@@ -1038,8 +1037,7 @@ fn ask_node_metadata() -> Result<CouncilNode> {
         name,
         security_contact: None,
         consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
-        confidential_init: ConfidentialInit {
-            keypackage: b"FIXME".to_vec(),
-        },
+        // FIXME real keypackage
+        confidential_init: mock_confidential_init(),
     })
 }

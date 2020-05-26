@@ -11,6 +11,7 @@ client-core = { path = "../client-core" }
 client-network = { path = "../client-network" }
 chain-core = { path = "../chain-core/" }
 chain-abci = { path = "../chain-abci/" }
+test-common = { path = "../test-common" }
 structopt = "0.3"
 hex = "0.4"
 serde_json = "1.0"
