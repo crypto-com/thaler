@@ -16,6 +16,16 @@
             "bonded_coin": 500000000000000000,
             "unbonded_coin": 500000000000000000,
             "base_port": 26650
+        },
+        {
+            "name": "node1",
+            "hostname": "127.0.0.1",
+            "mnemonic": "brick seed fatigue flee earn rural decline switch number cause wheat employ unknown betray tray",
+            "validator_seed": "2d841dc33bfe906d20671d1e1e77ac7e5f1f3c2b6e4d30f08984a2a882d18620",
+            "node_seed": "5d847682156d41e21c993b20af6ead47cbce7627e65e95f4c9cb11896ebd2fab",
+            "bonded_coin": 0,
+            "unbonded_coin":500000000000000000,
+            "base_port": 26650
         }
     ],
     "chain_config_patch": [

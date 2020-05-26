@@ -233,7 +233,7 @@ def programs(node, app_hash, root_path, cfg):
     commands += [
         ('chain-abci', f"chain-abci -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{tx_validation_port} --data {node_path / Path('chain')} -p {chain_abci_port} --tx_query 127.0.0.1:{tx_query_port}",
          def_env),
-        ('tendermint', f"tendermint node --home={node_path / Path('tendermint')}",
+        ('tendermint', f"tendermint node --home={node_path / Path('tendermint')} --proxy_app=127.0.0.1:{chain_abci_port} --rpc.laddr=tcp://0.0.0.0:{tendermint_rpc_port}",
          def_env),
         ('client-rpc', f"client-rpc --port={client_rpc_port} --chain-id={cfg['chain_id']} "
          f"--storage-dir={node_path / Path('wallet')} "
@@ -391,10 +391,10 @@ def gen_distribution(cfg):
     # burn extra coins
     max_coin = 10000000000000000000
     total_dist = sum(node['bonded_coin'] + node['unbonded_coin'] for node in cfg['nodes'])
+    assert max_coin >= total_dist
     burned = max_coin - total_dist - cfg['expansion_cap']
     if burned > 0:
         dist['0x0000000000000000000000000000000000000000'] = str(burned)
-
     for node in cfg['nodes']:
         dist[node['staking'][1]] = str(node['unbonded_coin'])
     return dist
