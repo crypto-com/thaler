@@ -16,7 +16,7 @@ use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::{TxAux, TxPublicAux};
 use chain_storage::jellyfish::SparseMerkleProof;
 use chain_tx_validation::{check_inputs_basic, check_outputs_basic, verify_unjailed};
-use client_common::tendermint::types::AbciQueryExt;
+use client_common::tendermint::types::{AbciQueryExt, Genesis, StatusResponse};
 use client_common::tendermint::Client;
 use client_common::{
     Error, ErrorKind, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction,
@@ -28,6 +28,7 @@ use client_core::{TransactionObfuscation, UnspentTransactions, WalletClient};
 use tendermint::{block::Height, Time};
 
 /// Default implementation of `NetworkOpsClient`
+#[derive(Clone)]
 pub struct DefaultNetworkOpsClient<W, S, C, F, E>
 where
     W: WalletClient,
@@ -254,11 +255,15 @@ where
     ) -> Result<(TxAux, TransactionPending)> {
         let last_block_time = self.get_last_block_time()?;
         let staked_state = self.get_staked_state(name, from_address, verify_staking)?;
-
         if staked_state.unbonded_from > last_block_time {
+            let seconds = staked_state.unbonded_from - last_block_time;
+            let duration = std::time::Duration::from_secs(seconds);
             return Err(Error::new(
                 ErrorKind::ValidationError,
-                "Staking state is not yet unbonded",
+                format!(
+                    "Staking state is not yet unbonded, time left: {:?}",
+                    duration
+                ),
             ));
         }
 
@@ -513,6 +518,14 @@ where
                 })?
         };
         Ok(mstaking)
+    }
+
+    fn get_genesis(&self) -> Result<Genesis> {
+        self.client.genesis()
+    }
+
+    fn get_status(&self) -> Result<StatusResponse> {
+        self.client.status()
     }
 }
 
