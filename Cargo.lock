@@ -585,7 +585,7 @@ dependencies = [
 
 [[package]]
 name = "cli-table"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "termcolor 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -599,7 +599,7 @@ dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.5.0",
  "chrono 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
- "cli-table 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cli-table 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "client-common 0.5.0",
  "client-core 0.5.0",
  "client-network 0.5.3",
@@ -5002,7 +5002,7 @@ dependencies = [
 "checksum clang-sys 0.29.3 (registry+https://github.com/rust-lang/crates.io-index)" = "fe6837df1d5cba2397b835c8530f51723267e16abbf83892e9e5af4f0e5dd10a"
 "checksum clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5067f5bb2d80ef5d68b4c87db81601f0b75bca627bc2ef76b141d7b846a3c6d9"
 "checksum clear_on_drop 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "97276801e127ffb46b66ce23f35cc96bd454fa311294bced4bbace7baa8b1d17"
-"checksum cli-table 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6c33fefd3d47608151daee022309798b78d25bb3320b378258822ce2edc2abe7"
+"checksum cli-table 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "bd782cbfda62468ed8f94f2c00496ff909ad4916f4411ab9ec7bdced5414a699"
 "checksum cloudabi 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "ddfc5b9aa5d4507acaf872de71051dfd0e309860e88966e1051e462a077aac4f"
 "checksum cmac 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "6f4a435124bcc292eba031f1f725d7abacdaf13cbf9f935450e8c45aa9e96cad"
 "checksum constant_time_eq 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "245097e9a4535ee1e3e3931fcfcd55a796a44c643e8596ff6566d68f09b87bbc"
