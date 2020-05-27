@@ -1,14 +1,17 @@
-use crate::group::*;
-use crate::key::PublicKey;
-use crate::keypackage::{self as kp, KeyPackage, MLS10_128_DHKEMP256_AES128GCM_SHA256_P256};
+use crate::ciphersuite::CipherSuite;
+use crate::key::HPKEPublicKey;
+use crate::keypackage::{
+    self as kp, KeyPackage, Timespec, MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
+};
 use crate::message::*;
 use crate::utils::{decode_option, encode_option, encode_vec_u32, read_vec_u32};
+use ra_client::AttestedCertVerifier;
 use rustls::internal::msgs::codec::{self, Codec, Reader};
 
 #[derive(Debug, Clone)]
 /// spec: draft-ietf-mls-protocol.md#tree-hashes
 pub struct ParentNode {
-    pub public_key: PublicKey,
+    pub public_key: HPKEPublicKey,
     // 0..2^32-1
     pub unmerged_leaves: Vec<u32>,
     // 0..255
@@ -23,7 +26,7 @@ impl Codec for ParentNode {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let public_key = PublicKey::read(r)?;
+        let public_key = HPKEPublicKey::read(r)?;
         let unmerged_leaves = read_vec_u32(r)?;
         let parent_hash = codec::read_vec_u8(r)?;
         Some(Self {
@@ -35,10 +38,40 @@ impl Codec for ParentNode {
 }
 
 /// spec: draft-ietf-mls-protocol.md#tree-hashes
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Node {
     Leaf(Option<KeyPackage>),
     Parent(Option<ParentNode>),
+}
+
+impl Codec for Node {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        match self {
+            Node::Leaf(kp) => {
+                0u8.encode(bytes);
+                encode_option(bytes, kp);
+            }
+            Node::Parent(pn) => {
+                1u8.encode(bytes);
+                encode_option(bytes, pn);
+            }
+        }
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let tag = u8::read(r)?;
+        match tag {
+            0 => {
+                let kp: Option<KeyPackage> = decode_option(r)?;
+                Some(Node::Leaf(kp))
+            }
+            1 => {
+                let np: Option<ParentNode> = decode_option(r)?;
+                Some(Node::Parent(np))
+            }
+            _ => None,
+        }
+    }
 }
 
 impl Node {
@@ -48,6 +81,10 @@ impl Node {
 
     pub fn is_empty_leaf(&self) -> bool {
         matches!(self, Node::Leaf(None))
+    }
+
+    pub fn is_empty_node(&self) -> bool {
+        matches!(self, Node::Leaf(None) | Node::Parent(None))
     }
 }
 
@@ -233,6 +270,84 @@ fn direct_path(node_pos: usize, n: usize) -> Vec<usize> {
 }
 
 impl Tree {
+    pub fn from_group_info(
+        my_pos: usize,
+        cs: CipherSuite,
+        group_info_nodes: &[Option<Node>],
+    ) -> Result<Self, kp::Error> {
+        let mut nodes = Vec::with_capacity(group_info_nodes.len());
+        for (i, node) in group_info_nodes.iter().enumerate() {
+            match (i % 2, node) {
+                (_, Some(node)) => {
+                    nodes.push(node.clone());
+                }
+                (0, None) => {
+                    nodes.push(Node::Leaf(None));
+                }
+                (1, None) => {
+                    nodes.push(Node::Parent(None));
+                }
+                _ => {}
+            }
+        }
+        // FIXME: generate path secrets
+        Ok(Self { nodes, cs, my_pos })
+    }
+
+    pub fn integrity_check(
+        nodes: &[Option<Node>],
+        ra_verifier: impl AttestedCertVerifier,
+        time: Timespec,
+        _cs: CipherSuite,
+    ) -> Result<(), kp::Error> {
+        for (i, node) in nodes.iter().enumerate() {
+            match node {
+                Some(Node::Leaf(Some(kp))) => {
+                    // leaf should be even position
+                    if i % 2 != 0 {
+                        return Err(kp::Error::TreeIntegrityError);
+                    }
+                    // "For each non-empty leaf node, verify the signature on the KeyPackage."
+                    if let Err(e) = kp.verify(ra_verifier.clone(), time) {
+                        return Err(e);
+                    }
+                }
+                Some(Node::Parent(Some(_pn))) => {
+                    // "For each non-empty parent node, verify that exactly one of the node's children are non-empty
+                    // and have the hash of this node set as their parent_hash value (if the child is another parent)
+                    // or has a parent_hash extension in the KeyPackage containing the same value (if the child is a leaf)."
+                    let left_pos = left(i);
+                    let right_pos = right(i, nodes.len());
+                    if right_pos >= nodes.len() {
+                        return Err(kp::Error::TreeIntegrityError);
+                    }
+                    // FIXME: compute hash + check
+                    match (&nodes[left_pos], &nodes[right_pos]) {
+                        (None, Some(_right)) => {}
+                        (Some(_left), None) => {}
+                        _ => {
+                            return Err(kp::Error::TreeIntegrityError);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
+    pub fn for_group_info(&self) -> Vec<Option<Node>> {
+        let mut result = Vec::with_capacity(self.nodes.len());
+        for node in self.nodes.iter() {
+            if node.is_empty_node() {
+                result.push(None)
+            } else {
+                result.push(Some(node.clone()))
+            }
+        }
+        result
+    }
+
     fn get_free_leaf_or_extend(&mut self) -> usize {
         match self.nodes.iter().position(|n| n.is_empty_leaf()) {
             Some(i) => i,
@@ -249,13 +364,14 @@ impl Tree {
         add_proposals: &[MLSPlaintext],
         update_proposals: &[MLSPlaintext],
         remove_proposals: &[MLSPlaintext],
-    ) {
+    ) -> Vec<(usize, KeyPackage)> {
         for _update in update_proposals.iter() {
             // FIXME
         }
         for _remove in remove_proposals.iter() {
             // FIXME
         }
+        let mut positions = Vec::with_capacity(add_proposals.len());
         for add in add_proposals.iter() {
             // position to add
             // "If necessary, extend the tree to the right until it has at least index + 1 leaves"
@@ -278,7 +394,9 @@ impl Tree {
             // from the KeyPackage in the Add, as well as the credential under which the KeyPackage was signed"
             let leaf_node = Node::Leaf(add.get_add_keypackage());
             self.nodes[position] = leaf_node;
+            positions.push((position, add.get_add_keypackage().expect("keypackage")));
         }
+        positions
     }
 
     fn node_hash(&self, index: usize) -> Vec<u8> {

@@ -238,7 +238,7 @@ fn verify_keypackage(genesis_time: Timespec, keypackage: &[u8]) -> Result<u16, D
     let keypackage =
         KeyPackage::read_bytes(keypackage).ok_or(DistributionError::KeyPackageDecodeError)?;
     let info = keypackage
-        .verify(&ENCLAVE_CERT_VERIFIER, genesis_time)
+        .verify(ENCLAVE_CERT_VERIFIER.clone(), genesis_time)
         .map_err(DistributionError::KeyPackageVerifyError)?;
     Ok(info.quote.report_body.isv_svn)
 }

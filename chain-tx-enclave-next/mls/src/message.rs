@@ -1,11 +1,13 @@
 use crate::group::GroupContext;
-use crate::key::PublicKey;
+use crate::key::{HPKEPublicKey, IdentityPublicKey};
 use crate::keypackage::{CipherSuite, KeyPackage, ProtocolVersion};
 use crate::utils::{
     decode_option, encode_option, encode_vec_u32, encode_vec_u8_u16, encode_vec_u8_u8,
     read_vec_u32, read_vec_u8_u16, read_vec_u8_u8,
 };
 use rustls::internal::msgs::codec::{self, Codec, Reader};
+use secrecy::{ExposeSecret, SecretVec};
+use std::fmt::Debug;
 
 /// spec: draft-ietf-mls-protocol.md#Add
 #[derive(Debug, Clone)]
@@ -175,7 +177,7 @@ impl MLSPlaintext {
     pub fn verify_signature(
         &self,
         context: &GroupContext,
-        public_key: &PublicKey,
+        public_key: &IdentityPublicKey,
     ) -> Result<(), ring::error::Unspecified> {
         let payload = MLSPlaintextTBS {
             context: context.clone(),
@@ -270,6 +272,84 @@ impl Codec for Commit {
     }
 }
 
+/// spec: draft-ietf-mls-protocol.md#Group-State
+#[derive(Debug, Clone)]
+pub struct MLSPlaintextCommitContent {
+    /// 0..255 bytes -- application-defined id
+    pub group_id: Vec<u8>,
+    /// version of the group key
+    /// (incremented by 1 for each Commit message
+    /// that is processed)
+    pub epoch: u64,
+    pub sender: Sender,
+    /// always Commit = 3
+    content_type: u8,
+    pub commit: Commit,
+}
+
+impl MLSPlaintextCommitContent {
+    pub fn new(group_id: Vec<u8>, epoch: u64, sender: Sender, commit: Commit) -> Self {
+        Self {
+            group_id,
+            epoch,
+            sender,
+            content_type: 3,
+            commit,
+        }
+    }
+}
+
+impl Codec for MLSPlaintextCommitContent {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        encode_vec_u8_u8(bytes, &self.group_id);
+        self.epoch.encode(bytes);
+        self.sender.encode(bytes);
+        self.content_type.encode(bytes);
+        self.commit.encode(bytes);
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let group_id = read_vec_u8_u8(r)?;
+        let epoch = u64::read(r)?;
+        let sender = Sender::read(r)?;
+        let content_type = u8::read(r)?;
+        let commit = Commit::read(r)?;
+
+        Some(Self {
+            group_id,
+            epoch,
+            sender,
+            content_type,
+            commit,
+        })
+    }
+}
+
+/// spec: draft-ietf-mls-protocol.md#Group-State
+#[derive(Debug, Clone)]
+pub struct MLSPlaintextCommitAuthData {
+    /// 0..255
+    pub confirmation: Vec<u8>,
+    /// 0..2^16-1
+    pub signature: Vec<u8>,
+}
+
+impl Codec for MLSPlaintextCommitAuthData {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        encode_vec_u8_u8(bytes, &self.confirmation);
+        encode_vec_u8_u16(bytes, &self.signature);
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let confirmation = read_vec_u8_u8(r)?;
+        let signature = read_vec_u8_u16(r)?;
+        Some(Self {
+            confirmation,
+            signature,
+        })
+    }
+}
+
 /// spec: draft-ietf-mls-protocol.md#Welcoming-New-Members
 pub struct Welcome {
     pub version: ProtocolVersion,
@@ -278,6 +358,64 @@ pub struct Welcome {
     pub secrets: Vec<EncryptedGroupSecrets>,
     /// 0..2^32-1
     pub encrypted_group_info: Vec<u8>,
+}
+
+/// spec: draft-ietf-mls-protocol.md#Welcoming-New-Members
+pub struct PathSecret {
+    /// 1..255
+    pub path_secret: SecretVec<u8>,
+}
+
+// not printing out the secret values
+impl Debug for PathSecret {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        Ok(())
+    }
+}
+
+impl Codec for PathSecret {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        encode_vec_u8_u8(bytes, &self.path_secret.expose_secret());
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let path_secret = read_vec_u8_u8(r)?;
+
+        Some(PathSecret {
+            path_secret: SecretVec::new(path_secret),
+        })
+    }
+}
+
+/// spec: draft-ietf-mls-protocol.md#Welcoming-New-Members
+pub struct GroupSecret {
+    /// 1..255
+    pub epoch_secret: SecretVec<u8>,
+    pub path_secret: Option<PathSecret>,
+}
+
+// not printing out the secret values
+impl Debug for GroupSecret {
+    fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
+        Ok(())
+    }
+}
+
+impl Codec for GroupSecret {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        encode_vec_u8_u8(bytes, &self.epoch_secret.expose_secret());
+        encode_option(bytes, &self.path_secret);
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let epoch_secret = read_vec_u8_u8(r)?;
+        let path_secret = decode_option(r)?;
+
+        Some(GroupSecret {
+            epoch_secret: SecretVec::new(epoch_secret),
+            path_secret,
+        })
+    }
 }
 
 /// spec: draft-ietf-mls-protocol.md#Welcoming-New-Members
@@ -315,7 +453,7 @@ impl Codec for HPKECiphertext {
 /// spec: draft-ietf-mls-protocol.md#Direct-Paths
 #[derive(Debug, Clone)]
 pub struct DirectPathNode {
-    pub public_key: PublicKey,
+    pub public_key: HPKEPublicKey,
     /// 0..2^32-1
     pub encrypted_path_secret: Vec<HPKECiphertext>,
 }
@@ -327,7 +465,7 @@ impl Codec for DirectPathNode {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let public_key = PublicKey::read(r)?;
+        let public_key = HPKEPublicKey::read(r)?;
         let encrypted_path_secret: Vec<HPKECiphertext> = read_vec_u32(r)?;
 
         Some(DirectPathNode {
