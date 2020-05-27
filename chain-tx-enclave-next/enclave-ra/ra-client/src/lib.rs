@@ -23,5 +23,7 @@ mod verifier;
 
 pub use self::{
     config::{EnclaveCertVerifierConfig, EnclaveInfo},
-    verifier::{EnclaveCertVerifier, EnclaveCertVerifierError},
+    verifier::{
+        CertVerifyResult, EnclaveCertVerifier, EnclaveCertVerifierError, ENCLAVE_CERT_VERIFIER,
+    },
 };

@@ -1,6 +1,8 @@
 use super::{BufferType, ChainNodeApp, ChainNodeState};
 use crate::enclave_bridge::EnclaveProxy;
-use crate::storage::{process_public_tx, verify_enclave_tx, TxAction, TxEnclaveAction};
+use crate::storage::{
+    process_public_tx, verify_enclave_tx, TxAction, TxEnclaveAction, TxPublicAction,
+};
 use crate::tx_error::TxError;
 use abci::*;
 use chain_core::tx::data::TxId;
@@ -118,10 +120,14 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
                 let action = process_public_tx(
                     &mut staking_store!(self, state.staking_version, buffer_type),
                     &mut state.staking_table,
-                    &self.enclave_cert_verifier,
+                    state.enclave_isv_svn,
                     &extra_info,
                     &tx,
                 )?;
+
+                if let TxPublicAction::NodeJoin { isv_svn, .. } = action {
+                    state.enclave_isv_svn = isv_svn;
+                };
 
                 TxAction::Public(action)
             }

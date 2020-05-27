@@ -7,12 +7,13 @@ readme = "../README.md"
 edition = "2018"
 
 [features]
-default = ["serde", "bech32", "hex", "base64", "secp256k1zkp/serde", "secp256k1zkp/std"]
+default = ["serde", "bech32", "hex", "base64", "secp256k1zkp/serde", "secp256k1zkp/std", "mls", "ra-client"]
 edp = ["secp256k1zkp/edp"]
 mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx"]
 
-
 [dependencies]
+mls = { path = "../chain-tx-enclave-next/mls", optional = true }
+ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client", optional = true}
 digest = { version = "0.8", default-features = false}
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 sha2 = { version = "0.8", default-features = false }
@@ -32,3 +33,4 @@ thiserror = { version = "1.0", default-features = false }
 quickcheck = "0.9"
 serde_json = "1.0"
 fixed = "0.5.7"
+test-common = { path = "../test-common" }

@@ -2,85 +2,61 @@ use crate::common::Timespec;
 use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 pub use crate::init::params::*;
-use crate::init::MAX_COIN;
 use crate::state::account::{
     ConfidentialInit, CouncilNode, StakedState, StakedStateAddress, StakedStateDestination,
     ValidatorName, ValidatorSecurityContact,
 };
-use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
+use crate::state::tendermint::TendermintValidatorPubKey;
 use crate::state::RewardsPoolState;
+use mls::{keypackage, Codec, KeyPackage};
+use ra_client::ENCLAVE_CERT_VERIFIER;
 #[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
-use std::fmt;
 
 /// problems with initial config
-#[derive(Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum DistributionError {
     /// coin arithmetic problems
-    DistributionCoinError(CoinError),
+    #[error("coin error: {0}")]
+    DistributionCoinError(#[from] CoinError),
     /// lower than the expected supply
+    #[error("The total sum of allocated amounts ({0}) does not match the expected total supply")]
     DoesNotMatchMaxSupply(Coin),
     /// council node uses non-specified address
+    #[error("Address not found in the distribution ({0})")]
     AddressNotInDistribution(RedeemAddress),
     /// address should have that amount assigned
+    #[error("Address ({0}) does not have the expected amount ({1}) or is not an externally owned account")]
     DoesNotMatchRequiredAmount(RedeemAddress, Coin),
     /// problems with encoded consensus pubkeys
+    #[error("Invalid validator key")]
     InvalidValidatorKey,
     /// duplicate consensus pubkeys
+    #[error("Duplicate validator key")]
     DuplicateValidatorKey,
     /// associated state not in distribution
+    #[error("Invalid validator account")]
     InvalidValidatorAccount,
     /// at least one validator needs to be specified
+    #[error("No validators / council nodes specified")]
     NoValidators,
     /// voting power too large or otherwise invalid
-    InvalidVotingPower,
+    #[error("Invalid minimal required staking: {0}")]
+    InvalidMinimalStake(CoinError),
     /// problems with reward configuration
     /// TODO: embed the error type?
+    #[error("Invalid rewards parameters: {0}")]
     InvalidRewardsParamter(&'static str),
     /// Invalid punishment configuration parameter
+    #[error("Invalid punishment parameters")]
     InvalidPunishmentParamter,
-}
-
-impl fmt::Display for DistributionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            DistributionError::DistributionCoinError(c) => c.fmt(f),
-            DistributionError::DoesNotMatchMaxSupply(c) => write!(
-                f,
-                "The total sum of allocated amounts ({}) does not match the expected total supply ({})",
-                c,
-                MAX_COIN
-            ),
-            DistributionError::AddressNotInDistribution(a) => {
-                write!(f, "Address not found in the distribution ({})", a)
-            },
-            DistributionError::DoesNotMatchRequiredAmount(a, c) => {
-                write!(f, "Address ({}) does not have the expected amount ({}) or is not an externally owned account", a, c)
-            },
-            DistributionError::InvalidValidatorKey => {
-                write!(f, "Invalid validator key")
-            },
-            DistributionError::InvalidValidatorAccount => {
-                write!(f, "Invalid validator account")
-            },
-            DistributionError::DuplicateValidatorKey => {
-                write!(f, "Duplicate validator key")
-            },
-            DistributionError::NoValidators => {
-                write!(f, "No validators / council nodes specified")
-            },
-            DistributionError::InvalidVotingPower => {
-                write!(f, "Invalid voting power")
-            },
-            DistributionError::InvalidRewardsParamter(err) => {
-                write!(f, "Invalid rewards parameters: {}", err)
-            }
-            DistributionError::InvalidPunishmentParamter => {
-                write!(f, "Invalid punishment parameters")
-            }
-        }
-    }
+    /// keypackage decode error
+    #[error("key package decode failed")]
+    KeyPackageDecodeError,
+    /// keypackage verify error
+    #[error("invalid key package: {0}")]
+    KeyPackageVerifyError(#[from] keypackage::Error),
 }
 
 /// Initial configuration ("app_state" in genesis.json of Tendermint config)
@@ -105,16 +81,17 @@ pub struct InitConfig {
     >,
 }
 
-/// the initial state at genesis:
-/// - initial states
-/// - initial rewards pool
-/// - initial tendermint validators
-/// TODO: some tdbe state?
-pub type GenesisState = (
-    Vec<StakedState>,
-    RewardsPoolState,
-    Vec<(StakedStateAddress, CouncilNode)>,
-);
+/// the initial state at genesis
+pub struct GenesisState {
+    /// initial states
+    pub accounts: Vec<StakedState>,
+    /// initial rewards pool
+    pub rewards_pool: RewardsPoolState,
+    /// initial tendermint validators
+    pub validators: Vec<(StakedStateAddress, CouncilNode)>,
+    /// enclave ISVSVN in genesis keypackage
+    pub isv_svn: u16,
+}
 
 impl InitConfig {
     /// creates a new config (mainly for testing / tools)
@@ -209,39 +186,34 @@ impl InitConfig {
             return Err(DistributionError::DuplicateValidatorKey);
         }
 
-        let validators: Result<Vec<(StakedStateAddress, CouncilNode)>, DistributionError> = self
+        let validators = self
             .council_nodes
             .keys()
             .map(|address| {
                 let council_node = self.get_council_node(address)?;
                 Ok((StakedStateAddress::BasicRedeem(*address), council_node))
             })
-            .collect();
+            .collect::<Result<Vec<_>, DistributionError>>()?;
+
+        let isv_svn = validators
+            .iter()
+            .map(|v| verify_keypackage(genesis_time, &v.1.confidential_init.keypackage))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .max()
+            .unwrap_or(0);
+
         Coin::new(
             u64::from(self.network_params.required_council_node_stake)
                 * self.council_nodes.len() as u64,
         )
-        .map(TendermintVotePower::from) // sanity check
-        .map_err(|_| DistributionError::InvalidVotingPower)?;
+        .map_err(DistributionError::InvalidMinimalStake)?;
 
         // check the total amount
-        match sum_coins(self.distribution.iter().map(|(_, (_, amount))| *amount)) {
-            Ok(s) => {
-                let sum_result = s + self.network_params.rewards_config.monetary_expansion_cap;
-                match sum_result {
-                    Ok(sum) => {
-                        if sum != Coin::max() {
-                            return Err(DistributionError::DoesNotMatchMaxSupply(sum));
-                        }
-                    }
-                    Err(e) => {
-                        return Err(DistributionError::DistributionCoinError(e));
-                    }
-                }
-            }
-            Err(e) => {
-                return Err(DistributionError::DistributionCoinError(e));
-            }
+        let sum = sum_coins(self.distribution.iter().map(|(_, (_, amount))| *amount))?;
+        let sum = (sum + self.network_params.rewards_config.monetary_expansion_cap)?;
+        if sum != Coin::max() {
+            return Err(DistributionError::DoesNotMatchMaxSupply(sum));
         }
 
         let accounts = self.get_account(genesis_time);
@@ -253,6 +225,20 @@ impl InitConfig {
             genesis_time,
             self.network_params.rewards_config.monetary_expansion_tau,
         );
-        Ok((accounts, rewards_pool, validators?))
+        Ok(GenesisState {
+            accounts,
+            rewards_pool,
+            validators,
+            isv_svn,
+        })
     }
+}
+
+fn verify_keypackage(genesis_time: Timespec, keypackage: &[u8]) -> Result<u16, DistributionError> {
+    let keypackage =
+        KeyPackage::read_bytes(keypackage).ok_or(DistributionError::KeyPackageDecodeError)?;
+    let info = keypackage
+        .verify(&ENCLAVE_CERT_VERIFIER, genesis_time)
+        .map_err(DistributionError::KeyPackageVerifyError)?;
+    Ok(info.quote.report_body.isv_svn)
 }

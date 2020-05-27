@@ -19,7 +19,8 @@ impl<'a> EnclaveCertVerifierConfig<'a> {
     pub fn new() -> Self {
         Self {
             signing_ca_cert_pem: IAS_CERT.into(),
-            valid_enclave_quote_statuses: vec!["OK".into()].into(),
+            // https://software.intel.com/security-software-guidance/insights/deep-dive-load-value-injection#mitigationguidelines
+            valid_enclave_quote_statuses: vec!["OK".into(), "SW_HARDENING_NEEDED".into()].into(),
             report_validity_secs: 86400,
             // FIXME construct enclave_info from env var or config file
             enclave_info: None,

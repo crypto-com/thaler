@@ -21,6 +21,7 @@ use parity_scale_codec::Decode;
 use protobuf;
 use std::convert::TryInto;
 use std::sync::Arc;
+use test_common::chain_env::KEYPACKAGE_VECTOR;
 
 pub fn get_enclave_bridge_mock() -> MockClient {
     MockClient::new(0)
@@ -75,7 +76,7 @@ const TEST_GENESIS: &str = "{
           \"value\": \"MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=\"
         },
         {
-          \"keypackage\": \"RklYTUU=\"
+          \"keypackage\": \"$KEYPACKAGE\"
         }
       ]
     }
@@ -99,7 +100,12 @@ fn init_request() -> RequestInitChain {
     let t = ::protobuf::well_known_types::Timestamp::new();
     let mut req = RequestInitChain::default();
     req.set_time(t);
-    req.set_app_state_bytes(TEST_GENESIS.as_bytes().to_vec());
+    req.set_app_state_bytes(
+        TEST_GENESIS
+            .replace("$KEYPACKAGE", &base64::encode(KEYPACKAGE_VECTOR))
+            .as_bytes()
+            .to_vec(),
+    );
     req.set_chain_id(String::from(TEST_CHAIN_ID));
     req.set_validators(vec![validator].into());
     req.set_consensus_params(ConsensusParams {
@@ -156,10 +162,10 @@ fuzz_target!(|data: &[u8]| {
                         (Ok(c), Some(t)) => {
                             let result =
                                 c.validate_config_get_genesis(t.get_seconds().try_into().unwrap());
-                            if let Ok((accounts, rp, nodes)) = result {
+                            if let Ok(state) = result {
                                 let network_params = NetworkParameters::Genesis(c.network_params);
                                 let r = check_validators(
-                                    &nodes,
+                                    &state.validators,
                                     req.validators.clone().into_vec(),
                                     &c.distribution,
                                 );
@@ -168,12 +174,12 @@ fuzz_target!(|data: &[u8]| {
                                 } else {
                                     let tx_tree = MerkleTree::empty();
                                     let mut storage = Storage::new_db(create_db());
-                                    let new_account_root = storage.put_stakings(0, &accounts);
+                                    let new_account_root = storage.put_stakings(0, &state.accounts);
 
                                     let genesis_app_hash = compute_app_hash(
                                         &tx_tree,
                                         &new_account_root,
-                                        &rp,
+                                        &state.rewards_pool,
                                         &network_params,
                                     );
                                     if req.chain_id.len() > 3 {

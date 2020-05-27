@@ -10,7 +10,6 @@ use chain_core::tx::{TransactionId, TxEnclaveAux, TxObfuscated, TxPublicAux};
 use chain_storage::buffer::{GetKV, GetStaking, StoreStaking};
 use chain_tx_validation::{verify_unjailed, witness::verify_tx_recover_address, ChainInfo, Error};
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, SealedLog};
-use ra_client::EnclaveCertVerifier;
 
 pub enum TxAction {
     Enclave(TxEnclaveAction),
@@ -117,7 +116,12 @@ pub enum TxPublicAction {
         unbond: (StakedStateAddress, Coin),
         unbonded_from: Timespec,
     },
-    NodeJoin(StakedStateAddress, CouncilNode),
+    NodeJoin {
+        address: StakedStateAddress,
+        council_node: CouncilNode,
+        // most recent isv_svn
+        isv_svn: u16,
+    },
     Unjail(StakedStateAddress),
 }
 
@@ -129,8 +133,12 @@ impl TxPublicAction {
             unbonded_from,
         }
     }
-    fn node_join(staking_address: StakedStateAddress, council_node: CouncilNode) -> Self {
-        Self::NodeJoin(staking_address, council_node)
+    fn node_join(address: StakedStateAddress, council_node: CouncilNode, isv_svn: u16) -> Self {
+        Self::NodeJoin {
+            address,
+            council_node,
+            isv_svn,
+        }
     }
     fn unjail(staking_address: StakedStateAddress) -> Self {
         Self::Unjail(staking_address)
@@ -139,7 +147,7 @@ impl TxPublicAction {
     pub fn fee(&self) -> Fee {
         match self {
             Self::Unbond { fee, .. } => *fee,
-            Self::NodeJoin(_, _) => Fee::new(Coin::zero()),
+            Self::NodeJoin { .. } => Fee::new(Coin::zero()),
             Self::Unjail(_) => Fee::new(Coin::zero()),
         }
     }
@@ -147,7 +155,7 @@ impl TxPublicAction {
     pub fn staking_address(&self) -> Option<StakedStateAddress> {
         match self {
             Self::Unbond { unbond, .. } => Some(unbond.0),
-            Self::NodeJoin(staking_address, _) => Some(*staking_address),
+            Self::NodeJoin { address, .. } => Some(*address),
             Self::Unjail(staking_address) => Some(*staking_address),
         }
     }
@@ -287,7 +295,7 @@ fn check_staking_attributes(
 pub fn process_public_tx(
     staking_store: &mut impl StoreStaking,
     staking_table: &mut StakingTable,
-    enclave_cert_verifier: &EnclaveCertVerifier,
+    enclave_isv_svn: u16,
     chain_info: &ChainInfo,
     txaux: &TxPublicAux,
 ) -> Result<TxPublicAction, PublicTxError> {
@@ -331,15 +339,19 @@ pub fn process_public_tx(
             if address != maintx.address {
                 return Err(PublicTxError::StakingWitnessNotMatch);
             }
-            staking_table.node_join(
+            let isv_svn = staking_table.node_join(
                 staking_store,
                 chain_info.block_time,
                 chain_info.max_evidence_age,
-                enclave_cert_verifier,
+                enclave_isv_svn,
                 maintx,
             )?;
 
-            Ok(TxPublicAction::node_join(address, maintx.node_meta.clone()))
+            Ok(TxPublicAction::node_join(
+                address,
+                maintx.node_meta.clone(),
+                isv_svn,
+            ))
         }
     }
 }

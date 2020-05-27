@@ -14,9 +14,8 @@ use chain_core::init::config::{
     JailingParameters, RewardsParameters, SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
-    ConfidentialInit, CouncilNode, DepositBondTx, StakedState, StakedStateAddress,
-    StakedStateDestination, StakedStateOpAttributes, StakedStateOpWitness, UnbondTx,
-    WithdrawUnbondedTx,
+    DepositBondTx, StakedState, StakedStateAddress, StakedStateDestination,
+    StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::{
     BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
@@ -57,7 +56,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::Arc;
-use test_common::chain_env::ChainEnv;
+use test_common::chain_env::{mock_confidential_init, mock_council_node, ChainEnv};
 
 const TEST_CHAIN_ID: &str = "test-00";
 const EXAMPLE_HASH: &str = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
@@ -219,6 +218,7 @@ fn get_dummy_app_state(app_hash: H256) -> ChainNodeState {
         staking_table: StakingTable::default(),
         staking_version: 0,
         utxo_coins: Coin::zero(),
+        enclave_isv_svn: 0,
         top_level: ChainState {
             account_root: [0u8; 32],
             rewards_pool: RewardsPoolState::new(0, params.get_rewards_monetary_expansion_tau()),
@@ -271,9 +271,7 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
         "test".to_owned(),
         None,
         pub_key.clone(),
-        ConfidentialInit {
-            keypackage: b"FIXME".to_vec(),
-        },
+        mock_confidential_init(),
     );
     let validator = ValidatorUpdate {
         pub_key: Some(PubKey {
@@ -289,14 +287,14 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     let c = InitConfig::new(distribution, params, nodes);
     let t = ::protobuf::well_known_types::Timestamp::new();
     let result = c.validate_config_get_genesis(t.get_seconds().try_into().unwrap());
-    if let Ok((accounts, rp, _nodes)) = result {
+    if let Ok(genesis_state) = result {
         let tx_tree = MerkleTree::empty();
         let mut storage = Storage::new_db(db.clone());
-        let new_account_root = storage.put_stakings(0, &accounts);
+        let new_account_root = storage.put_stakings(0, &genesis_state.accounts);
         let genesis_app_hash = compute_app_hash(
             &tx_tree,
             &new_account_root,
-            &rp,
+            &genesis_state.rewards_pool,
             &get_dummy_network_params(),
         );
 
@@ -993,12 +991,7 @@ fn all_valid_tx_types_should_commit() {
         1,
         addr.into(),
         StakedStateOpAttributes::new(0),
-        CouncilNode::new(
-            TendermintValidatorPubKey::Ed25519([2u8; 32]),
-            ConfidentialInit {
-                keypackage: b"FIXME".to_vec(),
-            },
-        ),
+        mock_council_node(TendermintValidatorPubKey::Ed25519([2u8; 32])),
     );
     let secp = Secp256k1::new();
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));

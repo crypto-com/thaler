@@ -49,6 +49,8 @@ lazy_static! {
     .map(|s| TendermintValidatorPubKey::from_base64(*s).unwrap())
     .collect();
 }
+pub const KEYPACKAGE_VECTOR: &[u8] =
+    include_bytes!("../../chain-tx-enclave-next/mls/tests/test_vectors/keypackage.bin");
 
 pub fn get_account(
     account_address: &StakedStateAddress,
@@ -109,6 +111,21 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
     }
 }
 
+pub fn mock_council_node(consensus_pubkey: TendermintValidatorPubKey) -> CouncilNode {
+    CouncilNode::new_with_details(
+        "no-name".to_string(),
+        None,
+        consensus_pubkey,
+        mock_confidential_init(),
+    )
+}
+
+pub fn mock_confidential_init() -> ConfidentialInit {
+    ConfidentialInit {
+        keypackage: KEYPACKAGE_VECTOR.to_vec(),
+    }
+}
+
 pub fn get_nodes(
     addresses: &[Account],
 ) -> BTreeMap<
@@ -129,9 +146,7 @@ pub fn get_nodes(
                     acct.name.clone(),
                     None,
                     acct.validator_pub_key.clone(),
-                    ConfidentialInit {
-                        keypackage: b"FIXME".to_vec(),
-                    },
+                    mock_confidential_init(),
                 ),
             )
         })
@@ -228,15 +243,15 @@ impl ChainEnv {
         );
 
         let timestamp = Timestamp::new();
-        let (states, rewards_pool_state, council_nodes) = init_config
+        let genesis_state = init_config
             .validate_config_get_genesis(timestamp.get_seconds().try_into().unwrap())
             .expect("Error while validating distribution");
 
-        let new_account_root = storage.put_stakings(0, &states);
+        let new_account_root = storage.put_stakings(0, &genesis_state.accounts);
         let genesis_app_hash = compute_app_hash(
             &MerkleTree::empty(),
             &new_account_root,
-            &rewards_pool_state,
+            &genesis_state.rewards_pool,
             &NetworkParameters::Genesis(init_network_params),
         );
         (
@@ -247,7 +262,7 @@ impl ChainEnv {
                 timestamp,
                 init_config,
                 max_evidence_age: 172_800,
-                council_nodes,
+                council_nodes: genesis_state.validators,
                 accounts,
             },
             storage,

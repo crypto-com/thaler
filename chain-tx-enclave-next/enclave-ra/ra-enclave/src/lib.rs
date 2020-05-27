@@ -30,4 +30,4 @@ mod context;
 
 pub use self::{certificate::Certificate, config::EnclaveRaConfig};
 #[cfg(target_env = "sgx")]
-pub use {EnclaveRaContext, EnclaveRaContextError};
+pub use context::{EnclaveRaContext, EnclaveRaContextError};

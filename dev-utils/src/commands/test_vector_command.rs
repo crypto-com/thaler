@@ -6,8 +6,8 @@ use chain_core::init::address::{CroAddress, RedeemAddress};
 use chain_core::init::coin::Coin;
 use chain_core::init::network::Network;
 use chain_core::state::account::{
-    ConfidentialInit, CouncilNode, DepositBondTx, StakedStateAddress, StakedStateOpAttributes,
-    StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
+    CouncilNode, DepositBondTx, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
+    UnbondTx, WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::state::validator::NodeJoinRequestTx;
@@ -27,6 +27,7 @@ use client_core::service::{HDAccountType, HdKey};
 use client_core::HDSeed;
 use secp256k1::Secp256k1;
 use secp256k1::{key::XOnlyPublicKey, SecretKey};
+use test_common::chain_env::mock_confidential_init;
 
 #[derive(Debug)]
 pub struct TestVectorCommand {
@@ -321,9 +322,8 @@ impl VectorFactory {
                 "example".to_string(),
                 Some("security@example.com".to_string()),
                 tendermint_validator_pubkey.clone(),
-                ConfidentialInit {
-                    keypackage: b"FIXME".to_vec(),
-                },
+                // real keypackage
+                mock_confidential_init(),
             ),
         );
         let txid = tx.id();
@@ -367,8 +367,8 @@ impl VectorFactory {
     pub fn create_test_vectors(&mut self) -> Result<()> {
         self.test_vectors.wallet_view_key = Some(hex::encode(self.wallet.view_key.0.serialize()));
         let tx_id = self.create_withdraw_unbonded_tx().unwrap();
-        self.create_transfer_tx(tx_id.clone())?;
-        self.create_deposit_stake_tx(tx_id.clone())?;
+        self.create_transfer_tx(tx_id)?;
+        self.create_deposit_stake_tx(tx_id)?;
         self.create_nodejoin_tx()?;
         self.create_unbonded_stake_tx()?;
         println!(

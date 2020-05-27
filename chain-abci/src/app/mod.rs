@@ -404,9 +404,11 @@ fn generate_tx_staking_change_event(tx_action: TxAction) -> Option<abci::Event> 
                 fee,
                 ..
             } => Some(StakingEvent::Unbond(&unbond.0, unbond.1, unbonded_from, fee).into()),
-            TxPublicAction::NodeJoin(staking_address, council_node) => {
-                Some(StakingEvent::NodeJoin(&staking_address, council_node).into())
-            }
+            TxPublicAction::NodeJoin {
+                address,
+                council_node,
+                ..
+            } => Some(StakingEvent::NodeJoin(&address, council_node).into()),
             TxPublicAction::Unjail(staking_address) => {
                 Some(StakingEvent::Unjail(&staking_address).into())
             }
