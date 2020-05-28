@@ -7,7 +7,7 @@ use jsonrpc_derive::rpc;
 use crate::{rpc_error_from_string, to_rpc_error};
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
-    CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
+    ConfidentialInit, CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
@@ -19,7 +19,6 @@ use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultE
 use client_core::wallet::WalletRequest;
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_network::NetworkOpsClient;
-use test_common::chain_env::mock_confidential_init;
 
 #[rpc(server)]
 pub trait StakingRpc: Send + Sync {
@@ -463,6 +462,8 @@ fn get_node_metadata(validator_name: &str, validator_pubkey: &str) -> Result<Cou
         security_contact: None,
         consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
         // FIXME real keypackage
-        confidential_init: mock_confidential_init(),
+        confidential_init: ConfidentialInit {
+            keypackage: b"FIXME NODE JOIN".to_vec(),
+        },
     })
 }

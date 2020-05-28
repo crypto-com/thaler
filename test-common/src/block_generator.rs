@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::time::{Duration, UNIX_EPOCH};
 
 use client_common::tendermint::types::BlockResultsResponse;
 use secstr::SecUtf8;
@@ -55,6 +55,9 @@ lazy_static! {
     )];
     static ref DEFAULT_CHAIN_ID: chain::Id = "test-chain-AB".parse().unwrap();
 }
+
+/// genesis time for mock blocks, might need to change it when mock keypackage updated.
+pub const GENESIS_TIMESTAMP: Timespec = 1_590_490_084;
 
 fn seed_to_pk(seed: &ed25519::Seed) -> ed25519::PublicKey {
     Ed25519Signer::from(seed).public_key().unwrap()
@@ -221,7 +224,7 @@ impl TestnetSpec {
             expansion_cap: Coin::zero(),
             base_fee: "0.0".parse().unwrap(),
             per_byte_fee: "0.0".parse().unwrap(),
-            genesis_time: Time::now(),
+            genesis_time: (UNIX_EPOCH + Duration::from_secs(GENESIS_TIMESTAMP)).into(),
             max_evidence_age: 172_800,
             chain_id: *DEFAULT_CHAIN_ID,
         }
@@ -456,7 +459,9 @@ impl BlockGenerator {
             version: block::header::Version { block: 10, app: 0 },
             chain_id: self.genesis.chain_id,
             height,
-            time: Time::now(),
+            time: (UNIX_EPOCH
+                + Duration::from_secs(GENESIS_TIMESTAMP + self.blocks.len() as u64 + 1))
+            .into(),
             last_block_id,
             last_commit_hash: None,
             data_hash: None,
@@ -655,7 +660,7 @@ mod tests {
         let header1 = gen.signed_header(Height::default());
         let header2 = gen.signed_header(Height::default().increment());
 
-        let state = lite::verifier::verify_single(
+        let _ = lite::verifier::verify_single(
             lite::TrustedState::new(
                 lite::SignedHeader::new(header1.clone(), header1.header.clone()),
                 gen.validators.clone(),
@@ -665,8 +670,8 @@ mod tests {
             &gen.validators,
             lite::TrustThresholdFraction::new(1, 3).unwrap(),
             Duration::from_secs(10000),
-            SystemTime::now(),
-        );
-        assert!(state.is_ok());
+            SystemTime::UNIX_EPOCH + Duration::from_secs(GENESIS_TIMESTAMP + 10),
+        )
+        .unwrap();
     }
 }
