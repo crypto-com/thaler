@@ -147,7 +147,7 @@ fuzz_target!(|data: &[u8]| {
         if !messages.is_empty() {
             let defaultinit = (
                 init_request(),
-                "21b28d516526ad2d7fe0c2264ae46c7d6b0c8b723f58247f9ec4460156af4d6e".to_owned(),
+                "d413e7e7e1a11e960b2677d0b37060cab71cf6c7e506cfe7ee50221daedc1f6c".to_owned(),
                 TEST_CHAIN_ID.to_owned(),
                 get_enclave_bridge_mock(),
             );
