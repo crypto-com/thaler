@@ -14,8 +14,10 @@ use secstr::SecUtf8;
 use serde::de::{self, Visitor};
 use serde::export::PhantomData;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
+
 /// Key space of wallet
 const KEYSPACE: &str = "core_wallet";
 
@@ -101,11 +103,15 @@ pub struct WalletInfo {
     /// wallet meta data
     #[serde(deserialize_with = "deserde_from_str", serialize_with = "serde_to_str")]
     pub wallet: Wallet,
-    /// private key of the wallet
+    /// private key of view key pair
     #[serde(deserialize_with = "deserde_from_str", serialize_with = "serde_to_str")]
     pub private_key: PrivateKey,
     /// passphrase used when import wallet
     pub passphrase: Option<SecUtf8>,
+    ///public_key -> encoded private_key pairs, private key is None for hardware wallet
+    pub key_pairs: BTreeMap<PublicKey, Option<Vec<u8>>>,
+    /// hex encoded root_hash -> parity_scale_codec encoded multisig_address pairs
+    pub multisig_address_pair: BTreeMap<String, Vec<u8>>,
 }
 
 /// Wallet meta data
@@ -125,20 +131,40 @@ pub struct Wallet {
 impl Encode for Wallet {
     fn encode_to<W: Output>(&self, dest: &mut W) {
         self.view_key.encode_to(dest);
+        let staking_len = self.staking_keys.len();
+        (staking_len as u16).encode_to(dest);
+        for pub_key in self.staking_keys.iter() {
+            pub_key.encode_to(dest)
+        }
+        let roothashes_len = self.root_hashes.len();
+        (roothashes_len as u16).encode_to(dest);
+        for root_hash in self.root_hashes.iter() {
+            root_hash.encode_to(dest)
+        }
+        self.wallet_kind.encode_to(dest);
     }
 }
 
 impl Decode for Wallet {
     fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, parity_scale_codec::Error> {
         let view_key = PublicKey::decode(input)?;
-        let staking_keys = IndexSet::new();
-        let root_hashes = IndexSet::new();
+        let mut staking_keys = IndexSet::new();
+        let mut root_hashes = IndexSet::new();
+        let staking_len = u16::decode(input)?;
+        for _ in 0..staking_len {
+            staking_keys.insert(PublicKey::decode(input)?);
+        }
+        let root_hashes_len = u16::decode(input)?;
+        for _ in 0..root_hashes_len {
+            root_hashes.insert(H256::decode(input)?);
+        }
+        let wallet_kind = WalletKind::decode(input)?;
 
         Ok(Wallet {
             view_key,
             staking_keys,
             root_hashes,
-            wallet_kind: WalletKind::HD,
+            wallet_kind,
         })
     }
 }
@@ -354,6 +380,11 @@ where
             enckey,
         )?;
 
+        // write wallet name
+        let wallet_keyspace = get_wallet_keyspace();
+        self.storage
+            .set(wallet_keyspace, name, name.as_bytes().to_vec())?;
+
         // stakingkey
         write_number(
             &self.storage,
@@ -472,18 +503,7 @@ where
             ));
         }
 
-        self.set_wallet(name, enckey, Wallet::new(view_key.clone(), wallet_kind))?;
-
-        let info_keyspace = get_info_keyspace(name);
-        // key: "viewkey"
-        // value: view-key
-        write_pubkey_enc(&self.storage, &info_keyspace, "viewkey", &view_key, enckey)?;
-
-        // key: index
-        // value: walletname
-        let wallet_keyspace = get_wallet_keyspace();
-        self.storage
-            .set(wallet_keyspace, name, name.as_bytes().to_vec())?;
+        self.set_wallet(name, enckey, Wallet::new(view_key, wallet_kind))?;
 
         Ok(())
     }
@@ -861,5 +881,51 @@ mod tests {
             .expect_err("Retrieved public keys for non-existent wallet");
 
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_wallet_info_serialize() {
+        let public_key_1 = PublicKey::from(&PrivateKey::new().unwrap());
+        let public_key_2 = PublicKey::from(&PrivateKey::new().unwrap());
+        let mut staking_keys = IndexSet::new();
+        staking_keys.insert(public_key_1.clone());
+        staking_keys.insert(public_key_2.clone());
+        let mut root_hashes = IndexSet::new();
+        root_hashes.insert([0; 32]);
+        root_hashes.insert([1; 32]);
+        let private_key = PrivateKey::new().unwrap();
+        let wallet = Wallet {
+            view_key: PublicKey::from(&private_key),
+            staking_keys,
+            root_hashes,
+            wallet_kind: WalletKind::Basic,
+        };
+        let wallet_raw = wallet.encode();
+        let wallet_2 = Wallet::decode(&mut wallet_raw.as_slice()).unwrap();
+        assert_eq!(wallet_2.staking_keys.len(), 2);
+        assert_eq!(wallet_2.root_hashes.len(), 2);
+        assert_eq!(wallet_2.wallet_kind, WalletKind::Basic);
+
+        let mut key_pairs = BTreeMap::new();
+        key_pairs.insert(public_key_1, Some(vec![0]));
+        key_pairs.insert(public_key_2, None);
+        let mut multisig_address_pair = BTreeMap::new();
+        multisig_address_pair.insert("0".into(), vec![0]);
+
+        let info = WalletInfo {
+            name: "test".into(),
+            wallet,
+            private_key: PrivateKey::new().unwrap(),
+            passphrase: Some("abc".into()),
+            key_pairs,
+            multisig_address_pair,
+        };
+        let s = serde_json::to_string(&info);
+        assert!(s.is_ok());
     }
 }

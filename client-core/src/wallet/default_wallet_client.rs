@@ -34,10 +34,12 @@ use client_common::{
     PublicKey, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction, TransactionInfo,
 };
 use indexmap::IndexSet;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::convert::TryInto;
 use std::time::Duration;
 use zxcvbn::{feedback::Feedback, zxcvbn as estimate_password_strength};
 
@@ -306,11 +308,34 @@ where
                     "Can not find private key in wallet",
                 )
             })?;
+
+        // get public-private key pair
+        let mut key_pairs = BTreeMap::new();
+        let public_keys = self.public_keys(name, enckey)?;
+        for public_key in public_keys.into_iter() {
+            let private_key = self
+                .wallet_service
+                .find_private_key(name, enckey, &public_key)?;
+            let raw_private_key = private_key.map(|k| k.encode());
+            key_pairs.insert(public_key, raw_private_key);
+        }
+
+        // get multisig address
+        let mut multisig_address_pair = BTreeMap::new();
+        for root_hash in wallet.root_hashes.iter() {
+            let multisig_address = self
+                .root_hash_service
+                .get_multi_sig_address_from_root_hash(name, root_hash, enckey)?;
+            multisig_address_pair.insert(hex::encode(&root_hash), multisig_address.encode());
+        }
+
         let wallet_info = WalletInfo {
             name: name.into(),
             wallet,
             private_key,
             passphrase: None,
+            key_pairs,
+            multisig_address_pair,
         };
         Ok(wallet_info)
     }
@@ -321,6 +346,13 @@ where
         passphrase: &SecUtf8,
         wallet_info: WalletInfo,
     ) -> Result<SecKey> {
+        let all_wallet = self.wallet_service.names()?;
+        if all_wallet.contains(&name.to_string()) {
+            return Err(Error::new(
+                ErrorKind::PermissionDenied,
+                format!("wallet {} already exist", name),
+            ));
+        }
         check_passphrase_strength(name, passphrase)?;
         let enckey = derive_enckey(passphrase, name).err_kind(ErrorKind::InvalidInput, || {
             "unable to derive encryption key from passphrase"
@@ -336,7 +368,41 @@ where
         )?;
 
         self.wallet_service
-            .set_wallet(name, &enckey, wallet_info.wallet)?;
+            .set_wallet(name, &enckey, wallet_info.wallet.clone())?;
+
+        for (public_key, private_key_raw) in wallet_info.key_pairs.iter() {
+            if let Some(raw) = private_key_raw {
+                let private_key = PrivateKey::decode(&mut raw.as_slice())
+                    .chain(|| (ErrorKind::InvalidInput, "invalid private key"))?;
+                self.wallet_service
+                    .add_key_pairs(name, &enckey, &public_key, &private_key)?;
+            }
+            self.wallet_service
+                .add_public_key(name, &enckey, public_key)?;
+        }
+
+        // store multisig address
+        for (root_hash_str, raw_multisig_addr) in wallet_info.multisig_address_pair.iter() {
+            let multisig_addr = MultiSigAddress::decode(&mut raw_multisig_addr.as_slice())
+                .chain(|| (ErrorKind::InvalidInput, "failed to parse multisig address"))?;
+            let root_hash_raw = hex::decode(root_hash_str)
+                .chain(|| (ErrorKind::InvalidInput, "failed to parse root_hash"))?;
+
+            let root_hash: H256 = root_hash_raw
+                .as_slice()
+                .try_into()
+                .chain(|| (ErrorKind::InvalidInput, "failed to parse root_hash"))?;
+            self.wallet_service
+                .add_root_hash(name, &enckey, root_hash)?;
+            self.root_hash_service
+                .set_multi_sig_address_from_root_hash(name, &enckey, &root_hash, &multisig_addr)?;
+        }
+
+        for public_key in wallet_info.wallet.staking_keys.iter() {
+            self.wallet_service
+                .add_staking_key(name, &enckey, public_key)?;
+        }
+
         Ok(enckey)
     }
 
