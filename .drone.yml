@@ -13,6 +13,7 @@ steps:
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
   - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export PATH=$CARGO_HOME/bin:$PATH
   - ./docker/build.sh
 
 - name: unit-tests
@@ -40,7 +41,7 @@ steps:
   - export CARGO_TARGET_DIR=$PWD/drone/target
   - export PYTHON_VENV_DIR=$PWD/drone/venv
   - export CRYPTO_CHAIN_ENABLE_SANITY_CHECKS=1
-  - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service
+  - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
   - ./integration-tests/run.sh
 
 - name: multinode-tests
@@ -56,10 +57,12 @@ steps:
     IAS_API_KEY:
       from_secret: IAS_API_KEY
   commands:
+  - export CARGO_HOME=$PWD/drone/cargo
   - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export PATH=$CARGO_HOME/bin:$PATH
   - export PYTHON_VENV_DIR=$PWD/drone/venv
   - export CRYPTO_CHAIN_ENABLE_SANITY_CHECKS=1
-  - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service
+  - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
   - ./integration-tests/run_multinode.sh
 
 - name: sgx-test
@@ -75,7 +78,7 @@ steps:
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
   - export CARGO_TARGET_DIR=/tmp
-  - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service
+  - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
   - make -C chain-tx-enclave/tx-validation
   - cargo build --features sgx-test --manifest-path chain-abci/Cargo.toml
   - cd $CARGO_TARGET_DIR/debug
@@ -131,6 +134,6 @@ trigger:
 
 ---
 kind: signature
-hmac: fbabf3a62adcb7697a34675624f62c408eda1197524bbab22a904694cb3c2fc8
+hmac: a14adf1ecbabfbdef92b2e94155e60a89ac84f16d6eb56f3ce5ca63329c0c400
 
 ...

@@ -12,7 +12,7 @@ RUN set -e; \
     apt-get update; \
     apt-get install -y libzmq3-dev libssl1.1 libprotobuf10 libsgx-launch libsgx-urts libsgx-epid libsgx-quote-ex; \
     rm -rf /var/lib/apt/lists/*
-# only for chain-test -- for some reason, multi-node integration tests fail
+
 COPY --from=tendermint/tendermint:v0.33.4 /usr/bin/tendermint /usr/bin/tendermint
 
 FROM baiduxlab/sgx-rust:1804-1.1.2 AS BUILDER_BASE
@@ -37,7 +37,13 @@ RUN set -e; \
       pkg-config \
       clang; \
     rm -rf /var/lib/apt/lists/*
-# only for chain-test -- for some reason, multi-node integration tests fail
+
+# fortanix environment
+ENV CFLAGS "-gz=none"
+RUN set -e; \
+    rustup target add x86_64-fortanix-unknown-sgx; \
+    cargo install fortanix-sgx-tools sgxs-tools cargo-crate-type
+
 COPY --from=tendermint/tendermint:v0.33.4 /usr/bin/tendermint /usr/bin/tendermint
 
 FROM BUILDER_BASE AS TEST

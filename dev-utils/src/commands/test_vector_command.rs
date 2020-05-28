@@ -322,7 +322,6 @@ impl VectorFactory {
                 "example".to_string(),
                 Some("security@example.com".to_string()),
                 tendermint_validator_pubkey.clone(),
-                // real keypackage
                 mock_confidential_init(),
             ),
         );

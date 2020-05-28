@@ -17,8 +17,6 @@ ra-client = { path = "../enclave-ra/ra-client" }
 
 [target.'cfg(target_env = "sgx")'.dependencies]
 ra-enclave = { path = "../enclave-ra/ra-enclave" }
-
-[target.'cfg(target_env = "sgx")'.dev-dependencies]
 rs-libc = "0.2"
 
 [package.metadata.fortanix-sgx]

@@ -8,7 +8,9 @@ use std::str::FromStr;
 use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::coin::Coin;
 use chain_core::init::network::get_network_id;
-use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateOpAttributes};
+use chain_core::state::account::{
+    ConfidentialInit, CouncilNode, StakedStateAddress, StakedStateOpAttributes,
+};
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
 use chain_core::tx::data::address::ExtendedAddr;
@@ -16,12 +18,14 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecKey, Transaction};
+use client_common::{
+    gen_keypackage, verify_keypackage, Error, ErrorKind, PublicKey, Result, ResultExt, SecKey,
+    Transaction,
+};
 use client_core::transaction_builder::SignedTransferTransaction;
 use client_core::types::{BalanceChange, TransactionPending};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
-use test_common::chain_env::mock_confidential_init;
 
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use cli_table::format::{CellFormat, Color, Justify};
@@ -228,6 +232,15 @@ pub enum TransactionCommand {
         )]
         file: PathBuf,
     },
+    GenKeypackage {
+        #[structopt(
+            name = "Path to mls enclave",
+            short = "p",
+            long = "path",
+            help = "Path to mls enclave"
+        )]
+        path: String,
+    },
 }
 
 impl TransactionCommand {
@@ -313,6 +326,11 @@ impl TransactionCommand {
                 let signed = SignedTransferTransaction::from_str(&tx_signed)?;
                 let tx_id = wallet_client.broadcast_signed_transfer_tx(name, &enckey, signed)?;
                 success(hex::encode(tx_id).as_str());
+                Ok(())
+            }
+            TransactionCommand::GenKeypackage { path } => {
+                let blob = gen_keypackage(&path)?;
+                success(&base64::encode(&blob));
                 Ok(())
             }
         }
@@ -1033,11 +1051,26 @@ fn ask_node_metadata() -> Result<CouncilNode> {
     let mut pubkey_bytes = [0; 32];
     pubkey_bytes.copy_from_slice(&decoded_pubkey);
 
+    let keypackage = loop {
+        ask("please enter base64 encoded keypackage:");
+        match base64::decode(&text().chain(|| (ErrorKind::IoError, "Unable to read keypackage"))?) {
+            Ok(kp) => {
+                if let Err(err) = verify_keypackage(&kp) {
+                    println!("invalid keypackage: {}", err);
+                } else {
+                    break kp;
+                }
+            }
+            Err(err) => {
+                println!("invalid base64: {}", err);
+            }
+        }
+    };
+
     Ok(CouncilNode {
         name,
         security_contact: None,
         consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
-        // FIXME real keypackage
-        confidential_init: mock_confidential_init(),
+        confidential_init: ConfidentialInit { keypackage },
     })
 }

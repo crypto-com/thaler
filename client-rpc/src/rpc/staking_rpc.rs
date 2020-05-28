@@ -15,7 +15,10 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt, Transaction};
+use client_common::{
+    gen_keypackage, verify_keypackage, Error, ErrorKind, PublicKey, Result as CommonResult,
+    ResultExt, Transaction,
+};
 use client_core::wallet::WalletRequest;
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_network::NetworkOpsClient;
@@ -68,7 +71,11 @@ pub trait StakingRpc: Send + Sync {
         validator_node_name: String,
         validator_pubkey: String,
         staking_address: String,
+        keypackage: String,
     ) -> Result<String>;
+
+    #[rpc(name = "staking_genKeyPackage")]
+    fn gen_keypackage(&self, path: String) -> Result<String>;
 }
 
 pub struct StakingRpcImpl<T, N>
@@ -405,6 +412,7 @@ where
         validator_node_name: String,
         validator_pubkey: String,
         staking_addr: String,
+        keypackage: String,
     ) -> Result<String> {
         let attributes = StakedStateOpAttributes::new(self.network_id);
         let staking_account_address = staking_addr
@@ -416,7 +424,8 @@ where
                 )
             })
             .map_err(to_rpc_error)?;
-        let node_metadata = get_node_metadata(&validator_node_name, &validator_pubkey)?;
+        let node_metadata =
+            get_node_metadata(&validator_node_name, &validator_pubkey, &keypackage)?;
         let transaction = self
             .ops_client
             .create_node_join_transaction(
@@ -434,9 +443,18 @@ where
 
         Ok(hex::encode(transaction.tx_id()))
     }
+
+    fn gen_keypackage(&self, path: String) -> Result<String> {
+        let keypackage = gen_keypackage(&path).map_err(to_rpc_error)?;
+        Ok(base64::encode(&keypackage))
+    }
 }
 
-fn get_node_metadata(validator_name: &str, validator_pubkey: &str) -> Result<CouncilNode> {
+fn get_node_metadata(
+    validator_name: &str,
+    validator_pubkey: &str,
+    keypackage: &str,
+) -> Result<CouncilNode> {
     let decoded_pubkey = base64::decode(validator_pubkey)
         .chain(|| {
             (
@@ -457,13 +475,15 @@ fn get_node_metadata(validator_name: &str, validator_pubkey: &str) -> Result<Cou
     let mut pubkey_bytes = [0; 32];
     pubkey_bytes.copy_from_slice(&decoded_pubkey);
 
+    let keypackage = base64::decode(keypackage)
+        .err_kind(ErrorKind::InvalidInput, || "invalid base64")
+        .map_err(to_rpc_error)?;
+    verify_keypackage(&keypackage).map_err(to_rpc_error)?;
+
     Ok(CouncilNode {
         name: validator_name.to_string(),
         security_contact: None,
         consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
-        // FIXME real keypackage
-        confidential_init: ConfidentialInit {
-            keypackage: b"FIXME NODE JOIN".to_vec(),
-        },
+        confidential_init: ConfidentialInit { keypackage },
     })
 }

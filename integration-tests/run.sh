@@ -11,7 +11,7 @@ PYTHON_VENV_DIR=${PYTHON_VENV_DIR:-"./bot/.venv"}
 source $PYTHON_VENV_DIR/bin/activate
 
 # prepare chain binaries
-CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"../target"}
+export CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"../target"}
 BUILD_PROFILE=${BUILD_PROFILE:-debug}
 BUILD_MODE=${BUILD_MODE:-sgx}
 ln -sf $CARGO_TARGET_DIR/$BUILD_PROFILE/tx_query_enclave.signed.so .

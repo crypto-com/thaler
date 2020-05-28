@@ -74,6 +74,7 @@ txid = rpc.staking.join(
     TARGET_NODE,
     SigningKey(TARGET_NODE_VALIDATOR_SEED).pub_key_base64(),
     addr,
+    rpc.staking.gen_keypackage(),
     enckey=enckey,
     name='target',
 )
@@ -133,6 +134,7 @@ txid = rpc.staking.join(
     TARGET_NODE,
     SigningKey(TARGET_NODE_VALIDATOR_SEED).pub_key_base64(),
     addr,
+    rpc.staking.gen_keypackage(),
     enckey=enckey,
     name='target',
 )
