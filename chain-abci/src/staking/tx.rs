@@ -35,19 +35,14 @@ impl StakingTable {
             return Err(NodeJoinError::BondedNotEnough.into());
         }
 
-        // FIXME
-        let new_isv_svn = if &tx.node_meta.confidential_init.keypackage != b"FIXME NODE JOIN" {
-            let keypackage = KeyPackage::read_bytes(&tx.node_meta.confidential_init.keypackage)
-                .ok_or(NodeJoinError::KeyPackageDecodeError)?;
-            let info = keypackage
-                .verify(&ENCLAVE_CERT_VERIFIER, block_time)
-                .map_err(NodeJoinError::KeyPackageVerifyError)?;
-            if info.quote.report_body.isv_svn > recent_isv_svn {
-                warn!("more recent version of enclave");
-                info.quote.report_body.isv_svn
-            } else {
-                recent_isv_svn
-            }
+        let keypackage = KeyPackage::read_bytes(&tx.node_meta.confidential_init.keypackage)
+            .ok_or(NodeJoinError::KeyPackageDecodeError)?;
+        let info = keypackage
+            .verify(&ENCLAVE_CERT_VERIFIER, block_time)
+            .map_err(NodeJoinError::KeyPackageVerifyError)?;
+        let new_isv_svn = if info.quote.report_body.isv_svn > recent_isv_svn {
+            warn!("more recent version of enclave");
+            info.quote.report_body.isv_svn
         } else {
             recent_isv_svn
         };

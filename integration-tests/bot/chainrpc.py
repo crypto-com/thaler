@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys
+import os
 import getpass
 import logging
 import base64
@@ -27,6 +27,12 @@ if DEBUG_LEVEL:
     requests_log.propagate = True
 
 DEFAULT_WALLET = config('DEFAULT_WALLET', 'Default')
+CARGO_TARGET_DIR = config('CARGO_TARGET_DIR', '../target')
+MLS_ENCLAVE_PATH = config(
+    'MLS_ENCLAVE_PATH',
+    os.path.join(CARGO_TARGET_DIR,
+                 'x86_64-fortanix-unknown-sgx/debug/mls.sgxs')
+)
 
 
 def get_passphrase():
@@ -86,10 +92,8 @@ class Client:
             'params': params
         }
         rsp = json.loads(self.binding.call(json.dumps(req)))
-        if 'result' in rsp:
-            return rsp['result']
-        else:
-            print(rsp['error'], file=sys.stderr)
+        assert 'result' in rsp, rsp['error']
+        return rsp['result']
 
 
 class Address:
@@ -245,14 +249,25 @@ class Staking:
     def unjail(self, address, name=DEFAULT_WALLET, enckey=None):
         return self.client.call('staking_unjail', [name, enckey or get_enckey()], fix_address(address))
 
-    def join(self, node_name, node_pubkey, node_staking_address, name=DEFAULT_WALLET, enckey=None):
-        return self.client.call('staking_validatorNodeJoin', [name, enckey or get_enckey()], node_name, node_pubkey,  fix_address(node_staking_address))
+    def join(self, node_name, node_pubkey, node_staking_address, keypackage, name=DEFAULT_WALLET, enckey=None):
+        return self.client.call(
+            'staking_validatorNodeJoin',
+            [name, enckey or get_enckey()],
+            node_name,
+            node_pubkey,
+            fix_address(node_staking_address),
+            keypackage
+        )
 
     def build_raw_transfer_tx(self, to_address, amount, name=DEFAULT_WALLET,  enckey=None, viewkeys=[]):
         return self.client.call('wallet_buildRawTransferTx', [name, enckey or get_enckey()], to_address, amount, viewkeys)
 
     def broadcast_raw_transfer_tx(self, signed_tx, name=DEFAULT_WALLET, enckey=None):
         return self.client.call('wallet_broadcastSignedTransferTx', [name, enckey or get_enckey()], signed_tx)
+
+    def gen_keypackage(self, path=MLS_ENCLAVE_PATH):
+        print('mls path', path)
+        return self.client.call('staking_genKeyPackage', path)
 
 
 class MultiSig:

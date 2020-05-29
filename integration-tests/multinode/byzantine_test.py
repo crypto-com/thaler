@@ -45,7 +45,8 @@ print('Join node0')
 txid = rpc.staking.join(
     'node0',
     SigningKey(VALIDATOR_SEED).pub_key_base64(),
-    bonded_staking
+    bonded_staking,
+    rpc.staking.gen_keypackage(),
 )
 
 wait_for_tx(rpc, txid)
@@ -80,7 +81,8 @@ print('re-join')
 txid = rpc.staking.join(
     'node0',
     SigningKey(VALIDATOR_SEED).pub_key_base64(),
-    bonded_staking
+    bonded_staking,
+    rpc.staking.gen_keypackage(),
 )
 print('Wait for join node transaction', txid)
 wait_for_tx(rpc, txid)

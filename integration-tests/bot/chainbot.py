@@ -254,8 +254,8 @@ def programs(node, app_hash, root_path, cfg):
             'autostart': 'false' if name == 'client-rpc' and not cfg.get('start_client_rpc') else 'true',
             'autorestart': 'true',
             'redirect_stderr': 'true',
-            'priority': str(priority),
-            'startsecs': '1',
+            'priority': str(priority + 1),
+            'startsecs': '3',
             'startretries': '10',
         }
         for priority, (name, cmd, env) in enumerate(commands)
@@ -275,6 +275,16 @@ def tasks_ini(node_cfgs, app_hash, root_path, cfg):
         },
         'supervisorctl': {
             'serverurl': 'unix://%(here)s/supervisor.sock',
+        },
+        'program:ra-sp-server': {
+            'command': f'ra-sp-server --quote-type Unlinkable --ias-key {os.environ["IAS_API_KEY"]} --spid {os.environ["SPID"]}',
+            'stdout_logfile': '%(here)s/logs/ra-sp-server.log',
+            'autostart': 'true',
+            'autorestart': 'true',
+            'redirect_stderr': 'true',
+            'priority': '10',
+            'startsecs': '3',
+            'startretries': '10',
         },
     }
 

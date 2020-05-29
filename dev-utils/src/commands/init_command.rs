@@ -9,13 +9,13 @@ use secstr::SecUtf8;
 use serde_json::json;
 
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
+use chain_core::state::account::ConfidentialInit;
 use chain_core::state::tendermint::{TendermintValidator, TendermintValidatorPubKey};
 use client_common::storage::SledStorage;
 use client_common::tendermint::types::Time;
-use client_common::{Error, ErrorKind, Result, ResultExt};
+use client_common::{verify_keypackage, Error, ErrorKind, Result, ResultExt};
 use client_core::types::WalletKind;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
-use test_common::chain_env::mock_confidential_init;
 
 use super::genesis_command::generate_genesis;
 use super::genesis_dev_config::GenesisDevConfig;
@@ -182,14 +182,27 @@ impl InitCommand {
             .staking_account_address
             .parse::<RedeemAddress>()
             .unwrap();
+        let keypackage = loop {
+            match base64::decode(&self.ask_string("please enter base64 encoded keypackage:", "")) {
+                Ok(kp) => {
+                    if let Err(err) = verify_keypackage(&kp) {
+                        println!("invalid keypackage: {}", err);
+                    } else {
+                        break kp;
+                    }
+                }
+                Err(err) => {
+                    println!("invalid base64: {}", err);
+                }
+            }
+        };
         self.genesis_dev_config.council_nodes.insert(
             address,
             (
                 "dev test".to_owned(),
                 None,
                 pubkey,
-                // FIXME real keypackage
-                mock_confidential_init(),
+                ConfidentialInit { keypackage },
             ),
         );
         Ok(())

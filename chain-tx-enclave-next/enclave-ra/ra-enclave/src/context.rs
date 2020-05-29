@@ -154,7 +154,8 @@ impl EnclaveRaContext {
         certificate_params.alg = &PKCS_ECDSA_P256_SHA256;
 
         let current_time = Utc::now();
-        certificate_params.not_before = current_time;
+        // 1 minute offset is to make the keypackage immediately usable, because block time might lag behind the system time
+        certificate_params.not_before = current_time - Duration::minutes(1);
         certificate_params.not_after = current_time + Duration::days(90);
 
         certificate_params.subject_alt_names =
