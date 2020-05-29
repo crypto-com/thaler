@@ -301,12 +301,7 @@ pub fn process_public_tx(
 ) -> Result<TxPublicAction, PublicTxError> {
     check_staking_attributes(txaux.attributes(), chain_info.chain_hex_id)?;
     match txaux {
-        // TODO: delay checking witness, as address is contained in Tx?
         TxPublicAux::UnbondStakeTx(maintx, witness) => {
-            let address = verify_tx_recover_address(&witness, &maintx.id())?;
-            if address != maintx.from_staked_account {
-                return Err(PublicTxError::StakingWitnessNotMatch);
-            }
             let unbonded_from = staking_table.unbond(
                 staking_store,
                 chain_info.get_unbonding_period(),
@@ -316,29 +311,28 @@ pub fn process_public_tx(
                 chain_info.min_fee_computed,
             )?;
 
+            let address = verify_tx_recover_address(&witness, &maintx.id())?;
+            if address != maintx.from_staked_account {
+                return Err(PublicTxError::StakingWitnessNotMatch);
+            }
+
             Ok(TxPublicAction::unbond(
                 chain_info.min_fee_computed,
                 (address, maintx.value),
                 unbonded_from,
             ))
         }
-        // TODO: delay checking witness, as address is contained in Tx?
         TxPublicAux::UnjailTx(maintx, witness) => {
+            staking_table.unjail(staking_store, chain_info.block_time, maintx)?;
+
             let address = verify_tx_recover_address(&witness, &maintx.id())?;
             if address != maintx.address {
                 return Err(PublicTxError::StakingWitnessNotMatch);
             }
-
-            staking_table.unjail(staking_store, chain_info.block_time, maintx)?;
 
             Ok(TxPublicAction::unjail(address))
         }
-        // TODO: delay checking witness, as address is contained in Tx?
         TxPublicAux::NodeJoinTx(maintx, witness) => {
-            let address = verify_tx_recover_address(&witness, &maintx.id())?;
-            if address != maintx.address {
-                return Err(PublicTxError::StakingWitnessNotMatch);
-            }
             let isv_svn = staking_table.node_join(
                 staking_store,
                 chain_info.block_time,
@@ -346,6 +340,11 @@ pub fn process_public_tx(
                 enclave_isv_svn,
                 maintx,
             )?;
+
+            let address = verify_tx_recover_address(&witness, &maintx.id())?;
+            if address != maintx.address {
+                return Err(PublicTxError::StakingWitnessNotMatch);
+            }
 
             Ok(TxPublicAction::node_join(
                 address,
