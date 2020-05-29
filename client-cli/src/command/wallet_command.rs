@@ -262,7 +262,7 @@ impl WalletCommand {
             let name = wallet_info.name.clone();
             let passphrase = match &wallet_info.passphrase {
                 Some(p) => p.clone(),
-                None => ask_passphrase(Some(&format!("Input passphrase for wallet {}", name)))?,
+                None => ask_passphrase(Some(&format!("Input passphrase for wallet {}:", name)))?,
             };
             let enckey = wallet_client.import_wallet(&name, &passphrase, wallet_info);
             match enckey {

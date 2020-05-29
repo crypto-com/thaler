@@ -53,14 +53,7 @@ where
 
         // key: roothash
         // value: multisig address info
-        let multisigaddress_keyspace = get_multisig_keyspace(name);
-        self.storage.set_secure(
-            multisigaddress_keyspace,
-            hex::encode(&root_hash),
-            multi_sig_address.encode(),
-            enckey,
-        )?;
-
+        self.set_multi_sig_address_from_root_hash(name, enckey, &root_hash, &multi_sig_address)?;
         Ok((root_hash, multi_sig_address))
     }
 
@@ -99,6 +92,24 @@ where
         let address = self.get_multi_sig_address_from_root_hash(name, root_hash, enckey)?;
 
         Ok(address.self_public_key())
+    }
+
+    /// store multisig address
+    pub fn set_multi_sig_address_from_root_hash(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        root_hash: &H256,
+        multi_sig_address: &MultiSigAddress,
+    ) -> Result<()> {
+        let multisigaddress_keyspace = get_multisig_keyspace(name);
+        self.storage.set_secure(
+            multisigaddress_keyspace,
+            hex::encode(&root_hash),
+            multi_sig_address.encode(),
+            enckey,
+        )?;
+        Ok(())
     }
 
     /// Returns MultiSig address from storage with the given root_hash

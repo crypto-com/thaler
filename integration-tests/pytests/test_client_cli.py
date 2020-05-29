@@ -39,13 +39,20 @@ def test_wallet_basic():
 
     # 2. restore wallet
     w = Wallet.restore("test5", PASSPHRASE, "ordinary mandate edit father snack mesh history identify print borrow skate unhappy cattle tiny first")
+    assert len(w.list_address("transfer")["addresses"]) == 0
     wallet_list.append(w)
+    w.create_address("transfer")
+    w.create_address("transfer")
+    w.create_address("staking")
+    assert len(w.list_pub_key()) == 2
+    assert len(w.list_address("transfer")["addresses"]) == 2
+    assert len(w.list_address("staking")["addresses"]) == 1
 
     #3. check the wallet
     wallet_names = Wallet.list()
     assert sorted(wallet_names) == ["test1", "test2", "test3", "test4", "test5"]
 
-    #4. export wallet
+    # 4. export wallet
     export_result = Wallet.export_without_file(wallet_list)
     write_wallet_info_to_file(wallet_list)
     export2file_result = Wallet.export_with_file()
@@ -56,9 +63,11 @@ def test_wallet_basic():
 
     #6. import wallet
     Wallet.import_from_file()
-    _wallet_names = Wallet.list()
-    # TODO: fix import from file bug,  wallet_names should be ["test1", ..., "test5"]
-    # assert sorted(wallet_names) == [w.name for w in wallet_list]
+    wallet_names = Wallet.list()
+    assert sorted(wallet_names) == [w.name for w in wallet_list]
+    assert len(w.list_address("transfer")["addresses"]) == 2
+    assert len(w.list_address("staking")["addresses"]) == 1
+
 
 
 @pytest.mark.zerofee
