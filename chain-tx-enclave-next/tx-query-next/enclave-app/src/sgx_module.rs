@@ -22,18 +22,13 @@ use self::handler::{
     verify_decryption_request,
 };
 
-fn main() -> std::io::Result<()> {
+pub fn entry() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
     log::info!("Connecting to ZeroMQ");
     let zmq_stream = Arc::new(Mutex::new(TcpStream::connect("zmq")?));
 
-    // Currently, it's not possible to pass arguments to enclave code
-    // FIXME: Fix that or bind via Usercall extensions?
-    // ref: https://github.com/fortanix/rust-sgx/issues/136
-    // ref: https://github.com/fortanix/rust-sgx/blob/master/examples/usercall-extension-bind/runner/src/main.rs#L26
-    let addrs = "0.0.0.0:3443";
     let num_threads = 4;
     let config = EnclaveRaConfig {
         sp_addr: "0.0.0.0:8989".to_string(),
@@ -45,9 +40,9 @@ fn main() -> std::io::Result<()> {
     );
 
     log::info!("Successfully created remote attestation certificate!");
-    log::info!("Starting TLS Server at: {}", addrs);
+    log::info!("Starting TLS Server");
 
-    let listener = TcpListener::bind(addrs)?;
+    let listener = TcpListener::bind("tx-query")?;
 
     let (thread_pool_sender, thread_pool) = ThreadPool::fixed_size(num_threads);
 
@@ -89,7 +84,7 @@ fn handle_connection<T: Read + Write>(mut stream: T, zmq_stream: Arc<Mutex<TcpSt
                     let response = handle_encryption_request(request, len, zmq_stream);
 
                     let response = match response {
-                        Ok(response) => TxQueryInitResponse::Encrypt(response),
+                        Ok(response) => response,
                         Err(message) => {
                             log::error!("Error while handling encryption request: {}", message);
                             return;
@@ -106,7 +101,9 @@ fn handle_connection<T: Read + Write>(mut stream: T, zmq_stream: Arc<Mutex<TcpSt
                 Ok(TxQueryInitRequest::DecryptChallenge) => {
                     let challenge = get_random_challenge();
 
-                    if let Err(err) = stream.write_all(&challenge) {
+                    if let Err(err) =
+                        stream.write_all(&TxQueryInitResponse::DecryptChallenge(challenge).encode())
+                    {
                         log::error!("Unable to write random challenge to TLS stream: {}", err);
                         return;
                     }

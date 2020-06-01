@@ -13,9 +13,11 @@ source $PYTHON_VENV_DIR/bin/activate
 # prepare chain binaries
 CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"../target"}
 BUILD_PROFILE=${BUILD_PROFILE:-debug}
+EDP_TARGET_DIR=$CARGO_TARGET_DIR/x86_64-fortanix-unknown-sgx/$BUILD_PROFILE
 BUILD_MODE=${BUILD_MODE:-sgx}
-ln -sf $CARGO_TARGET_DIR/$BUILD_PROFILE/tx_query_enclave.signed.so .
 ln -sf $CARGO_TARGET_DIR/$BUILD_PROFILE/tx_validation_enclave.signed.so .
+ln -sf $EDP_TARGET_DIR/tx-query2-enclave-app.sgxs .
+ln -sf $EDP_TARGET_DIR/tx-query2-enclave-app.sig .
 export PATH=$CARGO_TARGET_DIR/$BUILD_PROFILE:$PATH
 
 if [ $BUILD_MODE == "sgx" ]; then

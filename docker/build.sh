@@ -28,18 +28,24 @@ if [ $BUILD_MODE == "sgx" ]; then
     export CFLAGS="-gz=none"
 
     cargo build $CARGO_ARGS
-    cargo build $CARGO_ARGS -p tx-query-app
     make -C chain-tx-enclave/tx-validation
-    make -C chain-tx-enclave/tx-query
 
-    # mls enclave
+    # Add fortanix target and tools
     rustup target add x86_64-fortanix-unknown-sgx
     cargo install fortanix-sgx-tools sgxs-tools
+
+    # mls enclave
     cargo build --target=x86_64-fortanix-unknown-sgx -p mls
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/mls \
         --stack-size 0x40000 --heap-size 0x20000000 --threads 1 $EDP_ARGS
     sgxs-sign --key chain-tx-enclave/tx-query/enclave/Enclave_private.pem $EDP_TARGET_DIR/mls.sgxs $EDP_TARGET_DIR/mls.sig \
         -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
+
+    # tx-query enclave
+    cargo build --package tx-query2-app-runner
+    RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul" cargo build --target x86_64-fortanix-unknown-sgx --package tx-query2-enclave-app
+    ftxsgx-elf2sgxs $EDP_TARGET_DIR/tx-query2-enclave-app --heap-size 0x2000000 --stack-size 0x80000 --threads 6 $EDP_ARGS
+    sgxs-sign --key chain-tx-enclave/tx-query/enclave/Enclave_private.pem $EDP_TARGET_DIR/tx-query2-enclave-app.sgxs $EDP_TARGET_DIR/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
 
 else
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-rpc/server/Cargo.toml

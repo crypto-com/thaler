@@ -16,15 +16,11 @@ use enclave_protocol::{
     TxQueryInitRequest, TxQueryInitResponse,
 };
 #[cfg(feature = "edp-obfuscation")]
-use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierConfig};
+use ra_client::EnclaveCertVerifier;
 
 #[cfg(feature = "sgx-obfuscation")]
 use super::sgx::EnclaveAttr;
 use crate::TransactionObfuscation;
-
-/// Intel Attestation Service (IAS) certificate obtained from https://software.intel.com/sites/default/files/managed/7b/de/RK_PUB.zip
-#[cfg(feature = "edp-obfuscation")]
-const IAS_CERT: &[u8] = include_bytes!("AttestationReportSigningCACert.pem");
 
 #[cfg(feature = "sgx-obfuscation")]
 fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
@@ -44,18 +40,8 @@ fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
 
 #[cfg(feature = "edp-obfuscation")]
 fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
-    let verifier_config = EnclaveCertVerifierConfig {
-        signing_ca_cert_pem: IAS_CERT.into(),
-        valid_enclave_quote_statuses: vec!["OK".into()].into(),
-        report_validity_secs: 86400,
-        enclave_info: None, // TODO: Get enclave details from command line or env variables?
-    };
-    let verifier = EnclaveCertVerifier::new(verifier_config).chain(|| {
-        (
-            ErrorKind::InitializationError,
-            "Cannot initialize enclave certificate verifier",
-        )
-    })?;
+    // TODO: Get enclave details from command line or env variables?
+    let verifier = EnclaveCertVerifier::default();
     Ok(Arc::new(verifier.into_client_config()))
 }
 
