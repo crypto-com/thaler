@@ -27,6 +27,27 @@ lazy_static! {
     pub static ref ENCLAVE_CERT_VERIFIER: EnclaveCertVerifier = EnclaveCertVerifier::default();
 }
 
+pub trait AttestedCertVerifier: Clone {
+    /// Verifies certificate and return the public key
+    /// the returned public key is in uncompressed raw format (65 bytes)
+    fn verify_attested_cert(
+        &self,
+        certificate: &[u8],
+        now: DateTime<Utc>,
+    ) -> Result<CertVerifyResult, EnclaveCertVerifierError>;
+}
+
+impl AttestedCertVerifier for EnclaveCertVerifier {
+    fn verify_attested_cert(
+        &self,
+        certificate: &[u8],
+        now: DateTime<Utc>,
+    ) -> Result<CertVerifyResult, EnclaveCertVerifierError> {
+        self.verify_cert(certificate, now)
+    }
+}
+
+#[derive(Clone)]
 pub struct EnclaveCertVerifier {
     root_cert_store: RootCertStore,
     valid_enclave_quote_statuses: HashSet<EnclaveQuoteStatus>,

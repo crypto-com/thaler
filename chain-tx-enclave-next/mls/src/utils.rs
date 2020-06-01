@@ -24,6 +24,30 @@ pub fn decode_option<T: Codec>(r: &mut Reader) -> Option<Option<T>> {
     }
 }
 
+pub fn encode_vec_option_u32<T: Codec>(bytes: &mut Vec<u8>, items: &[Option<T>]) {
+    let mut sub: Vec<u8> = Vec::new();
+    for i in items {
+        encode_option(&mut sub, i);
+    }
+
+    debug_assert!(sub.len() <= 0xffff_ffff);
+    (sub.len() as u32).encode(bytes);
+    bytes.append(&mut sub);
+}
+
+pub fn read_vec_option_u32<T: Codec>(r: &mut Reader) -> Option<Vec<Option<T>>> {
+    let len = u32::read(r)? as usize;
+    let mut ret: Vec<Option<T>> = Vec::with_capacity(len);
+
+    let mut sub = r.sub(len)?;
+
+    while sub.any_left() {
+        ret.push(decode_option(&mut sub)?);
+    }
+
+    Some(ret)
+}
+
 pub fn encode_vec_u32<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     let mut sub: Vec<u8> = Vec::new();
     for i in items {

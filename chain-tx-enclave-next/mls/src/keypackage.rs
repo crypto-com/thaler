@@ -3,7 +3,7 @@
 use std::convert::TryInto;
 use std::time::{Duration, UNIX_EPOCH};
 
-use ra_client::{CertVerifyResult, EnclaveCertVerifier, EnclaveCertVerifierError};
+use ra_client::{AttestedCertVerifier, CertVerifyResult, EnclaveCertVerifierError};
 #[cfg(target_env = "sgx")]
 use ra_enclave::{Certificate, EnclaveRaContext, EnclaveRaContextError};
 use rustls::internal::msgs::codec::{self, Codec, Reader};
@@ -12,8 +12,9 @@ use x509_parser::{parse_x509_der, x509};
 
 use crate::credential::Credential;
 use crate::extensions::{self as ext, MLSExtension};
-use crate::key::{PrivateKey, PublicKey};
+use crate::key::{HPKEPrivateKey, HPKEPublicKey, IdentityPrivateKey, IdentityPublicKey};
 use crate::utils;
+use core::cmp::Ordering;
 
 pub type ProtocolVersion = u8;
 pub type Timespec = u64;
@@ -25,11 +26,11 @@ pub const MLS10_128_DHKEMP256_AES128GCM_SHA256_P256: CipherSuite = 2;
 pub const CREDENTIAL_TYPE_X509: u8 = 1;
 
 /// spec: draft-ietf-mls-protocol.md#key-packages
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct KeyPackagePayload {
     pub version: ProtocolVersion,
     pub cipher_suite: CipherSuite,
-    pub init_key: PublicKey,
+    pub init_key: HPKEPublicKey,
     pub credential: Credential,
     pub extensions: Vec<ext::ExtensionEntry>,
 }
@@ -46,7 +47,7 @@ impl Codec for KeyPackagePayload {
     fn read(r: &mut Reader) -> Option<Self> {
         let version = ProtocolVersion::read(r)?;
         let cipher_suite = CipherSuite::read(r)?;
-        let init_key = PublicKey::read(r)?;
+        let init_key = HPKEPublicKey::read(r)?;
         let credential = Credential::read(r)?;
         let extensions = codec::read_vec_u16(r)?;
         Some(Self {
@@ -83,7 +84,7 @@ impl KeyPackagePayload {
     /// Verify key package payload
     pub fn verify(
         &self,
-        ra_verifier: &EnclaveCertVerifier,
+        ra_verifier: impl AttestedCertVerifier,
         now: Timespec,
     ) -> Result<CertVerifyResult, Error> {
         if self.cipher_suite != MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 {
@@ -115,22 +116,68 @@ impl KeyPackagePayload {
         let x509 = self.credential.x509().ok_or(Error::InvalidCredential)?;
 
         let info = ra_verifier
-            .verify_cert(x509, (UNIX_EPOCH + Duration::from_secs(now)).into())
+            .verify_attested_cert(x509, (UNIX_EPOCH + Duration::from_secs(now)).into())
             .map_err(Error::CertificateVerifyError)?;
-        if info.public_key.as_slice() != self.init_key.as_ref() {
-            return Err(Error::InitKeyDontMatch);
-        }
         Ok(info)
     }
 }
 
 /// Key package, only send `(payload, signature)` to other nodes.
 /// spec: draft-ietf-mls-protocol.md#key-packages
-#[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct KeyPackage {
     pub payload: KeyPackagePayload,
     pub signature: Vec<u8>,
 }
+
+impl Ord for KeyPackage {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (
+            self.payload.version,
+            self.payload.cipher_suite,
+            self.payload.init_key.get_encoding(),
+            &self.payload.credential,
+            &self.payload.extensions,
+            &self.signature,
+        )
+            .cmp(&(
+                other.payload.version,
+                other.payload.cipher_suite,
+                other.payload.init_key.get_encoding(),
+                &other.payload.credential,
+                &other.payload.extensions,
+                &other.signature,
+            ))
+    }
+}
+
+impl PartialOrd for KeyPackage {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for KeyPackage {
+    fn eq(&self, other: &Self) -> bool {
+        (
+            self.payload.version,
+            self.payload.cipher_suite,
+            self.payload.init_key.get_encoding(),
+            &self.payload.credential,
+            &self.payload.extensions,
+            &self.signature,
+        ) == (
+            other.payload.version,
+            other.payload.cipher_suite,
+            other.payload.init_key.get_encoding(),
+            &other.payload.credential,
+            &other.payload.extensions,
+            &other.signature,
+        )
+    }
+}
+
+impl Eq for KeyPackage {}
 
 impl Codec for KeyPackage {
     fn encode(&self, bytes: &mut Vec<u8>) {
@@ -148,12 +195,12 @@ impl KeyPackage {
     /// Verify key package and signature
     pub fn verify(
         &self,
-        ra_verifier: &EnclaveCertVerifier,
+        ra_verifier: impl AttestedCertVerifier,
         now: Timespec,
     ) -> Result<CertVerifyResult, Error> {
         let info = self.payload.verify(ra_verifier, now)?;
-        self.payload
-            .init_key
+        let public_key = IdentityPublicKey::new_unsafe(info.public_key.clone());
+        public_key
             .verify_signature(&self.payload.get_encoding(), &self.signature)
             .map_err(Error::SignatureVerifyError)?;
         Ok(info)
@@ -162,7 +209,8 @@ impl KeyPackage {
 
 pub struct OwnedKeyPackage {
     pub keypackage: KeyPackage,
-    pub private_key: PrivateKey,
+    pub credential_private_key: IdentityPrivateKey,
+    pub init_private_key: HPKEPrivateKey,
 }
 
 impl OwnedKeyPackage {
@@ -191,11 +239,13 @@ impl OwnedKeyPackage {
             .entry(),
         ];
 
-        let private_key = PrivateKey::from_pkcs8(&private_key.0).expect("invalid private key");
+        let private_key =
+            IdentityPrivateKey::from_pkcs8(&private_key.0).expect("invalid private key");
+        let (hpke_secret, hpke_public) = HPKEPrivateKey::generate();
         let payload = KeyPackagePayload {
             version: PROTOCOL_VERSION_MLS10,
             cipher_suite: MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
-            init_key: private_key.public_key(),
+            init_key: hpke_public,
             credential: Credential::X509(certificate.0),
             extensions,
         };
@@ -205,7 +255,8 @@ impl OwnedKeyPackage {
 
         Ok(Self {
             keypackage: KeyPackage { payload, signature },
-            private_key,
+            credential_private_key: private_key,
+            init_private_key: hpke_secret,
         })
     }
 }
@@ -235,6 +286,12 @@ pub enum Error {
     InitKeyDontMatch,
     #[error("duplicate key package")]
     DuplicateKeyPackage,
+    #[error("key package not found")]
+    KeyPackageNotFound,
+    #[error("ratchet tree integrity check failed")]
+    TreeIntegrityError,
+    #[error("group info integrity check failed")]
+    GroupInfoIntegrityError,
 }
 
 #[derive(thiserror::Error, Debug)]
