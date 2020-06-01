@@ -23,9 +23,10 @@ use tokio::{
 };
 use tokio_tungstenite::{tungstenite::Message, MaybeTlsStream, WebSocketStream};
 
+/// websocket writer
 pub type WebSocketWriter = SplitSink<WebSocketStream<MaybeTlsStream<TcpStream>>, Message>;
+/// websocket reader
 pub type WebSocketReader = SplitStream<WebSocketStream<MaybeTlsStream<TcpStream>>>;
-
 use super::{
     types::{ConnectionState, JsonRpcRequest, JsonRpcResponse},
     websocket_rpc_loop,
@@ -40,7 +41,8 @@ const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
 #[derive(Clone)]
 pub struct AsyncRpcClient {
     connection_state: Arc<Mutex<ConnectionState>>,
-    websocket_writer: Arc<Mutex<WebSocketWriter>>,
+    /// websocket
+    pub websocket_writer: Arc<Mutex<WebSocketWriter>>,
     channel_map: Arc<Mutex<HashMap<String, Sender<JsonRpcResponse>>>>,
     unique_id: Arc<AtomicUsize>,
 }

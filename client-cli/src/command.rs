@@ -384,9 +384,10 @@ impl Command {
                 disable_address_recovery,
                 block_height_ensure,
             } => {
+                let enckey = ask_seckey(None)?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
                 let tx_obfuscation = get_tx_query(tendermint_client.clone())?;
-                let enckey = ask_seckey(None)?;
+
                 let storage = SledStorage::new(storage_path())?;
                 let config = ObfuscationSyncerConfig::new(
                     storage.clone(),
@@ -399,7 +400,8 @@ impl Command {
                         block_height_ensure: *block_height_ensure,
                     },
                 );
-                Self::resync(config, name.clone(), enckey, *force, storage)
+                Self::resync(config, name.clone(), enckey, *force, storage)?;
+                Ok(())
             }
             Command::MultiSig { multisig_command } => {
                 let storage = SledStorage::new(storage_path())?;
@@ -691,6 +693,7 @@ fn print_sync_warning() {
 
 fn get_wallet_client(storage: SledStorage) -> Result<AppWalletClient> {
     let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
+
     let hw_key_service = HwKeyService::default();
 
     let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service.clone());
