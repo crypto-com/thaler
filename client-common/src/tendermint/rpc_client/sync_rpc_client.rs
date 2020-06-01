@@ -11,6 +11,7 @@ use tendermint::{lite, validator};
 use tokio::runtime::Runtime;
 
 use chain_core::state::ChainState;
+use std::sync::Mutex;
 
 use super::async_rpc_client::AsyncRpcClient;
 use crate::{
@@ -18,13 +19,19 @@ use crate::{
     Error, ErrorKind, Result, ResultExt,
 };
 
+use futures_util::sink::SinkExt;
+use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
+use tokio_tungstenite::tungstenite::protocol::frame::CloseFrame;
+use tokio_tungstenite::tungstenite::Message;
+
 const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Wraps asynchronous RPC client and executes it in tokio runtime
 #[derive(Clone)]
 pub struct SyncRpcClient {
-    runtime: Arc<Runtime>,
-    async_rpc_client: AsyncRpcClient,
+    runtime: Arc<Mutex<Runtime>>,
+    /// ASYNC RPC CLIENT
+    pub async_rpc_client: AsyncRpcClient,
 }
 
 impl SyncRpcClient {
@@ -47,7 +54,7 @@ impl SyncRpcClient {
             })?;
 
         Ok(Self {
-            runtime: Arc::new(runtime),
+            runtime: Arc::new(Mutex::new(runtime)),
             async_rpc_client,
         })
     }
@@ -61,7 +68,7 @@ impl SyncRpcClient {
         let (sender, receiver) = sync_channel(1);
         let async_rpc_client = self.async_rpc_client.clone();
 
-        self.runtime.spawn(async move {
+        self.runtime.lock().unwrap().spawn(async move {
             let response = async_rpc_client.call(method, &params).await;
             if let Err(e) = sender.send(response) {
                 log::error!(
@@ -91,7 +98,7 @@ impl SyncRpcClient {
         let (sender, receiver) = sync_channel(1);
         let async_rpc_client = self.async_rpc_client.clone();
 
-        self.runtime.spawn(async move {
+        self.runtime.lock().unwrap().spawn(async move {
             let response = async_rpc_client.call_batch(&params).await;
             if let Err(e) = sender.send(response) {
                 log::error!(
@@ -308,5 +315,22 @@ impl Client for SyncRpcClient {
                 }
             })
             .collect()
+    }
+}
+
+impl Drop for SyncRpcClient {
+    fn drop(&mut self) {
+        if Arc::strong_count(&self.runtime) == 1 {
+            let sender = self.async_rpc_client.websocket_writer.clone();
+
+            self.runtime.lock().unwrap().block_on(async move {
+                let closemsg = CloseFrame {
+                    code: CloseCode::Normal,
+                    reason: std::borrow::Cow::Borrowed("close gracefully"),
+                };
+                let item = Message::Close(Some(closemsg));
+                let _result = sender.lock().await.send(item).await;
+            });
+        }
     }
 }
