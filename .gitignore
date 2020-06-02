@@ -37,3 +37,8 @@ id_ecdsa
 /integration-tests/bot/.venv
 
 **/chain-abci/Enclave_u.*
+
+
+# Drone temparary files
+secrets.txt
+

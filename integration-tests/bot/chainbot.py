@@ -231,8 +231,7 @@ def programs(node, app_hash, root_path, cfg):
     commands = []
     if not cfg.get('mock_mode'):
         commands += [
-            ('tx-query', f"tx-query-app 0.0.0.0:{tx_query_port} tcp://127.0.0.1:{tx_validation_port}",
-             dict(def_env, SGX_MODE='HW', IAS_API_KEY=os.environ['IAS_API_KEY'], SPID=os.environ['SPID'], TX_ENCLAVE_STORAGE=node_path / Path('tx-query'))),
+                ('tx-query', f"tx-query2-app-runner --enclave-path 'tx-query2-enclave-app.sgxs' --address 127.0.0.1:{tx_query_port} --zmq-conn-str tcp://127.0.0.1:{tx_validation_port} --sp-address 127.0.0.1:8989", dict(def_env)),
         ]
     commands += [
         ('chain-abci', f"chain-abci -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{tx_validation_port} --data {node_path / Path('chain')} -p {chain_abci_port} --tx_query 127.0.0.1:{tx_query_port}",

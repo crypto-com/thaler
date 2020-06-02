@@ -14,8 +14,11 @@ fi
 if [ -d data_offline ]; then
     rm -rf data_offline
 fi
-if [ -f tx_query_enclave.signed.so ]; then
-    rm tx_query_enclave.signed.so
+if [ -f tx-query2-enclave-app.sgxs ]; then
+    rm tx-query2-enclave-app.sgxs
+fi
+if [ -f tx-query2-enclave-app.sig ]; then
+    rm tx-query2-enclave-app.sig
 fi
 if [ -f tx_validation_enclave.signed.so ]; then
     rm tx_validation_enclave.signed.so
