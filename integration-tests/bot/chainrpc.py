@@ -75,6 +75,7 @@ class Client:
             network_id=network_id,
             mock_mode=mock_mode
         )
+        self.mock_mode = mock_mode
 
     def call(self, method, *args, **kwargs):
         params = None
@@ -266,8 +267,10 @@ class Staking:
         return self.client.call('wallet_broadcastSignedTransferTx', [name, enckey or get_enckey()], signed_tx)
 
     def gen_keypackage(self, path=MLS_ENCLAVE_PATH):
-        print('mls path', path)
-        return self.client.call('staking_genKeyPackage', path)
+        if self.client.mock_mode:
+            return ''
+        else:
+            return self.client.call('staking_genKeyPackage', path)
 
 
 class MultiSig:

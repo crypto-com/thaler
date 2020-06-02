@@ -478,6 +478,8 @@ fn get_node_metadata(
     let keypackage = base64::decode(keypackage)
         .err_kind(ErrorKind::InvalidInput, || "invalid base64")
         .map_err(to_rpc_error)?;
+
+    #[cfg(not(feature = "mock-enclave"))]
     verify_keypackage(&keypackage).map_err(to_rpc_error)?;
 
     Ok(CouncilNode {

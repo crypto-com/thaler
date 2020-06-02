@@ -35,14 +35,20 @@ impl StakingTable {
             return Err(NodeJoinError::BondedNotEnough.into());
         }
 
-        let keypackage = KeyPackage::read_bytes(&tx.node_meta.confidential_init.keypackage)
-            .ok_or(NodeJoinError::KeyPackageDecodeError)?;
-        let info = keypackage
-            .verify(&*ENCLAVE_CERT_VERIFIER, block_time)
-            .map_err(NodeJoinError::KeyPackageVerifyError)?;
-        let new_isv_svn = if info.quote.report_body.isv_svn > recent_isv_svn {
-            warn!("more recent version of enclave");
+        let isv_svn = if cfg!(feature = "mock-enclave") {
+            0
+        } else {
+            let keypackage = KeyPackage::read_bytes(&tx.node_meta.confidential_init.keypackage)
+                .ok_or(NodeJoinError::KeyPackageDecodeError)?;
+            let info = keypackage
+                .verify(&*ENCLAVE_CERT_VERIFIER, block_time)
+                .map_err(NodeJoinError::KeyPackageVerifyError)?;
             info.quote.report_body.isv_svn
+        };
+
+        let new_isv_svn = if isv_svn > recent_isv_svn {
+            warn!("more recent version of enclave");
+            isv_svn
         } else {
             recent_isv_svn
         };
