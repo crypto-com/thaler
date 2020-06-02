@@ -16,6 +16,7 @@ use rustls::internal::msgs::codec::{self, Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
 use sha2::Sha256;
 use std::collections::BTreeSet;
+use subtle::ConstantTimeEq;
 
 /// auxiliary structure to hold group context + tree
 pub struct GroupAux {
@@ -116,6 +117,7 @@ impl GroupAux {
         &self,
         updated_tree: &Tree,
         updated_group_context: &GroupContext,
+        updated_secrets: &EpochSecrets<Sha256>,
         confirmation: Vec<u8>,
         interim_transcript_hash: Vec<u8>,
         positions: Vec<(usize, KeyPackage)>,
@@ -138,7 +140,7 @@ impl GroupAux {
             payload: group_info_p,
             signature,
         };
-        let (welcome_key, welcome_nonce) = self.secrets.get_welcome_secret_key_nonce(
+        let (welcome_key, welcome_nonce) = updated_secrets.get_welcome_secret_key_nonce(
             self.tree.cs.aead_key_len(),
             self.tree.cs.aead_nonce_len(),
         );
@@ -147,7 +149,7 @@ impl GroupAux {
                 .cs
                 .encrypt_group_info(&group_info, welcome_key, welcome_nonce);
         let mut secrets = Vec::with_capacity(positions.len());
-        let epoch_secret = &self.secrets.epoch_secret.0;
+        let epoch_secret = &updated_secrets.epoch_secret.0;
         for (_position, key_package) in positions.iter() {
             let group_secret = GroupSecret {
                 epoch_secret: SecretVec::new(epoch_secret.expose_secret().to_vec()),
@@ -212,6 +214,7 @@ impl GroupAux {
             self.get_welcome_msg(
                 &updated_tree,
                 &updated_group_context,
+                &epoch_secrets,
                 confirmation,
                 interim_transcript_hash,
                 positions,
@@ -350,9 +353,9 @@ impl GroupAux {
             .secrets
             .compute_confirmation(&group.context.confirmed_transcript_hash);
 
-        if confirmation != group_info.payload.confirmation {
-            // FIXME
-            // return Err(kp::Error::GroupInfoIntegrityError);
+        let confirmation_ok: bool = confirmation.ct_eq(&group_info.payload.confirmation).into();
+        if !confirmation_ok {
+            return Err(kp::Error::GroupInfoIntegrityError);
         }
         Ok(group)
     }
