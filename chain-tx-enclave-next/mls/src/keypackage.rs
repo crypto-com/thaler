@@ -84,7 +84,7 @@ impl KeyPackagePayload {
     /// Verify key package payload
     pub fn verify(
         &self,
-        ra_verifier: impl AttestedCertVerifier,
+        ra_verifier: &impl AttestedCertVerifier,
         now: Timespec,
     ) -> Result<CertVerifyResult, Error> {
         if self.cipher_suite != MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 {
@@ -195,7 +195,7 @@ impl KeyPackage {
     /// Verify key package and signature
     pub fn verify(
         &self,
-        ra_verifier: impl AttestedCertVerifier,
+        ra_verifier: &impl AttestedCertVerifier,
         now: Timespec,
     ) -> Result<CertVerifyResult, Error> {
         let info = self.payload.verify(ra_verifier, now)?;

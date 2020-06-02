@@ -39,7 +39,7 @@ pub fn verify_keypackage(keypackage: &[u8]) -> Result<()> {
     let keypackage = KeyPackage::read_bytes(keypackage)
         .err_kind(ErrorKind::InvalidInput, || "keypackage decode fail")?;
     keypackage
-        .verify(ENCLAVE_CERT_VERIFIER.clone(), now)
+        .verify(&*ENCLAVE_CERT_VERIFIER, now)
         .err_kind(ErrorKind::InvalidInput, || "keypackage verify fail")?;
     Ok(())
 }
