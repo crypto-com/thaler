@@ -222,7 +222,7 @@ impl GroupAux {
     pub fn init_group(
         creator_kp: OwnedKeyPackage,
         others: &[KeyPackage],
-        ra_verifier: impl AttestedCertVerifier,
+        ra_verifier: &impl AttestedCertVerifier,
         genesis_time: Timespec,
     ) -> Result<(Self, Vec<MLSPlaintext>, MLSPlaintext, Welcome), kp::Error> {
         let mut kps = BTreeSet::new();
@@ -230,7 +230,7 @@ impl GroupAux {
             if kps.contains(kp) {
                 return Err(kp::Error::DuplicateKeyPackage);
             } else {
-                kp.verify(ra_verifier.clone(), genesis_time)?;
+                kp.verify(ra_verifier, genesis_time)?;
                 kps.insert(kp.clone());
             }
         }
@@ -250,10 +250,10 @@ impl GroupAux {
     pub fn init_group_from_welcome(
         my_kp: OwnedKeyPackage,
         welcome: Welcome,
-        ra_verifier: impl AttestedCertVerifier,
+        ra_verifier: &impl AttestedCertVerifier,
         genesis_time: Timespec,
     ) -> Result<Self, kp::Error> {
-        my_kp.keypackage.verify(ra_verifier.clone(), genesis_time)?;
+        my_kp.keypackage.verify(ra_verifier, genesis_time)?;
         if welcome.cipher_suite != my_kp.keypackage.payload.cipher_suite {
             return Err(kp::Error::UnsupportedCipherSuite(welcome.cipher_suite));
         }
@@ -296,9 +296,8 @@ impl GroupAux {
             Some(Some(Node::Leaf(Some(kp)))) => Ok(kp.clone()),
             _ => Err(kp::Error::KeyPackageNotFound),
         }?;
-        let identity_pk = IdentityPublicKey::new_unsafe(
-            signer.verify(ra_verifier.clone(), genesis_time)?.public_key,
-        );
+        let identity_pk =
+            IdentityPublicKey::new_unsafe(signer.verify(ra_verifier, genesis_time)?.public_key);
         let payload = group_info.payload.get_encoding();
         identity_pk
             .verify_signature(&payload, &group_info.signature)
@@ -530,7 +529,7 @@ mod test {
             static VECTOR: &[u8] = include_bytes!("../tests/test_vectors/keypackage.bin");
             let kp = <KeyPackage>::read_bytes(VECTOR).expect("decode");
             let now = 1590490084;
-            let t = kp.verify(ENCLAVE_CERT_VERIFIER.clone(), now).unwrap();
+            let t = kp.verify(&*ENCLAVE_CERT_VERIFIER, now).unwrap();
 
             Ok(CertVerifyResult {
                 public_key: certificate.to_vec(),
@@ -595,11 +594,11 @@ mod test {
         let (_group_aux, _, _, welcome) = GroupAux::init_group(
             creator_kp,
             &[to_be_added.keypackage.clone()],
-            MockVerifier {},
+            &MockVerifier {},
             0,
         )
         .expect("group init");
-        GroupAux::init_group_from_welcome(to_be_added, welcome, MockVerifier {}, 0)
+        GroupAux::init_group_from_welcome(to_be_added, welcome, &MockVerifier {}, 0)
             .expect("group init from welcome");
     }
 }

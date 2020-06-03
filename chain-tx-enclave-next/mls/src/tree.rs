@@ -296,7 +296,7 @@ impl Tree {
 
     pub fn integrity_check(
         nodes: &[Option<Node>],
-        ra_verifier: impl AttestedCertVerifier,
+        ra_verifier: &impl AttestedCertVerifier,
         time: Timespec,
         _cs: CipherSuite,
     ) -> Result<(), kp::Error> {
@@ -308,7 +308,7 @@ impl Tree {
                         return Err(kp::Error::TreeIntegrityError);
                     }
                     // "For each non-empty leaf node, verify the signature on the KeyPackage."
-                    if let Err(e) = kp.verify(ra_verifier.clone(), time) {
+                    if let Err(e) = kp.verify(ra_verifier, time) {
                         return Err(e);
                     }
                 }

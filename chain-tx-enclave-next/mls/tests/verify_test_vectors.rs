@@ -12,7 +12,7 @@ fn verify_keypackage_test_vector_mock() {
     static VECTOR: &[u8] = include_bytes!("test_vectors/keypackage_mock.bin");
     let kp = <KeyPackage>::read_bytes(VECTOR).expect("decode");
     assert!(matches!(
-        kp.verify(ENCLAVE_CERT_VERIFIER.clone(), 0),
+        kp.verify(&*ENCLAVE_CERT_VERIFIER, 0),
         Err(Error::InvalidCredential)
     ));
 }
@@ -24,9 +24,9 @@ fn verify_keypackage_test_vector() {
     let kp = <KeyPackage>::read_bytes(VECTOR).expect("decode");
     let now = 1590490084;
     let expire = now + DEFAULT_LIFE_TIME;
-    kp.verify(ENCLAVE_CERT_VERIFIER.clone(), now).unwrap();
+    kp.verify(&*ENCLAVE_CERT_VERIFIER, now).unwrap();
     assert!(matches!(
-        kp.verify(ENCLAVE_CERT_VERIFIER.clone(), expire + 1),
+        kp.verify(&*ENCLAVE_CERT_VERIFIER, expire + 1),
         Err(Error::NotAfter(_))
     ));
 }
