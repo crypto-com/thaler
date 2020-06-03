@@ -158,9 +158,9 @@ pub struct Tree {
     pub my_pos: usize,
 }
 
-/// The level of a node in the tree.  Leaves are level 0, their
-/// parents are level 1, etc.  If a node's children are at different
-/// level, then its level is the max level of its children plus one.
+/// The level of a node in the tree. Leaves are level 0, their parents are
+/// level 1, etc. If a node's children are at different levels, then its
+/// level is the max level of its children plus one.
 #[inline]
 fn level(x: usize) -> usize {
     if (x & 0x01) == 0 {
@@ -214,7 +214,7 @@ fn root(n: usize) -> usize {
     (1usize << log2(w)) - 1
 }
 
-/// The largest power of 2 less than n.  Equivalent to:
+/// The exponent of the largest power of 2 less than x. Equivalent to:
 ///  int(math.floor(math.log(x, 2)))
 #[inline]
 fn log2(x: usize) -> usize {
