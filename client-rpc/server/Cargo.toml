@@ -5,8 +5,7 @@ authors = ["Crypto.com <chain@crypto.com>"]
 edition = "2018"
 
 [features]
-mock-enclave = []
-default = []
+mock-enclave = ["client-rpc-core/mock-enclave"]
 
 [dependencies]
 client-rpc-core = { path = ".." }

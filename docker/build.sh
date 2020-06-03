@@ -56,7 +56,11 @@ else
 fi
 
 echo "Build dynamic cro-clib"
-cargo install cargo-crate-type
-cargo crate-type -f cro-clib/Cargo.toml dynamic
-cargo build $CARGO_ARGS -p cro-clib
-cargo crate-type -f cro-clib/Cargo.toml static
+sed -i.bak -E "s/crate-type = \[\".+\"\]/crate-type = \[\"cdylib\"\]/" cro-clib/Cargo.toml
+if [ $BUILD_MODE == "sgx" ]; then
+    cargo build $CARGO_ARGS -p cro-clib
+else
+    cargo build $CARGO_ARGS --features mock-enclave --manifest-path cro-clib/Cargo.toml
+fi
+sed -i.bak -E "s/crate-type = \[\".+\"\]/crate-type = \[\"staticlib\"\]/" cro-clib/Cargo.toml
+rm cro-clib/Cargo.toml.bak

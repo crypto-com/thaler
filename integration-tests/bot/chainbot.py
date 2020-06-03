@@ -275,7 +275,9 @@ def tasks_ini(node_cfgs, app_hash, root_path, cfg):
         'supervisorctl': {
             'serverurl': 'unix://%(here)s/supervisor.sock',
         },
-        'program:ra-sp-server': {
+    }
+    if not cfg.get('mock_mode'):
+        ini['program:ra-sp-server'] = {
             'command': f'ra-sp-server --quote-type Unlinkable --ias-key {os.environ["IAS_API_KEY"]} --spid {os.environ["SPID"]}',
             'stdout_logfile': '%(here)s/logs/ra-sp-server.log',
             'autostart': 'true',
@@ -284,8 +286,7 @@ def tasks_ini(node_cfgs, app_hash, root_path, cfg):
             'priority': '10',
             'startsecs': '3',
             'startretries': '10',
-        },
-    }
+        }
 
     for node in node_cfgs:
         prgs = programs(node, app_hash, root_path, cfg)
