@@ -11,7 +11,7 @@ edition = "2018"
 aes = "0.3"
 chrono = "0.4"
 cmac = "0.2"
-crypto-mac = { version = "0.7", features = ["std"] }
+crypto-mac = { version = "0.8", features = ["std"] }
 log = "0.4"
 rcgen = "0.8"
 ring = "0.16"
