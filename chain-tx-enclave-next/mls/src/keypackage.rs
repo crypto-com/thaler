@@ -292,6 +292,10 @@ pub enum Error {
     TreeIntegrityError,
     #[error("group info integrity check failed")]
     GroupInfoIntegrityError,
+    #[error("Epoch does not match")]
+    GroupEpochError,
+    #[error("Commit processing error")]
+    CommitError,
 }
 
 #[derive(thiserror::Error, Debug)]

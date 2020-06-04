@@ -153,7 +153,7 @@ impl Codec for MLSPlaintextCommon {
 }
 
 /// spec: draft-ietf-mls-protocol.md#Message-Framing\
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MLSPlaintext {
     pub content: MLSPlaintextCommon,
     /// 0..2^16-1
@@ -221,7 +221,7 @@ impl MLSPlaintext {
 
 /// 0..255 -- hash of the MLSPlaintext in which the Proposal was sent
 /// spec: draft-ietf-mls-protocol.md#Commit
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Ord, Eq)]
 pub struct ProposalId(pub Vec<u8>);
 
 impl Codec for ProposalId {

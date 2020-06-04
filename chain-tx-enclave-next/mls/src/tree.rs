@@ -270,6 +270,13 @@ fn direct_path(node_pos: usize, n: usize) -> Vec<usize> {
 }
 
 impl Tree {
+    pub fn get_package(&self, leaf_index: usize) -> Option<&KeyPackage> {
+        match self.nodes[leaf_index * 2] {
+            Node::Leaf(Some(ref pk)) => Some(pk),
+            _ => None,
+        }
+    }
+
     pub fn from_group_info(
         my_pos: usize,
         cs: CipherSuite,
