@@ -32,5 +32,5 @@ thiserror = { version = "1.0", default-features = false }
 [dev-dependencies]
 quickcheck = "0.9"
 serde_json = "1.0"
-fixed = "0.5.7"
+fixed = "1.0.0"
 test-common = { path = "../test-common" }
