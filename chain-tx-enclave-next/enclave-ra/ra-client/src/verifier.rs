@@ -232,12 +232,15 @@ impl EnclaveCertVerifier {
     pub fn into_client_config(self) -> ClientConfig {
         let mut config = ClientConfig::new();
         config.dangerous().set_certificate_verifier(Arc::new(self));
+        config.versions = vec![rustls::ProtocolVersion::TLSv1_3];
         config
     }
 
     /// Converts enclave certificate verifier into server config expected by `rustls`
     pub fn into_server_config(self) -> ServerConfig {
-        ServerConfig::new(Arc::new(self))
+        let mut server_config = ServerConfig::new(Arc::new(self));
+        server_config.versions = vec![rustls::ProtocolVersion::TLSv1_3];
+        server_config
     }
 }
 

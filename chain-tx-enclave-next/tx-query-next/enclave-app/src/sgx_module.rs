@@ -59,6 +59,7 @@ pub fn entry() -> std::io::Result<()> {
                 certificate
                     .configure_server_config(&mut tls_server_config)
                     .expect("Unable to create TLS server config");
+                tls_server_config.versions = vec![rustls::ProtocolVersion::TLSv1_3];
 
                 let tls_server_config = Arc::new(tls_server_config);
 
