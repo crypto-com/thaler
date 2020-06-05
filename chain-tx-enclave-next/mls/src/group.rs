@@ -15,6 +15,7 @@ use ra_client::AttestedCertVerifier;
 use rustls::internal::msgs::codec::{self, Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
 use sha2::Sha256;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use subtle::ConstantTimeEq;
 
@@ -222,6 +223,123 @@ impl GroupAux {
         )
     }
 
+    pub fn process_commit(
+        &mut self,
+        commit: MLSPlaintext,
+        add_proposals: &[MLSPlaintext],
+        update_proposals: &[MLSPlaintext],
+        remove_proposals: &[MLSPlaintext],
+        ra_verifier: &impl AttestedCertVerifier,
+        now: Timespec,
+    ) -> Result<(), kp::Error> {
+        // "Verify that the epoch field of the enclosing MLSPlaintext message
+        // is equal to the epoch field of the current GroupContext object"
+        if self.context.epoch != commit.content.epoch {
+            return Err(kp::Error::GroupEpochError);
+        }
+        let kp = self
+            .tree
+            .get_package(commit.content.sender.sender as usize)
+            .ok_or(kp::Error::KeyPackageNotFound)?;
+        let pk = IdentityPublicKey::new_unsafe(kp.verify(ra_verifier, now)?.public_key);
+        // "Verify that the signature on the MLSPlaintext message verifies
+        //  using the public key from the credential stored at the leaf in the tree indicated by the sender field."
+        commit
+            .verify_signature(&self.context, &pk)
+            .map_err(kp::Error::SignatureVerifyError)?;
+
+        // "Generate a provisional GroupContext object by applying the proposals referenced in the commit object..."
+        for _update in update_proposals.iter() {
+            // FIXME
+        }
+        for _remove in remove_proposals.iter() {
+            // FIXME
+        }
+        let mut add_proposals_ids: BTreeMap<ProposalId, &MLSPlaintext> = BTreeMap::new();
+        for add in add_proposals.iter() {
+            add_proposals_ids.insert(ProposalId(self.tree.cs.hash(&add.get_encoding())), add);
+        }
+        let (commit_content, confirmation) = match commit.content.content {
+            ContentType::Commit {
+                commit,
+                confirmation,
+            } => Ok((commit, confirmation)),
+            _ => Err(kp::Error::CommitError),
+        }?;
+
+        let mreordered_add_proposals: Result<Vec<MLSPlaintext>, kp::Error> = commit_content
+            .adds
+            .iter()
+            .map(|proposal_id| {
+                add_proposals_ids
+                    .get(proposal_id)
+                    .map(|x| (*x).clone())
+                    .ok_or(kp::Error::CommitError)
+            })
+            .collect();
+        let adds = mreordered_add_proposals?;
+        // FIXME: updates
+        // FIXME: removes
+        let mut updated_tree = self.tree.clone();
+
+        let _ = updated_tree.update(&adds, &[], &[]);
+        // "Verify that the path value is populated if either of the updates or removes vectors has length greater than zero
+        // all of the updates, removes, and adds vectors are empty."
+        if commit_content.path.is_none()
+            && ((!commit_content.updates.is_empty() || !commit_content.removes.is_empty())
+                || (commit_content.adds.is_empty()
+                    && commit_content.updates.is_empty()
+                    && commit_content.removes.is_empty()))
+        {
+            return Err(kp::Error::CommitError);
+        }
+
+        let updated_epoch = self.context.epoch + 1;
+        let mut updated_group_context = self.context.clone();
+        updated_group_context.epoch = updated_epoch;
+        updated_group_context.tree_hash = updated_tree.compute_tree_hash();
+        // "If the path value is populated: Process the path value..."
+        // FIXME: if commit_content.path.is_some()
+        // "If the path value is not populated: ..."
+        let commit_secret = vec![0; self.tree.cs.hash_len()];
+
+        // "Update the new GroupContext's confirmed and interim transcript hashes using the new Commit."
+        let confirmed_transcript_hash = self.get_init_confirmed_transcript_hash(&commit_content);
+        updated_group_context.confirmed_transcript_hash = confirmed_transcript_hash;
+        // FIXME: store interim transcript hash?
+        let _interim_transcript_hash = self.get_interim_transcript_hash(
+            confirmation,
+            commit.signature.clone(),
+            updated_group_context.confirmed_transcript_hash.clone(),
+        );
+        let updated_group_context_hash = self.tree.cs.hash(&updated_group_context.get_encoding());
+
+        // "Use the commit_secret, the provisional GroupContext,
+        // and the init secret from the previous epoch to compute the epoch secret and derived secrets for the new epoch."
+        let epoch_secrets = self
+            .secrets
+            .generate_new_epoch_secrets(&commit_secret, updated_group_context_hash);
+        let confirmation_computed =
+            epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
+
+        // "Use the confirmation_key for the new epoch to compute the confirmation MAC for this message,
+        // as described below, and verify that it is the same as the confirmation field in the MLSPlaintext object."
+        let confirmation =
+            epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
+
+        let confirmation_ok: bool = confirmation.ct_eq(&confirmation_computed).into();
+        if !confirmation_ok {
+            return Err(kp::Error::GroupInfoIntegrityError);
+        }
+
+        // "If the above checks are successful, consider the updated GroupContext object as the current state of the group."
+        self.context = updated_group_context;
+        self.secrets = epoch_secrets;
+        self.tree = updated_tree;
+
+        Ok(())
+    }
+
     pub fn init_group(
         creator_kp: OwnedKeyPackage,
         others: &[KeyPackage],
@@ -364,7 +482,7 @@ impl GroupAux {
 const TDBE_GROUP_ID: &[u8] = b"Crypto.com Chain Council Node Transaction Data Bootstrap Enclave";
 
 /// spec: draft-ietf-mls-protocol.md#group-state
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct GroupContext {
     /// 0..255 bytes -- application-defined id
     pub group_id: Vec<u8>,
@@ -591,17 +709,23 @@ mod test {
     }
 
     #[test]
-    fn test_welcome_process() {
+    fn test_welcome_commit_process() {
         let creator_kp = get_fake_keypackage();
         let to_be_added = get_fake_keypackage();
-        let (_group_aux, _, _, welcome) = GroupAux::init_group(
+        let (mut creator_group, adds, commit, welcome) = GroupAux::init_group(
             creator_kp,
             &[to_be_added.keypackage.clone()],
             &MockVerifier {},
             0,
         )
         .expect("group init");
-        GroupAux::init_group_from_welcome(to_be_added, welcome, &MockVerifier {}, 0)
-            .expect("group init from welcome");
+        let added_group =
+            GroupAux::init_group_from_welcome(to_be_added, welcome, &MockVerifier {}, 0)
+                .expect("group init from welcome");
+        creator_group
+            .process_commit(commit, &adds, &[], &[], &MockVerifier {}, 0)
+            .expect("commit ok");
+        // they should get to the same context
+        assert_eq!(&added_group.context, &creator_group.context);
     }
 }
