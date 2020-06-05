@@ -10,7 +10,7 @@ chain-tx-filter = { path = "../chain-tx-filter" }
 mls = { path = "../chain-tx-enclave-next/mls" }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
 
-aes = "0.3"
+aes = "0.4"
 aes-gcm-siv = "0.4"
 anyhow = "1.0"
 base64 = "0.11"
