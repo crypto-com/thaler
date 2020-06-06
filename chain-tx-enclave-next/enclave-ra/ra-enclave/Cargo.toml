@@ -10,7 +10,7 @@ edition = "2018"
 [dependencies]
 aes = "0.3"
 chrono = "0.4"
-cmac = "0.2"
+cmac = "0.3"
 crypto-mac = { version = "0.7", features = ["std"] }
 log = "0.4"
 rcgen = "0.8"
