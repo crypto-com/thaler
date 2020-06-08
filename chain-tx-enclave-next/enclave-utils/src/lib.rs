@@ -1,5 +1,5 @@
 #[cfg(all(feature = "sgxstd", target_env = "sgx"))]
-use aead::{generic_array::GenericArray, Aead, NewAead};
+use aead::{generic_array::GenericArray, Aead, AeadInPlace, NewAead};
 #[cfg(all(feature = "sgxstd", target_env = "sgx"))]
 use aes_gcm::Aes128Gcm;
 use aes_gcm::Tag;
@@ -71,7 +71,7 @@ impl SealedData {
         let mut key = key_request.egetkey()?;
         let gk = GenericArray::clone_from_slice(&key);
         key.zeroize();
-        let aead = Aes128Gcm::new(gk);
+        let aead = Aes128Gcm::new(&gk);
         if let Ok(tag) = aead.encrypt_in_place_detached(nonce, &txid, &mut encrypt_txt) {
             result.extend_from_slice(&tag);
             result.extend_from_slice(&encrypt_txt);
@@ -134,7 +134,7 @@ impl SealedData {
         let mut key = self.key_request.egetkey()?;
         let gk = GenericArray::clone_from_slice(&key);
         key.zeroize();
-        let aead = Aes128Gcm::new(gk);
+        let aead = Aes128Gcm::new(&gk);
         if aead
             .decrypt_in_place_detached(
                 nonce,

@@ -251,5 +251,5 @@ pub fn decrypt_bytes<K: AsRef<[u8]>>(key: K, enckey: &SecKey, bytes: &[u8]) -> R
 }
 
 fn get_algo(enckey: &SecKey) -> Aes256GcmSiv {
-    Aes256GcmSiv::new(*enckey.unsecure())
+    Aes256GcmSiv::new(enckey.unsecure())
 }
