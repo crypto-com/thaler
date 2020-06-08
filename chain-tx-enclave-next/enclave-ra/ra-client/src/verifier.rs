@@ -108,7 +108,8 @@ impl EnclaveCertVerifier {
             return Err(EnclaveCertVerifierError::CertificateExpired);
         }
 
-        let attestation_report_oid = Oid::from(OID_EXTENSION_ATTESTATION_REPORT);
+        let attestation_report_oid = Oid::from(OID_EXTENSION_ATTESTATION_REPORT)
+            .expect("Unable to parse attestation report OID");
         let public_key = certificate
             .tbs_certificate
             .subject_pki
