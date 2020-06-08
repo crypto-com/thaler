@@ -1,5 +1,5 @@
 use crate::ciphersuite::*;
-use crate::extensions::{self as ext};
+use crate::extensions as ext;
 use crate::key::IdentityPublicKey;
 use crate::keypackage::Timespec;
 use crate::keypackage::PROTOCOL_VERSION_MLS10;
@@ -7,6 +7,7 @@ use crate::keypackage::{self as kp, KeyPackage, OwnedKeyPackage};
 use crate::message::*;
 use crate::secrets::*;
 use crate::tree::*;
+use crate::tree_math::{LeafSize, NodeSize};
 use crate::utils::{
     encode_vec_option_u32, encode_vec_u8_u16, encode_vec_u8_u8, read_vec_option_u32,
     read_vec_u8_u16, read_vec_u8_u8,
@@ -121,7 +122,7 @@ impl GroupAux {
         updated_secrets: &EpochSecrets<Sha256>,
         confirmation: Vec<u8>,
         interim_transcript_hash: Vec<u8>,
-        positions: Vec<(usize, KeyPackage)>,
+        positions: Vec<(NodeSize, KeyPackage)>,
     ) -> Welcome {
         let group_info_p = GroupInfoPayload {
             group_id: updated_group_context.group_id.clone(),
@@ -239,7 +240,7 @@ impl GroupAux {
         }
         let kp = self
             .tree
-            .get_package(commit.content.sender.sender as usize)
+            .get_package(LeafSize(commit.content.sender.sender as usize))
             .ok_or(kp::Error::KeyPackageNotFound)?;
         let pk = IdentityPublicKey::new_unsafe(kp.verify(ra_verifier, now)?.public_key);
         // "Verify that the signature on the MLSPlaintext message verifies

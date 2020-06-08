@@ -8,6 +8,7 @@ pub mod keypackage;
 pub mod message;
 pub mod secrets;
 pub mod tree;
+pub mod tree_math;
 pub mod utils;
 
 pub use keypackage::{KeyPackage, OwnedKeyPackage};
