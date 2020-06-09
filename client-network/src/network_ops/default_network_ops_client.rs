@@ -803,7 +803,7 @@ mod tests {
         let transactions = vec![(input, output)];
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let tendermint_client = MockClient::default();
@@ -851,7 +851,7 @@ mod tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let tendermint_client = MockClient::default();
@@ -898,7 +898,7 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let from_address = network_ops_client
@@ -957,7 +957,7 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let from_address = network_ops_client
@@ -1026,7 +1026,7 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         assert_eq!(
@@ -1109,7 +1109,7 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let from_address = network_ops_client
@@ -1160,7 +1160,7 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let staking_account_address = network_ops_client

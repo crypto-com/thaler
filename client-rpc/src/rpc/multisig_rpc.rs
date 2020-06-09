@@ -362,7 +362,7 @@ mod test {
 
         let (enckey, _) = multisig_rpc
             .client
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
         let wallet_request = WalletRequest {
             name: "Default".to_owned(),

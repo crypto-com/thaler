@@ -35,6 +35,14 @@ pub enum WalletCommand {
             case_insensitive = true
         )]
         wallet_type: WalletKind,
+        #[structopt(
+            name = "wallet mnemonic count",
+            short = "m",
+            long = "mnemonics_word_count",
+            default_value = "24",
+            help = "Number of words in mnemonics"
+        )]
+        mnemonics_word_count: u32,
     },
     #[structopt(name = "export", about = "Backup wallet to a file")]
     Export {
@@ -120,9 +128,11 @@ pub enum WalletCommand {
 impl WalletCommand {
     pub fn execute<T: WalletClient>(&self, wallet_client: T) -> Result<()> {
         match self {
-            WalletCommand::New { name, wallet_type } => {
-                Self::new_wallet(wallet_client, name, *wallet_type)
-            }
+            WalletCommand::New {
+                name,
+                wallet_type,
+                mnemonics_word_count,
+            } => Self::new_wallet(wallet_client, name, *wallet_type, *mnemonics_word_count),
             WalletCommand::List => Self::list_wallets(wallet_client),
             WalletCommand::Restore { name } => Self::restore_wallet(wallet_client, name),
             WalletCommand::RestoreBasic { name } => Self::restore_basic_wallet(wallet_client, name),
@@ -141,6 +151,7 @@ impl WalletCommand {
         wallet_client: T,
         name: &str,
         wallet_kind: WalletKind,
+        mnemonics_word_count: u32,
     ) -> Result<()> {
         let passphrase = ask_passphrase(None)?;
         let confirmed_passphrase = ask_passphrase(Some("Confirm passphrase: "))?;
@@ -151,7 +162,8 @@ impl WalletCommand {
                 "Passphrases do not match",
             ));
         }
-        let (enckey, mnemonic) = wallet_client.new_wallet(name, &passphrase, wallet_kind)?;
+        let (enckey, mnemonic) =
+            wallet_client.new_wallet(name, &passphrase, wallet_kind, Some(mnemonics_word_count))?;
 
         if let WalletKind::HD = wallet_kind {
             ask("Please store following mnemonic safely to restore your wallet later: ");

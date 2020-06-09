@@ -123,7 +123,7 @@ mod hd_seed_tests {
 
     #[test]
     fn same_mnemonic_words_should_restore_the_same_hd_seed() {
-        let mnemonic_words = Mnemonic::new().phrase();
+        let mnemonic_words = Mnemonic::new(24).expect("get 24 words mnemonics").phrase();
 
         let restored_hd_seed_1 = HDSeed::from(
             &Mnemonic::from_secstr(&mnemonic_words.clone())

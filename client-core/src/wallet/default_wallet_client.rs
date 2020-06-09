@@ -411,6 +411,7 @@ where
         name: &str,
         passphrase: &SecUtf8,
         wallet_kind: WalletKind,
+        mnemonics_word_count: Option<u32>,
     ) -> Result<(SecKey, Option<Mnemonic>)> {
         check_passphrase_strength(name, passphrase)?;
 
@@ -432,7 +433,7 @@ where
                 Ok((enckey, None))
             }
             WalletKind::HD => {
-                let mnemonic = Mnemonic::new();
+                let mnemonic = Mnemonic::new(mnemonics_word_count.unwrap_or(24))?;
 
                 self.hd_key_service.add_mnemonic(name, &mnemonic, &enckey)?;
 

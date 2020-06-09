@@ -347,14 +347,14 @@ impl InitCommand {
         let name = self.ask_string("please enter wallet name=", "my");
 
         let passphrase = InitCommand::ask_passphrase()?;
-        let enckey = match wallet_client.new_wallet(&name.as_str(), &passphrase, WalletKind::Basic)
-        {
-            Ok((enckey, _)) => enckey,
-            Err(b) => {
-                println!("new wallet fail={}", b.to_string());
-                return Ok(());
-            }
-        };
+        let enckey =
+            match wallet_client.new_wallet(&name.as_str(), &passphrase, WalletKind::Basic, None) {
+                Ok((enckey, _)) => enckey,
+                Err(reason) => {
+                    println!("new wallet fail={}", reason.to_string());
+                    return Ok(());
+                }
+            };
         success(&format!("Wallet created with name: {}", name));
 
         // main validator staking

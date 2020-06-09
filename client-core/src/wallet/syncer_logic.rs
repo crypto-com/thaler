@@ -258,7 +258,7 @@ mod tests {
                 let name = format!("name{}", i);
                 let passphrase = SecUtf8::from("passphrase");
                 let (enckey, _) = wallet
-                    .new_wallet(&name, &passphrase, WalletKind::Basic)
+                    .new_wallet(&name, &passphrase, WalletKind::Basic, None)
                     .expect("new wallet");
                 wallet
                     .new_transfer_address(&name, &enckey)

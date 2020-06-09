@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize, Serializer};
 
 use client_common::{ErrorKind, Result, ResultExt};
 
-const MNEMONIC_TYPE: MnemonicType = MnemonicType::Words24;
 const MNEMONIC_LANGUAGE: Language = Language::English;
 
 /// Mnemonic wrapped in secures string
@@ -38,10 +37,23 @@ impl Mnemonic {
     /// Generate and returns mnemonic words
     #[allow(clippy::new_without_default)]
     #[inline]
-    pub fn new() -> Self {
-        let mnemonic = bip39::Mnemonic::new(MNEMONIC_TYPE, MNEMONIC_LANGUAGE);
+    pub fn new(mnemonics_word_count: u32) -> Result<Self> {
+        let flag = match mnemonics_word_count {
+            12 => MnemonicType::Words12,
+            15 => MnemonicType::Words15,
+            18 => MnemonicType::Words18,
+            21 => MnemonicType::Words21,
+            24 => MnemonicType::Words24,
+            _ => {
+                return Err(client_common::Error::new(
+                    ErrorKind::IllegalInput,
+                    "unsupported mnemonics word count",
+                ))
+            }
+        };
+        let mnemonic = bip39::Mnemonic::new(flag, MNEMONIC_LANGUAGE);
 
-        Mnemonic(mnemonic)
+        Ok(Mnemonic(mnemonic))
     }
 
     /// Create Mnemonic from words in secure string
@@ -115,7 +127,7 @@ mod mnemonic_tests {
 
         #[test]
         fn should_generate_valid_mnemonic() {
-            let mnemonic = Mnemonic::new();
+            let mnemonic = Mnemonic::new(24).expect("get 24 words mnemonics");
 
             assert!(
                 bip39::Mnemonic::validate(mnemonic.unsecure_phrase(), MNEMONIC_LANGUAGE).is_ok()
@@ -124,15 +136,15 @@ mod mnemonic_tests {
 
         #[test]
         fn should_generate_unique_mnemonic() {
-            let mnemonic_1 = Mnemonic::new();
-            let mnemonic_2 = Mnemonic::new();
+            let mnemonic_1 = Mnemonic::new(24).expect("get 24 words mnemonics");
+            let mnemonic_2 = Mnemonic::new(24).expect("get 24 words mnemonics");
 
             assert_mnemonic_are_different(&mnemonic_1, &mnemonic_2);
         }
 
         #[test]
         fn should_generate_24_word() {
-            let mnemonic = Mnemonic::new();
+            let mnemonic = Mnemonic::new(24).expect("get 24 words mnemonics");
             let word_count = mnemonic.unsecure_phrase().split(' ').count();
 
             assert_eq!(24, word_count);
@@ -176,7 +188,7 @@ mod mnemonic_tests {
 
     #[test]
     fn test_serailize_deserialize_flow() {
-        let mnemonic = Mnemonic::new();
+        let mnemonic = Mnemonic::new(24).expect("get 24 words mnemonics");
 
         let expected_mnemonic_json = format!("\"{}\"", mnemonic.unsecure_phrase());
         assert_eq!(
@@ -191,14 +203,14 @@ mod mnemonic_tests {
 
     #[test]
     fn should_display_as_secret() {
-        let mnemonic = Mnemonic::new();
+        let mnemonic = Mnemonic::new(24).expect("get 24 wrods mnemonics");
 
         assert_eq!("***SECRET***", format!("{}", mnemonic));
     }
 
     #[test]
     fn should_debug_as_secret() {
-        let mnemonic = Mnemonic::new();
+        let mnemonic = Mnemonic::new(24).expect("get 24 words mnemonics");
 
         assert_eq!("***SECRET***", format!("{:#?}", mnemonic));
     }

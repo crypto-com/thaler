@@ -19,7 +19,7 @@ pub unsafe extern "C" fn cro_create_hdwallet(
     mnemonics: *mut u8,
     mnemonics_length: u32,
 ) -> CroResult {
-    let mnemonic = Mnemonic::new();
+    let mnemonic = Mnemonic::new(24).expect("get 24 words mnemonics");
     let phrase = mnemonic.unsecure_phrase();
     if phrase.as_bytes().len() >= mnemonics_length as usize {
         return CroResult::fail();
