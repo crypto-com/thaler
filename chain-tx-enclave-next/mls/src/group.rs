@@ -32,7 +32,7 @@ impl GroupAux {
     fn new(context: GroupContext, tree: Tree, owned_kp: OwnedKeyPackage) -> Self {
         let secrets: EpochSecrets<Sha256> = match &tree.cs {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
-                EpochSecrets::new(tree.cs.hash(&context.get_encoding()))
+                EpochSecrets::new(tree.cs.hash(&context.get_encoding()), tree.leaf_len())
             }
         };
         GroupAux {
@@ -189,9 +189,11 @@ impl GroupAux {
         updated_group_context.tree_hash = updated_tree.compute_tree_hash();
         updated_group_context.confirmed_transcript_hash = confirmed_transcript_hash;
         let updated_group_context_hash = self.tree.cs.hash(&updated_group_context.get_encoding());
-        let epoch_secrets = self
-            .secrets
-            .generate_new_epoch_secrets(&commit_secret, updated_group_context_hash);
+        let epoch_secrets = self.secrets.generate_new_epoch_secrets(
+            &commit_secret,
+            updated_group_context_hash,
+            updated_tree.leaf_len(),
+        );
         let confirmation =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
         let sender = self.get_sender();
@@ -317,9 +319,11 @@ impl GroupAux {
 
         // "Use the commit_secret, the provisional GroupContext,
         // and the init secret from the previous epoch to compute the epoch secret and derived secrets for the new epoch."
-        let epoch_secrets = self
-            .secrets
-            .generate_new_epoch_secrets(&commit_secret, updated_group_context_hash);
+        let epoch_secrets = self.secrets.generate_new_epoch_secrets(
+            &commit_secret,
+            updated_group_context_hash,
+            updated_tree.leaf_len(),
+        );
         let confirmation_computed =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
 
@@ -460,6 +464,7 @@ impl GroupAux {
         let secrets = EpochSecrets::from_epoch_secret(
             (group_secret.epoch_secret, epoch_secret),
             tree.cs.hash(&context.get_encoding()),
+            tree.leaf_len(),
         );
         let group = GroupAux {
             context,
