@@ -5,7 +5,7 @@ import time
 from client_cli import Wallet, Transaction
 
 PASSPHRASE = "123456"
-
+CRO = 10**8
 
 def delete_all_wallet():
     wallet_names = Wallet.list()
@@ -112,23 +112,71 @@ def init_wallet():
     wallet_receiver.new("basic")
     return wallet_sender, wallet_receiver
 
-@pytest.mark.zerofee
-def test_transactions():
-    os.environ['CRYPTO_CLIENT_TENDERMINT'] = 'ws://localhost:26667/websocket'
-    wallet_sender, _wallet_receiver = init_wallet()
+def withdraw_transactions(wallet, staking_address):
     # test withdraw all unbounded
-    tx = Transaction(wallet_sender)
-    staking_address = "0x5e7e1e79d80b861a94598c721598951098dd3825"
-    tx.withdraw(staking_address, wallet_sender.create_address())
+    tx = Transaction(wallet)
+    tx.withdraw(staking_address, wallet.create_address())
     i = 0
     while i < 30:
-        wallet_sender.sync()
-        balance = wallet_sender.balance()
+        wallet.sync()
+        balance = wallet.balance
         if balance["available"] >0:
             break
         time.sleep(1)
-        print(".", end='')
-        if i % 10 == 0:
-            print("\n", balance)
-        i += 1
     assert balance["available"] == 500000000000000000
+
+def deposit_to_self_address_transaction(wallet, staking_address, amount_cro):
+    wallet_balance_begin = wallet.balance
+    tx = Transaction(wallet)
+    tx_id = tx.deposit(staking_address, amount_cro)
+    time.sleep(3)
+    wallet.sync()
+    t = 0
+    find_tx = False
+    while t < 30 and not find_tx:
+        time.sleep(1)
+        wallet.sync()
+        for tx_info in tx.history:
+            if tx_info["tx_id"] == tx_id:
+                find_tx = True
+                assert tx_info["tx_type"] == "Deposit"
+                assert tx_info["amount"] == amount_cro * CRO
+                break
+    wallet_balance_end = wallet.balance
+    assert wallet_balance_begin["available"] == wallet_balance_end["available"] + amount_cro * CRO
+
+def transfer_to_other_wallet(wallet_sender, wallet_receiver, amount_cro):
+    balance_sender_begin = wallet_sender.balance
+    balance_receiver_begin = wallet_receiver.balance
+    tx = Transaction(wallet_sender)
+    view_keys = [wallet_receiver.view_key()]
+    tx.transfer(wallet_receiver.create_address(), amount_cro, view_keys=view_keys)
+    balance_sender = wallet_sender.balance
+    assert balance_sender["pending"] > 0
+    assert balance_sender["total"] == balance_sender_begin["total"] - amount_cro * CRO
+    t = 0
+    while t < 30 and balance_sender["pending"] > 0:
+        time.sleep(1)
+        wallet_sender.sync()
+        balance_sender = wallet_sender.balance
+        t += 1
+    wallet_receiver.sync()
+    balance_receiver = wallet_receiver.balance
+    assert balance_sender["total"] == balance_sender_begin["total"] - amount_cro * CRO
+    assert balance_receiver["total"] == balance_receiver_begin["total"] + amount_cro * CRO
+
+@pytest.mark.zerofee
+def test_transaction():
+    os.environ['CRYPTO_CLIENT_TENDERMINT'] = 'ws://localhost:26667/websocket'
+    wallet_sender, wallet_receiver = init_wallet()
+    # 1. withraw all balance from staking address
+    self_staking_address = "0x5e7e1e79d80b861a94598c721598951098dd3825"
+    withdraw_transactions(wallet_sender, self_staking_address)
+    # 2. test deposit to self address
+    deposit_to_self_address_transaction(wallet_sender, self_staking_address, 10000)
+    # 3. test transfer to other wallet
+    transfer_to_other_wallet(wallet_sender, wallet_receiver, 10000)
+
+
+
+

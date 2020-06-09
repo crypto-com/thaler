@@ -90,7 +90,13 @@ pub fn create_transaction_change(
     let outputs = transaction.outputs().to_vec();
     let transaction_type = TransactionType::from(transaction);
     let inputs = decorate_inputs(wallet_state, transaction.inputs(), &transaction_id)?;
-    let balance_change = calculate_balance_change(wallet, &transaction_id, &inputs, &outputs)?;
+    let balance_change = calculate_balance_change(
+        wallet,
+        &transaction_id,
+        &inputs,
+        &outputs,
+        &transaction_type,
+    )?;
 
     let transaction_change = TransactionChange {
         transaction_id,
@@ -174,6 +180,7 @@ fn calculate_balance_change<'a>(
     transaction_id: &'a TxId,
     inputs: &'a [TransactionInput],
     outputs: &'a [TxOut],
+    transaction_type: &TransactionType,
 ) -> Result<BalanceChange, SyncerLogicError> {
     let encode_txid = || hex::encode(&transaction_id);
 
@@ -195,7 +202,6 @@ fn calculate_balance_change<'a>(
         .map(|input| our_output(input))
         .collect::<Option<Vec<_>>>()
         .and_then(NonEmpty::new);
-
     let total_output = sum_outputs(outputs.iter())
         .map_err(|_| SyncerLogicError::TotalOutputOutOfBound(encode_txid()))?;
 
@@ -221,9 +227,14 @@ fn calculate_balance_change<'a>(
                 })
             }
         }
-        Some(_spent_outputs) => {
-            // panic is impossible because total_output_ours is subset of total_output
-            let value = (total_output - total_output_ours).expect("impossible");
+        Some(spent_outputs) => {
+            let value = if transaction_type == &TransactionType::Deposit {
+                sum_outputs(spent_outputs.iter().cloned())
+                    .map_err(|_| SyncerLogicError::TotalOutputOutOfBound(encode_txid()))?
+            } else {
+                //  panic is impossible because always total_output_ours <= subset of total_output
+                (total_output - total_output_ours).expect("impossible")
+            };
             Ok(BalanceChange::Outgoing { value })
         }
     }

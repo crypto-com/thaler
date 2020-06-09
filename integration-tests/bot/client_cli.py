@@ -233,6 +233,7 @@ class Wallet():
             raise Exception(text)
         return re.findall(r"\w{66}", text)
 
+    @property
     def balance(self):
         cmd = ["client-cli", "balance", "-n", self.name]
         args = self.auth_token
@@ -285,6 +286,7 @@ class Wallet():
         text = run(cmd, args)
         if "Error" in text:
             raise Exception(text)
+        return text
 
 class Transaction:
     def __init__(self, wallet):
@@ -316,9 +318,42 @@ class Transaction:
         if "Error" in text:
             raise Exception(text)
 
-    def transfer(self, to_address, amount, lock_time = "", view_keys=[]):
+    def transfer(self, to_transfer_address, amount, lock_time = "", view_keys=[]):
         cmd = ["client-cli", "transaction", "new", "-t", "transfer", "-n", self.wallet.name]
-        args = [self.wallet.auth_token, to_address, str(amount), "Y", str(lock_time) if lock_time else '', "N", ",".join(view_keys)]
+        args = [self.wallet.auth_token, to_transfer_address, str(amount), "Y", str(lock_time) if lock_time else '', "N", ",".join(view_keys)]
         text = run(cmd, args)
         if "Error" in text:
             raise Exception(text)
+
+    def deposit(self, to_staking_address, amount):
+        cmd = ["client-cli", "transaction", "new", "-t", "deposit", "-n", self.wallet.name]
+        args = [self.wallet.auth_token, to_staking_address, str(amount), "Y"]
+        text = run(cmd, args)
+        if "Error" in text:
+            raise Exception(text)
+        m = re.search("transaction id is: ([a-f0-9A-F]{64})", text)
+        return m.groups()[0]
+
+    # check the history of transaction
+    @property
+    def history(self):
+        cmd = ["client-cli", "history", "-n", self.wallet.name]
+        args = [self.wallet.auth_token]
+        text = run(cmd, args)
+        if "Error" in text:
+            raise Exception(text)
+        histories = []
+        for index, line in enumerate(text.splitlines()):
+            if index >= 4 and index % 2 == 0:
+                data = line.replace(" ","").replace("|", " ").strip().split()
+                history = {
+                    "tx_id": data[0],
+                    "side": data[1],
+                    "amount": to_coin(data[2]),
+                    "fee": to_coin(data[3]),
+                    "tx_type": data[4],
+                    "block_height": data[5],
+                    "time": data[6],
+                }
+                histories.append(history)
+        return histories
