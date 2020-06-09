@@ -11,7 +11,7 @@ use hpke::{
 };
 use rustls::internal::msgs::codec::{Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
-use sha2::digest::generic_array::{self, ArrayLength, GenericArray};
+use sha2::digest::generic_array::{ArrayLength, GenericArray};
 use sha2::digest::{BlockInput, FixedOutput, Input, Reset};
 use sha2::{Digest, Sha256};
 
@@ -56,6 +56,26 @@ impl Codec for HKDFLabel {
     }
 }
 
+/// spec: draft-ietf-mls-protocol.md#astree
+#[derive(Debug)]
+struct ApplicationContext {
+    pub node: u32,
+    pub generation: u32,
+}
+
+impl Codec for ApplicationContext {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.node.encode(bytes);
+        self.generation.encode(bytes);
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let node = u32::read(r)?;
+        let generation = u32::read(r)?;
+        Some(Self { node, generation })
+    }
+}
+
 /// Additional methods for Kdf
 pub trait HkdfExt<D>
 where
@@ -67,13 +87,22 @@ where
         &self,
         group_context_hash: Vec<u8>,
         label: &str,
-        context: &str,
+        context: &[u8],
         length: u16,
     ) -> Result<Vec<u8>, hkdf::InvalidLength>;
     fn derive_secret(
         &self,
         group_context_hash: Vec<u8>,
         label: &str,
+        length: u16,
+    ) -> Result<Vec<u8>, hkdf::InvalidLength>;
+    fn derive_app_secret(
+        &self,
+        group_context_hash: Vec<u8>,
+        label: &str,
+        node: u32,
+        generation: u32,
+        length: u16,
     ) -> Result<Vec<u8>, hkdf::InvalidLength>;
 }
 
@@ -85,7 +114,7 @@ where
         &self,
         group_context_hash: Vec<u8>,
         label: &str,
-        context: &str,
+        context: &[u8],
         length: u16,
     ) -> Result<Vec<u8>, InvalidLength> {
         let full_label = "mls10 ".to_owned() + label;
@@ -93,7 +122,7 @@ where
             group_context: group_context_hash,
             length,
             label: full_label.into_bytes().to_vec(),
-            context: context.as_bytes().to_vec(),
+            context: context.to_vec(),
         }
         .get_encoding();
         let mut okm = vec![0u8; length as usize];
@@ -105,9 +134,21 @@ where
         &self,
         group_context_hash: Vec<u8>,
         label: &str,
+        length: u16,
     ) -> Result<Vec<u8>, InvalidLength> {
-        use generic_array::typenum::Unsigned;
-        self.expand_label(group_context_hash, label, "", D::OutputSize::to_u16())
+        self.expand_label(group_context_hash, label, b"", length)
+    }
+
+    fn derive_app_secret(
+        &self,
+        group_context_hash: Vec<u8>,
+        label: &str,
+        node: u32,
+        generation: u32,
+        length: u16,
+    ) -> Result<Vec<u8>, InvalidLength> {
+        let app_context = ApplicationContext { node, generation }.get_encoding();
+        self.expand_label(group_context_hash, label, &app_context, length)
     }
 }
 

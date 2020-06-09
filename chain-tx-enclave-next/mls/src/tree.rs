@@ -329,7 +329,7 @@ impl Tree {
         }
     }
 
-    fn leaf_len(&self) -> LeafSize {
+    pub fn leaf_len(&self) -> LeafSize {
         LeafSize::from_nodes(NodeSize(self.nodes.len())).expect("invalid node count")
     }
 
