@@ -203,7 +203,7 @@ mod mnemonic_tests {
 
     #[test]
     fn should_display_as_secret() {
-        let mnemonic = Mnemonic::new(24).expect("get 24 wrods mnemonics");
+        let mnemonic = Mnemonic::new(24).expect("get 24 words mnemonics");
 
         assert_eq!("***SECRET***", format!("{}", mnemonic));
     }
