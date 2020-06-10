@@ -211,7 +211,7 @@ mod wallet_signer_tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let public_keys = vec![
@@ -251,7 +251,7 @@ mod wallet_signer_tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let public_keys = vec![

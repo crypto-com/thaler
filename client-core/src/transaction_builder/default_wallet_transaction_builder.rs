@@ -289,7 +289,7 @@ mod default_wallet_transaction_builder_tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let public_keys = vec![
@@ -423,7 +423,7 @@ mod default_wallet_transaction_builder_tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let public_keys = vec![

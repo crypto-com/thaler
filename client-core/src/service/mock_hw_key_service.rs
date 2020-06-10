@@ -83,7 +83,6 @@ impl Default for MockHardwareWallet {
         let socket_address = format!("127.0.0.1:{}", server_port)
             .parse()
             .expect("invalid mock hardware wallet tcp server address");
-        //let mnemonic = Mnemonic::new();
         let w = "ordinary mandate edit father snack mesh history identify print borrow skate unhappy cattle tiny first".into();
         let mnemonic = Mnemonic::from_secstr(&w).unwrap();
         let hd_seed = HDSeed::from(&mnemonic);

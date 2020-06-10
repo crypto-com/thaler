@@ -91,11 +91,15 @@ pub trait WalletClient: Send + Sync {
     fn wallets(&self) -> Result<Vec<String>>;
 
     /// Creates a new wallet with given name, enckey and kind. Returns mnemonics if `wallet_kind` was `HD`.
+    /// TODO: separate two apis
+    /// new_wallet_basic(name, passphrase)
+    /// new_wallet_hd(name, passphrase, mnemonics_word_count)
     fn new_wallet(
         &self,
         name: &str,
         passphrase: &SecUtf8,
         wallet_kind: WalletKind,
+        mnemonics_word_count: Option<u32>,
     ) -> Result<(SecKey, Option<Mnemonic>)>;
 
     /// export wallet info including private key, transfer address, staking address and so on

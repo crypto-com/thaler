@@ -726,7 +726,7 @@ mod tests {
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet
-            .new_wallet(name, &passphrase, WalletKind::Basic)
+            .new_wallet(name, &passphrase, WalletKind::Basic, None)
             .unwrap();
 
         let client = GeneratorClient::new(BlockGenerator::one_node());
@@ -865,7 +865,7 @@ mod tests {
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
 
         let (wallet_enckey, _) = wallet
-            .new_wallet(name, &wallet_passphrase, WalletKind::Basic)
+            .new_wallet(name, &wallet_passphrase, WalletKind::Basic, None)
             .expect("create wallet failed");
         let client = MockTendermintClient {};
 

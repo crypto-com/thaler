@@ -27,6 +27,7 @@ pub trait WalletRpc: Send + Sync {
         &self,
         request: CreateWalletRequest,
         walletkind: WalletKind,
+        mnemonics_word_count: Option<u32>,
     ) -> Result<(SecKey, Option<String>)>;
 
     #[rpc(name = "wallet_restore")]
@@ -163,11 +164,17 @@ where
         &self,
         request: CreateWalletRequest,
         kind: WalletKind,
+        mnemonics_word_count: Option<u32>,
     ) -> Result<(SecKey, Option<String>)> {
         // TODO: add hardware wallet
         let (enckey, mnemonic) = self
             .client
-            .new_wallet(&request.name, &request.passphrase, kind)
+            .new_wallet(
+                &request.name,
+                &request.passphrase,
+                kind,
+                mnemonics_word_count,
+            )
             .map_err(to_rpc_error)?;
 
         self.client
@@ -663,7 +670,7 @@ pub mod tests {
         let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(create_request, WalletKind::Basic)
+            .create(create_request, WalletKind::Basic, None)
             .unwrap();
         assert_eq!(
             WalletBalance::default(),
@@ -680,7 +687,7 @@ pub mod tests {
             let (create_request, _) = create_wallet_request("Default", "123456");
 
             wallet_rpc
-                .create(create_request.clone(), WalletKind::Basic)
+                .create(create_request.clone(), WalletKind::Basic, None)
                 .unwrap();
 
             assert_eq!(
@@ -689,7 +696,7 @@ pub mod tests {
                     "Wallet with name (Default) already exists"
                 )),
                 wallet_rpc
-                    .create(create_request, WalletKind::Basic)
+                    .create(create_request, WalletKind::Basic, None)
                     .unwrap_err()
             );
         }
@@ -702,6 +709,7 @@ pub mod tests {
                 .create(
                     create_wallet_request("Default", "123456").0,
                     WalletKind::Basic,
+                    None,
                 )
                 .unwrap();
 
@@ -714,7 +722,7 @@ pub mod tests {
             let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
             wallet_rpc
-                .create(create_request, WalletKind::Basic)
+                .create(create_request, WalletKind::Basic, None)
                 .unwrap();
 
             assert_eq!(
@@ -740,7 +748,7 @@ pub mod tests {
         let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(create_request, WalletKind::Basic)
+            .create(create_request, WalletKind::Basic, None)
             .unwrap();
         assert_eq!(
             1,
@@ -769,7 +777,7 @@ pub mod tests {
         let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(create_request, WalletKind::Basic)
+            .create(create_request, WalletKind::Basic, None)
             .unwrap();
 
         assert_eq!(
@@ -799,7 +807,7 @@ pub mod tests {
         let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(create_request, WalletKind::Basic)
+            .create(create_request, WalletKind::Basic, None)
             .unwrap();
 
         assert_eq!(
@@ -816,7 +824,7 @@ pub mod tests {
         let wallet_rpc = setup_wallet_rpc();
         let (create_request, wallet_request) = create_wallet_request("Default", "123456");
         wallet_rpc
-            .create(create_request.clone(), WalletKind::Basic)
+            .create(create_request.clone(), WalletKind::Basic, None)
             .unwrap();
         let old_staking_address = wallet_rpc
             .list_staking_addresses(wallet_request.clone())
@@ -856,6 +864,7 @@ pub mod tests {
             .create(
                 create_wallet_request("Default", "123456").0,
                 WalletKind::Basic,
+                None,
             )
             .unwrap();
 
@@ -865,6 +874,7 @@ pub mod tests {
             .create(
                 create_wallet_request("Personal", "123456").0,
                 WalletKind::Basic,
+                None,
             )
             .unwrap();
 
@@ -880,7 +890,7 @@ pub mod tests {
         let (create_request, wallet_request) = create_wallet_request("Default", "123456");
 
         wallet_rpc
-            .create(create_request, WalletKind::Basic)
+            .create(create_request, WalletKind::Basic, None)
             .unwrap();
         assert_eq!(
             0,
@@ -935,7 +945,11 @@ pub mod tests {
         let wallet_rpc = setup_wallet_rpc();
 
         wallet_rpc
-            .create(create_wallet_request("Default", "123456").0, WalletKind::HD)
+            .create(
+                create_wallet_request("Default", "123456").0,
+                WalletKind::HD,
+                Some(24),
+            )
             .unwrap();
     }
 
