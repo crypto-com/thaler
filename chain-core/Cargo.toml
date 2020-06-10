@@ -14,7 +14,7 @@ mesalock_sgx = ["sgx_tstd", "secp256k1zkp/sgx"]
 [dependencies]
 mls = { path = "../chain-tx-enclave-next/mls", optional = true }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client", optional = true}
-digest = { version = "0.8", default-features = false}
+digest = { version = "0.9", default-features = false}
 tiny-keccak = { version = "2.0", features = ["keccak"] }
 sha2 = { version = "0.8", default-features = false }
 hex = { version = "0.4", optional = true }
