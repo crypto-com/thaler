@@ -1,4 +1,5 @@
 use crate::ciphersuite::CipherSuite;
+use crate::extensions as ext;
 use crate::key::HPKEPublicKey;
 use crate::keypackage::{
     self as kp, KeyPackage, Timespec, MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
@@ -8,6 +9,7 @@ use crate::tree_math::{LeafSize, NodeSize};
 use crate::utils::{decode_option, encode_option, encode_vec_u32, read_vec_u32};
 use ra_client::AttestedCertVerifier;
 use rustls::internal::msgs::codec::{self, Codec, Reader};
+use subtle::ConstantTimeEq;
 
 #[derive(Debug, Clone)]
 /// spec: draft-ietf-mls-protocol.md#tree-hashes
@@ -87,6 +89,16 @@ impl Node {
     pub fn is_empty_node(&self) -> bool {
         matches!(self, Node::Leaf(None) | Node::Parent(None))
     }
+
+    pub fn parent_hash(&self) -> Option<Vec<u8>> {
+        match self {
+            Node::Leaf(Some(leaf)) => {
+                Some(leaf.payload.find_extension::<ext::ParentHashExt>().ok()?.0)
+            }
+            Node::Parent(Some(parent)) => Some(parent.parent_hash.clone()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -155,79 +167,75 @@ pub struct Tree {
     /// TODO: unify with keypackage one
     pub cs: CipherSuite,
     /// position of the participant in the tree
-    /// TODO: leaf vs node position?
-    pub my_pos: usize,
+    pub my_pos: LeafSize,
 }
 
 impl Tree {
     pub fn get_package(&self, leaf_index: LeafSize) -> Option<&KeyPackage> {
         match self.nodes[NodeSize::from_leaf_index(leaf_index).0] {
-            Node::Leaf(Some(ref pk)) => Some(pk),
-            _ => None,
+            Node::Leaf(ref kp) => kp.as_ref(),
+            _ => panic!("invalid node type"),
         }
     }
 
     pub fn from_group_info(
-        my_pos: usize,
+        my_pos: LeafSize,
         cs: CipherSuite,
-        group_info_nodes: &[Option<Node>],
+        nodes: Vec<Node>,
     ) -> Result<Self, kp::Error> {
-        let mut nodes = Vec::with_capacity(group_info_nodes.len());
-        for (i, node) in group_info_nodes.iter().enumerate() {
-            match (i % 2, node) {
-                (_, Some(node)) => {
-                    nodes.push(node.clone());
-                }
-                (0, None) => {
-                    nodes.push(Node::Leaf(None));
-                }
-                (1, None) => {
-                    nodes.push(Node::Parent(None));
-                }
-                _ => {}
-            }
-        }
         // FIXME: generate path secrets
         Ok(Self { nodes, cs, my_pos })
     }
 
     pub fn integrity_check(
-        nodes: &[Option<Node>],
+        nodes: &[Node],
         ra_verifier: &impl AttestedCertVerifier,
         time: Timespec,
-        _cs: CipherSuite,
+        cs: CipherSuite,
     ) -> Result<(), kp::Error> {
         let leaf_len =
             LeafSize::from_nodes(NodeSize(nodes.len())).ok_or(kp::Error::TreeIntegrityError)?;
+
+        // leaf should be even position, and parent should be odd position
         for (i, node) in nodes.iter().enumerate() {
-            let x = NodeSize(i);
+            if matches!(node, Node::Leaf(_)) && i % 2 != 0 {
+                return Err(kp::Error::TreeIntegrityError);
+            }
+            if matches!(node, Node::Parent(_)) && i % 2 != 1 {
+                return Err(kp::Error::TreeIntegrityError);
+            }
+        }
+
+        for (i, node) in nodes.iter().enumerate() {
             match node {
-                Some(Node::Leaf(Some(kp))) => {
-                    // leaf should be even position
-                    if i % 2 != 0 {
-                        return Err(kp::Error::TreeIntegrityError);
-                    }
+                Node::Leaf(Some(kp)) => {
                     // "For each non-empty leaf node, verify the signature on the KeyPackage."
                     if let Err(e) = kp.verify(ra_verifier, time) {
                         return Err(e);
                     }
                 }
-                Some(Node::Parent(Some(_pn))) => {
+                Node::Parent(Some(_)) => {
                     // "For each non-empty parent node, verify that exactly one of the node's children are non-empty
                     // and have the hash of this node set as their parent_hash value (if the child is another parent)
                     // or has a parent_hash extension in the KeyPackage containing the same value (if the child is a leaf)."
-                    let left_pos = x.left().unwrap();
-                    let right_pos = x.right(leaf_len).unwrap();
-                    if right_pos.0 >= nodes.len() {
-                        return Err(kp::Error::TreeIntegrityError);
-                    }
-                    // FIXME: compute hash + check
-                    match (&nodes[left_pos.0], &nodes[right_pos.0]) {
-                        (None, Some(_right)) => {}
-                        (Some(_left), None) => {}
+                    let x = NodeSize(i);
+                    let left_pos = x.left().expect("invalid parent");
+                    let right_pos = x.right(leaf_len).expect("invalid parent");
+                    let parent_hash = match (
+                        nodes[left_pos.0].parent_hash(),
+                        nodes[right_pos.0].parent_hash(),
+                    ) {
+                        (None, Some(hash)) => hash,
+                        (Some(hash), None) => hash,
                         _ => {
                             return Err(kp::Error::TreeIntegrityError);
                         }
+                    };
+                    if parent_hash
+                        .ct_eq(&node_hash(&nodes, cs, x, leaf_len))
+                        .into()
+                    {
+                        return Err(kp::Error::TreeIntegrityError);
                     }
                 }
                 _ => {}
@@ -300,33 +308,7 @@ impl Tree {
     }
 
     fn node_hash(&self, index: NodeSize) -> Vec<u8> {
-        let node = &self.nodes[index.0];
-        match node {
-            Node::Leaf(kp) => {
-                let mut inp = Vec::new();
-                LeafNodeHashInput {
-                    node_index: index.0 as u32,
-                    key_package: kp.clone(),
-                }
-                .encode(&mut inp);
-                self.cs.hash(&inp)
-            }
-            Node::Parent(pn) => {
-                let left_index = index.left().unwrap();
-                let left_hash = self.node_hash(left_index);
-                let right_index = index.right(self.leaf_len()).unwrap();
-                let right_hash = self.node_hash(right_index);
-                let mut inp = Vec::new();
-                ParentNodeHashInput {
-                    node_index: index.0 as u32,
-                    parent_node: pn.clone(),
-                    left_hash,
-                    right_hash,
-                }
-                .encode(&mut inp);
-                self.cs.hash(&inp)
-            }
-        }
+        node_hash(&self.nodes, self.cs, index, self.leaf_len())
     }
 
     pub fn leaf_len(&self) -> LeafSize {
@@ -350,7 +332,37 @@ impl Tree {
         Ok(Self {
             nodes: vec![Node::Leaf(Some(creator_kp))],
             cs,
-            my_pos: 0,
+            my_pos: LeafSize(0),
         })
+    }
+}
+
+fn node_hash(nodes: &[Node], cs: CipherSuite, index: NodeSize, leaf_size: LeafSize) -> Vec<u8> {
+    let node = &nodes[index.0];
+    match node {
+        Node::Leaf(kp) => {
+            let mut inp = Vec::new();
+            LeafNodeHashInput {
+                node_index: index.0 as u32,
+                key_package: kp.clone(),
+            }
+            .encode(&mut inp);
+            cs.hash(&inp)
+        }
+        Node::Parent(pn) => {
+            let left_index = index.left().unwrap();
+            let left_hash = node_hash(nodes, cs, left_index, leaf_size);
+            let right_index = index.right(leaf_size).unwrap();
+            let right_hash = node_hash(nodes, cs, right_index, leaf_size);
+            cs.hash(
+                &ParentNodeHashInput {
+                    node_index: index.0 as u32,
+                    parent_node: pn.clone(),
+                    left_hash,
+                    right_hash,
+                }
+                .get_encoding(),
+            )
+        }
     }
 }

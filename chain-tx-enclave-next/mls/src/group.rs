@@ -46,7 +46,7 @@ impl GroupAux {
     fn get_sender(&self) -> Sender {
         Sender {
             sender_type: SenderType::Member,
-            sender: self.tree.my_pos as u32,
+            sender: self.tree.my_pos.0 as u32,
         }
     }
 
@@ -162,7 +162,7 @@ impl GroupAux {
         }
         Welcome {
             version: PROTOCOL_VERSION_MLS10,
-            cipher_suite: self.tree.cs.clone() as u16,
+            cipher_suite: self.tree.cs as u16,
             secrets,
             encrypted_group_info,
         }
@@ -413,13 +413,28 @@ impl GroupAux {
         );
         let group_info =
             cs.open_group_info(&welcome.encrypted_group_info, welcome_key, welcome_nonce);
-        // * "Verify the signature on the GroupInfo object..."
-        let signer = match group_info
+
+        // convert Vec<Option<Node>> to Vec<Node>
+        let nodes = group_info
             .payload
             .tree
-            .get(group_info.payload.signer_index as usize)
-        {
-            Some(Some(Node::Leaf(Some(kp)))) => Ok(kp.clone()),
+            .clone()
+            .into_iter()
+            .enumerate()
+            .map(|(i, node)| {
+                node.unwrap_or_else(|| {
+                    if i % 2 == 0 {
+                        Node::Leaf(None)
+                    } else {
+                        Node::Parent(None)
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        // * "Verify the signature on the GroupInfo object..."
+        let signer = match nodes.get(group_info.payload.signer_index as usize) {
+            Some(Node::Leaf(Some(kp))) => Ok(kp.clone()),
             _ => Err(kp::Error::KeyPackageNotFound),
         }?;
         let identity_pk =
@@ -429,25 +444,23 @@ impl GroupAux {
             .verify_signature(&payload, &group_info.signature)
             .map_err(kp::Error::SignatureVerifyError)?;
         // * "Verify the integrity of the ratchet tree..."
-        Tree::integrity_check(
-            &group_info.payload.tree,
-            ra_verifier,
-            genesis_time,
-            cs.clone(),
-        )?;
+        Tree::integrity_check(&nodes, ra_verifier, genesis_time, cs)?;
         // * "Identify a leaf in the tree array..."
-        let (position, _) = group_info
-            .payload
-            .tree
+        let node_index = nodes
             .iter()
             .enumerate()
             .find(|(_, node)| match node {
-                Some(Node::Leaf(Some(kp))) => kp == &my_kp.keypackage,
+                Node::Leaf(Some(kp)) => kp == &my_kp.keypackage,
                 _ => false,
             })
+            .map(|(i, _)| NodeSize(i))
             .ok_or(kp::Error::KeyPackageNotFound)?;
         // * "Construct a new group state using the information in the GroupInfo object..."
-        let tree = Tree::from_group_info(position, cs, &group_info.payload.tree)?;
+        let tree = Tree::from_group_info(
+            LeafSize::from_node_index(node_index).expect("invalid leaf index"),
+            cs,
+            nodes,
+        )?;
         if let Some(_path_secret) = group_secret.path_secret {
             // FIXME
         }
@@ -561,6 +574,7 @@ pub struct GroupInfoPayload {
     /// that is processed)
     pub epoch: u64,
     /// 1..2^32-1
+    /// FIXME representation may change https://github.com/mlswg/mls-protocol/issues/344
     pub tree: Vec<Option<Node>>,
     /// 0..255
     pub confirmed_transcript_hash: Vec<u8>,
