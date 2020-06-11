@@ -87,7 +87,7 @@ ENVIRONMENT VARIABLES:
     CRYPTO_CHAIN_ID                 Chain ID of Crypto.com Chain
     CRYPTO_CLIENT_STORAGE           Storage directory (Default: `.storage`)
     CRYPTO_CLIENT_TENDERMINT        Websocket endpoint for tendermint (Default: `ws://localhost:26657/websocket`)
-    CRYPTO_GENESIS_HASH             Set the genesis hash(Optional)
+    CRYPTO_GENESIS_FINGERPRINT             Set the genesis fingerprint(Optional)
 "#
 )]
 pub enum Command {

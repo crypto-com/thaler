@@ -242,7 +242,7 @@ def programs(node, app_hash, root_path, cfg):
          f"--storage-dir={node_path / Path('wallet')} "
          f"--websocket-url=ws://127.0.0.1:{tendermint_rpc_port}/websocket "
          f"--disable-fast-forward",
-         dict(def_env, CRYPTO_GENESIS_HASH=cfg['genesis_hash'])),
+         dict(def_env, CRYPTO_GENESIS_FINGERPRINT=cfg['genesis_fingerprint'])),
     ]
 
     return {
@@ -347,13 +347,13 @@ async def fix_genesis(genesis, cfg):
                 f'--genesis_dev_config_path "{fp_cfg.name}" '
                 f'--tendermint_genesis_path "{fp_genesis.name}"'
             )
-            genesis_hash = (await interact(
-                f'dev-utils genesis hash -t "{fp_genesis.name}"'
+            genesis_fingerprint = (await interact(
+                f'dev-utils genesis fingerprint -t "{fp_genesis.name}"'
             )).decode().strip()
-            if not genesis_hash:
-                raise Exception("get genesis hash failed")
+            if not genesis_fingerprint:
+                raise Exception("get genesis fingerprint failed")
 
-        return genesis_hash, json.load(open(fp_genesis.name))
+        return genesis_fingerprint, json.load(open(fp_genesis.name))
 
 
 async def gen_genesis(cfg):
@@ -380,7 +380,7 @@ async def gen_genesis(cfg):
     }
 
     patch = jsonpatch.JsonPatch(cfg['chain_config_patch'])
-    cfg['genesis_hash'], genesis = await fix_genesis(genesis, patch.apply(app_state_cfg(cfg)))
+    cfg['genesis_fingerprint'], genesis = await fix_genesis(genesis, patch.apply(app_state_cfg(cfg)))
     return genesis
 
 

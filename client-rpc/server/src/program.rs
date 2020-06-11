@@ -8,7 +8,7 @@ use std::env;
     name = "client-rpc",
     about = r#"JSON-RPC server for wallet management and blockchain query
 ENVIRONMENT VARIABLES:
-    CRYPTO_GENESIS_HASH             Set the genesis hash(Optional)
+    CRYPTO_GENESIS_FINGERPRINT             Set the genesis fingerprint(Optional)
     "#
 )]
 pub struct Options {

@@ -53,10 +53,10 @@ function runtest() {
     echo "Preparing... $1"
     LOWERED_TYPE=`echo $1 | tr "[:upper:]" "[:lower:]"`
     chainbot.py prepare ${LOWERED_TYPE}_cluster.json --base_port $BASE_PORT --start_client_rpc $CHAINBOT_ARGS
-    export CRYPTO_GENESIS_HASH=`python -c "import json; print(json.load(open('data/info.json'))['genesis_hash'])"`
+    export CRYPTO_GENESIS_FINGERPRINT=`python -c "import json; print(json.load(open('data/info.json'))['genesis_fingerprint'])"`
     export CRYPTO_CHAIN_ID=`python -c "import json; print(json.load(open('data/info.json'))['chain_id'])"`
     export CRYPTO_CLIENT_STORAGE=`pwd`/data/wallet
-    echo "genesis hash: $CRYPTO_GENESIS_HASH"
+    echo "genesis fingerprint: $CRYPTO_GENESIS_FINGERPRINT"
     echo "crypto_chain_id: $CRYPTO_CHAIN_ID"
 
 
