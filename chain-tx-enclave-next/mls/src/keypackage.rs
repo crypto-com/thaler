@@ -81,6 +81,19 @@ impl KeyPackagePayload {
         ))
     }
 
+    /// insert or update extension
+    pub fn put_extension<T: MLSExtension>(&mut self, ext: &T) {
+        if let Some(ext) = self
+            .extensions
+            .iter_mut()
+            .find(|ext| ext.etype == T::EXTENSION_TYPE)
+        {
+            ext.data = ext.get_encoding();
+        } else {
+            self.extensions.push(ext.entry());
+        }
+    }
+
     /// Verify key package payload
     pub fn verify(
         &self,
@@ -259,6 +272,20 @@ impl OwnedKeyPackage {
             init_private_key: hpke_secret,
         })
     }
+
+    /// re-sign payload
+    pub fn update_signature(&mut self) {
+        self.keypackage.signature = self
+            .credential_private_key
+            .sign(&self.keypackage.payload.get_encoding());
+    }
+
+    /// re-generate init key
+    pub fn update_init_key(&mut self) {
+        let (hpke_secret, hpke_public) = HPKEPrivateKey::generate();
+        self.keypackage.payload.init_key = hpke_public;
+        self.init_private_key = hpke_secret;
+    }
 }
 
 /// Error type for key package verification.
@@ -282,20 +309,6 @@ pub enum Error {
     CertificateVerifyError(EnclaveCertVerifierError),
     #[error("unsupported cipher suite: {0}")]
     UnsupportedCipherSuite(CipherSuite),
-    #[error("init key and credential public key don't match")]
-    InitKeyDontMatch,
-    #[error("duplicate key package")]
-    DuplicateKeyPackage,
-    #[error("key package not found")]
-    KeyPackageNotFound,
-    #[error("ratchet tree integrity check failed")]
-    TreeIntegrityError,
-    #[error("group info integrity check failed")]
-    GroupInfoIntegrityError,
-    #[error("Epoch does not match")]
-    GroupEpochError,
-    #[error("Commit processing error")]
-    CommitError,
 }
 
 #[derive(thiserror::Error, Debug)]
