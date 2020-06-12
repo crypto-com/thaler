@@ -7,8 +7,7 @@ edition = "2018"
 [dependencies]
 chain-core = { path = "../chain-core" }
 chain-tx-filter = { path = "../chain-tx-filter" }
-mls = { path = "../chain-tx-enclave-next/mls" }
-ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
+
 
 aes = "0.3"
 aes-gcm-siv = "0.4"

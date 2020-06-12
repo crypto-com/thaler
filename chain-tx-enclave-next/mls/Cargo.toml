@@ -17,6 +17,7 @@ secrecy = "0.6.0"
 hpke = "0.1.4"
 aead = "0.2.0"
 rand = "0.7"
+chrono="0.4.11"
 ra-client = { path = "../enclave-ra/ra-client" }
 subtle = "2.2.3"
 

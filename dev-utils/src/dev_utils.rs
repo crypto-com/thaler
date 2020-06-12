@@ -2,7 +2,9 @@ use structopt::StructOpt;
 
 use client_common::Result;
 
-use crate::commands::{GenesisCommand, InitCommand, RunCommand, StopCommand, TestVectorCommand};
+use crate::commands::{
+    GenesisCommand, InitCommand, KeypackageCommand, RunCommand, StopCommand, TestVectorCommand,
+};
 
 const NETWORKS: [&str; 3] = ["devnet", "testnet", "mainnet"];
 /// Enum used to specify subcommands under dev-utils
@@ -60,6 +62,13 @@ pub enum DevUtils {
         )]
         seed: String,
     },
+
+    /// Used for working with tendermint's genesis.json
+    #[structopt(name = "keypackage", about = "Commands for keypackage")]
+    Keypackage {
+        #[structopt(subcommand)]
+        keypackage_command: KeypackageCommand,
+    },
 }
 
 impl DevUtils {
@@ -82,6 +91,7 @@ impl DevUtils {
                 let test_vectors_command = TestVectorCommand::new(network.clone(), seed.clone());
                 test_vectors_command.execute()
             }
+            DevUtils::Keypackage { keypackage_command } => keypackage_command.execute(),
         }
     }
 }

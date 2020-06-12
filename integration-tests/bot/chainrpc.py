@@ -5,6 +5,9 @@ import logging
 import base64
 import binascii
 import json
+import subprocess
+import tempfile
+
 
 from jsonrpcclient import request
 from decouple import config
@@ -270,7 +273,10 @@ class Staking:
         if self.client.mock_mode:
             return ''
         else:
-            return self.client.call('staking_genKeyPackage', path)
+            temp = tempfile.NamedTemporaryFile()
+            subprocess.run(["dev-utils", "keypackage", "generate","--path", path, "--output", temp.name])
+            value= temp.read().decode('utf-8')
+            return value 
 
 
 class MultiSig:
