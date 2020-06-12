@@ -40,6 +40,16 @@ impl LeafSize {
             None
         }
     }
+
+    /// convert node index to leaf index
+    #[inline]
+    pub fn from_node_index(node_index: NodeSize) -> Option<LeafSize> {
+        if node_index.0 % 2 == 0 {
+            Some(LeafSize(node_index.0 / 2))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -198,23 +208,37 @@ impl NodeSize {
     }
 
     /// The direct path of a node, ordered from the root
-    /// down, including the root
+    /// down, including the root, not including self
+    ///
+    /// Only root node returns empty vector
     #[inline]
     pub fn direct_path(self, leafs: LeafSize) -> Vec<NodeSize> {
+        let root = NodeSize::root(leafs);
         let mut d = Vec::new();
-        if let Some(mut p) = self.parent(leafs) {
-            let r = NodeSize::root(leafs);
-            while p != r {
-                d.push(p);
-                // no panic: only root node returns `None`, p is definitly not root node.
-                p = p.parent(leafs).unwrap();
+        let mut p = self;
+        while p != root {
+            // no panic: only root node returns `None`, p is not root node because of the while
+            // condition.
+            p = p.parent(leafs).unwrap();
+            d.push(p);
+        }
+        d
+    }
+
+    /// The other child of the node's parent.  Root's sibling is itself.
+    ///
+    /// Only root node returns None
+    pub fn sibling(self, leafs: LeafSize) -> Option<NodeSize> {
+        if let Some(p) = self.parent(leafs) {
+            if self < p {
+                p.right(leafs)
+            } else {
+                // impossible they are equal
+                assert!(self > p);
+                p.left()
             }
-            if self != r {
-                d.push(r);
-            }
-            d
         } else {
-            vec![]
+            None
         }
     }
 }
@@ -307,6 +331,29 @@ mod test {
             Some(0x0f),
             Some(0x13),
         ];
+        let a_sibling = vec![
+            Some(0x02),
+            Some(0x05),
+            Some(0x00),
+            Some(0x0b),
+            Some(0x06),
+            Some(0x01),
+            Some(0x04),
+            Some(0x13),
+            Some(0x0a),
+            Some(0x0d),
+            Some(0x08),
+            Some(0x03),
+            Some(0x0e),
+            Some(0x09),
+            Some(0x0c),
+            None,
+            Some(0x12),
+            Some(0x14),
+            Some(0x10),
+            Some(0x07),
+            Some(0x11),
+        ];
         let a_dirpath = [
             vec![0x01, 0x03, 0x07, 0x0f],
             vec![0x03, 0x07, 0x0f],
@@ -341,6 +388,7 @@ mod test {
             assert_eq!(a_left[i], x.left().map(|x| x.0));
             assert_eq!(a_right[i], x.right(LeafSize(a_n)).map(|x| x.0));
             assert_eq!(a_parent[i], x.parent(LeafSize(a_n)).map(|x| x.0));
+            assert_eq!(a_sibling[i], x.sibling(LeafSize(a_n)).map(|x| x.0));
             assert_eq!(
                 a_dirpath[i],
                 x.direct_path(LeafSize(a_n))

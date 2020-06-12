@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 
 #[allow(non_camel_case_types)]
 #[repr(u16)]
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub enum CipherSuite {
     MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 = 2,
 }
@@ -153,13 +153,13 @@ where
 }
 
 impl CipherSuite {
-    pub fn aead_key_len(&self) -> usize {
+    pub fn aead_key_len(self) -> usize {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => 16,
         }
     }
 
-    pub fn aead_nonce_len(&self) -> usize {
+    pub fn aead_nonce_len(self) -> usize {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => 12,
         }
@@ -169,7 +169,7 @@ impl CipherSuite {
     /// kem_output, context = SetupBaseS(node_public_key, "")
     /// ciphertext = context.Seal(group_context, group_secret)
     pub fn seal_group_secret(
-        &self,
+        self,
         group_secret: GroupSecret,
         // FIXME: only for updates/with path secrets?
         // group_context: &GroupContext,
@@ -211,7 +211,7 @@ impl CipherSuite {
 
     /// TODO: use generic array?
     pub fn open_group_secret(
-        &self,
+        self,
         encrypted_group_secret: &EncryptedGroupSecrets,
         // FIXME: group_context: &GroupContext,
         open_kp: &OwnedKeyPackage,
@@ -255,7 +255,7 @@ impl CipherSuite {
 
     /// TODO: use generic array?
     pub fn open_group_info(
-        &self,
+        self,
         encrypted_group_info: &[u8],
         welcome_key: SecretVec<u8>,
         welcome_nonce: Vec<u8>,
@@ -278,7 +278,7 @@ impl CipherSuite {
 
     /// TODO: use generic array?
     pub fn encrypt_group_info(
-        &self,
+        self,
         group_info: &GroupInfo,
         welcome_key: SecretVec<u8>,
         welcome_nonce: Vec<u8>,
@@ -296,13 +296,13 @@ impl CipherSuite {
     }
 
     /// TODO: use generic array?
-    pub fn hash(&self, data: &[u8]) -> Vec<u8> {
+    pub fn hash(self, data: &[u8]) -> Vec<u8> {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => Sha256::digest(data).to_vec(),
         }
     }
 
-    pub fn hash_len(&self) -> usize {
+    pub fn hash_len(self) -> usize {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => 32,
         }

@@ -61,7 +61,7 @@ impl Codec for KeyPackagePayload {
 }
 
 impl KeyPackagePayload {
-    fn find_extension<T: MLSExtension>(&self) -> Result<T, FindExtensionError> {
+    pub fn find_extension<T: MLSExtension>(&self) -> Result<T, FindExtensionError> {
         let data = self
             .extensions
             .iter()
