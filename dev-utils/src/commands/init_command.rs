@@ -8,12 +8,13 @@ use quest::{password, success};
 use secstr::SecUtf8;
 use serde_json::json;
 
+use crate::verify_keypackage;
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
 use chain_core::state::account::ConfidentialInit;
 use chain_core::state::tendermint::{TendermintValidator, TendermintValidatorPubKey};
 use client_common::storage::SledStorage;
 use client_common::tendermint::types::Time;
-use client_common::{verify_keypackage, Error, ErrorKind, Result, ResultExt};
+use client_common::{Error, ErrorKind, Result, ResultExt};
 use client_core::types::WalletKind;
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 

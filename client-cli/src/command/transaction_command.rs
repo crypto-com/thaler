@@ -18,10 +18,7 @@ use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use chain_core::tx::TxAux;
-use client_common::{
-    gen_keypackage, verify_keypackage, Error, ErrorKind, PublicKey, Result, ResultExt, SecKey,
-    Transaction,
-};
+use client_common::{Error, ErrorKind, PublicKey, Result, ResultExt, SecKey, Transaction};
 use client_core::transaction_builder::SignedTransferTransaction;
 use client_core::types::{BalanceChange, TransactionPending};
 use client_core::WalletClient;
@@ -232,15 +229,6 @@ pub enum TransactionCommand {
         )]
         file: PathBuf,
     },
-    GenKeypackage {
-        #[structopt(
-            name = "Path to mls enclave",
-            short = "p",
-            long = "path",
-            help = "Path to mls enclave"
-        )]
-        path: String,
-    },
 }
 
 impl TransactionCommand {
@@ -326,11 +314,6 @@ impl TransactionCommand {
                 let signed = SignedTransferTransaction::from_str(&tx_signed)?;
                 let tx_id = wallet_client.broadcast_signed_transfer_tx(name, &enckey, signed)?;
                 success(hex::encode(tx_id).as_str());
-                Ok(())
-            }
-            TransactionCommand::GenKeypackage { path } => {
-                let blob = gen_keypackage(&path)?;
-                success(&base64::encode(&blob));
                 Ok(())
             }
         }
@@ -1055,11 +1038,8 @@ fn ask_node_metadata() -> Result<CouncilNode> {
         ask("please enter base64 encoded keypackage:");
         match base64::decode(&text().chain(|| (ErrorKind::IoError, "Unable to read keypackage"))?) {
             Ok(kp) => {
-                if let Err(err) = verify_keypackage(&kp) {
-                    println!("invalid keypackage: {}", err);
-                } else {
-                    break kp;
-                }
+                /* TODO : use dev-utils to verify*/
+                break kp;
             }
             Err(err) => {
                 println!("invalid base64: {}", err);

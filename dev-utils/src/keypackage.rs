@@ -7,7 +7,7 @@ use chrono::offset::Utc;
 use mls::{Codec, KeyPackage};
 use ra_client::ENCLAVE_CERT_VERIFIER;
 
-use crate::{Error, ErrorKind, Result, ResultExt};
+use client_common::{Error, ErrorKind, Result, ResultExt};
 
 /// gen keypackage by running mls enclave
 pub fn gen_keypackage(sgxs_path: &str) -> Result<Vec<u8>> {

@@ -15,10 +15,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use client_common::{
-    gen_keypackage, verify_keypackage, Error, ErrorKind, PublicKey, Result as CommonResult,
-    ResultExt, Transaction,
-};
+use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt, Transaction};
 use client_core::wallet::WalletRequest;
 use client_core::{MultiSigWalletClient, WalletClient};
 use client_network::NetworkOpsClient;
@@ -73,9 +70,6 @@ pub trait StakingRpc: Send + Sync {
         staking_address: String,
         keypackage: String,
     ) -> Result<String>;
-
-    #[rpc(name = "staking_genKeyPackage")]
-    fn gen_keypackage(&self, path: String) -> Result<String>;
 }
 
 pub struct StakingRpcImpl<T, N>
@@ -443,11 +437,6 @@ where
 
         Ok(hex::encode(transaction.tx_id()))
     }
-
-    fn gen_keypackage(&self, path: String) -> Result<String> {
-        let keypackage = gen_keypackage(&path).map_err(to_rpc_error)?;
-        Ok(base64::encode(&keypackage))
-    }
 }
 
 fn get_node_metadata(
@@ -478,9 +467,6 @@ fn get_node_metadata(
     let keypackage = base64::decode(keypackage)
         .err_kind(ErrorKind::InvalidInput, || "invalid base64")
         .map_err(to_rpc_error)?;
-
-    #[cfg(not(feature = "mock-enclave"))]
-    verify_keypackage(&keypackage).map_err(to_rpc_error)?;
 
     Ok(CouncilNode {
         name: validator_name.to_string(),

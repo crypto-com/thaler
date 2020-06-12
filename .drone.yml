@@ -59,7 +59,7 @@ steps:
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
   - export CARGO_TARGET_DIR=$PWD/drone/target
-  - export PATH=$CARGO_HOME/bin:$PATH
+  - export PATH=$CARGO_HOME/bin:$CARGO_TARGET_DIR/debug:$PATH
   - export PYTHON_VENV_DIR=$PWD/drone/venv
   - export CRYPTO_CHAIN_ENABLE_SANITY_CHECKS=1
   - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
@@ -134,6 +134,6 @@ trigger:
 
 ---
 kind: signature
-hmac: a14adf1ecbabfbdef92b2e94155e60a89ac84f16d6eb56f3ce5ca63329c0c400
+hmac: 6805b3eb9f8dc619bbca037606e8cd92f6f29105c586f87e4bba3887cb32165d
 
 ...

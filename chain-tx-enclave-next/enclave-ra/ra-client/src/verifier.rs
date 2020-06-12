@@ -101,6 +101,7 @@ impl EnclaveCertVerifier {
             not_after,
         } = certificate.tbs_certificate.validity;
         let now_sec = now.timestamp();
+
         if now_sec < not_before.to_timespec().sec {
             return Err(EnclaveCertVerifierError::CertificateNotBegin);
         }
