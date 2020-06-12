@@ -22,7 +22,7 @@ use client_common::tendermint::types::{Genesis, Time};
 use client_common::{ErrorKind, Result, ResultExt};
 
 use crate::commands::genesis_dev_config::GenesisDevConfig;
-use client_core::wallet::syncer::compute_genesis_hash;
+use client_core::wallet::syncer::compute_genesis_fingerprint;
 
 #[derive(Debug, StructOpt)]
 pub enum GenesisCommand {
@@ -68,8 +68,11 @@ pub enum GenesisCommand {
         )]
         unbonded_address: Option<String>,
     },
-    #[structopt(name = "hash", about = "Calculate the genesis' hash in genesis.json")]
-    Hash {
+    #[structopt(
+        name = "fingerprint",
+        about = "Calculate the genesis' fingerprint from genesis.json"
+    )]
+    Fingerprint {
         #[structopt(
             name = "tendermint_genesis_path",
             short,
@@ -97,14 +100,14 @@ impl GenesisCommand {
                 unbonded_address,
             )
             .map(|_| ()),
-            GenesisCommand::Hash {
+            GenesisCommand::Fingerprint {
                 tendermint_genesis_path,
-            } => get_genesis_hash(tendermint_genesis_path),
+            } => get_genesis_fingerprint(tendermint_genesis_path),
         }
     }
 }
 
-fn get_genesis_hash(tendermint_genesis_path: &Option<PathBuf>) -> Result<()> {
+fn get_genesis_fingerprint(tendermint_genesis_path: &Option<PathBuf>) -> Result<()> {
     let tendermint_genesis_path = match tendermint_genesis_path {
         Some(path) => path.clone(),
         None => find_default_tendermint_path().chain(|| {
@@ -129,7 +132,7 @@ fn get_genesis_hash(tendermint_genesis_path: &Option<PathBuf>) -> Result<()> {
                 "failed to parse Tendermint genesis file",
             )
         })?;
-    let hash = compute_genesis_hash(&tendermint_genesis)?;
+    let hash = compute_genesis_fingerprint(&tendermint_genesis)?;
     println!("{}", hash);
     Ok(())
 }

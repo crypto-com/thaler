@@ -49,8 +49,8 @@ function wait_http() {
 function runtest() {
     echo "Preparing... $1"
     chainbot.py prepare multinode/$1_cluster.json --base_port $BASE_PORT $CHAINBOT_ARGS
-    export CRYPTO_GENESIS_HASH=`python -c "import json; print(json.load(open('data/info.json'))['genesis_hash'])"`
-    echo "genesis hash: $CRYPTO_GENESIS_HASH"
+    export CRYPTO_GENESIS_FINGERPRINT=`python -c "import json; print(json.load(open('data/info.json'))['genesis_fingerprint'])"`
+    echo "genesis fingerprint: $CRYPTO_GENESIS_FINGERPRINT"
 
     echo "Startup..."
     supervisord -n -c data/tasks.ini &
