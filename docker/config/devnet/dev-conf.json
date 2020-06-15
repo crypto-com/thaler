@@ -25,6 +25,10 @@
         "base_fee": "0.0",
         "per_byte_fee": "0.0"
     },
+    "evidence": {
+        "max_age_duration": "172800000000000",
+        "max_age_num_blocks": "100000"
+    },
     "council_nodes": {
         "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
             "node0",

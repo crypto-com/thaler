@@ -18,6 +18,7 @@ pub struct GenesisDevConfig {
     pub slashing_config: SlashingParameters,
     pub rewards_config: RewardsParameters,
     pub initial_fee_policy: InitialFeePolicy,
+    pub evidence: Evidence,
     pub council_nodes: BTreeMap<
         RedeemAddress,
         (
@@ -53,6 +54,10 @@ impl GenesisDevConfig {
                 base_fee: "1.1".to_string(),
                 per_byte_fee: "1.25".to_string(),
             },
+            evidence: Evidence {
+                max_age_duration: "5400000000000".into(),
+                max_age_num_blocks: "200".into(),
+            },
             council_nodes: BTreeMap::new(),
         }
     }
@@ -62,4 +67,10 @@ impl GenesisDevConfig {
 pub struct InitialFeePolicy {
     pub base_fee: String,
     pub per_byte_fee: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Evidence {
+    pub max_age_duration: String,
+    pub max_age_num_blocks: String,
 }

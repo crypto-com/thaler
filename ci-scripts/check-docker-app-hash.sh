@@ -15,7 +15,7 @@ function check_command_exist() {
 
 check_command_exist "jq"
 
-GENERATED_APP_HASH=$(./target/debug/dev-utils genesis generate --genesis_dev_config_path ./docker/config/devnet/dev-conf.json --tendermint_genesis_path ./docker/config/devnet/tendermint/genesis.json | jq -r '.app_hash')
+GENERATED_APP_HASH=$(./target/debug/dev-utils genesis generate --no_evidence_overwrite --no_genesistime_overwrite --genesis_dev_config_path ./docker/config/devnet/dev-conf.json --tendermint_genesis_path ./docker/config/devnet/tendermint/genesis.json | jq -r '.app_hash')
 GENESIS_APP_HASH=$(cat ./docker/config/devnet/tendermint/genesis.json | jq -r '.app_hash')
 echo "Generated app hash: ${GENERATED_APP_HASH}"
 echo "Docker app hash: ${GENESIS_APP_HASH}"
