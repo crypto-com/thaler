@@ -67,6 +67,22 @@ pub enum GenesisCommand {
             help = "If unbonded address is provided, all other staking addresses will be `Bonded` from genesis except from `unbonded_address`"
         )]
         unbonded_address: Option<String>,
+
+        #[structopt(
+            name = "no_genesistime_overwrite",
+            short = "T",
+            long,
+            help = "Don't overwrite genesistime"
+        )]
+        no_genesistime_overwrite: bool,
+
+        #[structopt(
+            name = "no_evidence_overwrite",
+            short = "E",
+            long,
+            help = "Don't overwrite evidence"
+        )]
+        no_evidence_overwrite: bool,
     },
     #[structopt(
         name = "fingerprint",
@@ -92,12 +108,16 @@ impl GenesisCommand {
                 in_place,
                 no_backup,
                 unbonded_address,
+                no_genesistime_overwrite,
+                no_evidence_overwrite,
             } => generate_genesis_command(
                 tendermint_genesis_path,
                 genesis_dev_config_path,
                 *in_place,
                 *no_backup,
                 unbonded_address,
+                *no_genesistime_overwrite,
+                *no_evidence_overwrite,
             )
             .map(|_| ()),
             GenesisCommand::Fingerprint {
@@ -143,6 +163,8 @@ fn generate_genesis_command(
     in_place: bool,
     no_backup: bool,
     unbonded_address: &Option<String>,
+    no_genesistime_overwrite: bool,
+    no_evidence_overwrite: bool,
 ) -> Result<()> {
     let tendermint_genesis_path = match tendermint_genesis_path {
         Some(path) => path.clone(),
@@ -182,15 +204,31 @@ fn generate_genesis_command(
             )
         })?;
 
-    let genesis_time = Time::from_str(
-        tendermint_genesis["genesis_time"]
-            .as_str()
-            .expect("genesis time config should be string"),
-    )
-    .expect("invalid genesis time format")
-    .duration_since(Time::unix_epoch())
-    .expect("invalid genesis time")
-    .as_secs();
+    let genesis_time: u64;
+
+    if no_genesistime_overwrite {
+        genesis_time = Time::from_str(
+            tendermint_genesis["genesis_time"]
+                .as_str()
+                .expect("genesis time config should be string"),
+        )
+        .expect("invalid genesis time format")
+        .duration_since(Time::unix_epoch())
+        .expect("invalid genesis time")
+        .as_secs();
+    } else {
+        // just use current time
+        let now_utc = Time::now();
+        genesis_time = now_utc
+            .duration_since(Time::unix_epoch())
+            .expect("invalid genesis time")
+            .as_secs();
+        tendermint_genesis["genesis_time"] = serde_json::value::Value::String(now_utc.to_string());
+    }
+    if !no_evidence_overwrite {
+        tendermint_genesis["consensus_params"]["evidence"] =
+            serde_json::json!(&genesis_dev_config.evidence);
+    }
     let (app_hash, app_state, validators) =
         generate_genesis(&genesis_dev_config, genesis_time, unbonded_address)?;
 
