@@ -146,7 +146,7 @@ pub enum TransactionCommand {
     },
     #[structopt(
         name = "import",
-        about = "Export a plain transaction by a given transaction id"
+        about = "Import a transaction from the given plain transaction data"
     )]
     Import {
         #[structopt(
