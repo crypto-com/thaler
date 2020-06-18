@@ -241,6 +241,23 @@ impl NodeSize {
             None
         }
     }
+
+    /// Common ancestor of two leaves
+    pub fn ancestor_of(left: LeafSize, right: LeafSize) -> Self {
+        if left == right {
+            NodeSize::from_leaf_index(left)
+        } else {
+            let mut left = left.0 * 2;
+            let mut right = right.0 * 2;
+            let mut k = 0;
+            while left != right {
+                left >>= 1;
+                right >>= 1;
+                k += 1;
+            }
+            NodeSize((left << k) + (1 << (k - 1)) - 1)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -396,6 +413,27 @@ mod test {
                     .map(|x| x.0)
                     .collect::<Vec<_>>()
             );
+        }
+
+        let a_ancestor = vec![
+            vec![0x01, 0x03, 0x03, 0x07, 0x07, 0x07, 0x07, 0x0f, 0x0f, 0x0f],
+            vec![0x03, 0x03, 0x07, 0x07, 0x07, 0x07, 0x0f, 0x0f, 0x0f],
+            vec![0x05, 0x07, 0x07, 0x07, 0x07, 0x0f, 0x0f, 0x0f],
+            vec![0x07, 0x07, 0x07, 0x07, 0x0f, 0x0f, 0x0f],
+            vec![0x09, 0x0b, 0x0b, 0x0f, 0x0f, 0x0f],
+            vec![0x0b, 0x0b, 0x0f, 0x0f, 0x0f],
+            vec![0x0d, 0x0f, 0x0f, 0x0f],
+            vec![0x0f, 0x0f, 0x0f],
+            vec![0x11, 0x13],
+            vec![0x13],
+        ];
+        for l in 0..a_n {
+            for r in l + 1..a_n {
+                assert_eq!(
+                    a_ancestor[l][r - l - 1],
+                    NodeSize::ancestor_of(LeafSize(l), LeafSize(r)).0
+                );
+            }
         }
     }
 }

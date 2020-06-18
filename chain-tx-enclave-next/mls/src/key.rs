@@ -1,5 +1,8 @@
 //! Implements P-256 keys
-use hpke::kex::{Marshallable, Unmarshallable};
+use hpke::{
+    kex::{Marshallable, Unmarshallable},
+    HpkeError,
+};
 use rand::thread_rng;
 use ring::{
     error, rand as ringrang,
@@ -9,6 +12,7 @@ use ring::{
     },
 };
 use rustls::internal::msgs::codec::{Codec, Reader};
+use secrecy::SecretVec;
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 
 /// p-256 public key
@@ -59,6 +63,10 @@ impl HPKEPublicKey {
     pub fn kex_pubkey(&self) -> &<hpke::kex::DhP256 as hpke::KeyExchange>::PublicKey {
         &self.0
     }
+
+    pub fn marshal(&self) -> Vec<u8> {
+        self.0.marshal().to_vec()
+    }
 }
 
 impl Debug for HPKEPublicKey {
@@ -88,6 +96,7 @@ impl Codec for HPKEPublicKey {
 
 /// p-256 private key
 /// used for obtaining the initial sealed secrets (HPKE)
+#[derive(Clone)]
 pub struct HPKEPrivateKey(<hpke::kex::DhP256 as hpke::KeyExchange>::PrivateKey);
 
 impl HPKEPrivateKey {
@@ -97,8 +106,29 @@ impl HPKEPrivateKey {
         (HPKEPrivateKey(hpke_secret), HPKEPublicKey(hpke_public))
     }
 
+    pub fn derive(ikm: &[u8]) -> Self {
+        Self(
+            <hpke::kex::DhP256 as hpke::KeyExchange>::derive_keypair::<hpke::kdf::HkdfSha256>(ikm)
+                .0,
+        )
+    }
+
     pub fn kex_secret(&self) -> &<hpke::kex::DhP256 as hpke::KeyExchange>::PrivateKey {
         &self.0
+    }
+
+    pub fn unmarshal(secret: &[u8]) -> Result<Self, HpkeError> {
+        <hpke::kex::DhP256 as hpke::KeyExchange>::PrivateKey::unmarshal(secret).map(Self)
+    }
+
+    pub fn marshal(&self) -> SecretVec<u8> {
+        <SecretVec<u8>>::new(
+            <hpke::kex::DhP256 as hpke::KeyExchange>::PrivateKey::marshal(&self.0).to_vec(),
+        )
+    }
+
+    pub fn public_key(&self) -> HPKEPublicKey {
+        HPKEPublicKey(<hpke::kex::DhP256 as hpke::KeyExchange>::sk_to_pk(&self.0))
     }
 }
 

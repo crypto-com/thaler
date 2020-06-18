@@ -175,19 +175,41 @@ impl GroupAux {
             .collect();
         let mut updated_tree = self.tree.clone();
         let positions = updated_tree.update(&add_proposals, &[], &[]);
-        let commit_secret = vec![0; self.tree.cs.hash_len()];
+
+        // generate init key
+        self.owned_kp.update_init_key();
+
+        // update path secrets
+        let (path_nodes, parent_hash, commit_secret) = updated_tree.evolve(
+            &self.context.get_encoding(),
+            self.owned_kp.init_private_key.marshal(),
+        );
+
+        // update keypackage's parent_hash extension
+        self.owned_kp
+            .keypackage
+            .payload
+            .put_extension(&ext::ParentHashExt(parent_hash));
+        self.owned_kp.update_signature();
+        updated_tree.set_my_package(self.owned_kp.keypackage.clone());
+
         let commit = Commit {
             updates: vec![],
             removes: vec![],
             adds: add_proposals_ids,
-            path: None,
+            path: Some(DirectPath {
+                leaf_key_package: self.owned_kp.keypackage.clone(),
+                nodes: path_nodes,
+            }),
         };
         let updated_epoch = self.context.epoch + 1;
         let confirmed_transcript_hash = self.get_init_confirmed_transcript_hash(&commit);
-        let mut updated_group_context = self.context.clone();
-        updated_group_context.epoch = updated_epoch;
-        updated_group_context.tree_hash = updated_tree.compute_tree_hash();
-        updated_group_context.confirmed_transcript_hash = confirmed_transcript_hash;
+        let updated_group_context = GroupContext {
+            tree_hash: updated_tree.compute_tree_hash(),
+            epoch: updated_epoch,
+            confirmed_transcript_hash,
+            ..self.context.clone()
+        };
         let updated_group_context_hash = self.tree.cs.hash(&updated_group_context.get_encoding());
         let epoch_secrets = self.secrets.generate_new_epoch_secrets(
             &commit_secret,
@@ -234,16 +256,16 @@ impl GroupAux {
         remove_proposals: &[MLSPlaintext],
         ra_verifier: &impl AttestedCertVerifier,
         now: Timespec,
-    ) -> Result<(), kp::Error> {
+    ) -> Result<(), ProcessCommitError> {
         // "Verify that the epoch field of the enclosing MLSPlaintext message
         // is equal to the epoch field of the current GroupContext object"
         if self.context.epoch != commit.content.epoch {
-            return Err(kp::Error::GroupEpochError);
+            return Err(ProcessCommitError::GroupEpochError);
         }
         let kp = self
             .tree
             .get_package(LeafSize(commit.content.sender.sender as usize))
-            .ok_or(kp::Error::KeyPackageNotFound)?;
+            .ok_or(ProcessCommitError::KeyPackageNotFound)?;
         let pk = IdentityPublicKey::new_unsafe(kp.verify(ra_verifier, now)?.public_key);
         // "Verify that the signature on the MLSPlaintext message verifies
         //  using the public key from the credential stored at the leaf in the tree indicated by the sender field."
@@ -267,20 +289,20 @@ impl GroupAux {
                 commit,
                 confirmation,
             } => Ok((commit, confirmation)),
-            _ => Err(kp::Error::CommitError),
+            _ => Err(ProcessCommitError::CommitError),
         }?;
 
-        let mreordered_add_proposals: Result<Vec<MLSPlaintext>, kp::Error> = commit_content
+        let adds = commit_content
             .adds
             .iter()
             .map(|proposal_id| {
                 add_proposals_ids
                     .get(proposal_id)
-                    .map(|x| (*x).clone())
-                    .ok_or(kp::Error::CommitError)
+                    .cloned()
+                    .cloned()
+                    .ok_or(ProcessCommitError::CommitError)
             })
-            .collect();
-        let adds = mreordered_add_proposals?;
+            .collect::<Result<Vec<_>, _>>()?;
         // FIXME: updates
         // FIXME: removes
         let mut updated_tree = self.tree.clone();
@@ -294,17 +316,39 @@ impl GroupAux {
                     && commit_content.updates.is_empty()
                     && commit_content.removes.is_empty()))
         {
-            return Err(kp::Error::CommitError);
+            return Err(ProcessCommitError::CommitError);
         }
 
         let updated_epoch = self.context.epoch + 1;
         let mut updated_group_context = self.context.clone();
         updated_group_context.epoch = updated_epoch;
-        updated_group_context.tree_hash = updated_tree.compute_tree_hash();
         // "If the path value is populated: Process the path value..."
-        // FIXME: if commit_content.path.is_some()
-        // "If the path value is not populated: ..."
-        let commit_secret = vec![0; self.tree.cs.hash_len()];
+
+        // apply commit path, leaf keypackage and path secrets
+        let commit_secret = if let Some(path) = &commit_content.path {
+            let sender = LeafSize(commit.content.sender.sender as usize);
+            let (leaf_parent_hash, root_secret) = updated_tree.apply_path_secrets(
+                sender,
+                &self.context.get_encoding(),
+                &path.nodes,
+                &self.owned_kp.init_private_key,
+            )?;
+            // Verify that the KeyPackage has a `parent_hash` extension and that its value
+            // matches the new parent of the sender's leaf node.
+            let ext = path
+                .leaf_key_package
+                .payload
+                .find_extension::<ext::ParentHashExt>()?;
+            if !bool::from(ext.0.ct_eq(&leaf_parent_hash)) {
+                return Err(ProcessCommitError::LeafParentHashDontMatch);
+            }
+            updated_tree.set_package(sender, path.leaf_key_package.clone());
+            root_secret
+        } else {
+            // "If the path value is not populated: ..."
+            SecretVec::new(vec![0; self.tree.cs.hash_len()])
+        };
+        updated_group_context.tree_hash = updated_tree.compute_tree_hash();
 
         // "Update the new GroupContext's confirmed and interim transcript hashes using the new Commit."
         let confirmed_transcript_hash = self.get_init_confirmed_transcript_hash(&commit_content);
@@ -334,7 +378,7 @@ impl GroupAux {
 
         let confirmation_ok: bool = confirmation.ct_eq(&confirmation_computed).into();
         if !confirmation_ok {
-            return Err(kp::Error::GroupInfoIntegrityError);
+            return Err(ProcessCommitError::GroupInfoIntegrityError);
         }
 
         // "If the above checks are successful, consider the updated GroupContext object as the current state of the group."
@@ -350,21 +394,21 @@ impl GroupAux {
         others: &[KeyPackage],
         ra_verifier: &impl AttestedCertVerifier,
         genesis_time: Timespec,
-    ) -> Result<(Self, Vec<MLSPlaintext>, MLSPlaintext, Welcome), kp::Error> {
+    ) -> Result<(Self, Vec<MLSPlaintext>, MLSPlaintext, Welcome), InitGroupError> {
         let mut kps = BTreeSet::new();
         for kp in others.iter() {
             if kps.contains(kp) {
-                return Err(kp::Error::DuplicateKeyPackage);
+                return Err(InitGroupError::DuplicateKeyPackage);
             } else {
                 kp.verify(ra_verifier, genesis_time)?;
                 kps.insert(kp.clone());
             }
         }
         if kps.contains(&creator_kp.keypackage) {
-            Err(kp::Error::DuplicateKeyPackage)
+            Err(InitGroupError::DuplicateKeyPackage)
         } else {
             creator_kp.keypackage.verify(ra_verifier, genesis_time)?;
-            let (context, tree) = GroupContext::init(creator_kp.keypackage.clone())?;
+            let (context, tree) = GroupContext::init(creator_kp.keypackage.clone());
             let mut group = GroupAux::new(context, tree, creator_kp);
             let add_proposals: Vec<MLSPlaintext> =
                 others.iter().map(|kp| group.get_signed_add(kp)).collect();
@@ -378,13 +422,13 @@ impl GroupAux {
         welcome: Welcome,
         ra_verifier: &impl AttestedCertVerifier,
         genesis_time: Timespec,
-    ) -> Result<Self, kp::Error> {
+    ) -> Result<Self, ProcessWelcomeError> {
         my_kp.keypackage.verify(ra_verifier, genesis_time)?;
         if welcome.cipher_suite != my_kp.keypackage.payload.cipher_suite {
-            return Err(kp::Error::UnsupportedCipherSuite(welcome.cipher_suite));
+            return Err(ProcessWelcomeError::CipherSuiteDontMatch);
         }
         if welcome.version != my_kp.keypackage.payload.version {
-            return Err(kp::Error::InvalidSupportedVersions);
+            return Err(ProcessWelcomeError::VersionDontMatch);
         }
         let cs = match my_kp.keypackage.payload.cipher_suite {
             x if x == (CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 as u16) => {
@@ -400,7 +444,7 @@ impl GroupAux {
             .secrets
             .iter()
             .find(|s| s.key_package_hash == my_kp_hash);
-        let secret = msecret.ok_or(kp::Error::KeyPackageNotFound)?;
+        let secret = msecret.ok_or(ProcessWelcomeError::KeyPackageNotFound)?;
         // * "Decrypt the encrypted_group_secrets using HPKE..."
         let group_secret = cs.open_group_secret(&secret, &my_kp);
         let epoch_secret =
@@ -435,7 +479,7 @@ impl GroupAux {
         // * "Verify the signature on the GroupInfo object..."
         let signer = match nodes.get(group_info.payload.signer_index as usize) {
             Some(Node::Leaf(Some(kp))) => Ok(kp.clone()),
-            _ => Err(kp::Error::KeyPackageNotFound),
+            _ => Err(ProcessWelcomeError::KeyPackageNotFound),
         }?;
         let identity_pk =
             IdentityPublicKey::new_unsafe(signer.verify(ra_verifier, genesis_time)?.public_key);
@@ -454,7 +498,7 @@ impl GroupAux {
                 _ => false,
             })
             .map(|(i, _)| NodeSize(i))
-            .ok_or(kp::Error::KeyPackageNotFound)?;
+            .ok_or(ProcessWelcomeError::KeyPackageNotFound)?;
         // * "Construct a new group state using the information in the GroupInfo object..."
         let tree = Tree::from_group_info(
             LeafSize::from_node_index(node_index).expect("invalid leaf index"),
@@ -492,7 +536,7 @@ impl GroupAux {
 
         let confirmation_ok: bool = confirmation.ct_eq(&group_info.payload.confirmation).into();
         if !confirmation_ok {
-            return Err(kp::Error::GroupInfoIntegrityError);
+            return Err(ProcessWelcomeError::GroupInfoIntegrityError);
         }
         Ok(group)
     }
@@ -548,10 +592,10 @@ impl Codec for GroupContext {
 }
 
 impl GroupContext {
-    pub fn init(creator_kp: KeyPackage) -> Result<(Self, Tree), kp::Error> {
+    pub fn init(creator_kp: KeyPackage) -> (Self, Tree) {
         let extensions = creator_kp.payload.extensions.clone();
-        let tree = Tree::init(creator_kp)?;
-        Ok((
+        let tree = Tree::init(creator_kp);
+        (
             GroupContext {
                 group_id: TDBE_GROUP_ID.to_vec(),
                 epoch: 0,
@@ -560,7 +604,7 @@ impl GroupContext {
                 extensions,
             },
             tree,
-        ))
+        )
     }
 }
 
@@ -642,6 +686,52 @@ impl Codec for GroupInfo {
     }
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum ProcessCommitError {
+    #[error("keypackage verify failed: {0}")]
+    KeyPackageVerifyFail(#[from] kp::Error),
+    #[error("find extension failed: {0}")]
+    FindExtensionFail(#[from] kp::FindExtensionError),
+    #[error("Epoch does not match")]
+    GroupEpochError,
+    #[error("group info integrity check failed")]
+    GroupInfoIntegrityError,
+    #[error("ratchet tree integrity check failed: {0}")]
+    TreeVerifyFail(#[from] TreeIntegrityError),
+    #[error("Commit processing error")]
+    CommitError,
+    #[error("key package not found")]
+    KeyPackageNotFound,
+    #[error("decrypted path secret don't match the public key")]
+    PathSecretPublicKeyDontMatch,
+    #[error("parent hash extension in leaf keypackage don't match")]
+    LeafParentHashDontMatch,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum ProcessWelcomeError {
+    #[error("keypackage verify failed: {0}")]
+    KeyPackageVerifyFail(#[from] kp::Error),
+    #[error("ratchet tree integrity check failed: {0}")]
+    TreeVerifyFail(#[from] TreeIntegrityError),
+    #[error("key package not found")]
+    KeyPackageNotFound,
+    #[error("cipher suite in welcome don't match keypackage")]
+    CipherSuiteDontMatch,
+    #[error("version in welcome don't match keypackage")]
+    VersionDontMatch,
+    #[error("group info integrity check failed")]
+    GroupInfoIntegrityError,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum InitGroupError {
+    #[error("keypackage verify failed: {0}")]
+    KeyPackageVerifyFail(#[from] kp::Error),
+    #[error("duplicate keypackages")]
+    DuplicateKeyPackage,
+}
+
 #[cfg(test)]
 mod test {
 
@@ -717,7 +807,7 @@ mod test {
     fn test_sign_verify_add() {
         let creator_kp = get_fake_keypackage();
         let to_be_added = get_fake_keypackage().keypackage;
-        let (context, tree) = GroupContext::init(creator_kp.keypackage.clone()).unwrap();
+        let (context, tree) = GroupContext::init(creator_kp.keypackage.clone());
         let group_aux = GroupAux::new(context, tree, creator_kp);
         let plain = group_aux.get_signed_add(&to_be_added);
         assert!(plain

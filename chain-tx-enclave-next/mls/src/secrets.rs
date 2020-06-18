@@ -19,7 +19,7 @@ impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> EpochSecrets
 
     pub fn new(group_context_hash: Vec<u8>, leaf_count: LeafSize) -> Self {
         use generic_array::typenum::Unsigned;
-        let init_commit_secret = vec![0u8; D::OutputSize::to_usize()];
+        let init_commit_secret = SecretVec::new(vec![0u8; D::OutputSize::to_usize()]);
         Self::generate(
             &init_commit_secret,
             group_context_hash,
@@ -59,18 +59,19 @@ impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> EpochSecrets
     }
 
     fn generate(
-        init_secret: &[u8],
+        init_secret: &SecretVec<u8>,
         group_context_hash: Vec<u8>,
-        commit_secret: &[u8],
+        commit_secret: &SecretVec<u8>,
         leaf_count: LeafSize,
     ) -> Self {
-        let early_secret = Hkdf::<D>::new(None, &init_secret);
+        let early_secret = Hkdf::<D>::new(None, &init_secret.expose_secret());
         use generic_array::typenum::Unsigned;
         let secret_len = D::OutputSize::to_u16();
         let derived_secret = early_secret
             .derive_secret(b"".to_vec(), "derived", secret_len)
             .expect("correct len");
-        let (es, epoch_secret) = Hkdf::<D>::extract(Some(commit_secret), &derived_secret);
+        let (es, epoch_secret) =
+            Hkdf::<D>::extract(Some(&commit_secret.expose_secret()), &derived_secret);
         // FIXME: these are to be used later
         let _sender_data_secret =
             epoch_secret.derive_secret(group_context_hash.clone(), "sender data", secret_len);
@@ -125,12 +126,12 @@ impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> EpochSecrets
 
     pub fn generate_new_epoch_secrets(
         &self,
-        commit_secret: &[u8],
+        commit_secret: &SecretVec<u8>,
         updated_group_context_hash: Vec<u8>,
         leaf_count: LeafSize,
     ) -> Self {
         Self::generate(
-            self.init_secret.expose_secret(),
+            &self.init_secret,
             updated_group_context_hash,
             commit_secret,
             leaf_count,

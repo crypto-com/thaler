@@ -1,4 +1,5 @@
 use crate::group::GroupInfo;
+use crate::key::{HPKEPrivateKey, HPKEPublicKey};
 use crate::keypackage::{KeyPackage, OwnedKeyPackage};
 use crate::message::*;
 use crate::utils::{encode_vec_u32, encode_vec_u8_u8, read_vec_u32, read_vec_u8_u8};
@@ -7,11 +8,11 @@ use hkdf::{Hkdf, InvalidLength};
 use hpke::{
     aead::{AeadTag, AesGcm128},
     kex::{Marshallable, Unmarshallable},
-    EncappedKey,
+    EncappedKey, HpkeError,
 };
 use rustls::internal::msgs::codec::{Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
-use sha2::digest::generic_array::{ArrayLength, GenericArray};
+use sha2::digest::generic_array::GenericArray;
 use sha2::digest::{BlockInput, FixedOutput, Input, Reset};
 use sha2::{Digest, Sha256};
 
@@ -77,12 +78,9 @@ impl Codec for ApplicationContext {
 }
 
 /// Additional methods for Kdf
-pub trait HkdfExt<D>
-where
-    D: Input + BlockInput + FixedOutput + Reset + Default + Clone,
-    D::BlockSize: ArrayLength<u8>,
-    D::OutputSize: ArrayLength<u8>,
-{
+///
+/// draft-ietf-mls-protocol.md#key-schedule
+pub trait HkdfExt {
     fn expand_label(
         &self,
         group_context_hash: Vec<u8>,
@@ -106,7 +104,7 @@ where
     ) -> Result<Vec<u8>, hkdf::InvalidLength>;
 }
 
-impl<D> HkdfExt<D> for Hkdf<D>
+impl<D> HkdfExt for Hkdf<D>
 where
     D: Input + BlockInput + FixedOutput + Reset + Default + Clone,
 {
@@ -305,6 +303,112 @@ impl CipherSuite {
     pub fn hash_len(self) -> usize {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => 32,
+        }
+    }
+
+    /// spec: draft-ietf-mls-protocol.md#key-schedule
+    pub fn expand_label(
+        self,
+        secret: &SecretVec<u8>,
+        group_context_hash: Vec<u8>,
+        label: &str,
+        context: &[u8],
+        length: u16,
+    ) -> Result<SecretVec<u8>, InvalidLength> {
+        match self {
+            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
+                Hkdf::<Sha256>::new(None, secret.expose_secret())
+                    .expand_label(group_context_hash, label, context, length)
+                    .map(<SecretVec<u8>>::new)
+            }
+        }
+    }
+
+    pub fn secret_size(self) -> u16 {
+        match self {
+            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => 32,
+        }
+    }
+
+    pub fn keypair_secret_size(self) -> u16 {
+        match self {
+            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => 32,
+        }
+    }
+
+    pub fn derive_private_key(self, secret: &SecretVec<u8>) -> HPKEPrivateKey {
+        match self {
+            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
+                HPKEPrivateKey::derive(&secret.expose_secret())
+            }
+        }
+    }
+
+    /// encrypt to public key
+    pub fn encrypt(
+        self,
+        mut msg: Vec<u8>,
+        recip_pk: &HPKEPublicKey,
+        aad: &[u8],
+    ) -> Result<HPKECiphertext, HpkeError> {
+        match self {
+            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
+                let mut csprng = rand::thread_rng();
+                let (kem_output, mut context) = hpke::setup_sender::<
+                    AesGcm128,
+                    hpke::kdf::HkdfSha256,
+                    hpke::kem::DhP256HkdfSha256,
+                    _,
+                >(
+                    &hpke::OpModeS::Base,
+                    recip_pk.kex_pubkey(),
+                    b"",
+                    &mut csprng,
+                )?;
+                let tag = context.seal(&mut msg, aad)?;
+                msg.extend_from_slice(&tag.marshal());
+                Ok(HPKECiphertext {
+                    kem_output: kem_output.marshal().to_vec(),
+                    ciphertext: msg,
+                })
+            }
+        }
+    }
+
+    /// decrypt ciphertext
+    pub fn decrypt(
+        self,
+        private_key: &HPKEPrivateKey,
+        aad: &[u8],
+        ct: &HPKECiphertext,
+    ) -> Result<Vec<u8>, HpkeError> {
+        match self {
+            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
+                let encapped_key = EncappedKey::<
+                    <hpke::kem::DhP256HkdfSha256 as hpke::kem::Kem>::Kex,
+                >::unmarshal(&ct.kem_output)
+                .expect("valid encapped key");
+                let mut context = hpke::setup_receiver::<
+                    AesGcm128,
+                    hpke::kdf::HkdfSha256,
+                    hpke::kem::DhP256HkdfSha256,
+                >(
+                    &hpke::OpModeR::Base,
+                    private_key.kex_secret(),
+                    &encapped_key,
+                    b"",
+                )?;
+
+                let payload_len = ct.ciphertext.len();
+                let mut payload = ct.ciphertext[0..payload_len - 16].to_vec();
+                let tag_bytes = &ct.ciphertext[payload_len - 16..payload_len];
+                let tag = AeadTag::<AesGcm128>::unmarshal(tag_bytes).expect("valid tag");
+
+                context
+                    .open(&mut payload, aad, &tag)
+                    .expect("decryption failed");
+                Ok(payload)
+            }
         }
     }
 }
