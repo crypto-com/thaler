@@ -479,6 +479,7 @@ pub mod tests {
     use client_common::tendermint::mock;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
+    use client_common::TransactionObfuscation;
     use client_common::{
         seckey::derive_enckey, Error, ErrorKind, Result as CommonResult, SignedTransaction,
         Transaction,
@@ -487,7 +488,6 @@ pub mod tests {
     use client_core::signer::WalletSignerManager;
     use client_core::transaction_builder::DefaultWalletTransactionBuilder;
     use client_core::wallet::DefaultWalletClient;
-    use client_core::TransactionObfuscation;
 
     #[derive(Default, Clone)]
     pub struct ZeroFeeAlgorithm;

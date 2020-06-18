@@ -6,11 +6,11 @@ use std::{
 
 use parity_scale_codec::{Decode, Encode};
 
-use chain_core::tx::{data::TxId, TxAux, TxWithOutputs};
-use client_common::{
+use crate::{
     tendermint::{types::AbciQueryExt, Client},
     Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction, SECP,
 };
+use chain_core::tx::{data::TxId, TxAux, TxWithOutputs};
 use enclave_protocol::{
     DecryptionRequest, DecryptionResponse, EncryptionRequest, EncryptionResponse,
     TxQueryInitRequest, TxQueryInitResponse,

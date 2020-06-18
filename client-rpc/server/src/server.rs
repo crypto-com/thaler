@@ -1,8 +1,6 @@
 use crate::program::Options;
 
 use jsonrpc_http_server::{AccessControlAllowOrigin, DomainsValidation, ServerBuilder};
-#[cfg(feature = "mock-enclave")]
-use log::warn;
 use std::net::SocketAddr;
 
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
@@ -41,21 +39,11 @@ impl Server {
         })
     }
 
-    #[cfg(not(feature = "mock-enclave"))]
     fn create_rpc_handler(&self) -> Result<RpcHandler> {
+        if cfg!(feature = "mock-enclave") {
+            log::warn!("{}", "WARNING: Using mock (non-enclave) infrastructure");
+        }
         RpcHandler::new(
-            &self.storage_dir,
-            &self.websocket_url,
-            self.network_id,
-            self.sync_options.clone(),
-            None,
-        )
-    }
-
-    #[cfg(feature = "mock-enclave")]
-    fn create_rpc_handler(&self) -> Result<RpcHandler> {
-        warn!("{}", "WARNING: Using mock (non-enclave) infrastructure");
-        RpcHandler::new_mock(
             &self.storage_dir,
             &self.websocket_url,
             self.network_id,

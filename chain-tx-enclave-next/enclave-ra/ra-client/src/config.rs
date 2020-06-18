@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 const IAS_CERT: &[u8] =
-    include_bytes!("../../../../client-core/src/cipher/AttestationReportSigningCACert.pem");
+    include_bytes!("../../../../client-common/src/cipher/AttestationReportSigningCACert.pem");
 
 #[derive(Clone)]
 pub struct EnclaveCertVerifierConfig<'a> {

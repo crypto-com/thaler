@@ -20,11 +20,12 @@ use client_common::tendermint::types::{AbciQueryExt, Genesis, StatusResponse};
 use client_common::tendermint::Client;
 use client_common::{
     Error, ErrorKind, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction,
+    TransactionObfuscation,
 };
 use client_core::signer::{DummySigner, Signer, WalletSignerManager};
 use client_core::transaction_builder::WitnessedUTxO;
 use client_core::types::TransactionPending;
-use client_core::{TransactionObfuscation, UnspentTransactions, WalletClient};
+use client_core::{UnspentTransactions, WalletClient};
 use tendermint::{block::Height, Time};
 
 /// Default implementation of `NetworkOpsClient`
@@ -607,7 +608,7 @@ mod tests {
         }
     }
 
-    #[derive(Debug, Default)]
+    #[derive(Debug, Clone, Default)]
     struct UnitFeeAlgorithm;
 
     impl FeeAlgorithm for UnitFeeAlgorithm {

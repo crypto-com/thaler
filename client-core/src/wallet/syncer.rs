@@ -20,12 +20,12 @@ use client_common::tendermint::types::{
 use client_common::tendermint::Client;
 use client_common::{
     Error, ErrorKind, PrivateKey, Result, ResultExt, SecKey, SecureStorage, Transaction,
+    TransactionObfuscation,
 };
 
 use super::syncer_logic::handle_blocks;
 use crate::service;
 use crate::service::{KeyService, SyncState, Wallet, WalletState, WalletStateMemento};
-use crate::TransactionObfuscation;
 
 pub trait AddressRecovery: Clone + Send + Sync {
     // new_address: transfer address in TxOut

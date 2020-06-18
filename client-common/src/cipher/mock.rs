@@ -1,10 +1,10 @@
 //! mock transaction obfuscator
 use std::convert::TryInto;
 
+use crate::tendermint::Client;
+use crate::{PrivateKey, Result, SignedTransaction, Transaction};
 use chain_core::tx::data::TxId;
 use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxWithOutputs};
-use client_common::tendermint::Client;
-use client_common::{PrivateKey, Result, SignedTransaction, Transaction};
 use mock_utils::{encrypt, unseal};
 
 use crate::TransactionObfuscation;
@@ -95,13 +95,13 @@ fn checked_unseal(payload: &[u8], _private_key: &PrivateKey) -> Option<TxWithOut
 mod tests {
     use super::*;
 
+    use crate::tendermint::lite;
+    use crate::tendermint::types::*;
+    use crate::PrivateKey;
     use chain_core::state::ChainState;
     use chain_core::tx::data::Tx;
     use chain_core::tx::witness::TxWitness;
     use chain_core::tx::{TxEnclaveAux, TxWithOutputs};
-    use client_common::tendermint::lite;
-    use client_common::tendermint::types::*;
-    use client_common::PrivateKey;
     use mock_utils::seal;
 
     #[derive(Clone)]

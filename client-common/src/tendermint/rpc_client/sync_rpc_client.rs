@@ -5,6 +5,7 @@ use std::{
 };
 
 use itertools::izip;
+use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tendermint::{lite, validator};
@@ -16,9 +17,24 @@ use std::sync::Mutex;
 use super::async_rpc_client::AsyncRpcClient;
 use crate::{
     tendermint::{lite::TrustedState, types::*, Client},
-    Error, ErrorKind, Result, ResultExt,
+    Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction,
+    TransactionObfuscation,
 };
 
+#[cfg(not(feature = "mock-enclave"))]
+use crate::cipher::DefaultTransactionObfuscation;
+#[cfg(not(feature = "mock-enclave"))]
+type AppTransactionObfuscation = DefaultTransactionObfuscation;
+#[cfg(feature = "mock-enclave")]
+use crate::cipher::MockAbciTransactionObfuscation;
+#[cfg(feature = "mock-enclave")]
+use crate::tendermint::WebsocketRpcClient;
+#[cfg(feature = "mock-enclave")]
+type AppTransactionObfuscation = MockAbciTransactionObfuscation<WebsocketRpcClient>;
+use chain_core::init::coin::CoinError;
+use chain_core::tx::data::TxId;
+use chain_core::tx::fee::{Fee, FeeAlgorithm, LinearFee};
+use chain_core::tx::TxAux;
 use futures_util::sink::SinkExt;
 use tokio_tungstenite::tungstenite::protocol::frame::coding::CloseCode;
 use tokio_tungstenite::tungstenite::protocol::frame::CloseFrame;
@@ -31,32 +47,98 @@ const RESPONSE_TIMEOUT: Duration = Duration::from_secs(10);
 pub struct SyncRpcClient {
     runtime: Arc<Mutex<Runtime>>,
     /// ASYNC RPC CLIENT
-    pub async_rpc_client: AsyncRpcClient,
+    pub async_rpc_client: Arc<Mutex<Option<AsyncRpcClient>>>,
+    url: String,
+}
+
+impl FeeAlgorithm for SyncRpcClient {
+    fn calculate_fee(&self, num_bytes: usize) -> std::result::Result<Fee, CoinError> {
+        self.get_fee_policy().calculate_fee(num_bytes)
+    }
+
+    fn calculate_for_txaux(&self, txaux: &TxAux) -> std::result::Result<Fee, CoinError> {
+        self.get_fee_policy().calculate_for_txaux(txaux)
+    }
+}
+
+impl TransactionObfuscation for SyncRpcClient {
+    fn decrypt(
+        &self,
+        transaction_ids: &[TxId],
+        private_key: &PrivateKey,
+    ) -> Result<Vec<Transaction>> {
+        let obfuscator = self.get_tx_query().map_err(|e| Error::new(e.0, e.1))?;
+        obfuscator.decrypt(transaction_ids, private_key)
+    }
+
+    fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
+        let obfuscator = self.get_tx_query().map_err(|e| Error::new(e.0, e.1))?;
+        obfuscator.encrypt(transaction)
+    }
 }
 
 impl SyncRpcClient {
     /// Creates a new synchronous websocket RPC client
     pub fn new(url: &str) -> Result<Self> {
-        let mut runtime = Runtime::new().chain(|| {
+        let runtime = Runtime::new().chain(|| {
             (
                 ErrorKind::InitializationError,
                 "Unable to start tokio runtime",
             )
         })?;
 
+        Ok(Self {
+            runtime: Arc::new(Mutex::new(runtime)),
+            async_rpc_client: Arc::new(Mutex::new(None)),
+            url: url.to_string(),
+        })
+    }
+
+    /// get the fee policy
+    pub fn get_fee_policy(&self) -> LinearFee {
+        static POLICY: OnceCell<LinearFee> = OnceCell::new();
+        let policy = POLICY.get_or_init(|| {
+            self.genesis()
+                .map_err(|e| log::error!("get genesis failed: {:?}", e))
+                .expect("get tendermint genesis")
+                .fee_policy()
+        });
+        *policy
+    }
+
+    /// get the obfuscation from tx query
+    pub fn get_tx_query(
+        &self,
+    ) -> std::result::Result<impl TransactionObfuscation, (ErrorKind, String)> {
+        static OBFUSCATION: OnceCell<
+            std::result::Result<AppTransactionObfuscation, (ErrorKind, String)>,
+        > = OnceCell::new();
+        let obfuscation = OBFUSCATION.get_or_init(|| {
+            AppTransactionObfuscation::from_tx_query(self)
+                .map_err(|e| (e.kind(), e.message().into()))
+        });
+        obfuscation.clone()
+    }
+
+    fn get_async_client(&self) -> Result<AsyncRpcClient> {
+        let mut maybe_rpc_client = self.async_rpc_client.lock().unwrap();
+        if maybe_rpc_client.is_some() {
+            return Ok(maybe_rpc_client.clone().unwrap());
+        }
+        let mut runtime = self.runtime.lock().unwrap();
         let async_rpc_client = runtime
-            .block_on(async { AsyncRpcClient::new(url).await })
+            .block_on(async { AsyncRpcClient::new(&self.url).await })
             .chain(|| {
                 (
                     ErrorKind::InitializationError,
-                    format!("Unable to connect to tendermint RPC websocket at: {}", url),
+                    format!(
+                        "Unable to connect to tendermint RPC websocket at: {}",
+                        self.url
+                    ),
                 )
             })?;
-
-        Ok(Self {
-            runtime: Arc::new(Mutex::new(runtime)),
-            async_rpc_client,
-        })
+        *maybe_rpc_client = Some(async_rpc_client.clone());
+        Ok(async_rpc_client)
     }
 
     /// Makes an RPC call and deserializes response
@@ -66,7 +148,7 @@ impl SyncRpcClient {
         for<'de> T: Deserialize<'de>,
     {
         let (sender, receiver) = sync_channel(1);
-        let async_rpc_client = self.async_rpc_client.clone();
+        let async_rpc_client = self.get_async_client()?;
 
         self.runtime.lock().unwrap().spawn(async move {
             let response = async_rpc_client.call(method, &params).await;
@@ -96,7 +178,7 @@ impl SyncRpcClient {
         for<'de> T: Deserialize<'de>,
     {
         let (sender, receiver) = sync_channel(1);
-        let async_rpc_client = self.async_rpc_client.clone();
+        let async_rpc_client = self.get_async_client()?;
 
         self.runtime.lock().unwrap().spawn(async move {
             let response = async_rpc_client.call_batch(&params).await;
@@ -321,7 +403,7 @@ impl Client for SyncRpcClient {
 impl Drop for SyncRpcClient {
     fn drop(&mut self) {
         if Arc::strong_count(&self.runtime) == 1 {
-            let sender = self.async_rpc_client.websocket_writer.clone();
+            let sender = self.get_async_client().unwrap().websocket_writer;
 
             self.runtime.lock().unwrap().block_on(async move {
                 let closemsg = CloseFrame {

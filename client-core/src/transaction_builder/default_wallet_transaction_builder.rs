@@ -7,14 +7,12 @@ use chain_core::tx::fee::FeeAlgorithm;
 use chain_core::tx::TxAux;
 use client_common::{
     ErrorKind, PrivateKey, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction,
+    TransactionObfuscation,
 };
 
 use crate::signer::WalletSignerManager;
 use crate::transaction_builder::RawTransferTransactionBuilder;
-use crate::{
-    SelectedUnspentTransactions, TransactionObfuscation, UnspentTransactions,
-    WalletTransactionBuilder,
-};
+use crate::{SelectedUnspentTransactions, UnspentTransactions, WalletTransactionBuilder};
 use chain_core::tx::{data::TxId, TransactionId};
 
 /// Default implementation of `TransactionBuilder`
