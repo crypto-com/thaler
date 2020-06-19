@@ -264,7 +264,7 @@ unsafe fn create_rpc(
     network_id: u8,
     progress_callback: Option<ProgressCallback>,
     user_data: *const std::ffi::c_void,
-    mock: bool,
+    _mock: bool,
 ) -> Result<CroJsonRpc> {
     let storage_dir = get_string(storage_dir);
     let websocket_url = get_string(websocket_url);
@@ -280,23 +280,13 @@ unsafe fn create_rpc(
         batch_size: 50,
         block_height_ensure: 50,
     };
-    let handler = if mock {
-        RpcHandler::new_mock(
-            &storage_dir,
-            &websocket_url,
-            network_id,
-            options,
-            cbindingcallback.clone(),
-        )?
-    } else {
-        RpcHandler::new(
-            &storage_dir,
-            &websocket_url,
-            network_id,
-            options,
-            cbindingcallback.clone(),
-        )?
-    };
+    let handler = RpcHandler::new(
+        &storage_dir,
+        &websocket_url,
+        network_id,
+        options,
+        cbindingcallback.clone(),
+    )?;
 
     Ok(CroJsonRpc {
         handler,

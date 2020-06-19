@@ -233,7 +233,7 @@ impl LinearFee {
 }
 
 /// Calculation of fees for a specific chosen algorithm
-pub trait FeeAlgorithm: Send + Sync {
+pub trait FeeAlgorithm: Send + Sync + Clone {
     /// calculates the fee based on the provided transaction size
     fn calculate_fee(&self, num_bytes: usize) -> Result<Fee, CoinError>;
     /// calculates the fee based on the provided transaction

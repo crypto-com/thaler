@@ -12,7 +12,6 @@
 #[cfg(all(feature = "sgx-obfuscation", feature = "edp-obfuscation"))]
 compile_error!("Features `sgx-obfuscation` and `edp-obfuscation` are mutually exclusive and cannot be enabled at same time");
 
-pub mod cipher;
 pub mod hd_seed;
 pub mod hd_wallet;
 pub mod input_selection;
@@ -26,8 +25,6 @@ pub mod types;
 pub mod unspent_transactions;
 pub mod wallet;
 
-#[doc(inline)]
-pub use crate::cipher::TransactionObfuscation;
 #[doc(inline)]
 pub use crate::hd_seed::HDSeed;
 #[doc(inline)]

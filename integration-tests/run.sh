@@ -34,16 +34,16 @@ export TENDERMINT_RPC_PORT=$(($BASE_PORT + 7))
 export CLIENT_RPC_ZEROFEE_PORT=$CLIENT_RPC_PORT
 export TENDERMINT_ZEROFEE_RPC_PORT=$TENDERMINT_RPC_PORT
 
-function wait_http() {
-    echo "Wait for http port $1"
+function check_tendermint() {
+    echo "Wait for tendermint rpc port $1"
     for i in $(seq 0 20);
     do
-        curl -s "http://127.0.0.1:$1" > /dev/null
+        curl -s "http://127.0.0.1:$1/health" > /dev/null
         if [ $? -eq 0 ]; then
-            echo "Http port $1 is available now"
+            echo "Tendermint http port $1 is available now"
             return 0
         fi
-        echo "[`date`] Http port $1 not available yet, sleep 2 seconds and retry"
+        echo "[`date`]Tendermint http port $1 not available yet, sleep 2 seconds and retry"
         sleep 2
     done
     return 1
@@ -62,7 +62,7 @@ function runtest() {
 
     echo "Startup..."
     supervisord -n -c data/tasks.ini &
-    if ! wait_http $CLIENT_RPC_PORT; then
+    if ! check_tendermint $TENDERMINT_RPC_PORT; then
         echo 'client-rpc still not ready, giveup.'
         RETCODE=1
     else

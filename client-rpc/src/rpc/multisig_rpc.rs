@@ -345,13 +345,13 @@ mod test {
     use client_common::tendermint::lite;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
+    use client_common::TransactionObfuscation;
     use client_common::{PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
     use client_core::service::HwKeyService;
     use client_core::signer::WalletSignerManager;
     use client_core::transaction_builder::DefaultWalletTransactionBuilder;
     use client_core::types::WalletKind;
     use client_core::wallet::DefaultWalletClient;
-    use client_core::TransactionObfuscation;
 
     #[test]
     fn create_address_should_return_bech32_multisig_address() {

@@ -18,10 +18,11 @@ use chain_tx_validation::witness::verify_tx_address;
 use chain_tx_validation::{check_inputs_basic, check_outputs_basic};
 use client_common::{
     Error, ErrorKind, PublicKey, Result, ResultExt, SignedTransaction, Transaction,
+    TransactionObfuscation,
 };
 
 use crate::signer::{DummySigner, SignCondition, Signer};
-use crate::{TransactionObfuscation, UnspentTransactions};
+use crate::UnspentTransactions;
 use chain_core::tx::data::address::ExtendedAddr;
 
 /// Unspent transaction output with witness data

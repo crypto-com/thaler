@@ -22,6 +22,7 @@ use client_common::storage::SledStorage;
 use client_common::tendermint::types::AbciQueryExt;
 use client_common::tendermint::types::GenesisExt;
 use client_common::tendermint::{Client, WebsocketRpcClient};
+use client_common::TransactionObfuscation;
 use client_common::{ErrorKind, Result, ResultExt, SecKey, Storage};
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
@@ -30,7 +31,6 @@ use client_core::wallet::syncer::{
     ObfuscationSyncerConfig, ProgressReport, SyncerOptions, WalletSyncer,
 };
 use client_core::wallet::{DefaultWalletClient, WalletClient};
-use client_core::TransactionObfuscation;
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
 
 use self::address_command::AddressCommand;
@@ -48,9 +48,9 @@ use once_cell::sync::Lazy;
 use std::env;
 
 #[cfg(feature = "mock-enclave")]
-use client_core::cipher::mock::MockAbciTransactionObfuscation;
+use client_common::cipher::mock::MockAbciTransactionObfuscation;
 #[cfg(not(feature = "mock-enclave"))]
-use client_core::cipher::DefaultTransactionObfuscation;
+use client_common::cipher::DefaultTransactionObfuscation;
 
 #[cfg(not(feature = "mock-enclave"))]
 type AppTransactionCipher = DefaultTransactionObfuscation;

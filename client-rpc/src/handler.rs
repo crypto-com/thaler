@@ -1,11 +1,10 @@
 use jsonrpc_core::IoHandler;
 
-use chain_core::tx::fee::LinearFee;
+use chain_core::tx::fee::FeeAlgorithm;
+use client_common::cipher::TransactionObfuscation;
 use client_common::storage::SledStorage;
-use client_common::tendermint::{types::GenesisExt, Client, WebsocketRpcClient};
+use client_common::tendermint::WebsocketRpcClient;
 use client_common::Result;
-use client_core::cipher::TransactionObfuscation;
-use client_core::cipher::{mock::MockAbciTransactionObfuscation, DefaultTransactionObfuscation};
 use client_core::service::HwKeyService;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
@@ -22,13 +21,13 @@ use crate::rpc::{
     wallet_rpc::{WalletRpc, WalletRpcImpl},
 };
 
-type AppWalletClient<O> = DefaultWalletClient<
+type AppWalletClient<O, F> = DefaultWalletClient<
     SledStorage,
     WebsocketRpcClient,
-    DefaultWalletTransactionBuilder<SledStorage, LinearFee, O>,
+    DefaultWalletTransactionBuilder<SledStorage, F, O>,
 >;
-type AppOpsClient<O> =
-    DefaultNetworkOpsClient<AppWalletClient<O>, SledStorage, WebsocketRpcClient, LinearFee, O>;
+type AppOpsClient<O, F> =
+    DefaultNetworkOpsClient<AppWalletClient<O, F>, SledStorage, WebsocketRpcClient, F, O>;
 type AppSyncerConfig<O> = ObfuscationSyncerConfig<SledStorage, WebsocketRpcClient, O>;
 
 #[derive(Clone)]
@@ -37,40 +36,35 @@ pub struct RpcHandler {
 }
 
 impl RpcHandler {
-    fn new_impl<O, F>(
+    fn new_impl(
         storage_dir: &str,
         websocket_url: &str,
         network_id: u8,
         sync_options: SyncerOptions,
         progress_callback: Option<CBindingCore>,
-        get_obfuscator: F,
-    ) -> Result<Self>
-    where
-        O: TransactionObfuscation + 'static,
-        F: Fn(&WebsocketRpcClient) -> Result<O>,
-    {
+    ) -> Result<Self> {
         let mut io = IoHandler::new();
         let storage = SledStorage::new(&storage_dir)?;
         let tendermint_client = WebsocketRpcClient::new(&websocket_url)?;
-        let fee_policy = tendermint_client.genesis()?.fee_policy();
-        let obfuscator: O = get_obfuscator(&tendermint_client)?;
+        let obfuscation = tendermint_client.clone();
+        let fee_policy = tendermint_client.clone();
 
         let wallet_client = make_wallet_client(
             storage.clone(),
             tendermint_client.clone(),
-            fee_policy,
-            obfuscator.clone(),
+            fee_policy.clone(),
+            obfuscation.clone(),
         )?;
         let ops_client = make_ops_client(
             storage.clone(),
             tendermint_client.clone(),
-            fee_policy,
-            obfuscator.clone(),
+            fee_policy.clone(),
+            tendermint_client.clone(),
         )?;
         let syncer_config = AppSyncerConfig::new(
             storage.clone(),
             tendermint_client.clone(),
-            obfuscator.clone(),
+            obfuscation.clone(),
             sync_options,
         );
 
@@ -81,7 +75,7 @@ impl RpcHandler {
         let info_rpc = InfoRpcImpl::new(ops_client);
 
         let sync_wallet_client =
-            make_wallet_client(storage, tendermint_client, fee_policy, obfuscator)?;
+            make_wallet_client(storage, tendermint_client, fee_policy, obfuscation)?;
 
         let sync_rpc = SyncRpcImpl::new(syncer_config, progress_callback, sync_wallet_client);
         let wallet_rpc = WalletRpcImpl::new(wallet_client, network_id);
@@ -109,24 +103,6 @@ impl RpcHandler {
             network_id,
             sync_options,
             progress_callback,
-            get_tx_query,
-        )
-    }
-
-    pub fn new_mock(
-        storage_dir: &str,
-        websocket_url: &str,
-        network_id: u8,
-        sync_options: SyncerOptions,
-        progress_callback: Option<CBindingCore>,
-    ) -> Result<Self> {
-        Self::new_impl(
-            storage_dir,
-            websocket_url,
-            network_id,
-            sync_options,
-            progress_callback,
-            get_tx_query_mock,
         )
     }
 
@@ -135,22 +111,12 @@ impl RpcHandler {
     }
 }
 
-fn get_tx_query(tendermint_client: &WebsocketRpcClient) -> Result<impl TransactionObfuscation> {
-    DefaultTransactionObfuscation::from_tx_query(tendermint_client)
-}
-
-fn get_tx_query_mock(
-    tendermint_client: &WebsocketRpcClient,
-) -> Result<impl TransactionObfuscation> {
-    MockAbciTransactionObfuscation::from_tx_query(tendermint_client)
-}
-
-fn make_wallet_client<O: TransactionObfuscation>(
+fn make_wallet_client<O: TransactionObfuscation, F: FeeAlgorithm>(
     storage: SledStorage,
     tendermint_client: WebsocketRpcClient,
-    fee_policy: LinearFee,
+    fee_policy: F,
     obfuscator: O,
-) -> Result<AppWalletClient<O>> {
+) -> Result<AppWalletClient<O, F>> {
     let hw_key_service = HwKeyService::default();
     let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service.clone());
     Ok(DefaultWalletClient::new(
@@ -162,18 +128,18 @@ fn make_wallet_client<O: TransactionObfuscation>(
     ))
 }
 
-fn make_ops_client<O: TransactionObfuscation>(
+fn make_ops_client<O: TransactionObfuscation, F: FeeAlgorithm>(
     storage: SledStorage,
     tendermint_client: WebsocketRpcClient,
-    fee_policy: LinearFee,
+    fee_policy: F,
     obfuscator: O,
-) -> Result<AppOpsClient<O>> {
+) -> Result<AppOpsClient<O, F>> {
     let hw_key_service = HwKeyService::default();
     let signer_manager = WalletSignerManager::new(storage.clone(), hw_key_service);
     let wallet_client = make_wallet_client(
         storage,
         tendermint_client.clone(),
-        fee_policy,
+        fee_policy.clone(),
         obfuscator.clone(),
     )?;
     Ok(DefaultNetworkOpsClient::new(

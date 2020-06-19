@@ -28,4 +28,4 @@ mls = { path = "../chain-tx-enclave-next/mls" }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
 
 [features]
-mock-enclave = ["chain-abci/mock-enclave"]
+mock-enclave = ["chain-abci/mock-enclave", "client-common/mock-enclave"]
