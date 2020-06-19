@@ -17,11 +17,9 @@ impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> TreeBaseKeyS
     pub fn new(application_secret: SecretVec<u8>, leaf_count: LeafSize) -> Self {
         let root_index = NodeSize::root(leaf_count);
         let node_len = NodeSize::node_width(leaf_count);
-        let mut secrets = Vec::with_capacity(node_len.0);
-        for _ in 0..node_len.0 {
-            secrets.push(None);
-        }
-        secrets[root_index.0] = Some(application_secret);
+        let mut secrets = Vec::new();
+        secrets.resize_with(node_len.0 as usize, <Option<SecretVec<u8>>>::default);
+        secrets[root_index.node_index()] = Some(application_secret);
         Self {
             secrets,
             marker: PhantomData,
@@ -33,13 +31,14 @@ impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> TreeBaseKeyS
         group_context_hash: Vec<u8>,
         sender_leaf: LeafSize,
     ) -> SecretVec<u8> {
-        let node_index = NodeSize::from_leaf_index(sender_leaf);
-        let leaf_count =
-            LeafSize::from_nodes(NodeSize(self.secrets.len())).expect("invalid node count");
+        let node_index = NodeSize::from(sender_leaf);
+        let leaf_count = NodeSize(self.secrets.len() as u32)
+            .leafs_len()
+            .expect("invalid node count");
         let d = node_index.direct_path(leaf_count);
         let mut found_i = None;
         for (i, node) in d.iter().enumerate() {
-            if self.secrets[node.0].is_some() {
+            if self.secrets[node.node_index()].is_some() {
                 found_i = Some(i);
                 break;
             }
@@ -47,12 +46,12 @@ impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> TreeBaseKeyS
         use generic_array::typenum::Unsigned;
         let secret_len = D::OutputSize::to_u16();
         for node in d[..found_i.unwrap()].iter().rev() {
-            let l = node.left().expect("should have left");
-            let r = node.right(leaf_count).expect("should have right");
-            let secret = self.secrets[node.0].take().unwrap();
+            let l = node.left();
+            let r = node.right(leaf_count);
+            let secret = self.secrets[node.node_index()].take().unwrap();
             let skdf = Hkdf::<D>::new(None, secret.expose_secret());
 
-            self.secrets[l.0] = Some(SecretVec::new(
+            self.secrets[l.node_index()] = Some(SecretVec::new(
                 skdf.derive_app_secret(
                     group_context_hash.clone(),
                     "tree",
@@ -62,7 +61,7 @@ impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> TreeBaseKeyS
                 )
                 .expect("left"),
             ));
-            self.secrets[r.0] = Some(SecretVec::new(
+            self.secrets[r.node_index()] = Some(SecretVec::new(
                 skdf.derive_app_secret(
                     group_context_hash.clone(),
                     "tree",
@@ -77,7 +76,9 @@ impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> TreeBaseKeyS
             drop(secret);
         }
 
-        self.secrets[node_index.0].take().expect("sender secret")
+        self.secrets[node_index.node_index()]
+            .take()
+            .expect("sender secret")
     }
 }
 
@@ -157,10 +158,8 @@ pub struct GroupKeySource<D: Input + BlockInput + FixedOutput + Reset + Default 
 impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> GroupKeySource<D> {
     pub fn new(application_secret: SecretVec<u8>, leaf_count: LeafSize) -> Self {
         let base_secret_source = TreeBaseKeySource::new(application_secret, leaf_count);
-        let mut ratchets = Vec::with_capacity(leaf_count.0);
-        for _ in 0..leaf_count.0 {
-            ratchets.push(None);
-        }
+        let mut ratchets = Vec::new();
+        ratchets.resize_with(leaf_count.0 as usize, <Option<HashRatchet>>::default);
         Self {
             base_secret_source,
             ratchets,
@@ -173,16 +172,14 @@ impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> GroupKeySour
         sender_leaf: LeafSize,
         cs: CipherSuite,
     ) -> (SecretVec<u8>, Vec<u8>) {
-        if self.ratchets[sender_leaf.0].is_none() {
+        if self.ratchets[sender_leaf.0 as usize].is_none() {
             let base_secret = self
                 .base_secret_source
                 .get_base_secret(group_context_hash.clone(), sender_leaf);
-            self.ratchets[sender_leaf.0] = Some(HashRatchet::new(
-                NodeSize::from_leaf_index(sender_leaf),
-                base_secret,
-            ));
+            self.ratchets[sender_leaf.0 as usize] =
+                Some(HashRatchet::new(NodeSize::from(sender_leaf), base_secret));
         };
-        let ratchet = self.ratchets[sender_leaf.0].as_mut().unwrap();
+        let ratchet = self.ratchets[sender_leaf.0 as usize].as_mut().unwrap();
         ratchet.next::<D>(group_context_hash, cs)
     }
 }

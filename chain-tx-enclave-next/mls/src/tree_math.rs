@@ -28,125 +28,140 @@
 //!   So moving from parent to children or vice versa, is only about switching one or two bits.
 //!
 //! The left sub-tree of the root node is always complete, but the right part might not.
+use std::convert::{From, TryFrom};
+use std::iter;
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct LeafSize(pub usize);
+pub struct LeafSize(pub u32);
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ParentSize(pub u32);
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NodeSize(pub u32);
 
-impl LeafSize {
-    /// compute leaf size from node size
-    pub fn from_nodes(nodes: NodeSize) -> Option<LeafSize> {
-        if nodes.0 % 2 == 1 {
-            Some(LeafSize((nodes.0 + 1) / 2))
-        } else {
-            None
-        }
-    }
-
-    /// convert node index to leaf index
+impl From<LeafSize> for NodeSize {
     #[inline]
-    pub fn from_node_index(node_index: NodeSize) -> Option<LeafSize> {
-        if node_index.0 % 2 == 0 {
-            Some(LeafSize(node_index.0 / 2))
+    fn from(leaf: LeafSize) -> Self {
+        NodeSize(leaf.0 * 2)
+    }
+}
+
+impl From<ParentSize> for NodeSize {
+    #[inline]
+    fn from(p: ParentSize) -> Self {
+        NodeSize(p.0 * 2 + 1)
+    }
+}
+
+impl TryFrom<NodeSize> for LeafSize {
+    type Error = ();
+
+    #[inline]
+    fn try_from(n: NodeSize) -> Result<Self, Self::Error> {
+        if n.0 % 2 == 0 {
+            Ok(Self(n.0 / 2))
         } else {
-            None
+            Err(())
         }
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct NodeSize(pub usize);
+impl TryFrom<NodeSize> for ParentSize {
+    type Error = ();
 
-impl NodeSize {
-    /// The number of nodes needed to represent a tree with n leaves
     #[inline]
-    pub fn node_width(n: LeafSize) -> NodeSize {
-        if n.0 == 0 {
-            NodeSize(0)
+    fn try_from(n: NodeSize) -> Result<Self, Self::Error> {
+        if n.0 % 2 == 1 {
+            Ok(Self((n.0 - 1) / 2))
         } else {
-            NodeSize(n.0 + n.0 - 1)
+            Err(())
         }
     }
+}
 
-    /// convert leaf index to node index
-    #[inline]
-    pub fn from_leaf_index(leaf_index: LeafSize) -> NodeSize {
-        NodeSize(leaf_index.0 * 2)
+impl LeafSize {
+    pub fn sibling(self, leafs: LeafSize) -> Option<LeafSize> {
+        NodeSize::from(self)
+            .sibling(leafs)
+            .map(|n| LeafSize::try_from(n).expect("leaf's sibling must be leaf"))
     }
 
-    /// The level of a node in the tree. Leaves are level 0, their parents are
-    /// level 1, etc. If a node's children are at different levels, then its
-    /// level is the max level of its children plus one.
     #[inline]
-    pub fn level(self) -> u32 {
-        let x = self.0;
-        // FIXME after leading_trailing_ones get stablized
-        // let n = x.trailing_ones();
-        let mut k = 0;
-        while ((x >> k) & 0x01) == 1 {
-            k += 1;
-        }
-        k
+    pub fn node_index(self) -> usize {
+        self.0 as usize * 2
+    }
+}
+
+impl ParentSize {
+    #[inline]
+    pub fn node_index(self) -> usize {
+        self.0 as usize * 2 + 1
     }
 
     /// The left child of an intermediate node.  Note that because the
     /// tree is left-balanced, there is no dependency on the size of the
     /// tree.
     #[inline]
-    pub fn left(self) -> Option<NodeSize> {
-        let lvl = self.level();
-        if lvl == 0 {
-            None
-        } else {
-            let x = lvl - 1;
-            // 01x -> 00x
-            Some(NodeSize(self.0 ^ (0b01 << x)))
-        }
+    pub fn left(self) -> NodeSize {
+        let x = self.0 * 2 + 1;
+        let lvl = level(x);
+        // 01x -> 00x
+        NodeSize(x ^ (0b01 << (lvl - 1)))
     }
 
     /// The right child of an intermediate node.  Depends on the size of
     /// the tree because the straightforward calculation can take you
     /// beyond the edge of the tree.
     #[inline]
-    pub fn right(self, leafs: LeafSize) -> Option<NodeSize> {
-        let lvl = self.level();
-        if lvl == 0 {
-            None
-        } else {
-            let nodes = NodeSize::node_width(leafs);
-            // 01x -> 10x
-            let mut r = NodeSize(self.0 ^ (0b11 << (lvl - 1)));
-            while r >= nodes {
-                r = r.left()?;
-            }
-            Some(r)
+    pub fn right(self, leafs: LeafSize) -> NodeSize {
+        let x = self.0 * 2 + 1;
+        let lvl = level(x);
+        let nodes = NodeSize::node_width(leafs);
+        // 01x -> 10x
+        let mut n = NodeSize(x ^ (0b11 << (lvl - 1)));
+        while n >= nodes {
+            // if `n` is leaf node, we'll have: `n = p + 1` and `p < nodes`,
+            // since both `nodes` and `p` are odd, we'll have `n < nodes` too.
+            // So `n` can't be leaf node here.
+            let p = ParentSize::try_from(n).expect("won't be leaf child");
+            n = p.left();
         }
+        n
     }
 
-    /// The exponent of the largest power of 2 less than x. Equivalent to:
-    ///  int(math.floor(math.log(x, 2)))
-    ///
-    /// return the index of the leading one bit, if all zero, return None.
-    ///
-    /// ```
-    /// use mls::tree_math::*;
-    /// assert_eq!(NodeSize(0).log2(), 0);
-    /// assert_eq!(NodeSize(1).log2(), 0);
-    /// assert_eq!(NodeSize(0b100001).log2(), 5);
-    /// ```
-    #[inline]
-    pub fn log2(self: NodeSize) -> u32 {
-        // FIXME after leading_trailing_ones get stablized
-        // let msb = std::mem::size_of::<NodeSize>() as u32 * 8 - x.leading_zeros();
-        // msb.saturating_sub(1)
-        let x = self.0;
-        if x == 0 {
-            return 0;
-        }
+    pub fn sibling(self, leafs: LeafSize) -> Option<ParentSize> {
+        NodeSize::from(self)
+            .sibling(leafs)
+            .map(|n| ParentSize::try_from(n).expect("parent's sibling must be parent"))
+    }
 
-        let mut k = 0;
-        while (x >> k) > 0 {
-            k += 1
+    pub fn level(self) -> u32 {
+        level(self.0) + 1
+    }
+
+    /// Common ancestor of two leaves
+    ///
+    /// return None if leaf == right.
+    pub fn common_ancestor(left: LeafSize, right: LeafSize) -> Option<Self> {
+        let mut left = left.0;
+        let mut right = right.0;
+        let mut k = 1;
+        while left != right {
+            left >>= 1;
+            right >>= 1;
+            k += 1;
         }
-        k - 1
+        if k >= 2 {
+            Some(ParentSize((left << (k - 1)) + (1 << (k - 2)) - 1))
+        } else {
+            None
+        }
+    }
+}
+
+impl NodeSize {
+    #[inline]
+    pub fn node_index(self) -> usize {
+        self.0 as usize
     }
 
     /// The index of the root node of a tree with n nodes
@@ -159,29 +174,37 @@ impl NodeSize {
     /// assert_eq!(NodeSize::root(LeafSize(0b10001)).0, 0b011111);
     /// ```
     #[inline]
-    pub fn root(leafs: LeafSize) -> NodeSize {
+    pub fn root(leafs: LeafSize) -> Self {
         let nodes = NodeSize::node_width(leafs);
-        let lvl = nodes.log2();
+        let lvl = log2(nodes.0);
         NodeSize((1 << lvl) - 1)
     }
 
-    /// The immediate parent of a node.  May be beyond the right edge of
-    /// the tree.
-    ///
-    /// Turning 00X or 10X to 01X
-    /// where X is sequence of ones
-    ///
-    /// ```
-    /// use mls::tree_math::*;
-    /// assert_eq!(NodeSize(0b10011).parent_step().0, 0b10111);
-    /// assert_eq!(NodeSize(0b11011).parent_step().0, 0b10111);
-    /// ```
     #[inline]
-    pub fn parent_step(self) -> NodeSize {
-        let lvl = self.level();
-        let x = self.0;
-        let mask = ((x >> (lvl + 1)) & 0x01) << (lvl + 1);
-        NodeSize((x | (1 << lvl)) ^ mask)
+    pub fn leafs_len(self) -> Option<LeafSize> {
+        if self.0 % 2 == 0 {
+            None
+        } else {
+            Some(LeafSize((self.0 + 1) / 2))
+        }
+    }
+
+    /// The number of nodes needed to represent a tree with n leaves
+    #[inline]
+    pub fn node_width(leafs: LeafSize) -> NodeSize {
+        if leafs.0 == 0 {
+            NodeSize(0)
+        } else {
+            NodeSize(leafs.0 + leafs.0 - 1)
+        }
+    }
+
+    /// The level of a node in the tree. Leaves are level 0, their parents are
+    /// level 1, etc. If a node's children are at different levels, then its
+    /// level is the max level of its children plus one.
+    #[inline]
+    pub fn level(self) -> u32 {
+        level(self.0)
     }
 
     /// The parent of a node.  As with the right child calculation, have
@@ -189,22 +212,22 @@ impl NodeSize {
     ///
     /// ```
     /// use mls::tree_math::*;
-    /// assert_eq!(NodeSize(0b10001).parent(LeafSize(11)), Some(NodeSize(0b10011)));
-    /// assert_eq!(NodeSize(0b10001).parent(LeafSize(10)), Some(NodeSize(0b01111)));
-    /// assert_eq!(NodeSize(0b01011).parent(LeafSize(7)), Some(NodeSize(0b00111)));
+    /// assert_eq!(NodeSize(0b10001).parent(LeafSize(11)), Some(ParentSize(0b1001)));
+    /// assert_eq!(NodeSize(0b10001).parent(LeafSize(10)), Some(ParentSize(0b0111)));
+    /// assert_eq!(NodeSize(0b01011).parent(LeafSize(7)), Some(ParentSize(0b0011)));
     /// ```
     #[inline]
-    pub fn parent(self, leafs: LeafSize) -> Option<NodeSize> {
+    pub fn parent(self, leafs: LeafSize) -> Option<ParentSize> {
         let nodes = NodeSize::node_width(leafs);
         assert!(self < nodes);
         if self == NodeSize::root(leafs) {
             return None;
         }
-        let mut p = self.parent_step();
-        while p >= nodes {
-            p = p.parent_step();
+        let mut p = parent_step(self.0);
+        while p >= nodes.0 {
+            p = parent_step(p);
         }
-        Some(p)
+        Some(ParentSize((p - 1) / 2))
     }
 
     /// The direct path of a node, ordered from the root
@@ -212,57 +235,84 @@ impl NodeSize {
     ///
     /// Only root node returns empty vector
     #[inline]
-    pub fn direct_path(self, leafs: LeafSize) -> Vec<NodeSize> {
-        let root = NodeSize::root(leafs);
-        let mut d = Vec::new();
-        let mut p = self;
-        while p != root {
-            // no panic: only root node returns `None`, p is not root node because of the while
-            // condition.
-            p = p.parent(leafs).unwrap();
-            d.push(p);
+    pub fn direct_path(self, leafs: LeafSize) -> Vec<ParentSize> {
+        if let Some(p) = self.parent(leafs) {
+            iter::successors(Some(p), |&p| NodeSize::from(p).parent(leafs)).collect()
+        } else {
+            Vec::new()
         }
-        d
     }
 
     /// The other child of the node's parent.  Root's sibling is itself.
     ///
     /// Only root node returns None
     pub fn sibling(self, leafs: LeafSize) -> Option<NodeSize> {
-        if let Some(p) = self.parent(leafs) {
-            if self < p {
-                p.right(leafs)
-            } else {
-                // impossible they are equal
-                assert!(self > p);
-                p.left()
-            }
+        let p = self.parent(leafs)?;
+        if self < NodeSize::from(p) {
+            Some(p.right(leafs))
         } else {
-            None
-        }
-    }
-
-    /// Common ancestor of two leaves
-    pub fn ancestor_of(left: LeafSize, right: LeafSize) -> Self {
-        if left == right {
-            NodeSize::from_leaf_index(left)
-        } else {
-            let mut left = left.0 * 2;
-            let mut right = right.0 * 2;
-            let mut k = 0;
-            while left != right {
-                left >>= 1;
-                right >>= 1;
-                k += 1;
-            }
-            NodeSize((left << k) + (1 << (k - 1)) - 1)
+            Some(p.left())
         }
     }
 }
 
+/// The exponent of the largest power of 2 less than x. Equivalent to:
+///  int(math.floor(math.log(x, 2)))
+///
+/// return the index of the leading one bit, if all zero, return None.
+///
+/// ```
+/// use mls::tree_math::*;
+/// assert_eq!(log2(0), 0);
+/// assert_eq!(log2(1), 0);
+/// assert_eq!(log2(0b100001), 5);
+/// ```
+pub fn log2(x: u32) -> u32 {
+    // FIXME after leading_trailing_ones get stablized
+    // let msb = std::mem::size_of::<NodeSize>() as u32 * 8 - x.leading_zeros();
+    // msb.saturating_sub(1)
+    if x == 0 {
+        return 0;
+    }
+
+    let mut k = 0;
+    while (x >> k) > 0 {
+        k += 1
+    }
+    k - 1
+}
+
+pub fn level(x: u32) -> u32 {
+    // FIXME after leading_trailing_ones get stablized
+    // let n = x.trailing_ones();
+    let mut k = 0;
+    while ((x >> k) & 0x01) == 1 {
+        k += 1;
+    }
+    k
+}
+
+/// The immediate parent of a node.  May be beyond the right edge of
+/// the tree.
+///
+/// Turning 00X or 10X to 01X
+/// where X is sequence of ones
+///
+/// ```
+/// use mls::tree_math::*;
+/// assert_eq!(parent_step(0b10011), 0b10111);
+/// assert_eq!(parent_step(0b11011), 0b10111);
+/// ```
+pub fn parent_step(x: u32) -> u32 {
+    let lvl = level(x);
+    let mask = ((x >> (lvl + 1)) & 0x01) << (lvl + 1);
+    (x | (1 << lvl)) ^ mask
+}
+
 #[cfg(test)]
 mod test {
-    use super::{LeafSize, NodeSize};
+    use super::{log2, LeafSize, NodeSize, ParentSize};
+    use std::convert::TryFrom;
 
     #[test]
     fn test_tree_math() {
@@ -396,21 +446,31 @@ mod test {
         ];
         let a_n = 0x0b;
         for n in 1..a_n {
-            assert_eq!(NodeSize::root(LeafSize(n)).0, a_root[n - 1])
+            assert_eq!(NodeSize::root(LeafSize(n)).0, a_root[n as usize - 1])
         }
         for i in 0x00..0x14 {
             let x = NodeSize(i);
-            assert_eq!(a_log2[i], x.log2());
-            assert_eq!(a_level[i], x.level());
-            assert_eq!(a_left[i], x.left().map(|x| x.0));
-            assert_eq!(a_right[i], x.right(LeafSize(a_n)).map(|x| x.0));
-            assert_eq!(a_parent[i], x.parent(LeafSize(a_n)).map(|x| x.0));
-            assert_eq!(a_sibling[i], x.sibling(LeafSize(a_n)).map(|x| x.0));
+            let leafs = LeafSize(a_n);
+            assert_eq!(a_log2[i as usize], log2(i));
+            assert_eq!(a_level[i as usize], x.level());
             assert_eq!(
-                a_dirpath[i],
-                x.direct_path(LeafSize(a_n))
+                a_left[i as usize],
+                ParentSize::try_from(x).ok().map(|p| p.left().0)
+            );
+            assert_eq!(
+                a_right[i as usize],
+                ParentSize::try_from(x).ok().map(|p| p.right(leafs).0)
+            );
+            assert_eq!(
+                a_parent[i as usize],
+                x.parent(leafs).map(|p| NodeSize::from(p).0)
+            );
+            assert_eq!(a_sibling[i as usize], x.sibling(leafs).map(|x| x.0));
+            assert_eq!(
+                a_dirpath[i as usize],
+                x.direct_path(leafs)
                     .into_iter()
-                    .map(|x| x.0)
+                    .map(|x| NodeSize::from(x).0)
                     .collect::<Vec<_>>()
             );
         }
@@ -430,8 +490,9 @@ mod test {
         for l in 0..a_n {
             for r in l + 1..a_n {
                 assert_eq!(
-                    a_ancestor[l][r - l - 1],
-                    NodeSize::ancestor_of(LeafSize(l), LeafSize(r)).0
+                    a_ancestor[l as usize][(r - l - 1) as usize],
+                    NodeSize::from(ParentSize::common_ancestor(LeafSize(l), LeafSize(r)).unwrap())
+                        .0
                 );
             }
         }

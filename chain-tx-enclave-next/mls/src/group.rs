@@ -1,4 +1,4 @@
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 
 use crate::ciphersuite::*;
 use crate::extensions as ext;
@@ -252,7 +252,7 @@ impl GroupAux {
                 }
                 ContentType::Proposal(Proposal::Update(update)) => {
                     update_proposals_ids.push(proposal_id);
-                    updates.push((LeafSize(p.content.sender.sender as usize), update.clone()));
+                    updates.push((LeafSize(p.content.sender.sender), update.clone()));
                 }
                 ContentType::Proposal(Proposal::Remove(remove)) => {
                     remove_proposals_ids.push(proposal_id);
@@ -365,7 +365,7 @@ impl GroupAux {
     ) -> Result<(), ProcessCommitError> {
         let kp = self
             .tree
-            .get_package(LeafSize(msg.content.sender.sender as usize))
+            .get_package(LeafSize(msg.content.sender.sender))
             .ok_or(ProcessCommitError::SenderNotFound)?;
         let pk = IdentityPublicKey::new_unsafe(kp.verify(ra_verifier, now)?.public_key);
         msg.verify_signature(&self.context, &pk)
@@ -583,11 +583,11 @@ impl GroupAux {
                 Node::Leaf(Some(kp)) => kp == &my_kp,
                 _ => false,
             })
-            .map(|(i, _)| NodeSize(i))
+            .map(|(i, _)| NodeSize(i as u32))
             .ok_or(ProcessWelcomeError::KeyPackageNotFound)?;
         // * "Construct a new group state using the information in the GroupInfo object..."
         let tree = Tree::from_group_info(
-            LeafSize::from_node_index(node_index).expect("invalid leaf index"),
+            LeafSize::try_from(node_index).expect("invalid leaf index"),
             cs,
             nodes,
         )?;
