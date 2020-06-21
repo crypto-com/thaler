@@ -83,12 +83,12 @@ impl KeyPackagePayload {
 
     /// insert or update extension
     pub fn put_extension<T: MLSExtension>(&mut self, ext: &T) {
-        if let Some(ext) = self
+        if let Some(found) = self
             .extensions
             .iter_mut()
-            .find(|ext| ext.etype == T::EXTENSION_TYPE)
+            .find(|e| e.etype == T::EXTENSION_TYPE)
         {
-            ext.data = ext.get_encoding();
+            found.data = ext.get_encoding();
         } else {
             self.extensions.push(ext.entry());
         }
@@ -220,16 +220,14 @@ impl KeyPackage {
     }
 }
 
-pub struct OwnedKeyPackage {
-    pub keypackage: KeyPackage,
+pub struct KeyPackageSecret {
     pub credential_private_key: IdentityPrivateKey,
     pub init_private_key: HPKEPrivateKey,
 }
 
-impl OwnedKeyPackage {
-    /// Create key package in enclave
+impl KeyPackageSecret {
     #[cfg(target_env = "sgx")]
-    pub fn new(ra_ctx: EnclaveRaContext) -> Result<Self, EnclaveRaContextError> {
+    pub fn gen(ra_ctx: EnclaveRaContext) -> Result<(Self, KeyPackage), EnclaveRaContextError> {
         let Certificate {
             certificate,
             private_key,
@@ -252,38 +250,40 @@ impl OwnedKeyPackage {
             .entry(),
         ];
 
-        let private_key =
+        let credential_private_key =
             IdentityPrivateKey::from_pkcs8(&private_key.0).expect("invalid private key");
-        let (hpke_secret, hpke_public) = HPKEPrivateKey::generate();
+        let (init_private_key, init_key) = HPKEPrivateKey::generate();
         let payload = KeyPackagePayload {
             version: PROTOCOL_VERSION_MLS10,
             cipher_suite: MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
-            init_key: hpke_public,
+            init_key,
             credential: Credential::X509(certificate.0),
             extensions,
         };
 
         // sign payload
-        let signature = private_key.sign(&payload.get_encoding());
+        let signature = credential_private_key.sign(&payload.get_encoding());
 
-        Ok(Self {
-            keypackage: KeyPackage { payload, signature },
-            credential_private_key: private_key,
-            init_private_key: hpke_secret,
-        })
+        Ok((
+            Self {
+                credential_private_key,
+                init_private_key,
+            },
+            KeyPackage { payload, signature },
+        ))
     }
 
     /// re-sign payload
-    pub fn update_signature(&mut self) {
-        self.keypackage.signature = self
+    pub fn update_signature(&self, keypackage: &mut KeyPackage) {
+        keypackage.signature = self
             .credential_private_key
-            .sign(&self.keypackage.payload.get_encoding());
+            .sign(&keypackage.payload.get_encoding());
     }
 
     /// re-generate init key
-    pub fn update_init_key(&mut self) {
+    pub fn update_init_key(&mut self, keypackage: &mut KeyPackage) {
         let (hpke_secret, hpke_public) = HPKEPrivateKey::generate();
-        self.keypackage.payload.init_key = hpke_public;
+        keypackage.payload.init_key = hpke_public;
         self.init_private_key = hpke_secret;
     }
 }

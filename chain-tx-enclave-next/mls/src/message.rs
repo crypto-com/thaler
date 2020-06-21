@@ -1,6 +1,9 @@
+use std::collections::BTreeMap;
+
 use crate::group::GroupContext;
 use crate::key::{HPKEPublicKey, IdentityPublicKey};
 use crate::keypackage::{CipherSuite, KeyPackage, ProtocolVersion};
+use crate::tree_math::LeafSize;
 use crate::utils::{
     decode_option, encode_option, encode_vec_u32, encode_vec_u8_u16, encode_vec_u8_u8,
     read_vec_u32, read_vec_u8_u16, read_vec_u8_u8,
@@ -211,9 +214,21 @@ impl Codec for MLSPlaintextTBS {
 }
 
 impl MLSPlaintext {
-    pub fn get_add_keypackage(&self) -> Option<KeyPackage> {
+    pub fn get_add(&self) -> Option<&Add> {
         match &self.content.content {
-            ContentType::Proposal(Proposal::Add(Add { key_package })) => Some(key_package.clone()),
+            ContentType::Proposal(Proposal::Add(add)) => Some(add),
+            _ => None,
+        }
+    }
+    pub fn get_update(&self) -> Option<&Update> {
+        match &self.content.content {
+            ContentType::Proposal(Proposal::Update(update)) => Some(update),
+            _ => None,
+        }
+    }
+    pub fn get_remove(&self) -> Option<&Remove> {
+        match &self.content.content {
+            ContentType::Proposal(Proposal::Remove(remove)) => Some(remove),
             _ => None,
         }
     }
@@ -551,6 +566,96 @@ impl Codec for Sender {
         Some(Self {
             sender_type,
             sender,
+        })
+    }
+}
+
+/// Content of commit message and proposals
+pub struct CommitContent {
+    pub sender: LeafSize,
+    pub commit: Commit,
+    pub confirmation: Vec<u8>,
+    pub additions: Vec<Add>,
+    pub updates: Vec<(LeafSize, Update)>,
+    pub removes: Vec<Remove>,
+}
+
+impl CommitContent {
+    /// Verify and extract message contents
+    pub fn new(
+        cs: crate::ciphersuite::CipherSuite,
+        commit: &MLSPlaintext,
+        proposals: &[MLSPlaintext],
+    ) -> Result<Self, ()> {
+        let sender = LeafSize(commit.content.sender.sender as usize);
+        let (commit, confirmation) = match &commit.content.content {
+            ContentType::Commit {
+                commit,
+                confirmation,
+            } => (commit.clone(), confirmation.clone()),
+            _ => {
+                return Err(());
+            }
+        };
+
+        // "Verify that the path value is populated if either of the updates or removes vectors has length greater than zero
+        // all of the updates, removes, and adds vectors are empty."
+        if commit.path.is_none()
+            && ((!commit.updates.is_empty() || !commit.removes.is_empty())
+                || (commit.adds.is_empty()
+                    && commit.updates.is_empty()
+                    && commit.removes.is_empty()))
+        {
+            return Err(());
+        }
+
+        let proposals_ids = proposals
+            .iter()
+            .map(|p| (ProposalId(cs.hash(&p.get_encoding())), p))
+            .collect::<BTreeMap<_, _>>();
+
+        let additions = commit
+            .adds
+            .iter()
+            .map(|proposal_id| {
+                proposals_ids
+                    .get(proposal_id)
+                    .and_then(|add| add.get_add().cloned())
+                    .ok_or(())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let updates = commit
+            .updates
+            .iter()
+            .map(|proposal_id| {
+                proposals_ids
+                    .get(proposal_id)
+                    .and_then(|p| {
+                        p.get_update()
+                            .cloned()
+                            .map(|update| (LeafSize(p.content.sender.sender as usize), update))
+                    })
+                    .ok_or(())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let removes = commit
+            .removes
+            .iter()
+            .map(|proposal_id| {
+                proposals_ids
+                    .get(proposal_id)
+                    .and_then(|p| p.get_remove().cloned())
+                    .ok_or(())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Self {
+            sender,
+            commit,
+            confirmation,
+            additions,
+            updates,
+            removes,
         })
     }
 }

@@ -1,6 +1,6 @@
 use crate::group::GroupInfo;
 use crate::key::{HPKEPrivateKey, HPKEPublicKey};
-use crate::keypackage::{KeyPackage, OwnedKeyPackage};
+use crate::keypackage::{KeyPackage, KeyPackageSecret};
 use crate::message::*;
 use crate::utils::{encode_vec_u32, encode_vec_u8_u8, read_vec_u32, read_vec_u8_u8};
 use aead::{Aead, NewAead};
@@ -212,12 +212,12 @@ impl CipherSuite {
         self,
         encrypted_group_secret: &EncryptedGroupSecrets,
         // FIXME: group_context: &GroupContext,
-        open_kp: &OwnedKeyPackage,
+        kp_secret: &KeyPackageSecret,
     ) -> GroupSecret {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 // FIXME: errors instead of panicking
-                let recip_secret = open_kp.init_private_key.kex_secret();
+                let recip_secret = kp_secret.init_private_key.kex_secret();
                 let encapped_key =
                     EncappedKey::<<hpke::kem::DhP256HkdfSha256 as hpke::kem::Kem>::Kex>::unmarshal(
                         &encrypted_group_secret.encrypted_group_secrets.kem_output,
