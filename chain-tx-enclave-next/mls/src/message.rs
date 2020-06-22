@@ -214,6 +214,12 @@ impl Codec for MLSPlaintextTBS {
 }
 
 impl MLSPlaintext {
+    pub fn get_commit(&self) -> Option<&Commit> {
+        match &self.content.content {
+            ContentType::Commit { commit, .. } => Some(commit),
+            _ => None,
+        }
+    }
     pub fn get_add(&self) -> Option<&Add> {
         match &self.content.content {
             ContentType::Proposal(Proposal::Add(add)) => Some(add),

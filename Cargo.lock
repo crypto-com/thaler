@@ -1347,7 +1347,7 @@ version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eb6ba8a681d3a9c48875d277f2b11c81934ad690a60a20bcc4eef500ff68e25d"
 dependencies = [
- "elliptic-curve",
+ "elliptic-curve 0.4.0",
  "sha2 0.9.1",
  "signature",
 ]
@@ -1390,6 +1390,15 @@ dependencies = [
  "getrandom",
  "subtle 2.2.3",
  "zeroize",
+]
+
+[[package]]
+name = "elliptic-curve"
+version = "0.5.0-pre"
+source = "git+https://github.com/RustCrypto/traits?rev=3e7b861581185d7350db3315cd1a99b4c6d382e4#3e7b861581185d7350db3315cd1a99b4c6d382e4"
+dependencies = [
+ "generic-array 0.14.2",
+ "subtle 2.2.3",
 ]
 
 [[package]]
@@ -1951,8 +1960,7 @@ dependencies = [
 [[package]]
 name = "hpke"
 version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae019a029d6f8e7bf67c2c2d0730a17f74610412b9b4c1556ac1b3c93ffa7fec"
+source = "git+https://github.com/crypto-com/rust-hpke.git?rev=25686eb87d2862535b1d5107d74e2ac8bd992bae#25686eb87d2862535b1d5107d74e2ac8bd992bae"
 dependencies = [
  "aead",
  "aes-gcm",
@@ -1960,7 +1968,7 @@ dependencies = [
  "chacha20poly1305",
  "digest 0.9.0",
  "hkdf",
- "p256",
+ "p256 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.3",
  "sha2 0.9.1",
  "subtle 2.2.3",
@@ -2651,6 +2659,8 @@ dependencies = [
  "hkdf",
  "hpke",
  "nom",
+ "p256 0.3.0 (git+https://github.com/crypto-com/elliptic-curves.git?rev=15df32b45d8395a1e00eeb3873e1266063e1ec53)",
+ "parity-scale-codec",
  "ra-client",
  "ra-enclave",
  "rand 0.7.3",
@@ -2662,6 +2672,7 @@ dependencies = [
  "subtle 2.2.3",
  "thiserror",
  "x509-parser",
+ "zeroize",
 ]
 
 [[package]]
@@ -2879,10 +2890,19 @@ dependencies = [
 [[package]]
 name = "p256"
 version = "0.3.0"
+source = "git+https://github.com/crypto-com/elliptic-curves.git?rev=15df32b45d8395a1e00eeb3873e1266063e1ec53#15df32b45d8395a1e00eeb3873e1266063e1ec53"
+dependencies = [
+ "elliptic-curve 0.5.0-pre",
+ "zeroize",
+]
+
+[[package]]
+name = "p256"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a425ecb71515663b2735fd1e65bb638fd134c5ad23857eb197c2f157784476cf"
 dependencies = [
- "elliptic-curve",
+ "elliptic-curve 0.4.0",
  "subtle 2.2.3",
 ]
 
