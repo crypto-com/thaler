@@ -20,6 +20,8 @@ rand = "0.7"
 chrono="0.4.11"
 ra-client = { path = "../enclave-ra/ra-client" }
 subtle = "2.2.3"
+p256 = { git = "https://github.com/nickray/elliptic-curves.git", rev = "336eb4eb8500c42e3d47deffb1490b8e49afd948", features = ["expose-arithmetic", "zeroize"] }
+zeroize = "1.1"
 
 [dev-dependencies]
 chrono = "0.4"

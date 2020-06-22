@@ -127,6 +127,10 @@ impl HPKEPrivateKey {
         )
     }
 
+    pub fn marshal_arr_unsafe(&self) -> [u8; 32] {
+        <hpke::kex::DhP256 as hpke::KeyExchange>::PrivateKey::marshal(&self.0).into()
+    }
+
     pub fn public_key(&self) -> HPKEPublicKey {
         HPKEPublicKey(<hpke::kex::DhP256 as hpke::KeyExchange>::sk_to_pk(&self.0))
     }

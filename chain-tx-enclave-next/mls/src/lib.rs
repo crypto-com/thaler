@@ -3,6 +3,7 @@ pub mod astree;
 pub mod ciphersuite;
 pub mod credential;
 pub mod extensions;
+pub mod extras;
 pub mod group;
 pub mod key;
 pub mod keypackage;
