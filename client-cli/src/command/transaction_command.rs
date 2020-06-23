@@ -1,3 +1,4 @@
+use ra_client::EnclaveCertVerifier;
 use std::collections::BTreeSet;
 use std::convert::TryInto;
 use std::fs::File;
@@ -23,8 +24,9 @@ use client_core::transaction_builder::SignedTransferTransaction;
 use client_core::types::{BalanceChange, TransactionPending};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
+use mls::{Codec, KeyPackage};
 
-use chrono::{DateTime, Local, NaiveDateTime, Utc};
+use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
 use cli_table::format::{CellFormat, Color, Justify};
 use cli_table::{Cell, Row, Table};
 use hex::decode;
@@ -34,6 +36,7 @@ use unicase::eq_ascii;
 
 use crate::{ask_seckey, coin_from_str};
 use client_core::transaction_builder::UnsignedTransferTransaction;
+use mls::extensions::LifeTimeExt;
 
 const TRANSACTION_TYPE_VARIANTS: [&str; 6] = [
     "transfer",
@@ -106,6 +109,14 @@ pub enum TransactionCommand {
             case_insensitive = true
         )]
         advanced: bool,
+        #[structopt(
+            name = "keypacakage file path",
+            long = "keypackage",
+            parse(from_os_str),
+            help = "file path of base64 encoded key package for node-join transaction",
+            case_insensitive = true
+        )]
+        keypackage: Option<PathBuf>,
     },
     #[structopt(name = "show", about = "Display details of a transaction")]
     Show {
@@ -242,12 +253,14 @@ impl TransactionCommand {
                 name,
                 transaction_type,
                 advanced,
+                keypackage,
             } => new_transaction(
                 wallet_client,
                 network_ops_client,
                 name,
                 transaction_type,
                 *advanced,
+                keypackage.clone(),
             ),
             TransactionCommand::Show {
                 name,
@@ -516,6 +529,7 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
     name: &str,
     transaction_type: &TransactionType,
     advanced: bool,
+    keypackage: Option<PathBuf>,
 ) -> Result<()> {
     let can_use_advanced = vec![TransactionType::Deposit];
     if advanced && !can_use_advanced.contains(transaction_type) {
@@ -563,7 +577,7 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
             wallet_client.broadcast_transaction(&tx_aux)?;
         }
         TransactionType::NodeJoin => {
-            let tx_aux = new_node_join_transaction(network_ops_client, name, &enckey)?;
+            let tx_aux = new_node_join_transaction(network_ops_client, name, &enckey, keypackage)?;
             wallet_client.broadcast_transaction(&tx_aux)?;
         }
     };
@@ -826,10 +840,11 @@ fn new_node_join_transaction<N: NetworkOpsClient>(
     network_ops_client: &N,
     name: &str,
     enckey: &SecKey,
+    keypackage: Option<PathBuf>,
 ) -> Result<TxAux> {
     let attributes = StakedStateOpAttributes::new(get_network_id());
     let staking_account_address = ask_staking_address()?;
-    let node_metadata = ask_node_metadata()?;
+    let node_metadata = ask_node_metadata(keypackage)?;
 
     network_ops_client.create_node_join_transaction(
         name,
@@ -1009,13 +1024,136 @@ fn ask_transfer_address() -> Result<ExtendedAddr> {
     Ok(address)
 }
 
-fn ask_node_metadata() -> Result<CouncilNode> {
+fn keypackage_info(keypackage: &KeyPackage) -> Result<String> {
+    let mut credential: Vec<u8> = vec![];
+    keypackage.payload.credential.encode(&mut credential);
+    let extensions = keypackage
+        .payload
+        .extensions
+        .iter()
+        .map(|e| {
+            let mut extension_entry: Vec<u8> = vec![];
+            e.encode(&mut extension_entry);
+            base64::encode(&extension_entry)
+        })
+        .collect::<Vec<_>>();
+    let certificate_raw = keypackage
+        .payload
+        .credential
+        .x509()
+        .ok_or_else(|| Error::new(ErrorKind::VerifyError, "can not parse X509 cert"))?;
+    let verifier = EnclaveCertVerifier::default();
+    let now = Utc::now();
+    let cert_verify_result = verifier
+        .verify_cert(certificate_raw, now)
+        .map_err(|e| Error::new(ErrorKind::VerifyError, format!("{}", e)))?;
+    let quote = cert_verify_result.quote;
+    let quote_body = format!(
+        r#"version:  {}
+        sig_type: {}
+        gid:      {}
+        pce_svn:  {}
+        basename: {}"#,
+        quote.body.version,
+        quote.body.sig_type,
+        quote.body.gid,
+        quote.body.pce_svn,
+        base64::encode(&quote.body.basename),
+    );
+    let quote_report_body = format!(
+        r#"isv_svn:     {}
+        isv_prod_id: {}
+        cpu_svn:     {}
+        attrbutes:   {}
+        report_data: {}
+        measurement:
+            mr_signer:  {}
+            mr_enclave: {}"#,
+        base64::encode(&quote.report_body.cpu_svn),
+        base64::encode(&quote.report_body.attributes),
+        quote.report_body.isv_prod_id,
+        quote.report_body.isv_svn,
+        base64::encode(quote.report_body.report_data.as_ref()),
+        base64::encode(&quote.report_body.measurement.mr_enclave),
+        base64::encode(&quote.report_body.measurement.mr_signer),
+    );
+
+    let life_time = keypackage
+        .payload
+        .find_extension::<LifeTimeExt>()
+        .chain(|| {
+            (
+                ErrorKind::IllegalInput,
+                "can not find extention from keypackage",
+            )
+        })?;
+    let extension_begin = Local.timestamp(life_time.not_before as i64, 0);
+    let extension_end = Local.timestamp(life_time.not_after as i64, 0);
+
+    let life_time = format!("from {:?} to {:?}", extension_begin, extension_end);
+    let info = format!(
+        r#"get keypackage information:
+    versions:     {:?}
+    life time:    {}
+    cipher_suite: {}
+    signature:    {}
+    init_key:     HPKEPublicKey {}
+    extensions:   {:?}
+    X501 pubkey:  {}
+    quote_body:
+        {}
+    quote_report_body:
+        {}
+    "#,
+        keypackage.payload.version,
+        life_time,
+        keypackage.payload.cipher_suite,
+        base64::encode(&keypackage.signature),
+        base64::encode(&keypackage.payload.init_key.marshal()),
+        extensions,
+        base64::encode(&cert_verify_result.public_key),
+        quote_body,
+        quote_report_body,
+    );
+    Ok(info)
+}
+
+fn ask_keypackage() -> Result<Vec<u8>> {
+    let keypackage = loop {
+        ask("please enter base64 encoded keypackage:");
+        match base64::decode(&text().chain(|| (ErrorKind::IoError, "Unable to read keypackage"))?) {
+            Ok(kp) => {
+                /* TODO : use dev-utils to verify*/
+                break kp;
+            }
+            Err(err) => {
+                println!("invalid base64: {}", err);
+            }
+        }
+    };
+    Ok(keypackage)
+}
+
+fn ask_node_metadata(keypackage: Option<PathBuf>) -> Result<CouncilNode> {
     ask("Enter validator node name: ");
     let name = text().chain(|| (ErrorKind::IoError, "Unable to read validator node name"))?;
 
     ask("Enter validator pub-key (base64 encoded): ");
     let validator_pubkey =
         text().chain(|| (ErrorKind::IoError, "Unable to read validator pub-key"))?;
+    let keypackage_raw = match keypackage {
+        None => ask_keypackage()?,
+        Some(f) => {
+            let content = std::fs::read_to_string(f)
+                .chain(|| (ErrorKind::IoError, "Unable to read keypackage file"))?;
+            base64::decode(&content)
+                .chain(|| (ErrorKind::IllegalInput, "Invalid base64 keypackage"))?
+        }
+    };
+    let keypackage = KeyPackage::read_bytes(&keypackage_raw)
+        .ok_or_else(|| Error::new(ErrorKind::VerifyError, "Invalide keypackage"))?;
+    let info = keypackage_info(&keypackage)?;
+    success(&info);
 
     let decoded_pubkey = base64::decode(&validator_pubkey).chain(|| {
         (
@@ -1034,23 +1172,12 @@ fn ask_node_metadata() -> Result<CouncilNode> {
     let mut pubkey_bytes = [0; 32];
     pubkey_bytes.copy_from_slice(&decoded_pubkey);
 
-    let keypackage = loop {
-        ask("please enter base64 encoded keypackage:");
-        match base64::decode(&text().chain(|| (ErrorKind::IoError, "Unable to read keypackage"))?) {
-            Ok(kp) => {
-                /* TODO : use dev-utils to verify*/
-                break kp;
-            }
-            Err(err) => {
-                println!("invalid base64: {}", err);
-            }
-        }
-    };
-
     Ok(CouncilNode {
         name,
         security_contact: None,
         consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
-        confidential_init: ConfidentialInit { keypackage },
+        confidential_init: ConfidentialInit {
+            keypackage: keypackage_raw,
+        },
     })
 }
