@@ -15,8 +15,8 @@
 //
 // Modifications Copyright (c) 2019-2020, Foris Limited (licensed under the Apache License, Version 2.0)
 // TODO: document the SGX stuff
+use crate::{Error, ErrorKind, Result, ResultExt};
 use chrono::DateTime;
-use client_common::{Error, ErrorKind, Result, ResultExt};
 use serde_json::Value;
 use std::convert::TryFrom;
 use std::io::BufReader;

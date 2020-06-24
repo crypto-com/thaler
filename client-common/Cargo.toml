@@ -15,6 +15,7 @@ aes = "0.3"
 aes-gcm-siv = "0.4"
 anyhow = "1.0"
 base64 = "0.11"
+bit-vec = "0.6.2"
 blake3 = "0.3.4"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = { version = "0.3", optional = true }
@@ -22,6 +23,7 @@ gcd = "2.0"
 hex = "0.4"
 indexmap = "1.4"
 itertools = "0.9"
+num-bigint = "0.2.5"
 log = "0.4.8"
 once_cell = "1.4"
 parity-scale-codec = { features = ["derive"], version = "1.3" }
@@ -36,6 +38,7 @@ sled = { version = "0.31.0", optional = true }
 tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "e8d350960726b242fdaa67d293d71ba8cfdb8024" }
 tokio = { version = "0.2", features = ["rt-threaded", "sync", "time", "tcp"], optional = true }
 tokio-tungstenite = { version = "0.10", features = ["tls"], optional = true }
+uuid = { version = "0.8.1", features = ["v4"] }
 webpki = "0.21"
 yasna = { version = "0.3.1", features = ["bit-vec", "num-bigint", "chrono"], optional = true }
 zeroize = "1.1"
