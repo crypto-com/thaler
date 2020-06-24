@@ -400,7 +400,7 @@ dependencies = [
 
 [[package]]
 name = "cbindgen"
-version = "0.14.2"
+version = "0.14.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -881,7 +881,7 @@ dependencies = [
 name = "cro-clib"
 version = "0.5.0"
 dependencies = [
- "cbindgen 0.14.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "cbindgen 0.14.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.5.0",
  "client-common 0.5.0",
  "client-core 0.5.0",
@@ -5102,7 +5102,7 @@ dependencies = [
 "checksum bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)" = "206fdffcfa2df7cbe15601ef46c813fce0965eb3286db6b56c583b814b51c81c"
 "checksum bytes 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)" = "130aac562c0dd69c56b3b1cc8ffd2e17be31d0b6c25b61c96b76231aa23e39e1"
 "checksum cast 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "4b9434b9a5aa1450faa3f9cb14ea0e8c53bb5d2b3c1bfd1ab4fc03e9f33fbfb0"
-"checksum cbindgen 0.14.2 (registry+https://github.com/rust-lang/crates.io-index)" = "104ca409bbff8293739438c71820a2606111b5f8f81835536dc673dfd807369e"
+"checksum cbindgen 0.14.3 (registry+https://github.com/rust-lang/crates.io-index)" = "e6e03a705df2e735cc5486f104a48e25a8f72ae06eaea5b7753a81270ed00859"
 "checksum cc 1.0.54 (registry+https://github.com/rust-lang/crates.io-index)" = "7bbb73db36c1246e9034e307d0fba23f9a2e251faa47ade70c1bd252220c8311"
 "checksum cexpr 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f4aedb84272dbe89af497cf81375129abda4fc0a9e7c5d317498c15cc30c0d27"
 "checksum cfg-if 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)" = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"

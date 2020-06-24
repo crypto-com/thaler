@@ -27,4 +27,4 @@ jsonrpc-core = "14.2"
 libc = "0.2.71"
 
 [build-dependencies]
-cbindgen = "0.14.2"
+cbindgen = "0.14.3"
