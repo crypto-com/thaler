@@ -10,7 +10,7 @@ edition = "2018"
 blake3 = "0.3.4"
 kvdb = "0.6"
 kvdb-rocksdb = "0.8"
-kvdb-memorydb = "0.6"
+kvdb-memorydb = "0.7"
 chain-core = { path = "../chain-core" }
 bit-vec = { version = "0.6.2", features = ["serde_no_std"] }
 parity-scale-codec = { features = ["derive"], version = "1.3" }

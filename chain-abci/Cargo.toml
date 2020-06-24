@@ -56,7 +56,7 @@ digest = "0.8"
 sha3 = "0.8"
 base64 = "0.11"
 kvdb = "0.6"
-kvdb-memorydb = "0.6"
+kvdb-memorydb = "0.7"
 test-common = { path = "../test-common" }
 
 # TODO: currently not maintained benchmarks
