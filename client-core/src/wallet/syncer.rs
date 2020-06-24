@@ -257,7 +257,9 @@ impl<
         let sync_state = if let Some(sync_state) = mstate {
             sync_state
         } else {
-            get_genesis_sync_state(&env.client)?
+            // if fast-forward, don't check genesis fingerprint
+            let enable_genesis_fingerprint_check = !env.options.enable_fast_forward;
+            get_genesis_sync_state(&env.client, enable_genesis_fingerprint_check)?
         };
 
         let wallet_state =
@@ -580,9 +582,15 @@ fn check_genesis_fingerprint(genesis: &Genesis) -> Result<()> {
     }
 }
 
-pub fn get_genesis_sync_state<C: Client>(client: &C) -> Result<SyncState> {
+pub fn get_genesis_sync_state<C: Client>(
+    client: &C,
+    enable_genesis_fingerprint_check: bool,
+) -> Result<SyncState> {
     let genesis = client.genesis()?;
-    check_genesis_fingerprint(&genesis)?;
+
+    if enable_genesis_fingerprint_check {
+        check_genesis_fingerprint(&genesis)?;
+    }
     let accounts = genesis.app_state.unwrap().get_account(
         genesis
             .genesis_time
