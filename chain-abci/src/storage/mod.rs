@@ -3,7 +3,9 @@ use crate::staking::StakingTable;
 use crate::tx_error::PublicTxError;
 use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateOpAttributes};
+use chain_core::state::account::{
+    CouncilNodeMeta, NodeMetadata, StakedStateAddress, StakedStateOpAttributes,
+};
 use chain_core::tx::data::input::{TxoPointer, TxoSize};
 use chain_core::tx::fee::Fee;
 use chain_core::tx::{TransactionId, TxEnclaveAux, TxObfuscated, TxPublicAux};
@@ -118,7 +120,7 @@ pub enum TxPublicAction {
     },
     NodeJoin {
         address: StakedStateAddress,
-        council_node: CouncilNode,
+        council_node: CouncilNodeMeta,
         // most recent isv_svn
         isv_svn: u16,
     },
@@ -133,7 +135,7 @@ impl TxPublicAction {
             unbonded_from,
         }
     }
-    fn node_join(address: StakedStateAddress, council_node: CouncilNode, isv_svn: u16) -> Self {
+    fn node_join(address: StakedStateAddress, council_node: CouncilNodeMeta, isv_svn: u16) -> Self {
         Self::NodeJoin {
             address,
             council_node,
@@ -349,7 +351,10 @@ pub fn process_public_tx(
 
             Ok(TxPublicAction::node_join(
                 address,
-                maintx.node_meta.clone(),
+                match &maintx.node_meta {
+                    NodeMetadata::CouncilNode(cm) => cm.clone(),
+                    _ => unreachable!("FIXME?"),
+                },
                 isv_svn,
             ))
         }

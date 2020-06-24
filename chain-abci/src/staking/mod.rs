@@ -16,13 +16,15 @@ mod tests {
     use chain_core::init::config::SlashRatio;
     use chain_core::init::params::NetworkParameters;
     use chain_core::state::account::{
-        PunishmentKind, StakedState, StakedStateAddress, UnbondTx, UnjailTx, Validator,
+        NodeState, PunishmentKind, StakedState, StakedStateAddress, UnbondTx, UnjailTx, Validator,
     };
     use chain_core::state::tendermint::{BlockHeight, TendermintValidatorPubKey};
     use chain_core::state::validator::NodeJoinRequestTx;
     use chain_core::tx::fee::Fee;
     use chain_storage::buffer::{Get, GetStaking, MemStore, StoreStaking};
-    use test_common::chain_env::{get_init_network_params, mock_council_node};
+    use test_common::chain_env::{
+        get_init_network_params, mock_council_node, mock_council_node_meta,
+    };
 
     use super::*;
     use crate::app::BeginBlockInfo;
@@ -57,8 +59,8 @@ mod tests {
     fn new_validator(seed: &[u8; 32], bonded: Coin) -> StakedState {
         let mut staking = StakedState::default(staking_address(seed));
         staking.bonded = bonded;
-        staking.validator = Some(Validator::new(mock_council_node(
-            TendermintValidatorPubKey::Ed25519(seed.clone()),
+        staking.node_meta = Some(NodeState::CouncilNode(Validator::new(
+            mock_council_node_meta(TendermintValidatorPubKey::Ed25519(seed.clone())),
         )));
         staking
     }
@@ -297,12 +299,10 @@ mod tests {
     ) -> Result<(), PublicTxError> {
         // unbond/deposit/re-join
         let staking = store.get(&addr).unwrap();
-        let val_pk = &staking
-            .validator
-            .as_ref()
-            .unwrap()
-            .council_node
-            .consensus_pubkey;
+        let val_pk = match &staking.node_meta {
+            Some(NodeState::CouncilNode(v)) => &v.council_node.consensus_pubkey,
+            _ => unreachable!(),
+        };
         let unbond = UnbondTx {
             from_staked_account: addr,
             nonce: staking.nonce,

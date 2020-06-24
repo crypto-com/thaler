@@ -3,8 +3,8 @@ use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 pub use crate::init::params::*;
 use crate::state::account::{
-    ConfidentialInit, CouncilNode, StakedState, StakedStateAddress, StakedStateDestination,
-    ValidatorName, ValidatorSecurityContact,
+    ConfidentialInit, CouncilNodeMeta, NodeName, NodeSecurityContact, StakedState,
+    StakedStateAddress, StakedStateDestination,
 };
 use crate::state::tendermint::TendermintValidatorPubKey;
 use crate::state::RewardsPoolState;
@@ -73,8 +73,8 @@ pub struct InitConfig {
     pub council_nodes: BTreeMap<
         RedeemAddress,
         (
-            ValidatorName,
-            ValidatorSecurityContact,
+            NodeName,
+            NodeSecurityContact,
             TendermintValidatorPubKey,
             ConfidentialInit,
         ),
@@ -88,7 +88,7 @@ pub struct GenesisState {
     /// initial rewards pool
     pub rewards_pool: RewardsPoolState,
     /// initial tendermint validators
-    pub validators: Vec<(StakedStateAddress, CouncilNode)>,
+    pub validators: Vec<(StakedStateAddress, CouncilNodeMeta)>,
     /// enclave ISVSVN in genesis keypackage
     pub isv_svn: u16,
 }
@@ -101,8 +101,8 @@ impl InitConfig {
         council_nodes: BTreeMap<
             RedeemAddress,
             (
-                ValidatorName,
-                ValidatorSecurityContact,
+                NodeName,
+                NodeSecurityContact,
                 TendermintValidatorPubKey,
                 ConfidentialInit,
             ),
@@ -142,13 +142,16 @@ impl InitConfig {
             .collect()
     }
 
-    fn get_council_node(&self, address: &RedeemAddress) -> Result<CouncilNode, DistributionError> {
+    fn get_council_node(
+        &self,
+        address: &RedeemAddress,
+    ) -> Result<CouncilNodeMeta, DistributionError> {
         self.check_validator_address(address)?;
         let (name, security_contact, pubkey, confidential_init) =
             self.council_nodes
                 .get(address)
                 .ok_or(DistributionError::InvalidValidatorAccount)?;
-        Ok(CouncilNode::new_with_details(
+        Ok(CouncilNodeMeta::new_with_details(
             name.clone(),
             security_contact.clone(),
             pubkey.clone(),
@@ -197,7 +200,7 @@ impl InitConfig {
 
         let isv_svn = validators
             .iter()
-            .map(|v| verify_keypackage(genesis_time, &v.1.confidential_init.keypackage))
+            .map(|v| verify_keypackage(genesis_time, &v.1.node_info.confidential_init.keypackage))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .max()

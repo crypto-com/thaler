@@ -1,6 +1,6 @@
 [package]
 name = "enclave-utils"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Platform independent enclave utilities (sealing, attestation primitives...)."
 readme = "../../README.md"

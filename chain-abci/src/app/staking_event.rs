@@ -6,14 +6,14 @@ use abci::Pair as KVPair;
 use abci::*;
 use chain_core::common::{TendermintEventKey, TendermintEventType, Timespec};
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{CouncilNode, PunishmentKind, StakedStateAddress};
+use chain_core::state::account::{CouncilNodeMeta, PunishmentKind, StakedStateAddress};
 use chain_core::tx::fee::Fee;
 
 pub(crate) enum StakingEvent<'a> {
     Deposit(&'a StakedStateAddress, Coin),
     Unbond(&'a StakedStateAddress, Coin, Timespec, Fee),
     Withdraw(&'a StakedStateAddress, Coin),
-    NodeJoin(&'a StakedStateAddress, CouncilNode),
+    NodeJoin(&'a StakedStateAddress, CouncilNodeMeta),
     Reward(&'a StakedStateAddress, Coin),
     Jail(&'a StakedStateAddress, Timespec, PunishmentKind),
     Slash(&'a StakedStateAddress, Coin, Coin, PunishmentKind),
@@ -119,7 +119,7 @@ impl StakingEventBuilder {
         );
     }
 
-    fn node_join(&mut self, staking_address: &StakedStateAddress, node: CouncilNode) {
+    fn node_join(&mut self, staking_address: &StakedStateAddress, node: CouncilNodeMeta) {
         self.attributes
             .push(staking_address_attribute(staking_address));
         self.attributes.push(StakingEventOpType::NodeJoin.into());
@@ -280,7 +280,7 @@ enum StakingDiff {
     Bonded(StakingCoinChange, Coin),
     Unbonded(StakingCoinChange, Coin),
     UnbondedFrom(Timespec),
-    NodeJoin(CouncilNode),
+    NodeJoin(CouncilNodeMeta),
     JailedUntil(Timespec),
 }
 
@@ -437,11 +437,11 @@ mod tests {
 
                 assert_eq!(
                     staking_diff.to_string(),
-                    "{\"key\":\"CouncilNode\",\"value\":{\"name\":\"Council Node\",\"security_contact\":\"security@crypto.com\",\"consensus_pubkey\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"},\"confidential_init\":{\"keypackage\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"}}}",
+                    "{\"key\":\"CouncilNode\",\"value\":{\"name\":\"Council Node\",\"security_contact\":\"security@crypto.com\",\"confidential_init\":{\"keypackage\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"},\"consensus_pubkey\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"}}}",
                 );
             }
 
-            fn any_council_node() -> CouncilNode {
+            fn any_council_node() -> CouncilNodeMeta {
                 let any_name = String::from("Council Node");
                 let any_security_contact = Some(String::from("security@crypto.com"));
                 let any_pub_key = TendermintValidatorPubKey::Ed25519([0u8; 32]);
@@ -449,7 +449,12 @@ mod tests {
                     keypackage: [0u8; 32].to_vec(),
                 };
 
-                CouncilNode::new_with_details(any_name, any_security_contact, any_pub_key, any_cert)
+                CouncilNodeMeta::new_with_details(
+                    any_name,
+                    any_security_contact,
+                    any_pub_key,
+                    any_cert,
+                )
             }
         }
 
@@ -536,7 +541,7 @@ mod tests {
                 assert_node_join_event(event, &any_staking_address, any_council_node)
             }
 
-            fn any_council_node() -> CouncilNode {
+            fn any_council_node() -> CouncilNodeMeta {
                 let any_name = String::from("Council Node");
                 let any_security_contact = Some(String::from("security@crypto.com"));
                 let any_pub_key = TendermintValidatorPubKey::Ed25519([0u8; 32]);
@@ -544,7 +549,12 @@ mod tests {
                     keypackage: [0u8; 32].to_vec(),
                 };
 
-                CouncilNode::new_with_details(any_name, any_security_contact, any_pub_key, any_cert)
+                CouncilNodeMeta::new_with_details(
+                    any_name,
+                    any_security_contact,
+                    any_pub_key,
+                    any_cert,
+                )
             }
         }
 
@@ -736,7 +746,7 @@ mod tests {
         fn assert_node_join_event(
             event: Event,
             staking_address: &StakedStateAddress,
-            council_node: CouncilNode,
+            council_node: CouncilNodeMeta,
         ) {
             assert_eq!(
                 event.field_type,

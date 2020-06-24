@@ -16,7 +16,7 @@ use quest::{ask, success};
 use structopt::StructOpt;
 
 use chain_core::init::coin::Coin;
-use chain_core::state::account::StakedStateAddress;
+use chain_core::state::account::{NodeState, StakedStateAddress};
 use client_common::storage::SledStorage;
 #[cfg(not(feature = "mock-enclave"))]
 use client_common::tendermint::types::AbciQueryExt;
@@ -451,8 +451,11 @@ impl Command {
                 Row::new(vec![
                     Cell::new("Jailed Until", bold),
                     staked_state
-                        .validator
-                        .and_then(|val| val.jailed_until)
+                        .node_meta
+                        .and_then(|val| match val {
+                            NodeState::CommunityNode(_) => unreachable!("FIXME"),
+                            NodeState::CouncilNode(v) => v.jailed_until,
+                        })
                         .map_or_else(
                             || Cell::new("Not jailed", justify_right),
                             |jailed_until| {

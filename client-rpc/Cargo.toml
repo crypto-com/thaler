@@ -1,6 +1,6 @@
 [package]
 name = "client-rpc-core"
-version = "0.5.3"
+version = "0.6.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 edition = "2018"
 

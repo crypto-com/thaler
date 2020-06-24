@@ -8,7 +8,7 @@
                 ["unbonded", "Coin"],
                 ["unbonded_from", "Timespec"],
                 ["address", "StakedStateAddress"],
-                ["validator", "Option<Validator>"],
+                ["node_meta", "Option<NodeState>"],
                 ["last_slash", "Option<SlashRecord>"]
             ]
         },
@@ -18,20 +18,34 @@
                 ["BasicRedeem", "RedeemAddress"]
             ]
         },
+        "NodeState": {
+            "type": "enum",
+            "type_mapping": [
+                ["CouncilNode", "Validator"],
+                ["CommunityNode", "NodeCommonInfo"]
+            ]
+        },
+        "NodeCommonInfo": {
+            "type": "struct",
+            "type_mapping": [
+                ["name", "String"],
+                ["security_contact", "Option<String>"],
+                ["confidential_init", "Vec<u8>"]
+            ]
+        },
         "Validator": {
             "type": "struct",
             "type_mapping": [
-                ["council_node", "CouncilNode"],
+                ["council_node", "CouncilNodeMeta"],
                 ["jailed_until", "Option<Timespec>"],
                 ["inactive_time", "Option<Timespec>"],
                 ["inactive_block", "Option<BlockHeight>"],
                 ["used_validator_addresses", "Vec<(TendermintValidatorAddress, Timespec)>"]
             ]
         },
-        "CouncilNode": {
+        "CouncilNodeMeta": {
             "type": "struct",
             "type_mapping": [
-                ["tag", "u8"],
                 ["name", "String"],
                 ["security_contact", "Option<String>"],
                 ["consensus_pubkey", "TendermintValidatorPubKey"],

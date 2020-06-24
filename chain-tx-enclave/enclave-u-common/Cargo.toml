@@ -1,6 +1,6 @@
 [package]
 name = "enclave-u-common"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Untrusted enclave-related code."
 readme = "../../README.md"

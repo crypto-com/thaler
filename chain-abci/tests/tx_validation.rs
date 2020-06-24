@@ -12,12 +12,12 @@ use chain_abci::tx_error::{NodeJoinError, PublicTxError, TxError, UnbondError, U
 use chain_core::common::{MerkleTree, Timespec};
 use chain_core::init::address::RedeemAddress;
 use chain_core::init::coin::{Coin, CoinError};
-use chain_core::state::account::CouncilNode;
 use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::account::StakedStateOpAttributes;
 use chain_core::state::account::{
-    DepositBondTx, StakedStateOpWitness, UnbondTx, UnjailTx, Validator, WithdrawUnbondedTx,
+    DepositBondTx, NodeMetadata, StakedStateOpWitness, UnbondTx, UnjailTx, Validator,
+    WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::tendermint::TendermintValidatorPubKey;
@@ -52,7 +52,7 @@ use secp256k1::{key::PublicKey, key::SecretKey, key::XOnlyPublicKey, Message, Se
 use std::fmt::Debug;
 use std::mem;
 use std::sync::Arc;
-use test_common::chain_env::{mock_confidential_init, mock_council_node};
+use test_common::chain_env::{mock_confidential_init, mock_council_node_meta};
 
 fn verify_enclave_tx<T: EnclaveProxy>(
     tx_validator: &mut T,
@@ -1151,7 +1151,7 @@ fn prepare_jailed_accounts() -> (
         0,
         addr.into(),
         Some(Validator {
-            council_node: mock_council_node(TendermintValidatorPubKey::Ed25519([0xcd; 32])),
+            council_node: mock_council_node_meta(TendermintValidatorPubKey::Ed25519([0xcd; 32])),
             jailed_until: Some(100),
             inactive_time: Some(0),
             inactive_block: Some(BlockHeight::genesis()),
@@ -1336,12 +1336,12 @@ fn prepare_nodejoin_transaction(
         nonce: 1,
         address,
         attributes: StakedStateOpAttributes::new(DEFAULT_CHAIN_ID),
-        node_meta: CouncilNode {
-            name: "test".to_string(),
-            security_contact: None,
-            consensus_pubkey: TendermintValidatorPubKey::Ed25519([1u8; 32]),
-            confidential_init: mock_confidential_init(),
-        },
+        node_meta: NodeMetadata::new_council_node_with_details(
+            "test".to_string(),
+            None,
+            TendermintValidatorPubKey::Ed25519([1u8; 32]),
+            mock_confidential_init(),
+        ),
     };
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);
 
@@ -1370,7 +1370,7 @@ fn prepare_valid_nodejoin_tx(
         0,
         addr.into(),
         if validator {
-            Some(Validator::new(mock_council_node(
+            Some(Validator::new(mock_council_node_meta(
                 TendermintValidatorPubKey::Ed25519([1u8; 32]),
             )))
         } else {
@@ -1392,7 +1392,7 @@ fn test_nodejoin_success() {
             .expect("Verification of node join transaction failed");
 
     assert_eq!(Fee::new(Coin::zero()), fee);
-    assert!(new_account.unwrap().validator.is_some());
+    assert!(new_account.unwrap().node_meta.is_some());
 }
 
 #[test]

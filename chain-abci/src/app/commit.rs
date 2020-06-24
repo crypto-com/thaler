@@ -28,6 +28,9 @@ fn process_txs(delivered_txs: &[TxAux], db: &mut impl StoreKV) {
     for txaux in delivered_txs.iter() {
         let txid: TxId = txaux.tx_id();
         match &txaux {
+            TxAux::MLSHandshake(_) => {
+                // FIXME
+            }
             TxAux::EnclaveTx(TxEnclaveAux::TransferTx {
                 inputs,
                 no_of_outputs,

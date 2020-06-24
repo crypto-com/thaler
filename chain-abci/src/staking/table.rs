@@ -12,8 +12,8 @@ use chain_core::common::Timespec;
 use chain_core::init::coin::{sum_coins, Coin, CoinError, CoinResult};
 use chain_core::init::config::SlashRatio;
 use chain_core::state::account::{
-    PunishmentKind, SlashRecord, StakedState, StakedStateAddress, ValidatorName,
-    ValidatorSecurityContact,
+    NodeName, NodeSecurityContact, NodeState, PunishmentKind, SlashRecord, StakedState,
+    StakedStateAddress,
 };
 use chain_core::state::tendermint::{
     BlockHeight, TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
@@ -29,13 +29,13 @@ pub type RewardsDistribution = Vec<(StakedStateAddress, Coin)>;
 /// Metadata of a validator
 pub struct CouncilNodeMetadata {
     /// Name of validator
-    pub name: ValidatorName,
+    pub name: NodeName,
     /// Current voting power of validator
     pub voting_power: TendermintVotePower,
     /// Address of staking account of validator
     pub staking_address: StakedStateAddress,
     /// Optional security email address of validator
-    pub security_contact: ValidatorSecurityContact,
+    pub security_contact: NodeSecurityContact,
     /// Tendermint consensus validator-associated public key
     pub tendermint_pubkey: TendermintValidatorPubKey,
 }
@@ -116,6 +116,10 @@ impl SlashedCoin {
 ///   Combined with 2.1, it means that all liveness tracking addresses should exist on heap, and have
 ///   validator record.
 ///   Proof: always update index when related validator fields changed.
+///
+/// Invariant 2.4:
+///   idx_* only contains CouncilNode not CommunityNode
+///   Proof: checked during insertion
 #[derive(Clone, Debug, Default, Encode, Decode)]
 pub struct StakingTable {
     // Selected validator voting powers of last executed end block
@@ -131,6 +135,16 @@ pub struct StakingTable {
     pub(crate) idx_validator_address: BTreeMap<TendermintValidatorAddress, StakedStateAddress>,
     #[codec(skip)]
     idx_sort: BTreeSet<ValidatorSortKey>,
+}
+
+/// Returned if the caller did not do the necessary validations
+/// before inserting the validator record
+#[derive(Debug)]
+pub enum StakingTableInsertionError {
+    /// council metadata missing
+    NoCouncilNode,
+    /// the record already exists in internal indices
+    AlreadyInsertedInIndex,
 }
 
 impl StakingTable {
@@ -149,7 +163,8 @@ impl StakingTable {
         let mut tbl = Self::default();
         tbl.minimal_required_staking = minimal_required_staking;
         for addr in addresses.iter() {
-            tbl.insert_validator(&heap.get(addr).unwrap());
+            tbl.insert_validator(&heap.get(addr).unwrap())
+                .expect("only validator");
         }
         tbl.chosen_validators = tbl.choose_validators(heap, max_validators);
         #[cfg(debug_assertions)]
@@ -168,11 +183,15 @@ impl StakingTable {
             // liveness and heap and idx_* are always consistent
             let mut staking = heap.get(addr).unwrap();
             assert!(self.idx_sort.insert((&staking).into()));
-            let val = staking.validator.as_mut().unwrap();
-            assert!(self
-                .idx_validator_address
-                .insert(val.validator_address(), *addr)
-                .is_none());
+            if let Some(NodeState::CouncilNode(val)) = staking.node_meta.as_mut() {
+                assert!(self
+                    .idx_validator_address
+                    .insert(val.validator_address(), *addr)
+                    .is_none());
+            } else {
+                // no panic: Invariant 2.4
+                unreachable!("only council node addresses stored in internal indicies");
+            }
         }
     }
 
@@ -216,12 +235,13 @@ impl StakingTable {
             // Invariant 2.1
             let staking = heap.get(addr).unwrap();
             // Invariant 2.2
-            let val = staking.validator.as_ref().unwrap();
-            if val.is_active() {
-                self.participator_stats
-                    .entry(*addr)
-                    .and_modify(|count| *count = count.saturating_add(val_voting_power.into()))
-                    .or_insert_with(|| val_voting_power.into());
+            if let Some(NodeState::CouncilNode(val)) = staking.node_meta.as_ref() {
+                if val.is_active() {
+                    self.participator_stats
+                        .entry(*addr)
+                        .and_modify(|count| *count = count.saturating_add(val_voting_power.into()))
+                        .or_insert_with(|| val_voting_power.into());
+                }
             }
             true
         } else {
@@ -280,16 +300,20 @@ impl StakingTable {
             .iter()
             .filter_map(|key| {
                 let staking = heap.get(&key.address).unwrap();
-                let val = staking.validator.as_ref().unwrap();
-                if val.is_active() {
-                    Some(CouncilNodeMetadata {
-                        name: val.council_node.name.clone(),
-                        voting_power: staking.bonded.into(),
-                        staking_address: key.address,
-                        security_contact: val.council_node.security_contact.clone(),
-                        tendermint_pubkey: val.council_node.consensus_pubkey.clone(),
-                    })
+                if let Some(NodeState::CouncilNode(val)) = staking.node_meta.as_ref() {
+                    if val.is_active() {
+                        Some(CouncilNodeMetadata {
+                            name: val.council_node.node_info.name.clone(),
+                            voting_power: staking.bonded.into(),
+                            staking_address: key.address,
+                            security_contact: val.council_node.node_info.security_contact.clone(),
+                            tendermint_pubkey: val.council_node.consensus_pubkey.clone(),
+                        })
+                    } else {
+                        None
+                    }
                 } else {
+                    // FIXME: or panic? / unreachable?
                     None
                 }
             })
@@ -314,25 +338,34 @@ impl StakingTable {
     /// - StakedState has validator record
     /// - Both the staking address and validator address should not already exists in the indexing
     /// structures
-    pub(crate) fn insert_validator(&mut self, staking: &StakedState) {
-        let val_addr = TendermintValidatorAddress::from(
-            // no panic: Call ensure validator record exists.
-            &staking
-                .validator
-                .as_ref()
-                .unwrap()
-                .council_node
-                .consensus_pubkey,
-        );
+    ///
+    /// returns Ok if successfully, Err if the caller broke the invariant / didn't do the validations
+    pub(crate) fn insert_validator(
+        &mut self,
+        staking: &StakedState,
+    ) -> Result<(), StakingTableInsertionError> {
+        let val_addr = TendermintValidatorAddress::from(match &staking.node_meta {
+            Some(NodeState::CouncilNode(v)) => Ok(v.council_node.consensus_pubkey.clone()),
+            _ => Err(StakingTableInsertionError::NoCouncilNode),
+        }?);
         // insert
-        assert!(self
+        if self
             .idx_validator_address
             .insert(val_addr, staking.address)
-            .is_none());
-        assert_eq!(self.idx_sort.insert(staking.into()), true);
+            .is_some()
+        {
+            return Err(StakingTableInsertionError::AlreadyInsertedInIndex);
+        }
+        if !self.idx_sort.insert(staking.into()) {
+            return Err(StakingTableInsertionError::AlreadyInsertedInIndex);
+        }
 
         let tracker = LivenessTracker::new();
-        assert!(self.liveness.insert(staking.address, tracker).is_none());
+        if self.liveness.insert(staking.address, tracker).is_none() {
+            Ok(())
+        } else {
+            Err(StakingTableInsertionError::AlreadyInsertedInIndex)
+        }
     }
 
     /// Change bonded, and related index, inactivate validator if not enough amount.
@@ -344,15 +377,15 @@ impl StakingTable {
         staking: &mut StakedState,
     ) -> Result<(), CoinError> {
         let bonded = (staking.bonded - amount)?;
-        if staking.validator.is_some() {
+        if staking.has_council_node_meta() {
             assert!(self.idx_sort.remove(&staking.into()));
         }
         staking.bonded = bonded;
-        if staking.validator.is_some() {
+        if staking.has_council_node_meta() {
             assert!(self.idx_sort.insert(staking.into()));
         }
 
-        if let Some(val) = staking.validator.as_mut() {
+        if let Some(NodeState::CouncilNode(val)) = staking.node_meta.as_mut() {
             if val.is_active() && staking.bonded < self.minimal_required_staking {
                 val.inactivate(block_time, block_height);
             }
@@ -367,11 +400,11 @@ impl StakingTable {
         staking: &mut StakedState,
     ) -> Result<(), CoinError> {
         let bonded = (staking.bonded + amount)?;
-        if staking.validator.is_some() {
+        if staking.has_council_node_meta() {
             assert!(self.idx_sort.remove(&staking.into()));
         }
         staking.bonded = bonded;
-        if staking.validator.is_some() {
+        if staking.has_council_node_meta() {
             assert!(self.idx_sort.insert(staking.into()));
         }
 
@@ -411,10 +444,14 @@ impl StakingTable {
                 // no panic: Invariant 2.1
                 let staking = heap.get(&key.address).unwrap();
                 // no panic: Invariant 2.2
-                let val = staking.validator.as_ref().unwrap();
-                if val.is_active() {
-                    Some((staking.address, staking.bonded.into()))
+                if let Some(NodeState::CouncilNode(val)) = staking.node_meta.as_ref() {
+                    if val.is_active() {
+                        Some((staking.address, staking.bonded.into()))
+                    } else {
+                        None
+                    }
                 } else {
+                    // FIXME: panic?
                     None
                 }
             })
@@ -437,7 +474,7 @@ impl StakingTable {
             .values()
             .filter_map(|addr| {
                 let staking = heap.get(addr).unwrap();
-                if let Some(val) = &staking.validator {
+                if let Some(NodeState::CouncilNode(val)) = &staking.node_meta {
                     if val.is_jailed() {
                         return None;
                     }
@@ -460,19 +497,21 @@ impl StakingTable {
             // no panic: Already checked above, no concurrency.
             let mut staking = heap.get(addr).unwrap();
             // no panic: Already checked above
-            let val = staking.validator.as_ref().unwrap();
-            assert_eq!(
-                self.idx_validator_address.remove(&val.validator_address()),
-                Some(*addr)
-            );
-            for (val_addr, _) in val.used_validator_addresses.iter() {
-                assert_eq!(self.idx_validator_address.remove(val_addr), Some(*addr));
+            if let Some(NodeState::CouncilNode(val)) = staking.node_meta.as_ref() {
+                assert_eq!(
+                    self.idx_validator_address.remove(&val.validator_address()),
+                    Some(*addr)
+                );
+                for (val_addr, _) in val.used_validator_addresses.iter() {
+                    assert_eq!(self.idx_validator_address.remove(val_addr), Some(*addr));
+                }
+                assert!(self.idx_sort.remove(&(&staking).into()));
+                assert!(self.liveness.remove(addr).is_some());
+                self.participator_stats.remove(addr);
+            } else {
+                unreachable!("above filtered to only have inactive validators?")
             }
-            assert!(self.idx_sort.remove(&(&staking).into()));
-            assert!(self.liveness.remove(addr).is_some());
-            self.participator_stats.remove(addr);
-
-            staking.validator = None;
+            staking.node_meta = None;
             set_staking(heap, staking, self.minimal_required_staking);
         }
 
@@ -515,17 +554,18 @@ impl StakingTable {
                 // panic: Invariant 2.3 + 2.1
                 let mut staking = heap.get(addr).unwrap();
                 // panic: Invariant 2.3 + 2.2
-                let val = staking.validator.as_mut().unwrap();
+                if let Some(NodeState::CouncilNode(val)) = staking.node_meta.as_mut() {
+                    // slash and inactivate if it's active
+                    // panic: Invariant 2.3 + 2.2
+                    if val.is_active() {
+                        val.inactivate(info.block_time, info.block_height);
+                        slashes.push((*addr, PunishmentKind::NonLive, None));
+                    }
 
-                // slash and inactivate if it's active
-                // panic: Invariant 2.3 + 2.2
-                if val.is_active() {
-                    val.inactivate(info.block_time, info.block_height);
-                    slashes.push((*addr, PunishmentKind::NonLive, None));
+                    tracker.reset();
+                    set_staking(heap, staking, self.minimal_required_staking);
                 }
-
-                tracker.reset();
-                set_staking(heap, staking, self.minimal_required_staking);
+                // FIXME: else unreachable / panic?
             }
         }
         if !voters.is_empty() {
@@ -544,18 +584,20 @@ impl StakingTable {
                 // panic: Invariant 2.1
                 let mut staking = heap.get(addr).unwrap();
                 // panic: Invariant 2.2
-                let val = staking.validator.as_mut().unwrap();
-                if !val.is_jailed() {
-                    let jailed_until = val.jail(
-                        info.block_time,
-                        info.block_height,
-                        info.get_unbonding_period(),
-                    );
-                    let maybe_jailed_until = Some(jailed_until);
-                    self.participator_stats.remove(addr);
-                    slashes.push((*addr, PunishmentKind::ByzantineFault, maybe_jailed_until));
-                    set_staking(heap, staking, self.minimal_required_staking);
+                if let Some(NodeState::CouncilNode(val)) = staking.node_meta.as_mut() {
+                    if !val.is_jailed() {
+                        let jailed_until = val.jail(
+                            info.block_time,
+                            info.block_height,
+                            info.get_unbonding_period(),
+                        );
+                        let maybe_jailed_until = Some(jailed_until);
+                        self.participator_stats.remove(addr);
+                        slashes.push((*addr, PunishmentKind::ByzantineFault, maybe_jailed_until));
+                        set_staking(heap, staking, self.minimal_required_staking);
+                    }
                 }
+                // FIXME: else unreachable / panic?
             }
         }
 
@@ -636,16 +678,20 @@ impl StakingTable {
                 .get(addr)
                 .expect("idx_validator_address doesn't match heap");
             let val = staking
-                .validator
+                .node_meta
                 .as_ref()
                 .expect("validator value not exists");
-            assert!(
-                val_addr.clone() == val.validator_address()
-                    || val
-                        .used_validator_addresses
-                        .iter()
-                        .any(|(addr, _)| addr == val_addr)
-            );
+            if let NodeState::CouncilNode(val) = val {
+                assert!(
+                    val_addr.clone() == val.validator_address()
+                        || val
+                            .used_validator_addresses
+                            .iter()
+                            .any(|(addr, _)| addr == val_addr)
+                );
+            } else {
+                unreachable!("FIXME: is this correct for this dynamic check invariant?")
+            }
         }
         // addresses in idx_sort are unique
         assert_eq!(
@@ -670,14 +716,14 @@ impl StakingTable {
         for addr in self.idx_validator_address.values() {
             heap.get(addr)
                 .expect("idx_validator_address doesn't match heap")
-                .validator
+                .node_meta
                 .as_ref()
                 .expect("validator value not exists");
         }
         for key in self.idx_sort.iter() {
             heap.get(&key.address)
                 .expect("idx_sort doesn't match heap")
-                .validator
+                .node_meta
                 .as_ref()
                 .expect("validator value not exists");
         }
@@ -697,12 +743,18 @@ impl StakingTable {
     #[cfg(debug_assertions)]
     fn check_validator_invariant(&mut self, heap: &impl GetStaking) {
         for addr in self.idx_validator_address.values() {
-            heap.get(addr)
+            match heap
+                .get(addr)
                 .expect("idx_sort doesn't match heap")
-                .validator
+                .node_meta
                 .as_ref()
                 .expect("validator value not exists")
-                .check_invariants();
+            {
+                NodeState::CouncilNode(v) => {
+                    v.check_invariants();
+                }
+                _ => unreachable!("FIXME?"),
+            }
         }
     }
 
@@ -712,14 +764,10 @@ impl StakingTable {
         heap: &impl GetStaking,
         addr: &StakedStateAddress,
     ) -> TendermintValidatorPubKey {
-        heap.get(addr)
-            .unwrap()
-            .validator
-            .as_ref()
-            .unwrap()
-            .council_node
-            .consensus_pubkey
-            .clone()
+        match heap.get(addr).unwrap().node_meta.as_ref().unwrap() {
+            NodeState::CouncilNode(v) => v.council_node.consensus_pubkey.clone(),
+            _ => unreachable!("FIXME"),
+        }
     }
 
     /// get staking by staking address

@@ -4,7 +4,7 @@ mod default_network_ops_client;
 pub use self::default_network_ops_client::DefaultNetworkOpsClient;
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
-    CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
+    CouncilNodeMeta, StakedState, StakedStateAddress, StakedStateOpAttributes,
 };
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
@@ -81,7 +81,7 @@ pub trait NetworkOpsClient: Send + Sync {
         enckey: &SecKey,
         staking_account_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
-        node_metadata: CouncilNode,
+        node_metadata: CouncilNodeMeta,
         verify_staking: bool,
     ) -> Result<TxAux>;
 

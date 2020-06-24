@@ -65,8 +65,7 @@ else:
     # already jailed
     slashed = int(init_bonded * 0.2)
     assert last_bonded == bonded_rewarded - slashed, 'incorrect bonded: %s' % last_bonded
-
-assert state['validator']['jailed_until'] is not None
+assert state['node_meta']['CouncilNode']['jailed_until'] is not None
 stop_node(supervisor, 'node1')
 
 # wait for reward period, for second reward distribution

@@ -14,7 +14,7 @@ use chain_core::init::config::{
     JailingParameters, RewardsParameters, SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
-    DepositBondTx, StakedState, StakedStateAddress, StakedStateDestination,
+    DepositBondTx, NodeState, StakedState, StakedStateAddress, StakedStateDestination,
     StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::{
@@ -509,11 +509,14 @@ fn get_block_proposer(app: &ChainNodeApp<MockClient>) -> TendermintValidatorAddr
         .unwrap()
         .0;
 
-    get_account(staking_address, app)
+    match get_account(staking_address, app)
         .unwrap()
-        .validator
+        .node_meta
         .unwrap()
-        .validator_address()
+    {
+        NodeState::CouncilNode(v) => v.validator_address(),
+        _ => unreachable!(),
+    }
 }
 
 fn begin_block(app: &mut ChainNodeApp<MockClient>) {
@@ -998,7 +1001,7 @@ fn all_valid_tx_types_should_commit() {
     let nodejointx = TxAux::PublicTx(TxPublicAux::NodeJoinTx(tx, witness));
     {
         let account = get_account(&addr, &app).expect("account not exist");
-        assert!(account.validator.is_none());
+        assert!(account.node_meta.is_none());
         assert_eq!(
             app.last_state
                 .as_ref()
@@ -1013,7 +1016,7 @@ fn all_valid_tx_types_should_commit() {
     block_commit(&mut app, nodejointx, 5);
     {
         let account = get_account(&addr, &app).expect("account not exist");
-        assert!(account.validator.is_some());
+        assert!(account.node_meta.is_some());
         assert_eq!(
             app.last_state
                 .as_ref()

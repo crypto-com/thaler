@@ -22,9 +22,9 @@ use chain_core::init::config::{
     SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
-    ConfidentialInit, CouncilNode, StakedState, StakedStateAddress, StakedStateDestination,
-    StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, Validator as ChainValidator,
-    ValidatorName, ValidatorSecurityContact,
+    ConfidentialInit, CouncilNodeMeta, NodeMetadata, NodeName, NodeSecurityContact, NodeState,
+    StakedState, StakedStateAddress, StakedStateDestination, StakedStateOpAttributes,
+    StakedStateOpWitness, UnbondTx, Validator as ChainValidator,
 };
 use chain_core::state::tendermint::{
     TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
@@ -65,7 +65,10 @@ pub fn get_validator(
     account_address: &StakedStateAddress,
     app: &ChainNodeApp<MockClient>,
 ) -> ChainValidator {
-    get_account(account_address, app).validator.unwrap()
+    match get_account(account_address, app).node_meta {
+        Some(NodeState::CouncilNode(v)) => v,
+        _ => unreachable!(),
+    }
 }
 
 pub fn get_ecdsa_witness<C: Signing>(
@@ -111,8 +114,17 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
     }
 }
 
-pub fn mock_council_node(consensus_pubkey: TendermintValidatorPubKey) -> CouncilNode {
-    CouncilNode::new_with_details(
+pub fn mock_council_node(consensus_pubkey: TendermintValidatorPubKey) -> NodeMetadata {
+    NodeMetadata::new_council_node_with_details(
+        "no-name".to_string(),
+        None,
+        consensus_pubkey,
+        mock_confidential_init(),
+    )
+}
+
+pub fn mock_council_node_meta(consensus_pubkey: TendermintValidatorPubKey) -> CouncilNodeMeta {
+    CouncilNodeMeta::new_with_details(
         "no-name".to_string(),
         None,
         consensus_pubkey,
@@ -131,8 +143,8 @@ pub fn get_nodes(
 ) -> BTreeMap<
     RedeemAddress,
     (
-        ValidatorName,
-        ValidatorSecurityContact,
+        NodeName,
+        NodeSecurityContact,
         TendermintValidatorPubKey,
         ConfidentialInit,
     ),
@@ -191,7 +203,7 @@ pub struct ChainEnv {
     pub timestamp: Timestamp,
     pub init_config: InitConfig,
     pub max_evidence_age: Timespec,
-    pub council_nodes: Vec<(StakedStateAddress, CouncilNode)>,
+    pub council_nodes: Vec<(StakedStateAddress, CouncilNodeMeta)>,
 
     pub accounts: Vec<Account>,
 }
@@ -289,7 +301,7 @@ impl ChainEnv {
             nonce,
             self.accounts[account_index].staking_address(),
             StakedStateOpAttributes::new(0),
-            self.council_nodes[account_index].1.clone(),
+            NodeMetadata::CouncilNode(self.council_nodes[account_index].1.clone()),
         );
         let secp = Secp256k1::new();
         let witness = StakedStateOpWitness::new(get_ecdsa_witness(

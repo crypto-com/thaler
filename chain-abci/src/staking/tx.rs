@@ -2,7 +2,9 @@ use log::warn;
 
 use chain_core::common::Timespec;
 use chain_core::init::coin::Coin;
-use chain_core::state::account::{StakedStateAddress, UnbondTx, UnjailTx, Validator};
+use chain_core::state::account::{
+    NodeMetadata, NodeState, StakedStateAddress, UnbondTx, UnjailTx, Validator,
+};
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::fee::Fee;
@@ -38,11 +40,12 @@ impl StakingTable {
         let isv_svn = if cfg!(feature = "mock-enclave") {
             0
         } else {
-            let keypackage = KeyPackage::read_bytes(&tx.node_meta.confidential_init.keypackage)
+            let keypackage = KeyPackage::read_bytes(&tx.get_keypackage_payload())
                 .ok_or(NodeJoinError::KeyPackageDecodeError)?;
             let info = keypackage
                 .verify(&*ENCLAVE_CERT_VERIFIER, block_time)
                 .map_err(NodeJoinError::KeyPackageVerifyError)?;
+            // FIXME: more tdbe-related checks that may be observable by abci -- e.g. key not in the mls tree already
             info.quote.report_body.isv_svn
         };
 
@@ -53,8 +56,13 @@ impl StakingTable {
             recent_isv_svn
         };
 
-        let val_addr = TendermintValidatorAddress::from(&tx.node_meta.consensus_pubkey);
-        if let Some(val) = &mut staking.validator {
+        let val_addr = match &tx.node_meta {
+            NodeMetadata::CouncilNode(cm) => {
+                Ok(TendermintValidatorAddress::from(&cm.consensus_pubkey))
+            }
+            _ => Err(NodeJoinError::WIPNotValidator),
+        }?;
+        if let Some(NodeState::CouncilNode(val)) = &mut staking.node_meta {
             if val.is_jailed() {
                 return Err(NodeJoinError::IsJailed.into());
             }
@@ -86,7 +94,10 @@ impl StakingTable {
                     }
                     self.idx_validator_address.insert(val_addr, tx.address);
                 }
-                val.council_node = tx.node_meta.clone();
+                val.council_node = match &tx.node_meta {
+                    NodeMetadata::CouncilNode(cm) => cm.clone(),
+                    _ => unreachable!("FIXME"),
+                };
                 val.inactive_time = None;
                 val.inactive_block = None;
             } else {
@@ -98,8 +109,16 @@ impl StakingTable {
             }
 
             // insert
-            staking.validator = Some(Validator::new(tx.node_meta.clone()));
-            self.insert_validator(&staking);
+            staking.node_meta = match &tx.node_meta {
+                NodeMetadata::CouncilNode(cm) => {
+                    Some(NodeState::CouncilNode(Validator::new(cm.clone())))
+                }
+                _ => {
+                    // FIXME
+                    None
+                }
+            };
+            self.insert_validator(&staking).expect("new validator");
         }
         staking.inc_nonce();
         set_staking(heap, staking, self.minimal_required_staking);
@@ -122,7 +141,7 @@ impl StakingTable {
             return Err(PublicTxError::IncorrectNonce);
         }
 
-        if let Some(val) = staking.validator.as_mut() {
+        if let Some(NodeState::CouncilNode(val)) = staking.node_meta.as_mut() {
             if let Some(jailed_until) = val.jailed_until {
                 if block_time >= jailed_until {
                     val.unjail();

@@ -1,6 +1,6 @@
 [package]
 name = "chain-tx-validation"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Library with functions that verify, given current chain state's data, if a transaction is valid."
 readme = "../README.md"
