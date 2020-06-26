@@ -1168,7 +1168,7 @@ where
         let sync_state = if let Some(sync_state) = mstate {
             sync_state
         } else {
-            get_genesis_sync_state(&self.tendermint_client)?
+            get_genesis_sync_state(&self.tendermint_client, true)?
         };
         Ok(sync_state)
     }
