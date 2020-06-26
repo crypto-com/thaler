@@ -120,7 +120,9 @@ fn create_encoded_signed_withdraw(
             ),
         )
     })?;
-    let staked_state = mstaking.err_kind(ErrorKind::InvalidInput, || "staking not found")?;
+    let staked_state = mstaking.err_kind(ErrorKind::InvalidInput, || {
+        "staking address not found, sync to the latest and check staking address is correct"
+    })?;
     let access_policies = viewkeys
         .iter()
         .map(|s| {
@@ -233,7 +235,9 @@ fn query_staked_state(from_address: &CroAddress, tendermint_url: &str) -> Result
             ),
         )
     })?;
-    mstaking.err_kind(ErrorKind::InvalidInput, || "staking not found")
+    mstaking.err_kind(ErrorKind::InvalidInput, || {
+        "staking address not found, sync to the latest and check staking address is correct"
+    })
 }
 
 /// staked -> utxo
