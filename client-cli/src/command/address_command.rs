@@ -11,7 +11,7 @@ use crate::{ask_hardware_kind, ask_seckey};
 use chain_core::tx::data::address::ExtendedAddr;
 use client_core::types::WalletKind;
 
-const ADDRESS_TYPE_VARIANTS: [&str; 2] = ["transfer", "staking"];
+const ADDRESS_TYPE_VARIANTS: [&str; 3] = ["transfer", "transfer-watch", "staking"];
 
 #[derive(Debug)]
 pub enum AddressType {
@@ -138,10 +138,9 @@ impl AddressCommand {
                 Ok(())
             }
             AddressType::TransferWatch => {
-                let enckey = ask_seckey(None)?;
                 let public_key = ask_public_key(None)?;
                 let address =
-                    wallet_client.new_watch_staking_address(name, &enckey, &public_key)?;
+                    wallet_client.new_watch_transfer_address(name, &enckey, &public_key)?;
                 success(&format!("New watch transfer address: {}", address));
                 Ok(())
             }
