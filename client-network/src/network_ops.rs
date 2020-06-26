@@ -93,7 +93,9 @@ pub trait NetworkOpsClient: Send + Sync {
         verify: bool,
     ) -> Result<StakedState> {
         self.get_staking(name, address, verify)?
-            .err_kind(ErrorKind::InvalidInput, || "staking not found")
+            .err_kind(ErrorKind::InvalidInput, || {
+                "staking address not found, sync to the latest and check staking address is correct"
+            })
     }
 
     /// Returns staked stake corresponding to given address
