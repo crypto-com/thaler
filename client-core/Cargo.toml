@@ -45,7 +45,7 @@ indexmap = "1.4"
 [dev-dependencies]
 base58 = "0.1.0"
 hex = "0.4.2"
-ripemd160 = "0.8.0"
+ripemd160 = "0.9.1"
 test-common = { path = "../test-common" }
 
 [features]
