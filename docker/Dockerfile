@@ -22,12 +22,14 @@ COPY ./target/${BUILD_MODE}/chain-abci /usr/local/bin/
 COPY ./target/${BUILD_MODE}/client-rpc /usr/local/bin/
 COPY ./target/${BUILD_MODE}/dev-utils /usr/local/bin/
 # copy sgx binary file
-COPY ./target/${BUILD_MODE}/tx-query-app /usr/local/bin
-COPY ./target/${BUILD_MODE}/tx_query_enclave.signed.so /usr/local/bin
+COPY ./target/${BUILD_MODE}/tx-query2-app-runner /usr/local/bin
+COPY ./target/${BUILD_MODE}/tx-query2-enclave-app.sig /usr/local/bin
+COPY ./target/${BUILD_MODE}/tx-query2-enclave-app.sgxs /usr/local/bin
+COPY ./target/${BUILD_MODE}/ra-sp-server /usr/local/bin
 COPY ./target/${BUILD_MODE}/tx_validation_enclave.signed.so /usr/local/bin
 # copy scripts
 COPY ./docker/wait-for-it.sh /usr/local/bin
-COPY ci-scripts/run_tx_query.sh /usr/local/bin
+COPY ci-scripts/run_tx_query_next.sh /usr/local/bin
 COPY ci-scripts/run_chain_abci.sh /usr/local/bin
 
 # install sgx enclave pws 2.9
