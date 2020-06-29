@@ -19,7 +19,6 @@ typedef struct CroJsonRpc CroJsonRpc;
 
 typedef struct CroTx CroTx;
 
-typedef struct Option_ProgressCallback Option_ProgressCallback;
 
 typedef struct CroResult {
   int result;
@@ -46,6 +45,13 @@ typedef struct CroStakedState {
   uint64_t unbonded;
   uint64_t unbonded_from;
 } CroStakedState;
+
+/**
+ * current, start, end, userdata
+ * return: 1: continue, 0: stop
+ */
+typedef int32_t (*ProgressCallback)(uint64_t, uint64_t, uint64_t, const void*);
+typedef ProgressCallback Option_ProgressCallback;
 
 /**
  * create staking address
@@ -350,6 +356,8 @@ CroResult cro_jsonrpc_call(const char *storage_dir,
                            Option_ProgressCallback progress_callback,
                            const void *user_data);
 
+void cro_jsonrpc_call_dummy(ProgressCallback _progress_callback);
+
 /**
  * mock mode, only use for testing
  *
@@ -418,9 +426,9 @@ CroResult cro_tx_add_txin_deposit(CroDepositTxPtr tx_ptr,
  * # Safety
  */
 CroResult cro_tx_add_txin_raw(CroTxPtr tx_ptr,
-                              uint8_t txid[32],
+                              const uint8_t *txid_user,
                               uint16_t txindex,
-                              uint8_t addr[32],
+                              const uint8_t *addr_user,
                               uint64_t coin);
 
 /**
@@ -437,7 +445,7 @@ CroResult cro_tx_add_txout(CroTxPtr tx_ptr, const char *addr_string, uint64_t co
  * coin: value to send in carson unit , 1 carson= 0.0000_0001 cro
  * # Safety
  */
-CroResult cro_tx_add_txout_raw(CroTxPtr tx_ptr, uint8_t addr[32], uint64_t coin);
+CroResult cro_tx_add_txout_raw(CroTxPtr tx_ptr, const uint8_t *addr_user, uint64_t coin);
 
 /**
  * add viewkey in string, which you can get from client-cli
@@ -448,10 +456,10 @@ CroResult cro_tx_add_viewkey(CroTxPtr tx_ptr, const char *viewkey_string);
 
 /**
  * add viewkey in bytes
- * viewkey: 32 raw bytes
+ * viewkey: 33 raw bytes
  * # Safety
  */
-CroResult cro_tx_add_viewkey_raw(CroTxPtr tx_ptr, uint8_t viewkey[33]);
+CroResult cro_tx_add_viewkey_raw(CroTxPtr tx_ptr, const uint8_t *viewkey_user);
 
 /**
  * extract bytes from signed tx

@@ -90,13 +90,8 @@ pub fn create_transaction_change(
     let outputs = transaction.outputs().to_vec();
     let transaction_type = TransactionType::from(transaction);
     let inputs = decorate_inputs(wallet_state, transaction.inputs(), &transaction_id)?;
-    let balance_change = calculate_balance_change(
-        wallet,
-        &transaction_id,
-        &inputs,
-        &outputs,
-        &transaction_type,
-    )?;
+    let balance_change =
+        calculate_balance_change(wallet, &transaction_id, &inputs, &outputs, transaction_type)?;
 
     let transaction_change = TransactionChange {
         transaction_id,
@@ -180,7 +175,7 @@ fn calculate_balance_change<'a>(
     transaction_id: &'a TxId,
     inputs: &'a [TransactionInput],
     outputs: &'a [TxOut],
-    transaction_type: &TransactionType,
+    transaction_type: TransactionType,
 ) -> Result<BalanceChange, SyncerLogicError> {
     let encode_txid = || hex::encode(&transaction_id);
 
@@ -228,7 +223,7 @@ fn calculate_balance_change<'a>(
             }
         }
         Some(spent_outputs) => {
-            let value = if transaction_type == &TransactionType::Deposit {
+            let value = if TransactionType::Deposit == transaction_type {
                 sum_outputs(spent_outputs.iter().cloned())
                     .map_err(|_| SyncerLogicError::TotalOutputOutOfBound(encode_txid()))?
             } else {
