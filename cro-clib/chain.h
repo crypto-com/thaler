@@ -19,6 +19,7 @@ typedef struct CroJsonRpc CroJsonRpc;
 
 typedef struct CroTx CroTx;
 
+typedef struct Option_ProgressCallback Option_ProgressCallback;
 
 typedef struct CroResult {
   int result;
@@ -51,7 +52,6 @@ typedef struct CroStakedState {
  * return: 1: continue, 0: stop
  */
 typedef int32_t (*ProgressCallback)(uint64_t, uint64_t, uint64_t, const void*);
-typedef ProgressCallback Option_ProgressCallback;
 
 /**
  * create staking address
