@@ -12,5 +12,5 @@ pub mod tree;
 pub mod tree_math;
 pub mod utils;
 
-pub use keypackage::{KeyPackage, OwnedKeyPackage};
+pub use keypackage::{KeyPackage, KeyPackageSecret};
 pub use rustls::internal::msgs::codec::{self, Codec, Reader};

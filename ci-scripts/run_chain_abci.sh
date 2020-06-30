@@ -22,4 +22,4 @@ chain-abci \
     --genesis_app_hash ${APP_HASH} \
     --host 0.0.0.0 \
     --port 26658 \
-    --tx_query ${PREFIX}sgx-query:26651
+    --tx_query ${PREFIX}sgx-query-next:26651

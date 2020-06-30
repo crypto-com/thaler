@@ -92,8 +92,8 @@ IMAGE_RUST             = cryptocom/chain
 IMAGE_TENDERMINT       = tendermint/tendermint:v0.33.4
 DOCKER_FILE            = docker/Dockerfile
 DOCKER_FILE_RELEASE    = docker/Dockerfile.release
-ITEMS_START            = sgx-query chain-abci tendermint client-rpc
-ITEMS_STOP             = client-rpc tendermint chain-abci sgx-query
+ITEMS_START            = sgx-query-next chain-abci tendermint client-rpc
+ITEMS_STOP             = client-rpc tendermint chain-abci sgx-query-next
 
 create-path:
 	mkdir -p ${HOME}/.cargo/{git,registry}
@@ -167,20 +167,54 @@ build-chain:
 			cd ../client-rpc/server && $(CARGO_BUILD_CMD_CLI)'; \
 	fi
 
-# build the enclave queury binary
-build-sgx-query:
-	@echo "\033[32mcompile sgx query\033[0m"; \
+# build the enclave queury-next binary and sig
+build-sgx-query-next:
+	@echo "\033[32mcompile sgx query-next\033[0m"; \
 	docker run -i --rm \
 		-v ${HOME}/.cargo/git:/root/.cargo/git \
 		-v ${HOME}/.cargo/registry:/root/.cargo/registry \
 		-v `pwd`:/chain \
 		--env SGX_MODE=$(SGX_MODE) \
-		--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3 \
+		--env CFLAGS=-gz=none \
+		--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul \
 		--workdir=/chain \
 		$(IMAGE_RUST):latest \
-		bash -c ". /root/.docker_bashrc && \
-		$(CARGO_BUILD_CMD) -p tx-query-app && \
-		make -C chain-tx-enclave/tx-query $(SGX_ARGS)"
+		bash -c '. /root/.docker_bashrc && \
+		rustup target add x86_64-fortanix-unknown-sgx && \
+		echo "========  tx-query2-enclave-app   =========" && \
+		$(CARGO_BUILD_CMD) --target=x86_64-fortanix-unknown-sgx -p tx-query2-enclave-app && \
+		echo "========  tx-query2-app-runner   =========" && \
+		$(CARGO_BUILD_CMD) -p tx-query2-app-runner && \
+		echo "========  ra-sp-server   =========" && \
+		$(CARGO_BUILD_CMD) -p ra-sp-server && \
+		echo "========  fortanix-sgx-tools sgxs-tools   =========" && \
+		cargo install fortanix-sgx-tools sgxs-tools && \
+		echo "========  ftxsgx-elf2sgxs   =========" && \
+		ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-query2-enclave-app --output ./target/$(build_mode)/tx-query2-enclave-app.sgxs --heap-size 0x2000000 --stack-size 0x80000 --threads 6 --debug && \
+		echo "========  sgxs-sign  =========" && \
+		sgxs-sign --key ./chain-tx-enclave/tx-query/enclave/Enclave_private.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
+
+build-mls:
+	@echo "\033[32mcompile mls\033[0m"; \
+	docker run -i --rm \
+		-v ${HOME}/.cargo/git:/root/.cargo/git \
+		-v ${HOME}/.cargo/registry:/root/.cargo/registry \
+		-v `pwd`:/chain \
+		--env SGX_MODE=$(SGX_MODE) \
+		--env CFLAGS=-gz=none \
+		--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul \
+		--workdir=/chain \
+		$(IMAGE_RUST):latest \
+		bash -c '. /root/.docker_bashrc && \
+		rustup target add x86_64-fortanix-unknown-sgx && \
+		echo "========  mls   =========" && \
+		$(CARGO_BUILD_CMD) --target=x86_64-fortanix-unknown-sgx -p mls && \
+		echo "========  fortanix-sgx-tools sgxs-tools   =========" && \
+		cargo install fortanix-sgx-tools sgxs-tools && \
+		echo "========  ftxsgx-elf2sgxs   =========" && \
+		ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/mls --stack-size 0x40000 --heap-size 0x20000000 --threads 1 && \
+		echo "========  sgxs-sign  =========" && \
+		sgxs-sign --key ./chain-tx-enclave/tx-query/enclave/Enclave_private.pem ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/mls.sgxs ./target/$(build_mode)/mls.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
 
 # build the enclave validation binary 
 build-sgx-validation:
@@ -209,15 +243,15 @@ rm-network:
 	@echo "\033\[32mremove network ${NETWORK}\033[0m"
 	docker network rm $(NETWORK)
 
-run-sgx-query:
-	@if [ "${SPID}x" = "x" ] || [ "${IAS_API_KEY}x" = "x" ]; then \
+run-sgx-query-next:
+	if [ "${SPID}x" = "x" ] || [ "${IAS_API_KEY}x" = "x" ]; then \
 		echo "environment SPID and IAS_API_KEY should be set"; \
 	else \
-		echo "\033[32mrun docker sgx query\033[0m"; \
+		echo "\033[32mrun docker sgx query-next\033[0m"; \
 		docker run -d \
 		--net $(NETWORK) \
 		--restart=always \
-		--name $(prefix)sgx-query \
+		--name $(prefix)sgx-query-next \
 		-e RUST_LOG=$(RUST_LOG) \
 		-e SGX_MODE=$(SGX_MODE) \
 		-e NETWORK_ID=$(NETWORK_ID) \
@@ -229,7 +263,7 @@ run-sgx-query:
 		-p $(TX_QUERY_PORT):26651 \
 		--workdir=/usr/local/bin \
 		$(IMAGE):$(TAG) \
-		bash ./run_tx_query.sh; \
+		bash ./run_tx_query_next.sh; \
 	fi
 
 run-abci:
@@ -286,7 +320,7 @@ run-client-rpc:
 	--websocket-url=ws://$(prefix)tendermint:26657/websocket \
 	--disable-fast-forward
 
-.PHONY: sgx-query chain-abci tendermint client-rpc
+.PHONY: sgx-query-next chain-abci tendermint client-rpc
 
 START = $(patsubst %, start-%, $(ITEMS_START))
 RESTART = $(patsubst %, restart-%, $(ITEMS_START))
@@ -308,7 +342,7 @@ rm-all:       $(REMOVE)
 restart-all:  $(RESTART)
 
 stop-sgx:
-	@echo "\033[32mstop $(prefix)sgx-query...\033[0m" && docker stop $(prefix)sgx-query || echo "sgx-query does not exist or stopped";
+	@echo "\033[32mstop $(prefix)sgx-query-next...\033[0m" && docker stop $(prefix)sgx-query-next || echo "sgx-query-next does not exist or stopped";
 
 stop-chain:
 	@echo "\033[32mstop $(prefix)chient-rpc...\033[0m" && docker stop $(prefix)client-rpc || echo "client-rpc does not exist";
@@ -348,9 +382,9 @@ clean:
 		bash -c ". /root/.docker_bashrc && cargo clean"
 
 prepare:    create-path install-sgx-driver init-tendermint
-build-sgx:  build-sgx-query build-chain build-sgx-validation
+build-sgx:  build-sgx-query-next build-chain build-sgx-validation
 build:      build-chain build-sgx
-run-sgx:    create-network run-sgx-query
+run-sgx:    create-network run-sgx-query-next
 run-chain:  create-network run-tendermint run-abci run-client-rpc
 run:        run-sgx run-chain
 
@@ -377,7 +411,7 @@ help:
 		prepare                prepare the environment\n\
 		image                  build the docker image\n\
 		build                  just build the chain and enclave binaery in docker\n\
-		run-sgx                docker run chain-abci and a sgx-query container\n\
+		run-sgx                docker run chain-abci and a sgx-query-next container\n\
 		run-chain              docker run chain-abci, tendermint and client-rpc container\n\
 		stop-all               docker stop all the container\n\
 		start-all              docker start all the container\n\

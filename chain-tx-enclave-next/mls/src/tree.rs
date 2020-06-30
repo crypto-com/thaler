@@ -272,11 +272,33 @@ pub struct Tree {
 }
 
 impl Tree {
+    pub fn new(kp: KeyPackage) -> Self {
+        Tree {
+            nodes: vec![Node::Leaf(Some(kp))],
+            cs: CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
+            my_pos: LeafSize(0),
+        }
+    }
+
     pub fn get_package(&self, leaf_index: LeafSize) -> Option<&KeyPackage> {
         match self.nodes[NodeSize::from_leaf_index(leaf_index).0] {
             Node::Leaf(ref kp) => kp.as_ref(),
             _ => panic!("invalid node type"),
         }
+    }
+
+    pub fn get_package_mut(&mut self, leaf_index: LeafSize) -> Option<&mut KeyPackage> {
+        match &mut self.nodes[NodeSize::from_leaf_index(leaf_index).0] {
+            Node::Leaf(kp) => kp.as_mut(),
+            _ => panic!("invalid node type"),
+        }
+    }
+
+    pub fn set_blank(&mut self, index: NodeSize) {
+        self.nodes[index.0] = match LeafSize::from_node_index(index) {
+            Some(_) => Node::Leaf(None),
+            None => Node::Parent(None),
+        };
     }
 
     /// Update keypackage of leaf node
@@ -286,6 +308,10 @@ impl Tree {
 
     pub fn get_my_package(&self) -> &KeyPackage {
         self.get_package(self.my_pos).expect("corrupted tree")
+    }
+
+    pub fn get_my_package_mut(&mut self) -> &mut KeyPackage {
+        self.get_package_mut(self.my_pos).expect("corrupted tree")
     }
 
     /// Update keypackage of my leaf node
@@ -386,18 +412,27 @@ impl Tree {
 
     pub fn update(
         &mut self,
-        add_proposals: &[MLSPlaintext],
-        update_proposals: &[MLSPlaintext],
-        remove_proposals: &[MLSPlaintext],
+        adds: &[Add],
+        updates: &[(LeafSize, Update)],
+        removes: &[Remove],
     ) -> Vec<(NodeSize, KeyPackage)> {
-        for _update in update_proposals.iter() {
-            // FIXME
+        // spec: draft-ietf-mls-protocol.md#update
+        for (sender, update) in updates.iter() {
+            self.set_package(*sender, update.key_package.clone());
+            for p in NodeSize::from_leaf_index(*sender).direct_path(self.leaf_len()) {
+                self.set_blank(p);
+            }
         }
-        for _remove in remove_proposals.iter() {
-            // FIXME
+        // spec: draft-ietf-mls-protocol.md#remove
+        for remove in removes.iter() {
+            let removed = NodeSize::from_leaf_index(LeafSize(remove.removed as usize));
+            self.set_blank(removed);
+            for p in removed.direct_path(self.leaf_len()) {
+                self.set_blank(p);
+            }
         }
-        let mut positions = Vec::with_capacity(add_proposals.len());
-        for add in add_proposals.iter() {
+        let mut positions = Vec::with_capacity(adds.len());
+        for add in adds.iter() {
             // position to add
             // "If necessary, extend the tree to the right until it has at least index + 1 leaves"
             let position = self.get_free_leaf_or_extend();
@@ -417,11 +452,51 @@ impl Tree {
             }
             // "Set the leaf node in the tree at position index to a new node containing the public key
             // from the KeyPackage in the Add, as well as the credential under which the KeyPackage was signed"
-            let leaf_node = Node::Leaf(add.get_add_keypackage());
+            let leaf_node = Node::Leaf(Some(add.key_package.clone()));
             self.nodes[position.0] = leaf_node;
-            positions.push((position, add.get_add_keypackage().expect("keypackage")));
+            positions.push((position, add.key_package.clone()));
         }
         positions
+    }
+
+    /// apply proposals and commit
+    pub fn apply_commit(
+        &mut self,
+        ctx: &[u8],
+        init_private_key: &HPKEPrivateKey,
+        commit: &CommitContent,
+    ) -> Result<SecretVec<u8>, ProcessCommitError> {
+        // check path populating condition
+        let should_populate_path =
+            (commit.additions.is_empty() && commit.updates.is_empty() && commit.removes.is_empty())
+                || !commit.updates.is_empty()
+                || !commit.removes.is_empty();
+        if should_populate_path && commit.commit.path.is_none() {
+            return Err(ProcessCommitError::CommitPathNotPopulated);
+        }
+
+        self.update(&commit.additions, &commit.updates, &commit.removes);
+        // "If the path value is populated: Process the path value..."
+        let commit_secret = if let Some(path) = &commit.commit.path {
+            let (leaf_parent_hash, commit_secret) =
+                self.apply_path_secrets(commit.sender, ctx, &path.nodes, init_private_key)?;
+            // Verify that the KeyPackage has a `parent_hash` extension and that its value
+            // matches the new parent of the sender's leaf node.
+            let ext = path
+                .leaf_key_package
+                .payload
+                .find_extension::<ext::ParentHashExt>()?;
+            if !bool::from(ext.0.ct_eq(&leaf_parent_hash)) {
+                return Err(ProcessCommitError::LeafParentHashDontMatch);
+            }
+
+            self.set_package(commit.sender, path.leaf_key_package.clone());
+            commit_secret
+        } else {
+            // "If the path value is not populated: ..."
+            SecretVec::new(vec![0; self.cs.hash_len()])
+        };
+        Ok(commit_secret)
     }
 
     fn node_hash(&self, index: NodeSize) -> Vec<u8> {
@@ -596,7 +671,7 @@ impl Tree {
     /// find the overlap parent node, decrypt the secret and implant it
     ///
     /// returns (leaf_parent_hash, commit_secret)
-    pub fn apply_path_secrets(
+    fn apply_path_secrets(
         &mut self,
         sender: LeafSize,
         ctx: &[u8],
