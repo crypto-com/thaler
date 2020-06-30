@@ -1,8 +1,14 @@
 #!/bin/bash
 set -e
 
+if [[ ! -z "$TX_QUERY_HOSTNAME" ]]; then
+  PREFIX=""
+fi
+TX_QUERY_HOSTNAME=${TX_QUERY_HOSTNAME:-"sgx-query-next"}
+
 echo "[Config] SGX_MODE=${SGX_MODE}"
 echo "[Config] NETWORK_ID=${NETWORK_ID}"
+echo "[Config] TX_QUERY_HOSTNAME=${TX_QUERY_HOSTNAME}"
 
 if [ x"${SGX_MODE}" == "xHW" ]; then
   mkdir -p /var/run/aesmd/
@@ -22,4 +28,4 @@ chain-abci \
     --genesis_app_hash ${APP_HASH} \
     --host 0.0.0.0 \
     --port 26658 \
-    --tx_query ${PREFIX}sgx-query-next:26651
+    --tx_query ${PREFIX}${TX_QUERY_HOSTNAME}:26651
