@@ -587,7 +587,7 @@ impl CommitContent {
         commit: &MLSPlaintext,
         proposals: &[MLSPlaintext],
     ) -> Result<Self, ()> {
-        let sender = LeafSize(commit.content.sender.sender as usize);
+        let sender = LeafSize(commit.content.sender.sender);
         let (commit, confirmation) = match &commit.content.content {
             ContentType::Commit {
                 commit,
@@ -600,12 +600,10 @@ impl CommitContent {
 
         // "Verify that the path value is populated if either of the updates or removes vectors has length greater than zero
         // all of the updates, removes, and adds vectors are empty."
-        if commit.path.is_none()
-            && ((!commit.updates.is_empty() || !commit.removes.is_empty())
-                || (commit.adds.is_empty()
-                    && commit.updates.is_empty()
-                    && commit.removes.is_empty()))
-        {
+        let has_update_or_remove = !commit.updates.is_empty() || !commit.removes.is_empty();
+        let dont_has_proposal =
+            commit.adds.is_empty() && commit.updates.is_empty() && commit.removes.is_empty();
+        if (has_update_or_remove || dont_has_proposal) && commit.path.is_none() {
             return Err(());
         }
 
@@ -633,7 +631,7 @@ impl CommitContent {
                     .and_then(|p| {
                         p.get_update()
                             .cloned()
-                            .map(|update| (LeafSize(p.content.sender.sender as usize), update))
+                            .map(|update| (LeafSize(p.content.sender.sender), update))
                     })
                     .ok_or(())
             })
