@@ -110,7 +110,13 @@ def init_wallet():
     # create test wallet
     wallet_receiver = Wallet("receiver", PASSPHRASE)
     wallet_receiver.new("basic")
-    return wallet_sender, wallet_receiver
+
+    # create a mock hw wallet
+    wallet_hw = Wallet("hw", PASSPHRASE)
+    wallet_hw.new("hw")
+    return wallet_sender, wallet_receiver, wallet_hw
+
+
 
 def withdraw_transactions(wallet, staking_address):
     # test withdraw all unbounded
@@ -120,7 +126,7 @@ def withdraw_transactions(wallet, staking_address):
     while i < 30:
         wallet.sync()
         balance = wallet.balance
-        if balance["available"] >0:
+        if balance["available"] > 0:
             break
         time.sleep(1)
     assert balance["available"] == 500000000000000000
@@ -145,22 +151,22 @@ def deposit_to_self_address_transaction(wallet, staking_address, amount_cro):
     wallet_balance_end = wallet.balance
     assert wallet_balance_begin["available"] == wallet_balance_end["available"] + amount_cro * CRO
 
-def transfer_to_other_wallet(wallet_sender, wallet_receiver, amount_cro):
+def transfer_to_other_wallet(wallet_sender, wallet_receiver, amount_cro, sender_hardware=None, receiver_hardware=None):
     balance_sender_begin = wallet_sender.balance
     balance_receiver_begin = wallet_receiver.balance
-    tx = Transaction(wallet_sender)
+    tx = Transaction(wallet_sender, sender_hardware)
     view_keys = [wallet_receiver.view_key()]
-    tx.transfer(wallet_receiver.create_address(), amount_cro, view_keys=view_keys)
+    tx.transfer(wallet_receiver.create_address("transfer", receiver_hardware), amount_cro, view_keys=view_keys)
     balance_sender = wallet_sender.balance
     assert balance_sender["pending"] > 0
     assert balance_sender["total"] == balance_sender_begin["total"] - amount_cro * CRO
     t = 0
     while t < 30 and balance_sender["pending"] > 0:
         time.sleep(1)
-        wallet_sender.sync()
+        wallet_sender.sync(disable_fast_forward=True)
         balance_sender = wallet_sender.balance
         t += 1
-    wallet_receiver.sync()
+    wallet_receiver.sync(disable_fast_forward=True)
     balance_receiver = wallet_receiver.balance
     assert balance_sender["total"] == balance_sender_begin["total"] - amount_cro * CRO
     assert balance_receiver["total"] == balance_receiver_begin["total"] + amount_cro * CRO
@@ -168,7 +174,7 @@ def transfer_to_other_wallet(wallet_sender, wallet_receiver, amount_cro):
 @pytest.mark.zerofee
 def test_transaction():
     os.environ['CRYPTO_CLIENT_TENDERMINT'] = 'ws://localhost:26667/websocket'
-    wallet_sender, wallet_receiver = init_wallet()
+    wallet_sender, wallet_receiver, wallet_hw = init_wallet()
     # 1. withraw all balance from staking address
     self_staking_address = "0x5e7e1e79d80b861a94598c721598951098dd3825"
     withdraw_transactions(wallet_sender, self_staking_address)
@@ -176,6 +182,9 @@ def test_transaction():
     deposit_to_self_address_transaction(wallet_sender, self_staking_address, 10000)
     # 3. test transfer to other wallet
     transfer_to_other_wallet(wallet_sender, wallet_receiver, 10000)
+    # 4. test mock hw wallet
+    transfer_to_other_wallet(wallet_sender, wallet_hw, 10000, receiver_hardware="mock")
+    transfer_to_other_wallet(wallet_hw, wallet_sender, 5000, sender_hardware="mock")
 
 
 

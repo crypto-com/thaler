@@ -1,12 +1,10 @@
 use crate::hd_wallet::KeyChain;
 use crate::hd_wallet::{ChainPath, DefaultKeyChain, ExtendedPrivKey};
 use crate::service::hw_key_service::HardwareWalletAction;
-use crate::service::{HDAccountType, HdKey};
 use crate::{HDSeed, Mnemonic};
 use client_common::{
     Error, ErrorKind, PrivateKey, PrivateKeyAction, PublicKey, Result, ResultExt, Transaction,
 };
-use parity_scale_codec::alloc::collections::BTreeMap;
 use protocol::{get_data_from_stream, send_data_to_stream, Decode, Encode, Request, Response};
 use secp256k1::recovery::RecoverableSignature;
 use secp256k1::schnorrsig::SchnorrSignature;
@@ -70,8 +68,7 @@ impl PrivateKeyAction for MockHardwareKey {
 #[derive(Debug, Clone)]
 pub struct MockHardwareWallet {
     address: SocketAddr,
-    hd_key: HdKey,
-    hdpath_pubkey_pair: BTreeMap<String, PublicKey>,
+    hd_seed: HDSeed,
 }
 
 impl Default for MockHardwareWallet {
@@ -86,16 +83,9 @@ impl Default for MockHardwareWallet {
         let w = "ordinary mandate edit father snack mesh history identify print borrow skate unhappy cattle tiny first".into();
         let mnemonic = Mnemonic::from_secstr(&w).unwrap();
         let hd_seed = HDSeed::from(&mnemonic);
-        let hd_key = HdKey {
-            staking_index: 0,
-            transfer_index: 0,
-            viewkey_index: 0,
-            seed: hd_seed,
-        };
         Self {
-            hd_key,
             address: socket_address,
-            hdpath_pubkey_pair: BTreeMap::default(),
+            hd_seed,
         }
     }
 }
@@ -106,14 +96,10 @@ impl MockHardwareWallet {
         Self::default()
     }
 
-    fn create_hd_path(account_type: HDAccountType, index: u32) -> String {
-        format!("m/44'/1'/{}'/0/{}", account_type.index(), index)
-    }
-
     fn get_private_key(&self, hd_path: &str) -> Result<PrivateKey> {
         let chain_path = ChainPath::from(hd_path);
         let key_chain = DefaultKeyChain::new(
-            ExtendedPrivKey::with_seed(&self.hd_key.seed.bytes)
+            ExtendedPrivKey::with_seed(&self.hd_seed.bytes)
                 .chain(|| (ErrorKind::InternalError, "Invalid seed bytes"))?,
         );
 
@@ -129,48 +115,15 @@ impl MockHardwareWallet {
     }
 
     fn get_public_key(&self, hd_path: &str) -> Result<PublicKey> {
-        log::info!("request to get a public key");
-        match self.hdpath_pubkey_pair.get(hd_path) {
-            None => Err(Error::new(
-                ErrorKind::InvalidInput,
-                "can not find public key",
-            )),
-            Some(pub_key) => Ok(pub_key.clone()),
-        }
-    }
-
-    fn get_hd_path(&self, public_key: &PublicKey) -> Result<String> {
-        log::info!("request to get the hd path");
-        for (hd_path, pub_key) in self.hdpath_pubkey_pair.iter() {
-            log::debug!("public_key: {:?}", pub_key);
-            if public_key == pub_key {
-                return Ok(hd_path.clone());
-            }
-        }
-        Err(Error::new(ErrorKind::InvalidInput, "can not find hd_path"))
-    }
-
-    fn create_transfer_address(&mut self) -> Result<Response> {
-        log::info!("request for a new transfer address");
-        let account_type = HDAccountType::Transfer;
-        self.hd_key.transfer_index += 1;
-        let hd_path = Self::create_hd_path(account_type, self.hd_key.transfer_index);
-        let private_key = self.get_private_key(&hd_path)?;
-        let public_key = PublicKey::from(&private_key);
-        self.hdpath_pubkey_pair.insert(hd_path, public_key.clone());
-        log::info!("public_key: {:?}", public_key);
-        Ok(Response::NewTransferAddr(public_key))
-    }
-
-    fn create_staking_address(&mut self) -> Result<Response> {
-        log::info!("request for a new staking address");
-        let account_type = HDAccountType::Staking;
-        self.hd_key.staking_index += 1;
-        let hd_path = Self::create_hd_path(account_type, self.hd_key.staking_index);
-        let private_key = self.get_private_key(&hd_path)?;
-        let public_key = PublicKey::from(&private_key);
-        self.hdpath_pubkey_pair.insert(hd_path, public_key.clone());
-        Ok(Response::NewStakingAddr(public_key))
+        log::info!("request to get a public key, hd_path is: {}", hd_path);
+        let private_key = self.get_private_key(hd_path)?;
+        let public_key = private_key.public_key().chain(|| {
+            (
+                ErrorKind::InternalError,
+                "Failed to get publickey from private key",
+            )
+        })?;
+        Ok(public_key)
     }
 
     fn sign_tx(&self, tx: &Transaction, hd_path: &str) -> Result<Response> {
@@ -196,15 +149,8 @@ impl MockHardwareWallet {
                 let public_key = self.get_public_key(&hd_path)?;
                 Response::PublicKey(public_key)
             }
-            Request::NewTransferAddr => self.create_transfer_address()?,
-            Request::NewStakingAddr => self.create_staking_address()?,
             Request::SignTx((tx, hd_path_str)) => self.sign_tx(&tx, &hd_path_str)?,
             Request::SchnorrSignTx((tx, hd_path_str)) => self.schnorr_sign_tx(&tx, &hd_path_str)?,
-            Request::GetHdPath(pub_key) => {
-                let hd_path = self.get_hd_path(&pub_key)?;
-                log::info!("get hd path: {}", hd_path);
-                Response::HdPath(hd_path)
-            }
         };
         Ok(response)
     }
@@ -244,6 +190,7 @@ impl MockHardwareWallet {
 #[derive(Clone, Debug)]
 pub struct MockHardwareService {
     server_address: SocketAddr,
+    require_confirmation: bool,
 }
 
 impl Default for MockHardwareService {
@@ -255,7 +202,10 @@ impl Default for MockHardwareService {
         let server_address = format!("127.0.0.1:{}", server_port)
             .parse()
             .expect("invalid mock hardware wallet tcp server address");
-        Self { server_address }
+        Self {
+            server_address,
+            require_confirmation: false,
+        }
     }
 }
 
@@ -276,37 +226,19 @@ impl MockHardwareService {
 }
 
 impl HardwareWalletAction for MockHardwareService {
-    fn new_transfer_address(&self) -> Result<PublicKey> {
-        let request = Request::NewTransferAddr;
+    fn get_public_key(&self, chain_path: ChainPath) -> Result<PublicKey> {
+        let request = Request::GetPublicKey(chain_path.into_string());
         let response = self.send(&request)?;
         match response {
-            Response::NewTransferAddr(pub_key) => Ok(pub_key),
-            _ => unreachable!(),
+            Response::PublicKey(pubkey) => Ok(pubkey),
+            _other => unreachable!(),
         }
     }
 
-    fn new_staking_address(&self) -> Result<PublicKey> {
-        let request = Request::NewStakingAddr;
-        let response = self.send(&request)?;
-        match response {
-            Response::NewStakingAddr(pub_key) => Ok(pub_key),
-            other => {
-                log::error!("get unexpected response: {:?}", other);
-                unreachable!()
-            }
-        }
-    }
-
-    fn get_sign_key(&self, public_key: &PublicKey) -> Result<Box<dyn PrivateKeyAction>> {
-        let request = Request::GetHdPath(public_key.clone());
-        let response = self.send(&request)?;
-        let hd_path = match response {
-            Response::HdPath(hd_path) => hd_path,
-            _ => unreachable!(),
-        };
+    fn get_sign_key(&self, hd_path: &ChainPath) -> Result<Box<dyn PrivateKeyAction>> {
         let hw_key = MockHardwareKey {
             server_addr: self.server_address,
-            hd_path,
+            hd_path: hd_path.clone().into_string(),
         };
         Ok(Box::new(hw_key))
     }
@@ -321,12 +253,9 @@ mod protocol {
 
     #[derive(Debug, Serialize, Deserialize)]
     pub enum Request {
-        NewStakingAddr,
-        NewTransferAddr,
         SignTx((Transaction, String)),
         SchnorrSignTx((Transaction, String)),
         GetPublicKey(String),
-        GetHdPath(PublicKey),
     }
 
     #[derive(Debug, Serialize, Deserialize)]

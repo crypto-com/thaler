@@ -1,14 +1,16 @@
 use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode, Input, Output};
 
-use crate::service::{load_wallet_state, WalletState};
+use crate::hd_wallet::ChainPath;
+use crate::service::{load_wallet_state, HdKey, WalletState};
 use crate::types::WalletKind;
 use chain_core::common::H256;
 use chain_core::init::address::RedeemAddress;
 use chain_core::state::account::StakedStateAddress;
 use chain_core::tx::data::address::ExtendedAddr;
 use client_common::{
-    Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SecKey, SecureStorage, Storage,
+    Error, ErrorKind, MultiSigAddress, PrivateKey, PublicKey, Result, ResultExt, SecKey,
+    SecureStorage, Storage,
 };
 use secstr::SecUtf8;
 use serde::de::{self, Visitor};
@@ -35,6 +37,10 @@ fn get_stakingkeyset_keyspace(name: &str) -> String {
 
 fn get_private_keyspace(name: &str) -> String {
     format!("{}_{}_privatekey", KEYSPACE, name)
+}
+
+fn get_hdpath_keyspace(name: &str) -> String {
+    format!("{}_{}_hdpath", KEYSPACE, name)
 }
 
 fn get_roothash_keyspace(name: &str) -> String {
@@ -109,9 +115,17 @@ pub struct WalletInfo {
     /// passphrase used when import wallet
     pub passphrase: Option<SecUtf8>,
     ///public_key -> encoded private_key pairs, private key is None for hardware wallet
-    pub key_pairs: BTreeMap<PublicKey, Option<Vec<u8>>>,
+    #[serde(deserialize_with = "deserde_from_str", serialize_with = "serde_to_str")]
+    pub key_pairs: BTreeMap<PublicKey, PrivateKey>,
+    /// public_key -> hd path pairs for hardware wallet
+    #[serde(deserialize_with = "deserde_from_str", serialize_with = "serde_to_str")]
+    pub key_chainpath: BTreeMap<PublicKey, String>,
+    /// hdkey for hd wallet and hw wallet
+    #[serde(deserialize_with = "deserde_from_str", serialize_with = "serde_to_str")]
+    pub hdkey: Option<HdKey>,
     /// hex encoded root_hash -> parity_scale_codec encoded multisig_address pairs
-    pub multisig_address_pair: BTreeMap<String, Vec<u8>>,
+    #[serde(deserialize_with = "deserde_from_str", serialize_with = "serde_to_str")]
+    pub multisig_address_pair: BTreeMap<String, MultiSigAddress>,
 }
 
 /// Wallet meta data
@@ -437,6 +451,28 @@ where
         }
     }
 
+    /// Finds ChainPath corresponding to given public_key
+    pub fn find_chain_path(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        public_key: &PublicKey,
+    ) -> Result<Option<ChainPath>> {
+        let chain_path_keyspace = get_hdpath_keyspace(name);
+
+        // key: public_key
+        // value: ChainPath
+        let value = self
+            .storage
+            .get_secure(chain_path_keyspace, public_key.serialize(), enckey)?;
+        if let Some(raw) = value {
+            let chain_path = ChainPath::decode(raw).map_err(|_| ErrorKind::DeserializationError)?;
+            Ok(Some(chain_path))
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Finds private_key corresponding to given public_key
     pub fn find_private_key(
         &self,
@@ -631,6 +667,24 @@ where
             private_keyspace,
             public_key.serialize(),
             private_key.serialize(),
+            enckey,
+        )?;
+        Ok(())
+    }
+
+    /// Adds a (public_key, hd_path) pair to given wallet
+    pub fn add_key_path(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        public_key: &PublicKey,
+        hd_path: &ChainPath,
+    ) -> Result<()> {
+        let hdpath_keyspace = get_hdpath_keyspace(name);
+        self.storage.set_secure(
+            hdpath_keyspace,
+            public_key.serialize(),
+            hd_path.clone().encode(),
             enckey,
         )?;
         Ok(())
@@ -892,6 +946,7 @@ mod test {
     fn test_wallet_info_serialize() {
         let public_key_1 = PublicKey::from(&PrivateKey::new().unwrap());
         let public_key_2 = PublicKey::from(&PrivateKey::new().unwrap());
+        let public_key_3 = PublicKey::from(&PrivateKey::new().unwrap());
         let mut staking_keys = IndexSet::new();
         staking_keys.insert(public_key_1.clone());
         staking_keys.insert(public_key_2.clone());
@@ -912,10 +967,15 @@ mod test {
         assert_eq!(wallet_2.wallet_kind, WalletKind::Basic);
 
         let mut key_pairs = BTreeMap::new();
-        key_pairs.insert(public_key_1, Some(vec![0]));
-        key_pairs.insert(public_key_2, None);
+        key_pairs.insert(public_key_1.clone(), PrivateKey::new().unwrap());
         let mut multisig_address_pair = BTreeMap::new();
-        multisig_address_pair.insert("0".into(), vec![0]);
+        let multisig_address =
+            MultiSigAddress::new(vec![public_key_1.clone(), public_key_2], public_key_1, 1)
+                .unwrap();
+        multisig_address_pair.insert("0".into(), multisig_address);
+
+        let mut key_chainpath = BTreeMap::new();
+        key_chainpath.insert(public_key_3, "m/44'/0'/0'/0/{}".into());
 
         let info = WalletInfo {
             name: "test".into(),
@@ -923,6 +983,8 @@ mod test {
             private_key: PrivateKey::new().unwrap(),
             passphrase: Some("abc".into()),
             key_pairs,
+            key_chainpath,
+            hdkey: Some(HdKey::default()),
             multisig_address_pair,
         };
         let s = serde_json::to_string(&info);

@@ -134,6 +134,8 @@ class Wallet():
         wallets_auth_token = [w.auth_token for w in wallet_list]
         cmd = ["client-cli", "wallet", "export", "-n", ",".join(wallets_name)]
         text = run(cmd, wallets_auth_token)
+        if "Error" in text:
+            raise Exception(text)
         info = ""
         start = False
         for line in text.splitlines():
@@ -212,9 +214,12 @@ class Wallet():
     return: the created address
     """
 
-    def create_address(self, address_type="transfer"):
+    def create_address(self, address_type="transfer", hardware_wallet_type=None):
         cmd = ["client-cli", "address", "new", "-t", address_type, "-n", self.name]
-        args = self.auth_token
+        if hardware_wallet_type:
+            args = [self.auth_token, hardware_wallet_type]
+        else:
+            args = self.auth_token
         text = run(cmd, args)
         last_line = text.splitlines()[-1]
         if "New address:" in last_line:
@@ -289,16 +294,20 @@ class Wallet():
         return text
 
 class Transaction:
-    def __init__(self, wallet):
+    def __init__(self, wallet, hardware=None):
         self.wallet = wallet
+        self.hardware = hardware
 
     """"
-    args: 
+    args:
         amount: in CRO amount
     """
     def unbond(self, staking_address, amount):
         amount = str(amount)
-        cmd = ["client-cli", "transaction", "new", "-t", "unbond", "-n", self.wallet.name]
+        if self.hardware:
+            cmd = ["client-cli", "transaction", "--hardware", self.hardware, "new", "-t", "unbond", "-n", self.wallet.name]
+        else:
+            cmd = ["client-cli", "transaction", "new", "-t", "unbond", "-n", self.wallet.name]
         args = [self.wallet.auth_token, staking_address, amount, "Y"]
         state = self.wallet.state(staking_address)
         if to_coin(amount) > state["bonded"]:
@@ -312,21 +321,33 @@ class Transaction:
         amount: in CRO amount
     """
     def withdraw(self, staking_address, transfer_address, time_lock = None, view_keys=[]):
-        cmd = ["client-cli", "transaction", "new", "-t", "withdraw", "-n", self.wallet.name]
+        if self.hardware:
+            cmd = ["client-cli", "transaction",  "--hardware", self.hardware, "new", "-t", "withdraw", "-n", self.wallet.name]
+        else:
+            cmd = ["client-cli", "transaction", "new", "-t", "withdraw", "-n", self.wallet.name]
         args = [self.wallet.auth_token, staking_address, transfer_address, ",".join(view_keys), "Y"]
         text = run(cmd, args)
         if "Error" in text:
             raise Exception(text)
+        return text
 
     def transfer(self, to_transfer_address, amount, lock_time = "", view_keys=[]):
-        cmd = ["client-cli", "transaction", "new", "-t", "transfer", "-n", self.wallet.name]
+        if self.hardware:
+            cmd = ["client-cli", "transaction",  "--hardware", self.hardware, "new", "-t", "transfer", "-n", self.wallet.name]
+        else:
+            cmd = ["client-cli", "transaction", "new", "-t", "transfer", "-n", self.wallet.name]
+
         args = [self.wallet.auth_token, to_transfer_address, str(amount), "Y", str(lock_time) if lock_time else '', "N", ",".join(view_keys)]
         text = run(cmd, args)
         if "Error" in text:
             raise Exception(text)
+        return text
 
     def deposit(self, to_staking_address, amount):
-        cmd = ["client-cli", "transaction", "new", "-t", "deposit", "-n", self.wallet.name]
+        if self.hardware:
+            cmd = ["client-cli", "transaction",  "--hardware", self.hardware, "new", "-t", "deposit", "-n", self.wallet.name]
+        else:
+            cmd = ["client-cli", "transaction", "new", "-t", "deposit", "-n", self.wallet.name]
         args = [self.wallet.auth_token, to_staking_address, str(amount), "Y"]
         text = run(cmd, args)
         if "Error" in text:

@@ -28,6 +28,7 @@ if [ $BUILD_MODE == "sgx" ]; then
     export CFLAGS="-gz=none"
 
     cargo build $CARGO_ARGS
+    cargo build $CARGO_ARGS --features mock-hardware-wallet --manifest-path client-cli/Cargo.toml
     make -C chain-tx-enclave/tx-validation
 
     # Add fortanix target and tools
@@ -49,7 +50,7 @@ if [ $BUILD_MODE == "sgx" ]; then
 
 else
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-rpc/server/Cargo.toml
-    cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-cli/Cargo.toml
+    cargo build $CARGO_ARGS --features mock-enclave,mock-hardware-wallet --manifest-path client-cli/Cargo.toml
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path dev-utils/Cargo.toml
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path chain-abci/Cargo.toml
     cargo build $CARGO_ARGS -p ra-sp-server

@@ -10,7 +10,7 @@ use crate::hd_wallet::{
 use crate::Mnemonic;
 
 /// Hierarchical Deterministic seed
-#[derive(Debug, Clone, PartialEq, Decode, Encode)]
+#[derive(Debug, Clone, PartialEq, Default, Decode, Encode)]
 pub struct HDSeed {
     /// raw data of HDSeed
     pub bytes: Vec<u8>,
@@ -44,10 +44,7 @@ impl HDSeed {
         account_index: u32,
         index: u32,
     ) -> Result<(PublicKey, PrivateKey)> {
-        let coin_type = get_bip44_coin_type_from_network(network);
-
-        let chain_path_string = format!("m/44'/{}'/{}'/0/{}", coin_type, account_index, index);
-        let chain_path = ChainPath::from(chain_path_string);
+        let chain_path = ChainPath::create_bip44(network, account_index, index);
         let key_chain = DefaultKeyChain::new(
             ExtendedPrivKey::with_seed(&self.bytes)
                 .chain(|| (ErrorKind::InternalError, "Invalid seed bytes"))?,
