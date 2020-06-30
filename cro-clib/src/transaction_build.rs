@@ -106,11 +106,15 @@ pub unsafe extern "C" fn cro_tx_add_txin(
 /// # Safety
 pub unsafe extern "C" fn cro_tx_add_txin_raw(
     tx_ptr: CroTxPtr,
-    txid: [u8; 32],
+    txid_user: *const u8, // 32 bytes
     txindex: u16,
-    addr: [u8; 32],
+    addr_user: *const u8, // 32 bytes
     coin: u64,
 ) -> CroResult {
+    let mut txid: [u8; 32] = [0; 32];
+    txid.copy_from_slice(std::slice::from_raw_parts(txid_user, 32));
+    let mut addr: [u8; 32] = [0; 32];
+    addr.copy_from_slice(std::slice::from_raw_parts(addr_user, 32));
     let tx = tx_ptr.as_mut().expect("get tx");
     let txin_pointer = TxoPointer::new(txid, txindex as usize);
     let txin = TxOut::new(
@@ -160,10 +164,15 @@ pub unsafe extern "C" fn cro_tx_add_viewkey(
 }
 
 /// add viewkey in bytes
-/// viewkey: 32 raw bytes
+/// viewkey: 33 raw bytes
 #[no_mangle]
 /// # Safety
-pub unsafe extern "C" fn cro_tx_add_viewkey_raw(tx_ptr: CroTxPtr, viewkey: [u8; 33]) -> CroResult {
+pub unsafe extern "C" fn cro_tx_add_viewkey_raw(
+    tx_ptr: CroTxPtr,
+    viewkey_user: *const u8, /* 33 bytes , compressed pubkey*/
+) -> CroResult {
+    let mut viewkey: [u8; 33] = [0; 33];
+    viewkey.copy_from_slice(std::slice::from_raw_parts(viewkey_user, 33));
     let tx = tx_ptr.as_mut().expect("get tx");
     let pubkey: secp256k1::PublicKey =
         secp256k1::PublicKey::from_slice(&viewkey).expect("get public key");
@@ -286,9 +295,12 @@ pub unsafe extern "C" fn cro_tx_add_txout(
 /// # Safety
 pub unsafe extern "C" fn cro_tx_add_txout_raw(
     tx_ptr: CroTxPtr,
-    addr: [u8; 32],
+    addr_user: *const u8, // 32 bytes
     coin: u64,
 ) -> CroResult {
+    let mut addr: [u8; 32] = [0; 32];
+    addr.copy_from_slice(std::slice::from_raw_parts(addr_user, 32));
+
     let tx = tx_ptr.as_mut().expect("get tx");
     let txout = TxOut::new(
         ExtendedAddr::OrTree(addr),

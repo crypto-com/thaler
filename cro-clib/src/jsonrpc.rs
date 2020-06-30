@@ -100,6 +100,10 @@ pub unsafe extern "C" fn cro_jsonrpc_call(
     }
 }
 
+// this function is dummy function to export function pointer
+#[no_mangle]
+pub extern "C" fn cro_jsonrpc_call_dummy(_progress_callback: ProgressCallback) {}
+
 /// mock mode, only use for testing
 ///
 /// # Safety
@@ -114,7 +118,7 @@ pub unsafe extern "C" fn cro_jsonrpc_call_mock(
     request: *const c_char,
     buf: *mut c_char,
     buf_size: usize,
-    progress_callback: Option<ProgressCallback>,
+    progress_callback: Option<ProgressCallback>, /* for callback info */
     user_data: *const std::ffi::c_void,
 ) -> CroResult {
     let res = create_rpc(
@@ -274,6 +278,7 @@ unsafe fn create_rpc(
             user_data: user_data as u64,
         })),
     });
+
     let options = SyncerOptions {
         enable_fast_forward: false,
         enable_address_recovery: true,
