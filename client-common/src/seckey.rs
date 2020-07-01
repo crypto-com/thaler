@@ -1,7 +1,7 @@
 //! Zeroized encryption key type
 use std::str::FromStr;
 
-use aes::{block_cipher_trait::BlockCipher, Aes256};
+use aes::{Aes256, NewBlockCipher};
 use aes_gcm_siv::aead::generic_array::{typenum::Unsigned, GenericArray};
 use secstr::{SecBox, SecUtf8};
 use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
@@ -10,7 +10,7 @@ use zeroize::Zeroize;
 use crate::{Error, ErrorKind, Result};
 
 /// Encryption key size
-pub type SecKeySize = <Aes256 as BlockCipher>::KeySize;
+pub type SecKeySize = <Aes256 as NewBlockCipher>::KeySize;
 /// Encryption key
 /// FIXME: generic capability parameter -- https://en.wikipedia.org/wiki/Capability-based_security
 /// ref for Rust: https://web.archive.org/web/20180129173236/http://zsck.co/writing/capability-based-apis.html

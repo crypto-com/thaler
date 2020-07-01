@@ -16,9 +16,9 @@ pub const HASH_SIZE_256: usize = 32;
 /// Calculates 256-bit crypto hash
 pub fn hash256<D: Digest>(data: &[u8]) -> H256 {
     let mut hasher = D::new();
-    hasher.input(data);
+    hasher.update(data);
     let mut out = [0u8; HASH_SIZE_256];
-    out.copy_from_slice(&hasher.result()[..]);
+    out.copy_from_slice(&hasher.finalize()[..]);
     out
 }
 

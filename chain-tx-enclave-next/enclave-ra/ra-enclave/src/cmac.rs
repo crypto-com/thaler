@@ -1,6 +1,6 @@
 // 128-bit AES-CMAC
 use aes::Aes128;
-use cmac::{Cmac as InnerCmac, Mac};
+use cmac::{Cmac as InnerCmac, Mac, NewMac};
 use thiserror::Error;
 
 const MAC_LEN: usize = 16;
@@ -29,7 +29,7 @@ impl Cmac {
     pub fn verify(&self, data: &[u8], code: &MacCode) -> Result<(), CmacError> {
         let mut inner = InnerCmac::<Aes128>::new_varkey(&self.key[..])
             .map_err(|_| CmacError::InvalidKeyLength)?;
-        inner.input(data);
+        inner.update(data);
         inner.verify(&code[..]).map_err(Into::into)
     }
 }

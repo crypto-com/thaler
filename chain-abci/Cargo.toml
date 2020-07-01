@@ -53,7 +53,7 @@ vergen = "3.1.0"
 quickcheck = "0.9"
 # TODO: currently not maintained benchmarks
 # criterion = "0.3"
-digest = "0.8"
+digest = "0.9"
 sha3 = "0.9"
 base64 = "0.12"
 kvdb = "0.7"

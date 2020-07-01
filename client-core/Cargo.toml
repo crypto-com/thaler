@@ -35,7 +35,7 @@ tiny-bip39 = { version = "0.7", default-features = false }
 unicase = "2.6.0"
 lazy_static = "1.4.0"
 ring = "0.16.12"
-tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "e8d350960726b242fdaa67d293d71ba8cfdb8024" }
+tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "ceca4219d6ae4e4ce906a6579e865af15458fdd6" }
 thiserror = { version = "1.0", default-features = false }
 non-empty-vec = "0.1"
 zxcvbn = "2.0"
@@ -44,7 +44,7 @@ indexmap = "1.4"
 [dev-dependencies]
 base58 = "0.1.0"
 hex = "0.4.2"
-ripemd160 = "0.8.0"
+ripemd160 = "0.9"
 test-common = { path = "../test-common" }
 
 [features]

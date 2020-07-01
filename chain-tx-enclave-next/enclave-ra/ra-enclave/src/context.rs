@@ -230,8 +230,8 @@ fn get_random_nonce() -> Result<[u8; 16], EnclaveRaContextError> {
 
 fn sha256(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
-    hasher.input(input);
-    hasher.result().into()
+    hasher.update(input);
+    hasher.finalize().into()
 }
 
 #[derive(Debug, Error)]

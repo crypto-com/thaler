@@ -373,6 +373,7 @@ impl Validator {
     }
 
     /// extracts validator address from the pubkey
+    #[cfg(not(feature = "mesalock_sgx"))]
     pub fn validator_address(&self) -> TendermintValidatorAddress {
         TendermintValidatorAddress::from(&self.council_node.consensus_pubkey)
     }

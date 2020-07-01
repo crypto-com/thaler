@@ -34,19 +34,26 @@ export TENDERMINT_RPC_PORT=$(($BASE_PORT + 7))
 export CLIENT_RPC_ZEROFEE_PORT=$CLIENT_RPC_PORT
 export TENDERMINT_ZEROFEE_RPC_PORT=$TENDERMINT_RPC_PORT
 
-function check_tendermint() {
-    echo "Wait for tendermint rpc port $1"
+function wait_port() {
+    echo "Wait for tcp port $1"
     for i in $(seq 0 20);
     do
-        curl -s "http://127.0.0.1:$1/health" > /dev/null
+        python -c "import socket; sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); sock.connect(('127.0.0.1', $1))" 2> /dev/null
         if [ $? -eq 0 ]; then
-            echo "Tendermint http port $1 is available now"
+            echo "Tcp port $1 is available now"
             return 0
         fi
-        echo "[`date`]Tendermint http port $1 not available yet, sleep 2 seconds and retry"
+        echo "[`date`] Tcp port $1 not available yet, sleep 2 seconds and retry"
         sleep 2
     done
     return 1
+}
+
+function wait_service() {
+    # ra-sp-server
+    wait_port 8989 &&
+    # tendermint rpc of first node
+    wait_port $TENDERMINT_RPC_PORT
 }
 
 function runtest() {
@@ -62,8 +69,8 @@ function runtest() {
 
     echo "Startup..."
     supervisord -n -c data/tasks.ini &
-    if ! check_tendermint $TENDERMINT_RPC_PORT; then
-        echo 'client-rpc still not ready, giveup.'
+    if ! wait_service; then
+        echo 'tendermint rpc not ready, giveup.'
         RETCODE=1
     else
         set +e

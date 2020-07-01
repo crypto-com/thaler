@@ -13,7 +13,7 @@ use hpke::{
 use rustls::internal::msgs::codec::{Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
 use sha2::digest::generic_array::GenericArray;
-use sha2::digest::{BlockInput, FixedOutput, Input, Reset};
+use sha2::digest::{BlockInput, FixedOutput, Reset, Update as UpdateTrait};
 use sha2::{Digest, Sha256};
 
 #[allow(non_camel_case_types)]
@@ -106,7 +106,7 @@ pub trait HkdfExt {
 
 impl<D> HkdfExt for Hkdf<D>
 where
-    D: Input + BlockInput + FixedOutput + Reset + Default + Clone,
+    D: BlockInput + FixedOutput + Reset + UpdateTrait + Default + Clone,
 {
     fn expand_label(
         &self,
@@ -261,7 +261,7 @@ impl CipherSuite {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 let aead = <AesGcm128 as hpke::aead::Aead>::AeadImpl::new(
-                    GenericArray::clone_from_slice(welcome_key.expose_secret()),
+                    &GenericArray::clone_from_slice(welcome_key.expose_secret()),
                 );
                 let nonce = GenericArray::from_slice(&welcome_nonce);
                 GroupInfo::read_bytes(
@@ -284,7 +284,7 @@ impl CipherSuite {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 let aead = <AesGcm128 as hpke::aead::Aead>::AeadImpl::new(
-                    GenericArray::clone_from_slice(welcome_key.expose_secret()),
+                    &GenericArray::clone_from_slice(welcome_key.expose_secret()),
                 );
                 let nonce = GenericArray::from_slice(&welcome_nonce);
                 aead.encrypt(nonce, group_info.get_encoding().as_ref())

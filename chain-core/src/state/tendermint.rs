@@ -6,6 +6,7 @@ use serde::{
     de::{self, Error as _, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
+#[cfg(not(feature = "mesalock_sgx"))]
 use sha2::{Digest, Sha256};
 use std::convert::TryFrom;
 use std::fmt;
@@ -333,15 +334,16 @@ impl fmt::Display for TendermintValidatorAddress {
     }
 }
 
+#[cfg(not(feature = "mesalock_sgx"))]
 impl From<&TendermintValidatorPubKey> for TendermintValidatorAddress {
     fn from(pub_key: &TendermintValidatorPubKey) -> TendermintValidatorAddress {
         let mut hasher = Sha256::new();
 
         match pub_key {
-            TendermintValidatorPubKey::Ed25519(ref pub_key) => hasher.input(pub_key),
+            TendermintValidatorPubKey::Ed25519(ref pub_key) => hasher.update(pub_key),
         }
 
-        let mut hash = hasher.result().to_vec();
+        let mut hash = hasher.finalize().to_vec();
         hash.truncate(20);
 
         let mut address_bytes = [0; 20];
@@ -351,6 +353,7 @@ impl From<&TendermintValidatorPubKey> for TendermintValidatorAddress {
     }
 }
 
+#[cfg(not(feature = "mesalock_sgx"))]
 impl From<TendermintValidatorPubKey> for TendermintValidatorAddress {
     #[inline]
     fn from(pub_key: TendermintValidatorPubKey) -> TendermintValidatorAddress {
