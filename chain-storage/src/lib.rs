@@ -171,6 +171,7 @@ impl Storage {
     }
 
     /// inititalizes Storage based on the provided config
+    #[cfg(feature = "kvdb-rocksdb")]
     pub fn new(config: &StorageConfig<'_>) -> Self {
         let db = Arc::new(
             kvdb_rocksdb::Database::open(
