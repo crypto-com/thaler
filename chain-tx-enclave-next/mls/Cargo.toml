@@ -15,7 +15,7 @@ sha2 = "0.8.1"
 hkdf = "0.8"
 secrecy = "0.6.0"
 hpke = "0.1.5"
-aead = "0.2.0"
+aead = "0.3.2"
 rand = "0.7"
 chrono="0.4.11"
 ra-client = { path = "../enclave-ra/ra-client" }

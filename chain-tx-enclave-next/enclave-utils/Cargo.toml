@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 sgx-isa = "0.3"
 aes-gcm = "0.5.0"
-aead = "0.2"
+aead = "0.3"
 zeroize = "1.1"
 rand = "0.7"
 

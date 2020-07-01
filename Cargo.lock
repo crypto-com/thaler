@@ -25,6 +25,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aead"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "generic-array 0.14.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "aes"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -518,7 +526,7 @@ dependencies = [
 name = "chain-core"
 version = "0.5.0"
 dependencies = [
- "aead 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "aead 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bech32 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1317,7 +1325,7 @@ dependencies = [
 name = "enclave-utils"
 version = "0.5.0"
 dependencies = [
- "aead 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "aead 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "aes-gcm 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "sgx-isa 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2380,7 +2388,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "mls"
 version = "0.5.0"
 dependencies = [
- "aead 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "aead 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "hkdf 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hpke 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4652,7 +4660,7 @@ dependencies = [
 name = "tx-validation-enclave"
 version = "0.5.0"
 dependencies = [
- "aead 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "aead 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "aes-gcm-siv 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cc 1.0.56 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.5.0",
@@ -5111,6 +5119,7 @@ dependencies = [
 [metadata]
 "checksum abci 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d3dc684df5ab1be507c9f9266e7549e377541574737b76f8df4eafcf7010e771"
 "checksum aead 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4cf01b9b56e767bb57b94ebf91a58b338002963785cdd7013e21c0d4679471e4"
+"checksum aead 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7fc95d1bdb8e6666b2b217308eeeb09f2d6728d104be3e31916cc74d15420331"
 "checksum aes 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)" = "54eb1d8fe354e5fc611daf4f2ea97dd45a765f4f1e4512306ec183ae2e8f20c9"
 "checksum aes-gcm 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)" = "834a6bda386024dbb7c8fc51322856c10ffe69559f972261c868485f5759c638"
 "checksum aes-gcm-siv 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "ed8c21a21a0afb20aeb41328e980939e99fa02f136ae7317665e892d2760912a"
