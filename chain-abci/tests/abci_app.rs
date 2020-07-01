@@ -516,9 +516,10 @@ fn get_block_proposer(app: &ChainNodeApp<MockClient>) -> TendermintValidatorAddr
         .validator_address()
 }
 
-fn begin_block(app: &mut ChainNodeApp<MockClient>) {
+fn begin_block(app: &mut ChainNodeApp<MockClient>, height: i64) {
     let mut bbreq = RequestBeginBlock::default();
     let mut header = Header::default();
+    header.set_height(height);
     header.set_time(::protobuf::well_known_types::Timestamp::new());
     header.set_proposer_address(Into::<[u8; 20]>::into(&get_block_proposer(app)).to_vec());
     bbreq.set_header(header);
@@ -533,7 +534,7 @@ fn deliver_tx_should_reject_empty_tx() {
             .unwrap(),
     );
     assert_eq!(0, app.delivered_txs.len());
-    begin_block(&mut app);
+    begin_block(&mut app, 1);
     let creq = RequestDeliverTx::default();
     let cresp = app.deliver_tx(&creq);
     assert_ne!(0, cresp.code);
@@ -549,7 +550,7 @@ fn deliver_tx_should_reject_invalid_tx() {
             .unwrap(),
     );
     assert_eq!(0, app.delivered_txs.len());
-    begin_block(&mut app);
+    begin_block(&mut app, 1);
     let mut creq = RequestDeliverTx::default();
     let tx = PlainTxAux::new(Tx::new(), TxWitness::new());
     creq.set_tx(tx.encode());
@@ -574,7 +575,7 @@ fn deliver_valid_tx() -> (
         .rewards_pool
         .period_bonus;
     assert_eq!(0, app.delivered_txs.len());
-    begin_block(&mut app);
+    begin_block(&mut app, 1);
     let mut creq = RequestDeliverTx::default();
     creq.set_tx(txaux.encode());
     let cresp = app.deliver_tx(&creq);
@@ -664,7 +665,7 @@ fn endblock_should_change_block_height() {
             .parse()
             .unwrap(),
     );
-    begin_block(&mut app);
+    begin_block(&mut app, 1);
     let mut creq = RequestEndBlock::default();
     creq.set_height(10);
     assert_ne!(
@@ -782,7 +783,7 @@ fn no_delivered_tx_commit_should_keep_apphash() {
             .unwrap(),
     );
     let old_app_hash = app.genesis_app_hash;
-    begin_block(&mut app);
+    begin_block(&mut app, 1);
     app.end_block(&RequestEndBlock::default());
     let cresp = app.commit(&RequestCommit::default());
     assert_eq!(old_app_hash, app.last_state.as_ref().unwrap().last_apphash);
@@ -823,7 +824,7 @@ fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64
     let mut creq = RequestCheckTx::default();
     creq.set_tx(tx.encode());
     println!("checktx: {:?}", app.check_tx(&creq));
-    println!("beginblock: {:?}", begin_block(app));
+    println!("beginblock: {:?}", begin_block(app, block_height));
     let mut dreq = RequestDeliverTx::default();
     dreq.set_tx(tx.encode());
     println!("delivertx: {:?}", app.deliver_tx(&dreq));

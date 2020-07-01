@@ -148,6 +148,10 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
             .last_state
             .as_mut()
             .expect("executing begin block, but no app state stored (i.e. no initchain or recovery was executed)");
+        assert_eq!(
+            block_height,
+            last_state.block_height.checked_add(1).unwrap()
+        );
         last_state.block_time = block_time;
         last_state.block_height = block_height;
 

@@ -109,7 +109,7 @@ fn begin_block_should_punish_non_live_validators() {
     // Begin Block
     app.begin_block(&RequestBeginBlock {
         last_commit_info: Some(env.last_commit_info(0, false)).into(),
-        ..env.req_begin_block(2, 0)
+        ..env.req_begin_block(1, 0)
     });
 
     let val = get_account(&env.accounts[0].staking_address(), &app)
@@ -169,7 +169,7 @@ fn begin_block_should_slash_non_live_validators() {
     // Begin Block
     app.begin_block(&RequestBeginBlock {
         last_commit_info: Some(env.last_commit_info(0, false)).into(),
-        ..env.req_begin_block(2, 0)
+        ..env.req_begin_block(1, 0)
     });
 
     let account = get_account(&env.accounts[0].staking_address(), &app);
