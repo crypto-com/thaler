@@ -7,6 +7,7 @@ data_path ?= /tmp/data
 prefix ?=
 sgx_mode ?= HW
 build_mode ?= debug
+TX_QUERY_HOSTNAME ?=
 MAKE_CMD = make
 
 # SGX_DEVICE can be /dev/sgx or /dev/isgx
@@ -276,6 +277,7 @@ run-abci:
 	-e NETWORK_ID=$(NETWORK_ID) \
 	-e CHAIN_ID=$(CHAIN_ID) \
 	-e PREFIX=$(prefix) \
+	-e TX_QUERY_HOSTNAME=$(TX_QUERY_HOSTNAME) \
 	-e APP_HASH=$(APP_HASH) \
 	-e TX_VALIDATION_CONN=ipc:///root/sockets/enclave.socket \
 	--name $(prefix)chain-abci \

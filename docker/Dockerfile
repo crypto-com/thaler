@@ -1,4 +1,4 @@
-From ubuntu:18.04
+FROM ubuntu:18.04
 
 RUN apt update && apt install -y \
   make \
@@ -14,7 +14,7 @@ RUN apt update && apt install -y \
   libprotobuf10 && \
   rm -rf /var/lib/apt/lists/*
 
-arg BUILD_MODE
+ARG BUILD_MODE
 
 # copy the binary file
 COPY ./target/${BUILD_MODE}/client-cli /usr/local/bin/
@@ -32,7 +32,7 @@ COPY ./docker/wait-for-it.sh /usr/local/bin
 COPY ci-scripts/run_tx_query_next.sh /usr/local/bin
 COPY ci-scripts/run_chain_abci.sh /usr/local/bin
 
-# install sgx enclave pws 2.9
+# install sgx enclave PSW 2.9
 RUN mkdir -p /opt/intel && \
   cd /opt/intel && \
   set -eux; \
