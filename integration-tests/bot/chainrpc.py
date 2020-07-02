@@ -274,9 +274,8 @@ class Staking:
             return ''
         else:
             temp = tempfile.NamedTemporaryFile()
-            subprocess.run(["dev-utils", "keypackage", "generate","--path", path, "--output", temp.name])
-            value= temp.read().decode('utf-8')
-            return value 
+            subprocess.run(["dev-utils", "keypackage", "generate", "--path", path, "--output", temp.name], check=True)
+            return temp.read().decode('utf-8')
 
 
 class MultiSig:

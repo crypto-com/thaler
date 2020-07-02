@@ -54,7 +54,7 @@ block_time = latest_block_time(rpc)
 
 if last_bonded == bonded_rewarded:
     # wait for it to get jailed and slashed later
-    wait_for_blocks(rpc, 5)
+    wait_for_blocks(rpc, 6)
 
     # jailed and slashed
     slashed = int(last_bonded * 0.2)
