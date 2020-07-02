@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 chain-core = { path = "../chain-core" }
 chain-tx-validation = { path = "../chain-tx-validation" }
-chain-storage = { path = "../chain-storage" }
+chain-storage = { path = "../chain-storage", default-features = false }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 secstr = { version = "0.4.0", features = ["serde"] }

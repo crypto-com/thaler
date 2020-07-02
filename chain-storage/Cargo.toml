@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 blake3 = "0.3.4"
 kvdb = "0.7"
-kvdb-rocksdb = "0.9"
+kvdb-rocksdb = { version = "0.9", optional = true }
 kvdb-memorydb = "0.7"
 chain-core = { path = "../chain-core" }
 bit-vec = { version = "0.6.2", features = ["serde_no_std"] }
@@ -21,6 +21,9 @@ jellyfish-merkle = { git = "https://github.com/crypto-com/jellyfish-merkle-tree.
 [dev-dependencies]
 quickcheck = "0.9"
 criterion = "0.3"
+
+[features]
+default = ["kvdb-rocksdb"]
 
 [[bench]]
 name = "jellyfish"
