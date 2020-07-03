@@ -19,8 +19,6 @@ typedef struct CroJsonRpc CroJsonRpc;
 
 typedef struct CroTx CroTx;
 
-typedef struct Option_ProgressCallback Option_ProgressCallback;
-
 typedef struct CroResult {
   int result;
 } CroResult;
@@ -32,6 +30,18 @@ typedef CroFee *CroFeePtr;
 typedef CroHDWallet *CroHDWalletPtr;
 
 typedef CroJsonRpc *CroJsonRpcPtr;
+
+/**
+ * current, start, end, userdata
+ * return: 1: continue, 0: stop
+ */
+typedef int32_t (*ProgressCallback)(uint64_t, uint64_t, uint64_t, const void*);
+
+typedef struct ProgressWrapper {
+  ProgressCallback core_progress_callback;
+} ProgressWrapper;
+
+typedef ProgressWrapper *CroProgressPtr;
 
 typedef CroTx *CroTxPtr;
 
@@ -46,12 +56,6 @@ typedef struct CroStakedState {
   uint64_t unbonded;
   uint64_t unbonded_from;
 } CroStakedState;
-
-/**
- * current, start, end, userdata
- * return: 1: continue, 0: stop
- */
-typedef int32_t (*ProgressCallback)(uint64_t, uint64_t, uint64_t, const void*);
 
 /**
  * create staking address
@@ -142,7 +146,7 @@ CroResult cro_create_jsonrpc(CroJsonRpcPtr *rpc_out,
                              const char *storage_dir_user,
                              const char *websocket_url_user,
                              uint8_t network_id,
-                             Option_ProgressCallback progress_callback);
+                             CroProgressPtr progress_callback);
 
 /**
  * mock mode, only use for testing
@@ -155,7 +159,7 @@ CroResult cro_create_mock_jsonrpc(CroJsonRpcPtr *rpc_out,
                                   const char *storage_dir_user,
                                   const char *websocket_url_user,
                                   uint8_t network_id,
-                                  Option_ProgressCallback progress_callback);
+                                  CroProgressPtr progress_callback);
 
 /**
  * create staking address from bip44 hdwallet
@@ -353,10 +357,10 @@ CroResult cro_jsonrpc_call(const char *storage_dir,
                            const char *request,
                            char *buf,
                            uintptr_t buf_size,
-                           Option_ProgressCallback progress_callback,
+                           CroProgressPtr progress_callback,
                            const void *user_data);
 
-void cro_jsonrpc_call_dummy(ProgressCallback _progress_callback);
+void cro_jsonrpc_call_dummy(ProgressCallback _progress_callback, ProgressWrapper _wrapper);
 
 /**
  * mock mode, only use for testing
@@ -371,7 +375,7 @@ CroResult cro_jsonrpc_call_mock(const char *storage_dir,
                                 const char *request,
                                 char *buf,
                                 uintptr_t buf_size,
-                                Option_ProgressCallback progress_callback,
+                                CroProgressPtr progress_callback,
                                 const void *user_data);
 
 /**
