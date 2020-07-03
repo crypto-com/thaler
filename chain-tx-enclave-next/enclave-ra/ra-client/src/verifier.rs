@@ -121,9 +121,9 @@ impl EnclaveCertVerifier {
             .tbs_certificate
             .extensions
             .iter()
-            .find(|ext| ext.oid == attestation_report_oid)
+            .find(|ext| ext.0 == &attestation_report_oid)
             .ok_or(EnclaveCertVerifierError::MissingAttestationReport)?;
-        let quote = self.verify_attestation_report(extension.value, public_key, now)?;
+        let quote = self.verify_attestation_report(extension.1.value, public_key, now)?;
         Ok(CertVerifyResult {
             public_key: public_key.to_vec(),
             quote,
