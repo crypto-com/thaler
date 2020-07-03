@@ -704,7 +704,7 @@ where
     }
 
     fn new_staking_address(&self, name: &str, enckey: &SecKey) -> Result<StakedStateAddress> {
-        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         let public_key = match wallet.wallet_kind {
             WalletKind::Basic => {
                 let private_key = PrivateKey::new()?;
@@ -733,7 +733,7 @@ where
     }
 
     fn new_transfer_address(&self, name: &str, enckey: &SecKey) -> Result<ExtendedAddr> {
-        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         let public_key = match wallet.wallet_kind {
             WalletKind::Basic => {
                 let private_key = PrivateKey::new()?;

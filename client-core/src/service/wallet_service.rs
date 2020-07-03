@@ -292,6 +292,16 @@ fn write_number<S: SecureStorage>(
     Ok(())
 }
 
+/// Load wallet info from storage
+pub fn load_wallet_info<S: SecureStorage>(
+    storage: &S,
+    name: &str,
+    enckey: &SecKey,
+) -> Result<Option<Wallet>> {
+    let wallet: Option<Wallet> = storage.load_secure(KEYSPACE, name, enckey)?;
+    Ok(wallet)
+}
+
 /// Load wallet from storage
 pub fn load_wallet<S: SecureStorage>(
     storage: &S,
@@ -349,6 +359,13 @@ where
     /// Creates a new instance of wallet service
     pub fn new(storage: T) -> Self {
         WalletService { storage }
+    }
+
+    /// Get the wallet info from storage
+    pub fn get_wallet_info(&self, name: &str, enckey: &SecKey) -> Result<Wallet> {
+        load_wallet_info(&self.storage, name, enckey)?.err_kind(ErrorKind::InvalidInput, || {
+            format!("Wallet with name ({}) not found", name)
+        })
     }
 
     /// Get the wallet from storage
