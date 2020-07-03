@@ -193,7 +193,7 @@ build-sgx-query-next:
 		echo "========  ftxsgx-elf2sgxs   =========" && \
 		ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-query2-enclave-app --output ./target/$(build_mode)/tx-query2-enclave-app.sgxs --heap-size 0x2000000 --stack-size 0x80000 --threads 6 --debug && \
 		echo "========  sgxs-sign  =========" && \
-		sgxs-sign --key ./chain-tx-enclave/tx-query/enclave/Enclave_private.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
+		sgxs-sign --key ./chain-tx-enclave/tx-validation/enclave/Enclave_private.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
 
 build-mls:
 	@echo "\033[32mcompile mls\033[0m"; \
@@ -215,7 +215,7 @@ build-mls:
 		echo "========  ftxsgx-elf2sgxs   =========" && \
 		ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/mls --stack-size 0x40000 --heap-size 0x20000000 --threads 1 && \
 		echo "========  sgxs-sign  =========" && \
-		sgxs-sign --key ./chain-tx-enclave/tx-query/enclave/Enclave_private.pem ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/mls.sgxs ./target/$(build_mode)/mls.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
+		sgxs-sign --key ./chain-tx-enclave/tx-validation/enclave/Enclave_private.pem ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/mls.sgxs ./target/$(build_mode)/mls.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
 
 # build the enclave validation binary 
 build-sgx-validation:

@@ -15,30 +15,10 @@ use enclave_protocol::{
     DecryptionRequest, DecryptionResponse, EncryptionRequest, EncryptionResponse,
     TxQueryInitRequest, TxQueryInitResponse,
 };
-#[cfg(feature = "edp-obfuscation")]
 use ra_client::EnclaveCertVerifier;
 
-#[cfg(feature = "sgx-obfuscation")]
-use super::sgx::EnclaveAttr;
 use crate::TransactionObfuscation;
 
-#[cfg(feature = "sgx-obfuscation")]
-fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
-    // TODO: static config cache
-    let mut client_cfg = rustls::ClientConfig::new();
-    // TODO: client auth?
-
-    // this is needed for the custom extra validation of the attestation report in the certificate extension
-    client_cfg
-        .dangerous()
-        .set_certificate_verifier(Arc::new(EnclaveAttr {}));
-    client_cfg.versions.clear();
-    // TODO: test/try 1.3 and possibly switch
-    client_cfg.versions.push(rustls::ProtocolVersion::TLSv1_2);
-    Ok(Arc::new(client_cfg))
-}
-
-#[cfg(feature = "edp-obfuscation")]
 fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
     // TODO: Get enclave details from command line or env variables?
     let verifier = EnclaveCertVerifier::default();

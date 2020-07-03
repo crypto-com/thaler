@@ -47,9 +47,7 @@ ripemd160 = "0.8.0"
 test-common = { path = "../test-common" }
 
 [features]
-default = ["sled", "edp-obfuscation"]
+default = ["sled"]
 sled = ["client-common/sled"]
 websocket-rpc = ["client-common/websocket-rpc"]
 mock-hardware-wallet = []
-sgx-obfuscation = ["client-common/sgx-obfuscation"]
-edp-obfuscation = ["client-common/edp-obfuscation"]

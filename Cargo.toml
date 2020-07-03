@@ -22,8 +22,6 @@ members = [
     "chain-tx-enclave-next/enclave-ra/ra-sp-client",
     "chain-tx-enclave-next/enclave-ra/ra-sp-server",
     "chain-tx-enclave/tx-validation/enclave",
-    "chain-tx-enclave/tx-query/app",
-    "chain-tx-enclave/tx-query/enclave",
     "chain-tx-enclave-next/tx-query-next/app-runner",
     "chain-tx-enclave-next/tx-query-next/enclave-app",
     "chain-tx-enclave/mock-utils",
