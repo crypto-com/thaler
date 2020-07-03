@@ -7,7 +7,7 @@ use chain_core::init::{
     coin::Coin,
     config::{JailingParameters, RewardsParameters, SlashRatio, SlashingParameters},
 };
-use chain_core::state::account::{ConfidentialInit, ValidatorName, ValidatorSecurityContact};
+use chain_core::state::account::{ConfidentialInit, NodeName, NodeSecurityContact};
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 
 #[derive(Deserialize, Debug)]
@@ -22,8 +22,8 @@ pub struct GenesisDevConfig {
     pub council_nodes: BTreeMap<
         RedeemAddress,
         (
-            ValidatorName,
-            ValidatorSecurityContact,
+            NodeName,
+            NodeSecurityContact,
             TendermintValidatorPubKey,
             ConfidentialInit,
         ),

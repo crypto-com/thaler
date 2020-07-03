@@ -29,9 +29,9 @@ pub type Count = u64;
 pub type Nonce = u64;
 
 /// human-readable moniker
-pub type ValidatorName = String;
+pub type NodeName = String;
 /// optional security@... email
-pub type ValidatorSecurityContact = Option<String>;
+pub type NodeSecurityContact = Option<String>;
 
 /// the initial data a node submits to join a MLS group
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
@@ -65,26 +65,29 @@ where
         .map_err(|e| D::Error::custom(format!("{}", e)))
 }
 
-/// holds state about a node responsible for transaction validation / block signing and service node whitelist management
+/// Information common to different node types
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-pub struct CouncilNode {
-    /// validator name / moniker (just for reference / human use)
-    pub name: ValidatorName,
+pub struct NodeCommonInfo {
+    /// name / moniker (just for reference / human use)
+    pub name: NodeName,
     /// optional security@... email address
-    pub security_contact: ValidatorSecurityContact,
-    /// Tendermint consensus validator-associated public key
-    pub consensus_pubkey: TendermintValidatorPubKey,
-    /// serialized keypackage for MLS (https://tools.ietf.org/html/draft-ietf-mls-protocol-09)
+    pub security_contact: NodeSecurityContact,
+    /// serialized keypackage for MLS (https://tools.ietf.org/html/draft-ietf-mls-protocol-10)
     /// (expected that attestation payload will be a part of the cert extension, as done in TLS)
     pub confidential_init: ConfidentialInit,
 }
 
-// TODO: size hint once MLS payloads are there
-impl Encode for CouncilNode {
+#[cfg(not(feature = "mesalock_sgx"))]
+impl fmt::Display for NodeCommonInfo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+// TODO: size hint
+impl Encode for NodeCommonInfo {
     fn encode_to<W: Output>(&self, dest: &mut W) {
-        // in the case there's a need for other node types or wildly different metadata
-        dest.push_byte(0);
         self.name.encode_to(dest);
         match &self.security_contact {
             None => dest.push_byte(0),
@@ -93,38 +96,83 @@ impl Encode for CouncilNode {
                 c.encode_to(dest);
             }
         };
-        self.consensus_pubkey.encode_to(dest);
         self.confidential_init.keypackage.encode_to(dest);
     }
 }
 
+fn decode_name_security_contact<I: Input>(
+    input: &mut I,
+) -> Result<(NodeName, NodeSecurityContact), Error> {
+    let name_raw: Vec<u8> = Vec::decode(input)?;
+    if name_raw.len() > MAX_STRING_LEN {
+        return Err(Error::from("Validator name longer than 255 chars"));
+    }
+    let name = String::from_utf8(name_raw).map_err(|_| Error::from("Invalid validator name"))?;
+    let security_contact_raw: Option<Vec<u8>> = Option::decode(input)?;
+    let security_contact = match security_contact_raw {
+        Some(c) => {
+            if c.len() > MAX_STRING_LEN {
+                return Err(Error::from("Security contact longer than 255 chars"));
+            }
+            Some(String::from_utf8(c).map_err(|_| Error::from("Invalid security contact"))?)
+        }
+        None => None,
+    };
+    Ok((name, security_contact))
+}
+
 const MAX_STRING_LEN: usize = 255;
 
-impl Decode for CouncilNode {
+impl Decode for NodeCommonInfo {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let tag = input.read_byte()?;
-        if tag != 0 {
-            return Err(Error::from("Unsupported Council Node variant"));
-        }
-        let name_raw: Vec<u8> = Vec::decode(input)?;
-        if name_raw.len() > MAX_STRING_LEN {
-            return Err(Error::from("Validator name longer than 255 chars"));
-        }
-        let name =
-            String::from_utf8(name_raw).map_err(|_| Error::from("Invalid validator name"))?;
-        let security_contact_raw: Option<Vec<u8>> = Option::decode(input)?;
-        let security_contact = match security_contact_raw {
+        let (name, security_contact) = decode_name_security_contact(input)?;
+        let keypackage: Vec<u8> = Vec::decode(input)?;
+        Ok(NodeCommonInfo {
+            name,
+            security_contact,
+            confidential_init: ConfidentialInit { keypackage },
+        })
+    }
+}
+
+/// holds state about a node responsible for transaction validation / block signing
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+pub struct CouncilNodeMeta {
+    /// name, security contact and TDBE/MLS keypackage
+    #[cfg_attr(not(feature = "mesalock_sgx"), serde(flatten))]
+    pub node_info: NodeCommonInfo,
+    /// Tendermint consensus validator-associated public key
+    pub consensus_pubkey: TendermintValidatorPubKey,
+}
+
+impl Encode for CouncilNodeMeta {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        // NOTE/WARN: the order of node_info + consensus pubkey
+        // is swapped in order not to break 0.5 TX format
+        // where it was like this
+        self.node_info.name.encode_to(dest);
+        match &self.node_info.security_contact {
+            None => dest.push_byte(0),
             Some(c) => {
-                if c.len() > MAX_STRING_LEN {
-                    return Err(Error::from("Security contact longer than 255 chars"));
-                }
-                Some(String::from_utf8(c).map_err(|_| Error::from("Invalid security contact"))?)
+                dest.push_byte(1);
+                c.encode_to(dest);
             }
-            None => None,
         };
+        self.consensus_pubkey.encode_to(dest);
+        self.node_info.confidential_init.keypackage.encode_to(dest);
+    }
+}
+
+impl Decode for CouncilNodeMeta {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        // NOTE/WARN: the order of node_info + consensus pubkey
+        // is swapped in order not to break 0.5 TX format
+        // where it was like this
+        let (name, security_contact) = decode_name_security_contact(input)?;
         let consensus_pubkey = TendermintValidatorPubKey::decode(input)?;
         let keypackage: Vec<u8> = Vec::decode(input)?;
-        Ok(CouncilNode::new_with_details(
+        Ok(CouncilNodeMeta::new_with_details(
             name,
             security_contact,
             consensus_pubkey,
@@ -133,32 +181,114 @@ impl Decode for CouncilNode {
     }
 }
 
-impl CouncilNode {
+/// info about a node
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+pub enum NodeMetadata {
+    /// validator
+    CouncilNode(CouncilNodeMeta),
+    /// full node
+    CommunityNode(NodeCommonInfo),
+}
+
+#[cfg(not(feature = "mesalock_sgx"))]
+impl fmt::Display for NodeMetadata {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            NodeMetadata::CouncilNode(cm) => write!(f, "council node ({})", cm),
+            NodeMetadata::CommunityNode(cm) => write!(f, "community node ({})", cm),
+        }
+    }
+}
+
+// TODO: size hint once MLS payloads are there
+impl Encode for NodeMetadata {
+    fn encode_to<W: Output>(&self, dest: &mut W) {
+        match self {
+            NodeMetadata::CouncilNode(cm) => {
+                dest.push_byte(0);
+                cm.encode_to(dest);
+            }
+            NodeMetadata::CommunityNode(cm) => {
+                dest.push_byte(1);
+                cm.encode_to(dest);
+            }
+        }
+    }
+}
+
+impl Decode for NodeMetadata {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let tag = input.read_byte()?;
+        match tag {
+            0 => {
+                let node_info = CouncilNodeMeta::decode(input)?;
+                Ok(NodeMetadata::CouncilNode(node_info))
+            }
+            1 => {
+                let node_info = NodeCommonInfo::decode(input)?;
+                Ok(NodeMetadata::CommunityNode(node_info))
+            }
+            _ => Err(Error::from("Unsupported Node variant")),
+        }
+    }
+}
+
+impl NodeMetadata {
+    /// create an empty council node (in testing etc.)
+    pub fn new_council_node(
+        consensus_pubkey: TendermintValidatorPubKey,
+        confidential_init: ConfidentialInit,
+    ) -> Self {
+        NodeMetadata::CouncilNode(CouncilNodeMeta::new(consensus_pubkey, confidential_init))
+    }
+
+    /// new council node with full details
+    pub fn new_council_node_with_details(
+        name: NodeName,
+        security_contact: NodeSecurityContact,
+        consensus_pubkey: TendermintValidatorPubKey,
+        confidential_init: ConfidentialInit,
+    ) -> Self {
+        NodeMetadata::CouncilNode(CouncilNodeMeta::new_with_details(
+            name,
+            security_contact,
+            consensus_pubkey,
+            confidential_init,
+        ))
+    }
+}
+
+impl CouncilNodeMeta {
     /// create an empty council node (in testing etc.)
     pub fn new(
         consensus_pubkey: TendermintValidatorPubKey,
         confidential_init: ConfidentialInit,
     ) -> Self {
-        CouncilNode {
-            name: "no-name".to_string(),
-            security_contact: None,
+        CouncilNodeMeta {
+            node_info: NodeCommonInfo {
+                name: "no-name".to_string(),
+                security_contact: None,
+                confidential_init,
+            },
             consensus_pubkey,
-            confidential_init,
         }
     }
 
     /// new council node with full details
     pub fn new_with_details(
-        name: ValidatorName,
-        security_contact: ValidatorSecurityContact,
+        name: NodeName,
+        security_contact: NodeSecurityContact,
         consensus_pubkey: TendermintValidatorPubKey,
         confidential_init: ConfidentialInit,
     ) -> Self {
-        CouncilNode {
-            name,
-            security_contact,
+        CouncilNodeMeta {
+            node_info: NodeCommonInfo {
+                name,
+                security_contact,
+                confidential_init,
+            },
             consensus_pubkey,
-            confidential_init,
         }
     }
 }
@@ -196,9 +326,9 @@ pub struct SlashRecord {
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
-impl fmt::Display for CouncilNode {
+impl fmt::Display for CouncilNodeMeta {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} -- {}", self.name, self.consensus_pubkey)
+        write!(f, "{} -- {}", self.node_info, self.consensus_pubkey)
     }
 }
 
@@ -216,7 +346,7 @@ impl fmt::Display for CouncilNode {
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
 pub struct Validator {
     /// council node metadata
-    pub council_node: CouncilNode,
+    pub council_node: CouncilNodeMeta,
     /// if jailed, it's specified until what block time
     pub jailed_until: Option<Timespec>,
 
@@ -232,7 +362,7 @@ pub struct Validator {
 
 impl Validator {
     /// creates an empty validator with only council node metadata (for tests?)
-    pub fn new(council_node: CouncilNode) -> Self {
+    pub fn new(council_node: CouncilNodeMeta) -> Self {
         Self {
             council_node,
             jailed_until: None,
@@ -302,6 +432,16 @@ impl Validator {
     }
 }
 
+/// represents node state metadata
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
+#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+pub enum NodeState {
+    /// information related to council nodes (validator metadata + keypackage from TDBE)
+    CouncilNode(Validator),
+    /// information related to community nodes (keypackage from TDBE)
+    CommunityNode(NodeCommonInfo),
+}
+
 /// represents the StakedState (account involved in staking)
 /// Invariant 4.1:
 ///   - bonded + unbonded <= max supply
@@ -327,8 +467,8 @@ pub struct StakedState {
     pub unbonded_from: Timespec,
     /// the address used (to check transaction withness against)
     pub address: StakedStateAddress,
-    /// validator metadata
-    pub validator: Option<Validator>,
+    /// node metadata
+    pub node_meta: Option<NodeState>,
     /// record the last slash only for query
     pub last_slash: Option<SlashRecord>,
 }
@@ -345,6 +485,11 @@ pub fn to_stake_key(address: &StakedStateAddress) -> [u8; HASH_SIZE_256] {
 }
 
 impl StakedState {
+    /// checks if it contains council node metadata
+    pub fn has_council_node_meta(&self) -> bool {
+        matches!(&self.node_meta, Some(NodeState::CouncilNode(_x)))
+    }
+
     /// creates a new StakedState with given parameters
     pub fn new(
         nonce: Nonce,
@@ -360,7 +505,7 @@ impl StakedState {
             unbonded,
             unbonded_from,
             address,
-            validator,
+            node_meta: validator.map(NodeState::CouncilNode),
             last_slash: None,
         }
     }
@@ -373,7 +518,7 @@ impl StakedState {
             bonded: Coin::zero(),
             unbonded: Coin::zero(),
             unbonded_from: 0,
-            validator: None,
+            node_meta: None,
             last_slash: None,
         }
     }
@@ -384,12 +529,12 @@ impl StakedState {
         genesis_time: Timespec,
         destination: &StakedStateDestination,
         amount: Coin,
-        council_node: Option<CouncilNode>,
+        council_node: Option<CouncilNodeMeta>,
     ) -> Self {
         let mut staking = Self::default(address);
         match destination {
             StakedStateDestination::Bonded => {
-                staking.validator = council_node.map(Validator::new);
+                staking.node_meta = council_node.map(|x| NodeState::CouncilNode(Validator::new(x)));
                 staking.bonded = amount;
                 staking.unbonded_from = genesis_time;
             }
@@ -412,7 +557,7 @@ impl StakedState {
 
     /// Return is jailed, non validator default to false.
     pub fn is_jailed(&self) -> bool {
-        if let Some(v) = &self.validator {
+        if let Some(NodeState::CouncilNode(v)) = &self.node_meta {
             v.is_jailed()
         } else {
             false
@@ -426,7 +571,7 @@ impl StakedState {
         (self.bonded + self.unbonded).unwrap();
 
         // check: Invariant 4.2
-        if let Some(val) = &self.validator {
+        if let Some(NodeState::CouncilNode(val)) = &self.node_meta {
             if val.is_active() {
                 assert!(self.bonded >= minimal_required_staking && !val.is_jailed());
             }
@@ -459,7 +604,7 @@ mod test {
     use quickcheck::Arbitrary;
     use quickcheck::Gen;
 
-    impl Arbitrary for CouncilNode {
+    impl Arbitrary for CouncilNodeMeta {
         fn arbitrary<G: Gen>(g: &mut G) -> Self {
             let name = String::arbitrary(g);
             let mut raw_pubkey = [0u8; 32];
@@ -472,7 +617,7 @@ mod test {
             };
             // TODO: generate well-formed keypackage
             let keypackage: Vec<u8> = Vec::arbitrary(g);
-            CouncilNode::new_with_details(
+            CouncilNodeMeta::new_with_details(
                 name,
                 security_contact,
                 TendermintValidatorPubKey::Ed25519(raw_pubkey),
@@ -481,8 +626,11 @@ mod test {
         }
     }
 
-    fn has_valid_len(council_node: &CouncilNode) -> bool {
-        match (council_node.name.len(), &council_node.security_contact) {
+    fn has_valid_len(council_node: &CouncilNodeMeta) -> bool {
+        match (
+            council_node.node_info.name.len(),
+            &council_node.node_info.security_contact,
+        ) {
             (i, Some(ref c)) if (i <= MAX_STRING_LEN && c.len() <= MAX_STRING_LEN) => true,
             (i, None) if i <= MAX_STRING_LEN => true,
             _ => false,
@@ -491,13 +639,13 @@ mod test {
 
     quickcheck! {
         // tests if decode(encode(x)) == x
-        fn prop_encode_decode_council_node(council_node: CouncilNode) -> bool {
+        fn prop_encode_decode_council_node(council_node: CouncilNodeMeta) -> bool {
             if has_valid_len(&council_node) {
                 let encoded = council_node.encode();
-                CouncilNode::decode(&mut encoded.as_ref()).expect("decode council node") == council_node
+                CouncilNodeMeta::decode(&mut encoded.as_ref()).expect("decode council node") == council_node
             } else {
                 let encoded = council_node.encode();
-                CouncilNode::decode(&mut encoded.as_ref()).is_err()
+                CouncilNodeMeta::decode(&mut encoded.as_ref()).is_err()
             }
         }
     }

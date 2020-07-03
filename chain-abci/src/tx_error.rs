@@ -9,6 +9,8 @@ pub enum TxError {
     Enclave(#[from] chain_tx_validation::Error),
     #[error("public tx process failed: {0}")]
     Public(#[from] PublicTxError),
+    #[error("FIXME/WIP payload for MLS handshake (not yet supported)")]
+    WIPMLSData,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -55,6 +57,8 @@ pub enum NodeJoinError {
     KeyPackageDecodeError,
     #[error("invalid key package: {0}")]
     KeyPackageVerifyError(#[from] keypackage::Error),
+    #[error("FIXME: WIP -- community node not yet supported")]
+    WIPNotValidator,
 }
 
 #[derive(thiserror::Error, Debug)]

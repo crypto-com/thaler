@@ -1,6 +1,7 @@
 use abci::*;
 use chain_abci::app::BufferType;
 use chain_core::init::coin::Coin;
+use chain_core::state::account::{NodeState, StakedState, Validator as ChainValidator};
 use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::fee::Milli;
 use chain_storage::buffer::Get;
@@ -136,7 +137,14 @@ fn check_unbonding_with_removing_validator() {
         last_commit_info: Some(env.last_commit_info(1, true)).into(),
         ..env.req_begin_block_with_time(3, 1, 120)
     });
-    assert!(get_account(&staking_address, &app).validator.is_none());
+    assert!(get_account(&staking_address, &app).node_meta.is_none());
+}
+
+fn validator_unwrap(state: &StakedState) -> &ChainValidator {
+    match &state.node_meta {
+        Some(NodeState::CouncilNode(v)) => &v,
+        _ => unreachable!(),
+    }
 }
 
 /// Scenario 4: Unbond stake from validator 2 so that the remaining bonded amount becomes less than
@@ -193,11 +201,7 @@ fn check_rejoin() {
     assert_eq!(1, response_end_block.validator_updates.to_vec().len());
     assert_eq!(0, response_end_block.validator_updates.to_vec()[0].power);
     app.commit(&RequestCommit::new());
-    assert!(!get_account(&staking_address, &app)
-        .validator
-        .as_ref()
-        .unwrap()
-        .is_active());
+    assert!(!validator_unwrap(&get_account(&staking_address, &app)).is_active());
 
     // Begin block -- there should be a reward after this one
     app.begin_block(&RequestBeginBlock {
@@ -209,11 +213,7 @@ fn check_rejoin() {
     assert!(acct.bonded > required_stake);
 
     // node join should be ok
-    assert!(!get_account(&staking_address, &app)
-        .validator
-        .as_ref()
-        .unwrap()
-        .is_active());
+    assert!(!validator_unwrap(&get_account(&staking_address, &app)).is_active());
 
     let tx_aux = env.join_tx(1, 0);
     let rsp_tx = app.deliver_tx(&RequestDeliverTx {
@@ -222,14 +222,12 @@ fn check_rejoin() {
     });
     assert_eq!(0, rsp_tx.code, "{}", rsp_tx.log);
     // it should no longer be planned to be deleted
-    assert!(app
-        .staking_getter(BufferType::Consensus)
-        .get(&staking_address)
-        .unwrap()
-        .validator
-        .as_ref()
-        .unwrap()
-        .is_active());
+    assert!(validator_unwrap(
+        &app.staking_getter(BufferType::Consensus)
+            .get(&staking_address)
+            .unwrap()
+    )
+    .is_active());
     // End block
     // Note: This should bring back the validator to the validator set.
     let response_end_block = app.end_block(&RequestEndBlock {

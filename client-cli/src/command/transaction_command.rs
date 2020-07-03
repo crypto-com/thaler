@@ -10,7 +10,7 @@ use chain_core::common::{Timespec, HASH_SIZE_256};
 use chain_core::init::coin::Coin;
 use chain_core::init::network::get_network_id;
 use chain_core::state::account::{
-    ConfidentialInit, CouncilNode, StakedStateAddress, StakedStateOpAttributes,
+    ConfidentialInit, CouncilNodeMeta, StakedStateAddress, StakedStateOpAttributes,
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
@@ -1134,7 +1134,7 @@ fn ask_keypackage() -> Result<Vec<u8>> {
     Ok(keypackage)
 }
 
-fn ask_node_metadata(keypackage: Option<PathBuf>) -> Result<CouncilNode> {
+fn ask_node_metadata(keypackage: Option<PathBuf>) -> Result<CouncilNodeMeta> {
     ask("Enter validator node name: ");
     let name = text().chain(|| (ErrorKind::IoError, "Unable to read validator node name"))?;
 
@@ -1172,12 +1172,12 @@ fn ask_node_metadata(keypackage: Option<PathBuf>) -> Result<CouncilNode> {
     let mut pubkey_bytes = [0; 32];
     pubkey_bytes.copy_from_slice(&decoded_pubkey);
 
-    Ok(CouncilNode {
+    Ok(CouncilNodeMeta::new_with_details(
         name,
-        security_contact: None,
-        consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
-        confidential_init: ConfidentialInit {
+        None,
+        TendermintValidatorPubKey::Ed25519(pubkey_bytes),
+        ConfidentialInit {
             keypackage: keypackage_raw,
         },
-    })
+    ))
 }

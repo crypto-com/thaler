@@ -1,8 +1,8 @@
 use abci::*;
+use chain_core::init::coin::Coin;
+use chain_core::state::account::NodeState;
 use parity_scale_codec::Encode;
 use protobuf::well_known_types::Timestamp;
-
-use chain_core::init::coin::Coin;
 use test_common::chain_env::{get_account, ChainEnv};
 
 #[test]
@@ -112,9 +112,13 @@ fn begin_block_should_punish_non_live_validators() {
         ..env.req_begin_block(2, 0)
     });
 
-    let val = get_account(&env.accounts[0].staking_address(), &app)
-        .validator
-        .unwrap();
+    let val = match get_account(&env.accounts[0].staking_address(), &app)
+        .node_meta
+        .unwrap()
+    {
+        NodeState::CouncilNode(v) => v,
+        _ => unreachable!(),
+    };
     assert!(!val.is_jailed());
     assert!(!val.is_active());
     let response_end_block = app.end_block(&RequestEndBlock {

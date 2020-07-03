@@ -7,7 +7,7 @@ use jsonrpc_derive::rpc;
 use crate::{rpc_error_from_string, to_rpc_error};
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
-    ConfidentialInit, CouncilNode, StakedState, StakedStateAddress, StakedStateOpAttributes,
+    ConfidentialInit, CouncilNodeMeta, StakedState, StakedStateAddress, StakedStateOpAttributes,
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
@@ -443,7 +443,7 @@ fn get_node_metadata(
     validator_name: &str,
     validator_pubkey: &str,
     keypackage: &str,
-) -> Result<CouncilNode> {
+) -> Result<CouncilNodeMeta> {
     let decoded_pubkey = base64::decode(validator_pubkey)
         .chain(|| {
             (
@@ -468,10 +468,10 @@ fn get_node_metadata(
         .err_kind(ErrorKind::InvalidInput, || "invalid base64")
         .map_err(to_rpc_error)?;
 
-    Ok(CouncilNode {
-        name: validator_name.to_string(),
-        security_contact: None,
-        consensus_pubkey: TendermintValidatorPubKey::Ed25519(pubkey_bytes),
-        confidential_init: ConfidentialInit { keypackage },
-    })
+    Ok(CouncilNodeMeta::new_with_details(
+        validator_name.to_string(),
+        None,
+        TendermintValidatorPubKey::Ed25519(pubkey_bytes),
+        ConfidentialInit { keypackage },
+    ))
 }

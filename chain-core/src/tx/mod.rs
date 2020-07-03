@@ -14,6 +14,7 @@ use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
 use self::data::Tx;
 use self::witness::TxWitness;
+use crate::mls::MLSHandshakeAux;
 use crate::state::account::{
     DepositBondTx, StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, UnjailTx,
     WithdrawUnbondedTx,
@@ -243,7 +244,6 @@ impl<'tx> Into<Payload<'tx, 'tx>> for &'tx TxObfuscated {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 /// transactions with parts that are only viewable inside TEE
-/// FIXME / NOTE: extra TDBE-related tx (containing MLS messages) will go under here
 pub enum TxEnclaveAux {
     /// normal value transfer Tx with the vector of witnesses
     TransferTx {
@@ -388,7 +388,7 @@ pub enum TxPublicAux {
     UnbondStakeTx(UnbondTx, StakedStateOpWitness),
     /// Tx that unjails a staked state
     UnjailTx(UnjailTx, StakedStateOpWitness),
-    /// Tx that updates a staked state with council node / validator details
+    /// Tx that updates a staked state with node (community or council node) details
     NodeJoinTx(NodeJoinRequestTx, StakedStateOpWitness),
 }
 
@@ -487,6 +487,8 @@ pub enum TxAux {
     EnclaveTx(TxEnclaveAux),
     /// transactions that are processed directly in untrusted environment (chain-abci)
     PublicTx(TxPublicAux),
+    /// wrappers around TDBE-related MLS handshake messages being broadcasted
+    MLSHandshake(MLSHandshakeAux),
 }
 
 impl Encode for TxAux {
@@ -500,6 +502,10 @@ impl Encode for TxAux {
                 dest.push_byte(1);
                 dest.push(tx);
             }
+            TxAux::MLSHandshake(ref tx) => {
+                dest.push_byte(2);
+                dest.push(tx);
+            }
         }
     }
 
@@ -507,6 +513,7 @@ impl Encode for TxAux {
         1 + match self {
             TxAux::EnclaveTx(tx) => tx.size_hint(),
             TxAux::PublicTx(tx) => tx.size_hint(),
+            TxAux::MLSHandshake(tx) => tx.size_hint(),
         }
     }
 }
@@ -524,6 +531,7 @@ impl Decode for TxAux {
         match input.read_byte()? {
             0 => Ok(TxAux::EnclaveTx(TxEnclaveAux::decode(input)?)),
             1 => Ok(TxAux::PublicTx(TxPublicAux::decode(input)?)),
+            2 => Ok(TxAux::MLSHandshake(MLSHandshakeAux::decode(input)?)),
             _ => Err("No such variant in enum TxAux".into()),
         }
     }
@@ -549,6 +557,7 @@ impl TxAux {
         match self {
             TxAux::EnclaveTx(tx) => tx.tx_id(),
             TxAux::PublicTx(tx) => tx.tx_id(),
+            TxAux::MLSHandshake(tx) => tx.id(),
         }
     }
 }
@@ -596,6 +605,10 @@ impl fmt::Display for TxAux {
             }
             TxAux::PublicTx(TxPublicAux::NodeJoinTx(tx, witness)) => {
                 display_tx_witness(f, tx, witness)
+            }
+            TxAux::MLSHandshake(_) => {
+                // FIXME
+                writeln!(f, "mls handshake")
             }
         }
     }

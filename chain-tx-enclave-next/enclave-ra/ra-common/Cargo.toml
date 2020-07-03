@@ -1,6 +1,6 @@
 [package]
 name = "ra-common"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 description = "Common types used in different sub-crates related to remote attestation of enclaves"
 edition = "2018"

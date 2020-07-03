@@ -27,7 +27,7 @@ use chain_core::init::config::NetworkParameters;
 use chain_core::init::{
     address::RedeemAddress, coin::Coin, config::InitConfig, network::Network, params,
 };
-use chain_core::state::account::{CouncilNode, StakedStateAddress, StakedStateDestination};
+use chain_core::state::account::{CouncilNodeMeta, StakedStateAddress, StakedStateDestination};
 use chain_core::state::tendermint::{
     TendermintValidatorAddress, TendermintValidatorPubKey, TendermintVotePower,
 };
@@ -94,13 +94,13 @@ impl Node {
         }
     }
 
-    pub fn council_node(&self) -> CouncilNode {
-        CouncilNode {
-            name: self.name.clone(),
-            security_contact: Some(format!("{}@example.com", self.name)),
-            consensus_pubkey: self.tendermint_pub_key(),
-            confidential_init: mock_confidential_init(),
-        }
+    pub fn council_node(&self) -> CouncilNodeMeta {
+        CouncilNodeMeta::new_with_details(
+            self.name.clone(),
+            Some(format!("{}@example.com", self.name)),
+            self.tendermint_pub_key(),
+            mock_confidential_init(),
+        )
     }
 
     pub fn validator_pub_key(&self) -> PublicKey {

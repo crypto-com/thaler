@@ -1,6 +1,6 @@
 [package]
 name = "ra-enclave"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 description = "Primitives for creating attested TLS server in enclave"
 edition = "2018"

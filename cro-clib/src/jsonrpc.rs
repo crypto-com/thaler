@@ -13,8 +13,8 @@ use client_rpc_core::{
 
 use crate::types::get_string;
 use crate::types::CroResult;
-use crate::types::ProgressCallback;
 use crate::types::{CroJsonRpc, CroJsonRpcPtr};
+use crate::types::{CroProgressPtr, ProgressCallback, ProgressWrapper};
 
 #[derive(Clone)]
 struct CBindingData {
@@ -69,7 +69,7 @@ pub unsafe extern "C" fn cro_jsonrpc_call(
     request: *const c_char,
     buf: *mut c_char,
     buf_size: usize,
-    progress_callback: Option<ProgressCallback>,
+    progress_callback: CroProgressPtr,
     user_data: *const std::ffi::c_void,
 ) -> CroResult {
     let res = create_rpc(
@@ -102,7 +102,11 @@ pub unsafe extern "C" fn cro_jsonrpc_call(
 
 // this function is dummy function to export function pointer
 #[no_mangle]
-pub extern "C" fn cro_jsonrpc_call_dummy(_progress_callback: ProgressCallback) {}
+pub extern "C" fn cro_jsonrpc_call_dummy(
+    _progress_callback: ProgressCallback,
+    _wrapper: ProgressWrapper,
+) {
+}
 
 /// mock mode, only use for testing
 ///
@@ -118,7 +122,7 @@ pub unsafe extern "C" fn cro_jsonrpc_call_mock(
     request: *const c_char,
     buf: *mut c_char,
     buf_size: usize,
-    progress_callback: Option<ProgressCallback>, /* for callback info */
+    progress_callback: CroProgressPtr, /* for callback info */
     user_data: *const std::ffi::c_void,
 ) -> CroResult {
     let res = create_rpc(
@@ -172,7 +176,7 @@ pub unsafe extern "C" fn cro_create_jsonrpc(
     storage_dir_user: *const c_char,
     websocket_url_user: *const c_char,
     network_id: u8,
-    progress_callback: Option<ProgressCallback>,
+    progress_callback: CroProgressPtr,
 ) -> CroResult {
     let mrpc = create_rpc(
         storage_dir_user,
@@ -204,7 +208,7 @@ pub unsafe extern "C" fn cro_create_mock_jsonrpc(
     storage_dir_user: *const c_char,
     websocket_url_user: *const c_char,
     network_id: u8,
-    progress_callback: Option<ProgressCallback>,
+    progress_callback: CroProgressPtr,
 ) -> CroResult {
     let mrpc = create_rpc(
         storage_dir_user,
@@ -266,18 +270,26 @@ unsafe fn create_rpc(
     storage_dir: *const c_char,
     websocket_url: *const c_char,
     network_id: u8,
-    progress_callback: Option<ProgressCallback>,
+    progress_callback_user: CroProgressPtr,
     user_data: *const std::ffi::c_void,
     _mock: bool,
 ) -> Result<CroJsonRpc> {
     let storage_dir = get_string(storage_dir);
     let websocket_url = get_string(websocket_url);
-    let cbindingcallback = progress_callback.map(|progress_callback| CBindingCore {
-        data: Arc::new(Mutex::new(CBindingData {
-            progress_callback,
-            user_data: user_data as u64,
-        })),
-    });
+    let cbindingcallback: Option<CBindingCore> = if !progress_callback_user.is_null() {
+        let progress_callback_wrapper = progress_callback_user
+            .as_mut()
+            .expect("get progress-callback");
+        let progress_callback = progress_callback_wrapper.core_progress_callback;
+        Some(CBindingCore {
+            data: Arc::new(Mutex::new(CBindingData {
+                progress_callback,
+                user_data: user_data as u64,
+            })),
+        })
+    } else {
+        None
+    };
 
     let options = SyncerOptions {
         enable_fast_forward: false,

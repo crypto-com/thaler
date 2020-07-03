@@ -21,7 +21,7 @@ use chain_core::init::coin::Coin;
 use chain_core::init::config::InitConfig;
 use chain_core::init::config::NetworkParameters;
 use chain_core::state::account::StakedStateDestination;
-use chain_core::state::account::{CouncilNode, StakedStateAddress};
+use chain_core::state::account::{CouncilNodeMeta, StakedStateAddress};
 use chain_core::state::tendermint::{BlockHeight, TendermintVotePower};
 use chain_core::state::{ChainState, RewardsPoolState};
 use chain_core::tx::TxAux;
@@ -153,7 +153,7 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub mempool_kv_buffer: KVBuffer,
 }
 
-pub fn get_validator_key(node: &CouncilNode) -> PubKey {
+pub fn get_validator_key(node: &CouncilNodeMeta) -> PubKey {
     let mut pk = PubKey::new();
     let (keytype, key) = node.consensus_pubkey.to_validator_update();
     pk.set_field_type(keytype);
@@ -163,7 +163,7 @@ pub fn get_validator_key(node: &CouncilNode) -> PubKey {
 
 fn check_and_store_consensus_params(
     init_consensus_params: Option<&ConsensusParams>,
-    _validators: &[(StakedStateAddress, CouncilNode)],
+    _validators: &[(StakedStateAddress, CouncilNodeMeta)],
     _network_params: &NetworkParameters,
     storage: &mut Storage,
 ) {
@@ -189,7 +189,7 @@ fn check_and_store_consensus_params(
 
 /// checks InitChain's req.validators is consistent with InitChain's app_state's council nodes
 pub fn check_validators(
-    nodes: &[(StakedStateAddress, CouncilNode)],
+    nodes: &[(StakedStateAddress, CouncilNodeMeta)],
     mut req_validators: Vec<ValidatorUpdate>,
     distribution: &BTreeMap<RedeemAddress, (StakedStateDestination, Coin)>,
 ) -> Result<(), ()> {

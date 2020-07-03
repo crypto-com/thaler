@@ -74,6 +74,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
         let txaux = TxAux::decode(&mut req.tx())?;
         let txid = txaux.tx_id();
         let tx_action = match &txaux {
+            TxAux::MLSHandshake(_) => return Err(TxError::WIPMLSData),
             TxAux::EnclaveTx(tx) => {
                 let action = verify_enclave_tx(
                     &mut self.tx_validator,

@@ -4,11 +4,30 @@
 ## v0.6.0 
 ### Breaking changes
 
-*chain-abci* [1547](https://github.com/crypto-com/chain/pull/1547): Remove `unbonding_period` in network parameter, use max evidence duration in consensus parameter instead.
+- *chain-abci* [1547](https://github.com/crypto-com/chain/pull/1547): Remove `unbonding_period` in network parameter, use max evidence duration in consensus parameter instead.
+- *tdbe*:
+  - [1661](https://github.com/crypto-com/chain/pull/1661) [1668](https://github.com/crypto-com/chain/pull/1668) [1684](https://github.com/crypto-com/chain/pull/1684): keypackage in tx
+  - [1666](https://github.com/crypto-com/chain/pull/1666) [1682](https://github.com/crypto-com/chain/pull/1682) [1704](https://github.com/crypto-com/chain/pull/1704): mls group creation
+  - [1725](https://github.com/crypto-com/chain/pull/1725) [1740](https://github.com/crypto-com/chain/pull/1740) [1754](https://github.com/crypto-com/chain/pull/1754) [1760](https://github.com/crypto-com/chain/pull/1760): mls commit processing
 
 ### Features
+- *client* [1584](https://github.com/crypto-com/chain/pull/1584): multisig in client-cli
+
 ### Improvements
+
+- *client* [1594](https://github.com/crypto-com/chain/pull/1594): verification of genesis fingerprint
+- *client* [1600](https://github.com/crypto-com/chain/pull/1600) [1759](https://github.com/crypto-com/chain/pull/1759): error message improvement
+- *client* [1663](https://github.com/crypto-com/chain/pull/1663): unbonding time api in client-rpc
+- *client* [1671](https://github.com/crypto-com/chain/pull/1671): graceful closing of websocket connections
+- *client* [1743](https://github.com/crypto-com/chain/pull/1743): 12 word mnemonics
+- *client* [1773](https://github.com/crypto-com/chain/pull/1773): client-rpc can initialize without tendermint rpc
+
 ### Bug Fixes
+- *client* [1678](https://github.com/crypto-com/chain/pull/1678): wallet name missing in the list after import
+- *client* [1626](https://github.com/crypto-com/chain/pull/1626): verification of enclave properties
+- *client* [1745](https://github.com/crypto-com/chain/pull/1745): outgoing deposit amount not displayed
+- *client* [1782](https://github.com/crypto-com/chain/pull/1782): help message for tx importing
+- *tx-query* [1637](https://github.com/crypto-com/chain/pull/1637): refreshing certificates
 
 *May 20, 2020*
 
@@ -18,7 +37,7 @@ This release contains a hotfix for client-cli deposit transaction issue.
 
 ### Bug Fixes
 
-- *client* [1652](https://github.com/crypto-com/chain/pull/1625): Add staking address check and double confirmation in
+- *client* [1625](https://github.com/crypto-com/chain/pull/1625): Add staking address check and double confirmation in
   client-cli for deposit transaction, remove the restriction in client-rpc.
 
 *May 7, 2020*

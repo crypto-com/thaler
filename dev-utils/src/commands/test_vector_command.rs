@@ -6,8 +6,8 @@ use chain_core::init::address::{CroAddress, RedeemAddress};
 use chain_core::init::coin::Coin;
 use chain_core::init::network::Network;
 use chain_core::state::account::{
-    CouncilNode, DepositBondTx, StakedStateAddress, StakedStateOpAttributes, StakedStateOpWitness,
-    UnbondTx, WithdrawUnbondedTx,
+    CouncilNodeMeta, DepositBondTx, NodeMetadata, StakedStateAddress, StakedStateOpAttributes,
+    StakedStateOpWitness, UnbondTx, WithdrawUnbondedTx,
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::state::validator::NodeJoinRequestTx;
@@ -318,12 +318,12 @@ impl VectorFactory {
             1,
             staking_address,
             StakedStateOpAttributes::new(self.chain_hex_id),
-            CouncilNode::new_with_details(
+            NodeMetadata::CouncilNode(CouncilNodeMeta::new_with_details(
                 "example".to_string(),
                 Some("security@example.com".to_string()),
                 tendermint_validator_pubkey.clone(),
                 mock_confidential_init(),
-            ),
+            )),
         );
         let txid = tx.id();
         let witness = sign_key

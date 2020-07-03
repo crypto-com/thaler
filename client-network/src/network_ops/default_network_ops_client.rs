@@ -4,8 +4,8 @@ use crate::NetworkOpsClient;
 use chain_core::common::Timespec;
 use chain_core::init::coin::{sum_coins, Coin};
 use chain_core::state::account::{
-    CouncilNode, DepositBondTx, StakedState, StakedStateAddress, StakedStateOpAttributes,
-    StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
+    CouncilNodeMeta, DepositBondTx, NodeMetadata, StakedState, StakedStateAddress,
+    StakedStateOpAttributes, StakedStateOpWitness, UnbondTx, UnjailTx, WithdrawUnbondedTx,
 };
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::data::address::ExtendedAddr;
@@ -422,7 +422,7 @@ where
         enckey: &SecKey,
         staking_account_address: StakedStateAddress,
         attributes: StakedStateOpAttributes,
-        node_metadata: CouncilNode,
+        node_metadata: CouncilNodeMeta,
         verify_staking: bool,
     ) -> Result<TxAux> {
         let staked_state = self.get_staked_state(name, &staking_account_address, verify_staking)?;
@@ -438,7 +438,7 @@ where
             nonce: staked_state.nonce,
             address: staking_account_address,
             attributes,
-            node_meta: node_metadata,
+            node_meta: NodeMetadata::CouncilNode(node_metadata),
         };
         let tx = Transaction::NodejoinTransaction(transaction.clone());
 
@@ -678,7 +678,7 @@ mod tests {
                 0,
                 StakedStateAddress::BasicRedeem(RedeemAddress::default()),
                 Some(Validator {
-                    council_node: CouncilNode::new(
+                    council_node: CouncilNodeMeta::new(
                         TendermintValidatorPubKey::Ed25519([0xcd; 32]),
                         mock_confidential_init(),
                     ),
@@ -1174,12 +1174,12 @@ mod tests {
             &base64::decode("P2B49bRtePqHr0JGRVAOS9ZqSFjBpS6dFtCah9p+cro=").unwrap(),
         );
 
-        let node_metadata = CouncilNode {
-            name: "test".to_owned(),
-            security_contact: None,
-            consensus_pubkey: TendermintValidatorPubKey::Ed25519(validator_pubkey),
-            confidential_init: mock_confidential_init(),
-        };
+        let node_metadata = CouncilNodeMeta::new_with_details(
+            "test".to_owned(),
+            None,
+            TendermintValidatorPubKey::Ed25519(validator_pubkey),
+            mock_confidential_init(),
+        );
 
         let transaction = network_ops_client
             .create_node_join_transaction(

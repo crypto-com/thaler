@@ -2,7 +2,7 @@ use crate::types::get_string;
 use crate::types::{CroAddress, CroAddressPtr, CroResult};
 pub use chain_core::init::network::Network;
 use chain_core::state::account::{
-    ConfidentialInit, CouncilNode, StakedStateAddress, StakedStateOpAttributes,
+    ConfidentialInit, NodeMetadata, StakedStateAddress, StakedStateOpAttributes,
     StakedStateOpWitness, UnjailTx,
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
@@ -109,13 +109,13 @@ fn create_encoded_signed_join(
             )
         })?;
 
-    let node_metadata = CouncilNode {
-        name: validator_name.to_string(),
-        security_contact: Some(validator_contact.to_string()),
+    let node_metadata = NodeMetadata::new_council_node_with_details(
+        validator_name.to_string(),
+        Some(validator_contact.to_string()),
         // 32 bytes
-        consensus_pubkey: pubkey,
-        confidential_init: ConfidentialInit { keypackage },
-    };
+        pubkey,
+        ConfidentialInit { keypackage },
+    );
     let transaction: NodeJoinRequestTx = NodeJoinRequestTx {
         nonce,
         address: to_address,

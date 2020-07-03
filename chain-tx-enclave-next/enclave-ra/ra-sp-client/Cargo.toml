@@ -1,6 +1,6 @@
 [package]
 name = "ra-sp-client"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["Devashish Dixit <devashishdxt@gmail.com>"]
 description = "TCP client for connecting to SP server for remote attestation of enclaves (this should be used in enclaves to connect to SP server)"
 edition = "2018"

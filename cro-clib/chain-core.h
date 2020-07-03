@@ -12,6 +12,8 @@
  *
  * version 0 -- 0.4.0 release
  * version 1 -- 0.5.0 release (wire format didn't change, but unbond tx semantics changed: https://github.com/crypto-com/chain/pull/1516)
+ * version 2 -- 0.6.0 (not yet released --> transaction data bootstrapping, new TX types, genesis changes..);
+ * FIXME: bump to 2 with https://github.com/crypto-com/chain/issues/1715#issuecomment-650845116
  */
 #define APP_VERSION 1
 
