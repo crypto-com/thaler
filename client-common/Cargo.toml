@@ -9,7 +9,7 @@ chain-core = { path = "../chain-core" }
 chain-tx-filter = { path = "../chain-tx-filter" }
 enclave-protocol = { path = "../enclave-protocol" }
 mock-utils = { path = "../chain-tx-enclave/mock-utils" }
-ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client", optional = true}
+ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
 
 aes = "0.3"
 aes-gcm-siv = "0.4"
@@ -40,7 +40,6 @@ tokio = { version = "0.2", features = ["rt-threaded", "sync", "time", "tcp"], op
 tokio-tungstenite = { version = "0.10", features = ["tls"], optional = true }
 uuid = { version = "0.8.1", features = ["v4"] }
 webpki = "0.21"
-yasna = { version = "0.3.1", features = ["bit-vec", "num-bigint", "chrono"], optional = true }
 zeroize = "1.1"
 
 [dev-dependencies]
@@ -50,6 +49,3 @@ quickcheck = "0.9"
 default = ["sled", "websocket-rpc"]
 websocket-rpc = ["futures-util", "tokio", "tokio-tungstenite"]
 mock-enclave = []
-mesalock_sgx = []
-sgx-obfuscation = ["yasna"]
-edp-obfuscation = ["ra-client"]

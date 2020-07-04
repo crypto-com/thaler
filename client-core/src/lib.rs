@@ -9,8 +9,6 @@
 //! - Balance tracking
 //! - Transaction history
 //! - Transaction creation and signing (with automatic unspent transaction selection)
-#[cfg(all(feature = "sgx-obfuscation", feature = "edp-obfuscation"))]
-compile_error!("Features `sgx-obfuscation` and `edp-obfuscation` are mutually exclusive and cannot be enabled at same time");
 
 pub mod hd_seed;
 pub mod hd_wallet;
