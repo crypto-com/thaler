@@ -1,5 +1,5 @@
 use crate::{
-    tendermint::{lite, types::*, Client},
+    tendermint::{types::*, Client},
     ErrorKind, Result,
 };
 use chain_core::state::ChainState;
@@ -47,14 +47,6 @@ impl Client for UnauthorizedClient {
         _height: Option<Height>,
         _prove: bool,
     ) -> Result<AbciQuery> {
-        Err(ErrorKind::PermissionDenied.into())
-    }
-
-    fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-        &self,
-        _state: lite::TrustedState,
-        _heights: T,
-    ) -> Result<(Vec<Block>, lite::TrustedState)> {
         Err(ErrorKind::PermissionDenied.into())
     }
 

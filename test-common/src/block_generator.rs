@@ -1,4 +1,5 @@
 use std::collections::BTreeMap;
+use std::result;
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, UNIX_EPOCH};
@@ -12,12 +13,13 @@ use signature::Signer;
 use subtle_encoding::{base64, hex};
 use tendermint::amino_types::message::AminoMessage;
 use tendermint::lite::{Header, ValidatorSet};
-use tendermint::rpc::endpoint::status;
 use tendermint::{
     account, amino_types, block, block::signed_header::SignedHeader, block::Height, chain,
     consensus, evidence, hash, node, public_key, validator, vote, Block, Hash, PublicKey,
     Signature, Time,
 };
+use tendermint_light_client::{errors::Error, types::LightBlock};
+use tendermint_rpc::endpoint::status;
 
 use chain_abci::app::ChainNodeState;
 use chain_abci::staking::StakingTable;
@@ -37,12 +39,11 @@ use chain_core::tx::TxAux;
 use chain_storage::buffer::MemStore;
 use chain_storage::jellyfish::{put_stakings, StakingGetter};
 use client_common::tendermint::types::{AbciQuery, BroadcastTxResponse, Genesis};
-use client_common::tendermint::{lite, Client};
+use client_common::tendermint::Client;
 use client_common::Result;
+use client_core::wallet::syncer::Handle;
 use client_core::{service::HDAccountType, HDSeed, Mnemonic};
-use tendermint::block::BlockIDFlag::BlockIDFlagCommit;
 use tendermint::block::{CommitSig, CommitSigs};
-use tendermint::hash::Algorithm;
 
 use crate::chain_env::mock_confidential_init;
 
@@ -169,11 +170,10 @@ impl Node {
         };
         let signature = self.sign_msg(&canonical_vote.bytes_vec_length_delimited());
 
-        CommitSig {
-            block_id_flag: BlockIDFlagCommit,
-            validator_address: Some(self.validator_address()),
+        CommitSig::BlockIDFlagCommit {
+            validator_address: self.validator_address(),
             timestamp: now,
-            signature: Some(signature),
+            signature,
         }
     }
 
@@ -318,7 +318,7 @@ impl TestnetSpec {
                 },
                 evidence: evidence::Params {
                     max_age_num_blocks: 100_000,
-                    max_age_duration: Duration::from_nanos(172_800_000_000_000).into(),
+                    max_age_duration: serde_json::from_str("\"172800000000000\"").unwrap(),
                 },
                 validator: consensus::params::ValidatorParams {
                     pub_key_types: vec![public_key::Algorithm::Ed25519],
@@ -410,12 +410,12 @@ impl BlockGenerator {
     }
 
     pub fn sync_info(&self) -> status::SyncInfo {
+        let genesis_app_hash = Hash::new(hash::Algorithm::Sha256, &self.genesis.app_hash).unwrap();
         if let Some(height) = self.current_height {
             let index = (height.value() - 1) as usize;
             status::SyncInfo {
                 latest_block_hash: Some(self.blocks[index].block.header.hash()),
-                latest_app_hash: Hash::from_utf8(Algorithm::Sha256, &self.genesis.app_hash)
-                    .unwrap(),
+                latest_app_hash: Some(genesis_app_hash),
                 latest_block_height: height,
                 latest_block_time: self.blocks[index].block.header.time,
                 catching_up: false,
@@ -423,8 +423,7 @@ impl BlockGenerator {
         } else {
             status::SyncInfo {
                 latest_block_hash: None,
-                latest_app_hash: Hash::from_utf8(Algorithm::Sha256, &self.genesis.app_hash)
-                    .unwrap(),
+                latest_app_hash: Some(genesis_app_hash),
                 latest_block_height: Height::default(),
                 latest_block_time: Time::unix_epoch(),
                 catching_up: false,
@@ -570,14 +569,6 @@ impl Client for GeneratorClient {
         heights.map(|height| self.block_results(*height)).collect()
     }
 
-    fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-        &self,
-        state: lite::TrustedState,
-        heights: T,
-    ) -> Result<(Vec<Block>, lite::TrustedState)> {
-        Ok((self.block_batch(heights)?, state))
-    }
-
     fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
         unreachable!();
     }
@@ -605,6 +596,27 @@ impl Client for GeneratorClient {
                 }
             })
             .collect())
+    }
+}
+
+impl Handle for GeneratorClient {
+    fn verify_to_highest(&self) -> result::Result<LightBlock, Error> {
+        Ok(LightBlock {
+            signed_header: self
+                .gen
+                .read()
+                .unwrap()
+                .blocks
+                .last()
+                .unwrap()
+                .signed_header(),
+            validators: validator::Set::new(vec![]),
+            next_validators: validator::Set::new(vec![]),
+            provider: "BADFADAD0BEFEEDC0C0ADEADBEEFC0FFEEFACADE".parse().unwrap(),
+        })
+    }
+    fn terminate(&self) -> result::Result<(), Error> {
+        Ok(())
     }
 }
 

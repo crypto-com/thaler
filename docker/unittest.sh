@@ -14,15 +14,15 @@ echo "Test $BUILD_MODE $BUILD_PROFILE"
 if [ $BUILD_MODE == "sgx" ]; then
     cargo test $CARGO_ARGS
 else
+    cargo test $CARGO_ARGS --features mock-enclave --manifest-path client-common/Cargo.toml
+    cargo test $CARGO_ARGS --features mock-enclave --manifest-path client-core/Cargo.toml
+    cargo test $CARGO_ARGS --features mock-enclave --manifest-path client-rpc/Cargo.toml
     cargo test $CARGO_ARGS --features mock-enclave --manifest-path client-rpc/server/Cargo.toml
     cargo test $CARGO_ARGS --features mock-enclave --manifest-path client-cli/Cargo.toml
     cargo test $CARGO_ARGS --features mock-enclave --manifest-path dev-utils/Cargo.toml
     cargo test $CARGO_ARGS --features mock-enclave --manifest-path chain-abci/Cargo.toml
     for pkg in \
-        client-common \
         client-network \
-        client-core \
-        client-rpc \
         test-common \
         enclave-protocol \
         chain-core \

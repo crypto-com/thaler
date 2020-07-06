@@ -38,6 +38,8 @@ TARGET_PORT = BASE_PORT + 2 * 10
 
 supervisor = UnixStreamXMLRPCClient('data/supervisor.sock')
 rpc = get_rpc()
+# wait for at least one block generated
+wait_for_blocks(rpc, 1, height=0)
 
 # wait for 3 validators online
 print('Wait for 3 validators online')

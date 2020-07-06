@@ -318,7 +318,14 @@ mod tests {
 
     #[test]
     fn check_null_deliver_tx() {
-        let block_results = BlockResultsResponse::default();
+        let block_results = BlockResultsResponse {
+            height: Default::default(),
+            txs_results: None,
+            begin_block_events: None,
+            end_block_events: None,
+            validator_updates: vec![],
+            consensus_param_updates: None,
+        };
         assert_eq!(0, block_results.fees().unwrap().len());
     }
 

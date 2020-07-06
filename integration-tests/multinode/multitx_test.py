@@ -2,7 +2,7 @@ import os
 import time
 from common import (
     get_rpc, UnixStreamXMLRPCClient, wait_for_validators, stop_node,
-    wait_for_tx, latest_block_height
+    wait_for_tx, latest_block_height, wait_for_blocks
 )
 
 '''
@@ -20,6 +20,8 @@ Procedure:
 
 supervisor = UnixStreamXMLRPCClient('data/supervisor.sock')
 rpc = get_rpc()
+# wait for at least one block generated
+wait_for_blocks(rpc, 1, height=0)
 
 print('Wait for 2 validators online')
 wait_for_validators(rpc, 2)

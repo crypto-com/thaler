@@ -8,7 +8,7 @@ edition = "2018"
 [dependencies]
 blake3 = { version = "0.3.5", default-features = false }
 chain-core = { path = "../chain-core" }
-client-common = { path = "../client-common" }
+client-common = { path = "../client-common", features = ["sled"] }
 chain-tx-filter = { path = "../chain-tx-filter" }
 chain-tx-validation = { path = "../chain-tx-validation" }
 chain-storage = { path = "../chain-storage", default-features = false }
@@ -34,12 +34,14 @@ tokio = { version = "0.1.22", default-features = false, features = ["rt-full"] }
 tiny-bip39 = { version = "0.7", default-features = false }
 unicase = "2.6.0"
 lazy_static = "1.4.0"
-ring = "0.16.12"
-tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-features = false, rev = "ceca4219d6ae4e4ce906a6579e865af15458fdd6" }
+ring = "0.16.15"
+tendermint = "0.15"
+tendermint-light-client = "0.15"
 thiserror = { version = "1.0", default-features = false }
 non-empty-vec = "0.1"
 zxcvbn = "2.0"
 indexmap = "1.5"
+sled = "0.33.0"
 
 [dev-dependencies]
 base58 = "0.1.0"
@@ -48,8 +50,7 @@ ripemd160 = "0.9"
 test-common = { path = "../test-common" }
 
 [features]
-default = ["sled"]
-sled = ["client-common/sled"]
 websocket-rpc = ["client-common/websocket-rpc"]
 mock-hardware-wallet = []
 experimental = ["client-common/experimental"]
+mock-enclave = ["client-common/mock-enclave"]

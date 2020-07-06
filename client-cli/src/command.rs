@@ -28,7 +28,8 @@ use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
 use client_core::types::BalanceChange;
 use client_core::wallet::syncer::{
-    ObfuscationSyncerConfig, ProgressReport, SyncerOptions, WalletSyncer,
+    spawn_light_client_supervisor, Handle, ObfuscationSyncerConfig, ProgressReport, SyncerOptions,
+    WalletSyncer,
 };
 use client_core::wallet::{DefaultWalletClient, WalletClient};
 use client_network::network_ops::{DefaultNetworkOpsClient, NetworkOpsClient};
@@ -385,10 +386,17 @@ impl Command {
                 block_height_ensure,
             } => {
                 let enckey = ask_seckey(None)?;
-                let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
+                let rpc_url = tendermint_url();
+                let tendermint_client = WebsocketRpcClient::new(&rpc_url)?;
                 let tx_obfuscation = get_tx_query(tendermint_client.clone())?;
 
-                let storage = SledStorage::new(storage_path())?;
+                let db_path = storage_path();
+                let storage = SledStorage::new(&db_path)?;
+                let handle = spawn_light_client_supervisor(
+                    db_path.as_ref(),
+                    &rpc_url,
+                    tendermint_client.genesis()?.trusting_period(),
+                )?;
                 let config = ObfuscationSyncerConfig::new(
                     storage.clone(),
                     tendermint_client,
@@ -399,8 +407,12 @@ impl Command {
                         batch_size: *batch_size,
                         block_height_ensure: *block_height_ensure,
                     },
+                    handle.clone(),
                 );
                 Self::resync(config, name.clone(), enckey, *force, storage)?;
+                handle
+                    .terminate()
+                    .expect("terminate light client supervisor in client-cli");
                 Ok(())
             }
             Command::MultiSig { multisig_command } => {
@@ -637,8 +649,8 @@ impl Command {
         Ok(())
     }
 
-    fn resync<S: Storage, C: Client, O: TransactionObfuscation>(
-        config: ObfuscationSyncerConfig<S, C, O>,
+    fn resync<S: Storage, C: Client, O: TransactionObfuscation, L: Handle + Send + Sync + Clone>(
+        config: ObfuscationSyncerConfig<S, C, O, L>,
         name: String,
         enckey: SecKey,
         force: bool,

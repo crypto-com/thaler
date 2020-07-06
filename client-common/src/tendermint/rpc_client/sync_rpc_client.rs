@@ -1,14 +1,12 @@
 use std::{
     convert::TryFrom,
     sync::{mpsc::sync_channel, Arc},
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
-use itertools::izip;
 use once_cell::sync::OnceCell;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use tendermint::{lite, validator};
 use tokio::runtime::Runtime;
 
 use chain_core::state::ChainState;
@@ -16,7 +14,7 @@ use std::sync::Mutex;
 
 use super::async_rpc_client::AsyncRpcClient;
 use crate::{
-    tendermint::{lite::TrustedState, types::*, Client},
+    tendermint::{types::*, Client},
     Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction,
     TransactionObfuscation,
 };
@@ -200,31 +198,6 @@ impl SyncRpcClient {
                 )
             })
     }
-
-    fn validators_batch<T: Iterator<Item = u64>>(
-        &self,
-        heights: T,
-    ) -> Result<Vec<ValidatorsResponse>> {
-        let params = heights
-            .map(|height| {
-                (
-                    "validators",
-                    vec![json!(height.to_string()), json!("0"), json!("100")],
-                )
-            })
-            .collect::<Vec<(&str, Vec<Value>)>>();
-        self.call_batch(params)
-    }
-
-    fn commit_batch<'a, T: Iterator<Item = &'a u64>>(
-        &self,
-        heights: T,
-    ) -> Result<Vec<CommitResponse>> {
-        let params = heights
-            .map(|height| ("commit", vec![json!(height.to_string())]))
-            .collect::<Vec<(&str, Vec<Value>)>>();
-        self.call_batch(params)
-    }
 }
 
 impl Client for SyncRpcClient {
@@ -270,48 +243,6 @@ impl Client for SyncRpcClient {
             .map(|height| ("block_results", vec![json!(height.to_string())]))
             .collect::<Vec<(&'static str, Vec<Value>)>>();
         self.call_batch(params)
-    }
-
-    /// Fetch continuous blocks and verify them.
-    fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-        &self,
-        mut state: TrustedState,
-        heights: T,
-    ) -> Result<(Vec<Block>, TrustedState)> {
-        let commits = self.commit_batch(heights.clone())?;
-        let validators: Vec<validator::Set> = self
-            .validators_batch(heights.clone().map(|h| h.saturating_add(1)))?
-            .into_iter()
-            .map(|rsp| validator::Set::new(rsp.validators))
-            .collect();
-        let blocks = self.block_batch(heights)?;
-        for (commit, next_vals, block) in izip!(&commits, &validators, &blocks) {
-            let signed_header =
-                lite::SignedHeader::new(commit.signed_header.clone(), block.header.clone());
-            state = if let Some(state) = &state.0 {
-                lite::verifier::verify_single(
-                    state.clone(),
-                    &signed_header,
-                    state.validators(),
-                    next_vals,
-                    // FIXME make parameters configurable
-                    lite::TrustThresholdFraction::new(1, 3).unwrap(),
-                    Duration::from_secs(std::u32::MAX as u64),
-                    SystemTime::now(),
-                )
-                .map_err(|err| {
-                    Error::new(
-                        ErrorKind::VerifyError,
-                        format!("block verify failed: {:?}", err),
-                    )
-                })?
-                .into()
-            } else {
-                // TODO verify block1 against genesis block
-                lite::TrustedState::new(signed_header, next_vals.clone()).into()
-            };
-        }
-        Ok((blocks, state))
     }
 
     /// Makes `broadcast_tx_sync` call to tendermint
@@ -376,27 +307,17 @@ impl Client for SyncRpcClient {
             .collect();
         let rsps = self.call_batch::<AbciQueryResponse>(params)?;
 
-        rsps.into_iter()
-            .map(|rsp| {
-                if let Some(value) = rsp.response.value {
-                    let state = serde_json::from_str(
-                        &String::from_utf8(value)
-                            .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?,
-                    )
-                    .chain(|| (ErrorKind::InvalidInput, "chain state decode failed"))?;
-                    Ok(state)
-                } else {
-                    Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        format!(
-                            "abci query fail: {}, {}",
-                            rsp.response.code.value(),
-                            rsp.response.log,
-                        ),
-                    ))
+        let mut states = Vec::new();
+        for rsp in rsps.into_iter() {
+            if let Ok(s) = String::from_utf8(rsp.response.value) {
+                if let Ok(state) = serde_json::from_str(&s) {
+                    states.push(state);
+                    continue;
                 }
-            })
-            .collect()
+            }
+            break;
+        }
+        Ok(states)
     }
 }
 

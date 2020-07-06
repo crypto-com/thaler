@@ -35,4 +35,8 @@ fi
 if [ -L tx_validation_enclave.signed.so ]; then
     rm -f tx_validation_enclave.signed.so
 fi
+if [ -f data/ra-sp-server.pid ]; then
+    kill `cat data/ra-sp-server.pid`
+    rm data/ra-sp-server.pid
+fi
 exit 0

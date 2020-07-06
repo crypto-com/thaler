@@ -477,7 +477,6 @@ pub mod tests {
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::{PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
     use client_common::storage::MemoryStorage;
-    use client_common::tendermint::lite;
     use client_common::tendermint::mock;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
@@ -626,22 +625,28 @@ pub mod tests {
         }
 
         fn block_results(&self, _height: u64) -> CommonResult<BlockResultsResponse> {
-            Ok(BlockResultsResponse::default())
+            Ok(BlockResultsResponse {
+                height: Default::default(),
+                txs_results: None,
+                begin_block_events: None,
+                end_block_events: None,
+                validator_updates: vec![],
+                consensus_param_updates: None,
+            })
         }
 
         fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             _heights: T,
         ) -> CommonResult<Vec<BlockResultsResponse>> {
-            Ok(vec![BlockResultsResponse::default()])
-        }
-
-        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-            &self,
-            _state: lite::TrustedState,
-            _heights: T,
-        ) -> CommonResult<(Vec<Block>, lite::TrustedState)> {
-            unreachable!()
+            Ok(vec![BlockResultsResponse {
+                height: Default::default(),
+                txs_results: None,
+                begin_block_events: None,
+                end_block_events: None,
+                validator_updates: vec![],
+                consensus_param_updates: None,
+            }])
         }
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResponse> {

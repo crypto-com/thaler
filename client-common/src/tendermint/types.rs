@@ -3,6 +3,7 @@ mod block_results;
 
 use parity_scale_codec::Decode;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 use crate::{ErrorKind, Result, ResultExt, Transaction};
 use chain_core::init::config::InitConfig;
@@ -11,16 +12,15 @@ use chain_core::tx::fee::LinearFee;
 use chain_core::tx::{TxAux, TxEnclaveAux, TxPublicAux};
 
 pub use self::block_results::BlockResults;
-pub use tendermint::rpc::endpoint::{
-    abci_query::AbciQuery, abci_query::Response as AbciQueryResponse,
-    block::Response as BlockResponse, block_results::Response as BlockResultsResponse,
-    broadcast::tx_sync::Response as BroadcastTxResponse, commit::Response as CommitResponse,
-    status::Response as StatusResponse, validators::Response as ValidatorsResponse,
-};
-pub use tendermint::rpc::endpoint::{broadcast, status};
 pub use tendermint::{
     abci, abci::transaction::Data, abci::Code, block::Header, block::Height, Block,
     Genesis as GenericGenesis, Hash, Time,
+};
+pub use tendermint_rpc::endpoint::{
+    abci_query::AbciQuery, abci_query::Response as AbciQueryResponse,
+    block::Response as BlockResponse, block_results::Response as BlockResultsResponse, broadcast,
+    broadcast::tx_sync::Response as BroadcastTxResponse, commit::Response as CommitResponse,
+    status, status::Response as StatusResponse, validators::Response as ValidatorsResponse,
 };
 
 /// crypto-com instantiated genesis type
@@ -98,6 +98,8 @@ impl BlockExt for Block {
 pub trait GenesisExt {
     /// get fee policy
     fn fee_policy(&self) -> LinearFee;
+    /// get light client trusting period
+    fn trusting_period(&self) -> Duration;
 }
 
 impl GenesisExt for Genesis {
@@ -107,6 +109,10 @@ impl GenesisExt for Genesis {
             .expect("parsed app state")
             .network_params
             .initial_fee_policy
+    }
+
+    fn trusting_period(&self) -> Duration {
+        self.consensus_params.evidence.max_age_duration.into()
     }
 }
 
@@ -118,6 +124,6 @@ pub trait AbciQueryExt {
 
 impl AbciQueryExt for AbciQuery {
     fn bytes(&self) -> Vec<u8> {
-        self.value.clone().unwrap_or_default()
+        self.value.clone()
     }
 }

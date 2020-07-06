@@ -4,9 +4,9 @@ use crate::to_rpc_error;
 use client_common::tendermint::Client;
 use client_common::Storage;
 use client_common::TransactionObfuscation;
-use client_core::wallet::syncer::AddressRecovery;
-use client_core::wallet::syncer::ProgressReport;
-use client_core::wallet::syncer::{ObfuscationSyncerConfig, WalletSyncer};
+use client_core::wallet::syncer::{
+    AddressRecovery, Handle, ObfuscationSyncerConfig, ProgressReport, WalletSyncer,
+};
 use client_core::wallet::WalletRequest;
 use jsonrpc_core::Result;
 use jsonrpc_derive::rpc;
@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
+
 // seconds
 const NOTIFICATION_TIME: u64 = 2;
 const ERROR_NOTIFICATION_TIME: u64 = 30;
@@ -74,32 +75,36 @@ pub trait SyncRpc: Send + Sync {
     fn sync_stop(&self, request: WalletRequest) -> Result<()>;
 }
 
-pub struct SyncRpcImpl<S, C, O, T>
+pub struct SyncRpcImpl<S, C, O, T, L>
 where
     S: Storage,
     C: Client,
     O: TransactionObfuscation,
     T: AddressRecovery,
+    L: Handle + Send + Sync + Clone,
 {
-    config: ObfuscationSyncerConfig<S, C, O>,
+    config: ObfuscationSyncerConfig<S, C, O, L>,
 
     progress_callback: Option<CBindingCore>,
     worker: WorkerShared,
     recover_address: T,
+    light_client_handle: L,
 }
 
-impl<S, C, O, T> SyncRpcImpl<S, C, O, T>
+impl<S, C, O, T, L> SyncRpcImpl<S, C, O, T, L>
 where
     S: Storage + 'static,
     C: Client + 'static,
     O: TransactionObfuscation + 'static,
     T: AddressRecovery + 'static,
+    L: Handle + Send + Sync + Clone + 'static,
 {
     pub fn new(
-        config: ObfuscationSyncerConfig<S, C, O>,
+        config: ObfuscationSyncerConfig<S, C, O, L>,
         progress_callback: Option<CBindingCore>,
 
         recover_address: T,
+        light_client_handle: L,
     ) -> Self {
         SyncRpcImpl {
             config,
@@ -108,12 +113,13 @@ where
             worker: Arc::new(Mutex::new(SyncWorker::new())),
 
             recover_address,
+            light_client_handle,
         }
     }
 }
 
-fn process_sync<S, C, O, T>(
-    config: ObfuscationSyncerConfig<S, C, O>,
+fn process_sync<S, C, O, T, L>(
+    config: ObfuscationSyncerConfig<S, C, O, L>,
     request: WalletRequest,
     reset: bool,
     progress_callback: Option<CBindingCore>,
@@ -124,6 +130,7 @@ where
     C: Client,
     O: TransactionObfuscation,
     T: AddressRecovery,
+    L: Handle + Send + Sync + Clone,
 {
     let mut syncer = WalletSyncer::with_obfuscation_config(
         config,
@@ -185,12 +192,13 @@ where
         .map_err(to_rpc_error)
 }
 
-impl<S, C, O, T> SyncRpcImpl<S, C, O, T>
+impl<S, C, O, T, L> SyncRpcImpl<S, C, O, T, L>
 where
     S: Storage + 'static,
     C: Client + 'static,
     O: TransactionObfuscation + 'static,
     T: AddressRecovery + 'static,
+    L: Handle + Send + Sync + Clone + 'static,
 {
     fn do_run_sync(
         &self,
@@ -279,12 +287,13 @@ where
     }
 }
 
-impl<S, C, O, T> SyncRpc for SyncRpcImpl<S, C, O, T>
+impl<S, C, O, T, L> SyncRpc for SyncRpcImpl<S, C, O, T, L>
 where
     S: Storage + 'static,
     C: Client + 'static,
     O: TransactionObfuscation + 'static,
     T: AddressRecovery + 'static,
+    L: Handle + Send + Sync + Clone + 'static,
 {
     #[inline]
     fn sync(&self, request: WalletRequest, sync_request: SyncRequest) -> Result<RunSyncResult> {
@@ -320,12 +329,17 @@ where
     }
 }
 
-impl<S, C, O, T> Drop for SyncRpcImpl<S, C, O, T>
+impl<S, C, O, T, L> Drop for SyncRpcImpl<S, C, O, T, L>
 where
     S: Storage,
     C: Client,
     O: TransactionObfuscation,
     T: AddressRecovery,
+    L: Handle + Send + Sync + Clone,
 {
-    fn drop(&mut self) {}
+    fn drop(&mut self) {
+        self.light_client_handle
+            .terminate()
+            .expect("terminate light client supervisor in drop");
+    }
 }
