@@ -54,7 +54,7 @@ quickcheck = "0.9"
 # criterion = "0.3"
 digest = "0.8"
 sha3 = "0.9"
-base64 = "0.11"
+base64 = "0.12"
 kvdb = "0.7"
 kvdb-memorydb = "0.7"
 test-common = { path = "../test-common" }
