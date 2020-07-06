@@ -1,4 +1,4 @@
-use crate::hd_wallet::HardwareKind;
+use crate::hd_wallet::{ChainPath, HardwareKind};
 use crate::service::*;
 use crate::transaction_builder::UnauthorizedWalletTransactionBuilder;
 use crate::transaction_builder::{SignedTransferTransaction, UnsignedTransferTransaction};
@@ -34,7 +34,7 @@ use client_common::{
     PublicKey, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction, TransactionInfo,
 };
 use indexmap::IndexSet;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 use std::collections::BTreeMap;
@@ -309,15 +309,24 @@ where
                 )
             })?;
 
-        // get public-private key pair
         let mut key_pairs = BTreeMap::new();
+        let mut key_chainpath = BTreeMap::new();
         let public_keys = self.public_keys(name, enckey)?;
+        // get public-private key pair and public-chainpath pair
         for public_key in public_keys.into_iter() {
-            let private_key = self
+            if let Some(private_key) =
+                self.wallet_service
+                    .find_private_key(name, enckey, &public_key)?
+            {
+                key_pairs.insert(public_key.clone(), private_key);
+            }
+            if let Some(chain_path) = self
                 .wallet_service
-                .find_private_key(name, enckey, &public_key)?;
-            let raw_private_key = private_key.map(|k| k.encode());
-            key_pairs.insert(public_key, raw_private_key);
+                .find_chain_path(name, enckey, &public_key)?
+                .map(|p| p.into_string())
+            {
+                key_chainpath.insert(public_key, chain_path);
+            }
         }
 
         // get multisig address
@@ -326,8 +335,11 @@ where
             let multisig_address = self
                 .root_hash_service
                 .get_multi_sig_address_from_root_hash(name, root_hash, enckey)?;
-            multisig_address_pair.insert(hex::encode(&root_hash), multisig_address.encode());
+            multisig_address_pair.insert(hex::encode(&root_hash), multisig_address);
         }
+
+        // get hdkey
+        let hdkey = self.hd_key_service.get_hdkey(name, enckey)?;
 
         let wallet_info = WalletInfo {
             name: name.into(),
@@ -335,6 +347,8 @@ where
             private_key,
             passphrase: None,
             key_pairs,
+            key_chainpath,
+            hdkey,
             multisig_address_pair,
         };
         Ok(wallet_info)
@@ -370,21 +384,27 @@ where
         self.wallet_service
             .set_wallet(name, &enckey, wallet_info.wallet.clone())?;
 
-        for (public_key, private_key_raw) in wallet_info.key_pairs.iter() {
-            if let Some(raw) = private_key_raw {
-                let private_key = PrivateKey::decode(&mut raw.as_slice())
-                    .chain(|| (ErrorKind::InvalidInput, "invalid private key"))?;
-                self.wallet_service
-                    .add_key_pairs(name, &enckey, &public_key, &private_key)?;
-            }
+        for (public_key, private_key) in wallet_info.key_pairs.iter() {
+            self.wallet_service
+                .add_key_pairs(name, &enckey, public_key, private_key)?;
             self.wallet_service
                 .add_public_key(name, &enckey, public_key)?;
         }
 
+        for (public_key, chain_path) in wallet_info.key_chainpath.iter() {
+            let path = ChainPath::from(chain_path.as_str());
+            self.wallet_service
+                .add_key_path(name, &enckey, public_key, &path)?;
+            self.wallet_service
+                .add_public_key(name, &enckey, public_key)?;
+        }
+
+        if let Some(hdkey) = wallet_info.hdkey {
+            self.hd_key_service.add_hdkey(name, &enckey, hdkey)?;
+        }
+
         // store multisig address
-        for (root_hash_str, raw_multisig_addr) in wallet_info.multisig_address_pair.iter() {
-            let multisig_addr = MultiSigAddress::decode(&mut raw_multisig_addr.as_slice())
-                .chain(|| (ErrorKind::InvalidInput, "failed to parse multisig address"))?;
+        for (root_hash_str, multisig_addr) in wallet_info.multisig_address_pair.iter() {
             let root_hash_raw = hex::decode(root_hash_str)
                 .chain(|| (ErrorKind::InvalidInput, "failed to parse root_hash"))?;
 
@@ -395,7 +415,7 @@ where
             self.wallet_service
                 .add_root_hash(name, &enckey, root_hash)?;
             self.root_hash_service
-                .set_multi_sig_address_from_root_hash(name, &enckey, &root_hash, &multisig_addr)?;
+                .set_multi_sig_address_from_root_hash(name, &enckey, &root_hash, multisig_addr)?;
         }
 
         for public_key in wallet_info.wallet.staking_keys.iter() {
@@ -435,7 +455,8 @@ where
             WalletKind::HD => {
                 let mnemonic = Mnemonic::new(mnemonics_word_count.unwrap_or(24))?;
 
-                self.hd_key_service.add_mnemonic(name, &mnemonic, &enckey)?;
+                self.hd_key_service
+                    .add_mnemonic(name, Some(&mnemonic), &enckey)?;
 
                 let (public_key, private_key) =
                     self.hd_key_service
@@ -453,7 +474,7 @@ where
                 // the view-key pair is the local key pair, not come from the hardware wallet.
                 let private_key = PrivateKey::new()?;
                 let view_key = PublicKey::from(&private_key);
-
+                self.hd_key_service.add_mnemonic(name, None, &enckey)?;
                 self.key_service
                     .add_wallet_private_key(name, &private_key, &enckey)?;
 
@@ -477,7 +498,8 @@ where
             "unable to derive encryption key from passphrase"
         })?;
 
-        self.hd_key_service.add_mnemonic(name, mnemonic, &enckey)?;
+        self.hd_key_service
+            .add_mnemonic(name, Some(mnemonic), &enckey)?;
 
         let (public_key, private_key) =
             self.hd_key_service
@@ -626,7 +648,18 @@ where
     ) -> Result<Box<dyn PrivateKeyAction>> {
         let wallet = self.wallet_service.get_wallet(name, enckey)?;
         match wallet.wallet_kind {
-            WalletKind::HW => self.hw_key_service.get_sign_key(public_key),
+            WalletKind::HW => {
+                let chain_path = self
+                    .wallet_service
+                    .find_chain_path(name, enckey, public_key)?
+                    .chain(|| {
+                        (
+                            ErrorKind::InvalidInput,
+                            "Not able to find chain path for given public_key in current wallet",
+                        )
+                    })?;
+                self.hw_key_service.get_sign_key(&chain_path)
+            }
             _ => {
                 let private_key = self
                     .wallet_service
@@ -676,18 +709,17 @@ where
                 Ok(public_key)
             }
             WalletKind::HD => {
-                let (public_key, private_key) = self.hd_key_service.generate_keypair(
-                    name,
-                    enckey,
-                    address_type
-                        .chain(|| {
-                            (
-                                ErrorKind::InvalidInput,
-                                "Address type is needed when creating address for HD wallet",
-                            )
-                        })?
-                        .into(),
-                )?;
+                let account_type = address_type
+                    .chain(|| {
+                        (
+                            ErrorKind::InvalidInput,
+                            "Address type is needed when creating address for HD wallet",
+                        )
+                    })?
+                    .into();
+                let (public_key, private_key) =
+                    self.hd_key_service
+                        .generate_keypair(name, enckey, account_type)?;
                 self.wallet_service
                     .add_public_key(name, enckey, &public_key)?;
                 self.wallet_service
@@ -695,9 +727,20 @@ where
                 Ok(public_key)
             }
             WalletKind::HW => {
-                let public_key = self.hw_key_service.new_staking_address()?;
+                let account_type = address_type
+                    .chain(|| {
+                        (
+                            ErrorKind::InvalidInput,
+                            "Address type is needed when creating address for HW wallet",
+                        )
+                    })?
+                    .into();
+                let hd_path =
+                    self.hd_key_service
+                        .generate_chain_path(name, enckey, account_type)?;
+                let public_key = self.hw_key_service.get_public_key(hd_path.clone())?;
                 self.wallet_service
-                    .add_public_key(name, enckey, &public_key)?;
+                    .add_key_path(name, enckey, &public_key, &hd_path)?;
                 Ok(public_key)
             }
         }
@@ -721,7 +764,17 @@ where
                     .add_key_pairs(name, enckey, &public_key, &private_key)?;
                 public_key
             }
-            WalletKind::HW => self.hw_key_service.new_staking_address()?,
+            WalletKind::HW => {
+                let hd_path = self.hd_key_service.generate_chain_path(
+                    name,
+                    enckey,
+                    HDAccountType::Staking,
+                )?;
+                let public_key = self.hw_key_service.get_public_key(hd_path.clone())?;
+                self.wallet_service
+                    .add_key_path(name, enckey, &public_key, &hd_path)?;
+                public_key
+            }
         };
 
         self.wallet_service
@@ -750,7 +803,17 @@ where
                     .add_key_pairs(name, enckey, &public_key, &private_key)?;
                 public_key
             }
-            WalletKind::HW => self.hw_key_service.new_transfer_address()?,
+            WalletKind::HW => {
+                let hd_path = self.hd_key_service.generate_chain_path(
+                    name,
+                    enckey,
+                    HDAccountType::Transfer,
+                )?;
+                let public_key = self.hw_key_service.get_public_key(hd_path.clone())?;
+                self.wallet_service
+                    .add_key_path(name, enckey, &public_key, &hd_path)?;
+                public_key
+            }
         };
         self.wallet_service
             .add_public_key(name, enckey, &public_key)?;
@@ -1191,7 +1254,13 @@ where
         self.transfer_addresses(name, enckey)?;
         let wallet = self.wallet_service.get_wallet(name, enckey)?;
         let sign_key = match wallet.wallet_kind {
-            WalletKind::HW => self.hw_key_service.get_sign_key(public_key)?,
+            WalletKind::HW => {
+                let chain_path = self
+                    .wallet_service
+                    .find_chain_path(name, enckey, public_key)?
+                    .chain(|| (ErrorKind::InvalidInput, "can not find chain path"))?;
+                self.hw_key_service.get_sign_key(&chain_path)?
+            }
             _ => {
                 let private_key = self
                     .wallet_service

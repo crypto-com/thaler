@@ -292,6 +292,17 @@ def tasks_ini(node_cfgs, app_hash, root_path, cfg):
             'startretries': '10',
         }
 
+    ini['program:mock_hardware_key_storage'] = {
+        'command': f'mock_hardware_wallet',
+        'stdout_logfile': '%(here)s/logs/mock_hardware_key_storage.log',
+        'autostart': 'true',
+        'autorestart': 'true',
+        'redirect_stderr': 'true',
+        'priority': '10',
+        'startsecs': '3',
+        'startretries': '10',
+    }
+
     for node in node_cfgs:
         prgs = programs(node, app_hash, root_path, cfg)
         ini['group:%s' % node['name']] = {

@@ -9,11 +9,13 @@ use client_common::{
 use crate::types::AddressType;
 use crate::{HDSeed, Mnemonic};
 
+use crate::hd_wallet::ChainPath;
 use std::convert::From;
+
 const KEYSPACE: &str = "core_hd_key";
 
 /// HD key
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Default, Encode, Decode)]
 pub struct HdKey {
     /// staking index
     pub staking_index: u32,
@@ -109,15 +111,19 @@ where
     }
 
     /// Adds a new mnemonic in storage and sets its index to zero
-    pub fn add_mnemonic(&self, name: &str, mnemonic: &Mnemonic, enckey: &SecKey) -> Result<()> {
+    pub fn add_mnemonic(
+        &self,
+        name: &str,
+        mnemonic: Option<&Mnemonic>,
+        enckey: &SecKey,
+    ) -> Result<()> {
         if self.storage.get(KEYSPACE, name)?.is_some() {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
                 "HD Key with given name already exists",
             ));
         }
-
-        let hd_seed = HDSeed::from(mnemonic);
+        let hd_seed = mnemonic.map_or_else(HDSeed::default, HDSeed::from);
 
         let hd_key = HdKey {
             staking_index: 0,
@@ -125,10 +131,29 @@ where
             viewkey_index: 0,
             seed: hd_seed,
         };
+        self.add_hdkey(name, enckey, hd_key)
+    }
 
+    /// Adds a new encoded raw hdkey in storage
+    #[inline]
+    pub fn add_hdkey(&self, name: &str, enckey: &SecKey, hd_key: HdKey) -> Result<()> {
         self.storage
             .set_secure(KEYSPACE, name, hd_key.encode(), enckey)
             .map(|_| ())
+    }
+
+    /// Get a hdkey from storage, returns the encoded raw data from storage
+    #[inline]
+    pub fn get_hdkey(&self, name: &str, enckey: &SecKey) -> Result<Option<HdKey>> {
+        let raw = self.storage.get_secure(KEYSPACE, name, enckey)?;
+        match raw {
+            None => Ok(None),
+            Some(r) => {
+                let hd_key = HdKey::decode(&mut r.as_slice())
+                    .chain(|| (ErrorKind::VerifyError, "parse hd key failed"))?;
+                Ok(Some(hd_key))
+            }
+        }
     }
 
     /// peek key pair by index
@@ -153,7 +178,7 @@ where
             .get_pubkey(get_network(), HDAccountType::Transfer.index(), index)
     }
 
-    /// Generates keypair for given wallet and address type
+    /// update the stored HDKey, return the updated one
     ///
     /// # Note
     ///
@@ -164,12 +189,12 @@ where
     /// - `account`: `0` for `AddressType::Transfer` and `1` for `AddressType::Staking`
     /// - `change`: `0`
     /// - `address_index`: Index of address as retrieved from storage
-    pub fn generate_keypair(
+    pub fn update_hd_key(
         &self,
         name: &str,
         enckey: &SecKey,
         account_type: HDAccountType,
-    ) -> Result<(PublicKey, PrivateKey)> {
+    ) -> Result<HdKey> {
         let bytes = self
             .storage
             .fetch_and_update_secure(KEYSPACE, name, enckey, |bytes| {
@@ -203,13 +228,24 @@ where
             })?;
 
         let hd_key_bytes = decrypt_bytes(name, enckey, &bytes)?;
-        let hd_key = HdKey::decode(&mut hd_key_bytes.as_slice()).chain(|| {
+        HdKey::decode(&mut hd_key_bytes.as_slice()).chain(|| {
             (
                 ErrorKind::DeserializationError,
                 "Unable to decode HD key bytes",
             )
-        })?;
+        })
+    }
 
+    /// Generates keypair for given wallet and address type
+    /// 1. update the HdKey
+    /// 2. use the updated HdKey to generate keypair
+    pub fn generate_keypair(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        account_type: HDAccountType,
+    ) -> Result<(PublicKey, PrivateKey)> {
+        let hd_key = self.update_hd_key(name, enckey, account_type)?;
         let index = match account_type {
             HDAccountType::Transfer => hd_key.transfer_index,
             HDAccountType::Staking => hd_key.staking_index,
@@ -219,6 +255,25 @@ where
         hd_key
             .seed
             .derive_key_pair(get_network(), account_type.index(), index)
+    }
+
+    /// Generate ChainPath for given wallet and address type
+    /// 1. update the KdKey
+    /// 2. use the updated HdKey to generate ChainPath
+    pub fn generate_chain_path(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        account_type: HDAccountType,
+    ) -> Result<ChainPath> {
+        let hd_key = self.update_hd_key(name, enckey, account_type)?;
+        let index = match account_type {
+            HDAccountType::Transfer => hd_key.transfer_index,
+            HDAccountType::Staking => hd_key.staking_index,
+            HDAccountType::Viewkey => hd_key.viewkey_index,
+        };
+        let chain_path = ChainPath::create_bip44(get_network(), account_type.index(), index);
+        Ok(chain_path)
     }
 
     /// Clears all storage

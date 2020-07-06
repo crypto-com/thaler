@@ -5,6 +5,7 @@
 //!
 
 use crate::hd_wallet::KeyIndex;
+use chain_core::init::network::{get_bip44_coin_type_from_network, Network};
 use std::fmt;
 
 const MASTER_SYMBOL: &str = "m";
@@ -24,7 +25,7 @@ pub enum Error {
 
 /// ChainPath is used to describe BIP-32 KeyChain path.
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChainPath(String);
 
 impl ChainPath {
@@ -41,6 +42,26 @@ impl ChainPath {
     /// Convert ChainPath to &str represent format
     fn to_string(&self) -> &str {
         &self.0
+    }
+
+    /// encode ChainPath to vec<u8>
+    pub fn encode(self) -> Vec<u8> {
+        let s = self.into_string();
+        s.into_bytes()
+    }
+
+    /// get ChainPath from Vec<u8>
+    pub fn decode(data: Vec<u8>) -> Result<Self, Error> {
+        let s = String::from_utf8(data).map_err(|_| Error::Invalid)?;
+        Ok(Self(s))
+    }
+
+    /// Returns the bip44 hd path
+    pub fn create_bip44(network: Network, account_index: u32, index: u32) -> Self {
+        let coin_type = get_bip44_coin_type_from_network(network);
+
+        let chain_path_string = format!("m/44'/{}'/{}'/0/{}", coin_type, account_index, index);
+        Self::from(chain_path_string)
     }
 }
 

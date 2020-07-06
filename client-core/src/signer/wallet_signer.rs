@@ -158,7 +158,13 @@ where
             .public_key(self.name, &root_hash, self.enckey)?;
         let wallet = self.wallet_service.get_wallet(self.name, self.enckey)?;
         let sign_key = match wallet.wallet_kind {
-            WalletKind::HW => self.hw_key_service.get_sign_key(&public_key)?,
+            WalletKind::HW => {
+                let chain_path = self
+                    .wallet_service
+                    .find_chain_path(self.name, self.enckey, &public_key)?
+                    .chain(|| (ErrorKind::PermissionDenied, "can not find chain path"))?;
+                self.hw_key_service.get_sign_key(&chain_path)?
+            }
             WalletKind::Basic | WalletKind::HD => {
                 let private_key = self
                     .wallet_service

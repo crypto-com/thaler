@@ -1,21 +1,16 @@
+use crate::hd_wallet::ChainPath;
 #[cfg(feature = "mock-hardware-wallet")]
 use crate::service::MockHardwareService;
 use client_common::{ErrorKind, PrivateKeyAction, PublicKey, Result};
 
 /// collection of hardware key interfaces
 pub trait HardwareWalletAction: Send + Sync + Clone {
-    /// create a new transfer address, return the public key
-    fn new_transfer_address(&self) -> Result<PublicKey> {
+    /// get the public key by a given ChainPath
+    fn get_public_key(&self, _chain_path: ChainPath) -> Result<PublicKey> {
         Err(ErrorKind::PermissionDenied.into())
     }
-
-    /// create a new staking address, return the public key
-    fn new_staking_address(&self) -> Result<PublicKey> {
-        Err(ErrorKind::PermissionDenied.into())
-    }
-
     /// return a private key action object
-    fn get_sign_key(&self, _public_key: &PublicKey) -> Result<Box<dyn PrivateKeyAction>> {
+    fn get_sign_key(&self, _hd_path: &ChainPath) -> Result<Box<dyn PrivateKeyAction>> {
         Err(ErrorKind::PermissionDenied.into())
     }
 }
@@ -43,30 +38,21 @@ impl Default for HwKeyService {
 }
 
 impl HwKeyService {
-    /// create a new transfer address, return the public key
-    pub fn new_transfer_address(&self) -> Result<PublicKey> {
-        match self {
-            HwKeyService::Unauthorized(hw_key_service) => hw_key_service.new_staking_address(),
-            #[cfg(feature = "mock-hardware-wallet")]
-            HwKeyService::Mock(hw_key_service) => hw_key_service.new_transfer_address(),
-        }
-    }
-
-    /// create a new staking address, return the public key
-    pub fn new_staking_address(&self) -> Result<PublicKey> {
-        match self {
-            HwKeyService::Unauthorized(hw_key_service) => hw_key_service.new_transfer_address(),
-            #[cfg(feature = "mock-hardware-wallet")]
-            HwKeyService::Mock(hw_key_service) => hw_key_service.new_staking_address(),
-        }
-    }
-
     /// return a private key action object
-    pub fn get_sign_key(&self, public_key: &PublicKey) -> Result<Box<dyn PrivateKeyAction>> {
+    pub fn get_sign_key(&self, hd_path: &ChainPath) -> Result<Box<dyn PrivateKeyAction>> {
         match self {
-            HwKeyService::Unauthorized(hw_key_service) => hw_key_service.get_sign_key(public_key),
+            HwKeyService::Unauthorized(hw_key_service) => hw_key_service.get_sign_key(hd_path),
             #[cfg(feature = "mock-hardware-wallet")]
-            HwKeyService::Mock(hw_key_service) => hw_key_service.get_sign_key(public_key),
+            HwKeyService::Mock(hw_key_service) => hw_key_service.get_sign_key(hd_path),
+        }
+    }
+
+    /// return a public key
+    pub fn get_public_key(&self, chain_path: ChainPath) -> Result<PublicKey> {
+        match self {
+            HwKeyService::Unauthorized(hw_key_service) => hw_key_service.get_public_key(chain_path),
+            #[cfg(feature = "mock-hardware-wallet")]
+            HwKeyService::Mock(hw_key_service) => hw_key_service.get_public_key(chain_path),
         }
     }
 }
