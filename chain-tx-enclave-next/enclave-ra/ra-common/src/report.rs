@@ -62,7 +62,9 @@ pub struct AttestationReportBody {
     pub platform_info_blob: Option<String>,
     pub nonce: Option<String>,
     pub epid_pseudonym: Option<String>,
+    #[serde(rename = "advisoryURL")]
     pub advisory_url: Option<String>,
+    #[serde(rename = "advisoryIDs")]
     pub advisory_ids: Option<Vec<String>>,
 }
 
@@ -91,4 +93,58 @@ pub struct AttestationReport {
     pub signature: Vec<u8>,
     /// Report signing certificate
     pub signing_cert: Vec<u8>,
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_attestation_report_body_deserialization() {
+        let response_body = "{\
+\"id\":\"66484602060454922488320076477903784063\",\
+\"timestamp\":\"2020-03-20T10:07:26.711023\",\
+\"version\":4,\
+\"isvEnclaveQuoteStatus\":\"GROUP_OUT_OF_DATE\",\
+\"isvEnclaveQuoteBody\":\"AAEAAAEAAA+yth5<…encoded_quote_body…>7h38CMfOng\",\
+\"platformInfoBlob\":\"150100650<…pib_structure…>7B094250DB00C610\",\
+\"advisoryURL\":\"https://security-center.intel.com\",\
+\"advisoryIDs\":[\"INTEL-SA-00076\",\"INTEL-SA-00135\"]\
+}";
+        let attestation_report_body: AttestationReportBody =
+            serde_json::from_str(response_body).unwrap();
+        assert_eq!(
+            "66484602060454922488320076477903784063",
+            attestation_report_body.id
+        );
+        assert_eq!(
+            "2020-03-20T10:07:26.711023",
+            attestation_report_body.timestamp
+        );
+        assert_eq!(4, attestation_report_body.version);
+        assert_eq!(
+            "GROUP_OUT_OF_DATE",
+            attestation_report_body.isv_enclave_quote_status
+        );
+        assert_eq!(
+            "AAEAAAEAAA+yth5<…encoded_quote_body…>7h38CMfOng",
+            attestation_report_body.isv_enclave_quote_body
+        );
+        assert_eq!(
+            Some(String::from("150100650<…pib_structure…>7B094250DB00C610")),
+            attestation_report_body.platform_info_blob
+        );
+        assert_eq!(
+            Some(String::from("https://security-center.intel.com")),
+            attestation_report_body.advisory_url
+        );
+        assert_eq!(
+            Some(vec![
+                String::from("INTEL-SA-00076"),
+                String::from("INTEL-SA-00135")
+            ]),
+            attestation_report_body.advisory_ids
+        );
+    }
 }
