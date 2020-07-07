@@ -25,7 +25,14 @@ struct Options {
     /// `ra-sp-server` address for remote attestation. E.g. `0.0.0.0:8989`
     #[structopt(short, long)]
     pub sp_address: String,
-    /// tx-query server address. E.g. `127.0.0.1:3443`
+    /// Optional address of another TDBE server from where to fetch data
+    ///
+    /// FIXME: This is a temporary solution for letting the TDBE know when it has to connect to
+    /// other TDBE server. Ideally this configuration can be pushed to TDBE using some "config
+    /// stream"
+    #[structopt(short, long)]
+    pub tdbe_address: Option<String>,
+    /// TDBE server address. E.g. `127.0.0.1:3445`
     #[structopt(short, long)]
     pub address: String,
     /// Use dummy signature in testing
@@ -54,6 +61,16 @@ impl UsercallExtension for Options {
                     let stream = TcpStream::connect(&this.sp_address).await?;
                     Ok(Some(Box::new(stream)))
                 }
+                "tdbe" => match this.tdbe_address {
+                    Some(ref tdbe_address) => {
+                        let stream = TcpStream::connect(tdbe_address).await?;
+                        Ok(Some(Box::new(stream)))
+                    }
+                    None => {
+                        log::error!("Attempting to connect to another TDBE server but no address provided at startup.");
+                        Ok(None)
+                    }
+                },
                 _ => Ok(None),
             }
         }
@@ -71,7 +88,7 @@ impl UsercallExtension for Options {
             addr: &str,
         ) -> io::Result<Option<Box<dyn AsyncListener>>> {
             match addr {
-                "tx-query" => {
+                "tdbe" => {
                     let listener = TcpListener::bind(&this.address).await?;
                     Ok(Some(Box::new(listener)))
                 }

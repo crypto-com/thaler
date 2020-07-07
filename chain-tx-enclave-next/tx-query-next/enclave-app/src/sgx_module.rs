@@ -31,7 +31,7 @@ pub fn entry() -> std::io::Result<()> {
 
     let num_threads = 4;
     let config = EnclaveRaConfig {
-        sp_addr: "0.0.0.0:8989".to_string(),
+        sp_addr: "ra-sp-server".to_string(),
         certificate_validity_secs: 86400,
     };
 

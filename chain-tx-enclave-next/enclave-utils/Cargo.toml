@@ -12,6 +12,10 @@ aes-gcm = "0.5.0"
 aead = "0.2"
 zeroize = "1.1"
 rand = "0.7"
+async_zmq = "0.3"
+futures = "0.3"
+log = "0.4"
+tokio = { version = "0.2", features = ["sync", "tcp"] }
 
 [features]
 sgxstd = ["sgx-isa/sgxstd"]
