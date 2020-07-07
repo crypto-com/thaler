@@ -101,6 +101,9 @@ create-path:
 	bash -c "mkdir -p $(data_path)/tendermint/{config,data}"
 	bash -c "mkdir -p $(data_path)/{wallet,chain-storage,enclave-storage}"
 
+chown-path:
+	bash -c "chown -R $(user):$(group) $(data_path)/{tendermint,wallet,chain-storage,enclave-storage}"
+
 init-tendermint:
 ifeq ($(chain), devnet)
 	@echo "\033[32mcopy devnet tendermint config\033[0m"

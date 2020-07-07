@@ -23,7 +23,7 @@ quest = "0.3"
 secstr = "0.4.0"
 parity-scale-codec = { version = "1.3" }
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["recovery", "endomorphism"] }
-base64 = "0.11"
+base64 = "0.12"
 mls = { path = "../chain-tx-enclave-next/mls" }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
 
