@@ -51,4 +51,4 @@ default-members = [
 ]
 
 [patch.crates-io]
-ring = { git = "https://github.com/crypto-com/ring.git", rev = "4e1862fb0df9efaf2d2c1ec8cacb1e53104f3daa" }
+ring = { git = "https://github.com/crypto-com/ring.git", rev = "7d08bdbbc68fe5e867445c576c004336699650c1" }
