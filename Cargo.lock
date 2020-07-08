@@ -224,7 +224,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "base64"
-version = "0.12.1"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -468,7 +468,7 @@ name = "chain-abci"
 version = "0.6.0"
 dependencies = [
  "abci 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "cc 1.0.57 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -511,7 +511,7 @@ name = "chain-core"
 version = "0.6.0"
 dependencies = [
  "aead 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bech32 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -631,7 +631,7 @@ dependencies = [
 name = "client-cli"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.6.0",
  "chrono 0.4.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "cli-table 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -663,7 +663,7 @@ dependencies = [
  "aes 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "aes-gcm-siv 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "anyhow 1.0.31 (registry+https://github.com/rust-lang/crates.io-index)",
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.6.0",
@@ -703,7 +703,7 @@ name = "client-core"
 version = "0.6.0"
 dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -744,7 +744,7 @@ dependencies = [
 name = "client-network"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.6.0",
  "chain-storage 0.6.0",
  "chain-tx-validation 0.6.0",
@@ -780,7 +780,7 @@ dependencies = [
 name = "client-rpc-core"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.6.0",
  "client-common 0.6.0",
  "client-core 0.6.0",
@@ -1110,7 +1110,7 @@ dependencies = [
 name = "dev-utils"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-abci 0.6.0",
  "chain-core 0.6.0",
  "chrono 0.4.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2962,7 +2962,7 @@ dependencies = [
 name = "ra-common"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.114 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.56 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.20 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3002,7 +3002,7 @@ name = "ra-sp-server"
 version = "0.6.0"
 dependencies = [
  "aesm-client 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3244,7 +3244,7 @@ name = "reqwest"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "encoding_rs 0.8.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-core 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3349,7 +3349,7 @@ name = "rust-argon2"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "blake2b_simd 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "constant_time_eq 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "crossbeam-utils 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4070,7 +4070,7 @@ name = "test-common"
 version = "0.6.0"
 dependencies = [
  "abci 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-abci 0.6.0",
  "chain-core 0.6.0",
  "chain-storage 0.6.0",
@@ -4867,7 +4867,7 @@ name = "x509-parser"
 version = "0.8.0-beta3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "der-oid-macro 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "der-parser 4.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4973,7 +4973,7 @@ dependencies = [
 "checksum backtrace-sys 0.1.37 (registry+https://github.com/rust-lang/crates.io-index)" = "18fbebbe1c9d1f383a9cc7e8ccdb471b91c8d024ee9c2ca5b5346121fe8b4399"
 "checksum base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5024ee8015f02155eee35c711107ddd9a9bf3cb689cf2a9089c97e79b6e1ae83"
 "checksum base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
-"checksum base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)" = "53d1ccbaf7d9ec9537465a97bf19edc1a4e158ecb49fc16178202238c569cc42"
+"checksum base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)" = "3441f0f7b02788e948e47f457ca01f1d7e6d92c693bc132c22b087d3141c03ff"
 "checksum bech32 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)" = "cdcf67bb7ba7797a081cd19009948ab533af7c355d5caf1d08c777582d351e9c"
 "checksum bindgen 0.53.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6bb26d6a69a335b8cb0e7c7e9775cd5666611dc50a37177c3f2cedcfc040e8c8"
 "checksum bit-set 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6e11e16035ea35e4e5997b393eacbf6f63983188f7a2ad25bfb13465f5ad59de"
