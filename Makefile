@@ -11,7 +11,12 @@ TX_QUERY_HOSTNAME ?=
 MAKE_CMD = make
 
 # SGX_DEVICE can be /dev/sgx or /dev/isgx
-SGX_DEVICE ?= /dev/sgx
+ifeq ($(shell test -e /dev/sgx && echo -n yes),yes)
+	SGX_DEVICE=/dev/sgx
+else ifeq ($(shell test -e /dev/isgx && echo -n yes),yes)
+	SGX_DEVICE=/dev/isgx
+endif
+
 
 ifeq ($(build_mode), release)
 	CARGO_BUILD_CMD = cargo build --release
