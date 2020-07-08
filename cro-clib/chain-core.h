@@ -55,6 +55,11 @@
 #define REDEEM_ADDRESS_BYTES 20
 
 /**
+ * Maximum (Tendermint-outer payload) transaction size
+ */
+#define TX_AUX_SIZE (1024 * 60)
+
+/**
  * network type
  */
 typedef enum Network {

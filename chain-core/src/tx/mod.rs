@@ -26,7 +26,8 @@ use aead::Payload;
 use data::input::{TxoPointer, TxoSize};
 use data::output::TxOut;
 
-const TX_AUX_SIZE: usize = 1024 * 60; // 60 KB
+/// Maximum (Tendermint-outer payload) transaction size
+pub const TX_AUX_SIZE: usize = 1024 * 60; // 60 KB
 
 /// wrapper around transactions with outputs
 #[derive(Encode, Decode, Clone)]

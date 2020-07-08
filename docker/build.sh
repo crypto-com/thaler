@@ -35,6 +35,10 @@ if [ $BUILD_MODE == "sgx" ]; then
     rustup target add x86_64-fortanix-unknown-sgx
     cargo install fortanix-sgx-tools sgxs-tools
 
+    # FIXME: test enclave packages
+    # LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
+    # NETWORK_ID="ab" cargo test --target=x86_64-fortanix-unknown-sgx -p tx-validation-next -p enclave-utils
+
     # mls enclave -- FIXME: TDBE, mls should only be a library
     cargo build --target=x86_64-fortanix-unknown-sgx -p mls
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/mls \
