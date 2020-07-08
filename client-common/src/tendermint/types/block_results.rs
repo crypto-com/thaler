@@ -22,6 +22,10 @@ pub trait BlockResults {
     /// Returns true when the address presents
     fn contains_account(&self, target_account: &StakedStateAddress) -> Result<bool>;
 
+    /// Checks if the block contains a staking stransaction
+    /// Returns true when contains a staking transaction
+    fn contains_staking(&self) -> bool;
+
     /// Returns block filter in block results
     fn block_filter(&self) -> Result<BlockFilter>;
 }
@@ -47,6 +51,22 @@ impl BlockResults for BlockResultsResponse {
                 Ok(fees)
             }
         }
+    }
+
+    fn contains_staking(&self) -> bool {
+        if let Some(deliver_tx) = &self.txs_results {
+            for deliver_tx in deliver_tx.iter() {
+                if deliver_tx
+                    .events
+                    .iter()
+                    .map(|e| &e.type_str)
+                    .any(|x| x == &TendermintEventType::StakingChange.to_string())
+                {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn contains_account(&self, target_account: &StakedStateAddress) -> Result<bool> {

@@ -461,7 +461,13 @@ impl<
                     ),
                 );
 
-                let block = FilteredBlock::from_block(&self.wallet, &block, &block_result, &state)?;
+                let block = FilteredBlock::from_block(
+                    &self.wallet,
+                    &self.wallet_state,
+                    &block,
+                    &block_result,
+                    &state,
+                )?;
                 self.update_progress(block.block_height);
                 batch.push(block);
             }
@@ -505,6 +511,7 @@ impl<
                 .query_state_batch(iter::once(current_block_height))?;
             Ok(Some(FilteredBlock::from_block(
                 &self.wallet,
+                &self.wallet_state,
                 &block,
                 &block_result,
                 &states[0],
@@ -527,6 +534,7 @@ impl<
                 .query_state_batch(iter::once(current_block_height))?;
             Ok(Some(FilteredBlock::from_block(
                 &self.wallet,
+                &self.wallet_state,
                 &block,
                 &block_result,
                 &states[0],
@@ -651,6 +659,7 @@ impl FilteredBlock {
     /// Decode and filter block data for wallet
     fn from_block(
         wallet: &Wallet,
+        wallet_state: &WalletState,
         block: &Block,
         block_result: &BlockResultsResponse,
         state: &ChainState,
@@ -661,8 +670,17 @@ impl FilteredBlock {
 
         let block_filter = block_result.block_filter()?;
 
-        let staking_transactions =
-            filter_staking_transactions(&block_result, wallet.staking_addresses().iter(), block)?;
+        // first get the incomming staking transactions
+        let mut staking_transactions = filter_incomming_staking_transactions(
+            &block_result,
+            wallet.staking_addresses().iter(),
+            block,
+        )?;
+
+        // if it is not the incomming staking transaction, maybe it is the outgoing staking transaction
+        if staking_transactions.is_empty() {
+            staking_transactions = filter_staking_transactions(&block_result, block, wallet_state)?;
+        }
 
         let valid_transaction_fees = block_result.fees()?;
 
@@ -686,7 +704,41 @@ impl FilteredBlock {
     }
 }
 
-fn filter_staking_transactions<'a>(
+/// find the self outgoing staking transactions in the block
+fn filter_staking_transactions(
+    block_results: &BlockResultsResponse,
+    block: &Block,
+    wallet_state: &WalletState,
+) -> Result<Vec<Transaction>> {
+    let outgoing_tx = move |tx: &Transaction| {
+        let inputs = tx.inputs();
+        for input in inputs {
+            if wallet_state.unspent_transactions.get(input).is_some() {
+                return true;
+            }
+            for tx_pending in wallet_state.pending_transactions.values() {
+                if tx_pending.used_inputs.contains(input) {
+                    return true;
+                }
+            }
+        }
+        false
+    };
+    if block_results.contains_staking() {
+        let txs = block
+            .staking_transactions()?
+            .iter()
+            .filter(|&t| outgoing_tx(t))
+            .cloned()
+            .collect();
+        Ok(txs)
+    } else {
+        Ok(Default::default())
+    }
+}
+
+/// the staking address in the transaction is self_wallet staking address
+fn filter_incomming_staking_transactions<'a>(
     block_results: &BlockResultsResponse,
     staking_addresses: impl Iterator<Item = &'a StakedStateAddress>,
     block: &Block,
