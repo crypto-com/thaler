@@ -126,6 +126,7 @@ where
         extended_addr: &ExtendedAddr,
         name: &str,
         enckey: &SecKey,
+        wallet: &mut Wallet,
     ) -> Result<bool> {
         let is_exist = self
             .wallet_service
@@ -162,8 +163,14 @@ where
 
         let count = count;
         for _i in 0..count {
-            self.new_transfer_address(name, enckey)
+            let newaddress: ExtendedAddr = self
+                .new_transfer_address(name, enckey)
                 .expect("get new transfer address");
+            match newaddress {
+                ExtendedAddr::OrTree(ref root_hash) => {
+                    wallet.root_hashes.insert(*root_hash);
+                }
+            }
         }
 
         Ok(true)
@@ -177,7 +184,7 @@ where
     T: WalletTransactionBuilder,
 {
     fn get_transaction(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<Transaction> {
-        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         let private_key = self
             .wallet_private_key(name, enckey, wallet.wallet_kind)?
             .chain(|| (ErrorKind::StorageError, "can not find private key"))?;
@@ -199,7 +206,7 @@ where
     }
 
     fn get_wallet_kind(&self, name: &str, enckey: &SecKey) -> Result<WalletKind> {
-        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         Ok(wallet.wallet_kind)
     }
 
@@ -646,7 +653,7 @@ where
         enckey: &SecKey,
         public_key: &PublicKey,
     ) -> Result<Box<dyn PrivateKeyAction>> {
-        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         match wallet.wallet_kind {
             WalletKind::HW => {
                 let chain_path = self
@@ -682,7 +689,7 @@ where
         enckey: &SecKey,
         public_key: &PublicKey,
     ) -> Result<Option<PrivateKey>> {
-        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         match wallet.wallet_kind {
             WalletKind::HW => unreachable!("can not get private key in hw wallet"),
             _ => self
@@ -697,7 +704,7 @@ where
         enckey: &SecKey,
         address_type: Option<AddressType>,
     ) -> Result<PublicKey> {
-        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         match wallet.wallet_kind {
             WalletKind::Basic => {
                 let private_key = PrivateKey::new()?;
@@ -1252,7 +1259,7 @@ where
     ) -> Result<SchnorrSignature> {
         // To verify if the enckey is correct or not
         self.transfer_addresses(name, enckey)?;
-        let wallet = self.wallet_service.get_wallet(name, enckey)?;
+        let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         let sign_key = match wallet.wallet_kind {
             WalletKind::HW => {
                 let chain_path = self
@@ -1501,6 +1508,7 @@ mod tests {
     use super::*;
     use crate::Mnemonic;
     use client_common::storage::MemoryStorage;
+    use client_common::PublicKey;
     use std::str::FromStr;
 
     #[test]
@@ -1566,6 +1574,10 @@ mod tests {
         let enckey1 = client
             .restore_wallet(name1, &passphrase, &words)
             .expect("restore wallet 1 failed");
+        let dummy_viewkey = PublicKey::from(
+            &PrivateKey::new().expect("Derive public key from private key should work"),
+        );
+        let mut dummy_wallet = Wallet::new(dummy_viewkey, WalletKind::HD);
 
         assert_eq!(
             client
@@ -1575,7 +1587,8 @@ mod tests {
                     )
                     .unwrap(),
                     &name1,
-                    &enckey1
+                    &enckey1,
+                    &mut dummy_wallet,
                 )
                 .unwrap(),
             true
@@ -1588,7 +1601,8 @@ mod tests {
                     )
                     .unwrap(),
                     &name1,
-                    &enckey1
+                    &enckey1,
+                    &mut dummy_wallet,
                 )
                 .unwrap(),
             false
