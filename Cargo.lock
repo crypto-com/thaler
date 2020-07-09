@@ -684,7 +684,7 @@ dependencies = [
  "ra-client 0.6.0",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rust-argon2 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustls 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=f8759809f6e3fed793b37166f7cd91c57cdb2eab)",
  "secstr 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.114 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2359,7 +2359,7 @@ dependencies = [
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.16.15 (git+https://github.com/crypto-com/ring.git?rev=7d08bdbbc68fe5e867445c576c004336699650c1)",
  "rs-libc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustls 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secrecy 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle 2.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2951,7 +2951,7 @@ dependencies = [
  "der-parser 4.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ra-common 0.6.0",
- "rustls 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustls 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.56 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.20 (registry+https://github.com/rust-lang/crates.io-index)",
  "webpki 0.21.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2981,7 +2981,7 @@ dependencies = [
  "ra-sp-client 0.6.0",
  "rcgen 0.8.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.16.15 (git+https://github.com/crypto-com/ring.git?rev=7d08bdbbc68fe5e867445c576c004336699650c1)",
- "rustls 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustls 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.56 (registry+https://github.com/rust-lang/crates.io-index)",
  "sgx-isa 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -3392,6 +3392,18 @@ version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "base64 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring 0.16.15 (git+https://github.com/crypto-com/ring.git?rev=7d08bdbbc68fe5e867445c576c004336699650c1)",
+ "sct 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki 0.21.3 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rustls"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.16.15 (git+https://github.com/crypto-com/ring.git?rev=7d08bdbbc68fe5e867445c576c004336699650c1)",
  "sct 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4512,7 +4524,7 @@ dependencies = [
  "ra-enclave 0.6.0",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "rs-libc 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustls 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustls 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "secp256k1zkp 0.13.0 (git+https://github.com/crypto-com/rust-secp256k1-zkp.git?rev=f8759809f6e3fed793b37166f7cd91c57cdb2eab)",
  "thread-pool 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "zeroize 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5262,6 +5274,7 @@ dependencies = [
 "checksum rustc_version 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
 "checksum rusticata-macros 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f8a9050636e8a1b487ba1fbe99114021cd7594dde3ce6ed95bfc1691e5b5367b"
 "checksum rustls 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c0d4a31f5d68413404705d6982529b0e11a9aacd4839d1d6222ee3b8cb4015e1"
+"checksum rustls 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cac94b333ee2aac3284c5b8a1b7fb4dd11cba88c244e3fe33cdbd047af0eb693"
 "checksum rustversion 1.0.3 (registry+https://github.com/rust-lang/crates.io-index)" = "b9bdc5e856e51e685846fb6c13a1f5e5432946c2c90501bdc76a1319f19e29da"
 "checksum ryu 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)" = "ed3d612bc64430efeb3f7ee6ef26d590dce0c43249217bddc62112540c7941e1"
 "checksum same-file 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)" = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
