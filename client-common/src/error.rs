@@ -70,7 +70,7 @@ impl fmt::Debug for Error {
 
         if let Some(ref origin) = self.origin {
             writeln!(f)?;
-            write!(f, " => {}", origin)?;
+            write!(f, " => {:?}", origin)?;
         }
 
         Ok(())
