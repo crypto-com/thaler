@@ -124,6 +124,11 @@ pub(crate) fn handle_transaction(
         block_height,
         block_time,
     )?;
+    if TransactionType::from(transaction) == TransactionType::Deposit
+        && transaction_change.inputs.is_empty()
+    {
+        return Ok(());
+    }
     for input in transaction_change.inputs.iter() {
         memento.remove_unspent_transaction(input.pointer.clone());
     }
@@ -243,7 +248,9 @@ mod tests {
 
     use chain_core::common::H256;
     use chain_core::init::{address::RedeemAddress, coin::Coin};
-    use chain_core::state::account::{StakedStateAddress, StakedStateOpAttributes, UnbondTx};
+    use chain_core::state::account::{
+        DepositBondTx, StakedStateAddress, StakedStateOpAttributes, UnbondTx,
+    };
     use chain_core::tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
     use chain_core::tx::fee::Fee;
     use chain_core::tx::TransactionId;
@@ -252,7 +259,7 @@ mod tests {
 
     use super::*;
     use crate::service::load_wallet;
-    use crate::types::WalletKind;
+    use crate::types::{TransactionPending, WalletKind};
     use crate::wallet::{DefaultWalletClient, WalletClient};
 
     fn create_test_wallet(n: usize) -> Result<Vec<Wallet>> {
@@ -272,6 +279,23 @@ mod tests {
                 Ok(load_wallet(&storage, &name, &enckey)?.unwrap())
             })
             .collect()
+    }
+
+    fn outgoing_staking_transaction() -> Transaction {
+        Transaction::DepositStakeTransaction(DepositBondTx {
+            inputs: vec![TxoPointer {
+                id: [3; 32],
+                index: 0,
+            }],
+            to_staked_account: StakedStateAddress::from_str(
+                "0x83fe11feb0887183eb62c30994bdd9e303497e3d",
+            )
+            .unwrap(),
+            attributes: StakedStateOpAttributes {
+                chain_hex_id: 0,
+                app_version: 0,
+            },
+        })
     }
 
     fn transfer_transaction() -> Transaction {
@@ -337,17 +361,30 @@ mod tests {
             .map(|wallet| wallet.view_key.clone())
             .collect::<Vec<_>>();
         let mut state = WalletState::default();
+        let outgoing_staking_tx = outgoing_staking_transaction();
+        let outgoing_staking_tx_id = outgoing_staking_tx.id();
+        state.pending_transactions.insert(
+            outgoing_staking_tx_id.clone(),
+            TransactionPending {
+                used_inputs: vec![TxoPointer::new([3; 32], 0)],
+                block_height: 1,
+                return_amount: Coin::zero(),
+            },
+        );
         let tx = transfer_transaction();
         let tx_cloned = tx.clone();
         let blocks = [block_header(
             &view_keys,
             &[tx.clone()],
-            &[unbond_transaction()],
+            &[unbond_transaction(), outgoing_staking_tx],
             [0u8; 32],
         )];
         let memento = handle_blocks(&wallets[0], &mut state, &blocks, &[tx.clone()]).unwrap();
         state.apply_memento(&memento).expect("apply memento");
         assert!(state.transaction_history.contains_key(&tx_cloned.id()));
+        assert!(state
+            .transaction_history
+            .contains_key(&outgoing_staking_tx_id));
     }
 
     fn transfer_transactions(addresses: [ExtendedAddr; 2]) -> [Transaction; 2] {
