@@ -102,10 +102,10 @@ impl EnclaveCertVerifier {
         } = certificate.tbs_certificate.validity;
         let now_sec = now.timestamp();
 
-        if now_sec < not_before.to_timespec().sec {
+        if now_sec < not_before.timestamp() {
             return Err(EnclaveCertVerifierError::CertificateNotBegin);
         }
-        if now_sec >= not_after.to_timespec().sec {
+        if now_sec >= not_after.timestamp() {
             return Err(EnclaveCertVerifierError::CertificateExpired);
         }
 
