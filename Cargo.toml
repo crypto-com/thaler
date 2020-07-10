@@ -24,6 +24,7 @@ members = [
     "chain-tx-enclave/tx-validation/enclave",
     "chain-tx-enclave-next/tx-query-next/app-runner",
     "chain-tx-enclave-next/tx-query-next/enclave-app",
+    "chain-tx-enclave-next/tx-validation-next",
     "chain-tx-enclave/mock-utils",
     "chain-tx-enclave-next/mls",
     "cro-clib",
