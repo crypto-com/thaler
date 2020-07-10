@@ -149,19 +149,6 @@ CroResult cro_create_jsonrpc(CroJsonRpcPtr *rpc_out,
                              CroProgressPtr progress_callback);
 
 /**
- * mock mode, only use for testing
- *
- * # Safety
- *
- * Should not be called with null pointers.
- */
-CroResult cro_create_mock_jsonrpc(CroJsonRpcPtr *rpc_out,
-                                  const char *storage_dir_user,
-                                  const char *websocket_url_user,
-                                  uint8_t network_id,
-                                  CroProgressPtr progress_callback);
-
-/**
  * create staking address from bip44 hdwallet
  * # Safety
  */
@@ -361,22 +348,6 @@ CroResult cro_jsonrpc_call(const char *storage_dir,
                            const void *user_data);
 
 void cro_jsonrpc_call_dummy(ProgressCallback _progress_callback, ProgressWrapper _wrapper);
-
-/**
- * mock mode, only use for testing
- *
- * # Safety
- *
- * Should not be called with null pointers.
- */
-CroResult cro_jsonrpc_call_mock(const char *storage_dir,
-                                const char *websocket_url,
-                                uint8_t network_id,
-                                const char *request,
-                                char *buf,
-                                uintptr_t buf_size,
-                                CroProgressPtr progress_callback,
-                                const void *user_data);
 
 /**
  * # Safety

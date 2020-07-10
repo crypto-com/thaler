@@ -78,7 +78,6 @@ pub unsafe extern "C" fn cro_jsonrpc_call(
         network_id,
         progress_callback,
         user_data,
-        false,
     )
     .map(|rpc| {
         let json_request = get_string(request);
@@ -106,51 +105,6 @@ pub extern "C" fn cro_jsonrpc_call_dummy(
     _progress_callback: ProgressCallback,
     _wrapper: ProgressWrapper,
 ) {
-}
-
-/// mock mode, only use for testing
-///
-/// # Safety
-///
-/// Should not be called with null pointers.
-#[cfg(debug_assertions)]
-#[no_mangle]
-pub unsafe extern "C" fn cro_jsonrpc_call_mock(
-    storage_dir: *const c_char,
-    websocket_url: *const c_char,
-    network_id: u8,
-    request: *const c_char,
-    buf: *mut c_char,
-    buf_size: usize,
-    progress_callback: CroProgressPtr, /* for callback info */
-    user_data: *const std::ffi::c_void,
-) -> CroResult {
-    let res = create_rpc(
-        storage_dir,
-        websocket_url,
-        network_id,
-        progress_callback,
-        user_data,
-        true,
-    )
-    .map(|rpc| {
-        let json_request = get_string(request);
-        rpc.handler.handle(&json_request).unwrap_or_default()
-    });
-    match res {
-        Err(e) => {
-            libc::strncpy(
-                buf,
-                CString::new(e.to_string()).unwrap().into_raw(),
-                buf_size,
-            );
-            CroResult::fail()
-        }
-        Ok(s) => {
-            libc::strncpy(buf, CString::new(s).unwrap().into_raw(), buf_size);
-            CroResult::success()
-        }
-    }
 }
 
 /// create json-rpc context
@@ -184,39 +138,6 @@ pub unsafe extern "C" fn cro_create_jsonrpc(
         network_id,
         progress_callback,
         ptr::null(),
-        false,
-    );
-    match mrpc {
-        Ok(rpc) => {
-            let rpc_box = Box::new(rpc);
-            ptr::write(rpc_out, Box::into_raw(rpc_box));
-            CroResult::success()
-        }
-        _ => CroResult::fail(),
-    }
-}
-
-/// mock mode, only use for testing
-///
-/// # Safety
-///
-/// Should not be called with null pointers.
-#[cfg(debug_assertions)]
-#[no_mangle]
-pub unsafe extern "C" fn cro_create_mock_jsonrpc(
-    rpc_out: *mut CroJsonRpcPtr,
-    storage_dir_user: *const c_char,
-    websocket_url_user: *const c_char,
-    network_id: u8,
-    progress_callback: CroProgressPtr,
-) -> CroResult {
-    let mrpc = create_rpc(
-        storage_dir_user,
-        websocket_url_user,
-        network_id,
-        progress_callback,
-        ptr::null(),
-        true,
     );
     match mrpc {
         Ok(rpc) => {
@@ -272,7 +193,6 @@ unsafe fn create_rpc(
     network_id: u8,
     progress_callback_user: CroProgressPtr,
     user_data: *const std::ffi::c_void,
-    _mock: bool,
 ) -> Result<CroJsonRpc> {
     let storage_dir = get_string(storage_dir);
     let websocket_url = get_string(websocket_url);
