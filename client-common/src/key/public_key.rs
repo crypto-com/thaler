@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use parity_scale_codec::{Decode, Encode, Error as ScaleError, Input, Output};
-use secp256k1::key::{pubkey_combine, MuSigPreSession, XOnlyPublicKey};
+use secp256k1::key::XOnlyPublicKey;
 use secp256k1::PublicKey as SecpPublicKey;
 use serde::de::{Deserialize, Deserializer, Error as SerdeDeError, Visitor};
 use serde::ser::{Serialize, Serializer};
@@ -10,7 +10,7 @@ use serde::ser::{Serialize, Serializer};
 use chain_core::init::address::RedeemAddress;
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 
-use crate::{Error, ErrorKind, Result, ResultExt, SECP};
+use crate::{Error, ErrorKind, Result, ResultExt};
 
 /// Public key used in Crypto.com Chain
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
@@ -74,43 +74,6 @@ impl PublicKey {
 
         Ok(PublicKey(public_key))
     }
-
-    /// Combine multiple public keys into one and returns as XOnlyRawPubKey
-    pub fn combine_to_raw_pubkey(public_keys: &[PublicKey]) -> Result<RawXOnlyPubkey> {
-        if public_keys.len() == 1 {
-            Ok(RawXOnlyPubkey::from(
-                XOnlyPublicKey::from_pubkey(&public_keys[0].clone().into())
-                    .0
-                    .serialize(),
-            ))
-        } else {
-            Ok(RawXOnlyPubkey::from(
-                PublicKey::combine(&public_keys)?.0.serialize(),
-            ))
-        }
-    }
-
-    /// Combines multiple public keys into one and also return a musig pre-session
-    pub fn combine(public_keys: &[Self]) -> Result<(XOnlyPublicKey, MuSigPreSession)> {
-        let (public_key, pre_session) = SECP
-            .with(|secp| {
-                pubkey_combine(
-                    secp,
-                    &public_keys
-                        .iter()
-                        .map(|key| XOnlyPublicKey::from_pubkey(&key.0).0)
-                        .collect::<Vec<XOnlyPublicKey>>(),
-                )
-            })
-            .chain(|| {
-                (
-                    ErrorKind::InvalidInput,
-                    "Unable to combine multiple public keys into one",
-                )
-            })?;
-
-        Ok((public_key, pre_session))
-    }
 }
 
 impl fmt::Display for PublicKey {
@@ -154,7 +117,7 @@ impl From<PublicKey> for SecpPublicKey {
 
 impl From<&PublicKey> for SecpPublicKey {
     fn from(public_key: &PublicKey) -> SecpPublicKey {
-        public_key.0.clone()
+        public_key.0
     }
 }
 
@@ -246,30 +209,6 @@ mod tests {
             "0x0bed7abd61247635c1973eb38474a2516ed1d884", address,
             "Address generation implemented incorrectly"
         );
-    }
-
-    #[test]
-    fn check_combine() {
-        let public_key_1 = PublicKey::from(&PrivateKey::new().unwrap());
-        let public_key_2 = PublicKey::from(&PrivateKey::new().unwrap());
-
-        let combination = PublicKey::combine(&[public_key_1.clone(), public_key_2.clone()])
-            .unwrap()
-            .0;
-
-        let manual_combination = SECP.with(|secp| {
-            pubkey_combine(
-                secp,
-                &[
-                    XOnlyPublicKey::from_pubkey(&public_key_1.into()).0,
-                    XOnlyPublicKey::from_pubkey(&public_key_2.into()).0,
-                ],
-            )
-            .unwrap()
-            .0
-        });
-
-        assert_eq!(manual_combination, combination);
     }
 
     #[test]

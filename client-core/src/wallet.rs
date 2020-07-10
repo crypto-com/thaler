@@ -7,6 +7,7 @@ mod syncer_logic;
 pub use default_wallet_client::DefaultWalletClient;
 
 use indexmap::IndexSet;
+#[cfg(feature = "experimental")]
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 use std::collections::BTreeSet;
@@ -19,7 +20,9 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::{Tx, TxId};
+#[cfg(feature = "experimental")]
+use chain_core::tx::data::Tx;
+use chain_core::tx::data::TxId;
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 use chain_core::tx::TxAux;
 use client_common::tendermint::types::BroadcastTxResponse;
@@ -392,6 +395,7 @@ pub trait WalletClient: Send + Sync {
     fn get_sync_state(&self, name: &str) -> Result<SyncState>;
 }
 
+#[cfg(feature = "experimental")]
 /// Interface for a generic wallet for multi-signature transactions
 pub trait MultiSigWalletClient: WalletClient {
     /// Creates a 1-of-n schnorr signature.

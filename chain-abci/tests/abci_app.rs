@@ -908,7 +908,12 @@ fn all_valid_tx_types_should_commit() {
     tx1.add_output(TxOut::new(eaddr, Coin::from(99999700u32)));
     let txid1 = tx1.id();
     let witness1 = vec![TxInWitness::TreeSig(
-        schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),
+        schnorr_sign(
+            &secp,
+            &Message::from_slice(&txid1).unwrap(),
+            &secret_key,
+            &mut rand::thread_rng(),
+        ),
         merkle_tree
             .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
             .unwrap(),
@@ -934,7 +939,12 @@ fn all_valid_tx_types_should_commit() {
     let utxo2 = TxoPointer::new(*txid, 1);
     let tx2 = DepositBondTx::new(vec![utxo2], addr.into(), StakedStateOpAttributes::new(0));
     let witness2 = vec![TxInWitness::TreeSig(
-        schnorr_sign(&secp, &Message::from_slice(&tx2.id()).unwrap(), &secret_key),
+        schnorr_sign(
+            &secp,
+            &Message::from_slice(&tx2.id()).unwrap(),
+            &secret_key,
+            &mut rand::thread_rng(),
+        ),
         merkle_tree
             .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
             .unwrap(),
@@ -964,7 +974,12 @@ fn all_valid_tx_types_should_commit() {
     let utxo3 = TxoPointer::new(*txid, 2);
     let tx3 = DepositBondTx::new(vec![utxo3], addr2.into(), StakedStateOpAttributes::new(0));
     let witness3 = vec![TxInWitness::TreeSig(
-        schnorr_sign(&secp, &Message::from_slice(&tx3.id()).unwrap(), &secret_key),
+        schnorr_sign(
+            &secp,
+            &Message::from_slice(&tx3.id()).unwrap(),
+            &secret_key,
+            &mut rand::thread_rng(),
+        ),
         merkle_tree
             .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
             .unwrap(),

@@ -654,7 +654,7 @@ pub mod tests {
         let merkle = MerkleTree::new(raw_public_keys.clone());
 
         let w1 = TxInWitness::TreeSig(
-            schnorr_sign(&secp, &msg, &sk1),
+            schnorr_sign(&secp, &msg, &sk1, &mut rand::thread_rng()),
             merkle.generate_proof(raw_public_keys[0].clone()).unwrap(),
         );
         let txa = PlainTxAux::TransferTx(tx, vec![w1].into());

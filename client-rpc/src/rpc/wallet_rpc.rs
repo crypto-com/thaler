@@ -12,7 +12,9 @@ use client_core::service::WalletInfo;
 use client_core::transaction_builder::SignedTransferTransaction;
 use client_core::types::{TransactionChange, WalletBalance, WalletKind};
 use client_core::wallet::{CreateWalletRequest, WalletRequest};
-use client_core::{Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient};
+#[cfg(feature = "experimental")]
+use client_core::MultiSigWalletClient;
+use client_core::{Mnemonic, UnspentTransactions, WalletClient};
 use parity_scale_codec::{Decode, Encode};
 
 use crate::{rpc_error_from_string, to_rpc_error};
@@ -152,7 +154,7 @@ where
 
 impl<T> WalletRpc for WalletRpcImpl<T>
 where
-    T: WalletClient + MultiSigWalletClient + 'static,
+    T: WalletClient + 'static,
 {
     fn balance(&self, request: WalletRequest) -> Result<WalletBalance> {
         self.client

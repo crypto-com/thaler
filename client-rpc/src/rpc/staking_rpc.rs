@@ -17,7 +17,7 @@ use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt, Transaction};
 use client_core::wallet::WalletRequest;
-use client_core::{MultiSigWalletClient, WalletClient};
+use client_core::WalletClient;
 use client_network::NetworkOpsClient;
 
 #[rpc(server)]
@@ -98,7 +98,7 @@ where
 
 impl<T, N> StakingRpc for StakingRpcImpl<T, N>
 where
-    T: WalletClient + MultiSigWalletClient + 'static,
+    T: WalletClient + 'static,
     N: NetworkOpsClient + 'static,
 {
     fn deposit_stake(

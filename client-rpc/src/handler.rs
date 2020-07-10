@@ -12,9 +12,11 @@ use client_core::wallet::syncer::{ObfuscationSyncerConfig, SyncerOptions};
 use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
 
+#[cfg(feature = "experimental")]
+use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
+
 use crate::rpc::{
     info_rpc::{InfoRpc, InfoRpcImpl},
-    multisig_rpc::{MultiSigRpc, MultiSigRpcImpl},
     staking_rpc::{StakingRpc, StakingRpcImpl},
     sync_rpc::{CBindingCore, SyncRpc, SyncRpcImpl},
     transaction_rpc::{TransactionRpc, TransactionRpcImpl},
@@ -68,6 +70,7 @@ impl RpcHandler {
             sync_options,
         );
 
+        #[cfg(feature = "experimental")]
         let multisig_rpc = MultiSigRpcImpl::new(wallet_client.clone());
         let transaction_rpc = TransactionRpcImpl::new(network_id);
         let staking_rpc =
@@ -80,6 +83,7 @@ impl RpcHandler {
         let sync_rpc = SyncRpcImpl::new(syncer_config, progress_callback, sync_wallet_client);
         let wallet_rpc = WalletRpcImpl::new(wallet_client, network_id);
 
+        #[cfg(feature = "experimental")]
         io.extend_with(multisig_rpc.to_delegate());
         io.extend_with(transaction_rpc.to_delegate());
         io.extend_with(staking_rpc.to_delegate());

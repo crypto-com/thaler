@@ -346,7 +346,12 @@ mod tests {
         tx1.add_output(TxOut::new(eaddr.clone(), Coin::one()));
         let txid1 = tx1.id();
         let witness1: TxWitness = vec![TxInWitness::TreeSig(
-            schnorr_sign(&secp, &Message::from_slice(&txid1).unwrap(), &secret_key),
+            schnorr_sign(
+                &secp,
+                &Message::from_slice(&txid1).unwrap(),
+                &secret_key,
+                &mut rand::thread_rng(),
+            ),
             merkle_tree
                 .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
                 .unwrap(),
@@ -386,7 +391,12 @@ mod tests {
         tx2.add_output(TxOut::new(eaddr.clone(), Coin::zero()));
         let txid2 = tx2.id();
         let witness2: TxWitness = vec![TxInWitness::TreeSig(
-            schnorr_sign(&secp, &Message::from_slice(&txid2).unwrap(), &secret_key),
+            schnorr_sign(
+                &secp,
+                &Message::from_slice(&txid2).unwrap(),
+                &secret_key,
+                &mut rand::thread_rng(),
+            ),
             merkle_tree
                 .generate_proof(RawXOnlyPubkey::from(x_public_key.serialize()))
                 .unwrap(),

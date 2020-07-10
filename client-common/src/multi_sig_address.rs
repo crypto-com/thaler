@@ -1,5 +1,6 @@
 //! m-of-n multi-sig address
 use gcd::Gcd;
+#[cfg(feature = "experimental")]
 use itertools::Itertools;
 use parity_scale_codec::{Decode, Encode};
 
@@ -7,6 +8,42 @@ use super::{Error, ErrorKind, PublicKey, Result};
 use chain_core::common::{MerkleTree, Proof, H256};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
+use secp256k1::key::XOnlyPublicKey;
+
+#[cfg(feature = "experimental")]
+/// Combine multiple public keys into one and returns as XOnlyRawPubKey
+pub fn combine_to_raw_pubkey(public_keys: &[PublicKey]) -> Result<RawXOnlyPubkey> {
+    Ok(RawXOnlyPubkey::from(combine(&public_keys)?.0.serialize()))
+}
+
+#[cfg(feature = "experimental")]
+/// Combines multiple public keys into one and also return a musig pre-session
+pub fn combine(public_keys: &[Self]) -> Result<(XOnlyPublicKey, MuSigPreSession)> {
+    let secp = Secp256k1::new();
+    let (public_key, pre_session) = {
+        pubkey_combine(
+            &secp,
+            &public_keys
+                .iter()
+                .map(|key| {
+                    ExperimentalPK::from_slice(&XOnlyPublicKey::from_pubkey(&key.0).0.serialize())
+                        .expect("experimental")
+                })
+                .collect::<Vec<ExperimentalPK>>(),
+        )
+    }
+    .chain(|| {
+        (
+            ErrorKind::InvalidInput,
+            "Unable to combine multiple public keys into one",
+        )
+    })?;
+
+    Ok((
+        XOnlyPublicKey::from_slice(&public_key.serialize()).expect("experimental"),
+        pre_session,
+    ))
+}
 
 /// MerkleTree's max height limit in the MultiSigAddress
 /// it is safe for n choose m, where n <= 12
@@ -113,7 +150,22 @@ impl MultiSigAddress {
 
         public_keys.sort();
 
-        let raw_pubkey = PublicKey::combine_to_raw_pubkey(&public_keys)?;
+        let raw_pubkey = if public_keys.len() == 1 {
+            Ok(RawXOnlyPubkey::from(
+                XOnlyPublicKey::from_pubkey(&public_keys[0].clone().into())
+                    .0
+                    .serialize(),
+            ))
+        } else {
+            cfg_if::cfg_if! {
+                if #[cfg(feature = "experimental")] {
+                    combine_to_raw_pubkey(&public_keys)
+                } else {
+                    Err(Error::new(ErrorKind::InvalidInput, "multi-sig is an experimental feature"))
+                }
+            }
+        }?;
+
         Ok(self.merkle_tree.generate_proof(raw_pubkey))
     }
 
@@ -167,17 +219,31 @@ fn public_key_combinations(
         ));
     }
 
-    let mut combinations = public_keys
-        .into_iter()
-        .combinations(required_signers)
-        .map(|mut combination| {
-            combination.sort();
-            PublicKey::combine_to_raw_pubkey(&combination)
-        })
-        .collect::<Result<Vec<RawXOnlyPubkey>>>()?;
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "experimental")] {
+            let mut combinations = public_keys
+                .into_iter()
+                .combinations(required_signers)
+                .map(|mut combination| {
+                    combination.sort();
+                    PublicKey::combine_to_raw_pubkey(&combination)
+                })
+                .collect::<Result<Vec<RawXOnlyPubkey>>>()?;
 
-    combinations.sort();
-    Ok(combinations)
+            combinations.sort();
+            Ok(combinations)
+        } else {
+            if required_signers != 1 {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Number of required signers greater than 1 is experimental",
+                ));
+            }
+            let mut combinations: Vec<RawXOnlyPubkey> = public_keys.iter().map(RawXOnlyPubkey::from).collect();
+            combinations.sort();
+            Ok(combinations)
+        }
+    }
 }
 
 #[cfg(test)]
@@ -186,6 +252,7 @@ mod multi_sig_tests {
 
     use crate::PrivateKey;
 
+    #[cfg(feature = "experimental")]
     mod generate_proof {
         use super::*;
 
@@ -286,6 +353,7 @@ mod multi_sig_tests {
         }
 
         #[test]
+        #[cfg(feature = "experimental")]
         fn should_work() {
             let public_key_1 = PublicKey::from(
                 &PrivateKey::new().expect("Derive public key from private key should work"),
@@ -310,8 +378,33 @@ mod multi_sig_tests {
         }
     }
 
+    #[cfg(feature = "experimental")]
     mod public_key_combinations {
         use super::*;
+
+        #[test]
+        fn check_combine() {
+            let public_key_1 = PublicKey::from(&PrivateKey::new().unwrap());
+            let public_key_2 = PublicKey::from(&PrivateKey::new().unwrap());
+
+            let combination = combine(&[public_key_1.clone(), public_key_2.clone()])
+                .unwrap()
+                .0;
+
+            let manual_combination = SECP.with(|secp| {
+                pubkey_combine(
+                    secp,
+                    &[
+                        XOnlyPublicKey::from_pubkey(&public_key_1.into()).0,
+                        XOnlyPublicKey::from_pubkey(&public_key_2.into()).0,
+                    ],
+                )
+                .unwrap()
+                .0
+            });
+
+            assert_eq!(manual_combination, combination);
+        }
 
         #[test]
         fn should_throw_error_when_public_keys_is_empty() {
@@ -432,6 +525,7 @@ mod multi_sig_tests {
     }
 
     #[test]
+    #[cfg(feature = "experimental")]
     fn check_root_hash_flow() {
         // 8f07ddd5e9f5179cff19486034181ed76505baaad53e5d994064127b56c5841bd1e8a8697ad42251de39f6a72081dfdf42abc542a6d6fe0715548b588fafbe70
         let public_key_1 = PublicKey::from(
@@ -482,6 +576,7 @@ mod multi_sig_tests {
     }
 
     #[test]
+    #[cfg(feature = "experimental")]
     fn total_address_too_large_for_multisign_address() {
         let public_keys = (0..13)
             .map(|_| PublicKey::from(&PrivateKey::new().unwrap()))

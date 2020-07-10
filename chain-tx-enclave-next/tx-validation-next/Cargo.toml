@@ -10,7 +10,8 @@ edition = "2018"
 enclave-macro = { path = "../../chain-tx-enclave/enclave-macro" }
 chain-tx-validation   = {  path = "../../chain-tx-validation" }
 chain-core   = {  path = "../../chain-core" }
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["recovery", "endomorphism", "edp"] }
+# TODO: "rand" feature may only be dev-dependency / needed for tests
+secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "535790e91fac1b3b00c770cb339a06feadc5f48d", features = ["recovery", "endomorphism", "lowmemory", "schnorrsig", "rand"] }
 parity-scale-codec = { version = "1.3" }
 enclave-protocol   = { path = "../../enclave-protocol" }
 chain-tx-filter   = { path = "../../chain-tx-filter" }

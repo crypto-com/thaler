@@ -14,6 +14,7 @@ pub mod hd_seed;
 pub mod hd_wallet;
 pub mod input_selection;
 pub mod mnemonic;
+#[cfg(feature = "experimental")]
 pub mod multi_sig;
 pub mod service;
 pub mod signer;
@@ -38,7 +39,11 @@ pub use crate::transaction_builder::WalletTransactionBuilder;
 #[doc(inline)]
 pub use crate::unspent_transactions::{SelectedUnspentTransactions, UnspentTransactions};
 #[doc(inline)]
-pub use crate::wallet::{MultiSigWalletClient, WalletClient};
+pub use crate::wallet::WalletClient;
+
+#[cfg(feature = "experimental")]
+#[doc(inline)]
+pub use crate::wallet::MultiSigWalletClient;
 
 #[macro_use]
 extern crate lazy_static;

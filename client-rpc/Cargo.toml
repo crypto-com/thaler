@@ -24,3 +24,4 @@ parity-scale-codec = "1.3"
 
 [features]
 mock-enclave = ["client-common/mock-enclave"]
+experimental = ["client-common/experimental", "client-core/experimental"]
