@@ -6,7 +6,7 @@ description = "This crate exposes following functionalities for interacting with
 edition = "2018"
 
 [dependencies]
-blake3 = { version = "0.3.4", default-features = false }
+blake3 = { version = "0.3.5", default-features = false }
 chain-core = { path = "../chain-core" }
 client-common = { path = "../client-common" }
 chain-tx-filter = { path = "../chain-tx-filter" }

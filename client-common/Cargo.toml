@@ -16,7 +16,7 @@ aes-gcm-siv = "0.4"
 anyhow = "1.0"
 base64 = "0.12"
 bit-vec = "0.6.2"
-blake3 = "0.3.4"
+blake3 = "0.3.5"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = { version = "0.3", optional = true }
 gcd = "2.0"
