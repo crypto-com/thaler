@@ -244,8 +244,8 @@ impl KeyPackageSecret {
             ext::SupportedVersionsExt(vec![PROTOCOL_VERSION_MLS10]).entry(),
             ext::SupportedCipherSuitesExt(vec![MLS10_128_DHKEMP256_AES128GCM_SHA256_P256]).entry(),
             ext::LifeTimeExt::new(
-                not_before.to_timespec().sec.try_into().unwrap(),
-                not_after.to_timespec().sec.try_into().unwrap(),
+                not_before.timestamp().try_into().unwrap(),
+                not_after.timestamp().try_into().unwrap(),
             )
             .entry(),
         ];
