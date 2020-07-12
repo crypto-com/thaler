@@ -202,11 +202,11 @@ pub enum Command {
         )]
         force: bool,
         #[structopt(
-            name = "disable-fast-forward",
+            name = "enable-fast-forward",
             long,
-            help = "Disable fast forward, which is not secure when connecting to outside nodes"
+            help = "Enable fast forward, which is not secure when connecting to outside nodes"
         )]
-        disable_fast_forward: bool,
+        enable_fast_forward: bool,
         #[structopt(
             name = "disable-address-recovery",
             long,
@@ -380,7 +380,7 @@ impl Command {
                 name,
                 batch_size,
                 force,
-                disable_fast_forward,
+                enable_fast_forward,
                 disable_address_recovery,
                 block_height_ensure,
             } => {
@@ -394,7 +394,7 @@ impl Command {
                     tendermint_client,
                     tx_obfuscation,
                     SyncerOptions {
-                        enable_fast_forward: !*disable_fast_forward,
+                        enable_fast_forward: *enable_fast_forward,
                         enable_address_recovery: !*disable_address_recovery,
                         batch_size: *batch_size,
                         block_height_ensure: *block_height_ensure,

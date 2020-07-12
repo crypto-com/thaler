@@ -163,10 +163,10 @@ def transfer_to_other_wallet(wallet_sender, wallet_receiver, amount_cro, sender_
     t = 0
     while t < 30 and balance_sender["pending"] > 0:
         time.sleep(1)
-        wallet_sender.sync(disable_fast_forward=True)
+        wallet_sender.sync(enable_fast_forward=False)
         balance_sender = wallet_sender.balance
         t += 1
-    wallet_receiver.sync(disable_fast_forward=True)
+    wallet_receiver.sync(enable_fast_forward=False)
     balance_receiver = wallet_receiver.balance
     assert balance_sender["total"] == balance_sender_begin["total"] - amount_cro * CRO
     assert balance_receiver["total"] == balance_receiver_begin["total"] + amount_cro * CRO

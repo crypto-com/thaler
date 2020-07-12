@@ -52,11 +52,11 @@ pub struct Options {
     pub websocket_url: String,
 
     #[structopt(
-        name = "disable-fast-forward",
+        name = "enable-fast-forward",
         long,
-        help = "Disable fast forward when syncing wallet, which is not secure when connecting to outside nodes"
+        help = "Enable fast forward when syncing wallet, which is not secure when connecting to outside nodes"
     )]
-    pub disable_fast_forward: bool,
+    pub enable_fast_forward: bool,
     #[structopt(
         name = "disable-address-recovery",
         long,
