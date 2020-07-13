@@ -563,7 +563,7 @@ where
 
     /// Returns view key of wallet
     pub fn view_key(&self, name: &str, enckey: &SecKey) -> Result<PublicKey> {
-        let _wallet_found = self.get_wallet(name, enckey)?;
+        let _wallet_found = self.get_wallet_info(name, enckey)?;
         let info_keyspace = get_info_keyspace(name);
         read_pubkey_enc(&self.storage, &info_keyspace, "viewkey", enckey)
     }
@@ -577,7 +577,7 @@ where
             ));
         }
 
-        let _wallet_found = self.get_wallet(name, enckey)?;
+        let _wallet_found = self.get_wallet_info(name, enckey)?;
 
         let public_keyspace = get_public_keyspace(name);
 
@@ -600,7 +600,7 @@ where
                 format!("Wallet with name ({}) not found", name),
             ));
         }
-        let _wallet_found = self.get_wallet(name, enckey)?;
+        let _wallet_found = self.get_wallet_info(name, enckey)?;
         let stakingkey_keyspace = get_stakingkey_keyspace(name);
         let mut ret: IndexSet<PublicKey> = IndexSet::<PublicKey>::new();
         let info_keyspace = get_info_keyspace(name);
@@ -636,7 +636,7 @@ where
                 format!("Wallet with name ({}) not found", name),
             ));
         }
-        let _wallet_found = self.get_wallet(name, enckey)?;
+        let _wallet_found = self.get_wallet_info(name, enckey)?;
         let roothash_keyspace = get_roothash_keyspace(name);
         let mut ret: IndexSet<H256> = IndexSet::<H256>::new();
         let info_keyspace = get_info_keyspace(name);
@@ -880,7 +880,7 @@ where
     /// Delete the key
     // TODO: change api not to use _enckey
     pub fn delete(&self, name: &str, enckey: &SecKey) -> Result<Wallet> {
-        let wallet_found = self.get_wallet(name, enckey)?;
+        let wallet_found = self.get_wallet_info(name, enckey)?;
         self.storage.delete(KEYSPACE, name)?;
         self.delete_wallet_keyspace(name)?;
         Ok(wallet_found)

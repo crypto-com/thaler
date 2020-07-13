@@ -35,6 +35,7 @@ pub trait AddressRecovery: Clone + Send + Sync {
         new_address: &ExtendedAddr,
         name: &str,
         enckey: &SecKey,
+        wallet: &mut Wallet,
     ) -> Result<bool>;
 }
 
@@ -314,22 +315,19 @@ impl<
         let outputs = transaction.outputs().to_vec();
 
         for (_i, output) in outputs.iter().enumerate() {
-            let newaddress = &output.address;
+            let newaddress: &ExtendedAddr = &output.address;
             let tmp_refetch = self.env.recover_address.recover_addresses(
                 newaddress,
                 &self.env.name,
                 &self.env.enckey,
+                &mut self.wallet,
             )?;
+
             if tmp_refetch {
                 refetch = true;
             }
         }
 
-        if refetch {
-            let wallet = service::load_wallet(&self.env.storage, &self.env.name, &self.env.enckey)
-                .expect("get wallet");
-            self.wallet = wallet.expect("get wallet");
-        }
         Ok(refetch)
     }
 
@@ -775,6 +773,7 @@ mod tests {
     use chain_core::init::coin::Coin;
     use chain_core::tx::data::{address::ExtendedAddr, output::TxOut};
     use chain_core::tx::data::{Tx, TxId};
+    use client_common::PublicKey;
     use std::str::FromStr;
 
     fn check_wallet_syncer_impl(enable_fast_forward: bool) {
@@ -1078,6 +1077,12 @@ mod tests {
                 .handle_recover_addresses_for_transaction(&tx)
                 .unwrap()
         );
+
+        let dummy_viewkey = PublicKey::from(
+            &PrivateKey::new().expect("Derive public key from private key should work"),
+        );
+        let mut dummy_wallet = Wallet::new(dummy_viewkey, WalletKind::HD);
+
         // already created
         assert_eq!(
             false,
@@ -1089,7 +1094,8 @@ mod tests {
                     )
                     .unwrap(),
                     &name,
-                    &enckey
+                    &enckey,
+                    &mut dummy_wallet
                 )
                 .unwrap()
         );

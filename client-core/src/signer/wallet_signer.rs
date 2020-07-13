@@ -156,7 +156,9 @@ where
         let public_key = self
             .root_hash_service
             .public_key(self.name, &root_hash, self.enckey)?;
-        let wallet = self.wallet_service.get_wallet(self.name, self.enckey)?;
+        let wallet = self
+            .wallet_service
+            .get_wallet_info(self.name, self.enckey)?;
         let sign_key = match wallet.wallet_kind {
             WalletKind::HW => {
                 let chain_path = self
