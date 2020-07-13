@@ -7,7 +7,7 @@ readme = "README.md"
 edition = "2018"
 
 [dependencies]
-blake3 = "0.3.4"
+blake3 = "0.3.5"
 kvdb = "0.7"
 kvdb-rocksdb = { version = "0.9", optional = true }
 kvdb-memorydb = "0.7"

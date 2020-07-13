@@ -297,7 +297,7 @@ dependencies = [
 
 [[package]]
 name = "blake3"
-version = "0.3.4"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "arrayref 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -305,8 +305,8 @@ dependencies = [
  "cc 1.0.58 (registry+https://github.com/rust-lang/crates.io-index)",
  "cfg-if 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "constant_time_eq 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "crypto-mac 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "crypto-mac 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "digest 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -513,7 +513,7 @@ dependencies = [
  "aead 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bech32 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "blake3 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "fixed 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -538,7 +538,7 @@ version = "0.6.0"
 dependencies = [
  "anyhow 1.0.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "blake3 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.6.0",
  "criterion 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "integer-encoding 1.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -665,7 +665,7 @@ dependencies = [
  "anyhow 1.0.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "blake3 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.6.0",
  "chain-tx-filter 0.6.0",
  "chrono 0.4.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -705,7 +705,7 @@ dependencies = [
  "base58 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "blake3 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "byteorder 1.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "chain-core 0.6.0",
  "chain-storage 0.6.0",
@@ -973,6 +973,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "generic-array 0.12.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "subtle 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "crypto-mac"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "generic-array 0.14.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "subtle 2.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2163,7 +2172,7 @@ version = "0.1.0"
 source = "git+https://github.com/crypto-com/jellyfish-merkle-tree.git?rev=42c0fb190b4034c7939f8876d3f539bd2ff74cd9#42c0fb190b4034c7939f8876d3f539bd2ff74cd9"
 dependencies = [
  "anyhow 1.0.31 (registry+https://github.com/rust-lang/crates.io-index)",
- "blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "blake3 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5030,7 +5039,7 @@ dependencies = [
 "checksum bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)" = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 "checksum bitvec 0.17.4 (registry+https://github.com/rust-lang/crates.io-index)" = "41262f11d771fd4a61aa3ce019fca363b4b6c282fca9da2a31186d3965a47a5c"
 "checksum blake2b_simd 0.5.10 (registry+https://github.com/rust-lang/crates.io-index)" = "d8fb2d74254a3a0b5cac33ac9f8ed0e44aa50378d9dbb2e5d83bd21ed1dc2c8a"
-"checksum blake3 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "423897d97e11b810c9da22458400b28ec866991c711409073662eb34dc44bfff"
+"checksum blake3 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)" = "59f88a20f7dc23e3896bcbd85add056543c87215de721468b90e0c85d5a9f365"
 "checksum block-buffer 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)" = "c0940dc441f31689269e10ac70eb1002a3a1d3ad1390e030043662eb7fe4688b"
 "checksum block-buffer 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4"
 "checksum block-cipher-trait 0.6.2 (registry+https://github.com/rust-lang/crates.io-index)" = "1c924d49bd09e7c06003acda26cd9742e796e34282ec6c1189404dee0c1f4774"
@@ -5071,6 +5080,7 @@ dependencies = [
 "checksum crossbeam-utils 0.7.2 (registry+https://github.com/rust-lang/crates.io-index)" = "c3c7c73a2d1e9fc0886a08b93e98eb643461230d5f1925e4036204d5f2e261a8"
 "checksum crunchy 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 "checksum crypto-mac 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4434400df11d95d556bac068ddfedd482915eb18fe8bea89bc80b6e4b1c179e5"
+"checksum crypto-mac 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
 "checksum csv 1.1.3 (registry+https://github.com/rust-lang/crates.io-index)" = "00affe7f6ab566df61b4be3ce8cf16bc2576bca0963ceb0955e45d514bf9a279"
 "checksum csv-core 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)" = "2b2466559f260f48ad25fe6317b3c8dac77b5bdb5763ac7d9d6103530663bc90"
 "checksum curve25519-dalek 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)" = "8b7dcd30ba50cdf88b55b033456138b7c0ac4afdc436d82e1b79f370f24cc66d"
