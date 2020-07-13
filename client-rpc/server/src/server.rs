@@ -31,7 +31,7 @@ impl Server {
             storage_dir: options.storage_dir,
             websocket_url: options.websocket_url,
             sync_options: SyncerOptions {
-                enable_fast_forward: !options.disable_fast_forward,
+                enable_fast_forward: options.enable_fast_forward,
                 enable_address_recovery: !options.disable_address_recovery,
                 batch_size: options.batch_size,
                 block_height_ensure: options.block_height_ensure,

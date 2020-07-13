@@ -245,7 +245,7 @@ def programs(node, app_hash, root_path, cfg):
         ('client-rpc', f"client-rpc --port={client_rpc_port} --chain-id={cfg['chain_id']} "
          f"--storage-dir={node_path / Path('wallet')} "
          f"--websocket-url=ws://127.0.0.1:{tendermint_rpc_port}/websocket "
-         f"--disable-fast-forward",
+         ,
          dict(def_env, CRYPTO_GENESIS_FINGERPRINT=cfg['genesis_fingerprint'])),
     ]
 

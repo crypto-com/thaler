@@ -276,7 +276,7 @@ class Wallet():
             self,
             force=False,
             disable_address_recovery=False,
-            disable_fast_forward=False,
+            enable_fast_forward=True,
             batch_size=20,
             block_height_ensure=50,
     ):
@@ -285,8 +285,8 @@ class Wallet():
             cmd.append("--force")
         if disable_address_recovery:
             cmd.append("--disable-address-recovery")
-        if disable_fast_forward:
-            cmd.append("--disable-fast-forward")
+        if enable_fast_forward:
+            cmd.append("--enable-fast-forward")
         args = self.auth_token
         text = run(cmd, args)
         if "Error" in text:
