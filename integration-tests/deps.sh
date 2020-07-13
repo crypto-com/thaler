@@ -2,7 +2,6 @@
 set -e
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
-pushd bot;
 PYTHON_VENV_DIR=${PYTHON_VENV_DIR:-".venv"}
 if [ ! -d $PYTHON_VENV_DIR ];
 then
@@ -12,8 +11,7 @@ then
 else
     source $PYTHON_VENV_DIR/bin/activate
 fi
-pip3 install -e .
-pip3 install supervisor pytest iso8601 pexpect
-popd
+# FIXME use pypi2nix
+pip3 install -r requirements.txt
 
 pushd client-rpc; npm install; popd
