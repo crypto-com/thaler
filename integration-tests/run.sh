@@ -7,7 +7,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 
 # ensure dependencies for integration tests
 ./deps.sh
-PYTHON_VENV_DIR=${PYTHON_VENV_DIR:-"./bot/.venv"}
+PYTHON_VENV_DIR=${PYTHON_VENV_DIR:-"./.venv"}
 source $PYTHON_VENV_DIR/bin/activate
 
 # prepare chain binaries
