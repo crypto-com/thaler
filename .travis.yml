@@ -54,6 +54,7 @@ rust: &rust
     - PKG_CONFIG_PATH=$HOME/lib/pkgconfig:/opt/sgxsdk/pkgconfig
     - SGX_SDK=/opt/sgxsdk
     - SGX_MODE=SW
+    - NETWORK_ID=ab
   before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
     - ./ci-scripts/install_sgxsdk.sh
     - |
