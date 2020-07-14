@@ -103,25 +103,48 @@ def test_wallet_restore_basic():
 
 def init_wallet():
     m = "brick seed fatigue flee earn rural decline switch number cause wheat employ unknown betray tray"
-    wallet_sender = Wallet.restore("Default", PASSPHRASE, m)
-    wallet_sender.create_address("staking")
-    wallet_sender.create_address("staking")
+    wallet_1 = Wallet.restore("Default", PASSPHRASE, m)
+    wallet_1.create_address("staking")
+    wallet_1.create_address("staking")
 
     # create test wallet
-    wallet_receiver = Wallet("receiver", PASSPHRASE)
-    wallet_receiver.new("basic")
+    wallet_2 = Wallet("test-2", PASSPHRASE)
+    wallet_2.new("basic")
+
+    wallet_3 = Wallet("test-3", PASSPHRASE)
+    wallet_3.new("basic")
 
     # create a mock hw wallet
     wallet_hw = Wallet("hw", PASSPHRASE)
     wallet_hw.new("hw")
-    return wallet_sender, wallet_receiver, wallet_hw
 
 
-
-def withdraw_transactions(wallet, staking_address):
-    # test withdraw all unbounded
+def deposit_transaction(wallet, staking_address, amount_cro):
+    staking_state_before = wallet.state(staking_address)
+    wallet_balance_begin = wallet.balance
     tx = Transaction(wallet)
-    tx.withdraw(staking_address, wallet.create_address())
+    tx.deposit(staking_address, amount_cro)
+    time.sleep(3)
+    wallet.sync()
+    wallet_balance_end = wallet.balance
+    assert wallet_balance_begin["available"] == wallet_balance_end["available"] + amount_cro * CRO
+    h = tx.history[-1]
+    assert amount_cro*CRO == h["amount"]
+    assert "OUT" == h["side"]
+    staking_state_after = wallet.state(staking_address)
+    assert staking_state_before['bonded'] + amount_cro*CRO == staking_state_after["bonded"]
+
+def unbounded_transaction(wallet, staking_address, amount_cro):
+    tx = Transaction(wallet)
+    tx.unbond(staking_address, amount_cro)
+    time.sleep(3)
+    wallet.sync()
+
+
+def withdraw_transactions(wallet, staking_address, transfer_address=None, view_keys=[]):
+    tx = Transaction(wallet)
+    transfer_address = transfer_address or wallet.create_address()
+    tx.withdraw(staking_address, transfer_address, view_keys=view_keys)
     i = 0
     while i < 30:
         wallet.sync()
@@ -129,33 +152,14 @@ def withdraw_transactions(wallet, staking_address):
         if balance["available"] > 0:
             break
         time.sleep(1)
-    assert balance["available"] == 500000000000000000
 
-def deposit_to_self_address_transaction(wallet, staking_address, amount_cro):
-    wallet_balance_begin = wallet.balance
-    tx = Transaction(wallet)
-    tx_id = tx.deposit(staking_address, amount_cro)
-    time.sleep(3)
-    wallet.sync()
-    t = 0
-    find_tx = False
-    while t < 30 and not find_tx:
-        time.sleep(1)
-        wallet.sync()
-        for tx_info in tx.history:
-            if tx_info["tx_id"] == tx_id:
-                find_tx = True
-                assert tx_info["tx_type"] == "Deposit"
-                assert tx_info["amount"] == amount_cro * CRO
-                break
-    wallet_balance_end = wallet.balance
-    assert wallet_balance_begin["available"] == wallet_balance_end["available"] + amount_cro * CRO
 
-def transfer_to_other_wallet(wallet_sender, wallet_receiver, amount_cro, sender_hardware=None, receiver_hardware=None):
+
+def transfer_transaction(wallet_sender, wallet_receiver, amount_cro, sender_hardware=None, receiver_hardware=None, view_keys=[]):
     balance_sender_begin = wallet_sender.balance
     balance_receiver_begin = wallet_receiver.balance
     tx = Transaction(wallet_sender, sender_hardware)
-    view_keys = [wallet_receiver.view_key()]
+    view_keys.extend([wallet_receiver.view_key()])
     tx.transfer(wallet_receiver.create_address("transfer", receiver_hardware), amount_cro, view_keys=view_keys)
     balance_sender = wallet_sender.balance
     assert balance_sender["pending"] > 0
@@ -171,21 +175,72 @@ def transfer_to_other_wallet(wallet_sender, wallet_receiver, amount_cro, sender_
     assert balance_sender["total"] == balance_sender_begin["total"] - amount_cro * CRO
     assert balance_receiver["total"] == balance_receiver_begin["total"] + amount_cro * CRO
 
+staking_address_wallet_1 = "0x5e7e1e79d80b861a94598c721598951098dd3825"
+wallet_1 = Wallet("Default")
+wallet_2 = Wallet("test-2")
+wallet_3 = Wallet("test-3")
+wallet_hw = Wallet("hw")
+
 @pytest.mark.zerofee
-def test_transaction():
+def test_create_wallet():
     os.environ['CRYPTO_CLIENT_TENDERMINT'] = 'ws://localhost:26667/websocket'
-    wallet_sender, wallet_receiver, wallet_hw = init_wallet()
-    # 1. withraw all balance from staking address
-    self_staking_address = "0x5e7e1e79d80b861a94598c721598951098dd3825"
-    withdraw_transactions(wallet_sender, self_staking_address)
-    # 2. test deposit to self address
-    deposit_to_self_address_transaction(wallet_sender, self_staking_address, 10000)
-    # 3. test transfer to other wallet
-    transfer_to_other_wallet(wallet_sender, wallet_receiver, 10000)
-    # 4. test mock hw wallet
-    transfer_to_other_wallet(wallet_sender, wallet_hw, 10000, receiver_hardware="mock")
-    transfer_to_other_wallet(wallet_hw, wallet_sender, 5000, sender_hardware="mock")
+    init_wallet()
 
 
+@pytest.mark.zerofee
+def test_withdraw_all_unbonded_from_genesis():
+    withdraw_transactions(wallet_1, staking_address_wallet_1)
+    balance = wallet_1.balance
+    assert balance["available"] == 500000000000000000
 
+@pytest.mark.zerofee
+def test_deposit():
+    deposit_transaction(wallet_1, staking_address_wallet_1, 10000)
 
+@pytest.mark.zerofee
+def test_transfer():
+    # test transfer from wallet_1 to wallet_2 with wallet_3's view key
+    transfer_transaction(wallet_1, wallet_2, 50000, view_keys=[wallet_3.view_key()])
+    # TODO: wallet_3 can view the tx_id, but now can not, because the cmd `client-cli transaction show` uses info from local storage
+    # tx_id = Transaction(wallet_2).history[-1]["tx_id"]
+    # assert Transaction(wallet_3).can_view_tx(tx_id)
+
+@pytest.mark.zerofee
+def test_transfer_hw():
+    # test mock hw wallet
+    transfer_transaction(wallet_1, wallet_hw, 10000, receiver_hardware="mock")
+    transfer_transaction(wallet_hw, wallet_1, 5000, sender_hardware="mock")
+
+@pytest.mark.zerofee
+def test_deposit_to_other_wallet():
+    # test deposit to other wallet staking address
+    wallet_2.sync()
+    state1 = wallet_2.state(staking_address_wallet_1)
+    deposit_transaction(wallet_2, staking_address_wallet_1, 20000)
+    wallet_2.sync()
+    state2 = wallet_2.state(staking_address_wallet_1)
+    assert state2['bonded'] == state1['bonded'] + 20000*CRO
+
+@pytest.mark.zerofee
+def test_withdraw_to_other_wallet():
+    time.sleep(3)
+    state2 = wallet_2.state(staking_address_wallet_1)
+    unbounded_transaction(wallet_1, staking_address_wallet_1, 10000)
+    wallet_2.sync()
+    state3 = wallet_2.state(staking_address_wallet_1)
+    assert state3['bonded'] == state2['bonded'] - 10000*CRO
+    assert state3['unbonded'] == state2['unbonded'] + 10000*CRO
+    # the time must bigger than the max_age_duration(nano seconds) in tendermint genesis.json
+    state3 = wallet_2.state(staking_address_wallet_1)
+    time.sleep(10)
+    withdraw_transactions(wallet_1, staking_address_wallet_1, wallet_2.create_address("transfer"), view_keys = [wallet_1.view_key(), wallet_2.view_key()])
+    # check the receiver wallet history
+    time.sleep(3)
+    wallet_2.sync()
+    history = Transaction(wallet_2).history[-1]
+    assert history["side"] == "IN"
+    assert history["tx_type"] == "Withdraw"
+    assert history["amount"] == 10000*CRO
+    state4 = wallet_2.state(staking_address_wallet_1)
+    # check the staking state of staking_address_wallet_1
+    assert state3["unbonded"] - 10000*CRO == state4["unbonded"]
