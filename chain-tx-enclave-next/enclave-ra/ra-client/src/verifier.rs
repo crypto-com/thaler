@@ -1,4 +1,4 @@
-use std::{collections::HashSet, sync::Arc, time::SystemTime};
+use std::{collections::HashSet, sync::Arc};
 
 use chrono::{DateTime, Duration, Utc};
 use der_parser::oid::Oid;
@@ -21,7 +21,8 @@ use x509_parser::{parse_x509_der, x509};
 
 use crate::{EnclaveCertVerifierConfig, EnclaveInfo};
 
-static SUPPORTED_SIG_ALGS: &[&SignatureAlgorithm] = &[&ECDSA_P256_SHA256];
+static SUPPORTED_SIG_ALGS: &[&SignatureAlgorithm] =
+    &[&ECDSA_P256_SHA256, &RSA_PKCS1_2048_8192_SHA256];
 
 lazy_static! {
     pub static ref ENCLAVE_CERT_VERIFIER: EnclaveCertVerifier = EnclaveCertVerifier::default();
@@ -59,6 +60,16 @@ impl Default for EnclaveCertVerifier {
     fn default() -> Self {
         EnclaveCertVerifier::new(Default::default()).expect("default verifier config is invalid")
     }
+}
+
+fn get_end_entity_certificate(
+    certificate_chain: &[Certificate],
+) -> Result<EndEntityCert, EnclaveCertVerifierError> {
+    let signing_cert = certificate_chain
+        .first()
+        .ok_or_else(|| EnclaveCertVerifierError::MissingAttestationReportSigningCertificate)?;
+    EndEntityCert::from(&signing_cert.0)
+        .map_err(|_| EnclaveCertVerifierError::AttestationReportSigningCertificateParsingError)
 }
 
 impl EnclaveCertVerifier {
@@ -130,6 +141,35 @@ impl EnclaveCertVerifier {
         })
     }
 
+    fn get_trust_anchor(&self) -> Vec<TrustAnchor> {
+        self.root_cert_store
+            .roots
+            .iter()
+            .map(|cert| cert.to_trust_anchor())
+            .collect()
+    }
+
+    fn verify_end_entity_certificate(
+        &self,
+        end_entity_certificate: &EndEntityCert,
+        intermediate_certs: &[Certificate],
+        now: DateTime<Utc>,
+    ) -> Result<(), webpki::Error> {
+        let trust_anchors = self.get_trust_anchor();
+        let time = Time::from_seconds_since_unix_epoch(now.timestamp() as u64);
+        let intermediate_certs: Vec<&[u8]> = intermediate_certs
+            .iter()
+            .map(|cert| cert.0.as_slice())
+            .collect();
+
+        end_entity_certificate.verify_is_valid_tls_server_cert(
+            SUPPORTED_SIG_ALGS,
+            &TLSServerTrustAnchors(&trust_anchors),
+            &intermediate_certs,
+            time,
+        )
+    }
+
     /// Verifies attestation report
     fn verify_attestation_report(
         &self,
@@ -137,37 +177,25 @@ impl EnclaveCertVerifier {
         public_key: &[u8],
         now: DateTime<Utc>,
     ) -> Result<Quote, EnclaveCertVerifierError> {
-        let trust_anchors: Vec<TrustAnchor> = self
-            .root_cert_store
-            .roots
-            .iter()
-            .map(|cert| cert.to_trust_anchor())
-            .collect();
-        let time =
-            Time::try_from(SystemTime::now()).map_err(|_| EnclaveCertVerifierError::TimeError)?;
+        let attestation_report: AttestationReport = serde_json::from_slice(attestation_report)
+            .map_err(EnclaveCertVerifierError::AttestationReportParsingError)?;
+        let signing_certificate_chain = certs(&mut attestation_report.signing_cert.as_ref())
+            .map_err(|_| {
+                EnclaveCertVerifierError::AttestationReportSigningCertificateChainParsingError
+            })?;
+        let signing_cert = get_end_entity_certificate(&signing_certificate_chain)?;
 
-        let attestation_report: AttestationReport = serde_json::from_slice(attestation_report)?;
-
-        let signing_certs = certs(&mut attestation_report.signing_cert.as_ref())
-            .map_err(|_| EnclaveCertVerifierError::CertificateParsingError)?;
-
-        for signing_cert in signing_certs {
-            let signing_cert = EndEntityCert::from(&signing_cert.0)?;
-
-            signing_cert.verify_is_valid_tls_server_cert(
-                SUPPORTED_SIG_ALGS,
-                &TLSServerTrustAnchors(&trust_anchors),
-                &[],
-                time,
-            )?;
-
-            signing_cert.verify_signature(
-                &RSA_PKCS1_2048_8192_SHA256,
-                &attestation_report.body,
-                &attestation_report.signature,
-            )?;
-        }
-
+        self.verify_end_entity_certificate(&signing_cert, &signing_certificate_chain[1..], now)
+            .map_err(|webpki_error| {
+                EnclaveCertVerifierError::AttestationReportSigningCertificateVerificationError(
+                    webpki_error,
+                )
+            })?;
+        signing_cert.verify_signature(
+            &RSA_PKCS1_2048_8192_SHA256,
+            &attestation_report.body,
+            &attestation_report.signature,
+        )?;
         self.verify_attestation_report_body(&attestation_report.body, public_key, now)
     }
 
@@ -199,11 +227,10 @@ impl EnclaveCertVerifier {
         }
 
         let quote = attestation_report_body.get_quote()?;
-
-        if public_key.len() != 65
-            && public_key[0] != 4
-            && public_key[1..] != quote.report_body.report_data[..]
-        {
+        let has_correct_len = public_key.len() == 65;
+        let is_uncompressed = public_key[0] == 4;
+        let pubkey_matches = public_key[1..] == quote.report_body.report_data[..];
+        if !has_correct_len || !is_uncompressed || !pubkey_matches {
             return Err(EnclaveCertVerifierError::PublicKeyMismatch);
         }
 
@@ -294,6 +321,14 @@ impl ClientCertVerifier for EnclaveCertVerifier {
 
 #[derive(Debug, Error)]
 pub enum EnclaveCertVerifierError {
+    #[error("Unable to parse attestation report: {0}")]
+    AttestationReportParsingError(#[source] serde_json::Error),
+    #[error("Unable to parse attestation signing certificate chain")]
+    AttestationReportSigningCertificateChainParsingError,
+    #[error("Unable to parse attestation signing certificate")]
+    AttestationReportSigningCertificateParsingError,
+    #[error("Signing certificate verification error: {0}")]
+    AttestationReportSigningCertificateVerificationError(#[source] webpki::Error),
     #[error("Enclave certificate expired")]
     CertificateExpired,
     #[error("Enclave certificate not begin yet")]
@@ -314,6 +349,8 @@ pub enum EnclaveCertVerifierError {
     MeasurementMismatch,
     #[error("Attestation report not available in server certificate")]
     MissingAttestationReport,
+    #[error("Attestation report signing certificate not available")]
+    MissingAttestationReportSigningCertificate,
     #[error("Attestation report is older than report validify duration")]
     OldAttestationReport,
     #[error("Public key in certificate does not match with the one in enclave quote")]
@@ -338,4 +375,244 @@ pub struct CertVerifyResult {
     pub public_key: Vec<u8>,
     /// the quote
     pub quote: Quote,
+}
+
+#[cfg(test)]
+mod tests {
+    // Note this useful idiom: importing names from outer (for mod tests) scope.
+    use super::*;
+    use chrono::offset::TimeZone;
+
+    #[test]
+    fn test_verify_attestation_report() {
+        let ias_ca = include_bytes!(
+            "../../../../client-common/src/cipher/AttestationReportSigningCACert.pem"
+        );
+        let attestation_report = include_bytes!("../test/valid_attestation_report.json");
+        let report_data = base64::decode("1g+Nvsow2LXbrJVq/8YS5wMUd+GTeOkBegUmnGtcfyLSS0qP6ufwO2HEDV70O4W/tFDx57tziaOWd6OJjenAeg==").unwrap();
+        let public_key = &[&[4], report_data.as_slice()].concat();
+
+        let verifier_config = EnclaveCertVerifierConfig {
+            signing_ca_cert_pem: ias_ca.to_vec().into(),
+            valid_enclave_quote_statuses: vec![
+                "OK".into(),
+                "CONFIGURATION_AND_SW_HARDENING_NEEDED".into(),
+            ]
+            .into(),
+            report_validity_secs: 86400,
+            enclave_info: None,
+        };
+        let verifier = EnclaveCertVerifier::new(verifier_config).unwrap();
+        let now = Utc.timestamp(1594612800, 0);
+        let result = verifier.verify_attestation_report(attestation_report, public_key, now);
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_verify_attestation_report_attestation_report_parsing_error() {
+        let ias_ca = include_bytes!(
+            "../../../../client-common/src/cipher/AttestationReportSigningCACert.pem"
+        );
+        let attestation_report = &include_bytes!("../test/valid_attestation_report.json")[2..];
+        let report_data = base64::decode("1g+Nvsow2LXbrJVq/8YS5wMUd+GTeOkBegUmnGtcfyLSS0qP6ufwO2HEDV70O4W/tFDx57tziaOWd6OJjenAeg==").unwrap();
+        let public_key = &[&[4], report_data.as_slice()].concat();
+
+        let verifier_config = EnclaveCertVerifierConfig {
+            signing_ca_cert_pem: ias_ca.to_vec().into(),
+            valid_enclave_quote_statuses: vec![
+                "OK".into(),
+                "CONFIGURATION_AND_SW_HARDENING_NEEDED".into(),
+            ]
+            .into(),
+            report_validity_secs: 86400,
+            enclave_info: None,
+        };
+        let verifier = EnclaveCertVerifier::new(verifier_config).unwrap();
+        let now = Utc.timestamp(1594612800, 0);
+        let result = verifier.verify_attestation_report(attestation_report, public_key, now);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            EnclaveCertVerifierError::AttestationReportParsingError(_)
+        ));
+    }
+
+    #[test]
+    fn test_verify_attestation_report_attestation_report_signing_certificate_chain_parsing_error() {
+        let ias_ca = include_bytes!(
+            "../../../../client-common/src/cipher/AttestationReportSigningCACert.pem"
+        );
+
+        let invalid_cert_chain = b"-----BEGIN CERTIFICATE-----\ninvalid cert\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\ninvalid cert\n-----END CERTIFICATE-----\n";
+
+        let attestation_report = include_bytes!("../test/valid_attestation_report.json");
+        let mut attestation_report: AttestationReport =
+            serde_json::from_slice(&attestation_report[..]).unwrap();
+        attestation_report.signing_cert = invalid_cert_chain.to_vec();
+        let attestation_report = serde_json::to_vec(&attestation_report).unwrap();
+
+        let report_data = base64::decode("1g+Nvsow2LXbrJVq/8YS5wMUd+GTeOkBegUmnGtcfyLSS0qP6ufwO2HEDV70O4W/tFDx57tziaOWd6OJjenAeg==").unwrap();
+        let public_key = &[&[4], report_data.as_slice()].concat();
+
+        let verifier_config = EnclaveCertVerifierConfig {
+            signing_ca_cert_pem: ias_ca.to_vec().into(),
+            valid_enclave_quote_statuses: vec![
+                "OK".into(),
+                "CONFIGURATION_AND_SW_HARDENING_NEEDED".into(),
+            ]
+            .into(),
+            report_validity_secs: 86400,
+            enclave_info: None,
+        };
+        let verifier = EnclaveCertVerifier::new(verifier_config).unwrap();
+        let now = Utc.timestamp(1594612800, 0);
+        let result =
+            verifier.verify_attestation_report(attestation_report.as_slice(), public_key, now);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            EnclaveCertVerifierError::AttestationReportSigningCertificateChainParsingError
+        ));
+    }
+
+    #[test]
+    fn test_verify_attestation_report_attestation_report_signing_certificate_parsing_error() {
+        let ias_ca = include_bytes!(
+            "../../../../client-common/src/cipher/AttestationReportSigningCACert.pem"
+        );
+
+        let invalid_cert_chain = b"-----BEGIN CERTIFICATE-----\naW52YWxpZCBjZXJ0\n-----END CERTIFICATE-----\n-----BEGIN CERTIFICATE-----\naW52YWxpZCBjZXJ0\n-----END CERTIFICATE-----\n";
+
+        let attestation_report = include_bytes!("../test/valid_attestation_report.json");
+        let mut attestation_report: AttestationReport =
+            serde_json::from_slice(&attestation_report[..]).unwrap();
+        attestation_report.signing_cert = invalid_cert_chain.to_vec();
+        let attestation_report = serde_json::to_vec(&attestation_report).unwrap();
+
+        let report_data = base64::decode("1g+Nvsow2LXbrJVq/8YS5wMUd+GTeOkBegUmnGtcfyLSS0qP6ufwO2HEDV70O4W/tFDx57tziaOWd6OJjenAeg==").unwrap();
+        let public_key = &[&[4], report_data.as_slice()].concat();
+
+        let verifier_config = EnclaveCertVerifierConfig {
+            signing_ca_cert_pem: ias_ca.to_vec().into(),
+            valid_enclave_quote_statuses: vec![
+                "OK".into(),
+                "CONFIGURATION_AND_SW_HARDENING_NEEDED".into(),
+            ]
+            .into(),
+            report_validity_secs: 86400,
+            enclave_info: None,
+        };
+        let verifier = EnclaveCertVerifier::new(verifier_config).unwrap();
+        let now = Utc.timestamp(1594612800, 0);
+        let result =
+            verifier.verify_attestation_report(attestation_report.as_slice(), public_key, now);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            EnclaveCertVerifierError::AttestationReportSigningCertificateParsingError
+        ));
+    }
+
+    #[test]
+    fn test_verify_attestation_report_attestation_report_signing_certificate_verification_error() {
+        let ias_ca = include_bytes!(
+            "../../../../client-common/src/cipher/AttestationReportSigningCACert.pem"
+        );
+        let invalid_cert_chain = include_bytes!("../test/self-signed.pem");
+
+        let attestation_report = include_bytes!("../test/valid_attestation_report.json");
+        let mut attestation_report: AttestationReport =
+            serde_json::from_slice(&attestation_report[..]).unwrap();
+        attestation_report.signing_cert = invalid_cert_chain.to_vec();
+        let attestation_report = serde_json::to_vec(&attestation_report).unwrap();
+
+        let report_data = base64::decode("1g+Nvsow2LXbrJVq/8YS5wMUd+GTeOkBegUmnGtcfyLSS0qP6ufwO2HEDV70O4W/tFDx57tziaOWd6OJjenAeg==").unwrap();
+        let public_key = &[&[4], report_data.as_slice()].concat();
+
+        let verifier_config = EnclaveCertVerifierConfig {
+            signing_ca_cert_pem: ias_ca.to_vec().into(),
+            valid_enclave_quote_statuses: vec![
+                "OK".into(),
+                "CONFIGURATION_AND_SW_HARDENING_NEEDED".into(),
+            ]
+            .into(),
+            report_validity_secs: 86400,
+            enclave_info: None,
+        };
+        let verifier = EnclaveCertVerifier::new(verifier_config).unwrap();
+        let now = Utc.timestamp(1594612800, 0);
+        let result =
+            verifier.verify_attestation_report(attestation_report.as_slice(), public_key, now);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            EnclaveCertVerifierError::AttestationReportSigningCertificateVerificationError(_)
+        ));
+    }
+
+    #[test]
+    fn test_verify_attestation_report_missing_attestation_report_signing_certificate() {
+        let ias_ca = include_bytes!(
+            "../../../../client-common/src/cipher/AttestationReportSigningCACert.pem"
+        );
+
+        let attestation_report = include_bytes!("../test/valid_attestation_report.json");
+        let mut attestation_report: AttestationReport =
+            serde_json::from_slice(&attestation_report[..]).unwrap();
+        attestation_report.signing_cert = Vec::new();
+        let attestation_report = serde_json::to_vec(&attestation_report).unwrap();
+
+        let report_data = base64::decode("1g+Nvsow2LXbrJVq/8YS5wMUd+GTeOkBegUmnGtcfyLSS0qP6ufwO2HEDV70O4W/tFDx57tziaOWd6OJjenAeg==").unwrap();
+        let public_key = &[&[4], report_data.as_slice()].concat();
+
+        let verifier_config = EnclaveCertVerifierConfig {
+            signing_ca_cert_pem: ias_ca.to_vec().into(),
+            valid_enclave_quote_statuses: vec![
+                "OK".into(),
+                "CONFIGURATION_AND_SW_HARDENING_NEEDED".into(),
+            ]
+            .into(),
+            report_validity_secs: 86400,
+            enclave_info: None,
+        };
+        let verifier = EnclaveCertVerifier::new(verifier_config).unwrap();
+        let now = Utc.timestamp(1594612800, 0);
+        let result =
+            verifier.verify_attestation_report(attestation_report.as_slice(), public_key, now);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            EnclaveCertVerifierError::MissingAttestationReportSigningCertificate
+        ));
+    }
+
+    #[test]
+    fn test_verify_attestation_report_public_key_mismatch() {
+        let ias_ca = include_bytes!(
+            "../../../../client-common/src/cipher/AttestationReportSigningCACert.pem"
+        );
+        let attestation_report = include_bytes!("../test/valid_attestation_report.json");
+        let report_data = base64::decode("1g+Nvsow2LXbrJVq/8YS5wMUd+GTeOkBegUmnGtcfyLSS0qP6ufwO2HEDV70O4W/tFDx67tziaOWd6OJjenAeg==").unwrap();
+        let public_key = &[&[4], report_data.as_slice()].concat();
+
+        let verifier_config = EnclaveCertVerifierConfig {
+            signing_ca_cert_pem: ias_ca.to_vec().into(),
+            valid_enclave_quote_statuses: vec![
+                "OK".into(),
+                "CONFIGURATION_AND_SW_HARDENING_NEEDED".into(),
+            ]
+            .into(),
+            report_validity_secs: 86400,
+            enclave_info: None,
+        };
+        let verifier = EnclaveCertVerifier::new(verifier_config).unwrap();
+        let now = Utc.timestamp(1594612800, 0);
+        let result = verifier.verify_attestation_report(attestation_report, public_key, now);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            EnclaveCertVerifierError::PublicKeyMismatch
+        ));
+    }
 }

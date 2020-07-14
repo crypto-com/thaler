@@ -38,6 +38,8 @@ use chain_storage::{Storage, NUM_COLUMNS};
 
 const TEST_CHAIN_ID: &str = "test-00";
 
+pub const DEFAULT_GENESIS_TIME: u64 = 1563148800;
+
 /// Need to add more seed and validator public keys, if need more validator nodes.
 const SEEDS: [[u8; 32]; 2] = [[0xcd; 32], [0xab; 32]];
 lazy_static! {
@@ -213,7 +215,7 @@ impl ChainEnv {
         ChainEnv::new_with_customizer(dist_coin, expansion_cap, count, |_| {})
     }
 
-    pub fn new_with_customizer<F: Fn(&mut InitNetworkParameters) -> ()>(
+    pub fn new_with_customizer<F: Fn(&mut InitNetworkParameters)>(
         dist_coin: Coin,
         expansion_cap: Coin,
         count: usize,
@@ -254,7 +256,10 @@ impl ChainEnv {
             get_nodes(&accounts),
         );
 
-        let timestamp = Timestamp::new();
+        let timestamp = Timestamp {
+            seconds: DEFAULT_GENESIS_TIME as i64,
+            ..Default::default()
+        };
         let genesis_state = init_config
             .validate_config_get_genesis(timestamp.get_seconds().try_into().unwrap())
             .expect("Error while validating distribution");
@@ -384,7 +389,11 @@ impl ChainEnv {
                 ..Default::default()
             })
             .into(),
-            time: Some(Timestamp::default()).into(),
+            time: Some(Timestamp {
+                seconds: DEFAULT_GENESIS_TIME as i64,
+                ..Default::default()
+            })
+            .into(),
             ..Default::default()
         }
     }
@@ -392,7 +401,11 @@ impl ChainEnv {
     pub fn req_begin_block(&self, height: i64, proposed_by: usize) -> RequestBeginBlock {
         RequestBeginBlock {
             header: Some(Header {
-                time: Some(Timestamp::new()).into(),
+                time: Some(Timestamp {
+                    seconds: DEFAULT_GENESIS_TIME as i64,
+                    ..Default::default()
+                })
+                .into(),
                 chain_id: TEST_CHAIN_ID.to_owned(),
                 height,
                 proposer_address: Into::<[u8; 20]>::into(&self.validator_address(proposed_by))

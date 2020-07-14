@@ -85,7 +85,7 @@ mod tests {
     use abci::*;
     use chain_core::common::Timespec;
     use protobuf::well_known_types::Timestamp;
-    use test_common::chain_env::{get_account, ChainEnv};
+    use test_common::chain_env::{get_account, ChainEnv, DEFAULT_GENESIS_TIME};
 
     fn seconds_to_timestamp(secs: Timespec) -> Timestamp {
         let mut ts = Timestamp::new();
@@ -169,11 +169,12 @@ mod tests {
         let _rsp_init_chain = app.init_chain(&env.req_init_chain());
 
         let mut req = env.req_begin_block(1, 0);
-        let start_block_time = env
-            .init_config
-            .network_params
-            .rewards_config
-            .reward_period_seconds as u64;
+        let start_block_time = DEFAULT_GENESIS_TIME
+            + env
+                .init_config
+                .network_params
+                .rewards_config
+                .reward_period_seconds as u64;
         req.mut_header()
             .set_time(seconds_to_timestamp(start_block_time));
         app.begin_block(&req);

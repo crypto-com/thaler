@@ -23,7 +23,7 @@ mod tests {
     use chain_core::tx::fee::Fee;
     use chain_storage::buffer::{Get, GetStaking, MemStore, StoreStaking};
     use test_common::chain_env::{
-        get_init_network_params, mock_council_node, mock_council_node_meta,
+        get_init_network_params, mock_council_node, mock_council_node_meta, DEFAULT_GENESIS_TIME,
     };
 
     use super::*;
@@ -120,7 +120,9 @@ mod tests {
             attributes: Default::default(),
             node_meta: mock_council_node(val_pk4.clone()),
         };
-        table.node_join(&mut store, 10, 0, 0, &node_join).unwrap();
+        table
+            .node_join(&mut store, DEFAULT_GENESIS_TIME + 10, 0, 0, &node_join)
+            .unwrap();
         assert_eq!(table.end_block(&store, 3), vec![]);
         // node-join increase nonce by one
         assert_eq!(store.get(&addr4).unwrap().nonce, nonce + 1);
@@ -150,7 +152,7 @@ mod tests {
             .unbond(
                 &mut store,
                 10,
-                0,
+                DEFAULT_GENESIS_TIME,
                 BlockHeight::genesis(),
                 &unbond,
                 Fee::zero(),
@@ -168,7 +170,12 @@ mod tests {
 
         // test withdraw transaction
         table
-            .withdraw(&mut store, 10 + 10, &addr4, Coin::new(2_0000_0000).unwrap())
+            .withdraw(
+                &mut store,
+                DEFAULT_GENESIS_TIME + 10 + 10,
+                &addr4,
+                Coin::new(2_0000_0000).unwrap(),
+            )
             .unwrap();
         // withdraw increase nonce by one
         assert_eq!(store.get(&addr4).unwrap().nonce, nonce + 2);
@@ -184,7 +191,7 @@ mod tests {
         let info = BeginBlockInfo {
             params: &params,
             max_evidence_age: 10,
-            block_time: 0,
+            block_time: DEFAULT_GENESIS_TIME,
             block_height: 0.into(),
             voters: &[],
             evidences: &[],
@@ -193,8 +200,8 @@ mod tests {
         let (mut table, mut store) = init_staking_table();
         let addr1 = staking_address(&[0xcc; 32]);
         let val_pk1 = validator_pubkey(&[0xcc; 32]);
-        let evidence = (val_pk1.clone().into(), 1.into(), 0);
-        let block_time: u64 = 0;
+        let evidence = (val_pk1.clone().into(), 1.into(), DEFAULT_GENESIS_TIME);
+        let block_time: u64 = DEFAULT_GENESIS_TIME;
         let punishment_outcomes = table.begin_block(
             &mut store,
             &BeginBlockInfo {
@@ -267,7 +274,7 @@ mod tests {
             node_meta: mock_council_node(val_pk_new),
         };
         assert!(matches!(
-            table.node_join(&mut store, 3, 0, 0, &node_join),
+            table.node_join(&mut store, DEFAULT_GENESIS_TIME + 3, 0, 0, &node_join),
             Err(PublicTxError::NodeJoin(NodeJoinError::IsJailed))
         ));
         // failed execution don't increase nonce
@@ -280,10 +287,12 @@ mod tests {
             attributes: Default::default(),
         };
         assert!(matches!(
-            table.unjail(&mut store, 1 + 1, &tx),
+            table.unjail(&mut store, DEFAULT_GENESIS_TIME + 1 + 1, &tx),
             Err(PublicTxError::Unjail(UnjailError::JailTimeNotExpired))
         ));
-        table.unjail(&mut store, 1 + 10, &tx).unwrap();
+        table
+            .unjail(&mut store, DEFAULT_GENESIS_TIME + 1 + 10, &tx)
+            .unwrap();
         // unjail increase nonce by one
         let staking = store.get(&addr1).unwrap();
         assert_eq!(staking.nonce, nonce + 1);
@@ -310,7 +319,14 @@ mod tests {
             attributes: Default::default(),
         };
         table
-            .unbond(store, 10, 0, 1.into(), &unbond, Fee::zero())
+            .unbond(
+                store,
+                10,
+                DEFAULT_GENESIS_TIME,
+                1.into(),
+                &unbond,
+                Fee::zero(),
+            )
             .unwrap();
         assert_eq!(
             table.end_block(&*store, 3),
@@ -324,7 +340,7 @@ mod tests {
             node_meta: mock_council_node(val_pk_new.clone()),
         };
         // change to new validator key
-        let result = table.node_join(store, 1, 1, 0, &node_join);
+        let result = table.node_join(store, DEFAULT_GENESIS_TIME + 1, 1, 0, &node_join);
         if result.is_ok() {
             let staking = store.get(&addr).unwrap();
             assert_eq!(
@@ -380,7 +396,7 @@ mod tests {
         };
         // can't join with used key
         assert!(matches!(
-            table.node_join(&mut store, 1, 0, 0, &node_join),
+            table.node_join(&mut store, DEFAULT_GENESIS_TIME + 1, 0, 0, &node_join),
             Err(PublicTxError::NodeJoin(
                 NodeJoinError::DuplicateValidatorAddress
             ))
@@ -463,7 +479,7 @@ mod tests {
         let info = BeginBlockInfo {
             params: &params,
             max_evidence_age: 61,
-            block_time: 0,
+            block_time: DEFAULT_GENESIS_TIME,
             block_height: 0.into(),
             voters: &[],
             evidences: &[],
@@ -474,7 +490,7 @@ mod tests {
             let punishment_outcomes = table.begin_block(
                 &mut store,
                 &BeginBlockInfo {
-                    block_time: 1 + i,
+                    block_time: DEFAULT_GENESIS_TIME + 1 + i,
                     block_height: i.into(),
                     voters: &[(val_pk1.clone().into(), false)],
                     ..info
@@ -493,7 +509,7 @@ mod tests {
             let punishment_outcomes = table.begin_block(
                 &mut store,
                 &BeginBlockInfo {
-                    block_time: 1 + i,
+                    block_time: DEFAULT_GENESIS_TIME + 1 + i,
                     block_height: i.into(),
                     ..info
                 },
@@ -511,7 +527,7 @@ mod tests {
             let punishment_outcomes = table.begin_block(
                 &mut store,
                 &BeginBlockInfo {
-                    block_time: 1 + i,
+                    block_time: DEFAULT_GENESIS_TIME + 1 + i,
                     block_height: i.into(),
                     voters: &[(val_pk1.clone().into(), false)],
                     ..info
@@ -524,7 +540,7 @@ mod tests {
         let punishment_outcomes = table.begin_block(
             &mut store,
             &BeginBlockInfo {
-                block_time: 8,
+                block_time: DEFAULT_GENESIS_TIME + 8,
                 block_height: 7.into(),
                 voters: &[(val_pk1.clone().into(), false)],
                 ..info
@@ -555,7 +571,7 @@ mod tests {
         let slashed = (bonded_slashed + unbonded_slashed).unwrap();
         table.deposit(&mut store, &addr1, slashed).unwrap();
         table
-            .node_join(&mut store, 8, 0, 0, &node_join_tx(0))
+            .node_join(&mut store, DEFAULT_GENESIS_TIME + 8, 0, 0, &node_join_tx(0))
             .unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
@@ -567,7 +583,7 @@ mod tests {
             let punishment_outcomes = table.begin_block(
                 &mut store,
                 &BeginBlockInfo {
-                    block_time: 1 + i,
+                    block_time: DEFAULT_GENESIS_TIME + 1 + i,
                     block_height: i.into(),
                     voters: &[(val_pk1.clone().into(), false)],
                     ..info
@@ -583,7 +599,14 @@ mod tests {
             attributes: Default::default(),
         };
         table
-            .unbond(&mut store, 10, 10, 9.into(), &unbond, Fee::zero())
+            .unbond(
+                &mut store,
+                10,
+                DEFAULT_GENESIS_TIME + 10,
+                9.into(),
+                &unbond,
+                Fee::zero(),
+            )
             .unwrap();
 
         assert_eq!(
@@ -595,7 +618,7 @@ mod tests {
             let punishment_outcomes = table.begin_block(
                 &mut store,
                 &BeginBlockInfo {
-                    block_time: 1 + i,
+                    block_time: DEFAULT_GENESIS_TIME + 1 + i,
                     block_height: i.into(),
                     ..info
                 },
@@ -607,7 +630,13 @@ mod tests {
             .deposit(&mut store, &addr1, Coin::new(11_0000_0000).unwrap())
             .unwrap();
         table
-            .node_join(&mut store, 11, 0, 0, &node_join_tx(2))
+            .node_join(
+                &mut store,
+                DEFAULT_GENESIS_TIME + 11,
+                0,
+                0,
+                &node_join_tx(2),
+            )
             .unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
@@ -618,7 +647,7 @@ mod tests {
             let punishment_outcomes = table.begin_block(
                 &mut store,
                 &BeginBlockInfo {
-                    block_time: 1 + i,
+                    block_time: DEFAULT_GENESIS_TIME + 1 + i,
                     block_height: i.into(),
                     voters: &[(val_pk1.clone().into(), false)],
                     ..info
@@ -631,7 +660,7 @@ mod tests {
         let punishment_outcomes = table.begin_block(
             &mut store,
             &BeginBlockInfo {
-                block_time: 15,
+                block_time: DEFAULT_GENESIS_TIME + 15,
                 block_height: 14.into(),
                 voters: &[(val_pk1.clone().into(), false)],
                 ..info
@@ -668,7 +697,7 @@ mod tests {
         let params = NetworkParameters::Genesis(init_params);
         let info = BeginBlockInfo {
             params: &params,
-            block_time: 0,
+            block_time: DEFAULT_GENESIS_TIME,
             block_height: 0.into(),
             max_evidence_age: 10,
             voters: &[],
@@ -686,7 +715,14 @@ mod tests {
             attributes: Default::default(),
         };
         table
-            .unbond(&mut store, 10, 1, 1.into(), &unbond, Fee::zero())
+            .unbond(
+                &mut store,
+                10,
+                DEFAULT_GENESIS_TIME + 1,
+                1.into(),
+                &unbond,
+                Fee::zero(),
+            )
             .unwrap();
         assert_eq!(store.get(&addr1).unwrap().unbonded, unbond_amount);
         let bonded = (bonded - unbond_amount).unwrap();
@@ -696,13 +732,13 @@ mod tests {
             vec![(val_pk1.clone(), Coin::zero().into())]
         );
 
-        let block_time = 2;
+        let block_time = DEFAULT_GENESIS_TIME + 2;
         let punishment_outcomes = table.begin_block(
             &mut store,
             &BeginBlockInfo {
                 block_time,
                 block_height: 2.into(),
-                evidences: &[(val_pk1.clone().into(), 1.into(), 1)],
+                evidences: &[(val_pk1.clone().into(), 1.into(), DEFAULT_GENESIS_TIME + 1)],
                 ..info
             },
         );
@@ -737,7 +773,14 @@ mod tests {
             attributes: Default::default(),
         };
         table
-            .unbond(&mut store, 10, 2, 2.into(), &unbond, Fee::zero())
+            .unbond(
+                &mut store,
+                10,
+                DEFAULT_GENESIS_TIME + 2,
+                2.into(),
+                &unbond,
+                Fee::zero(),
+            )
             .unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
@@ -754,7 +797,9 @@ mod tests {
             attributes: Default::default(),
             node_meta: mock_council_node(val_pk_new.clone()),
         };
-        table.node_join(&mut store, 2, 0, 0, &tx).unwrap();
+        table
+            .node_join(&mut store, DEFAULT_GENESIS_TIME + 2, 0, 0, &tx)
+            .unwrap();
         assert_eq!(
             table.end_block(&mut store, 3),
             vec![(val_pk_new.clone(), Coin::new(12_0000_0000).unwrap().into())]
@@ -766,13 +811,13 @@ mod tests {
         let unbonded_slashed = staking.unbonded * slash_ratio;
 
         // byzantine evidence of old key
-        let block_time = 3;
+        let block_time = DEFAULT_GENESIS_TIME + 3;
         let punishment_outcomes = table.begin_block(
             &mut store,
             &BeginBlockInfo {
                 block_time,
                 block_height: 3.into(),
-                evidences: &[(val_pk2.clone().into(), 2.into(), 2)],
+                evidences: &[(val_pk2.clone().into(), 2.into(), DEFAULT_GENESIS_TIME + 2)],
                 ..info
             },
         );

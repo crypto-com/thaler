@@ -56,7 +56,9 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::Arc;
-use test_common::chain_env::{mock_confidential_init, mock_council_node, ChainEnv};
+use test_common::chain_env::{
+    mock_confidential_init, mock_council_node, ChainEnv, DEFAULT_GENESIS_TIME,
+};
 
 const TEST_CHAIN_ID: &str = "test-00";
 const EXAMPLE_HASH: &str = "F5E8DFBF717082D6E9508E1A5A5C9B8EAC04A39F69C40262CB733C920DA10962";
@@ -285,7 +287,10 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
     };
     nodes.insert(validator_addr, node_pubkey);
     let c = InitConfig::new(distribution, params, nodes);
-    let t = ::protobuf::well_known_types::Timestamp::new();
+    let t = ::protobuf::well_known_types::Timestamp {
+        seconds: DEFAULT_GENESIS_TIME as i64,
+        ..Default::default()
+    };
     let result = c.validate_config_get_genesis(t.get_seconds().try_into().unwrap());
     if let Ok(genesis_state) = result {
         let tx_tree = MerkleTree::empty();
@@ -454,13 +459,21 @@ fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedT
     let tx = WithdrawUnbondedTx::new(
         0,
         vec![
-            TxOut::new_with_timelock(ExtendedAddr::OrTree([0; 32]), Coin::one(), 0),
-            TxOut::new_with_timelock(ExtendedAddr::OrTree([1; 32]), Coin::unit(), 0),
+            TxOut::new_with_timelock(
+                ExtendedAddr::OrTree([0; 32]),
+                Coin::one(),
+                DEFAULT_GENESIS_TIME,
+            ),
+            TxOut::new_with_timelock(
+                ExtendedAddr::OrTree([1; 32]),
+                Coin::unit(),
+                DEFAULT_GENESIS_TIME,
+            ),
             // leftover -- in previous tests, it was all paid as a fee
             TxOut::new_with_timelock(
                 ExtendedAddr::OrTree([2; 32]),
                 Coin::new(9999999999899999651).unwrap(),
-                0,
+                DEFAULT_GENESIS_TIME,
             ),
         ],
         TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
@@ -522,7 +535,10 @@ fn get_block_proposer(app: &ChainNodeApp<MockClient>) -> TendermintValidatorAddr
 fn begin_block(app: &mut ChainNodeApp<MockClient>) {
     let mut bbreq = RequestBeginBlock::default();
     let mut header = Header::default();
-    header.set_time(::protobuf::well_known_types::Timestamp::new());
+    header.set_time(::protobuf::well_known_types::Timestamp {
+        seconds: DEFAULT_GENESIS_TIME as i64,
+        ..Default::default()
+    });
     header.set_proposer_address(Into::<[u8; 20]>::into(&get_block_proposer(app)).to_vec());
     bbreq.set_header(header);
     app.begin_block(&bbreq);
@@ -874,10 +890,18 @@ fn all_valid_tx_types_should_commit() {
     let tx0 = WithdrawUnbondedTx::new(
         0,
         vec![
-            TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
-            TxOut::new_with_timelock(eaddr.clone(), (Coin::one() + Coin::one()).unwrap(), 0),
-            TxOut::new_with_timelock(eaddr.clone(), Coin::one(), 0),
-            TxOut::new_with_timelock(eaddr.clone(), Coin::new(9999999999599999602).unwrap(), 0), // rest
+            TxOut::new_with_timelock(eaddr.clone(), Coin::one(), DEFAULT_GENESIS_TIME),
+            TxOut::new_with_timelock(
+                eaddr.clone(),
+                (Coin::one() + Coin::one()).unwrap(),
+                DEFAULT_GENESIS_TIME,
+            ),
+            TxOut::new_with_timelock(eaddr.clone(), Coin::one(), DEFAULT_GENESIS_TIME),
+            TxOut::new_with_timelock(
+                eaddr.clone(),
+                Coin::new(9999999999599999602).unwrap(),
+                DEFAULT_GENESIS_TIME,
+            ), // rest
         ],
         TxAttributes::new_with_access(0, vec![TxAccessPolicy::new(public_key, TxAccess::AllData)]),
     );

@@ -1,4 +1,4 @@
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 
 use crate::ciphersuite::*;
 use crate::extensions as ext;
@@ -121,7 +121,7 @@ impl GroupAux {
             sender,
             authenticated_data: vec![],
             content: ContentType::Proposal(Proposal::Remove(Remove {
-                removed: to_remove.0.try_into().unwrap(),
+                removed: to_remove.0,
             })),
         };
         let to_be_signed = MLSPlaintextTBS {

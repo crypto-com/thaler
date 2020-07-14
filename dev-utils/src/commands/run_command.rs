@@ -21,14 +21,13 @@ impl RunCommand {
     fn read_tendermint_genesis(&mut self) -> Result<()> {
         // check whether file exists
         fs::read_to_string(&InitCommand::get_tendermint_filename())
-            .and_then(|contents| {
+            .map(|contents| {
                 println!("current tendermint genesis = {}", contents);
                 let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 self.chain_id = json["chain_id"].as_str().unwrap().to_string();
                 self.app_hash = json["app_hash"].as_str().unwrap().to_string();
                 println!("chain_id = {}", self.chain_id);
                 println!("app_hash = {}", self.app_hash);
-                Ok(())
             })
             .chain(|| (ErrorKind::IoError, "read tendermint genesis error"))
     }
