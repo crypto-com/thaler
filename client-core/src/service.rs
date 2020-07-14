@@ -4,6 +4,7 @@ mod hw_key_service;
 mod key_service;
 #[cfg(feature = "mock-hardware-wallet")]
 mod mock_hw_key_service;
+#[cfg(feature = "experimental")]
 mod multi_sig_session_service;
 mod root_hash_service;
 mod sync_state_service;
@@ -18,6 +19,7 @@ pub use self::hw_key_service::{HwKeyService, UnauthorizedHwKeyService};
 pub use self::key_service::KeyService;
 #[cfg(feature = "mock-hardware-wallet")]
 pub use self::mock_hw_key_service::{MockHardwareKey, MockHardwareService, MockHardwareWallet};
+#[cfg(feature = "experimental")]
 pub use self::multi_sig_session_service::MultiSigSessionService;
 pub use self::root_hash_service::RootHashService;
 pub use self::sync_state_service::{

@@ -25,9 +25,10 @@ pub fn get_random_challenge() -> H256 {
 }
 
 pub fn verify_decryption_request(decryption_request: &DecryptionRequest, challenge: H256) -> bool {
-    decryption_request
-        .verify(&Secp256k1::verification_only(), challenge)
-        .is_ok()
+    // FIXME: provide secp as ref
+    let mut buf_vfy = vec![0u8; Secp256k1::preallocate_verification_size()];
+    let secp = Secp256k1::preallocated_verification_only(&mut buf_vfy).expect("allocation");
+    decryption_request.verify(&secp, challenge).is_ok()
 }
 
 pub fn handle_decryption_request(

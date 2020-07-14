@@ -14,7 +14,9 @@ pub fn verify_tx_address(
     txid: &TxId,
     address: &ExtendedAddr,
 ) -> Result<(), secp256k1::Error> {
-    let secp = Secp256k1::verification_only();
+    // FIXME: provide secp as ref
+    let mut buf_vfy = vec![0u8; Secp256k1::preallocate_verification_size()];
+    let secp = Secp256k1::preallocated_verification_only(&mut buf_vfy)?;
     let message = Message::from_slice(&txid[..])?;
 
     match (witness, address) {
@@ -42,7 +44,9 @@ pub fn verify_tx_recover_address(
 ) -> Result<StakedStateAddress, secp256k1::Error> {
     match witness {
         StakedStateOpWitness::BasicRedeem(sig) => {
-            let secp = Secp256k1::verification_only();
+            // FIXME: provide secp as ref
+            let mut buf_vfy = vec![0u8; Secp256k1::preallocate_verification_size()];
+            let secp = Secp256k1::preallocated_verification_only(&mut buf_vfy)?;
             let message = Message::from_slice(txid)?;
             let pk = secp.recover(&message, &sig)?;
             secp.verify(&message, &sig.to_standard(), &pk)?;
@@ -80,6 +84,7 @@ pub mod tests {
                 &secp,
                 &Message::from_slice(&transation.id()).unwrap(),
                 &secret_key,
+                &mut rand::thread_rng(),
             ),
             merkle_tree
                 .generate_proof(RawXOnlyPubkey::from(public_key.serialize()))
@@ -115,6 +120,7 @@ pub mod tests {
                 &secp,
                 &Message::from_slice(&transation.id()).unwrap(),
                 &secret_keys[0],
+                &mut rand::thread_rng(),
             ),
             merkle_tree
                 .generate_proof(RawXOnlyPubkey::from(public_keys[0].serialize()))
@@ -150,6 +156,7 @@ pub mod tests {
                 &secp,
                 &Message::from_slice(&transation.id()).unwrap(),
                 &secret_keys[0],
+                &mut rand::thread_rng(),
             ),
             merkle_tree
                 .generate_proof(RawXOnlyPubkey::from(public_keys[1].serialize()))

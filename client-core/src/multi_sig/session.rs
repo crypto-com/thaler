@@ -2,15 +2,23 @@ use std::convert::TryFrom;
 
 use parity_scale_codec::{Decode, Encode};
 use rand::rngs::OsRng;
-use secp256k1::key::MuSigPreSession;
-use secp256k1::musig::{
+use secp256k1::key::pubkey_combine;
+
+use secp256k1experimental::key::MuSigPreSession;
+use secp256k1experimental::musig::{
     MuSigNonce, MuSigNonceCommitment, MuSigPartialSignature, MuSigSession, MuSigSessionID,
 };
-use secp256k1::schnorrsig::SchnorrSignature;
-use secp256k1::{key::XOnlyPublicKey, Message, SecretKey};
+use secp256k1experimental::schnorrsig::SchnorrSignature;
+use secp256k1experimental::{key::XOnlyPublicKey, Message, SecretKey};
+use secp256k1experimental::{All, Secp256k1};
+
+thread_local! {
+    /// Thread local static Secp object
+    static SECP: Secp256k1<All> = Secp256k1::new();
+}
 
 use chain_core::common::H256;
-use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt, SECP};
+use client_common::{Error, ErrorKind, PrivateKey, PublicKey, Result, ResultExt};
 
 use super::Signer;
 
@@ -384,6 +392,7 @@ impl MultiSigSession {
                         "Unable to combine partial signatures",
                     )
                 })?)
+            .map(|x| SchnorrSignature::from_default(&x.serialize()).expect("experimental"))
         })
     }
 

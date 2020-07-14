@@ -45,7 +45,7 @@ impl PrivateKeyAction for PrivateKey {
                 "Unable to deserialize message to sign",
             )
         })?;
-        let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0));
+        let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0, &mut OsRng));
         Ok(signature)
     }
 
@@ -111,7 +111,7 @@ impl From<&PrivateKey> for PublicKey {
 
 impl From<&PrivateKey> for SecretKey {
     fn from(private_key: &PrivateKey) -> Self {
-        private_key.0.clone()
+        private_key.0
     }
 }
 

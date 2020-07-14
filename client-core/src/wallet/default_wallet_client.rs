@@ -7,9 +7,10 @@ use crate::types::{
 };
 use crate::wallet::syncer::{get_genesis_sync_state, AddressRecovery};
 use crate::wallet::syncer_logic::create_transaction_change;
+#[cfg(feature = "experimental")]
+use crate::MultiSigWalletClient;
 use crate::{
-    InputSelectionStrategy, Mnemonic, MultiSigWalletClient, UnspentTransactions, WalletClient,
-    WalletTransactionBuilder,
+    InputSelectionStrategy, Mnemonic, UnspentTransactions, WalletClient, WalletTransactionBuilder,
 };
 use bit_vec::BitVec;
 use chain_core::common::{Proof, H256};
@@ -21,20 +22,26 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::{str2txid, TxoPointer};
 use chain_core::tx::data::output::TxOut;
-use chain_core::tx::data::{Tx, TxId};
+#[cfg(feature = "experimental")]
+use chain_core::tx::data::Tx;
+use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
+#[cfg(feature = "experimental")]
 use chain_core::tx::witness::{TxInWitness, TxWitness};
 use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
 use client_common::tendermint::types::Time;
 use client_common::tendermint::types::{AbciQueryExt, BlockResults, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};
+#[cfg(feature = "experimental")]
+use client_common::SignedTransaction;
 use client_common::{
     seckey::derive_enckey, Error, ErrorKind, MultiSigAddress, PrivateKey, PrivateKeyAction,
-    PublicKey, Result, ResultExt, SecKey, SignedTransaction, Storage, Transaction, TransactionInfo,
+    PublicKey, Result, ResultExt, SecKey, Storage, Transaction, TransactionInfo,
 };
 use indexmap::IndexSet;
 use parity_scale_codec::Encode;
+#[cfg(feature = "experimental")]
 use secp256k1::schnorrsig::SchnorrSignature;
 use secstr::SecUtf8;
 use std::collections::BTreeMap;
@@ -58,6 +65,7 @@ where
     wallet_state_service: WalletStateService<S>,
     sync_state_service: SyncStateService<S>,
     root_hash_service: RootHashService<S>,
+    #[cfg(feature = "experimental")]
     multi_sig_session_service: MultiSigSessionService<S>,
 
     tendermint_client: C,
@@ -86,8 +94,9 @@ where
             wallet_service: WalletService::new(storage.clone()),
             wallet_state_service: WalletStateService::new(storage.clone()),
             sync_state_service: SyncStateService::new(storage.clone()),
-            root_hash_service: RootHashService::new(storage.clone()),
-            multi_sig_session_service: MultiSigSessionService::new(storage),
+            #[cfg(feature = "experimental")]
+            multi_sig_session_service: MultiSigSessionService::new(storage.clone()),
+            root_hash_service: RootHashService::new(storage),
             tendermint_client,
             transaction_builder,
             block_height_ensure,
@@ -1244,6 +1253,7 @@ where
     }
 }
 
+#[cfg(feature = "experimental")]
 impl<S, C, T> MultiSigWalletClient for DefaultWalletClient<S, C, T>
 where
     S: Storage,

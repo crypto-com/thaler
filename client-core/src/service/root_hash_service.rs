@@ -143,7 +143,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "experimental"))]
 mod tests {
     use super::*;
     use secstr::SecUtf8;
@@ -284,7 +284,7 @@ mod tests {
         let mut signers = vec![public_keys[0].clone(), public_keys[1].clone()];
         signers.sort();
 
-        let signer = RawXOnlyPubkey::from(PublicKey::combine(&signers).unwrap().0.serialize());
+        let signer = RawXOnlyPubkey::from(combine(&signers).unwrap().0.serialize());
 
         assert_eq!(proof.value(), &signer);
     }

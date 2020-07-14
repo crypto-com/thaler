@@ -148,7 +148,7 @@ impl ExtendedPubKey {
         let sig_bytes = signature.as_ref();
         let (key, chain_code) = sig_bytes.split_at(sig_bytes.len() / 2);
         let private_key = SecretKey::from_slice(key)?;
-        let mut public_key = self.public_key.clone();
+        let mut public_key = self.public_key;
         public_key.add_exp_assign(&*SECP256K1_VERIFY_ONLY, &private_key[..])?;
         Ok(ExtendedPubKey {
             public_key,

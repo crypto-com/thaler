@@ -1,4 +1,5 @@
 pub mod info_rpc;
+#[cfg(feature = "experimental")]
 pub mod multisig_rpc;
 pub mod staking_rpc;
 pub mod sync_rpc;

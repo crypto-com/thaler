@@ -249,6 +249,7 @@ mod wallet_signer_tests {
     }
 
     #[test]
+    #[cfg(feature = "experimental")]
     fn check_2_of_3_invalid_signing_flow() {
         let name = "name";
         let passphrase = SecUtf8::from("passphrase");

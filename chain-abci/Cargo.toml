@@ -34,7 +34,7 @@ hex = "0.4"
 protobuf = "2.7.0"
 integer-encoding = "1.1.5"
 structopt = "0.3"
-secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["recovery", "endomorphism"] }
+secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "535790e91fac1b3b00c770cb339a06feadc5f48d", features = ["recovery", "endomorphism"] }
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 thiserror = "1.0"
 
@@ -43,6 +43,7 @@ enclave-u-common = { path = "../chain-tx-enclave/enclave-u-common" }
 sgx_types = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_urts = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 zmq = "0.9"
+rand = "0.7"
 
 [build-dependencies]
 cc = "1.0"
@@ -58,6 +59,7 @@ base64 = "0.12"
 kvdb = "0.7"
 kvdb-memorydb = "0.7"
 test-common = { path = "../test-common" }
+rand = "0.7"
 
 # TODO: currently not maintained benchmarks
 # [[bench]]

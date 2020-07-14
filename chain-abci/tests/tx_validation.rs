@@ -100,7 +100,7 @@ pub fn get_tx_witness<C: Signing>(
     let proof = merkle_tree
         .generate_proof(RawXOnlyPubkey::from(public_key.serialize()))
         .unwrap();
-    let signature = schnorr_sign(&secp, &message, secret_key);
+    let signature = schnorr_sign(&secp, &message, secret_key, &mut rand::thread_rng());
 
     TxInWitness::TreeSig(signature, proof)
 }
