@@ -93,6 +93,21 @@ where
             block_height_ensure,
         }
     }
+
+    fn is_tx_exist(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<bool> {
+        let tx_change = self
+            .wallet_state_service
+            .get_transaction_history(name, enckey, false)?
+            .filter(|change| BalanceChange::NoChange != change.balance_change)
+            .find(|tx_change| tx_change.transaction_id == txid)
+            .chain(|| {
+                (
+                    ErrorKind::InvalidInput,
+                    "no transaction find by transaction id",
+                )
+            });
+        Ok(tx_change.is_ok())
+    }
 }
 
 impl<S> DefaultWalletClient<S, UnauthorizedClient, UnauthorizedWalletTransactionBuilder>
@@ -1066,6 +1081,15 @@ where
     /// import a plain base64 encoded plain transaction
     fn import_plain_tx(&self, name: &str, enckey: &SecKey, tx_str: &str) -> Result<Coin> {
         let tx_info = TransactionInfo::decode(tx_str)?;
+
+        let found_tx = self.is_tx_exist(name, enckey, tx_info.tx.id())?;
+        if found_tx {
+            return Err(Error::new(
+                ErrorKind::ValidationError,
+                "This transaction is already imported/in your wallet",
+            ));
+        }
+
         // check if the output is spent or not
         let v = self
             .tendermint_client
