@@ -3,16 +3,16 @@ use crate::ciphersuite::HkdfExt;
 use crate::tree_math::LeafSize;
 use hkdf::Hkdf;
 use secrecy::{ExposeSecret, SecretVec};
-use sha2::digest::{generic_array, BlockInput, FixedOutput, Input, Reset};
+use sha2::digest::{generic_array, BlockInput, FixedOutput, Reset, Update};
 
-pub struct EpochSecrets<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> {
+pub struct EpochSecrets<D: BlockInput + FixedOutput + Reset + Update + Default + Clone> {
     pub init_secret: SecretVec<u8>,
     pub confirmation_key: SecretVec<u8>,
     pub epoch_secret: (SecretVec<u8>, Hkdf<D>),
     pub application_secrets: GroupKeySource<D>,
 }
 
-impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> EpochSecrets<D> {
+impl<D: BlockInput + FixedOutput + Reset + Update + Default + Clone> EpochSecrets<D> {
     pub fn get_epoch_secret(prk: &[u8]) -> Hkdf<D> {
         Hkdf::<D>::from_prk(prk).expect("correct len prk")
     }

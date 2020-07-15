@@ -149,8 +149,8 @@ mod tests {
                     let pubkey = ExtendedPubKey::from_private_key(key);
                     let buf = digest::digest(&digest::SHA256, &pubkey.public_key.serialize());
                     let mut hasher = Ripemd160::new();
-                    hasher.input(&buf.as_ref());
-                    hasher.result()[0..4].to_vec()
+                    hasher.update(&buf.as_ref());
+                    hasher.finalize()[0..4].to_vec()
                 }
                 None => vec![0; 4],
             }

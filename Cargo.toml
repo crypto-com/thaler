@@ -52,4 +52,6 @@ default-members = [
 ]
 
 [patch.crates-io]
-ring = { git = "https://github.com/crypto-com/ring.git", rev = "7d08bdbbc68fe5e867445c576c004336699650c1" }
+ring = { git = "https://github.com/crypto-com/ring.git", rev = "bdbcc7041095f028d49d9fecd7edcf26d6083274" }
+# FIXME: use upstream when merged
+sha2 = { git = "https://github.com/crypto-com/hashes.git", rev = "289d5b76f2163a3808010341ed1df3cb156d97e1" }

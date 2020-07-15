@@ -102,15 +102,13 @@ pub struct HPKEPrivateKey(<hpke::kex::DhP256 as hpke::KeyExchange>::PrivateKey);
 impl HPKEPrivateKey {
     pub fn generate() -> (HPKEPrivateKey, HPKEPublicKey) {
         let (hpke_secret, hpke_public) =
-            <hpke::kex::DhP256 as hpke::KeyExchange>::gen_keypair(&mut thread_rng());
+            <hpke::kem::DhP256HkdfSha256 as hpke::Kem>::gen_keypair(&mut thread_rng());
+
         (HPKEPrivateKey(hpke_secret), HPKEPublicKey(hpke_public))
     }
 
     pub fn derive(ikm: &[u8]) -> Self {
-        Self(
-            <hpke::kex::DhP256 as hpke::KeyExchange>::derive_keypair::<hpke::kdf::HkdfSha256>(ikm)
-                .0,
-        )
+        Self(<hpke::kem::DhP256HkdfSha256 as hpke::Kem>::derive_keypair(ikm).0)
     }
 
     pub fn kex_secret(&self) -> &<hpke::kex::DhP256 as hpke::KeyExchange>::PrivateKey {

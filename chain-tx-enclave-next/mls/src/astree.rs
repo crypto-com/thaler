@@ -2,17 +2,17 @@ use crate::ciphersuite::{CipherSuite, HkdfExt};
 use crate::tree_math::{LeafSize, NodeSize};
 use hkdf::Hkdf;
 use secrecy::{ExposeSecret, SecretVec};
-use sha2::digest::{generic_array, BlockInput, FixedOutput, Input, Reset};
+use sha2::digest::{generic_array, BlockInput, FixedOutput, Reset, Update};
 use std::marker::PhantomData;
 
 /// "Application Secret Tree" in specs
 /// treeBaseKeySource in ref impl
-struct TreeBaseKeySource<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> {
+struct TreeBaseKeySource<D: BlockInput + FixedOutput + Reset + Update + Default + Clone> {
     pub secrets: Vec<Option<SecretVec<u8>>>,
     pub marker: PhantomData<D>,
 }
 
-impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> TreeBaseKeySource<D> {
+impl<D: BlockInput + FixedOutput + Reset + Update + Default + Clone> TreeBaseKeySource<D> {
     /// astree_node_[root]_secret = application_secret
     pub fn new(application_secret: SecretVec<u8>, leaf_count: LeafSize) -> Self {
         let root_index = NodeSize::root(leaf_count);
@@ -98,7 +98,7 @@ impl HashRatchet {
     }
 
     /// spec: draft-ietf-mls-protocol.md#encryption-keys
-    pub fn next<D: Input + BlockInput + FixedOutput + Reset + Default + Clone>(
+    pub fn next<D: BlockInput + FixedOutput + Reset + Update + Default + Clone>(
         &mut self,
         group_context_hash: Vec<u8>,
         cs: CipherSuite,
@@ -150,12 +150,12 @@ impl HashRatchet {
 /// ratcheting from "ASTree" secret
 /// spec: draft-ietf-mls-protocol.md#encryption-keys
 /// + draft-ietf-mls-protocol.md#astree
-pub struct GroupKeySource<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> {
+pub struct GroupKeySource<D: BlockInput + FixedOutput + Reset + Update + Default + Clone> {
     ratchets: Vec<Option<HashRatchet>>,
     base_secret_source: TreeBaseKeySource<D>,
 }
 
-impl<D: Input + BlockInput + FixedOutput + Reset + Default + Clone> GroupKeySource<D> {
+impl<D: BlockInput + FixedOutput + Reset + Update + Default + Clone> GroupKeySource<D> {
     pub fn new(application_secret: SecretVec<u8>, leaf_count: LeafSize) -> Self {
         let base_secret_source = TreeBaseKeySource::new(application_secret, leaf_count);
         let mut ratchets = Vec::new();
