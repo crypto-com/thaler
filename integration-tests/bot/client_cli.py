@@ -19,7 +19,7 @@ def run(cmd, args=None):
         p.stdin.writelines("{}\n".format(args))
     output, err = p.communicate()
     if err and "using mock" not in err.lower():
-        raise Exception("stdout: {}, stderr: {}", output, err)
+        raise Exception("stdout: {}, stderr: {}".format(output, err))
     return remove_color(output)
 
 
@@ -315,6 +315,7 @@ class Transaction:
         text = run(cmd, args)
         if "Error" in text:
             raise Exception(text)
+        return text
 
     """
     args:
@@ -378,3 +379,15 @@ class Transaction:
                 }
                 histories.append(history)
         return histories
+
+    def can_view_tx(self, tx_id):
+        cmd = ["client-cli", "transaction", "show", "-n", self.wallet.name, "-i", tx_id]
+        args = self.wallet.auth_token
+        text = run(cmd, args)
+        print(text)
+        if "Transaction metadata" in text and \
+            "Transaction inputs" in text and \
+            "Transaction outputs" in text:
+            return True
+        else:
+            return False

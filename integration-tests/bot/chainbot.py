@@ -200,7 +200,7 @@ def app_state_cfg(cfg):
             "per_byte_fee": "1.25"
         },
         "evidence": {
-            "max_age_duration": "172800000000003",
+            "max_age_duration": "9000000000",
             "max_age_num_blocks": "100004"
         },
         "council_nodes": {
@@ -383,7 +383,7 @@ async def gen_genesis(cfg):
             },
             "evidence": {
                "max_age_num_blocks": "100000",
-               "max_age_duration": "20000000000"
+               "max_age_duration": "9000000000"
             },
             "validator": {
                 "pub_key_types": [
