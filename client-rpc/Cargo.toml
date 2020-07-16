@@ -18,7 +18,7 @@ serde_json = "1.0.56"
 hex = "0.4.2"
 secstr = { version = "0.4.0", features = ["serde"] }
 env_logger="0.7.1"
-log ="0.4.8"
+log ="0.4.11"
 zeroize = "1.1"
 parity-scale-codec = "1.3"
 
