@@ -50,8 +50,10 @@ function wait_port() {
 }
 
 function wait_service() {
-    # ra-sp-server
-    wait_port 8989 &&
+    if [ $BUILD_MODE == "sgx" ]; then
+      # ra-sp-server
+      wait_port 8989
+    fi
     # tendermint rpc of first node
     wait_port $TENDERMINT_RPC_PORT
 }

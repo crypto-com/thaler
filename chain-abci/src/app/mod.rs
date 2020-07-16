@@ -31,6 +31,7 @@ use chain_core::init::config::NetworkParameters;
 use chain_core::state::account::PunishmentKind;
 use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress, TendermintVotePower};
 use chain_core::tx::TxAux;
+use parity_scale_codec::Decode;
 
 fn get_version() -> String {
     format!(
@@ -68,7 +69,9 @@ impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
         let mut resp = ResponseInfo::new();
         resp.app_version = chain_core::APP_VERSION;
         resp.version = get_version();
-        if let Some(app_state) = &self.last_state {
+        if let Some(raw) = chain_storage::get_last_app_state(&self.storage) {
+            let app_state =
+                ChainNodeState::decode(&mut raw.as_slice()).expect("decode chain node state");
             resp.last_block_app_hash = app_state.last_apphash.to_vec();
             resp.last_block_height = app_state.last_block_height.value().try_into().unwrap();
             resp.data = serde_json::to_string(&app_state).expect("serialize app state to json");

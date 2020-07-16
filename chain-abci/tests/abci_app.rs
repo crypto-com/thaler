@@ -838,7 +838,15 @@ fn staking_query_should_return_an_account() {
     );
 }
 
-fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64) {
+fn block_commit_with_check(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64) {
+    let r = RequestInfo::default();
+    let info_1 = app.info(&r);
+    let app_last_state_1 = app.last_state.clone().unwrap();
+    let app_last_block_height_1 = app_last_state_1.last_block_height.value();
+    let app_last_hash_1 = hex::encode(app_last_state_1.last_apphash);
+    assert_eq!(info_1.last_block_height as u64, app_last_block_height_1);
+    assert_eq!(hex::encode(&info_1.last_block_app_hash), app_last_hash_1);
+
     let mut creq = RequestCheckTx::default();
     creq.set_tx(tx.encode());
     println!("checktx: {:?}", app.check_tx(&creq));
@@ -849,9 +857,31 @@ fn block_commit(app: &mut ChainNodeApp<MockClient>, tx: TxAux, block_height: i64
     let mut breq = RequestEndBlock::default();
     breq.set_height(block_height);
     println!("endblock: {:?}", app.end_block(&breq));
+    let info_2 = app.info(&r);
+    let app_last_state_2 = app.last_state.clone().unwrap();
+    let app_last_block_height_2 = app_last_state_2.last_block_height.value();
+    let app_last_hash_2 = hex::encode(app_last_state_2.last_apphash);
+    // app hash didn't changed
+    assert_eq!(info_1.last_block_app_hash, info_2.last_block_app_hash);
+    // the uncommited last block height increased, but the one in the app info is not.
+    assert_eq!(info_2.last_block_height as u64 + 1, app_last_block_height_2);
+    assert_eq!(hex::encode(&info_2.last_block_app_hash), app_last_hash_2);
+    assert_eq!(
+        hex::encode(&info_2.last_block_app_hash),
+        hex::encode(&info_1.last_block_app_hash)
+    );
+    // commit block, app hash changed during commit
     println!("commit: {:?}", app.commit(&RequestCommit::default()));
+    // after commit, block height increased, and app_hash changed
+    let info_3 = app.info(&r);
+    let app_last_state_3 = app.last_state.clone().unwrap();
+    let app_last_block_height_3 = app_last_state_3.last_block_height.value();
+    let app_last_hash_3 = hex::encode(app_last_state_3.last_apphash);
+    assert_eq!(hex::encode(&info_3.last_block_app_hash), app_last_hash_3);
+    // app hash changed
+    assert_ne!(info_2.last_block_app_hash, info_3.last_block_app_hash);
+    assert_eq!(info_3.last_block_height as u64, app_last_block_height_3);
 }
-
 pub fn get_account(
     account_address: &RedeemAddress,
     app: &ChainNodeApp<MockClient>,
@@ -918,7 +948,8 @@ fn all_valid_tx_types_should_commit() {
         assert!(account.unbonded > Coin::zero());
         assert_eq!(account.nonce, 0);
     }
-    block_commit(&mut app, withdrawtx, 1);
+    block_commit_with_check(&mut app, withdrawtx, 1);
+
     {
         let account = get_account(&addr, &app).expect("acount not exist");
         assert_eq!(account.unbonded, Coin::zero());
@@ -953,7 +984,7 @@ fn all_valid_tx_types_should_commit() {
         let spent_utxos = get_tx_meta(&txid, &app);
         assert!(!spent_utxos.any());
     }
-    block_commit(&mut app, transfertx, 2);
+    block_commit_with_check(&mut app, transfertx, 2);
     {
         let spent_utxos0 = get_tx_meta(&txid, &app);
         assert!(spent_utxos0[0] && !spent_utxos0[1]);
@@ -985,7 +1016,7 @@ fn all_valid_tx_types_should_commit() {
         assert_eq!(account.bonded, Coin::zero());
         assert_eq!(account.nonce, 1);
     }
-    block_commit(&mut app, depositx, 3);
+    block_commit_with_check(&mut app, depositx, 3);
     {
         let spent_utxos0 = get_tx_meta(&txid, &app);
         assert!(spent_utxos0[0] && spent_utxos0[1]);
@@ -1019,7 +1050,7 @@ fn all_valid_tx_types_should_commit() {
         let account = get_account(&addr2, &app);
         assert!(account.is_none());
     }
-    block_commit(&mut app, depositx, 4);
+    block_commit_with_check(&mut app, depositx, 4);
     {
         let spent_utxos0 = get_tx_meta(txid, &app);
         assert!(spent_utxos0[0] && spent_utxos0[1] && spent_utxos0[2]);
@@ -1052,7 +1083,7 @@ fn all_valid_tx_types_should_commit() {
         );
         assert_eq!(account.nonce, 1);
     }
-    block_commit(&mut app, nodejointx, 5);
+    block_commit_with_check(&mut app, nodejointx, 5);
     {
         let account = get_account(&addr, &app).expect("account not exist");
         assert!(account.node_meta.is_some());
@@ -1082,7 +1113,7 @@ fn all_valid_tx_types_should_commit() {
         assert_eq!(account.nonce, 2);
         account.bonded
     };
-    block_commit(&mut app, unbondtx, 6);
+    block_commit_with_check(&mut app, unbondtx, 6);
     {
         let account = get_account(&addr, &app).expect("account not exist");
         assert_eq!(account.unbonded, Coin::unit());
