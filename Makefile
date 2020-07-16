@@ -10,11 +10,13 @@ build_mode ?= debug
 TX_QUERY_HOSTNAME ?=
 MAKE_CMD = make
 
-# SGX_DEVICE can be /dev/sgx or /dev/isgx
+# SGX_DEVICE should be /dev/isgx as latest dcap driver /dev/sgx is not supported by fortanix
 ifeq ($(shell test -e /dev/sgx && echo -n yes),yes)
-	SGX_DEVICE=/dev/sgx
+$(warning /dev/sgx is not supported. Please remove dcap sgx driver by "make rm-dcap-sgx-driver" and install intel sgx driver by "make install-isgx-driver")
 else ifeq ($(shell test -e /dev/isgx && echo -n yes),yes)
 	SGX_DEVICE=/dev/isgx
+else
+$(warning No sgx device detected! Please install intel sgx driver by "make install-isgx-driver")
 endif
 
 
@@ -124,13 +126,16 @@ else ifeq ($(chain), mainnet)
 	bash -c "cp docker/config/mainnet/tendermint/{config.toml,genesis.json} $(data_path)/tendermint/config/"
 endif
 
-source=https://download.01.org/intel-sgx/sgx-linux/2.9.1/distro/ubuntu18.04-server/sgx_linux_x64_driver_1.33.bin
-install-sgx-driver:
+source=https://download.01.org/intel-sgx/sgx-linux/2.9.1/distro/ubuntu18.04-server/sgx_linux_x64_driver_2.6.0_95eaa6f.bin
+install-isgx-driver:
 ifeq ($(SGX_MODE), HW)
-	@if [ -e "/dev/isgx" ] || [ -e "/dev/sgx" ]; then \
-		echo "\033[32msgx driver already installed\033[0m"; \
+	@if [ -e "/dev/isgx" ]; then \
+		echo "\033[32misgx driver already installed\033[0m"; \
 	else \
-		echo "\033[32install sgx driver\033[0m"; \
+		echo "\033[32minstall isgx driver\033[0m"; \
+		sudo systemctl stop aesmd || echo "aesmd does not exist"; \
+		sudo apt update && \
+		sudo apt -y install dkms && \
 		curl --proto '=https' -sSf $(source) > /tmp/driver.bin && \
 		chmod +x /tmp/driver.bin &&\
 		sudo /tmp/driver.bin && \
@@ -139,6 +144,20 @@ ifeq ($(SGX_MODE), HW)
 else
 	@echo "\033[32mSGX_MODE is SW, no need to install sgx driver\033[0m"
 endif
+
+rm-dcap-sgx-driver:
+	@if [ -e "/dev/sgx" ]; then \
+		echo "\033[32mRemove open enclave sgx DCAP driver\033[0m"; \
+		sudo systemctl stop aesmd || echo "aesmd does not exist"; \
+		sudo rm -f $$(find /lib/modules -name intel_sgx.ko) && \
+		sudo /sbin/depmod && \
+		sudo sed -i '/^intel_sgx$$/d' /etc/modules && \
+		sudo rm -f /etc/sysconfig/modules/intel_sgx.modules && \
+		sudo rm -f /etc/modules-load.d/intel_sgx.conf && \
+		sudo rm -rf /dev/sgx; \
+	else \
+		echo "\033[32mOpen enclave sgx DCAP driver already removed\033[0m"; \
+	fi;
 
 # build the sgx image
 image:
@@ -253,7 +272,7 @@ rm-network:
 	docker network rm $(NETWORK)
 
 run-sgx-query-next:
-	if [ "${SPID}x" = "x" ] || [ "${IAS_API_KEY}x" = "x" ]; then \
+	@if [ "${SPID}x" = "x" ] || [ "${IAS_API_KEY}x" = "x" ]; then \
 		echo "environment SPID and IAS_API_KEY should be set"; \
 	else \
 		echo "\033[32mrun docker sgx query-next\033[0m"; \
@@ -391,13 +410,14 @@ clean:
 		${IMAGE_RUST}:latest \
 		bash -c ". /root/.docker_bashrc && cargo clean"
 
-prepare:    create-path install-sgx-driver init-tendermint
+prepare:    create-path install-isgx-driver init-tendermint
 build-sgx:  build-sgx-query-next build-chain build-sgx-validation
 build:      build-chain build-sgx
 run-sgx:    create-network run-sgx-query-next
 run-chain:  create-network run-tendermint run-abci run-client-rpc
 run:        run-sgx run-chain
-
+.DEFAULT_GOAL :=
+default: help
 help:
 	@echo "A makefile based tool to prepare the environment, build binaries, launch a chain cluster \n\
 \n\
@@ -429,6 +449,7 @@ help:
 		rm-all                 remove all the docker container\n\
 		clean                  clean all the temporary files while compiling\n\
 		clean-data             remove all the data in data_path\n\
+		rm-dcap-sgx-driver     remove dcap sgx driver if it is pre-installed in azure sgx machine\n\
 \n\
 	EXAMPLE:\n\
 \n\
