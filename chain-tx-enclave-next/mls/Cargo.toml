@@ -14,7 +14,7 @@ x509-parser = "0.8.0-beta4"
 secrecy = "0.7.0"
 sha2 = "0.9"
 hkdf = "0.9"
-hpke = { version = "0.1.7", default-features = false, features = ["p256"] }
+hpke = { version = "0.1.8", default-features = false, features = ["p256"] }
 aead = "0.3"
 rand = "0.7"
 chrono="0.4.13"

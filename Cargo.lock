@@ -1886,9 +1886,9 @@ dependencies = [
 
 [[package]]
 name = "hpke"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "167d972bd1e0f6be412dde9bd4e708aea8eef8e263c69523600b04fbd22e568f"
+checksum = "ae019a029d6f8e7bf67c2c2d0730a17f74610412b9b4c1556ac1b3c93ffa7fec"
 dependencies = [
  "aead",
  "aes-gcm",
