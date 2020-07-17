@@ -976,6 +976,7 @@ dependencies = [
  "client-core",
  "client-network",
  "client-rpc-core",
+ "env_logger",
  "hex 0.4.2",
  "jsonrpc-core",
  "libc",
