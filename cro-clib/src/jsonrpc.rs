@@ -194,6 +194,9 @@ unsafe fn create_rpc(
     progress_callback_user: CroProgressPtr,
     user_data: *const std::ffi::c_void,
 ) -> Result<CroJsonRpc> {
+    // `try_init` only returns `Err` if already initialized, `create_rpc` can be called multiple times,
+    // so we ignore the error
+    let _ = env_logger::try_init();
     let storage_dir = get_string(storage_dir);
     let websocket_url = get_string(websocket_url);
     let cbindingcallback: Option<CBindingCore> = if !progress_callback_user.is_null() {
