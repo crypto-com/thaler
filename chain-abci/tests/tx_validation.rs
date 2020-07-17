@@ -52,7 +52,9 @@ use secp256k1::{key::PublicKey, key::SecretKey, key::XOnlyPublicKey, Message, Se
 use std::fmt::Debug;
 use std::mem;
 use std::sync::Arc;
-use test_common::chain_env::{mock_confidential_init, mock_council_node_meta};
+use test_common::chain_env::{
+    mock_confidential_init, mock_council_node_meta, DEFAULT_GENESIS_TIME,
+};
 
 fn verify_enclave_tx<T: EnclaveProxy>(
     tx_validator: &mut T,
@@ -131,7 +133,11 @@ fn get_old_tx(addr: ExtendedAddr, timelocked: bool) -> Tx {
     let mut old_tx = Tx::new();
 
     if timelocked {
-        old_tx.add_output(TxOut::new_with_timelock(addr, Coin::one(), 20));
+        old_tx.add_output(TxOut::new_with_timelock(
+            addr,
+            Coin::one(),
+            DEFAULT_GENESIS_TIME + 20,
+        ));
     } else {
         old_tx.add_output(TxOut::new_with_timelock(addr, Coin::one(), 0));
     }
@@ -157,7 +163,7 @@ fn get_chain_info(txaux: &TxAux) -> ChainInfo {
         .calculate_for_txaux(&txaux)
         .expect("invalid fee policy"),
         chain_hex_id: DEFAULT_CHAIN_ID,
-        block_time: 0,
+        block_time: DEFAULT_GENESIS_TIME,
         block_height: BlockHeight::genesis(),
         max_evidence_age: 1,
     }
@@ -556,7 +562,8 @@ fn test_account_withdraw_verify_fail() {
     }
     // AccountNotUnbonded
     {
-        let (txaux, _, _, account, _, storage) = prepare_app_valid_withdraw_tx(20);
+        let (txaux, _, _, account, _, storage) =
+            prepare_app_valid_withdraw_tx(DEFAULT_GENESIS_TIME + 20);
         let result = verify_enclave_tx(&mut mock_bridge, &txaux, &extra_info, 0, &storage);
         assert!(result.is_err());
         let result = verify_unbonded_withdraw_core(&tx, &extra_info, &account);
@@ -1152,7 +1159,7 @@ fn prepare_jailed_accounts() -> (
         addr.into(),
         Some(Validator {
             council_node: mock_council_node_meta(TendermintValidatorPubKey::Ed25519([0xcd; 32])),
-            jailed_until: Some(100),
+            jailed_until: Some(DEFAULT_GENESIS_TIME + 100),
             inactive_time: Some(0),
             inactive_block: Some(BlockHeight::genesis()),
             used_validator_addresses: vec![],
@@ -1313,7 +1320,7 @@ fn check_unjail_transaction() {
         .calculate_for_txaux(&TxAux::PublicTx(txaux.clone()))
         .expect("invalid fee policy"),
         chain_hex_id: DEFAULT_CHAIN_ID,
-        block_time: 101,
+        block_time: DEFAULT_GENESIS_TIME + 101,
         block_height: BlockHeight::genesis(),
         max_evidence_age: 0,
     };

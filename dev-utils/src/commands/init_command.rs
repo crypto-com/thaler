@@ -247,14 +247,13 @@ impl InitCommand {
     fn read_tendermint_genesis(&mut self) -> Result<()> {
         // check whether file exists
         fs::read_to_string(&InitCommand::get_tendermint_filename())
-            .and_then(|contents| {
+            .map(|contents| {
                 println!("current tendermint genesis={}", contents);
                 let json: serde_json::Value = serde_json::from_str(&contents).unwrap();
                 let pub_key = &json["validators"][0]["pub_key"]["value"];
                 self.tendermint_pubkey = pub_key.as_str().unwrap().to_string();
                 self.chain_id = json["chain_id"].as_str().unwrap().to_string();
                 self.genesis_time = Time::from_str(json["genesis_time"].as_str().unwrap()).unwrap();
-                Ok(())
             })
             .chain(|| {
                 (
@@ -384,14 +383,12 @@ impl InitCommand {
         );
         let second = self.ask_string("please type cleardisk onemore=", "");
         if first == "cleardisk" && second == "cleardisk" {
-            let _ = fs::canonicalize(PathBuf::from("./.cro-storage")).and_then(|p| {
+            let _ = fs::canonicalize(PathBuf::from("./.cro-storage")).map(|p| {
                 let _ = fs::remove_dir_all(p);
-                Ok(())
             });
 
-            let _ = fs::canonicalize(PathBuf::from("./.storage")).and_then(|p| {
+            let _ = fs::canonicalize(PathBuf::from("./.storage")).map(|p| {
                 let _ = fs::remove_dir_all(p);
-                Ok(())
             });
 
             Ok(())

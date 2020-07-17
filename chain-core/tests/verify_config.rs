@@ -10,7 +10,7 @@ use chain_core::tx::fee::{LinearFee, Milli};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use test_common::chain_env::mock_confidential_init;
+use test_common::chain_env::{mock_confidential_init, DEFAULT_GENESIS_TIME};
 
 #[derive(Deserialize)]
 pub struct Distribution {
@@ -82,10 +82,14 @@ fn test_verify_test_example_snapshot() {
     };
 
     let config = InitConfig::new(dist.clone(), params.clone(), nodes.clone());
-    config.validate_config_get_genesis(0).unwrap();
+    config
+        .validate_config_get_genesis(DEFAULT_GENESIS_TIME)
+        .unwrap();
 
     // add 1 into rewards_pool
     params.rewards_config.monetary_expansion_cap = Coin::new(951_6484_5705_9733_7035).unwrap();
     let config = InitConfig::new(dist, params, nodes);
-    assert!(config.validate_config_get_genesis(0).is_err());
+    assert!(config
+        .validate_config_get_genesis(DEFAULT_GENESIS_TIME)
+        .is_err());
 }

@@ -6,7 +6,7 @@ use chain_core::state::tendermint::TendermintVotePower;
 use chain_core::tx::fee::Milli;
 use chain_storage::buffer::Get;
 use parity_scale_codec::Encode;
-use test_common::chain_env::{get_account, get_validator, ChainEnv};
+use test_common::chain_env::{get_account, get_validator, ChainEnv, DEFAULT_GENESIS_TIME};
 
 /// Scenario 1: Unbond stake from a validator so that remaining bonded amount is still greater than
 /// `required_council_node_stake`. This should not remove validator from validator set.
@@ -135,7 +135,7 @@ fn check_unbonding_with_removing_validator() {
     // after unbonding period (in unit testing -- 61), it should be cleaned
     app.begin_block(&RequestBeginBlock {
         last_commit_info: Some(env.last_commit_info(1, true)).into(),
-        ..env.req_begin_block_with_time(3, 1, 120)
+        ..env.req_begin_block_with_time(3, 1, DEFAULT_GENESIS_TIME as i64 + 120)
     });
     assert!(get_account(&staking_address, &app).node_meta.is_none());
 }
@@ -206,7 +206,7 @@ fn check_rejoin() {
     // Begin block -- there should be a reward after this one
     app.begin_block(&RequestBeginBlock {
         last_commit_info: Some(env.last_commit_info(1, true)).into(),
-        ..env.req_begin_block_with_time(2, 1, 365 * 24 * 3600 + 1)
+        ..env.req_begin_block_with_time(2, 1, DEFAULT_GENESIS_TIME as i64 + 365 * 24 * 3600 + 1)
     });
 
     let acct = get_account(&staking_address, &app);

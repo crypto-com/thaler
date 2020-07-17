@@ -1,6 +1,8 @@
-use ra_common::{sp::AttestationEvidence, AttestationReport};
 use reqwest::blocking::Client;
+use reqwest::header::HeaderMap;
 use thiserror::Error;
+
+use ra_common::{sp::AttestationEvidence, AttestationReport};
 
 /// Client used for connecting to Intel Attestation Service (IAS)
 pub struct IasClient {
@@ -97,24 +99,10 @@ impl IasClient {
         }
 
         // Extract signature
-        let encoded_signature = response
-            .headers()
-            .get("X-IASReport-Signature")
-            .ok_or_else(|| IasClientError::MissingSignature)?;
-
-        if encoded_signature.is_empty() {
-            return Err(IasClientError::MissingSignature);
-        }
-
-        let signature = base64::decode(&encoded_signature)?;
+        let signature = extract_signature(response.headers())?;
 
         // Extract signing certificate
-        let signing_cert = response
-            .headers()
-            .get("X-IASReport-Signing-Certificate")
-            .ok_or_else(|| IasClientError::MissingSignature)?
-            .as_ref()
-            .to_vec();
+        let signing_cert = extract_signing_certificate(response.headers())?;
 
         // Parse attestation verification report body
         let body = response.bytes()?.to_vec();
@@ -125,6 +113,27 @@ impl IasClient {
             signing_cert,
         })
     }
+}
+
+fn extract_signing_certificate(response_headers: &HeaderMap) -> Result<Vec<u8>, IasClientError> {
+    let urlencoded_signing_certificate = response_headers
+        .get("X-IASReport-Signing-Certificate")
+        .ok_or_else(|| IasClientError::MissingSigningCertificate)?
+        .as_ref();
+    let signing_certificate = percent_encoding::percent_decode(urlencoded_signing_certificate)
+        .decode_utf8()
+        .map_err(IasClientError::SigningCertificateDecodeError)?;
+    Ok(signing_certificate.as_bytes().to_vec())
+}
+
+fn extract_signature(response_headers: &HeaderMap) -> Result<Vec<u8>, IasClientError> {
+    let encoded_signature = response_headers
+        .get("X-IASReport-Signature")
+        .ok_or_else(|| IasClientError::MissingSignature)?;
+    if encoded_signature.is_empty() {
+        return Err(IasClientError::MissingSignature);
+    }
+    Ok(base64::decode(&encoded_signature)?)
 }
 
 #[derive(Debug, Error)]
@@ -139,4 +148,101 @@ pub enum IasClientError {
     JsonError(#[from] serde_json::Error),
     #[error("Missing signature in attestation verification report")]
     MissingSignature,
+    #[error("Missing signing certificate in attestation verification report")]
+    MissingSigningCertificate,
+    #[error("Signing certificate decode error")]
+    SigningCertificateDecodeError(#[source] std::str::Utf8Error),
+}
+
+#[cfg(test)]
+mod tests {
+    use std::error::Error;
+
+    use reqwest::header::{HeaderMap, HeaderValue};
+
+    use crate::ias_client::{extract_signature, extract_signing_certificate, IasClientError};
+
+    #[test]
+    fn test_extract_signing_certificate() {
+        let certificate_context = "-----BEGIN%20CERTIFICATE-----%0AMIIEoT<...certificate_chain...>GMnX%0A-----END%20CERTIFICATE-----%0A";
+        let mut headers = HeaderMap::new();
+        headers.append(
+            "X-IASReport-Signing-Certificate",
+            HeaderValue::from_str(certificate_context).unwrap(),
+        );
+
+        let expected = "-----BEGIN CERTIFICATE-----\nMIIEoT<...certificate_chain...>GMnX\n-----END CERTIFICATE-----\n";
+        assert_eq!(
+            extract_signing_certificate(&headers).unwrap(),
+            expected.as_bytes().to_vec()
+        );
+    }
+
+    #[test]
+    fn test_extract_signing_certificate_missing_signing_certificate() {
+        let headers = HeaderMap::new();
+        let result = extract_signing_certificate(&headers);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            IasClientError::MissingSigningCertificate
+        ));
+    }
+
+    #[test]
+    fn test_extract_signing_certificate_signing_certificate_decode_error() {
+        let certificate_context =
+            "-----BEGIN%20CERTIFICATE-----%0AMIIEoT%FF%FDGMnX%0A-----END%20CERTIFICATE-----%0A";
+        let mut headers = HeaderMap::new();
+        headers.append(
+            "X-IASReport-Signing-Certificate",
+            HeaderValue::from_str(certificate_context).unwrap(),
+        );
+        let result = extract_signing_certificate(&headers);
+
+        let error = result.unwrap_err();
+        assert!(matches!(
+            error,
+            IasClientError::SigningCertificateDecodeError(_)
+        ));
+        assert!(error.source().is_some());
+    }
+
+    #[test]
+    fn test_extract_signature() {
+        let signature = "c2lnbmF0dXJl";
+        let mut headers = HeaderMap::new();
+        headers.append(
+            "X-IASReport-Signature",
+            HeaderValue::from_str(signature).unwrap(),
+        );
+        let result = extract_signature(&headers);
+
+        assert_eq!(result.unwrap(), "signature".as_bytes().to_vec());
+    }
+
+    #[test]
+    fn test_extract_signature_missing_signature() {
+        let headers = HeaderMap::new();
+        let result = extract_signature(&headers);
+
+        assert!(matches!(
+            result.unwrap_err(),
+            IasClientError::MissingSignature
+        ));
+    }
+
+    #[test]
+    fn test_extract_signature_base64_error() {
+        let signature = "base64_error";
+        let mut headers = HeaderMap::new();
+        headers.append(
+            "X-IASReport-Signature",
+            HeaderValue::from_str(signature).unwrap(),
+        );
+        let result = extract_signature(&headers);
+
+        let error = result.unwrap_err();
+        assert!(matches!(error, IasClientError::Base64Error(_)));
+    }
 }

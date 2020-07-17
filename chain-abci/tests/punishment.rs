@@ -3,7 +3,7 @@ use chain_core::init::coin::Coin;
 use chain_core::state::account::NodeState;
 use parity_scale_codec::Encode;
 use protobuf::well_known_types::Timestamp;
-use test_common::chain_env::{get_account, ChainEnv};
+use test_common::chain_env::{get_account, ChainEnv, DEFAULT_GENESIS_TIME};
 
 #[test]
 fn end_block_should_update_liveness_tracker() {
@@ -84,7 +84,9 @@ fn begin_block_should_ignore_old_byzantine_evidence() {
         ..env.req_begin_block(1, 0)
     };
     req.header.as_mut().unwrap().time = Some(Timestamp {
-        seconds: app.last_state.as_ref().unwrap().max_evidence_age as i64 + 1,
+        seconds: DEFAULT_GENESIS_TIME as i64
+            + app.last_state.as_ref().unwrap().max_evidence_age as i64
+            + 1,
         ..Default::default()
     })
     .into();

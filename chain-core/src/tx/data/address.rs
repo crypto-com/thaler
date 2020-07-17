@@ -85,10 +85,10 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
             .and_then(|decoded| {
                 Vec::from_base32(&decoded.1).map_err(|_e| CroAddressError::ConvertError)
             })
-            .and_then(|hash| {
+            .map(|hash| {
                 let mut tree_root_hash: TreeRoot = [0 as u8; 32];
                 tree_root_hash.copy_from_slice(&hash.as_slice());
-                Ok(ExtendedAddr::OrTree(tree_root_hash))
+                ExtendedAddr::OrTree(tree_root_hash)
             })
     }
 }

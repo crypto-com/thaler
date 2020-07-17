@@ -3234,6 +3234,7 @@ dependencies = [
 name = "ra-client"
 version = "0.6.0"
 dependencies = [
+ "base64 0.12.3",
  "chrono",
  "der-parser",
  "lazy_static",
@@ -3293,6 +3294,7 @@ dependencies = [
  "env_logger",
  "hex 0.4.2",
  "log",
+ "percent-encoding",
  "ra-common",
  "reqwest",
  "serde_json",
