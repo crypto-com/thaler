@@ -39,7 +39,7 @@ tendermint = { git = "https://github.com/crypto-com/tendermint-rs.git", default-
 thiserror = { version = "1.0", default-features = false }
 non-empty-vec = "0.1"
 zxcvbn = "2.0"
-indexmap = "1.4"
+indexmap = "1.5"
 
 [dev-dependencies]
 base58 = "0.1.0"
