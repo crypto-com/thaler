@@ -60,7 +60,7 @@ impl<'a> BeginBlockInfo<'a> {
 }
 
 /// TODO: sanity checks in abci https://github.com/tendermint/rust-abci/issues/49
-impl<T: EnclaveProxy> abci::Application for ChainNodeApp<T> {
+impl<T: EnclaveProxy + 'static> abci::Application for ChainNodeApp<T> {
     /// Query Connection: Called on startup from Tendermint.  The application should normally
     /// return the last know state so Tendermint can determine if it needs to replay blocks
     /// to the application.

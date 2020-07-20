@@ -526,6 +526,7 @@ name = "chain-abci"
 version = "0.6.0"
 dependencies = [
  "abci",
+ "aesm-client",
  "base64 0.12.3",
  "bit-vec",
  "byteorder",
@@ -536,6 +537,7 @@ dependencies = [
  "chain-tx-validation",
  "digest 0.9.0",
  "enclave-protocol",
+ "enclave-runner",
  "enclave-u-common",
  "env_logger",
  "hex 0.4.2",
@@ -557,10 +559,12 @@ dependencies = [
  "serde_yaml",
  "sgx_types",
  "sgx_urts",
+ "sgxs-loaders",
  "sha3",
  "structopt",
  "test-common",
  "thiserror",
+ "tokio 0.2.20",
  "vergen",
  "zmq",
 ]

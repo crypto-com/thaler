@@ -20,6 +20,8 @@ ln -sf $EDP_TARGET_DIR/tx-query2-enclave-app.sgxs .
 ln -sf $EDP_TARGET_DIR/tx-query2-enclave-app.sig .
 ln -sf $EDP_TARGET_DIR/tdb-enclave-app.sgxs .
 ln -sf $EDP_TARGET_DIR/tdb-enclave-app.sig .
+ln -sf $EDP_TARGET_DIR/tx-validation-next.sgxs .
+ln -sf $EDP_TARGET_DIR/tx-validation-next.sig .
 export PATH=$CARGO_TARGET_DIR/$BUILD_PROFILE:$PATH
 
 if [ $BUILD_MODE == "sgx" ]; then

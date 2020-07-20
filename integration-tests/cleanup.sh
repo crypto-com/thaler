@@ -26,6 +26,12 @@ fi
 if [ -L tdb-enclave-app.sig ]; then
     rm -f tdb-enclave-app.sig
 fi
+if [ -L tx-validation-next.sgxs ]; then
+    rm -f tx-validation-next.sgxs
+fi
+if [ -L tx-validation-next.sig ]; then
+    rm -f tx-validation-next.sig
+fi
 if [ -L tx_validation_enclave.signed.so ]; then
     rm -f tx_validation_enclave.signed.so
 fi

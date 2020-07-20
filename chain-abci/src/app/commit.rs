@@ -74,7 +74,7 @@ fn process_txs(delivered_txs: &[TxAux], db: &mut impl StoreKV) {
     }
 }
 
-impl<T: EnclaveProxy> ChainNodeApp<T> {
+impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
     /// Commits delivered TX: flushes updates to the underlying storage
     pub fn commit_handler(&mut self, _req: &RequestCommit) -> ResponseCommit {
         let new_state = self.last_state.as_mut().expect("executing block commit, but no app state stored (i.e. no initchain or recovery was executed)");

@@ -6,7 +6,7 @@ pub mod test;
 use crate::enclave_bridge::real::enclave_u::{check_initchain, check_tx, end_block};
 use crate::enclave_bridge::EnclaveProxy;
 use chain_storage::ReadOnlyStorage;
-use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponse};
+use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponse, IntraEnclaveResponseOk};
 use enclave_u_common::enclave_u::init_enclave;
 use log::info;
 use server::TxValidationServer;
@@ -18,6 +18,12 @@ pub const TX_VALIDATION_ENCLAVE_FILE: &str = "tx_validation_enclave.signed.so";
 
 pub struct TxValidationApp {
     enclave: SgxEnclave,
+}
+
+impl Clone for TxValidationApp {
+    fn clone(&self) -> Self {
+        TxValidationApp::default()
+    }
 }
 
 impl Default for TxValidationApp {
@@ -43,13 +49,17 @@ impl Default for TxValidationApp {
 }
 
 impl EnclaveProxy for TxValidationApp {
-    fn check_chain(&self, network_id: u8) -> Result<(), ()> {
+    fn check_chain(&mut self, network_id: u8) -> Result<(), ()> {
         check_initchain(self.enclave.geteid(), network_id)
     }
 
     fn process_request(&mut self, request: IntraEnclaveRequest) -> IntraEnclaveResponse {
         let eid = self.enclave.geteid();
         match &request {
+            IntraEnclaveRequest::InitChainCheck(network_id) => self
+                .check_chain(*network_id)
+                .map(|_| IntraEnclaveResponseOk::InitChainCheck)
+                .map_err(|_| chain_tx_validation::Error::WrongChainHexId),
             IntraEnclaveRequest::EndBlock => end_block(eid, request),
             IntraEnclaveRequest::Encrypt(_) => {
                 unreachable!("should be used only in TxValidationServer")

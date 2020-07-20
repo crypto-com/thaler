@@ -60,7 +60,7 @@ impl ResponseWithCodeAndLog for ResponseDeliverTx {
     }
 }
 
-impl<T: EnclaveProxy> ChainNodeApp<T> {
+impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
     pub fn process_tx(
         &mut self,
         req: &impl RequestWithTx,

@@ -33,7 +33,7 @@ fn get_key(resp: &mut ResponseQuery, data_key: &[u8]) -> Option<H256> {
     }
 }
 
-impl<T: EnclaveProxy> ChainNodeApp<T> {
+impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
     fn lookup_key(
         &self,
         resp: &mut ResponseQuery,
