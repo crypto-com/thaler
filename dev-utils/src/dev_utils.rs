@@ -61,6 +61,15 @@ pub enum DevUtils {
             help = "hex format seed to generate private key"
         )]
         seed: String,
+        #[structopt(
+            name = "aux_payload",
+            short,
+            long,
+            case_insensitive = true,
+            default_value = "0000000000000000000000000000000000000000000000000000000000000000",
+            help = "hex format aux payload used in schnorr_sign"
+        )]
+        aux_payload: String,
     },
 
     /// Used for working with tendermint's genesis.json
@@ -87,8 +96,13 @@ impl DevUtils {
                 let mut stop_command = StopCommand::new();
                 stop_command.execute()
             }
-            DevUtils::TestVectors { network, seed } => {
-                let test_vectors_command = TestVectorCommand::new(network.clone(), seed.clone());
+            DevUtils::TestVectors {
+                network,
+                seed,
+                aux_payload,
+            } => {
+                let test_vectors_command =
+                    TestVectorCommand::new(network.clone(), seed.clone(), aux_payload);
                 test_vectors_command.execute()
             }
             DevUtils::Keypackage { keypackage_command } => keypackage_command.execute(),

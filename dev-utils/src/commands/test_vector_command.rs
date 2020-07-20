@@ -33,10 +33,11 @@ use test_common::chain_env::mock_confidential_init;
 pub struct TestVectorCommand {
     network: Network,
     seed: Vec<u8>,
+    aux_payload: Vec<u8>,
 }
 
 impl TestVectorCommand {
-    pub fn new(network: String, seed: String) -> Self {
+    pub fn new(network: String, seed: String, aux_payload: &str) -> Self {
         let network = if network == "devnet" {
             Network::Devnet
         } else if network == "testnet" {
@@ -47,62 +48,67 @@ impl TestVectorCommand {
             unreachable!()
         };
         let seed = hex::decode(&seed).expect("invali seed");
-        Self { network, seed }
+        let aux_payload = hex::decode(&aux_payload).expect("invalid hex encoded aux payload");
+        Self {
+            network,
+            seed,
+            aux_payload,
+        }
     }
 
     pub fn execute(&self) -> Result<()> {
         let mut vector_factory = VectorFactory::new(self.network, self.seed.clone());
-        vector_factory.create_test_vectors()
+        vector_factory.create_test_vectors(&self.aux_payload)
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct WithdrawUnboundedVector {
-    from_address: String,
-    to_address: String,
-    coin_amount: String,
-    witness: String,
-    plain_tx_aux: String,
-    tx_id: String,
-    view_keys: Vec<String>,
+    pub from_address: String,
+    pub to_address: String,
+    pub coin_amount: String,
+    pub witness: String,
+    pub plain_tx_aux: String,
+    pub tx_id: String,
+    pub view_keys: Vec<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct TransferVector {
-    to_address: String,
-    return_address: String,
-    transfer_amount: String,
-    return_amount: String,
-    inputs: Vec<String>,
-    outputs: Vec<String>,
-    witness: String,
-    plain_tx_aux: String,
-    tx_id: String,
+    pub to_address: String,
+    pub return_address: String,
+    pub transfer_amount: String,
+    pub return_amount: String,
+    pub inputs: Vec<String>,
+    pub outputs: Vec<String>,
+    pub witness: String,
+    pub plain_tx_aux: String,
+    pub tx_id: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct DepositStakeVector {
-    staking_address: String,
-    witness: String,
-    transaction: String,
-    tx_id: String,
+    pub staking_address: String,
+    pub witness: String,
+    pub transaction: String,
+    pub tx_id: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct NodeJoinVector {
-    staking_address: String,
-    tendermint_validator_pubkey: String,
-    witness: String,
-    tx: String,
-    tx_id: String,
+    pub staking_address: String,
+    pub tendermint_validator_pubkey: String,
+    pub witness: String,
+    pub tx: String,
+    pub tx_id: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct UnboundedStakeVector {
-    staking_address: String,
-    witness: String,
-    tx: String,
-    tx_id: String,
+    pub staking_address: String,
+    pub witness: String,
+    pub tx: String,
+    pub tx_id: String,
 }
 
 #[derive(Default, Debug, Serialize)]
@@ -116,10 +122,10 @@ struct TestVectors {
 }
 
 struct TestVectorWallet {
-    hd_key: HdKey,
-    view_key: (PublicKey, PrivateKey),
-    transfer_addresses: Vec<(ExtendedAddr, PublicKey, PrivateKey)>,
-    staking_address: Option<(StakedStateAddress, PublicKey, PrivateKey)>,
+    pub hd_key: HdKey,
+    pub view_key: (PublicKey, PrivateKey),
+    pub transfer_addresses: Vec<(ExtendedAddr, PublicKey, PrivateKey)>,
+    pub staking_address: Option<(StakedStateAddress, PublicKey, PrivateKey)>,
 }
 
 impl TestVectorWallet {
@@ -237,7 +243,11 @@ impl VectorFactory {
         Ok(txid)
     }
 
-    pub fn create_transfer_tx(&mut self, withdraw_unbonded_tx_id: TxId) -> Result<()> {
+    pub fn create_transfer_tx(
+        &mut self,
+        withdraw_unbonded_tx_id: TxId,
+        aux_payload: &[u8],
+    ) -> Result<()> {
         let public_key = self.wallet.transfer_addresses[0].1.clone();
         let sign_key = self.wallet.transfer_addresses[0].2.clone();
         let (return_address, _, _) = self.wallet.create_transfer_address(self.network)?;
@@ -261,11 +271,9 @@ impl VectorFactory {
         let tx = Tx::new_with(inputs.clone(), outputs.clone(), attributes);
         let tx_id = tx.id();
         let proof = TestVectorWallet::gen_proof(public_key)?.unwrap();
-        // FIXME: schnorr sign is non-deterministic
-        // -> test vectors should be deterministic, i.e. use a fixed random payload
-        // and `schnorr_sign_aux`
         let witness: TxWitness = vec![TxInWitness::TreeSig(
-            sign_key.schnorr_sign(&Transaction::TransferTransaction(tx.clone()))?,
+            sign_key
+                .schnorr_sign_unsafe(&Transaction::TransferTransaction(tx.clone()), &aux_payload)?,
             proof,
         )]
         .into();
@@ -285,7 +293,11 @@ impl VectorFactory {
         Ok(())
     }
 
-    fn create_deposit_stake_tx(&mut self, withdraw_unbonded_tx_id: TxId) -> Result<()> {
+    fn create_deposit_stake_tx(
+        &mut self,
+        withdraw_unbonded_tx_id: TxId,
+        aux_payload: &[u8],
+    ) -> Result<()> {
         let public_key = self.wallet.transfer_addresses[0].1.clone();
         let sign_key = self.wallet.transfer_addresses[0].2.clone();
         let utxo = TxoPointer::new(withdraw_unbonded_tx_id, 0);
@@ -294,7 +306,10 @@ impl VectorFactory {
         let tx = DepositBondTx::new(vec![utxo], staking_address, attributes);
         let proof = TestVectorWallet::gen_proof(public_key)?.unwrap();
         let witness: TxWitness = vec![TxInWitness::TreeSig(
-            sign_key.schnorr_sign(&Transaction::DepositStakeTransaction(tx.clone()))?,
+            sign_key.schnorr_sign_unsafe(
+                &Transaction::DepositStakeTransaction(tx.clone()),
+                aux_payload,
+            )?,
             proof,
         )]
         .into();
@@ -366,11 +381,11 @@ impl VectorFactory {
         Ok(())
     }
 
-    pub fn create_test_vectors(&mut self) -> Result<()> {
+    pub fn create_test_vectors(&mut self, aux_payload: &[u8]) -> Result<()> {
         self.test_vectors.wallet_view_key = Some(hex::encode(self.wallet.view_key.0.serialize()));
         let tx_id = self.create_withdraw_unbonded_tx().unwrap();
-        self.create_transfer_tx(tx_id)?;
-        self.create_deposit_stake_tx(tx_id)?;
+        self.create_transfer_tx(tx_id, aux_payload)?;
+        self.create_deposit_stake_tx(tx_id, aux_payload)?;
         self.create_nodejoin_tx()?;
         self.create_unbonded_stake_tx()?;
         println!(
@@ -412,8 +427,155 @@ mod tests {
     #[test]
     fn test_vectors() {
         let seed = hex::decode("9ee5468093cf78ce008ace0b676b606d94548f8eac79e727e3cb0500ae739facca7bb5ee1f3dd698bc6fcd044117905d42d90fadf324c6187e1faba7e662410f").unwrap();
-        println!("seed: {:?}", hex::encode(seed.clone()));
         let mut work_flow = VectorFactory::new(Network::Devnet, seed);
-        assert!(work_flow.create_test_vectors().is_ok());
+        let aux_payload: [u8; 32] = [0; 32];
+        assert!(work_flow.create_test_vectors(&aux_payload).is_ok());
+        let transafer_addresses = &work_flow.wallet.transfer_addresses;
+        let statking_address = work_flow.wallet.staking_address.clone().unwrap();
+        // check addresses
+        assert_eq!(
+            work_flow.wallet.view_key.0.to_string(),
+            "036b3e5b7744134ac0556ace88b098a057014afb82701b1b1ba49ea04b09fea29b"
+        );
+        assert_eq!(work_flow.wallet.transfer_addresses.len(), 3);
+        assert_eq!(
+            transafer_addresses[0].0.to_string(),
+            "dcro1p89u9nsd6v2dtf7xtryxdf867tv9zrrfzgcnsk0wayyry27hmt6ssl5msc"
+        );
+        assert_eq!(
+            transafer_addresses[0].1.to_string(),
+            "039f561c58a9f431952ee67dbead4896f2dc41735319d9b2b89211358b0c283356"
+        );
+        assert_eq!(
+            hex::encode(transafer_addresses[0].2.serialize()),
+            "496512d4512400226ae72eabd2723496108535ae0743d4e7fcecdf581005adac"
+        );
+        assert_eq!(
+            transafer_addresses[1].0.to_string(),
+            "dcro17kf3nmtpm7erknjjv3zer70e07208y672q0dl3tfwaxtlqyytrksdkyfwy"
+        );
+        assert_eq!(
+            transafer_addresses[1].1.to_string(),
+            "02a57069e830201cadd1f1fae4bd029f2558a40df9f887cc6978f03c968114156a"
+        );
+        assert_eq!(
+            hex::encode(transafer_addresses[1].2.serialize()),
+            "8f3b2dba80cbdeb3824cc0237db7a3743067a088f513fa3a64c4d12c63cf4bdf"
+        );
+        assert_eq!(
+            transafer_addresses[2].0.to_string(),
+            "dcro12nlpnzdjp4tg073wad0hs6d544nqdsl5gmcqd7lclmuzh8rl23mq34x46d"
+        );
+        assert_eq!(
+            transafer_addresses[2].1.to_string(),
+            "0220005730e244e65f3d6bf86c3cbeb122c3670b4551fb67b056d7fe8d5981a9f6"
+        );
+        assert_eq!(
+            hex::encode(transafer_addresses[2].2.serialize()),
+            "ec39eb306bac78b7008756bb28aa2fa88d1664fbcb551b34d6d71d2e7322ab57"
+        );
+        assert_eq!(
+            statking_address.0.to_string(),
+            "0xbce02627ca9daa2af92412cb9998aa59df127079"
+        );
+        assert_eq!(
+            statking_address.1.to_string(),
+            "032c8d58a2666af8355865ec819cd8ddc10d4260c9df1970e21c6af2c3ed4ab66e"
+        );
+        assert_eq!(
+            hex::encode(statking_address.2.serialize()),
+            "a9ad4bb94865a7a79b9dd574696d03615eeb69c117490e2cc904338df832b0e5"
+        );
+
+        // check test vectors
+        let test_vectors = &work_flow.test_vectors;
+        assert_eq!(test_vectors.wallet_view_key.clone().unwrap(), "046b3e5b7744134ac0556ace88b098a057014afb82701b1b1ba49ea04b09fea29b9430a4059e9abceb251eb6a3ec8968e01e2bc0f3fc352b56ed78313c96110403");
+        // check withdraw unbounded
+        let withdraw_unbounded_vector = test_vectors.withdraw_unbonded_vector.clone().unwrap();
+        assert_eq!(
+            withdraw_unbounded_vector.from_address,
+            "0xbce02627ca9daa2af92412cb9998aa59df127079"
+        );
+        assert_eq!(
+            withdraw_unbounded_vector.to_address,
+            "dcro1p89u9nsd6v2dtf7xtryxdf867tv9zrrfzgcnsk0wayyry27hmt6ssl5msc"
+        );
+        assert_eq!(
+            withdraw_unbounded_vector.coin_amount,
+            format!("{:?}", Coin::new(1000).unwrap())
+        );
+        assert_eq!(withdraw_unbounded_vector.witness, "000191be892928806cbc1016e4f756facf143e40f2e681b000989521353a2e2a01d842f57ed373e09621f40e86f3555ddd00ef1a7221498bd112f5732db6109473b1");
+        assert_eq!(withdraw_unbounded_vector.plain_tx_aux, "020000000000000000040009cbc2ce0dd314d5a7c658c866a4faf2d8510c6912313859eee908322bd7daf5e803000000000000010000000000000000000004036b3e5b7744134ac0556ace88b098a057014afb82701b1b1ba49ea04b09fea29b000100000000000000");
+        assert_eq!(
+            withdraw_unbounded_vector.tx_id,
+            "e83d1e15bc3d4d80e7c61d00623af277cc792f503794e096fe8e4434371318b3"
+        );
+        // check transfer vector
+        let transfer_vector = test_vectors.transfer_vector.clone().unwrap();
+        assert_eq!(
+            transfer_vector.to_address,
+            "dcro12nlpnzdjp4tg073wad0hs6d544nqdsl5gmcqd7lclmuzh8rl23mq34x46d"
+        );
+        assert_eq!(
+            transfer_vector.return_address,
+            "dcro17kf3nmtpm7erknjjv3zer70e07208y672q0dl3tfwaxtlqyytrksdkyfwy"
+        );
+        assert_eq!(
+            transfer_vector.transfer_amount,
+            format!("{:?}", Coin::new(100).unwrap())
+        );
+        assert_eq!(
+            transfer_vector.return_amount,
+            format!("{:?}", Coin::new(900).unwrap())
+        );
+        assert_eq!(transfer_vector.witness, "0400d81d11786ed494ef7bb421cf3d05c033aa9e263f58a4a18c400a50e5b9560b8078fc4b7fe9ea73bb7ab14f05cfe1a03b2e3610a2363e651405ca6795704599f1009f561c58a9f431952ee67dbead4896f2dc41735319d9b2b89211358b0c283356");
+        assert_eq!(
+            transfer_vector.inputs,
+            vec!["e83d1e15bc3d4d80e7c61d00623af277cc792f503794e096fe8e4434371318b30000"]
+        );
+        assert_eq!(
+            transfer_vector.outputs,
+            vec![
+            "00f59319ed61dfb23b4e52644591f9f97f94f3935e501edfc569774cbf808458ed840300000000000000",
+            "0054fe1989b20d5687fa2eeb5f7869b4ad6606c3f446f006fbf8fef82b9c7f5476640000000000000000"
+        ]
+        );
+        // check deposit stake vector
+        let deposit_vector = test_vectors.deposit_stake_vector.clone().unwrap();
+        assert_eq!(
+            deposit_vector.staking_address,
+            "0xbce02627ca9daa2af92412cb9998aa59df127079"
+        );
+        assert_eq!(deposit_vector.witness, "0400e0cc58de1add5f0262e212b67d98b2c2f0c23ff94a923f427a9d7c8f464a90b81b837f45b3e9c2d2fdab3de2998b8f85be388b855bbb3df8e9d81e2ec58b2005009f561c58a9f431952ee67dbead4896f2dc41735319d9b2b89211358b0c283356");
+        assert_eq!(deposit_vector.transaction, "04e83d1e15bc3d4d80e7c61d00623af277cc792f503794e096fe8e4434371318b3000000bce02627ca9daa2af92412cb9998aa59df12707900000100000000000000");
+        assert_eq!(
+            deposit_vector.tx_id,
+            "e9506043ab05b03ee0d6ecf6eb85ebd11fa3d6f04c017b9d94f6db66da488a13"
+        );
+        // check node join vector
+        let nodejoin_vector = test_vectors.nodejoin_vector.clone().unwrap();
+        assert_eq!(
+            nodejoin_vector.staking_address,
+            "0xbce02627ca9daa2af92412cb9998aa59df127079"
+        );
+        assert_eq!(
+            nodejoin_vector.tendermint_validator_pubkey,
+            "00d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
+        );
+        assert_eq!(
+            nodejoin_vector.tx_id,
+            "236a51c147023b24570286cd9fb190f60d51772a38b515899f9876272873bce4"
+        );
+        // check unbonded stake vector
+        let unbonded_stake_vector = test_vectors.unbonded_stake_vector.clone().unwrap();
+        assert_eq!(
+            unbonded_stake_vector.staking_address,
+            "0xbce02627ca9daa2af92412cb9998aa59df127079"
+        );
+        assert_eq!(unbonded_stake_vector.witness, "0001686d772b75f229beb68b761432148eaa762d6bc38d89cc76b90799e1cea7d0ab34b5dd4740a0a1dc06f4d7f25f9747b8b6c14e50a6176cc6e55e9f3005556cc2");
+        assert_eq!(
+            unbonded_stake_vector.tx_id,
+            "7600e018d9f225fac168ef73708150b590f12105b1408f16eb2aaa88a42b50d7"
+        );
     }
 }
