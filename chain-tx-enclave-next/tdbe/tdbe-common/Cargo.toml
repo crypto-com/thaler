@@ -1,0 +1,11 @@
+[package]
+name = "tdbe-common"
+version = "0.6.0"
+authors = ["Devashish <devashish@crypto.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+chain-core = { path = "../../../chain-core" }
+parity-scale-codec = "1.3"

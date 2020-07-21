@@ -52,6 +52,12 @@ if [ $BUILD_MODE == "sgx" ]; then
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/tx-query2-enclave-app --heap-size 0x2000000 --stack-size 0x80000 --threads 6 $EDP_ARGS
     sgxs-sign --key chain-tx-enclave/tx-validation/enclave/Enclave_private.pem $EDP_TARGET_DIR/tx-query2-enclave-app.sgxs $EDP_TARGET_DIR/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
 
+    # tdbe
+    cargo build --package tdb-app-runner
+    RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul" cargo build --target x86_64-fortanix-unknown-sgx --package tdb-enclave-app
+    ftxsgx-elf2sgxs $EDP_TARGET_DIR/tdb-enclave-app --heap-size 0x2000000 --stack-size 0x80000 --threads 6 $EDP_ARGS
+    sgxs-sign --key chain-tx-enclave/tx-validation/enclave/Enclave_private.pem $EDP_TARGET_DIR/tdb-enclave-app.sgxs $EDP_TARGET_DIR/tdb-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
+
 else
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-rpc/server/Cargo.toml
     cargo build $CARGO_ARGS --features mock-enclave,mock-hardware-wallet --manifest-path client-cli/Cargo.toml

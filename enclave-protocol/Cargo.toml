@@ -8,7 +8,7 @@ edition = "2018"
 
 [features]
 default = ["chain-core/default"]
-edp = ["chain-core/edp", "secp256k1/lowmemory"]
+edp = ["chain-core/edp", "parity-scale-codec/std", "secp256k1/lowmemory"]
 mesalock_sgx = ["sgx_tstd", "secp256k1/lowmemory", "chain-core/mesalock_sgx", "chain-tx-validation/mesalock_sgx"]
 
 [dependencies]

@@ -1,0 +1,28 @@
+[package]
+name = "tdb-enclave-app"
+version = "0.6.0"
+authors = ["Devashish Dixit <devashish@crypto.com>"]
+edition = "2018"
+
+[dependencies]
+
+[target.'cfg(target_env = "sgx")'.dependencies]
+env_logger = { version = "0.7", default-features = false }
+log = "0.4"
+parity-scale-codec = "1.3"
+rs-libc = "0.2"
+rustls = "0.18"
+sgx-isa = { version = "0.3", features = ["sgxstd"] }
+thread-pool = "0.1"
+webpki = "0.21"
+zeroize = "1.1"
+
+chain-core = { path = "../../../chain-core", default-features = false, features = ["edp"] }
+enclave-protocol = { path = "../../../enclave-protocol", features = ["edp"] }
+enclave-utils = { path = "../../enclave-utils", features = ["sgxstd"] }
+ra-client = { path = "../../../chain-tx-enclave-next/enclave-ra/ra-client" }
+ra-enclave = { path = "../../../chain-tx-enclave-next/enclave-ra/ra-enclave" }
+tdbe-common = { path = "../tdbe-common" }
+
+# [patch.crates-io]
+# ring = { git = "https://github.com/crypto-com/ring.git", rev = "4e1862fb0df9efaf2d2c1ec8cacb1e53104f3daa" }

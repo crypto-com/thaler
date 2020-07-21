@@ -367,7 +367,7 @@ impl GroupAux {
             .tree
             .get_package(LeafSize(msg.content.sender.sender))
             .ok_or(ProcessCommitError::SenderNotFound)?;
-        let pk = IdentityPublicKey::new_unsafe(kp.verify(ra_verifier, now)?.public_key);
+        let pk = IdentityPublicKey::new_unsafe(kp.verify(ra_verifier, now)?.public_key.to_vec());
         msg.verify_signature(&self.context, &pk)
             .map_err(ProcessCommitError::MsgSignatureVerifyFailed)
     }
@@ -567,8 +567,12 @@ impl GroupAux {
             Some(Node::Leaf(Some(kp))) => Ok(kp.clone()),
             _ => Err(ProcessWelcomeError::KeyPackageNotFound),
         }?;
-        let identity_pk =
-            IdentityPublicKey::new_unsafe(signer.verify(ra_verifier, genesis_time)?.public_key);
+        let identity_pk = IdentityPublicKey::new_unsafe(
+            signer
+                .verify(ra_verifier, genesis_time)?
+                .public_key
+                .to_vec(),
+        );
         let payload = group_info.payload.get_encoding();
         identity_pk
             .verify_signature(&payload, &group_info.signature)
@@ -853,8 +857,11 @@ mod test {
             let now = 1590490084;
             let t = kp.verify(&*ENCLAVE_CERT_VERIFIER, now).unwrap();
 
+            let mut public_key = [0u8; 65];
+            public_key.copy_from_slice(certificate);
+
             Ok(CertVerifyResult {
-                public_key: certificate.to_vec(),
+                public_key,
                 quote: t.quote,
             })
         }

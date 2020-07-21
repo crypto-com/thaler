@@ -17,6 +17,8 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 
 /// p-256 public key
 /// used in the credential / for signature verification
+///
+/// TODO: Use `[u8; 65]` instead of `Vec<u8>`?
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct IdentityPublicKey(Vec<u8>);
 

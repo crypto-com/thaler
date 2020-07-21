@@ -18,6 +18,8 @@ EDP_TARGET_DIR=$CARGO_TARGET_DIR/x86_64-fortanix-unknown-sgx/$BUILD_PROFILE
 ln -sf $CARGO_TARGET_DIR/$BUILD_PROFILE/tx_validation_enclave.signed.so .
 ln -sf $EDP_TARGET_DIR/tx-query2-enclave-app.sgxs .
 ln -sf $EDP_TARGET_DIR/tx-query2-enclave-app.sig .
+ln -sf $EDP_TARGET_DIR/tdb-enclave-app.sgxs .
+ln -sf $EDP_TARGET_DIR/tdb-enclave-app.sig .
 export PATH=$CARGO_TARGET_DIR/$BUILD_PROFILE:$PATH
 
 if [ $BUILD_MODE == "sgx" ]; then

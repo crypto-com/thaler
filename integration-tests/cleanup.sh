@@ -20,6 +20,12 @@ fi
 if [ -L tx-query2-enclave-app.sig ]; then
     rm -f tx-query2-enclave-app.sig
 fi
+if [ -L tdb-enclave-app.sgxs ]; then
+    rm -f tdb-enclave-app.sgxs
+fi
+if [ -L tdb-enclave-app.sig ]; then
+    rm -f tdb-enclave-app.sig
+fi
 if [ -L tx_validation_enclave.signed.so ]; then
     rm -f tx_validation_enclave.signed.so
 fi
