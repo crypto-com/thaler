@@ -357,7 +357,7 @@ impl fmt::Display for StakingCoinChange {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chain_core::state::account::ConfidentialInit;
+    use chain_core::state::account::{ConfidentialInit, MLSInit};
     use chain_core::state::tendermint::TendermintValidatorPubKey;
     use chain_core::tx::fee::Fee;
     use std::str::FromStr;
@@ -437,7 +437,7 @@ mod tests {
 
                 assert_eq!(
                     staking_diff.to_string(),
-                    "{\"key\":\"CouncilNode\",\"value\":{\"name\":\"Council Node\",\"security_contact\":\"security@crypto.com\",\"confidential_init\":{\"keypackage\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"},\"consensus_pubkey\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"}}}",
+                    "{\"key\":\"CouncilNode\",\"value\":{\"name\":\"Council Node\",\"security_contact\":\"security@crypto.com\",\"confidential_init\":{\"init_payload\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"},\"consensus_pubkey\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"}}}",
                 );
             }
 
@@ -446,7 +446,7 @@ mod tests {
                 let any_security_contact = Some(String::from("security@crypto.com"));
                 let any_pub_key = TendermintValidatorPubKey::Ed25519([0u8; 32]);
                 let any_cert = ConfidentialInit {
-                    keypackage: [0u8; 32].to_vec(),
+                    init_payload: MLSInit::Genesis([0u8; 32].to_vec()),
                 };
 
                 CouncilNodeMeta::new_with_details(
@@ -546,7 +546,7 @@ mod tests {
                 let any_security_contact = Some(String::from("security@crypto.com"));
                 let any_pub_key = TendermintValidatorPubKey::Ed25519([0u8; 32]);
                 let any_cert = ConfidentialInit {
-                    keypackage: [0u8; 32].to_vec(),
+                    init_payload: MLSInit::Genesis([0u8; 32].to_vec()),
                 };
 
                 CouncilNodeMeta::new_with_details(

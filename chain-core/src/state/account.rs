@@ -33,6 +33,20 @@ pub type NodeName = String;
 /// optional security@... email
 pub type NodeSecurityContact = Option<String>;
 
+/// FIXME: Encode, Decode implementations when MLS payloads are stabilized
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Encode, Decode)]
+pub enum MLSInit {
+    /// KeyPackage
+    Genesis(Vec<u8>),
+    /// payloads retrieved from other node's TDBE
+    NodeJoin {
+        /// MLSPlaintext -- Add
+        add: Vec<u8>,
+        /// MLSPlaintext -- Commit
+        commit: Vec<u8>,
+    },
+}
+
 /// the initial data a node submits to join a MLS group
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 #[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
@@ -45,24 +59,29 @@ pub struct ConfidentialInit {
             deserialize_with = "deserialize_base64"
         )
     )]
-    pub keypackage: Vec<u8>,
+    pub init_payload: MLSInit,
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
-fn serialize_base64<S>(keypackage: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_base64<S>(init_payload: &MLSInit, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
-    base64::encode(keypackage).serialize(serializer)
+    match init_payload {
+        MLSInit::Genesis(kp) => base64::encode(kp).serialize(serializer),
+        _ => "FIXME".serialize(serializer),
+    }
 }
 
 #[cfg(not(feature = "mesalock_sgx"))]
-fn deserialize_base64<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+fn deserialize_base64<'de, D>(deserializer: D) -> Result<MLSInit, D::Error>
 where
     D: Deserializer<'de>,
 {
-    base64::decode(String::deserialize(deserializer)?.as_bytes())
-        .map_err(|e| D::Error::custom(format!("{}", e)))
+    let kp = base64::decode(String::deserialize(deserializer)?.as_bytes())
+        .map_err(|e| D::Error::custom(format!("{}", e)))?;
+    // FIXME: non-genesis
+    Ok(MLSInit::Genesis(kp))
 }
 
 /// Information common to different node types
@@ -96,7 +115,10 @@ impl Encode for NodeCommonInfo {
                 c.encode_to(dest);
             }
         };
-        self.confidential_init.keypackage.encode_to(dest);
+        // 0.5 test vectors specified it as Vec<u8> blob
+        // FIXME: ok to break when stabilized in 0.6? will it break HW wallet parser?
+        let temp: Vec<u8> = self.confidential_init.init_payload.encode();
+        temp.encode_to(dest);
     }
 }
 
@@ -126,11 +148,14 @@ const MAX_STRING_LEN: usize = 255;
 impl Decode for NodeCommonInfo {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let (name, security_contact) = decode_name_security_contact(input)?;
-        let keypackage: Vec<u8> = Vec::decode(input)?;
+        // 0.5 test vectors specified it as Vec<u8> blob
+        // FIXME: ok to break when stabilized in 0.6? will it break HW wallet parser?
+        let temp: Vec<u8> = Vec::decode(input)?;
+        let init_payload = MLSInit::decode(&mut temp.as_ref())?;
         Ok(NodeCommonInfo {
             name,
             security_contact,
-            confidential_init: ConfidentialInit { keypackage },
+            confidential_init: ConfidentialInit { init_payload },
         })
     }
 }
@@ -160,7 +185,10 @@ impl Encode for CouncilNodeMeta {
             }
         };
         self.consensus_pubkey.encode_to(dest);
-        self.node_info.confidential_init.keypackage.encode_to(dest);
+        // 0.5 test vectors specified it as Vec<u8> blob
+        // FIXME: ok to break when stabilized in 0.6? will it break HW wallet parser?
+        let temp: Vec<u8> = self.node_info.confidential_init.init_payload.encode();
+        temp.encode_to(dest);
     }
 }
 
@@ -171,12 +199,15 @@ impl Decode for CouncilNodeMeta {
         // where it was like this
         let (name, security_contact) = decode_name_security_contact(input)?;
         let consensus_pubkey = TendermintValidatorPubKey::decode(input)?;
-        let keypackage: Vec<u8> = Vec::decode(input)?;
+        // 0.5 test vectors specified it as Vec<u8> blob
+        // FIXME: ok to break when stabilized in 0.6? will it break HW wallet parser?
+        let temp: Vec<u8> = Vec::decode(input)?;
+        let init_payload = MLSInit::decode(&mut temp.as_ref())?;
         Ok(CouncilNodeMeta::new_with_details(
             name,
             security_contact,
             consensus_pubkey,
-            ConfidentialInit { keypackage },
+            ConfidentialInit { init_payload },
         ))
     }
 }
@@ -235,6 +266,18 @@ impl Decode for NodeMetadata {
 }
 
 impl NodeMetadata {
+    /// retrieves the add and commit proposals (if any)
+    pub fn get_node_join_mls_init(&self) -> Option<(&[u8], &[u8])> {
+        let init_payload = match self {
+            NodeMetadata::CouncilNode(cm) => &cm.node_info.confidential_init.init_payload,
+            NodeMetadata::CommunityNode(info) => &info.confidential_init.init_payload,
+        };
+        match init_payload {
+            MLSInit::NodeJoin { add, commit } => Some((add, commit)),
+            _ => None,
+        }
+    }
+
     /// create an empty council node (in testing etc.)
     pub fn new_council_node(
         consensus_pubkey: TendermintValidatorPubKey,
@@ -622,7 +665,9 @@ mod test {
                 name,
                 security_contact,
                 TendermintValidatorPubKey::Ed25519(raw_pubkey),
-                ConfidentialInit { keypackage },
+                ConfidentialInit {
+                    init_payload: MLSInit::Genesis(keypackage),
+                },
             )
         }
     }

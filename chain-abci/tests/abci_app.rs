@@ -57,7 +57,7 @@ use std::convert::TryInto;
 use std::str::FromStr;
 use std::sync::Arc;
 use test_common::chain_env::{
-    mock_confidential_init, mock_council_node, ChainEnv, DEFAULT_GENESIS_TIME,
+    mock_confidential_init, mock_council_node_join, ChainEnv, DEFAULT_GENESIS_TIME,
 };
 
 const TEST_CHAIN_ID: &str = "test-00";
@@ -1064,7 +1064,7 @@ fn all_valid_tx_types_should_commit() {
         1,
         addr.into(),
         StakedStateOpAttributes::new(0),
-        mock_council_node(TendermintValidatorPubKey::Ed25519([2u8; 32])),
+        mock_council_node_join(TendermintValidatorPubKey::Ed25519([2u8; 32])),
     );
     let secp = Secp256k1::new();
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));

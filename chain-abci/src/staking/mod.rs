@@ -23,7 +23,8 @@ mod tests {
     use chain_core::tx::fee::Fee;
     use chain_storage::buffer::{Get, GetStaking, MemStore, StoreStaking};
     use test_common::chain_env::{
-        get_init_network_params, mock_council_node, mock_council_node_meta, DEFAULT_GENESIS_TIME,
+        get_init_network_params, mock_council_node_join, mock_council_node_meta,
+        DEFAULT_GENESIS_TIME,
     };
 
     use super::*;
@@ -118,7 +119,7 @@ mod tests {
             nonce,
             address: addr4,
             attributes: Default::default(),
-            node_meta: mock_council_node(val_pk4.clone()),
+            node_meta: mock_council_node_join(val_pk4.clone()),
         };
         table
             .node_join(&mut store, DEFAULT_GENESIS_TIME + 10, 0, 0, &node_join)
@@ -271,7 +272,7 @@ mod tests {
             nonce,
             address: addr1,
             attributes: Default::default(),
-            node_meta: mock_council_node(val_pk_new),
+            node_meta: mock_council_node_join(val_pk_new),
         };
         assert!(matches!(
             table.node_join(&mut store, DEFAULT_GENESIS_TIME + 3, 0, 0, &node_join),
@@ -337,7 +338,7 @@ mod tests {
             nonce: staking.nonce + 1,
             address: addr,
             attributes: Default::default(),
-            node_meta: mock_council_node(val_pk_new.clone()),
+            node_meta: mock_council_node_join(val_pk_new.clone()),
         };
         // change to new validator key
         let result = table.node_join(store, DEFAULT_GENESIS_TIME + 1, 1, 0, &node_join);
@@ -392,7 +393,7 @@ mod tests {
             nonce: 0,
             address: addr_new,
             attributes: Default::default(),
-            node_meta: mock_council_node(val_pk1),
+            node_meta: mock_council_node_join(val_pk1),
         };
         // can't join with used key
         assert!(matches!(
@@ -469,7 +470,7 @@ mod tests {
             nonce,
             address: addr1,
             attributes: Default::default(),
-            node_meta: mock_council_node(val_pk1.clone()),
+            node_meta: mock_council_node_join(val_pk1.clone()),
         };
 
         let mut init_params = get_init_network_params(Coin::zero());
@@ -795,7 +796,7 @@ mod tests {
             nonce: 1,
             address: addr2,
             attributes: Default::default(),
-            node_meta: mock_council_node(val_pk_new.clone()),
+            node_meta: mock_council_node_join(val_pk_new.clone()),
         };
         table
             .node_join(&mut store, DEFAULT_GENESIS_TIME + 2, 0, 0, &tx)

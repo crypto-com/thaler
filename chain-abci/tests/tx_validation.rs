@@ -53,7 +53,7 @@ use std::fmt::Debug;
 use std::mem;
 use std::sync::Arc;
 use test_common::chain_env::{
-    mock_confidential_init, mock_council_node_meta, DEFAULT_GENESIS_TIME,
+    mock_confidential_init_node_join, mock_council_node_meta, DEFAULT_GENESIS_TIME,
 };
 
 fn verify_enclave_tx<T: EnclaveProxy>(
@@ -1347,7 +1347,7 @@ fn prepare_nodejoin_transaction(
             "test".to_string(),
             None,
             TendermintValidatorPubKey::Ed25519([1u8; 32]),
-            mock_confidential_init(),
+            mock_confidential_init_node_join(),
         ),
     };
     let witness = get_account_op_witness(secp, &tx.id(), &secret_key);

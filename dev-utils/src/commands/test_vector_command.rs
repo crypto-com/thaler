@@ -562,9 +562,10 @@ mod tests {
             nodejoin_vector.tendermint_validator_pubkey,
             "00d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a"
         );
+        // FIXME: update documentation, as in 0.6 the confidential init is defined
         assert_eq!(
             nodejoin_vector.tx_id,
-            "236a51c147023b24570286cd9fb190f60d51772a38b515899f9876272873bce4"
+            "e0c2dfc3f25ef87f0866a0ac6f649904d42c9504a6140b96549e3cef940d2106"
         );
         // check unbonded stake vector
         let unbonded_stake_vector = test_vectors.unbonded_stake_vector.clone().unwrap();

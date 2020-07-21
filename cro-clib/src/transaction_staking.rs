@@ -2,12 +2,13 @@ use crate::types::get_string;
 use crate::types::{CroAddress, CroAddressPtr, CroResult};
 pub use chain_core::init::network::Network;
 use chain_core::state::account::{
-    ConfidentialInit, NodeMetadata, StakedStateAddress, StakedStateOpAttributes,
+    ConfidentialInit, MLSInit, NodeMetadata, StakedStateAddress, StakedStateOpAttributes,
     StakedStateOpWitness, UnjailTx,
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::{TxAux, TxPublicAux};
+use client_common::temporary_mls_init;
 use client_common::{ErrorKind, PrivateKeyAction, Result, ResultExt, Transaction};
 use parity_scale_codec::Encode;
 use std::os::raw::c_char;
@@ -82,7 +83,7 @@ pub unsafe extern "C" fn cro_unjai(
 /// validator_name_user: validator name, null terminated string
 /// validator_contact_user: validator contact, null terminated string
 /// validator_pubkey_user: validator pubkey,ed25519 pubkey raw size= 32 bytes , base64 encoded  null terminated string,  
-
+/// FIXME: Add+Commit instead of keypackage
 #[allow(clippy::too_many_arguments)]
 fn create_encoded_signed_join(
     network: u8,
@@ -108,13 +109,18 @@ fn create_encoded_signed_join(
                 "Unable to get validator pubkey",
             )
         })?;
-
+    // FIXME: MLSPlaintexts instead of keypackage
     let node_metadata = NodeMetadata::new_council_node_with_details(
         validator_name.to_string(),
         Some(validator_contact.to_string()),
         // 32 bytes
         pubkey,
-        ConfidentialInit { keypackage },
+        ConfidentialInit {
+            init_payload: MLSInit::NodeJoin {
+                add: temporary_mls_init(keypackage),
+                commit: vec![],
+            },
+        },
     );
     let transaction: NodeJoinRequestTx = NodeJoinRequestTx {
         nonce,

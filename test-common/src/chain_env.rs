@@ -22,8 +22,8 @@ use chain_core::init::config::{
     SlashRatio, SlashingParameters,
 };
 use chain_core::state::account::{
-    ConfidentialInit, CouncilNodeMeta, NodeMetadata, NodeName, NodeSecurityContact, NodeState,
-    StakedState, StakedStateAddress, StakedStateDestination, StakedStateOpAttributes,
+    ConfidentialInit, CouncilNodeMeta, MLSInit, NodeMetadata, NodeName, NodeSecurityContact,
+    NodeState, StakedState, StakedStateAddress, StakedStateDestination, StakedStateOpAttributes,
     StakedStateOpWitness, UnbondTx, Validator as ChainValidator,
 };
 use chain_core::state::tendermint::{
@@ -35,6 +35,11 @@ use chain_core::tx::witness::EcdsaSignature;
 use chain_core::tx::{data::TxId, TransactionId, TxAux, TxPublicAux};
 use chain_storage::buffer::Get;
 use chain_storage::{Storage, NUM_COLUMNS};
+
+use mls::{
+    message::Add, message::ContentType, message::MLSPlaintext, message::MLSPlaintextCommon,
+    message::Proposal, message::Sender, message::SenderType, Codec, KeyPackage,
+};
 
 const TEST_CHAIN_ID: &str = "test-00";
 
@@ -134,9 +139,44 @@ pub fn mock_council_node_meta(consensus_pubkey: TendermintValidatorPubKey) -> Co
     )
 }
 
+pub fn mock_council_node_join(consensus_pubkey: TendermintValidatorPubKey) -> NodeMetadata {
+    NodeMetadata::new_council_node_with_details(
+        "no-name".to_string(),
+        None,
+        consensus_pubkey,
+        mock_confidential_init_node_join(),
+    )
+}
+
+pub fn mock_confidential_init_node_join() -> ConfidentialInit {
+    let sender = Sender {
+        sender_type: SenderType::Member,
+        sender: 0,
+    };
+    let kp = KeyPackage::read_bytes(KEYPACKAGE_VECTOR).unwrap();
+    let add_content = MLSPlaintextCommon {
+        group_id: vec![],
+        epoch: 0,
+        sender,
+        authenticated_data: vec![],
+        content: ContentType::Proposal(Proposal::Add(Add { key_package: kp })),
+    };
+    let plain = MLSPlaintext {
+        content: add_content,
+        signature: vec![],
+    };
+
+    ConfidentialInit {
+        init_payload: MLSInit::NodeJoin {
+            add: plain.get_encoding(),
+            commit: vec![],
+        },
+    }
+}
+
 pub fn mock_confidential_init() -> ConfidentialInit {
     ConfidentialInit {
-        keypackage: KEYPACKAGE_VECTOR.to_vec(),
+        init_payload: MLSInit::Genesis(KEYPACKAGE_VECTOR.to_vec()),
     }
 }
 
@@ -302,11 +342,13 @@ impl ChainEnv {
     }
 
     pub fn join_tx(&self, nonce: u64, account_index: usize) -> TxAux {
+        let mut node_meta = self.council_nodes[account_index].1.clone();
+        node_meta.node_info.confidential_init = mock_confidential_init_node_join();
         let tx = NodeJoinRequestTx::new(
             nonce,
             self.accounts[account_index].staking_address(),
             StakedStateOpAttributes::new(0),
-            NodeMetadata::CouncilNode(self.council_nodes[account_index].1.clone()),
+            NodeMetadata::CouncilNode(node_meta),
         );
         let secp = Secp256k1::new();
         let witness = StakedStateOpWitness::new(get_ecdsa_witness(

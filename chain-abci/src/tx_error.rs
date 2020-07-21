@@ -1,5 +1,5 @@
 use chain_core::init::coin::{Coin, CoinError};
-use mls::keypackage;
+use mls::extras::{self};
 
 #[derive(thiserror::Error, Debug)]
 pub enum TxError {
@@ -53,10 +53,10 @@ pub enum NodeJoinError {
     IsJailed,
     #[error("the used_validator_addresses queue is full")]
     UsedValidatorAddrFull,
-    #[error("key package decode failed")]
-    KeyPackageDecodeError,
-    #[error("invalid key package: {0}")]
-    KeyPackageVerifyError(#[from] keypackage::Error),
+    #[error("failed to decode Add proposal and Commit message")]
+    InvalidMLSInitData,
+    #[error("invalid mls init data: {0}")]
+    MLSInitVerifyError(#[from] extras::NodeJoinError),
     #[error("FIXME: WIP -- community node not yet supported")]
     WIPNotValidator,
 }

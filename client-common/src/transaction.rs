@@ -11,6 +11,10 @@ use chain_core::tx::data::output::TxOut;
 use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::{PlainTxAux, TransactionId, TxWithOutputs};
+use mls::{
+    message::Add, message::ContentType, message::MLSPlaintext, message::MLSPlaintextCommon,
+    message::Proposal, message::Sender, message::SenderType, Codec, KeyPackage,
+};
 
 /// A struct which the sender can download and the receiver can import
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
@@ -153,4 +157,27 @@ impl Into<PlainTxAux> for SignedTransaction {
             }
         }
     }
+}
+
+/// temporary hack
+/// FIXME: detele this, the correct payload should be fetched via TDBE connecting to other node's TDBE
+/// when that's implemented + validated
+pub fn temporary_mls_init(kp: Vec<u8>) -> Vec<u8> {
+    let key_package = KeyPackage::read_bytes(&kp).expect("it was validated before");
+    let sender = Sender {
+        sender_type: SenderType::Member,
+        sender: 0,
+    };
+    let add_content = MLSPlaintextCommon {
+        group_id: vec![],
+        epoch: 0,
+        sender,
+        authenticated_data: vec![],
+        content: ContentType::Proposal(Proposal::Add(Add { key_package })),
+    };
+    MLSPlaintext {
+        content: add_content,
+        signature: vec![],
+    }
+    .get_encoding()
 }

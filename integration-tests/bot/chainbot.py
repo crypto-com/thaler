@@ -228,7 +228,7 @@ async def app_state_cfg(cfg):
                     'type': 'tendermint/PubKeyEd25519',
                     'value': SigningKey(node['validator_seed']).pub_key_base64(),
                 },
-                {'keypackage': base64.b64encode(keypackage).decode()}  # FIXME: to be designed and implemented
+                {'init_payload': base64.b64encode(keypackage).decode()}  # FIXME: to be designed and implemented
             ]
             for node in cfg['nodes'] if node['bonded_coin'] > 0
         },
