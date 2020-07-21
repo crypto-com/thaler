@@ -227,6 +227,8 @@ def programs(node, app_hash, root_path, cfg):
     chain_abci_port = base_port + 8
     tendermint_rpc_port = base_port + 7
     client_rpc_port = base_port + 9
+    tdbe_1_port = base_port + 4
+    tdbe_2_port = base_port + 5
     def_env = {
         'RUST_BACKTRACE': '1',
         'RUST_LOG': 'info',
@@ -236,6 +238,8 @@ def programs(node, app_hash, root_path, cfg):
     if not cfg.get('mock_mode'):
         commands += [
                 ('tx-query', f"tx-query2-app-runner --enclave-path 'tx-query2-enclave-app.sgxs' --address 127.0.0.1:{tx_query_port} --zmq-conn-str tcp://127.0.0.1:{tx_validation_port} --sp-address 127.0.0.1:8989", dict(def_env)),
+                ('tdbe-1', f"tdb-app-runner --enclave-path 'tdb-enclave-app.sgxs' --address 127.0.0.1:{tdbe_1_port} --zmq-conn-str tcp://127.0.0.1:{tx_validation_port} --sp-address 127.0.0.1:8989", dict(def_env)),
+                ('tdbe-2', f"tdb-app-runner --enclave-path 'tdb-enclave-app.sgxs' --address 127.0.0.1:{tdbe_2_port} --zmq-conn-str tcp://127.0.0.1:{tx_validation_port} --sp-address 127.0.0.1:8989 --tdbe-address 127.0.0.1:{tdbe_1_port} --tdbe-dns-name localhost --txids 37d7eaa7987ab1d6c9d7d4ed4398cb3f326b02d35e2f8e9d8d824fa676fa3ce5", dict(def_env)),
         ]
     commands += [
         ('chain-abci', f"chain-abci -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{tx_validation_port} --data {node_path / Path('chain')} -p {chain_abci_port} --tx_query 127.0.0.1:{tx_query_port}",

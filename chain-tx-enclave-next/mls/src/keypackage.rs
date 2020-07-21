@@ -212,7 +212,7 @@ impl KeyPackage {
         now: Timespec,
     ) -> Result<CertVerifyResult, Error> {
         let info = self.payload.verify(ra_verifier, now)?;
-        let public_key = IdentityPublicKey::new_unsafe(info.public_key.clone());
+        let public_key = IdentityPublicKey::new_unsafe(info.public_key.to_vec());
         public_key
             .verify_signature(&self.payload.get_encoding(), &self.signature)
             .map_err(Error::SignatureVerifyError)?;

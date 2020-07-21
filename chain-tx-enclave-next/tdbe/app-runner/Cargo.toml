@@ -1,16 +1,20 @@
 [package]
-name = "tx-query2-app-runner"
+name = "tdb-app-runner"
 version = "0.6.0"
-authors = ["Crypto.com <chain@crypto.com>"]
+authors = ["Devashish Dixit <devashish@crypto.com>"]
 edition = "2018"
 
 [dependencies]
 aesm-client = {version = "0.5", features = ["sgxs"] }
 enclave-runner = "0.4"
 env_logger = "0.7"
+hex = "0.4"
 log = "0.4"
 sgxs-loaders = "0.2"
 structopt = "0.3"
 tokio = { version = "0.2", features = ["tcp"] }
 
+chain-core = { path = "../../../chain-core" }
+enclave-protocol = { path = "../../../enclave-protocol" }
 enclave-utils = { path = "../../../chain-tx-enclave-next/enclave-utils", features = ["zmq-helper"] }
+tdbe-common = { path = "../tdbe-common" }

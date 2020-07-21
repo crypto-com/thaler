@@ -1411,8 +1411,12 @@ version = "0.6.0"
 dependencies = [
  "aead",
  "aes-gcm",
+ "async_zmq",
+ "futures 0.3.5",
+ "log",
  "rand 0.7.3",
  "sgx-isa",
+ "tokio 0.2.20",
  "zeroize",
 ]
 
@@ -3252,6 +3256,7 @@ dependencies = [
  "ra-common",
  "rustls 0.18.0",
  "serde_json",
+ "sgx-isa",
  "thiserror",
  "webpki",
  "x509-parser",
@@ -4410,6 +4415,53 @@ dependencies = [
 ]
 
 [[package]]
+name = "tdb-app-runner"
+version = "0.6.0"
+dependencies = [
+ "aesm-client",
+ "chain-core",
+ "enclave-protocol",
+ "enclave-runner",
+ "enclave-utils",
+ "env_logger",
+ "hex 0.4.2",
+ "log",
+ "sgxs-loaders",
+ "structopt",
+ "tdbe-common",
+ "tokio 0.2.20",
+]
+
+[[package]]
+name = "tdb-enclave-app"
+version = "0.6.0"
+dependencies = [
+ "chain-core",
+ "enclave-protocol",
+ "enclave-utils",
+ "env_logger",
+ "log",
+ "parity-scale-codec",
+ "ra-client",
+ "ra-enclave",
+ "rs-libc",
+ "rustls 0.18.0",
+ "sgx-isa",
+ "tdbe-common",
+ "thread-pool",
+ "webpki",
+ "zeroize",
+]
+
+[[package]]
+name = "tdbe-common"
+version = "0.6.0"
+dependencies = [
+ "chain-core",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4930,11 +4982,9 @@ name = "tx-query2-app-runner"
 version = "0.6.0"
 dependencies = [
  "aesm-client",
- "async_zmq",
- "enclave-protocol",
  "enclave-runner",
+ "enclave-utils",
  "env_logger",
- "futures 0.3.5",
  "log",
  "sgxs-loaders",
  "structopt",

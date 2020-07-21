@@ -1111,7 +1111,7 @@ fn keypackage_info(keypackage: &KeyPackage) -> Result<String> {
         base64::encode(&keypackage.signature),
         base64::encode(&keypackage.payload.init_key.marshal()),
         extensions,
-        base64::encode(&cert_verify_result.public_key),
+        base64::encode(&cert_verify_result.public_key[..]),
         quote_body,
         quote_report_body,
     );

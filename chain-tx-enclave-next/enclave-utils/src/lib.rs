@@ -1,3 +1,6 @@
+#[cfg(feature = "zmq-helper")]
+pub mod zmq_helper;
+
 #[cfg(all(feature = "sgxstd", target_env = "sgx"))]
 use aead::{generic_array::GenericArray, AeadInPlace, NewAead};
 #[cfg(all(feature = "sgxstd", target_env = "sgx"))]

@@ -9,7 +9,11 @@
 
 #[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
 extern crate sgx_tstd as std;
+
+pub mod codec;
 pub mod error;
+#[cfg(feature = "edp")]
+pub mod tdbe_protocol;
 
 use error::Error as PError;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};

@@ -122,11 +122,26 @@ impl EnclaveCertVerifier {
 
         let attestation_report_oid = Oid::from(OID_EXTENSION_ATTESTATION_REPORT)
             .expect("Unable to parse attestation report OID");
-        let public_key = certificate
+
+        if certificate
             .tbs_certificate
             .subject_pki
             .subject_public_key
-            .data;
+            .data
+            .len()
+            != 65
+        {
+            return Err(EnclaveCertVerifierError::PublicKeyMismatch);
+        }
+
+        let mut public_key = [0; 65];
+        public_key.copy_from_slice(
+            certificate
+                .tbs_certificate
+                .subject_pki
+                .subject_public_key
+                .data,
+        );
 
         let extension = certificate
             .tbs_certificate
@@ -134,11 +149,10 @@ impl EnclaveCertVerifier {
             .iter()
             .find(|ext| ext.0 == &attestation_report_oid)
             .ok_or(EnclaveCertVerifierError::MissingAttestationReport)?;
-        let quote = self.verify_attestation_report(extension.1.value, public_key, now)?;
-        Ok(CertVerifyResult {
-            public_key: public_key.to_vec(),
-            quote,
-        })
+
+        let quote = self.verify_attestation_report(extension.1.value, &public_key, now)?;
+
+        Ok(CertVerifyResult { public_key, quote })
     }
 
     fn get_trust_anchor(&self) -> Vec<TrustAnchor> {
@@ -239,19 +253,33 @@ impl EnclaveCertVerifier {
                 return Err(EnclaveCertVerifierError::MeasurementMismatch);
             }
 
-            if let Some(ref mr_enclave) = enclave_info.mr_enclave {
-                if mr_enclave != &quote.report_body.measurement.mr_enclave {
-                    return Err(EnclaveCertVerifierError::MeasurementMismatch);
+            // SVN verification: https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md#svn-verification--compilation-order
+            match (
+                enclave_info.isv_svn,
+                enclave_info.mr_enclave,
+                enclave_info.previous_mr_enclave,
+            ) {
+                // Case 1: If `isv_svn` is the same, then `mr_enclave` should be the same
+                (isv_svn, mr_enclave, _)
+                    if isv_svn == quote.report_body.isv_svn
+                        && mr_enclave == quote.report_body.measurement.mr_enclave =>
+                {
+                    Ok(())
                 }
-            }
-
-            if enclave_info.cpu_svn > quote.report_body.cpu_svn {
-                return Err(EnclaveCertVerifierError::MeasurementMismatch);
-            }
-
-            if enclave_info.isv_svn > quote.report_body.isv_svn {
-                return Err(EnclaveCertVerifierError::MeasurementMismatch);
-            }
+                // Case 2: If `isv_svn` is the previous version, then `mr_enclave` should be same
+                // as previous version
+                //
+                // Enclaves are allowed to connect to previous version for supporting upgrades:
+                // - Temporal aspect should be checked/configured by the caller
+                // - When older version is not allowed, caller can set `previous_mr_enclave` as `None`)
+                (isv_svn, _, Some(previous_mr_enclave))
+                    if isv_svn - 1 == quote.report_body.isv_svn
+                        && previous_mr_enclave == quote.report_body.measurement.mr_enclave =>
+                {
+                    Ok(())
+                }
+                _ => Err(EnclaveCertVerifierError::MeasurementMismatch),
+            }?
         }
 
         Ok(quote)
@@ -265,8 +293,10 @@ impl EnclaveCertVerifier {
         config
     }
 
-    /// Converts enclave certificate verifier into server config expected by `rustls`
-    pub fn into_server_config(self) -> ServerConfig {
+    /// Converts enclave certificate verifier into server config (configures current verifier as
+    /// client certificate verifier, i.e., the client should also present a valid certificate with
+    /// attestation report) expected by `rustls`
+    pub fn into_client_verifying_server_config(self) -> ServerConfig {
         let mut server_config = ServerConfig::new(Arc::new(self));
         server_config.versions = vec![rustls::ProtocolVersion::TLSv1_3];
         server_config
@@ -371,9 +401,9 @@ impl From<EnclaveCertVerifierError> for TLSError {
 
 /// Extracted information after success verify attestation certificate
 pub struct CertVerifyResult {
-    /// the returned public key is in uncompressed raw format (65 bytes)
-    pub public_key: Vec<u8>,
-    /// the quote
+    /// Returned public key in enclave certificate. This is in uncompressed raw format (65 bytes).
+    pub public_key: [u8; 65],
+    /// Enclave quote
     pub quote: Quote,
 }
 
