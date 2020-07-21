@@ -42,6 +42,7 @@ pub unsafe extern "C" fn ecall_check_tx(
 ) -> sgx_status_t {
     let mut tx_request_slice = slice::from_raw_parts(tx_request, tx_request_len);
     match IntraEnclaveRequest::decode(&mut tx_request_slice) {
+        Ok(IntraEnclaveRequest::InitChainCheck(network_id)) => ecall_initchain(network_id),
         Ok(IntraEnclaveRequest::ValidateTx { request, tx_inputs }) => {
             validate::handle_validate_tx(request, tx_inputs, response_buf, response_len)
         }

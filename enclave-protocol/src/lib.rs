@@ -63,6 +63,7 @@ pub struct IntraEncryptRequest {
 /// variable length request passed to the tx-validation enclave
 #[derive(Encode, Decode)]
 pub enum IntraEnclaveRequest {
+    InitChainCheck(u8),
     ValidateTx {
         request: Box<VerifyTxRequest>,
         tx_inputs: Option<Vec<SealedLog>>,
@@ -142,6 +143,8 @@ pub fn is_basic_valid_tx_request(
 /// positive response from the enclave
 #[derive(Encode, Decode)]
 pub enum IntraEnclaveResponseOk {
+    /// if the the network id matched
+    InitChainCheck,
     /// returns the actual paid fee + transaction data sealed for the local machine for later lookups
     TxWithOutputs { paid_fee: Fee, sealed_tx: SealedLog },
     /// deposit stake pays minimal fee, so this returns the sum of input amounts -- staked stake's bonded balance is added `input_coins-min_fee`

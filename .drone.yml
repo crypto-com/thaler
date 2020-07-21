@@ -80,7 +80,7 @@ steps:
   - export CARGO_TARGET_DIR=/tmp
   - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
   - make -C chain-tx-enclave/tx-validation
-  - cargo build --features sgx-test --manifest-path chain-abci/Cargo.toml
+  - cargo build --no-default-features --features sgx-test --manifest-path chain-abci/Cargo.toml
   - cd $CARGO_TARGET_DIR/debug
   - ./chain-abci
 
@@ -134,6 +134,6 @@ trigger:
 
 ---
 kind: signature
-hmac: 6805b3eb9f8dc619bbca037606e8cd92f6f29105c586f87e4bba3887cb32165d
+hmac: c9c3f16777a662d40c823a00420fd7a764ffa09bf58643e663b4251a19850798
 
 ...

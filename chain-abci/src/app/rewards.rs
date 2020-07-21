@@ -17,7 +17,7 @@ fn mul_micro(n: u64, rate: u64) -> u64 {
 
 pub type RewardsDistribution = Vec<(StakedStateAddress, Coin)>;
 
-impl<T: EnclaveProxy> ChainNodeApp<T> {
+impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
     /// Distribute rewards pool
     pub fn rewards_try_distribute(&mut self) -> Option<(RewardsDistribution, Coin)> {
         let state = self.last_state.as_mut().unwrap();

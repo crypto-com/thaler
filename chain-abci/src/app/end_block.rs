@@ -7,7 +7,7 @@ use chain_core::common::TendermintEventType;
 use chain_tx_filter::BlockFilter;
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk};
 
-impl<T: EnclaveProxy> ChainNodeApp<T> {
+impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
     /// tags the block with the transaction filter + computes validator set changes
     pub fn end_block_handler(&mut self, req: &RequestEndBlock) -> ResponseEndBlock {
         let mut resp = ResponseEndBlock::new();

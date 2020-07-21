@@ -46,6 +46,17 @@ fn handling_loop<I: Read + Write>(
         match chain_abci.read(&mut request_buf) {
             Ok(n) if n > 0 => match IntraEnclaveRequest::decode(&mut &request_buf.as_slice()[0..n])
             {
+                Ok(IntraEnclaveRequest::InitChainCheck(network_id)) => {
+                    let response: IntraEnclaveResponse = if network_id == NETWORK_HEX_ID {
+                        Ok(IntraEnclaveResponseOk::InitChainCheck)
+                    } else {
+                        Err(Error::WrongChainHexId)
+                    };
+                    write_response(response, &mut chain_abci);
+                    if let Some((_, ref s)) = process_signal {
+                        let _ = s.send(());
+                    }
+                }
                 Ok(IntraEnclaveRequest::ValidateTx { request, tx_inputs }) => {
                     log::debug!("validate tx request");
                     validate::handle_validate_tx(request, tx_inputs, &mut filter, &mut chain_abci);

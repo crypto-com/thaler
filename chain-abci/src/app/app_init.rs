@@ -8,7 +8,14 @@ use parity_scale_codec::{Decode, Encode};
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
-#[cfg(all(not(feature = "mock-enclave"), target_os = "linux"))]
+#[cfg(all(
+    not(feature = "mock-enclave"),
+    not(feature = "legacy"),
+    feature = "edp",
+    target_os = "linux"
+))]
+use crate::enclave_bridge::edp::start_zmq;
+#[cfg(all(not(feature = "mock-enclave"), feature = "legacy", target_os = "linux"))]
 use crate::enclave_bridge::real::start_zmq;
 use crate::enclave_bridge::EnclaveProxy;
 use crate::staking::StakingTable;
@@ -240,7 +247,7 @@ pub fn init_app_hash(conf: &InitConfig, genesis_time: Timespec) -> H256 {
     )
 }
 
-impl<T: EnclaveProxy> ChainNodeApp<T> {
+impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
     fn restore_from_storage(
         tx_validator: T,
         last_app_state: ChainNodeState,
@@ -298,7 +305,7 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
     /// * `tx_query_address` -  address of tx query enclave to supply to clients (if any)
     /// * `enclave_server` -  connection string which ZeroMQ server wrapper around the transaction validation enclave will listen on
     pub fn new_with_storage(
-        tx_validator: T,
+        mut tx_validator: T,
         gah: &str,
         chain_id: &str,
         mut storage: Storage,
@@ -312,8 +319,20 @@ impl<T: EnclaveProxy> ChainNodeApp<T> {
             .expect("failed to decode two last hex digits in chain ID")[0];
 
         if let (Some(_), Some(_conn_str)) = (tx_query_address.as_ref(), enclave_server.as_ref()) {
-            #[cfg(all(not(feature = "mock-enclave"), target_os = "linux"))]
+            #[cfg(all(not(feature = "mock-enclave"), feature = "legacy", target_os = "linux"))]
             let _ = start_zmq(_conn_str, chain_hex_id, storage.get_read_only());
+            #[cfg(all(
+                not(feature = "mock-enclave"),
+                not(feature = "legacy"),
+                feature = "edp",
+                target_os = "linux"
+            ))]
+            let _ = start_zmq(
+                tx_validator.clone(),
+                _conn_str,
+                chain_hex_id,
+                storage.get_read_only(),
+            );
         }
 
         if let Some(data) = storage.get_last_app_state() {

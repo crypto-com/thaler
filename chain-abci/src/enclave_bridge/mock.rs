@@ -1,7 +1,9 @@
 use chain_core::state::account::DepositBondTx;
 use chain_core::tx::{PlainTxAux, TxEnclaveAux, TxWithOutputs};
 use chain_tx_filter::BlockFilter;
-use chain_tx_validation::{verify_bonded_deposit_core, verify_transfer, verify_unbonded_withdraw};
+use chain_tx_validation::{
+    verify_bonded_deposit_core, verify_transfer, verify_unbonded_withdraw, Error,
+};
 use enclave_protocol::IntraEnclaveResponseOk;
 use mock_utils::{decrypt, seal, unseal};
 
@@ -10,6 +12,16 @@ use super::*;
 pub struct MockClient {
     chain_hex_id: u8,
     filter: BlockFilter,
+}
+
+impl Clone for MockClient {
+    fn clone(&self) -> Self {
+        MockClient {
+            chain_hex_id: self.chain_hex_id,
+            // incorrect, but this is a mock -- shouldn't matter
+            filter: BlockFilter::default(),
+        }
+    }
 }
 
 impl MockClient {
@@ -37,7 +49,7 @@ impl MockClient {
 }
 
 impl EnclaveProxy for MockClient {
-    fn check_chain(&self, network_id: u8) -> Result<(), ()> {
+    fn check_chain(&mut self, network_id: u8) -> Result<(), ()> {
         if self.chain_hex_id == network_id {
             Ok(())
         } else {
@@ -47,6 +59,10 @@ impl EnclaveProxy for MockClient {
 
     fn process_request(&mut self, request: IntraEnclaveRequest) -> IntraEnclaveResponse {
         match &request {
+            IntraEnclaveRequest::InitChainCheck(network_id) => self
+                .check_chain(*network_id)
+                .map(|_| IntraEnclaveResponseOk::InitChainCheck)
+                .map_err(|_| Error::WrongChainHexId),
             IntraEnclaveRequest::EndBlock => {
                 let maybe_filter = if self.filter.is_modified() {
                     Some(Box::new(self.filter.get_raw()))

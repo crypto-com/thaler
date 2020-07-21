@@ -7,9 +7,11 @@ readme = "README.md"
 edition = "2018"
 
 [features]
-default = []
-sgx-test = []
+default = ["edp"]
+sgx-test = ["legacy"]
 mock-enclave = []
+edp = ["aesm-client", "enclave-runner", "sgxs-loaders", "tokio"]
+legacy = ["enclave-u-common", "sgx_types", "sgx_urts"]
 
 [dependencies]
 abci = "0.7"
@@ -21,6 +23,11 @@ enclave-protocol = { path = "../enclave-protocol" }
 mock-utils = { path = "../chain-tx-enclave/mock-utils" }
 mls = { path = "../chain-tx-enclave-next/mls" }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
+
+aesm-client = {version = "0.5", features = ["sgxs"], optional = true }
+enclave-runner = {version = "0.4", optional = true}
+sgxs-loaders = {version = "0.2", optional = true}
+tokio = { version = "0.2", optional = true }
 
 log = "0.4.11"
 env_logger = "0.7.1"
@@ -39,9 +46,9 @@ parity-scale-codec = { features = ["derive"], version = "1.3" }
 thiserror = "1.0"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-enclave-u-common = { path = "../chain-tx-enclave/enclave-u-common" }
-sgx_types = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_urts = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+enclave-u-common = { path = "../chain-tx-enclave/enclave-u-common", optional = true }
+sgx_types = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
+sgx_urts = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
 zmq = "0.9"
 rand = "0.7"
 

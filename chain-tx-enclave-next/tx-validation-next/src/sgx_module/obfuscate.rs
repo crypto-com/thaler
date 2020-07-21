@@ -27,7 +27,7 @@ const MOCK_KEY: [u8; 16] = mock_key!();
 pub(crate) fn encrypt(tx: TxToObfuscate) -> TxObfuscated {
     let init_vector: [u8; 12] = rand::random();
     let key = GenericArray::clone_from_slice(&MOCK_KEY);
-    let aead = Aes128GcmSiv::new(key);
+    let aead = Aes128GcmSiv::new(&key);
     let nonce = GenericArray::from_slice(&init_vector);
     let ciphertext = aead.encrypt(nonce, &tx).expect("encryption failure!");
     TxObfuscated {
@@ -40,7 +40,7 @@ pub(crate) fn encrypt(tx: TxToObfuscate) -> TxObfuscated {
 
 pub(crate) fn decrypt(tx: &TxObfuscated) -> Result<PlainTxAux, ()> {
     let key = GenericArray::clone_from_slice(&MOCK_KEY);
-    let aead = Aes128GcmSiv::new(key);
+    let aead = Aes128GcmSiv::new(&key);
     let nonce = GenericArray::from_slice(&tx.init_vector);
     let plaintext = aead.decrypt(nonce, tx).map_err(|_| ())?;
     let result = PlainTxAux::decode(&mut plaintext.as_slice());
