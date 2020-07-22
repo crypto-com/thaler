@@ -1407,9 +1407,9 @@ dependencies = [
 
 [[package]]
 name = "enclave-runner"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "30403bc2e2fd0d46290ab89c44ca8ed0c4bc3d0f5b2d699231a1c75a7cef2e0d"
+checksum = "019bee453cf919a820b4398a5dfcc229908a3956c35866de5e8fcbab074ad921"
 dependencies = [
  "crossbeam",
  "failure",
