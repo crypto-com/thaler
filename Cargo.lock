@@ -2734,9 +2734,9 @@ dependencies = [
 
 [[package]]
 name = "non-empty-vec"
-version = "0.1.0"
+version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bf1a3f9e432bc56ff35b4c82f47c50d8790c29c14a04a5fcf3562de7fd26085"
+checksum = "86e72830c101d3eeade5cdc374b7162b047d9afe9ac4cff5fc8795985bf874ab"
 
 [[package]]
 name = "num-bigint"
