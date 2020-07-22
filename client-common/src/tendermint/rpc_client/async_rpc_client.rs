@@ -123,8 +123,11 @@ impl AsyncRpcClient {
             let method = batch_params[i].0;
             let params = &batch_params[i].1;
 
-            let response = self.receive_response(method, params, &id, receiver).await?;
-            responses.push(response);
+            if let Ok(response) = self.receive_response(method, params, &id, receiver).await {
+                responses.push(response);
+            } else {
+                break;
+            }
         }
 
         Ok(responses)
@@ -154,18 +157,16 @@ impl AsyncRpcClient {
         let response_values = self.request_batch(batch_params).await?;
         let mut responses = Vec::with_capacity(response_values.len());
 
-        for (i, response_value) in response_values.into_iter().enumerate() {
-            let method = batch_params[i].0;
-            let params = &batch_params[i].1;
-
-            let response = serde_json::from_value(response_value).with_context(|| {
-                format!(
-                    "Unable to deserialize `{}` from JSON-RPC response for params: {:?}",
-                    method, params
-                )
-            })?;
-
-            responses.push(response);
+        for response_value in response_values.into_iter() {
+            match serde_json::from_value(response_value) {
+                Ok(response) => {
+                    responses.push(response);
+                }
+                Err(err) => {
+                    log::error!("rpc call fail: {:?}", err);
+                    break;
+                }
+            }
         }
 
         Ok(responses)

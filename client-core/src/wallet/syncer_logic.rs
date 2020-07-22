@@ -343,6 +343,12 @@ mod tests {
         }
         FilteredBlock {
             app_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C".to_owned(),
+            last_app_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                .to_owned(),
+            block_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                .to_owned(),
+            last_block_hash: "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                .to_owned(),
             block_height: 1,
             block_time: Time::from_str("2019-04-09T09:38:41.735577Z").unwrap(),
             valid_transaction_fees,

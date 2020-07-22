@@ -12,14 +12,22 @@ import configparser
 import binascii
 # import time
 import shutil
+import datetime
 
 import jsonpatch
 import fire
 import toml
 import nacl.signing
 from nacl.encoding import HexEncoder
+from decouple import config
 
 PASSPHRASE = '123456'
+CARGO_TARGET_DIR = config('CARGO_TARGET_DIR', '../target')
+MLS_ENCLAVE_PATH = config(
+    'MLS_ENCLAVE_PATH',
+    os.path.join(CARGO_TARGET_DIR,
+                 'x86_64-fortanix-unknown-sgx/debug/mls.sgxs')
+)
 
 
 class SigningKey:
@@ -172,11 +180,20 @@ def extract_enckey(s):
     return re.search(rb'Authentication token: ([0-9a-fA-F]+)', s).group(1).decode()
 
 
-def app_state_cfg(cfg):
-    mock_keypackage = open(os.path.join(
-        os.path.dirname(__file__),
-        '../../chain-tx-enclave-next/mls/tests/test_vectors/keypackage.bin'
-    ), 'rb').read()
+async def gen_keypackage(mock_mode):
+    if mock_mode:
+        return open(os.path.join(
+            os.path.dirname(__file__),
+            '../../chain-tx-enclave-next/mls/tests/test_vectors/keypackage.bin'
+        ), 'rb').read()
+    else:
+        temp = tempfile.NamedTemporaryFile()
+        await run(f'dev-utils keypackage generate --path {MLS_ENCLAVE_PATH} --output {temp.name}')
+        return base64.b64decode(temp.read())
+
+
+async def app_state_cfg(cfg):
+    keypackage = await gen_keypackage(cfg.get('mock_mode', False))
     return {
         "distribution": gen_distribution(cfg),
         "required_council_node_stake": "100000000",  # 10 coins
@@ -211,7 +228,7 @@ def app_state_cfg(cfg):
                     'type': 'tendermint/PubKeyEd25519',
                     'value': SigningKey(node['validator_seed']).pub_key_base64(),
                 },
-                {'keypackage': base64.b64encode(mock_keypackage).decode()}  # FIXME: to be designed and implemented
+                {'keypackage': base64.b64encode(keypackage).decode()}  # FIXME: to be designed and implemented
             ]
             for node in cfg['nodes'] if node['bonded_coin'] > 0
         },
@@ -284,17 +301,6 @@ def tasks_ini(node_cfgs, app_hash, root_path, cfg):
             'serverurl': 'unix://%(here)s/supervisor.sock',
         },
     }
-    if not cfg.get('mock_mode'):
-        ini['program:ra-sp-server'] = {
-            'command': f'ra-sp-server --quote-type Unlinkable --ias-key {os.environ["IAS_API_KEY"]} --spid {os.environ["SPID"]}',
-            'stdout_logfile': '%(here)s/logs/ra-sp-server.log',
-            'autostart': 'true',
-            'autorestart': 'true',
-            'redirect_stderr': 'true',
-            'priority': '10',
-            'startsecs': '3',
-            'startretries': '10',
-        }
 
     ini['program:mock_hardware_key_storage'] = {
         'command': f'mock_hardware_wallet',
@@ -399,7 +405,7 @@ async def gen_genesis(cfg):
     }
 
     patch = jsonpatch.JsonPatch(cfg['chain_config_patch'])
-    cfg['genesis_fingerprint'], genesis = await fix_genesis(genesis, patch.apply(app_state_cfg(cfg)))
+    cfg['genesis_fingerprint'], genesis = await fix_genesis(genesis, patch.apply(await app_state_cfg(cfg)))
     return genesis
 
 
@@ -621,7 +627,7 @@ class CLI:
     def _prepare(self, cfg):
         asyncio.run(init_cluster(cfg))
 
-    def prepare(self, spec=None, base_port=None, mock_mode=None, start_client_rpc=None):
+    def prepare(self, spec=None, base_port=None, mock_mode=None, start_client_rpc=None, genesis_time=None):
         '''Prepare tendermint testnet based on specification
         :param spec: Path of specification file, [default: stdin]
         '''
@@ -633,6 +639,10 @@ class CLI:
             cfg['mock_mode'] = mock_mode
         if start_client_rpc is not None:
             cfg['start_client_rpc'] = start_client_rpc
+        if genesis_time is not None:
+            if genesis_time == 'now':
+                genesis_time = datetime.datetime.utcnow().isoformat('T') + 'Z'
+            cfg['genesis_time'] = genesis_time
         self._prepare(cfg)
         print(
             'Prepared succesfully',

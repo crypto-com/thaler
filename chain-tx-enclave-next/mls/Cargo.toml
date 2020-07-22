@@ -7,7 +7,7 @@ readme = "../../README.md"
 edition = "2018"
 
 [dependencies]
-ring = "0.16"
+ring = "0.16.15"
 thiserror = "1.0"
 rustls = "0.18"
 x509-parser = "0.8.0-beta4"

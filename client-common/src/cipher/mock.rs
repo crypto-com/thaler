@@ -48,10 +48,7 @@ where
             .collect::<Result<Vec<_>>>()
             .expect("abci_query failed");
 
-        let sealed_logs = rsps
-            .into_iter()
-            .map(|rsp| rsp.value.expect("sealed log query failed"))
-            .collect::<Vec<_>>();
+        let sealed_logs = rsps.into_iter().map(|rsp| rsp.value).collect::<Vec<_>>();
 
         let txs = sealed_logs
             .into_iter()
@@ -95,7 +92,6 @@ fn checked_unseal(payload: &[u8], _private_key: &PrivateKey) -> Option<TxWithOut
 mod tests {
     use super::*;
 
-    use crate::tendermint::lite;
     use crate::tendermint::types::*;
     use crate::PrivateKey;
     use chain_core::state::ChainState;
@@ -135,14 +131,6 @@ mod tests {
             unreachable!()
         }
 
-        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-            &self,
-            _state: lite::TrustedState,
-            _heights: T,
-        ) -> Result<(Vec<Block>, lite::TrustedState)> {
-            unreachable!()
-        }
-
         fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
             unreachable!()
         }
@@ -155,7 +143,7 @@ mod tests {
             _prove: bool,
         ) -> Result<AbciQuery> {
             Ok(AbciQuery {
-                value: Some(seal(&TxWithOutputs::Transfer(Tx::default()))),
+                value: seal(&TxWithOutputs::Transfer(Tx::default())),
                 ..Default::default()
             })
         }

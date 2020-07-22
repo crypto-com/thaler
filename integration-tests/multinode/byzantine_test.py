@@ -18,6 +18,8 @@ VALIDATOR_SEED = '3d96c3c476e463bdcd751c9bf1715b7da37229ac00be33f34496797ca892b6
 BASE_PORT = int(os.environ.get('BASE_PORT', 26650))
 supervisor = UnixStreamXMLRPCClient('data/supervisor.sock')
 rpc = get_rpc()
+# wait for at least one block generated
+wait_for_blocks(rpc, 1, height=0)
 
 # stop node1
 print('Stop node1')

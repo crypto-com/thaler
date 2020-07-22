@@ -554,7 +554,6 @@ mod tests {
     use chain_core::tx::{PlainTxAux, TxEnclaveAux, TxObfuscated};
     use chain_tx_validation::witness::verify_tx_recover_address;
     use client_common::storage::MemoryStorage;
-    use client_common::tendermint::lite;
     use client_common::tendermint::mock;
     use client_common::tendermint::types::*;
     use client_common::{seckey::derive_enckey, PrivateKey, PublicKey, Transaction};
@@ -645,14 +644,6 @@ mod tests {
             unreachable!()
         }
 
-        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-            &self,
-            _state: lite::TrustedState,
-            _heights: T,
-        ) -> Result<(Vec<Block>, lite::TrustedState)> {
-            unreachable!()
-        }
-
         fn block_results_batch<'a, T: Iterator<Item = &'a u64>>(
             &self,
             _heights: T,
@@ -690,7 +681,7 @@ mod tests {
             );
 
             Ok(AbciQuery {
-                value: Some(Some(staked_state).encode()),
+                value: Some(staked_state).encode(),
                 ..Default::default()
             })
         }
@@ -741,14 +732,6 @@ mod tests {
             unreachable!()
         }
 
-        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-            &self,
-            _state: lite::TrustedState,
-            _heights: T,
-        ) -> Result<(Vec<Block>, lite::TrustedState)> {
-            unreachable!()
-        }
-
         fn broadcast_transaction(&self, _: &[u8]) -> Result<BroadcastTxResponse> {
             unreachable!()
         }
@@ -770,7 +753,7 @@ mod tests {
             );
 
             Ok(AbciQuery {
-                value: Some(Some(staked_state).encode()),
+                value: Some(staked_state).encode(),
                 ..Default::default()
             })
         }

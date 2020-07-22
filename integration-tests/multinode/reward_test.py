@@ -32,10 +32,10 @@ rpc = get_rpc()
 rpc2 = get_rpc(2)
 init_bonded = 90000000000000000
 
+wait_for_blocks(rpc, 2, height=0)
+
 os.environ['ENCKEY'] = rpc.wallet.enckey()
 bonded_staking = rpc.address.list()[0]
-
-wait_for_blocks(rpc, 2, height=0)
 
 # first reward distribution
 # minted = 6978080000

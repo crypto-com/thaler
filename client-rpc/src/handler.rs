@@ -3,12 +3,14 @@ use jsonrpc_core::IoHandler;
 use chain_core::tx::fee::FeeAlgorithm;
 use client_common::cipher::TransactionObfuscation;
 use client_common::storage::SledStorage;
-use client_common::tendermint::WebsocketRpcClient;
+use client_common::tendermint::{types::GenesisExt, Client, WebsocketRpcClient};
 use client_common::Result;
 use client_core::service::HwKeyService;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
-use client_core::wallet::syncer::{ObfuscationSyncerConfig, SyncerOptions};
+use client_core::wallet::syncer::{
+    spawn_light_client_supervisor, ObfuscationSyncerConfig, SyncerOptions,
+};
 use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
 
@@ -30,7 +32,7 @@ type AppWalletClient<O, F> = DefaultWalletClient<
 >;
 type AppOpsClient<O, F> =
     DefaultNetworkOpsClient<AppWalletClient<O, F>, SledStorage, WebsocketRpcClient, F, O>;
-type AppSyncerConfig<O> = ObfuscationSyncerConfig<SledStorage, WebsocketRpcClient, O>;
+type AppSyncerConfig<O, L> = ObfuscationSyncerConfig<SledStorage, WebsocketRpcClient, O, L>;
 
 #[derive(Clone)]
 pub struct RpcHandler {
@@ -63,11 +65,17 @@ impl RpcHandler {
             fee_policy.clone(),
             tendermint_client.clone(),
         )?;
+        let handle = spawn_light_client_supervisor(
+            storage_dir.as_ref(),
+            websocket_url,
+            tendermint_client.genesis()?.trusting_period(),
+        )?;
         let syncer_config = AppSyncerConfig::new(
             storage.clone(),
             tendermint_client.clone(),
             obfuscation.clone(),
             sync_options,
+            handle.clone(),
         );
 
         #[cfg(feature = "experimental")]
@@ -80,7 +88,8 @@ impl RpcHandler {
         let sync_wallet_client =
             make_wallet_client(storage, tendermint_client, fee_policy, obfuscation)?;
 
-        let sync_rpc = SyncRpcImpl::new(syncer_config, progress_callback, sync_wallet_client);
+        let sync_rpc =
+            SyncRpcImpl::new(syncer_config, progress_callback, sync_wallet_client, handle);
         let wallet_rpc = WalletRpcImpl::new(wallet_client, network_id);
 
         #[cfg(feature = "experimental")]

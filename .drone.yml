@@ -38,7 +38,9 @@ steps:
     IAS_API_KEY:
       from_secret: IAS_API_KEY
   commands:
+  - export CARGO_HOME=$PWD/drone/cargo
   - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export PATH=$CARGO_HOME/bin:$PATH
   - export PYTHON_VENV_DIR=$PWD/drone/venv
   - export CRYPTO_CHAIN_ENABLE_SANITY_CHECKS=1
   - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
@@ -59,7 +61,7 @@ steps:
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
   - export CARGO_TARGET_DIR=$PWD/drone/target
-  - export PATH=$CARGO_HOME/bin:$CARGO_TARGET_DIR/debug:$PATH
+  - export PATH=$CARGO_HOME/bin:$PATH
   - export PYTHON_VENV_DIR=$PWD/drone/venv
   - export CRYPTO_CHAIN_ENABLE_SANITY_CHECKS=1
   - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
@@ -134,6 +136,6 @@ trigger:
 
 ---
 kind: signature
-hmac: c9c3f16777a662d40c823a00420fd7a764ffa09bf58643e663b4251a19850798
+hmac: 3dce97b3e6be0fc210afbdb02e08038d0b64ee09ce8d3af530dddf29770ea00a
 
 ...

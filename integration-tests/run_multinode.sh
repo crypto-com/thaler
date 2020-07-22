@@ -39,8 +39,11 @@ function wait_port() {
     echo "Wait for tcp port $1"
     for i in $(seq 0 20);
     do
+        set +e
         python -c "import socket; sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); sock.connect(('127.0.0.1', $1))" 2> /dev/null
-        if [ $? -eq 0 ]; then
+        RETCODE=$?
+        set -e
+        if [ $RETCODE -eq 0 ]; then
             echo "Tcp port $1 is available now"
             return 0
         fi
@@ -50,22 +53,15 @@ function wait_port() {
     return 1
 }
 
-function wait_service() {
-    # ra-sp-server
-    wait_port 8989 &&
-    # tendermint rpc of first node
-    wait_port $TENDERMINT_RPC_PORT
-}
-
 function runtest() {
     echo "Preparing... $1"
-    chainbot.py prepare multinode/$1_cluster.json --base_port $BASE_PORT $CHAINBOT_ARGS
+    chainbot.py prepare multinode/$1_cluster.json --base_port $BASE_PORT $CHAINBOT_ARGS --genesis_time now
     export CRYPTO_GENESIS_FINGERPRINT=`python -c "import json; print(json.load(open('data/info.json'))['genesis_fingerprint'])"`
     echo "genesis fingerprint: $CRYPTO_GENESIS_FINGERPRINT"
 
     echo "Startup..."
     supervisord -n -c data/tasks.ini &
-    if ! wait_service; then
+    if ! wait_port $TENDERMINT_RPC_PORT; then
         echo 'tendermint of first node still not ready, giveup.'
         RETCODE=1
     else
@@ -81,7 +77,7 @@ function runtest() {
 
     echo "Quit supervisord..."
     kill -QUIT `cat data/supervisord.pid`
-    wait
+    wait `cat data/supervisord.pid`
     rm -r data
     rm supervisord.log
 
@@ -92,10 +88,24 @@ if [ -d data ]; then
     echo "Last run doesn't quit cleanly, please quit supervisord daemon and remove integration-tests/data manually."
     exit 1;
 fi
+mkdir data
+
+if [ $BUILD_MODE == "sgx" ]; then
+    echo "Starting ra-sp-server..."
+    (set +e; while true; do ra-sp-server --ias-key $IAS_API_KEY --quote-type Unlinkable --spid $SPID; done) &
+    echo $! > data/ra-sp-server.pid
+    wait_port 8989
+fi
 
 runtest "join" # non-live fault slash, re-join, unbond, re-join
 runtest "byzantine" # make byzantine fault and check jailed, then unjail and re-join again
 runtest "multitx" # make multiple transactions in one block
 runtest "reward" # check reward amount, no reward for jailed node
+
+if [ -f data/ra-sp-server.pid ]; then
+    kill `cat data/ra-sp-server.pid`
+    wait
+    rm data/ra-sp-server.pid
+fi
 
 ./cleanup.sh

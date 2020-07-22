@@ -1,4 +1,3 @@
-use crate::tendermint::lite;
 use crate::tendermint::types::*;
 use crate::Result;
 use chain_core::state::ChainState;
@@ -25,13 +24,6 @@ pub trait Client: Send + Sync + Clone {
         &self,
         heights: T,
     ) -> Result<Vec<BlockResultsResponse>>;
-
-    /// Fetch continuous blocks and verify them.
-    fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-        &self,
-        state: lite::TrustedState,
-        heights: T,
-    ) -> Result<(Vec<Block>, lite::TrustedState)>;
 
     /// Makes `broadcast_tx_sync` call to tendermint
     fn broadcast_transaction(&self, transaction: &[u8]) -> Result<BroadcastTxResponse>;

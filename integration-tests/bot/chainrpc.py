@@ -72,13 +72,22 @@ def fix_address_hex(addr):
 
 class Client:
     def __init__(self, tendermint_port, wallet_directory, network_id, mock_mode):
-        self.binding = RpcBinding(
-            wallet_directory,
-            'ws://127.0.0.1:%d/websocket' % tendermint_port,
-            network_id=network_id,
-            mock_mode=mock_mode
-        )
+        self._binding = None
+        self._tendermint_port = tendermint_port
+        self._wallet_directory = wallet_directory
+        self._network_id = network_id
         self.mock_mode = mock_mode
+
+    @property
+    def binding(self):
+        if self._binding is None:
+            self._binding = RpcBinding(
+                self._wallet_directory,
+                'ws://127.0.0.1:%d/websocket' % self._tendermint_port,
+                network_id=self._network_id,
+                mock_mode=self.mock_mode
+            )
+        return self._binding
 
     def call(self, method, *args, **kwargs):
         params = None

@@ -2,8 +2,33 @@
 use indexmap::IndexMap;
 use itertools::{izip, Itertools};
 use non_empty_vec::NonEmpty;
+use std::cmp::{max, Ordering};
 use std::collections::HashMap;
 use std::iter;
+use std::path::Path;
+use std::result;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+pub use tendermint_light_client::supervisor::Handle;
+use tendermint_light_client::{
+    components::{
+        clock::SystemClock,
+        io::{AtHeight, Io, ProdIo},
+        scheduler,
+        verifier::ProdVerifier,
+    },
+    evidence::ProdEvidenceReporter,
+    fork_detector::ProdForkDetector,
+    light_client::{self, LightClient},
+    operations::hasher::{Hasher, ProdHasher},
+    peer_list::PeerList,
+    state::State,
+    store::{sled::SledStore, LightStore},
+    supervisor::{Instance, Supervisor},
+    types::{LightBlock, PeerId, Status, TrustThreshold},
+};
 
 use chain_core::common::H256;
 use chain_core::state::account::StakedStateAddress;
@@ -15,7 +40,7 @@ use chain_core::tx::TransactionId;
 use chain_storage::jellyfish::compute_staking_root;
 use chain_tx_filter::BlockFilter;
 use client_common::tendermint::types::{
-    Block, BlockExt, BlockResults, BlockResultsResponse, Genesis, StatusResponse, Time,
+    Block, BlockExt, BlockResults, BlockResultsResponse, Genesis, Time,
 };
 use client_common::tendermint::Client;
 use client_common::{
@@ -26,6 +51,9 @@ use client_common::{
 use super::syncer_logic::handle_blocks;
 use crate::service;
 use crate::service::{KeyService, SyncState, Wallet, WalletState, WalletStateMemento};
+
+pub trait LightClientHandle: Handle + Send + Sync + Clone {}
+impl<T: Handle + Send + Sync + Clone> LightClientHandle for T {}
 
 pub trait AddressRecovery: Clone + Send + Sync {
     // new_address: transfer address in TxOut
@@ -88,39 +116,50 @@ pub struct SyncerOptions {
 
 /// Common configs for wallet syncer with `TransactionObfuscation`
 #[derive(Clone)]
-pub struct ObfuscationSyncerConfig<S: SecureStorage, C: Client, O: TransactionObfuscation> {
+pub struct ObfuscationSyncerConfig<
+    S: SecureStorage,
+    C: Client,
+    O: TransactionObfuscation,
+    L: LightClientHandle,
+> {
     // services
     pub storage: S,
     pub client: C,
     pub obfuscation: O,
+    pub light_client: L,
 
     // configs
     pub options: SyncerOptions,
 }
 
-impl<S: SecureStorage, C: Client, O: TransactionObfuscation> ObfuscationSyncerConfig<S, C, O> {
+impl<S: SecureStorage, C: Client, O: TransactionObfuscation, L: LightClientHandle>
+    ObfuscationSyncerConfig<S, C, O, L>
+{
     /// Construct ObfuscationSyncerConfig
     pub fn new(
         storage: S,
         client: C,
         obfuscation: O,
         options: SyncerOptions,
-    ) -> ObfuscationSyncerConfig<S, C, O> {
+        light_client: L,
+    ) -> ObfuscationSyncerConfig<S, C, O, L> {
         ObfuscationSyncerConfig {
             storage,
             client,
             obfuscation,
             options,
+            light_client,
         }
     }
 }
 
 /// Common configs for wallet syncer
 #[derive(Clone)]
-pub struct SyncerConfig<S: SecureStorage, C: Client> {
+pub struct SyncerConfig<S: SecureStorage, C: Client, L: LightClientHandle> {
     // services
     storage: S,
     client: C,
+    light_client: L,
 
     // configs
     options: SyncerOptions,
@@ -128,7 +167,13 @@ pub struct SyncerConfig<S: SecureStorage, C: Client> {
 
 /// Wallet Syncer
 #[derive(Clone)]
-pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor, T: AddressRecovery> {
+pub struct WalletSyncer<
+    S: SecureStorage,
+    C: Client,
+    D: TxDecryptor,
+    T: AddressRecovery,
+    L: LightClientHandle,
+> {
     // common
     storage: S,
     client: C,
@@ -139,23 +184,25 @@ pub struct WalletSyncer<S: SecureStorage, C: Client, D: TxDecryptor, T: AddressR
     decryptor: D,
     name: String,
     enckey: SecKey,
+    light_client: L,
 }
 
-impl<S, C, D, T> WalletSyncer<S, C, D, T>
+impl<S, C, D, T, L> WalletSyncer<S, C, D, T, L>
 where
     S: SecureStorage,
     C: Client,
     D: TxDecryptor,
     T: AddressRecovery,
+    L: LightClientHandle,
 {
     /// Construct with common config
     pub fn with_config(
-        config: SyncerConfig<S, C>,
+        config: SyncerConfig<S, C, L>,
         decryptor: D,
         name: String,
         enckey: SecKey,
         recover_address: T,
-    ) -> WalletSyncer<S, C, D, T> {
+    ) -> WalletSyncer<S, C, D, T, L> {
         Self {
             storage: config.storage,
             client: config.client,
@@ -164,6 +211,7 @@ where
             enckey,
             options: config.options,
             recover_address,
+            light_client: config.light_client,
         }
     }
 
@@ -188,20 +236,21 @@ fn load_view_key<S: SecureStorage>(storage: &S, name: &str, enckey: &SecKey) -> 
         })
 }
 
-impl<S, C, O, T> WalletSyncer<S, C, TxObfuscationDecryptor<O>, T>
+impl<S, C, O, T, L> WalletSyncer<S, C, TxObfuscationDecryptor<O>, T, L>
 where
     S: SecureStorage,
     C: Client,
     O: TransactionObfuscation,
     T: AddressRecovery,
+    L: LightClientHandle,
 {
     /// Construct with obfuscation config
     pub fn with_obfuscation_config(
-        config: ObfuscationSyncerConfig<S, C, O>,
+        config: ObfuscationSyncerConfig<S, C, O, L>,
         name: String,
         enckey: SecKey,
         wallet_client: T,
-    ) -> Result<WalletSyncer<S, C, TxObfuscationDecryptor<O>, T>>
+    ) -> Result<WalletSyncer<S, C, TxObfuscationDecryptor<O>, T, L>>
     where
         O: TransactionObfuscation,
     {
@@ -212,6 +261,7 @@ where
                 storage: config.storage,
                 client: config.client,
                 options: config.options,
+                light_client: config.light_client,
             },
             decryptor,
             name,
@@ -229,8 +279,9 @@ struct WalletSyncerImpl<
     D: TxDecryptor,
     F: FnMut(ProgressReport) -> bool,
     T: AddressRecovery,
+    L: LightClientHandle,
 > {
-    env: &'a mut WalletSyncer<S, C, D, T>,
+    env: &'a mut WalletSyncer<S, C, D, T, L>,
     progress_callback: F,
 
     // cached state
@@ -246,9 +297,10 @@ impl<
         D: TxDecryptor,
         F: FnMut(ProgressReport) -> bool,
         T: AddressRecovery,
-    > WalletSyncerImpl<'a, S, C, D, F, T>
+        L: LightClientHandle,
+    > WalletSyncerImpl<'a, S, C, D, F, T, L>
 {
-    fn new(env: &'a mut WalletSyncer<S, C, D, T>, progress_callback: F) -> Result<Self> {
+    fn new(env: &'a mut WalletSyncer<S, C, D, T, L>, progress_callback: F) -> Result<Self> {
         let wallet = service::load_wallet(&env.storage, &env.name, &env.enckey)?
             .err_kind(ErrorKind::InvalidInput, || {
                 format!("wallet not found: {}", env.name)
@@ -376,6 +428,7 @@ impl<
         let block = blocks.last();
         self.sync_state.last_block_height = block.block_height;
         self.sync_state.last_app_hash = block.app_hash.clone();
+        self.sync_state.last_block_hash = block.block_hash.clone();
         self.sync_state.staking_root = block.staking_root;
         self.save(&memento)?;
 
@@ -394,19 +447,58 @@ impl<
                 "Tendermint node is catching up with full node (retry after some time)",
             ));
         }
-        let current_block_height = status.sync_info.latest_block_height.value();
-        if !self.init_progress(current_block_height) {
+        let light_block = self
+            .env
+            .light_client
+            .verify_to_highest()
+            .err_kind(ErrorKind::VerifyError, || "")?;
+
+        let target_height = light_block.signed_header.header.height.value();
+        let target_app_hash = hex::encode_upper(&light_block.signed_header.header.app_hash);
+        let target_block_hash = ProdHasher {}
+            .hash_header(&light_block.signed_header.header)
+            .to_string();
+        if !self.init_progress(target_height) {
             return Err(Error::new(ErrorKind::InvalidInput, "Cancelled by user"));
         }
+        {
+            // wait for the target block results to become available
+            let mut success = false;
+            for _ in 0..10 {
+                if self.env.client.block_results(target_height).is_ok() {
+                    success = true;
+                    break;
+                }
+                thread::sleep(Duration::from_millis(100));
+            }
+            if !success {
+                return Err(Error::new(
+                    ErrorKind::TendermintRpcError,
+                    "block result for highest light block is not available",
+                ));
+            }
+        }
+        self.sync_to(target_height, &target_app_hash, &target_block_hash)?;
+
+        Ok(())
+    }
+
+    fn sync_to(
+        &mut self,
+        target_height: u64,
+        target_app_hash: &str,
+        target_block_hash: &str,
+    ) -> Result<()> {
+        self.sync_state.trusted = false;
 
         // Send batch RPC requests to tendermint in chunks of `batch_size` requests per batch call
-        for chunk in ((self.sync_state.last_block_height + 1)..=current_block_height)
+        for chunk in ((self.sync_state.last_block_height + 1)..=target_height)
             .chunks(self.env.options.batch_size)
             .into_iter()
         {
             let mut batch = Vec::with_capacity(self.env.options.batch_size);
             if self.env.options.enable_fast_forward {
-                if let Some(block) = self.fast_forward_status(&status)? {
+                if let Some(block) = self.fast_forward_status(&target_app_hash, target_height)? {
                     // Fast forward to latest state if possible
                     self.handle_batch((batch, block).into())?;
                     return Ok(());
@@ -426,39 +518,15 @@ impl<
             }
 
             // Fetch batch details if it cannot be fast forwarded
-            let (blocks, trusted_state) = self
-                .env
-                .client
-                .block_batch_verified(self.sync_state.trusted_state.clone(), range.iter())?;
-            self.sync_state.trusted_state = trusted_state;
+            let blocks = self.env.client.block_batch(range.iter())?;
             let block_results = self.env.client.block_results_batch(range.iter())?;
             let states = self.env.client.query_state_batch(range.iter().cloned())?;
 
-            let mut app_hash: Option<H256> = None;
             for (block, block_result, state) in izip!(
                 blocks.into_iter(),
                 block_results.into_iter(),
                 states.into_iter()
             ) {
-                if let Some(app_hash) = app_hash {
-                    if app_hash != block.header.app_hash.as_slice() {
-                        return Err(Error::new(
-                            ErrorKind::VerifyError,
-                            "state app hash don't match block header",
-                        ));
-                    }
-                }
-                app_hash = Some(
-                    state.compute_app_hash(
-                        block_result
-                            .fees()
-                            .chain(|| (ErrorKind::VerifyError, "verify block results"))?
-                            .keys()
-                            .cloned()
-                            .collect(),
-                    ),
-                );
-
                 let block = FilteredBlock::from_block(
                     &self.wallet,
                     &self.wallet_state,
@@ -466,6 +534,29 @@ impl<
                     &block_result,
                     &state,
                 )?;
+
+                // verify app hash chain
+                if !self.sync_state.last_app_hash.is_empty()
+                    && self.sync_state.last_app_hash != block.last_app_hash
+                {
+                    return Err(Error::new(
+                        ErrorKind::VerifyError,
+                        "last app hash don't match",
+                    ));
+                }
+                self.sync_state.last_app_hash = block.app_hash.clone();
+
+                // verify block hash chain
+                if !self.sync_state.last_block_hash.is_empty()
+                    && self.sync_state.last_block_hash != block.last_block_hash
+                {
+                    return Err(Error::new(
+                        ErrorKind::VerifyError,
+                        "last block hash don't match",
+                    ));
+                }
+                self.sync_state.last_block_hash = block.block_hash.clone();
+
                 self.update_progress(block.block_height);
                 batch.push(block);
             }
@@ -473,8 +564,34 @@ impl<
                 self.handle_batch(non_empty_batch)?;
             }
         }
-        // rollback the pending transaction
-        self.rollback_pending_tx(current_block_height)
+
+        match self.sync_state.last_block_height.cmp(&target_height) {
+            Ordering::Equal => {
+                // rollback the pending transaction
+                self.rollback_pending_tx(target_height)?;
+
+                if self.sync_state.last_block_hash != target_block_hash {
+                    return Err(Error::new(
+                        ErrorKind::VerifyError,
+                        "target block hash dont match",
+                    ));
+                };
+                self.sync_state.trusted = true;
+                service::save_sync_state(&self.env.storage, &self.env.name, &self.sync_state)
+            }
+            Ordering::Greater => {
+                // impossible
+                Err(Error::new(
+                    ErrorKind::VerifyError,
+                    "sync block higher than target",
+                ))
+            }
+            Ordering::Less => {
+                // not up-to-date, try again
+                log::warn!("not up to date, sync again");
+                self.sync_to(target_height, target_app_hash, target_block_hash)
+            }
+        }
     }
 
     fn rollback_pending_tx(&mut self, current_block_height: u64) -> Result<()> {
@@ -491,16 +608,12 @@ impl<
     }
 
     /// Fast forwards state to given status if app hashes match
-    fn fast_forward_status(&self, status: &StatusResponse) -> Result<Option<FilteredBlock>> {
-        let current_app_hash = status
-            .sync_info
-            .latest_app_hash
-            .ok_or_else(|| Error::new(ErrorKind::TendermintRpcError, "latest_app_hash not found"))?
-            .to_string();
-
+    fn fast_forward_status(
+        &self,
+        current_app_hash: &str,
+        current_block_height: u64,
+    ) -> Result<Option<FilteredBlock>> {
         if current_app_hash == self.sync_state.last_app_hash {
-            let current_block_height = status.sync_info.latest_block_height.value();
-
             let block = self.env.client.block(current_block_height)?;
             let block_result = self.env.client.block_results(current_block_height)?;
             let states = self
@@ -604,10 +717,7 @@ pub fn get_genesis_sync_state<C: Client>(
             .expect("invalid genesis time")
             .as_secs(),
     );
-    Ok(SyncState::genesis(
-        genesis.validators,
-        compute_staking_root(&accounts),
-    ))
+    Ok(SyncState::genesis(compute_staking_root(&accounts)))
 }
 
 /// A struct for providing progress report for synchronization
@@ -635,10 +745,16 @@ pub enum ProgressReport {
 /// already filtered for current wallet.
 #[derive(Debug)]
 pub(crate) struct FilteredBlock {
-    /// App hash of block
+    /// The result app hash of last block
+    pub last_app_hash: String,
+    /// The result app hash of this block
     pub app_hash: String,
     /// Block height
     pub block_height: u64,
+    /// Hash of last block
+    pub last_block_hash: String,
+    /// Block hash
+    pub block_hash: String,
     /// Block time
     pub block_time: Time,
     /// List of successfully committed transaction ids in this block and their fees
@@ -662,9 +778,26 @@ impl FilteredBlock {
         block_result: &BlockResultsResponse,
         state: &ChainState,
     ) -> Result<FilteredBlock> {
-        let app_hash = hex::encode(&block.header.app_hash);
+        let last_app_hash = hex::encode_upper(&block.header.app_hash);
+        let app_hash = hex::encode_upper(
+            &state.compute_app_hash(
+                block_result
+                    .fees()
+                    .chain(|| (ErrorKind::VerifyError, "verify block results"))?
+                    .keys()
+                    .cloned()
+                    .collect(),
+            ),
+        );
         let block_height = block.header.height.value();
         let block_time = block.header.time;
+        let last_block_hash = block
+            .header
+            .last_block_id
+            .as_ref()
+            .map(|block_id| block_id.hash.to_string())
+            .unwrap_or_default();
+        let block_hash = ProdHasher {}.hash_header(&block.header).to_string();
 
         let block_filter = block_result.block_filter()?;
 
@@ -690,9 +823,12 @@ impl FilteredBlock {
             };
 
         Ok(FilteredBlock {
+            last_app_hash,
             app_hash,
             block_height,
             block_time,
+            block_hash,
+            last_block_hash,
             valid_transaction_fees,
             enclave_transaction_ids,
             block_filter,
@@ -750,6 +886,64 @@ fn filter_incomming_staking_transactions<'a>(
     Ok(Default::default())
 }
 
+fn make_light_client_instance(
+    peer_id: PeerId,
+    addr: tendermint::net::Address,
+    db_path: impl AsRef<Path>,
+    trusting_period: Duration,
+) -> Result<Instance> {
+    let mut peer_map = HashMap::new();
+    peer_map.insert(peer_id, addr);
+
+    let timeout = Duration::from_secs(10);
+    let io = ProdIo::new(peer_map, Some(timeout));
+
+    let db = sled::open(&db_path).err_kind(ErrorKind::InitializationError, || {
+        format!(
+            "Unable to initialize sled storage for light client peer at path: {}",
+            db_path.as_ref().display()
+        )
+    })?;
+
+    let mut light_store = SledStore::new(db);
+
+    if light_store.latest(Status::Verified).is_none() {
+        // FIXME trust height 1 automatically
+        let trusted_state = io
+            .fetch_light_block(peer_id, AtHeight::At(1))
+            .err_kind(ErrorKind::InitializationError, || {
+                "could not retrieve trusted header of block 1"
+            })?;
+        light_store.insert(trusted_state, Status::Verified);
+    }
+    let state = State {
+        light_store: Box::new(light_store),
+        verification_trace: HashMap::new(),
+    };
+
+    let options = light_client::Options {
+        trust_threshold: TrustThreshold {
+            numerator: 1,
+            denominator: 3,
+        },
+        // https://docs.tendermint.com/master/spec/consensus/light-client/verification.html#high-level-solution
+        // set a minimal duration because integration test's unbonding period is too short for
+        // trusting period.
+        trusting_period: max(trusting_period, Duration::from_secs(600)),
+        // allowed clock drift between local clocks and BFT time
+        // https://docs.tendermint.com/master/spec/consensus/light-client/verification.html#failure-model
+        clock_drift: Duration::from_secs(1),
+    };
+
+    let verifier = ProdVerifier::default();
+    let clock = SystemClock;
+    let scheduler = scheduler::basic_bisecting_schedule;
+
+    let light_client = LightClient::new(peer_id, options, clock, scheduler, verifier, io);
+
+    Ok(Instance::new(light_client, state))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -764,7 +958,7 @@ mod tests {
     use chain_core::state::ChainState;
     use client_common::storage::MemoryStorage;
     use client_common::tendermint::types::*;
-    use client_common::tendermint::{lite, Client};
+    use client_common::tendermint::Client;
     use test_common::block_generator::{BlockGenerator, GeneratorClient};
 
     use crate::service::save_sync_state;
@@ -795,11 +989,13 @@ mod tests {
                 gen.gen_block(&[]);
             }
         }
+        let light_client = client.clone();
 
         let mut syncer = WalletSyncer::with_config(
             SyncerConfig {
                 storage,
                 client,
+                light_client,
                 options: SyncerOptions {
                     enable_fast_forward,
                     enable_address_recovery: false,
@@ -863,21 +1059,6 @@ mod tests {
                 ))
                 .expect("tendermint block results batch"));
             }
-            fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-                &self,
-                _state: lite::TrustedState,
-                _heights: T,
-            ) -> Result<(Vec<Block>, lite::TrustedState)> {
-                let blocks: Vec<Block> = serde_json::from_str(&read_asset_file(
-                    "tendermint_block_batch_verified_blocks.json",
-                ))
-                .expect("tendermint block batch verified blocks");
-                let trusted_state: lite::TrustedState = serde_json::from_str(&read_asset_file(
-                    "tendermint_block_batch_verified_trusted_state.json",
-                ))
-                .expect("tendermint block batch verified trusted state");
-                Ok((blocks, trusted_state))
-            }
             fn broadcast_transaction(&self, _transaction: &[u8]) -> Result<BroadcastTxResponse> {
                 unreachable!()
             }
@@ -902,11 +1083,10 @@ mod tests {
                 )
             }
         }
+        impl Handle for MockTendermintClient {}
 
         let storage = MemoryStorage::default();
         let name = "name";
-        let trusted_state: lite::TrustedState =
-            serde_json::from_str(&read_asset_file("sync_state_trusted_state.json")).unwrap();
         save_sync_state(
             &storage,
             name,
@@ -914,8 +1094,10 @@ mod tests {
                 last_block_height: 1745,
                 last_app_hash: "3fe291fd64f1140acfe38988a9f8c5b0cb5da43a0214bbd4000035509ce34205"
                     .to_string(),
+                last_block_hash: "3fe291fd64f1140acfe38988a9f8c5b0cb5da43a0214bbd4000035509ce34205"
+                    .to_string(),
                 staking_root: [0u8; 32],
-                trusted_state,
+                trusted: true,
             },
         )
         .expect("should save sync state");
@@ -927,6 +1109,7 @@ mod tests {
             .new_wallet(name, &wallet_passphrase, WalletKind::Basic, None)
             .expect("create wallet failed");
         let client = MockTendermintClient {};
+        let light_client = client.clone();
 
         let enable_fast_forward = false;
 
@@ -934,6 +1117,7 @@ mod tests {
             SyncerConfig {
                 storage,
                 client,
+                light_client,
                 options: SyncerOptions {
                     enable_fast_forward,
                     enable_address_recovery: false,
@@ -979,11 +1163,13 @@ mod tests {
                 gen.gen_block(&[]);
             }
         }
+        let light_client = client.clone();
 
         let mut syncer = WalletSyncer::with_config(
             SyncerConfig {
                 storage,
                 client,
+                light_client,
                 options: SyncerOptions {
                     enable_fast_forward: false,
                     enable_address_recovery: true,
@@ -1036,11 +1222,13 @@ mod tests {
                 gen.gen_block(&[]);
             }
         }
+        let light_client = client.clone();
 
         let mut syncer = WalletSyncer::with_config(
             SyncerConfig {
                 storage,
                 client,
+                light_client,
                 options: SyncerOptions {
                     enable_fast_forward: false,
                     enable_address_recovery: true,
@@ -1099,5 +1287,111 @@ mod tests {
                 )
                 .unwrap()
         );
+    }
+}
+
+/// [new light client design](https://github.com/informalsystems/tendermint-rs/blob/master/docs/architecture/adr-006-light-client-refactor.md)
+pub fn spawn_light_client_supervisor(
+    db_path: &Path,
+    addr: &str,
+    trusting_period: Duration,
+) -> Result<LightClientWrapper<impl Handle + 'static>> {
+    // convert "ws://host:port/websocket" to "tcp://host:port"
+    let addr = format!(
+        "tcp://{}",
+        strip_prefix(addr, "ws://")
+            .and_then(|addr| strip_suffix(addr, "/websocket"))
+            .err_kind(ErrorKind::InvalidInput, || "invalid tendermint rpc address")?
+    );
+    let addr = tendermint::net::Address::from_str(&addr).unwrap();
+
+    // FIXME use actual tendermint node id as peer id
+    let primary: PeerId = "BADFADAD0BEFEEDC0C0ADEADBEEFC0FFEEFACADE".parse().unwrap();
+    let witness: PeerId = "CEFEEDBADFADAD0C0CEEFACADE0ADEADBEEFC0FF".parse().unwrap();
+
+    let primary_path = db_path.join(primary.to_string());
+    let witness_path = db_path.join(witness.to_string());
+
+    let primary_instance =
+        make_light_client_instance(primary, addr.clone(), primary_path, trusting_period)?;
+    let witness_instance =
+        make_light_client_instance(witness, addr.clone(), witness_path, trusting_period)?;
+
+    let mut peer_addr = HashMap::new();
+    peer_addr.insert(primary, addr.clone());
+    peer_addr.insert(witness, addr);
+
+    let peer_list = PeerList::builder()
+        .primary(primary, primary_instance)
+        .witness(witness, witness_instance)
+        .build();
+    let mut supervisor = Supervisor::new(
+        peer_list,
+        ProdForkDetector::default(),
+        ProdEvidenceReporter::new(peer_addr),
+    );
+    let handle = supervisor.handle();
+    std::thread::spawn(|| supervisor.run());
+    Ok(LightClientWrapper {
+        inner: Arc::new(handle),
+    })
+}
+
+/// A wrapper over light client `Handle` which supports `Clone`
+pub struct LightClientWrapper<L> {
+    inner: Arc<L>,
+}
+
+impl<L> Clone for LightClientWrapper<L> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<L: Handle> Handle for LightClientWrapper<L> {
+    fn latest_trusted(
+        &self,
+    ) -> result::Result<Option<LightBlock>, tendermint_light_client::errors::Error> {
+        self.inner.latest_trusted()
+    }
+
+    /// Verify to the highest block.
+    fn verify_to_highest(
+        &self,
+    ) -> result::Result<LightBlock, tendermint_light_client::errors::Error> {
+        self.inner.verify_to_highest()
+    }
+
+    /// Verify to the block at the given height.
+    fn verify_to_target(
+        &self,
+        height: u64,
+    ) -> result::Result<LightBlock, tendermint_light_client::errors::Error> {
+        self.inner.verify_to_target(height)
+    }
+
+    /// Terminate the underlying [`Supervisor`].
+    fn terminate(&self) -> result::Result<(), tendermint_light_client::errors::Error> {
+        self.inner.terminate()
+    }
+}
+
+/// FIXME change to str::strip_prefix after toolchain upgraded.
+fn strip_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
+    if s.len() >= prefix.len() && &s[0..prefix.len()] == prefix {
+        Some(&s[prefix.len()..])
+    } else {
+        None
+    }
+}
+
+/// FIXME change to str::strip_suffix after toolchain upgraded.
+fn strip_suffix<'a>(s: &'a str, suffix: &str) -> Option<&'a str> {
+    if s.len() >= suffix.len() && &s[s.len() - suffix.len()..s.len()] == suffix {
+        Some(&s[0..s.len() - suffix.len()])
+    } else {
+        None
     }
 }

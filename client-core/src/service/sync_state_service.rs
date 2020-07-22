@@ -1,9 +1,6 @@
 use chain_core::common::H256;
-use client_common::tendermint::lite;
 use client_common::{ErrorKind, Result, ResultExt, Storage};
 use parity_scale_codec::{Decode, Encode};
-use tendermint::validator;
-
 /// key space of wallet sync state
 const KEYSPACE: &str = "core_wallet_sync";
 
@@ -14,20 +11,23 @@ pub struct SyncState {
     pub last_block_height: u64,
     /// last app hash
     pub last_app_hash: String,
-    /// current trusted state for lite client verification
-    pub trusted_state: lite::TrustedState,
+    /// last block hash
+    pub last_block_hash: String,
     /// current trusted staking_root
     pub staking_root: H256,
+    /// Is current synced wallet state trusted
+    pub trusted: bool,
 }
 
 impl SyncState {
     /// construct genesis global state
-    pub fn genesis(genesis_validators: Vec<validator::Info>, staking_root: H256) -> SyncState {
+    pub fn genesis(staking_root: H256) -> SyncState {
         SyncState {
             last_block_height: 0,
             last_app_hash: "".to_owned(),
-            trusted_state: lite::TrustedState::genesis(genesis_validators),
+            last_block_hash: "".to_owned(),
             staking_root,
+            trusted: true,
         }
     }
 }
@@ -109,11 +109,9 @@ where
 #[cfg(test)]
 mod tests {
     use parity_scale_codec::{Decode, Encode};
-    use tendermint::{block::Height, lite};
 
-    use super::{lite::TrustedState, SyncState, SyncStateService};
+    use super::{SyncState, SyncStateService};
     use client_common::storage::MemoryStorage;
-    use test_common::block_generator::{BlockGenerator, GeneratorClient};
 
     #[test]
     fn check_flow() {
@@ -134,8 +132,11 @@ mod tests {
                     last_app_hash:
                         "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
                             .to_string(),
-                    trusted_state: TrustedState::genesis(vec![]),
+                    last_block_hash:
+                        "3891040F29C6A56A5E36B17DCA6992D8F91D1EAAB4439D008D19A9D703271D3C"
+                            .to_string(),
                     staking_root: [0u8; 32],
+                    trusted: true,
                 }
             )
             .is_ok());
@@ -164,26 +165,10 @@ mod tests {
 
     #[test]
     fn check_sync_state_serialization() {
-        let c = GeneratorClient::new(BlockGenerator::one_node());
-        {
-            let mut gen = c.gen.write().unwrap();
-            gen.gen_block(&[]);
-            gen.gen_block(&[]);
-        }
-
-        let gen = c.gen.read().unwrap();
-        let header = gen.signed_header(Height::default());
-
-        let trusted_state = lite::TrustedState::new(
-            lite::SignedHeader::new(header.clone(), header.header.clone()),
-            gen.validators.clone(),
-        )
-        .into();
-        let mut state = SyncState::genesis(vec![], [0u8; 32]);
+        let mut state = SyncState::genesis([0u8; 32]);
         state.last_block_height = 1;
         state.last_app_hash =
             "0F46E113C21F9EACB26D752F9523746CF8D47ECBEA492736D176005911F973A5".to_owned();
-        state.trusted_state = trusted_state;
         let bytes = state.encode();
 
         let state2 = SyncState::decode(&mut bytes.as_slice()).unwrap();

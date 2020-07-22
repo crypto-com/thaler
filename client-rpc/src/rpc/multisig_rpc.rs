@@ -342,7 +342,6 @@ mod test {
     use chain_core::tx::fee::{Fee, FeeAlgorithm};
     use chain_core::tx::TxAux;
     use client_common::storage::MemoryStorage;
-    use client_common::tendermint::lite;
     use client_common::tendermint::types::*;
     use client_common::tendermint::Client;
     use client_common::TransactionObfuscation;
@@ -487,14 +486,6 @@ mod test {
             _heights: T,
         ) -> CommonResult<Vec<BlockResultsResponse>> {
             unreachable!("block_results_batch")
-        }
-
-        fn block_batch_verified<'a, T: Clone + Iterator<Item = &'a u64>>(
-            &self,
-            _state: lite::TrustedState,
-            _heights: T,
-        ) -> CommonResult<(Vec<Block>, lite::TrustedState)> {
-            unreachable!()
         }
 
         fn broadcast_transaction(&self, _transaction: &[u8]) -> CommonResult<BroadcastTxResponse> {

@@ -37,13 +37,18 @@ export CLIENT_RPC_PORT=$(($BASE_PORT + 9))
 export TENDERMINT_RPC_PORT=$(($BASE_PORT + 7))
 export CLIENT_RPC_ZEROFEE_PORT=$CLIENT_RPC_PORT
 export TENDERMINT_ZEROFEE_RPC_PORT=$TENDERMINT_RPC_PORT
+# client-cli output detailed error message
+export CRYPTO_CLIENT_DEBUG=true
 
 function wait_port() {
     echo "Wait for tcp port $1"
     for i in $(seq 0 20);
     do
+        set +e
         python -c "import socket; sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM); sock.connect(('127.0.0.1', $1))" 2> /dev/null
-        if [ $? -eq 0 ]; then
+        RETCODE=$?
+        set -e
+        if [ $RETCODE -eq 0 ]; then
             echo "Tcp port $1 is available now"
             return 0
         fi
@@ -53,30 +58,20 @@ function wait_port() {
     return 1
 }
 
-function wait_service() {
-    if [ $BUILD_MODE == "sgx" ]; then
-      # ra-sp-server
-      wait_port 8989
-    fi
-    # tendermint rpc of first node
-    wait_port $TENDERMINT_RPC_PORT
-}
-
 function runtest() {
     echo "Preparing... $1"
     LOWERED_TYPE=`echo $1 | tr "[:upper:]" "[:lower:]"`
-    chainbot.py prepare ${LOWERED_TYPE}_cluster.json --base_port $BASE_PORT --start_client_rpc $CHAINBOT_ARGS
+    chainbot.py prepare ${LOWERED_TYPE}_cluster.json --base_port $BASE_PORT --start_client_rpc $CHAINBOT_ARGS --genesis_time now
     export CRYPTO_GENESIS_FINGERPRINT=`python -c "import json; print(json.load(open('data/info.json'))['genesis_fingerprint'])"`
     export CRYPTO_CHAIN_ID=`python -c "import json; print(json.load(open('data/info.json'))['chain_id'])"`
     export CRYPTO_CLIENT_STORAGE=`pwd`/data/wallet
     echo "genesis fingerprint: $CRYPTO_GENESIS_FINGERPRINT"
     echo "crypto_chain_id: $CRYPTO_CHAIN_ID"
 
-
     echo "Startup..."
     supervisord -n -c data/tasks.ini &
-    if ! wait_service; then
-        echo 'tendermint rpc not ready, giveup.'
+    if ! wait_port $CLIENT_RPC_PORT; then
+        echo 'client-rpc still not ready, giveup.'
         RETCODE=1
     else
         set +e
@@ -106,7 +101,7 @@ function runtest() {
 
     echo "Quit supervisord..."
     kill -QUIT `cat data/supervisord.pid`
-    wait
+    wait `cat data/supervisord.pid`
     rm -r data
     rm supervisord.log
 
@@ -117,8 +112,22 @@ if [ -d data ]; then
     echo "Last run doesn't quit cleanly, please quit supervisord daemon and remove integration-tests/data manually."
     exit 1;
 fi
+mkdir data
+
+if [ $BUILD_MODE == "sgx" ]; then
+    echo "Starting ra-sp-server..."
+    (set +e; while true; do ra-sp-server --ias-key $IAS_API_KEY --quote-type Unlinkable --spid $SPID; done) &
+    echo $! > data/ra-sp-server.pid
+    wait_port 8989
+fi
 
 runtest "WITH_FEE"
 runtest "ZERO_FEE"
+
+if [ -f data/ra-sp-server.pid ]; then
+    kill `cat data/ra-sp-server.pid`
+    wait
+    rm data/ra-sp-server.pid
+fi
 
 ./cleanup.sh
