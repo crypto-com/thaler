@@ -54,6 +54,14 @@ impl PrivateKeyAction for MockHardwareKey {
         }
     }
 
+    fn schnorr_sign_unsafe(
+        &self,
+        _tx: &Transaction,
+        _aux_payload: &[u8],
+    ) -> Result<SchnorrSignature> {
+        unreachable!()
+    }
+
     fn public_key(&self) -> Result<PublicKey> {
         let request = Request::GetPublicKey(self.hd_path.clone());
         let response = self.send(request)?;

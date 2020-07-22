@@ -2,8 +2,9 @@ use crate::Transaction;
 use chain_core::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use rand::rngs::OsRng;
-use secp256k1::schnorrsig::{schnorr_sign, SchnorrSignature};
+use secp256k1::schnorrsig::{schnorr_sign, schnorr_sign_aux, AuxRandNonce, SchnorrSignature};
 use secp256k1::{recovery::RecoverableSignature, Message, PublicKey as SecpPublicKey, SecretKey};
+use std::convert::TryInto;
 use zeroize::Zeroize;
 
 use crate::{ErrorKind, PublicKey, Result, ResultExt, SECP};
@@ -15,6 +16,10 @@ pub trait PrivateKeyAction: Sync + Send {
 
     /// Signs a message with current private key (uses schnorr signature algorithm)
     fn schnorr_sign(&self, tx: &Transaction) -> Result<SchnorrSignature>;
+
+    /// Signs a message with current private key (uses schnorr aux signature algorithm), used in dev-utils only
+    fn schnorr_sign_unsafe(&self, tx: &Transaction, aux_payload: &[u8])
+        -> Result<SchnorrSignature>;
 
     /// Signs a message with current private key
     fn public_key(&self) -> Result<PublicKey>;
@@ -46,6 +51,27 @@ impl PrivateKeyAction for PrivateKey {
             )
         })?;
         let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0, &mut OsRng));
+        Ok(signature)
+    }
+
+    fn schnorr_sign_unsafe(
+        &self,
+        tx: &Transaction,
+        aux_payload: &[u8],
+    ) -> Result<SchnorrSignature> {
+        let tx_id = tx.id();
+        let message = Message::from_slice(&tx_id).chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "Unable to deserialize message to sign",
+            )
+        })?;
+        let aux_payload = aux_payload
+            .try_into()
+            .chain(|| (ErrorKind::InvalidInput, "invalid aux_payload length"))?;
+
+        let aux_rand = AuxRandNonce::deserialize_from(aux_payload);
+        let signature = SECP.with(|secp| schnorr_sign_aux(&secp, &message, &self.0, &aux_rand));
         Ok(signature)
     }
 
