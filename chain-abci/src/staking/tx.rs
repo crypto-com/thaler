@@ -9,8 +9,7 @@ use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::fee::Fee;
 use chain_storage::buffer::StoreStaking;
-use mls::{Codec, KeyPackage};
-use ra_client::ENCLAVE_CERT_VERIFIER;
+use mls::extras::check_nodejoin;
 
 use super::table::{set_staking, StakingTable};
 use crate::tx_error::{
@@ -40,13 +39,14 @@ impl StakingTable {
         let isv_svn = if cfg!(feature = "mock-enclave") {
             0
         } else {
-            let keypackage = KeyPackage::read_bytes(&tx.get_keypackage_payload())
-                .ok_or(NodeJoinError::KeyPackageDecodeError)?;
-            let info = keypackage
-                .verify(&*ENCLAVE_CERT_VERIFIER, block_time)
-                .map_err(NodeJoinError::KeyPackageVerifyError)?;
             // FIXME: more tdbe-related checks that may be observable by abci -- e.g. key not in the mls tree already
-            info.quote.report_body.isv_svn
+            let (add, commit) = tx
+                .node_meta
+                .get_node_join_mls_init()
+                .ok_or(NodeJoinError::InvalidMLSInitData)?;
+            let r = check_nodejoin(add, commit, block_time)
+                .map_err(NodeJoinError::MLSInitVerifyError)?;
+            r.info.quote.report_body.isv_svn
         };
 
         let new_isv_svn = if isv_svn > recent_isv_svn {

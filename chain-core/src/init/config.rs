@@ -3,7 +3,7 @@ use crate::init::address::RedeemAddress;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 pub use crate::init::params::*;
 use crate::state::account::{
-    ConfidentialInit, CouncilNodeMeta, NodeName, NodeSecurityContact, StakedState,
+    ConfidentialInit, CouncilNodeMeta, MLSInit, NodeName, NodeSecurityContact, StakedState,
     StakedStateAddress, StakedStateDestination,
 };
 use crate::state::tendermint::TendermintValidatorPubKey;
@@ -200,7 +200,10 @@ impl InitConfig {
 
         let isv_svn = validators
             .iter()
-            .map(|v| verify_keypackage(genesis_time, &v.1.node_info.confidential_init.keypackage))
+            .map(|v| match &v.1.node_info.confidential_init.init_payload {
+                MLSInit::Genesis(ref kp) => verify_keypackage(genesis_time, &kp),
+                _ => Err(DistributionError::KeyPackageDecodeError),
+            })
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .max()

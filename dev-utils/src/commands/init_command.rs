@@ -10,7 +10,7 @@ use serde_json::json;
 
 use crate::verify_keypackage;
 use chain_core::init::{address::RedeemAddress, coin::Coin, config::InitConfig};
-use chain_core::state::account::ConfidentialInit;
+use chain_core::state::account::{ConfidentialInit, MLSInit};
 use chain_core::state::tendermint::{TendermintValidator, TendermintValidatorPubKey};
 use client_common::storage::SledStorage;
 use client_common::tendermint::types::Time;
@@ -203,7 +203,9 @@ impl InitCommand {
                 "dev test".to_owned(),
                 None,
                 pubkey,
-                ConfidentialInit { keypackage },
+                ConfidentialInit {
+                    init_payload: MLSInit::Genesis(keypackage),
+                },
             ),
         );
         Ok(())

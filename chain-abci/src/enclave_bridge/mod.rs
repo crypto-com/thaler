@@ -6,7 +6,7 @@ pub mod mock;
 #[cfg(all(not(feature = "mock-enclave"), feature = "legacy", target_os = "linux"))]
 pub mod real;
 
-#[cfg(feature = "edp")]
+#[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
 pub mod edp;
 
 /// Abstracts over communication with an external part that does enclave calls

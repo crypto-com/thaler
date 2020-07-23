@@ -64,14 +64,6 @@ impl Encode for NodeJoinRequestTx {
 impl TransactionId for NodeJoinRequestTx {}
 
 impl NodeJoinRequestTx {
-    /// returns the keypackage
-    pub fn get_keypackage_payload(&self) -> &[u8] {
-        match &self.node_meta {
-            NodeMetadata::CouncilNode(cm) => &cm.node_info.confidential_init.keypackage,
-            NodeMetadata::CommunityNode(cm) => &cm.confidential_init.keypackage,
-        }
-    }
-
     /// constructs a new node join request transaction from the provided components
     #[inline]
     pub fn new(

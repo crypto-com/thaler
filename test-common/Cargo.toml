@@ -30,3 +30,4 @@ chain-abci = { path = "../chain-abci" }
 chain-storage = { path = "../chain-storage" }
 client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
+mls = { path = "../chain-tx-enclave-next/mls" }

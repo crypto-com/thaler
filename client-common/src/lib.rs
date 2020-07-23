@@ -23,7 +23,7 @@ pub use seckey::SecKey;
 #[doc(inline)]
 pub use storage::{SecureStorage, Storage};
 #[doc(inline)]
-pub use transaction::{SignedTransaction, Transaction, TransactionInfo};
+pub use transaction::{temporary_mls_init, SignedTransaction, Transaction, TransactionInfo};
 
 use secp256k1::{All, Secp256k1};
 

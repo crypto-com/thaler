@@ -10,6 +10,7 @@ chain-tx-filter = { path = "../chain-tx-filter" }
 enclave-protocol = { path = "../enclave-protocol" }
 mock-utils = { path = "../chain-tx-enclave/mock-utils" }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
+mls = { path = "../chain-tx-enclave-next/mls" }
 
 aes = "0.4"
 aes-gcm-siv = "0.5"

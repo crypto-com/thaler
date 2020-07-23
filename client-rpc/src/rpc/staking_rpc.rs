@@ -7,7 +7,8 @@ use jsonrpc_derive::rpc;
 use crate::{rpc_error_from_string, to_rpc_error};
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{
-    ConfidentialInit, CouncilNodeMeta, StakedState, StakedStateAddress, StakedStateOpAttributes,
+    ConfidentialInit, CouncilNodeMeta, MLSInit, StakedState, StakedStateAddress,
+    StakedStateOpAttributes,
 };
 use chain_core::state::tendermint::TendermintValidatorPubKey;
 use chain_core::tx::data::access::{TxAccess, TxAccessPolicy};
@@ -15,6 +16,7 @@ use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::attribute::TxAttributes;
 use chain_core::tx::data::input::TxoPointer;
 use chain_core::tx::data::output::TxOut;
+use client_common::temporary_mls_init;
 use client_common::{Error, ErrorKind, PublicKey, Result as CommonResult, ResultExt, Transaction};
 use client_core::wallet::WalletRequest;
 use client_core::WalletClient;
@@ -439,6 +441,7 @@ where
     }
 }
 
+/// FIXME: take Add + Commit instead of keypackage
 fn get_node_metadata(
     validator_name: &str,
     validator_pubkey: &str,
@@ -464,6 +467,7 @@ fn get_node_metadata(
     let mut pubkey_bytes = [0; 32];
     pubkey_bytes.copy_from_slice(&decoded_pubkey);
 
+    // FIXME: MLSPlaintexts instead of keypackage
     let keypackage = base64::decode(keypackage)
         .err_kind(ErrorKind::InvalidInput, || "invalid base64")
         .map_err(to_rpc_error)?;
@@ -472,6 +476,11 @@ fn get_node_metadata(
         validator_name.to_string(),
         None,
         TendermintValidatorPubKey::Ed25519(pubkey_bytes),
-        ConfidentialInit { keypackage },
+        ConfidentialInit {
+            init_payload: MLSInit::NodeJoin {
+                add: temporary_mls_init(keypackage),
+                commit: vec![],
+            },
+        },
     ))
 }
