@@ -777,7 +777,7 @@ dependencies = [
  "secstr",
  "serde",
  "serde_json",
- "sled",
+ "sled 0.34.0",
  "tendermint",
  "tendermint-rpc",
  "tokio 0.2.20",
@@ -819,7 +819,7 @@ dependencies = [
  "secstr",
  "serde",
  "serde_json",
- "sled",
+ "sled 0.34.0",
  "tendermint",
  "tendermint-light-client",
  "test-common",
@@ -4304,6 +4304,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sled"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b2aed3832b6d0c828efe6bcb6c309a18cf487dffc5cc0787da2ce140f0fb0ce"
+dependencies = [
+ "crc32fast",
+ "crossbeam-epoch",
+ "crossbeam-utils",
+ "fs2",
+ "fxhash",
+ "libc",
+ "log",
+ "parking_lot 0.11.0",
+]
+
+[[package]]
 name = "smallvec"
 version = "0.6.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4577,7 +4593,7 @@ dependencies = [
  "serde",
  "serde_cbor",
  "serde_derive",
- "sled",
+ "sled 0.33.0",
  "static_assertions 1.1.0",
  "tendermint",
  "tendermint-rpc",
