@@ -2640,6 +2640,7 @@ name = "mls"
 version = "0.6.0"
 dependencies = [
  "aead",
+ "chain-util",
  "chrono",
  "hkdf",
  "hpke",

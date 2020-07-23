@@ -14,6 +14,7 @@ use crate::utils::{
     encode_vec_option_u32, encode_vec_u8_u16, encode_vec_u8_u8, read_vec_option_u32,
     read_vec_u8_u16, read_vec_u8_u8,
 };
+use hkdf::InvalidLength;
 use ra_client::AttestedCertVerifier;
 use rustls::internal::msgs::codec::{self, Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
@@ -24,7 +25,8 @@ use subtle::ConstantTimeEq;
 /// auxiliary structure to hold group context + tree
 pub struct GroupAux {
     pub context: GroupContext,
-    pub tree: Tree,
+    pub tree: TreePublicKey,
+    pub tree_secret: TreeSecret,
     pub secrets: EpochSecrets<Sha256>,
     pub kp_secret: KeyPackageSecret,
     // record the new secret when waiting for self update commit
@@ -32,15 +34,17 @@ pub struct GroupAux {
 }
 
 impl GroupAux {
-    fn new(context: GroupContext, tree: Tree, kp_secret: KeyPackageSecret) -> Self {
+    fn new(context: GroupContext, tree: TreePublicKey, kp_secret: KeyPackageSecret) -> Self {
         let secrets: EpochSecrets<Sha256> = match &tree.cs {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 EpochSecrets::new(tree.cs.hash(&context.get_encoding()), tree.leaf_len())
             }
         };
+        let cs = tree.cs;
         GroupAux {
             context,
             tree,
+            tree_secret: TreeSecret::empty(cs),
             secrets,
             kp_secret,
             kp_secret_pending: None,
@@ -180,7 +184,7 @@ impl GroupAux {
 
     fn get_welcome_msg(
         &self,
-        updated_tree: &Tree,
+        updated_tree: &TreePublicKey,
         updated_group_context: &GroupContext,
         updated_secrets: &EpochSecrets<Sha256>,
         confirmation: Vec<u8>,
@@ -268,15 +272,15 @@ impl GroupAux {
         let should_populate_path =
             init_genesis || proposals.is_empty() || !updates.is_empty() || !removes.is_empty();
 
-        let (path, commit_secret) = if should_populate_path {
+        let (path, tree_secret) = if should_populate_path {
             // update init key
             self.kp_secret
                 .update_init_key(updated_tree.get_my_package_mut());
 
             // update path secrets
-            let (path_nodes, parent_hash, commit_secret) = updated_tree.evolve(
+            let (path_nodes, parent_hash, tree_secret) = updated_tree.evolve(
                 &self.context.get_encoding(),
-                self.kp_secret.init_private_key.marshal(),
+                &self.kp_secret.init_private_key.marshal(),
             );
 
             let kp = updated_tree.get_my_package_mut();
@@ -288,10 +292,10 @@ impl GroupAux {
                     leaf_key_package: kp.clone(),
                     nodes: path_nodes,
                 }),
-                commit_secret,
+                tree_secret,
             )
         } else {
-            (None, SecretVec::new(vec![0; self.tree.cs.hash_len()]))
+            (None, TreeSecret::empty(self.tree.cs))
         };
 
         let commit = Commit {
@@ -311,7 +315,7 @@ impl GroupAux {
         };
         let updated_group_context_hash = self.tree.cs.hash(&updated_group_context.get_encoding());
         let epoch_secrets = self.secrets.generate_new_epoch_secrets(
-            &commit_secret,
+            &tree_secret.update_secret,
             updated_group_context_hash,
             updated_tree.leaf_len(),
         );
@@ -372,6 +376,49 @@ impl GroupAux {
             .map_err(ProcessCommitError::MsgSignatureVerifyFailed)
     }
 
+    /// apply proposals and commit
+    fn apply_commit(&mut self, commit: &CommitContent) -> Result<(), ProcessCommitError> {
+        let ctx = self.context.get_encoding();
+        let init_private_key = &self.kp_secret.init_private_key;
+
+        // check path populating condition
+        let should_populate_path =
+            (commit.additions.is_empty() && commit.updates.is_empty() && commit.removes.is_empty())
+                || !commit.updates.is_empty()
+                || !commit.removes.is_empty();
+        if should_populate_path && commit.commit.path.is_none() {
+            return Err(ProcessCommitError::CommitPathNotPopulated);
+        }
+
+        self.tree
+            .update(&commit.additions, &commit.updates, &commit.removes);
+        // "If the path value is populated: Process the path value..."
+        if let Some(path) = &commit.commit.path {
+            let leaf_parent_hash = self.tree.merge(commit.sender, &path.nodes);
+            self.tree_secret.apply_path_secrets(
+                commit.sender,
+                &self.tree,
+                &ctx,
+                &path.nodes,
+                init_private_key,
+            )?;
+            // Verify that the KeyPackage has a `parent_hash` extension and that its value
+            // matches the new parent of the sender's leaf node.
+            let ext = path
+                .leaf_key_package
+                .payload
+                .find_extension::<ext::ParentHashExt>()?;
+            if !bool::from(ext.0.ct_eq(&leaf_parent_hash)) {
+                return Err(ProcessCommitError::LeafParentHashDontMatch);
+            }
+
+            self.tree
+                .set_package(commit.sender, path.leaf_key_package.clone());
+        }
+
+        Ok(())
+    }
+
     pub fn process_commit(
         &mut self,
         commit: MLSPlaintext,
@@ -396,12 +443,7 @@ impl GroupAux {
         let commit_content = CommitContent::new(self.tree.cs, &commit, proposals)
             .map_err(|_| ProcessCommitError::CommitError)?;
 
-        let mut updated_tree = self.tree.clone();
-        let commit_secret = updated_tree.apply_commit(
-            &self.context.get_encoding(),
-            &self.kp_secret.init_private_key,
-            &commit_content,
-        )?;
+        self.apply_commit(&commit_content)?;
 
         // "Update the new GroupContext's confirmed and interim transcript hashes using the new Commit."
         let confirmed_transcript_hash = self.get_init_confirmed_transcript_hash(
@@ -418,7 +460,7 @@ impl GroupAux {
 
         let updated_group_context = GroupContext {
             epoch: self.context.epoch + 1,
-            tree_hash: updated_tree.compute_tree_hash(),
+            tree_hash: self.tree.compute_tree_hash(),
             confirmed_transcript_hash,
             ..self.context.clone()
         };
@@ -427,9 +469,9 @@ impl GroupAux {
         // "Use the commit_secret, the provisional GroupContext,
         // and the init secret from the previous epoch to compute the epoch secret and derived secrets for the new epoch."
         let epoch_secrets = self.secrets.generate_new_epoch_secrets(
-            &commit_secret,
+            &self.tree_secret.update_secret,
             updated_group_context_hash,
-            updated_tree.leaf_len(),
+            self.tree.leaf_len(),
         );
         let confirmation_computed =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
@@ -468,7 +510,6 @@ impl GroupAux {
         // "If the above checks are successful, consider the updated GroupContext object as the current state of the group."
         self.context = updated_group_context;
         self.secrets = epoch_secrets;
-        self.tree = updated_tree;
 
         Ok(())
     }
@@ -578,7 +619,7 @@ impl GroupAux {
             .verify_signature(&payload, &group_info.signature)
             .map_err(kp::Error::SignatureVerifyError)?;
         // * "Verify the integrity of the ratchet tree..."
-        Tree::integrity_check(&nodes, ra_verifier, genesis_time, cs)?;
+        TreePublicKey::integrity_check(&nodes, ra_verifier, genesis_time, cs)?;
         // * "Identify a leaf in the tree array..."
         let node_index = nodes
             .iter()
@@ -590,7 +631,7 @@ impl GroupAux {
             .map(|(i, _)| NodeSize(i as u32))
             .ok_or(ProcessWelcomeError::KeyPackageNotFound)?;
         // * "Construct a new group state using the information in the GroupInfo object..."
-        let tree = Tree::from_group_info(
+        let tree = TreePublicKey::from_group_info(
             LeafSize::try_from(node_index).expect("invalid leaf index"),
             cs,
             nodes,
@@ -616,6 +657,7 @@ impl GroupAux {
         let group = GroupAux {
             context,
             tree,
+            tree_secret: TreeSecret::empty(cs),
             kp_secret,
             secrets,
             kp_secret_pending: None,
@@ -683,9 +725,9 @@ impl Codec for GroupContext {
 }
 
 impl GroupContext {
-    pub fn init(creator_kp: KeyPackage) -> (Self, Tree) {
+    pub fn init(creator_kp: KeyPackage) -> (Self, TreePublicKey) {
         let extensions = creator_kp.payload.extensions.clone();
-        let tree = Tree::init(creator_kp);
+        let tree = TreePublicKey::init(creator_kp);
         (
             GroupContext {
                 group_id: TDBE_GROUP_ID.to_vec(),
@@ -801,6 +843,8 @@ pub enum ProcessCommitError {
     MsgSignatureVerifyFailed(ring::error::Unspecified),
     #[error("commit path is not populated")]
     CommitPathNotPopulated,
+    #[error("hpke error")]
+    HpkeError(#[from] InvalidLength),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -950,7 +994,7 @@ mod test {
         let (creator_kp, _) = get_fake_keypackage();
         let (to_be_added, _) = get_fake_keypackage();
         let (to_be_updated, _) = get_fake_keypackage();
-        let mut tree = Tree::new(creator_kp);
+        let mut tree = TreePublicKey::new(creator_kp);
         tree.update(
             &[Add {
                 key_package: to_be_added.clone(),
