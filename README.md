@@ -1,8 +1,8 @@
+<br />
 <p align="center">
-  <img src="https://avatars0.githubusercontent.com/u/41934032?s=400&v=4" alt="Crypto.com Chain" width="400">
+  <img src="./assets/logo.svg" alt="Crypto.com Chain" width="400">
 </p>
-
-<h1 align="center"><a href="https://crypto.com">Crypto.com<a> Chain</h1>
+<br />
 
 <p align="center">
   <a href="https://travis-ci.org/crypto-com/chain"><img label="Build Status" src="https://travis-ci.org/crypto-com/chain.svg?branch=master" /></a>
