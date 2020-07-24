@@ -32,6 +32,7 @@ impl Server {
             websocket_url: options.websocket_url,
             sync_options: SyncerOptions {
                 enable_fast_forward: options.enable_fast_forward,
+                disable_light_client: options.disable_light_client,
                 enable_address_recovery: !options.disable_address_recovery,
                 batch_size: options.batch_size,
                 block_height_ensure: options.block_height_ensure,

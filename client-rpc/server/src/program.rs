@@ -50,13 +50,18 @@ pub struct Options {
         help = "Url for connecting with tendermint websocket RPC"
     )]
     pub websocket_url: String,
-
     #[structopt(
         name = "enable-fast-forward",
         long,
         help = "Enable fast forward when syncing wallet, which is not secure when connecting to outside nodes"
     )]
     pub enable_fast_forward: bool,
+    #[structopt(
+        name = "disable-light-client",
+        long,
+        help = "Disable light client, which is not secure when connecting to outside nodes"
+    )]
+    pub disable_light_client: bool,
     #[structopt(
         name = "disable-address-recovery",
         long,
