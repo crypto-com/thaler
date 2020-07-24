@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+    "chain-util",
     "chain-abci",
     "chain-core",
     "chain-storage",
@@ -34,6 +35,7 @@ members = [
 ]
 
 default-members = [
+    "chain-util",
     "chain-abci",
     "chain-core",
     "chain-storage",

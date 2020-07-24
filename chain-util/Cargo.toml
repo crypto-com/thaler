@@ -1,0 +1,9 @@
+[package]
+name = "chain-util"
+version = "0.6.0"
+authors = ["Crypto.com <chain@crypto.com>"]
+description = "Util modules used in chain project"
+readme = "../README.md"
+edition = "2018"
+
+[dependencies]

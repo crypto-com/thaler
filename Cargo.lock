@@ -657,6 +657,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "chain-util"
+version = "0.6.0"
+
+[[package]]
 name = "chrono"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -800,6 +804,7 @@ dependencies = [
  "chain-storage",
  "chain-tx-filter",
  "chain-tx-validation",
+ "chain-util",
  "chrono",
  "client-common",
  "hex 0.4.2",
@@ -809,7 +814,6 @@ dependencies = [
  "lazy_static",
  "log",
  "mock-utils",
- "non-empty-vec",
  "once_cell",
  "parity-scale-codec",
  "rand 0.7.3",
@@ -2732,12 +2736,6 @@ dependencies = [
  "memchr",
  "version_check",
 ]
-
-[[package]]
-name = "non-empty-vec"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1bf1a3f9e432bc56ff35b4c82f47c50d8790c29c14a04a5fcf3562de7fd26085"
 
 [[package]]
 name = "num-bigint"

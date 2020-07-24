@@ -1,4 +1,3 @@
-use non_empty_vec::NonEmpty;
 use std::collections::HashMap;
 use thiserror::Error;
 
@@ -12,6 +11,7 @@ use chain_core::tx::{
     fee::Fee,
     TransactionId,
 };
+use chain_util::NonEmpty;
 use client_common::tendermint::types::Time;
 use client_common::Transaction;
 

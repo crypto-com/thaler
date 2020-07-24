@@ -22,6 +22,7 @@ else
     cargo test $CARGO_ARGS --features mock-enclave --manifest-path dev-utils/Cargo.toml
     cargo test $CARGO_ARGS --features mock-enclave --manifest-path chain-abci/Cargo.toml
     for pkg in \
+        chain-util \
         client-network \
         test-common \
         enclave-protocol \
