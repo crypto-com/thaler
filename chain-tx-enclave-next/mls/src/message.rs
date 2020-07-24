@@ -576,7 +576,7 @@ pub struct CommitContent {
     pub commit: Commit,
     pub confirmation: Vec<u8>,
     pub additions: Vec<Add>,
-    pub updates: Vec<(LeafSize, Update)>,
+    pub updates: Vec<(LeafSize, Update, ProposalId)>,
     pub removes: Vec<Remove>,
 }
 
@@ -629,9 +629,13 @@ impl CommitContent {
                 proposals_ids
                     .get(proposal_id)
                     .and_then(|p| {
-                        p.get_update()
-                            .cloned()
-                            .map(|update| (LeafSize(p.content.sender.sender), update))
+                        p.get_update().cloned().map(|update| {
+                            (
+                                LeafSize(p.content.sender.sender),
+                                update,
+                                proposal_id.clone(),
+                            )
+                        })
                     })
                     .ok_or(())
             })

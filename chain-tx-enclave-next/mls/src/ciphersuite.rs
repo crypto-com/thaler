@@ -386,8 +386,7 @@ impl CipherSuite {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 let encapped_key = EncappedKey::<
                     <hpke::kem::DhP256HkdfSha256 as hpke::kem::Kem>::Kex,
-                >::unmarshal(&ct.kem_output)
-                .expect("valid encapped key");
+                >::unmarshal(&ct.kem_output)?;
                 let mut context = hpke::setup_receiver::<
                     AesGcm128,
                     hpke::kdf::HkdfSha256,
@@ -402,11 +401,9 @@ impl CipherSuite {
                 let payload_len = ct.ciphertext.len();
                 let mut payload = ct.ciphertext[0..payload_len - 16].to_vec();
                 let tag_bytes = &ct.ciphertext[payload_len - 16..payload_len];
-                let tag = AeadTag::<AesGcm128>::unmarshal(tag_bytes).expect("valid tag");
+                let tag = AeadTag::<AesGcm128>::unmarshal(tag_bytes)?;
 
-                context
-                    .open(&mut payload, aad, &tag)
-                    .expect("decryption failed");
+                context.open(&mut payload, aad, &tag)?;
                 Ok(payload)
             }
         }
