@@ -133,11 +133,12 @@ pub(crate) fn handle_transaction(
         memento.remove_unspent_transaction(input.pointer.clone());
     }
 
-    let transfer_addresses = wallet.transfer_addresses();
-
     for (i, output) in transaction_change.outputs.iter().enumerate() {
         // Only add unspent transaction if output address belongs to current wallet
-        if transfer_addresses.contains(&output.address) {
+        if wallet
+            .transfer_addresses_contains(&output.address)
+            .expect("transfer_addresses_contains in handle_transaction")
+        {
             memento.add_unspent_transaction(
                 TxoPointer::new(transaction_change.transaction_id, i),
                 output.clone(),
@@ -184,8 +185,11 @@ fn calculate_balance_change<'a>(
 ) -> Result<BalanceChange, SyncerLogicError> {
     let encode_txid = || hex::encode(&transaction_id);
 
-    let transfer_addresses = wallet.transfer_addresses();
-    let is_our_address = |addr| transfer_addresses.contains(addr);
+    let is_our_address = |addr| {
+        wallet
+            .transfer_addresses_contains(addr)
+            .expect("get transfer_addresses_contains")
+    };
     let our_output = |input: &'a TransactionInput| -> Option<&'a TxOut> {
         input.output.as_ref().and_then(|output| {
             if is_our_address(&output.address) {
@@ -416,8 +420,18 @@ mod tests {
             .iter()
             .map(|wallet| wallet.view_key.clone())
             .collect::<Vec<_>>();
-        let address1 = wallets[0].transfer_addresses().into_iter().next().unwrap();
-        let address2 = wallets[1].transfer_addresses().into_iter().next().unwrap();
+        let address1 = wallets[0]
+            .get_transfer_addresses()
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let address2 = wallets[1]
+            .get_transfer_addresses()
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
         let transactions = transfer_transactions([address1.clone(), address2.clone()]);
         let mut states = wallets
             .iter()

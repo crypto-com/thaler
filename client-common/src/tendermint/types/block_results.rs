@@ -20,7 +20,10 @@ pub trait BlockResults {
 
     /// Checks if a StakedStateAddress is included in devlier_tx account event.
     /// Returns true when the address presents
-    fn contains_account(&self, target_account: &StakedStateAddress) -> Result<bool>;
+    fn contains_account(
+        &self,
+        contain_account_callback: Box<dyn Fn(StakedStateAddress) -> bool>,
+    ) -> Result<bool>;
 
     /// Checks if the block contains a staking stransaction
     /// Returns true when contains a staking transaction
@@ -69,7 +72,10 @@ impl BlockResults for BlockResultsResponse {
         false
     }
 
-    fn contains_account(&self, target_account: &StakedStateAddress) -> Result<bool> {
+    fn contains_account(
+        &self,
+        contain_account_callback: Box<dyn Fn(StakedStateAddress) -> bool>,
+    ) -> Result<bool> {
         match &self.txs_results {
             None => Ok(false),
             Some(deliver_tx) => {
@@ -81,7 +87,7 @@ impl BlockResults for BlockResultsResponse {
                         match find_staking_address_from_event_attributes(&event.attributes)? {
                             None => continue,
                             Some(address) => {
-                                if address == *target_account {
+                                if contain_account_callback(address) {
                                     return Ok(true);
                                 }
                             }
@@ -248,7 +254,13 @@ mod tests {
             let target_account = StakedStateAddress::from(
                 RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
             );
-            let result = block_results.contains_account(&target_account);
+
+            let check_staking_address =
+                Box::new(move |staked_state_address: StakedStateAddress| {
+                    staked_state_address == target_account
+                });
+
+            let result = block_results.contains_account(check_staking_address);
             assert!(result.is_err());
             assert_eq!(ErrorKind::DeserializationError, result.unwrap_err().kind());
         }
@@ -260,7 +272,12 @@ mod tests {
             let target_account = StakedStateAddress::from(
                 RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
             );
-            let result = block_results.contains_account(&target_account);
+
+            let check_staking_address =
+                Box::new(move |staked_state_address: StakedStateAddress| {
+                    staked_state_address == target_account
+                });
+            let result = block_results.contains_account(check_staking_address);
             assert!(result.is_err());
             assert_eq!(ErrorKind::DeserializationError, result.unwrap_err().kind());
         }
@@ -273,7 +290,13 @@ mod tests {
             let target_account = StakedStateAddress::from(
                 RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap(),
             );
-            let result = block_results.contains_account(&target_account);
+
+            let check_staking_address =
+                Box::new(move |staked_state_address: StakedStateAddress| {
+                    staked_state_address == target_account
+                });
+
+            let result = block_results.contains_account(check_staking_address);
             assert!(result.is_ok());
             assert_eq!(false, result.unwrap());
         }
@@ -286,7 +309,12 @@ mod tests {
             let target_account = StakedStateAddress::from(
                 RedeemAddress::from_str("0x33502ed39d0c4e2044fb37fdcd5161493f5900c3").unwrap(),
             );
-            let result = block_results.contains_account(&target_account);
+
+            let check_staking_address =
+                Box::new(move |staked_state_address: StakedStateAddress| {
+                    staked_state_address == target_account
+                });
+            let result = block_results.contains_account(check_staking_address);
             assert!(result.is_ok());
             assert_eq!(true, result.unwrap());
         }

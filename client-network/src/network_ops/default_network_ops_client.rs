@@ -109,7 +109,7 @@ where
 impl<W, S, C, F, E> NetworkOpsClient for DefaultNetworkOpsClient<W, S, C, F, E>
 where
     W: WalletClient,
-    S: Storage,
+    S: Storage + 'static,
     C: Client,
     F: FeeAlgorithm,
     E: TransactionObfuscation,

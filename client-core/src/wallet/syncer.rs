@@ -117,7 +117,7 @@ pub struct SyncerOptions {
 /// Common configs for wallet syncer with `TransactionObfuscation`
 #[derive(Clone)]
 pub struct ObfuscationSyncerConfig<
-    S: SecureStorage,
+    S: SecureStorage + 'static,
     C: Client,
     O: TransactionObfuscation,
     L: LightClientHandle,
@@ -189,7 +189,7 @@ pub struct WalletSyncer<
 
 impl<S, C, D, T, L> WalletSyncer<S, C, D, T, L>
 where
-    S: SecureStorage,
+    S: SecureStorage + 'static,
     C: Client,
     D: TxDecryptor,
     T: AddressRecovery,
@@ -238,7 +238,7 @@ fn load_view_key<S: SecureStorage>(storage: &S, name: &str, enckey: &SecKey) -> 
 
 impl<S, C, O, T, L> WalletSyncer<S, C, TxObfuscationDecryptor<O>, T, L>
 where
-    S: SecureStorage,
+    S: SecureStorage + 'static,
     C: Client,
     O: TransactionObfuscation,
     T: AddressRecovery,
@@ -292,7 +292,7 @@ struct WalletSyncerImpl<
 
 impl<
         'a,
-        S: SecureStorage,
+        S: SecureStorage + 'static,
         C: Client,
         D: TxDecryptor,
         F: FnMut(ProgressReport) -> bool,
@@ -422,8 +422,13 @@ impl<
             self.handle_recover_addresses(&blocks)?;
         }
 
+        let handle_blocks_time = std::time::Instant::now();
         let memento = handle_blocks(&self.wallet, &mut self.wallet_state, &blocks, &enclave_txs)
             .map_err(|err| Error::new(ErrorKind::InvalidInput, err.to_string()))?;
+        log::debug!(
+            "syncer handle_blocks time {} micro-seconds",
+            handle_blocks_time.elapsed().as_micros()
+        );
 
         let block = blocks.last();
         self.sync_state.last_block_height = block.block_height;
@@ -821,11 +826,17 @@ impl FilteredBlock {
         let block_hash = ProdHasher {}.hash_header(&block.header).to_string();
 
         let block_filter = block_result.block_filter()?;
+        let wallettmp = wallet.clone();
 
         // first get the incomming staking transactions
         let mut staking_transactions = filter_incomming_staking_transactions(
             &block_result,
-            wallet.staking_addresses().iter(),
+            Box::new(move |staked_state_address: StakedStateAddress| {
+                // whether that address belongs to the wallet
+                wallettmp
+                    .staking_addresses_contains(&staked_state_address)
+                    .expect("staking_addresses_contains")
+            }),
             block,
         )?;
 
@@ -893,15 +904,14 @@ fn filter_staking_transactions(
 }
 
 /// the staking address in the transaction is self_wallet staking address
-fn filter_incomming_staking_transactions<'a>(
+fn filter_incomming_staking_transactions(
     block_results: &BlockResultsResponse,
-    staking_addresses: impl Iterator<Item = &'a StakedStateAddress>,
+    //  staking_addresses: impl Iterator<Item = &'a StakedStateAddress>,
+    wallet: Box<dyn Fn(StakedStateAddress) -> bool>,
     block: &Block,
 ) -> Result<Vec<Transaction>> {
-    for staking_address in staking_addresses {
-        if block_results.contains_account(&staking_address)? {
-            return block.staking_transactions();
-        }
+    if block_results.contains_account(wallet)? {
+        return block.staking_transactions();
     }
 
     Ok(Default::default())
@@ -1290,7 +1300,7 @@ mod tests {
         let dummy_viewkey = PublicKey::from(
             &PrivateKey::new().expect("Derive public key from private key should work"),
         );
-        let mut dummy_wallet = Wallet::new(dummy_viewkey, WalletKind::HD);
+        let mut dummy_wallet = Wallet::new(dummy_viewkey, WalletKind::HD, "", None);
 
         // already created
         assert_eq!(

@@ -113,7 +113,7 @@ pub trait WalletClient: Send + Sync {
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        wallet_info: WalletInfo,
+        wallet_info: &mut WalletInfo,
     ) -> Result<SecKey>;
 
     /// Restores a HD wallet from given mnemonic
