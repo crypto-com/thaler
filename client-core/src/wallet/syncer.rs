@@ -1,7 +1,6 @@
 #![allow(missing_docs)]
 use indexmap::IndexMap;
 use itertools::{izip, Itertools};
-use non_empty_vec::NonEmpty;
 use std::cmp::{max, Ordering};
 use std::collections::HashMap;
 use std::iter;
@@ -39,6 +38,7 @@ use chain_core::tx::fee::Fee;
 use chain_core::tx::TransactionId;
 use chain_storage::jellyfish::compute_staking_root;
 use chain_tx_filter::BlockFilter;
+use chain_util::NonEmpty;
 use client_common::tendermint::types::{
     Block, BlockExt, BlockResults, BlockResultsResponse, Genesis, Time,
 };
