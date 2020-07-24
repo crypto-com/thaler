@@ -42,7 +42,7 @@ where
 
 impl<F, S, O> DefaultWalletTransactionBuilder<S, F, O>
 where
-    S: Storage,
+    S: Storage + 'static,
     F: FeeAlgorithm + Clone,
     O: TransactionObfuscation,
 {
@@ -91,7 +91,7 @@ where
 
 impl<S, F, O> WalletTransactionBuilder for DefaultWalletTransactionBuilder<S, F, O>
 where
-    S: Storage,
+    S: Storage + 'static,
     F: FeeAlgorithm + Clone,
     O: TransactionObfuscation,
 {

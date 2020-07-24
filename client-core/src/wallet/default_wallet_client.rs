@@ -47,14 +47,14 @@ use secstr::SecUtf8;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::convert::TryInto;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use zxcvbn::{feedback::Feedback, zxcvbn as estimate_password_strength};
-
 /// Default implementation of `WalletClient` based on `Storage` and `Index`
 #[derive(Debug, Default, Clone)]
 pub struct DefaultWalletClient<S, C, T>
 where
-    S: Storage,
+    S: Storage + 'static,
     C: Client,
     T: WalletTransactionBuilder,
 {
@@ -71,11 +71,12 @@ where
     tendermint_client: C,
     transaction_builder: T,
     block_height_ensure: Option<u64>,
+    storage: S,
 }
 
 impl<S, C, T> DefaultWalletClient<S, C, T>
 where
-    S: Storage,
+    S: Storage + 'static,
     C: Client,
     T: WalletTransactionBuilder,
 {
@@ -96,10 +97,11 @@ where
             sync_state_service: SyncStateService::new(storage.clone()),
             #[cfg(feature = "experimental")]
             multi_sig_session_service: MultiSigSessionService::new(storage.clone()),
-            root_hash_service: RootHashService::new(storage),
+            root_hash_service: RootHashService::new(storage.clone()),
             tendermint_client,
             transaction_builder,
             block_height_ensure,
+            storage,
         }
     }
 
@@ -121,7 +123,7 @@ where
 
 impl<S> DefaultWalletClient<S, UnauthorizedClient, UnauthorizedWalletTransactionBuilder>
 where
-    S: Storage,
+    S: Storage + 'static,
 {
     /// Creates a new read-only instance of `DefaultWalletClient`
     pub fn new_read_only(storage: S) -> Self {
@@ -138,7 +140,7 @@ where
 
 impl<S, C, T> AddressRecovery for DefaultWalletClient<S, C, T>
 where
-    S: Storage,
+    S: Storage + 'static,
     C: Client,
     T: WalletTransactionBuilder,
 {
@@ -150,7 +152,7 @@ where
         extended_addr: &ExtendedAddr,
         name: &str,
         enckey: &SecKey,
-        wallet: &mut Wallet,
+        _wallet: &mut Wallet,
     ) -> Result<bool> {
         let is_exist = self
             .wallet_service
@@ -187,14 +189,9 @@ where
 
         let count = count;
         for _i in 0..count {
-            let newaddress: ExtendedAddr = self
+            let _newaddress: ExtendedAddr = self
                 .new_transfer_address(name, enckey)
                 .expect("get new transfer address");
-            match newaddress {
-                ExtendedAddr::OrTree(ref root_hash) => {
-                    wallet.root_hashes.insert(*root_hash);
-                }
-            }
         }
 
         Ok(true)
@@ -203,7 +200,7 @@ where
 
 impl<S, C, T> WalletClient for DefaultWalletClient<S, C, T>
 where
-    S: Storage,
+    S: Storage + 'static,
     C: Client,
     T: WalletTransactionBuilder,
 {
@@ -343,6 +340,7 @@ where
         let mut key_pairs = BTreeMap::new();
         let mut key_chainpath = BTreeMap::new();
         let public_keys = self.public_keys(name, enckey)?;
+
         // get public-private key pair and public-chainpath pair
         for public_key in public_keys.into_iter() {
             if let Some(private_key) =
@@ -362,11 +360,18 @@ where
 
         // get multisig address
         let mut multisig_address_pair = BTreeMap::new();
-        for root_hash in wallet.root_hashes.iter() {
+        let roothashes = wallet.get_transfer_addresses_roothash()?;
+        for root_hash in roothashes.iter() {
             let multisig_address = self
                 .root_hash_service
                 .get_multi_sig_address_from_root_hash(name, root_hash, enckey)?;
             multisig_address_pair.insert(hex::encode(&root_hash), multisig_address);
+        }
+
+        let staking_keys2 = wallet.get_staking_addresses_publickey()?;
+        let mut staking_keys: Vec<PublicKey> = vec![];
+        for key in staking_keys2.iter() {
+            staking_keys.push(key.clone());
         }
 
         // get hdkey
@@ -381,6 +386,7 @@ where
             key_chainpath,
             hdkey,
             multisig_address_pair,
+            staking_keys,
         };
         Ok(wallet_info)
     }
@@ -389,7 +395,7 @@ where
         &self,
         name: &str,
         passphrase: &SecUtf8,
-        wallet_info: WalletInfo,
+        wallet_info: &mut WalletInfo,
     ) -> Result<SecKey> {
         let all_wallet = self.wallet_service.names()?;
         if all_wallet.contains(&name.to_string()) {
@@ -412,6 +418,13 @@ where
             &enckey,
         )?;
 
+        let newstorage = self.storage.clone();
+        // connect storage
+        wallet_info.wallet.wallet_storage =
+            Some(Arc::new(Mutex::new(WalletStorageImpl::new(newstorage))));
+        wallet_info.wallet.name = wallet_info.name.clone();
+        wallet_info.wallet.enckey = Some(enckey.clone());
+
         self.wallet_service
             .set_wallet(name, &enckey, wallet_info.wallet.clone())?;
 
@@ -430,7 +443,7 @@ where
                 .add_public_key(name, &enckey, public_key)?;
         }
 
-        if let Some(hdkey) = wallet_info.hdkey {
+        if let Some(hdkey) = wallet_info.hdkey.clone() {
             self.hd_key_service.add_hdkey(name, &enckey, hdkey)?;
         }
 
@@ -449,11 +462,16 @@ where
                 .set_multi_sig_address_from_root_hash(name, &enckey, &root_hash, multisig_addr)?;
         }
 
-        for public_key in wallet_info.wallet.staking_keys.iter() {
+        let public_keys = wallet_info.wallet.get_staking_addresses_publickey()?;
+        for public_key in public_keys.iter() {
             self.wallet_service
                 .add_staking_key(name, &enckey, public_key)?;
         }
 
+        for staking_key in wallet_info.staking_keys.iter() {
+            self.wallet_service
+                .add_staking_key(name, &enckey, staking_key)?;
+        }
         Ok(enckey)
     }
 
@@ -1280,7 +1298,7 @@ where
 #[cfg(feature = "experimental")]
 impl<S, C, T> MultiSigWalletClient for DefaultWalletClient<S, C, T>
 where
-    S: Storage,
+    S: Storage + 'static,
     C: Client,
     T: WalletTransactionBuilder,
 {
@@ -1512,7 +1530,7 @@ fn import_transaction(
     )
     .chain(|| (ErrorKind::InvalidInput, "create transaction change failed"))?;
     let mut value = Coin::zero();
-    let transfer_addresses = wallet.transfer_addresses();
+    let transfer_addresses = wallet.get_transfer_addresses()?;
     for (i, (output, spent)) in transaction_change
         .outputs
         .iter()
@@ -1611,7 +1629,7 @@ mod tests {
         let dummy_viewkey = PublicKey::from(
             &PrivateKey::new().expect("Derive public key from private key should work"),
         );
-        let mut dummy_wallet = Wallet::new(dummy_viewkey, WalletKind::HD);
+        let mut dummy_wallet = Wallet::new(dummy_viewkey, WalletKind::HD, "", None);
 
         assert_eq!(
             client

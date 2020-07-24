@@ -24,7 +24,7 @@ where
 
 impl<S> WalletSignerManager<S>
 where
-    S: Storage,
+    S: Storage + 'static,
 {
     /// Create an instance fo wallet signer manager
     pub fn new(storage: S, hw_key_service: HwKeyService) -> Self {
@@ -67,7 +67,7 @@ where
 
 impl<'a, S> WalletSigner<'a, S>
 where
-    S: Storage,
+    S: Storage + 'static,
 {
     /// Create an instance of wallet signer
     pub fn new(
@@ -89,7 +89,7 @@ where
 
 impl<'a, S> Signer for WalletSigner<'a, S>
 where
-    S: Storage,
+    S: Storage + 'static,
 {
     fn schnorr_sign_transaction(
         &self,
@@ -134,7 +134,7 @@ where
 
 impl<'a, S> WalletSigner<'a, S>
 where
-    S: Storage,
+    S: Storage + 'static,
 {
     /// Schnorr signs message with private key corresponding to `self_public_key` in given 1-of-n root hash
     fn schnorr_sign_with_root_hash(
