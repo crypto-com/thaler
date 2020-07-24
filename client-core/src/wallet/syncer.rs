@@ -109,6 +109,7 @@ impl<O: TransactionObfuscation> TxDecryptor for TxObfuscationDecryptor<O> {
 #[derive(Clone, Debug)]
 pub struct SyncerOptions {
     pub enable_fast_forward: bool,
+    pub disable_light_client: bool,
     pub enable_address_recovery: bool,
     pub batch_size: usize,
     pub block_height_ensure: u64,
@@ -454,8 +455,9 @@ impl<
         }
 
         let (target_height, target_app_hash, target_block_hash) =
-            if self.env.options.enable_fast_forward {
+            if self.env.options.enable_fast_forward || self.env.options.disable_light_client {
                 (
+                    /* use Tendermint RPC directly */
                     status.sync_info.latest_block_height.value(),
                     status
                         .sync_info
@@ -469,6 +471,7 @@ impl<
                         .unwrap_or_default(),
                 )
             } else {
+                /* use light client */
                 let light_block = self
                     .env
                     .light_client
@@ -1029,6 +1032,7 @@ mod tests {
                 light_client,
                 options: SyncerOptions {
                     enable_fast_forward,
+                    disable_light_client: enable_fast_forward,
                     enable_address_recovery: false,
                     batch_size: 20,
                     block_height_ensure: 50,
@@ -1151,6 +1155,7 @@ mod tests {
                 light_client,
                 options: SyncerOptions {
                     enable_fast_forward,
+                    disable_light_client: enable_fast_forward,
                     enable_address_recovery: false,
                     batch_size: 20,
                     block_height_ensure: 50,
@@ -1203,6 +1208,7 @@ mod tests {
                 light_client,
                 options: SyncerOptions {
                     enable_fast_forward: false,
+                    disable_light_client: false,
                     enable_address_recovery: true,
                     batch_size: 20,
                     block_height_ensure: 50,
@@ -1262,6 +1268,7 @@ mod tests {
                 light_client,
                 options: SyncerOptions {
                     enable_fast_forward: false,
+                    disable_light_client: false,
                     enable_address_recovery: true,
                     batch_size: 20,
                     block_height_ensure: 50,

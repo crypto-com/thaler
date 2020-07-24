@@ -209,6 +209,12 @@ pub enum Command {
         )]
         enable_fast_forward: bool,
         #[structopt(
+            name = "disable-light-client",
+            long,
+            help = "Disable light client, which is not secure when connecting to outside nodes"
+        )]
+        disable_light_client: bool,
+        #[structopt(
             name = "disable-address-recovery",
             long,
             help = "Disable address recovery, which is not necessary, if addresses already exist"
@@ -382,6 +388,7 @@ impl Command {
                 batch_size,
                 force,
                 enable_fast_forward,
+                disable_light_client,
                 disable_address_recovery,
                 block_height_ensure,
             } => {
@@ -403,6 +410,7 @@ impl Command {
                     tx_obfuscation,
                     SyncerOptions {
                         enable_fast_forward: *enable_fast_forward,
+                        disable_light_client: *disable_light_client,
                         enable_address_recovery: !*disable_address_recovery,
                         batch_size: *batch_size,
                         block_height_ensure: *block_height_ensure,

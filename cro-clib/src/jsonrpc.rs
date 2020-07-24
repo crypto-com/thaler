@@ -216,6 +216,7 @@ unsafe fn create_rpc(
 
     let options = SyncerOptions {
         enable_fast_forward: false,
+        disable_light_client: true,
         enable_address_recovery: true,
         batch_size: 50,
         block_height_ensure: 50,
