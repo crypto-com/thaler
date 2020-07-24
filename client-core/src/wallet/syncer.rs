@@ -447,37 +447,58 @@ impl<
                 "Tendermint node is catching up with full node (retry after some time)",
             ));
         }
-        let light_block = self
-            .env
-            .light_client
-            .verify_to_highest()
-            .err_kind(ErrorKind::VerifyError, || "")?;
 
-        let target_height = light_block.signed_header.header.height.value();
-        let target_app_hash = hex::encode_upper(&light_block.signed_header.header.app_hash);
-        let target_block_hash = ProdHasher {}
-            .hash_header(&light_block.signed_header.header)
-            .to_string();
+        let (target_height, target_app_hash, target_block_hash) =
+            if self.env.options.enable_fast_forward {
+                (
+                    status.sync_info.latest_block_height.value(),
+                    status
+                        .sync_info
+                        .latest_app_hash
+                        .map(|hash| hash.to_string())
+                        .unwrap_or_default(),
+                    status
+                        .sync_info
+                        .latest_block_hash
+                        .map(|hash| hash.to_string())
+                        .unwrap_or_default(),
+                )
+            } else {
+                let light_block = self
+                    .env
+                    .light_client
+                    .verify_to_highest()
+                    .err_kind(ErrorKind::VerifyError, || "")?;
+
+                let target_height = light_block.signed_header.header.height.value();
+                let target_app_hash = hex::encode_upper(&light_block.signed_header.header.app_hash);
+                let target_block_hash = ProdHasher {}
+                    .hash_header(&light_block.signed_header.header)
+                    .to_string();
+                {
+                    // wait for the target block results to become available
+                    let mut success = false;
+                    for _ in 0..10 {
+                        if self.env.client.block_results(target_height).is_ok() {
+                            success = true;
+                            break;
+                        }
+                        thread::sleep(Duration::from_millis(100));
+                    }
+                    if !success {
+                        return Err(Error::new(
+                            ErrorKind::TendermintRpcError,
+                            "block result for highest light block is not available",
+                        ));
+                    }
+                }
+                (target_height, target_app_hash, target_block_hash)
+            };
+
         if !self.init_progress(target_height) {
             return Err(Error::new(ErrorKind::InvalidInput, "Cancelled by user"));
         }
-        {
-            // wait for the target block results to become available
-            let mut success = false;
-            for _ in 0..10 {
-                if self.env.client.block_results(target_height).is_ok() {
-                    success = true;
-                    break;
-                }
-                thread::sleep(Duration::from_millis(100));
-            }
-            if !success {
-                return Err(Error::new(
-                    ErrorKind::TendermintRpcError,
-                    "block result for highest light block is not available",
-                ));
-            }
-        }
+
         self.sync_to(target_height, &target_app_hash, &target_block_hash)?;
 
         Ok(())
