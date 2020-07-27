@@ -35,14 +35,14 @@ fn handling_loop<I: Read + Write>(
 ) {
     let mut filter = BlockFilter::default();
     let mut request_buf = vec![0u8; 2 * TX_AUX_SIZE];
-
+    log::debug!("waiting for chain-abci requests");
     loop {
         if let Some((ref b, _)) = process_signal {
             if b.load(Ordering::Relaxed) {
                 break;
             }
         }
-        log::debug!("waiting for chain-abci request");
+        log::trace!("waiting for chain-abci request");
         match chain_abci.read(&mut request_buf) {
             Ok(n) if n > 0 => match IntraEnclaveRequest::decode(&mut &request_buf.as_slice()[0..n])
             {
