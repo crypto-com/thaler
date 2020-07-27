@@ -88,6 +88,7 @@ rust: &rust
       # sed 's/default = \[\]/default = \["mock-enclave"\]/g' -i chain-abci/Cargo.toml;
       # sed 's/sgx/#sgx/g' -i chain-abci/Cargo.toml;
       sed 's/legacy/#legacy/g' -i chain-abci/Cargo.toml;
+      sed 's/sgx-test/#sgx-test/g' -i chain-abci/Cargo.toml;
       sed 's/enclave-u-common =/#enclave-u-common =/g' -i chain-abci/Cargo.toml;
       sed 's/sgx_types =/#sgx_types =/g' -i chain-abci/Cargo.toml;
       sed 's/sgx_urts =/#sgx_urts =/g' -i chain-abci/Cargo.toml;
