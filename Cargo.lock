@@ -776,7 +776,7 @@ dependencies = [
  "ra-client",
  "rand 0.7.3",
  "rust-argon2 0.8.2",
- "rustls 0.18.0",
+ "rustls",
  "secp256k1",
  "secstr",
  "serde",
@@ -2081,15 +2081,15 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
-version = "0.20.0"
+version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac965ea399ec3a25ac7d13b8affd4b8f39325cca00858ddf5eb29b79e6b14b08"
+checksum = "37743cc83e8ee85eacfce90f2f4102030d9ff0a95244098d781e9bee4a90abb6"
 dependencies = [
  "bytes 0.5.4",
  "futures-util",
  "hyper 0.13.5",
  "log",
- "rustls 0.17.0",
+ "rustls",
  "tokio 0.2.20",
  "tokio-rustls",
  "webpki",
@@ -2180,6 +2180,12 @@ checksum = "b2b3ea6ff95e175473f8ffe6a7eb7c00d054240321b84c57051175fe3c1e075e"
 dependencies = [
  "libc",
 ]
+
+[[package]]
+name = "ipnet"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47be2f14c678be2fdcab04ab1171db51b2762ce6f0a8ee87c8dd4a04ed216135"
 
 [[package]]
 name = "itertools"
@@ -2649,7 +2655,7 @@ dependencies = [
  "rand 0.7.3",
  "ring",
  "rs-libc",
- "rustls 0.18.0",
+ "rustls",
  "secrecy",
  "sha2 0.9.1",
  "subtle 2.2.3",
@@ -3300,7 +3306,7 @@ dependencies = [
  "der-parser",
  "lazy_static",
  "ra-common",
- "rustls 0.18.0",
+ "rustls",
  "serde_json",
  "sgx-isa",
  "thiserror",
@@ -3331,7 +3337,7 @@ dependencies = [
  "ra-sp-client",
  "rcgen",
  "ring",
- "rustls 0.18.0",
+ "rustls",
  "serde_json",
  "sgx-isa",
  "sha2 0.9.1",
@@ -3617,9 +3623,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.10.6"
+version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b82c9238b305f26f53443e3a4bc8528d64b8d0bee408ec949eb7bf5635ec680"
+checksum = "12427a5577082c24419c9c417db35cfeb65962efc7675bb6b0d5f1f9d315bfe6"
 dependencies = [
  "base64 0.12.3",
  "bytes 0.5.4",
@@ -3630,6 +3636,7 @@ dependencies = [
  "http-body 0.3.1",
  "hyper 0.13.5",
  "hyper-rustls",
+ "ipnet",
  "js-sys",
  "lazy_static",
  "log",
@@ -3637,7 +3644,7 @@ dependencies = [
  "mime_guess",
  "percent-encoding",
  "pin-project-lite",
- "rustls 0.17.0",
+ "rustls",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -3773,19 +3780,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8a9050636e8a1b487ba1fbe99114021cd7594dde3ce6ed95bfc1691e5b5367b"
 dependencies = [
  "nom",
-]
-
-[[package]]
-name = "rustls"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0d4a31f5d68413404705d6982529b0e11a9aacd4839d1d6222ee3b8cb4015e1"
-dependencies = [
- "base64 0.11.0",
- "log",
- "ring",
- "sct",
- "webpki",
 ]
 
 [[package]]
@@ -4502,7 +4496,7 @@ dependencies = [
  "ra-client",
  "ra-enclave",
  "rs-libc",
- "rustls 0.18.0",
+ "rustls",
  "sgx-isa",
  "tdbe-common",
  "thread-pool",
@@ -4891,12 +4885,12 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.13.1"
+version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15cb62a0d2770787abc96e99c1cd98fcf17f94959f3af63ca85bdfb203f051b4"
+checksum = "228139ddd4fea3fa345a29233009635235833e52807af7ea6448ead03890d6a9"
 dependencies = [
  "futures-core",
- "rustls 0.17.0",
+ "rustls",
  "tokio 0.2.20",
  "webpki",
 ]
@@ -5106,7 +5100,7 @@ dependencies = [
  "ra-enclave",
  "rand 0.7.3",
  "rs-libc",
- "rustls 0.18.0",
+ "rustls",
  "secp256k1",
  "thread-pool",
  "zeroize",
