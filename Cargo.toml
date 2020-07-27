@@ -32,6 +32,7 @@ members = [
     "chain-tx-enclave/mock-utils",
     "chain-tx-enclave-next/mls",
     "cro-clib",
+    "integration-tests/rust_tests/test_cert_expiration",
 ]
 
 default-members = [

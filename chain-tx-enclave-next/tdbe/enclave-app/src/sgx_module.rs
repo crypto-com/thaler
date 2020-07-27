@@ -8,6 +8,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use chrono::Duration;
 use rustls::{ClientSession, ServerSession, StreamOwned};
 use sgx_isa::Report;
 use thread_pool::ThreadPool;
@@ -19,7 +20,7 @@ use enclave_protocol::{
     tdbe_protocol::{TrustedTdbeRequest, TrustedTdbeResponse},
 };
 use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierConfig, EnclaveInfo};
-use ra_enclave::{EnclaveRaConfig, EnclaveRaContext};
+use ra_enclave::{EnclaveRaConfig, EnclaveRaContext, DEFAULT_EXPIRATION_SECS};
 use tdbe_common::TdbeConfig;
 
 const THREAD_POOL_SIZE: usize = 4;
@@ -151,9 +152,18 @@ fn get_tdbe_config() -> TdbeConfig {
 fn create_ra_context() -> Arc<EnclaveRaContext> {
     log::info!("Creating enclave remote attestation context");
 
+    let certificate_expiration_time = {
+        option_env!("CERTIFICATE_EXPIRATION_SECS").map(|s| {
+            let sec = s
+                .parse()
+                .expect("invalid CERTIFICATE_EXPIRATION_SECS, expect u64");
+            Duration::seconds(sec)
+        })
+    };
     let config = EnclaveRaConfig {
         sp_addr: "ra-sp-server".to_string(),
-        certificate_validity_secs: 86400,
+        certificate_validity_secs: DEFAULT_EXPIRATION_SECS as u32,
+        certificate_expiration_time,
     };
 
     let enclave_ra_context =
@@ -209,7 +219,6 @@ fn create_tls_client_stream(
     address: &str,
 ) -> std::io::Result<StreamOwned<ClientSession, TcpStream>> {
     log::info!("Creating enclave-to-enclave attested TLS client stream");
-
     let certificate = context
         .get_certificate()
         .expect("Unable to generate remote attestation certificate");
@@ -242,7 +251,6 @@ fn create_tls_server_stream(
     stream: TcpStream,
 ) -> std::io::Result<StreamOwned<ServerSession, TcpStream>> {
     log::info!("Creating enclave-to-enclave attested TLS server stream");
-
     let certificate = context
         .get_certificate()
         .expect("Unable to create remote attestation certificate");

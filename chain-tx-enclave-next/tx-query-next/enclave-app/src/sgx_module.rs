@@ -15,14 +15,16 @@ use thread_pool::ThreadPool;
 use enclave_protocol::{
     DecryptionRequest, TxQueryInitRequest, TxQueryInitResponse, ENCRYPTION_REQUEST_SIZE,
 };
+use ra_enclave::DEFAULT_EXPIRATION_SECS;
 use ra_enclave::{EnclaveRaConfig, EnclaveRaContext};
 
 use self::handler::{
     get_random_challenge, handle_decryption_request, handle_encryption_request,
     verify_decryption_request,
 };
+use chrono::Duration;
 
-pub fn entry() -> std::io::Result<()> {
+pub fn entry(cert_expiration: Option<Duration>) -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
@@ -30,9 +32,17 @@ pub fn entry() -> std::io::Result<()> {
     let zmq_stream = Arc::new(Mutex::new(TcpStream::connect("zmq")?));
 
     let num_threads = 4;
+
+    // use the smaller Duration as certificate validity, so that we can check the certification is expired or not correctly
+    let default_expiration_time = Duration::seconds(DEFAULT_EXPIRATION_SECS);
+    let certificate_validity = match cert_expiration {
+        None => default_expiration_time,
+        Some(s) => s.min(default_expiration_time),
+    };
     let config = EnclaveRaConfig {
         sp_addr: "ra-sp-server".to_string(),
-        certificate_validity_secs: 86400,
+        certificate_validity_secs: certificate_validity.num_seconds() as u32,
+        certificate_expiration_time: cert_expiration,
     };
 
     let context = Arc::new(

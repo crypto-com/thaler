@@ -16,6 +16,7 @@ sgx-isa = { version = "0.3", features = ["sgxstd"] }
 thread-pool = "0.1"
 webpki = "0.21"
 zeroize = "1.1"
+chrono = "0.4"
 
 chain-core = { path = "../../../chain-core", default-features = false, features = ["edp"] }
 enclave-protocol = { path = "../../../enclave-protocol", features = ["edp"] }

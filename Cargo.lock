@@ -4488,6 +4488,7 @@ name = "tdb-enclave-app"
 version = "0.6.0"
 dependencies = [
  "chain-core",
+ "chrono",
  "enclave-protocol",
  "enclave-utils",
  "env_logger",
@@ -4646,6 +4647,15 @@ dependencies = [
  "tendermint",
  "tendermint-light-client",
  "tendermint-rpc",
+]
+
+[[package]]
+name = "test_cert_expiration"
+version = "0.1.0"
+dependencies = [
+ "ra-client",
+ "rustls",
+ "webpki",
 ]
 
 [[package]]
@@ -5092,6 +5102,7 @@ name = "tx-query2-enclave-app"
 version = "0.6.0"
 dependencies = [
  "chain-core",
+ "chrono",
  "enclave-protocol",
  "enclave-utils",
  "env_logger",
@@ -5142,6 +5153,7 @@ dependencies = [
  "chain-core",
  "chain-tx-filter",
  "chain-tx-validation",
+ "chrono",
  "enclave-macro",
  "enclave-protocol",
  "enclave-utils",
