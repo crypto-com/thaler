@@ -14,13 +14,13 @@ x509-parser = "0.8.0-beta4"
 secrecy = "0.7.0"
 sha2 = "0.9"
 hkdf = { version = "0.9", features = ["std"] }
-hpke = { version = "0.1.8", default-features = false, features = ["p256"] }
+hpke = { version = "0.1.8", default-features = false, features = ["p256", "std"] }
 aead = "0.3"
 rand = "0.7"
 chrono="0.4.13"
 ra-client = { path = "../enclave-ra/ra-client" }
 subtle = "2.2.3"
-chain-util = { path = "../../chain-util", default-features = false }
+chain-util = { path = "../../chain-util" }
 
 [dev-dependencies]
 chrono = "0.4"

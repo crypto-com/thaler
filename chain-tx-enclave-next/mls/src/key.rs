@@ -98,7 +98,6 @@ impl Codec for HPKEPublicKey {
 
 /// p-256 private key
 /// used for obtaining the initial sealed secrets (HPKE)
-#[derive(Clone)]
 pub struct HPKEPrivateKey(<hpke::kex::DhP256 as hpke::KeyExchange>::PrivateKey);
 
 impl HPKEPrivateKey {

@@ -1,11 +1,13 @@
+use std::collections::BTreeMap;
 use std::convert::TryFrom;
 
 use crate::ciphersuite::*;
 use crate::extensions as ext;
-use crate::key::IdentityPublicKey;
-use crate::keypackage::Timespec;
-use crate::keypackage::PROTOCOL_VERSION_MLS10;
-use crate::keypackage::{self as kp, KeyPackage, KeyPackageSecret};
+use crate::key::{HPKEPrivateKey, IdentityPrivateKey, IdentityPublicKey};
+use crate::keypackage::{
+    self as kp, verify_keypackage_and_secrets, KeyPackage, KeyPackageSecret, Timespec,
+    PROTOCOL_VERSION_MLS10,
+};
 use crate::message::*;
 use crate::secrets::*;
 use crate::tree::*;
@@ -14,7 +16,6 @@ use crate::utils::{
     encode_vec_option_u32, encode_vec_u8_u16, encode_vec_u8_u8, read_vec_option_u32,
     read_vec_u8_u16, read_vec_u8_u8,
 };
-use hkdf::InvalidLength;
 use ra_client::AttestedCertVerifier;
 use rustls::internal::msgs::codec::{self, Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
@@ -29,8 +30,13 @@ pub struct GroupAux {
     pub tree_secret: TreeSecret,
     pub secrets: EpochSecrets<Sha256>,
     pub kp_secret: KeyPackageSecret,
-    // record the new secret when waiting for self update commit
-    pub kp_secret_pending: Option<KeyPackageSecret>,
+
+    /// record the pending credential secret for self-update proposals.
+    /// inserted when commit self update proposal, removed when processing the commit.
+    pub pending_updates: BTreeMap<ProposalId, IdentityPrivateKey>,
+    /// record the new init private key generate in commit.
+    /// inserted when commit proposals, removed when processing self commit.
+    pub pending_commit: BTreeMap<ProposalId, HPKEPrivateKey>,
 }
 
 impl GroupAux {
@@ -47,7 +53,8 @@ impl GroupAux {
             tree_secret: TreeSecret::empty(cs),
             secrets,
             kp_secret,
-            kp_secret_pending: None,
+            pending_updates: BTreeMap::new(),
+            pending_commit: BTreeMap::new(),
         }
     }
 
@@ -102,14 +109,17 @@ impl GroupAux {
                 key_package: keypackage,
             })),
         };
-        self.kp_secret_pending = Some(secret);
         let to_be_signed = MLSPlaintextTBS {
             context: self.context.clone(),
             content: content.clone(),
         }
         .get_encoding();
         let signature = self.kp_secret.credential_private_key.sign(&to_be_signed);
-        MLSPlaintext { content, signature }
+        let proposal = MLSPlaintext { content, signature };
+        let proposal_id = ProposalId(self.tree.cs.hash(&proposal.get_encoding()));
+        self.pending_updates
+            .insert(proposal_id, secret.credential_private_key);
+        proposal
     }
 
     /// Generate and sign remove proposal
@@ -175,6 +185,7 @@ impl GroupAux {
             content: plain.clone(),
         }
         .get_encoding();
+
         let signature = self.kp_secret.credential_private_key.sign(&to_be_signed);
         MLSPlaintext {
             content: plain.clone(),
@@ -235,16 +246,17 @@ impl GroupAux {
         }
     }
 
+    /// Generate commit message for proposals.
     fn do_commit_proposals(
-        &mut self,
+        &self,
         proposals: &[MLSPlaintext],
         init_genesis: bool,
-    ) -> (MLSPlaintext, Welcome) {
+    ) -> (MLSPlaintext, Welcome, Option<HPKEPrivateKey>) {
         // split proposals by types
         let mut add_proposals_ids: Vec<ProposalId> = Vec::new();
         let mut additions: Vec<Add> = Vec::new();
         let mut update_proposals_ids: Vec<ProposalId> = Vec::new();
-        let mut updates: Vec<(LeafSize, Update)> = Vec::new();
+        let mut updates: Vec<(LeafSize, Update, ProposalId)> = Vec::new();
         let mut remove_proposals_ids: Vec<ProposalId> = Vec::new();
         let mut removes: Vec<Remove> = Vec::new();
         for p in proposals.iter() {
@@ -255,8 +267,12 @@ impl GroupAux {
                     additions.push(add.clone());
                 }
                 ContentType::Proposal(Proposal::Update(update)) => {
-                    update_proposals_ids.push(proposal_id);
-                    updates.push((LeafSize(p.content.sender.sender), update.clone()));
+                    update_proposals_ids.push(proposal_id.clone());
+                    updates.push((
+                        LeafSize(p.content.sender.sender),
+                        update.clone(),
+                        proposal_id,
+                    ));
                 }
                 ContentType::Proposal(Proposal::Remove(remove)) => {
                     remove_proposals_ids.push(proposal_id);
@@ -265,37 +281,48 @@ impl GroupAux {
                 _ => panic!("invalid proposal message type"),
             }
         }
+
         let mut updated_tree = self.tree.clone();
         let positions = updated_tree.update(&additions, &updates, &removes);
+
+        let self_update_proposal = updates
+            .iter()
+            .find(|(sender, _, _)| *sender == self.tree.my_pos)
+            .map(|(_, _, proposal_id)| proposal_id);
+        let credential_private_key = if let Some(proposal_id) = self_update_proposal {
+            self.pending_updates
+                .get(&proposal_id)
+                .expect("self update proposal has set pending secret")
+        } else {
+            &self.kp_secret.credential_private_key
+        };
 
         // pathRequired = isGenesisInit || haveUpdateOrRemove || haveNoProposalsAtAll
         let should_populate_path =
             init_genesis || proposals.is_empty() || !updates.is_empty() || !removes.is_empty();
 
-        let (path, tree_secret) = if should_populate_path {
-            // update init key
-            self.kp_secret
-                .update_init_key(updated_tree.get_my_package_mut());
+        let (path, tree_secret, init_private_key) = if should_populate_path {
+            // new init key
+            let init_private_key = updated_tree.get_my_package_mut().update_init_key();
 
             // update path secrets
-            let (path_nodes, parent_hash, tree_secret) = updated_tree.evolve(
-                &self.context.get_encoding(),
-                &self.kp_secret.init_private_key.marshal(),
-            );
+            let (path_nodes, parent_hash, tree_secret) =
+                updated_tree.evolve(&self.context.get_encoding(), &init_private_key.marshal());
 
             let kp = updated_tree.get_my_package_mut();
             // update keypackage's parent_hash extension
             kp.payload.put_extension(&ext::ParentHashExt(parent_hash));
-            self.kp_secret.update_signature(kp);
+            kp.update_signature(credential_private_key);
             (
                 Some(DirectPath {
                     leaf_key_package: kp.clone(),
                     nodes: path_nodes,
                 }),
                 tree_secret,
+                Some(init_private_key),
             )
         } else {
-            (None, TreeSecret::empty(self.tree.cs))
+            (None, TreeSecret::empty(self.tree.cs), None)
         };
 
         let commit = Commit {
@@ -348,17 +375,32 @@ impl GroupAux {
                 interim_transcript_hash,
                 positions,
             ),
+            init_private_key,
         )
     }
 
     /// commit proposals
     pub fn commit_proposals(&mut self, proposals: &[MLSPlaintext]) -> (MLSPlaintext, Welcome) {
-        self.do_commit_proposals(proposals, false)
+        let (msg, welcome, init_private_key) = self.do_commit_proposals(proposals, false);
+        if let Some(init_private_key) = init_private_key {
+            self.pending_commit.insert(
+                ProposalId(self.tree.cs.hash(&msg.get_encoding())),
+                init_private_key,
+            );
+        }
+        (msg, welcome)
     }
 
     /// commit the proposals in genesis
     pub fn init_commit(&mut self, proposals: &[MLSPlaintext]) -> (MLSPlaintext, Welcome) {
-        self.do_commit_proposals(proposals, true)
+        let (msg, welcome, init_private_key) = self.do_commit_proposals(proposals, true);
+        if let Some(init_private_key) = init_private_key {
+            self.pending_commit.insert(
+                ProposalId(self.tree.cs.hash(&msg.get_encoding())),
+                init_private_key,
+            );
+        }
+        (msg, welcome)
     }
 
     fn verify_msg_signature(
@@ -374,49 +416,6 @@ impl GroupAux {
         let pk = IdentityPublicKey::new_unsafe(kp.verify(ra_verifier, now)?.public_key.to_vec());
         msg.verify_signature(&self.context, &pk)
             .map_err(ProcessCommitError::MsgSignatureVerifyFailed)
-    }
-
-    /// apply proposals and commit
-    fn apply_commit(&mut self, commit: &CommitContent) -> Result<(), ProcessCommitError> {
-        let ctx = self.context.get_encoding();
-        let init_private_key = &self.kp_secret.init_private_key;
-
-        // check path populating condition
-        let should_populate_path =
-            (commit.additions.is_empty() && commit.updates.is_empty() && commit.removes.is_empty())
-                || !commit.updates.is_empty()
-                || !commit.removes.is_empty();
-        if should_populate_path && commit.commit.path.is_none() {
-            return Err(ProcessCommitError::CommitPathNotPopulated);
-        }
-
-        self.tree
-            .update(&commit.additions, &commit.updates, &commit.removes);
-        // "If the path value is populated: Process the path value..."
-        if let Some(path) = &commit.commit.path {
-            let leaf_parent_hash = self.tree.merge(commit.sender, &path.nodes);
-            self.tree_secret.apply_path_secrets(
-                commit.sender,
-                &self.tree,
-                &ctx,
-                &path.nodes,
-                init_private_key,
-            )?;
-            // Verify that the KeyPackage has a `parent_hash` extension and that its value
-            // matches the new parent of the sender's leaf node.
-            let ext = path
-                .leaf_key_package
-                .payload
-                .find_extension::<ext::ParentHashExt>()?;
-            if !bool::from(ext.0.ct_eq(&leaf_parent_hash)) {
-                return Err(ProcessCommitError::LeafParentHashDontMatch);
-            }
-
-            self.tree
-                .set_package(commit.sender, path.leaf_key_package.clone());
-        }
-
-        Ok(())
     }
 
     pub fn process_commit(
@@ -443,7 +442,87 @@ impl GroupAux {
         let commit_content = CommitContent::new(self.tree.cs, &commit, proposals)
             .map_err(|_| ProcessCommitError::CommitError)?;
 
-        self.apply_commit(&commit_content)?;
+        // update credential_private_key for self updating proposal
+        let self_update_proposal = commit_content
+            .updates
+            .iter()
+            .find(|(sender, _, _)| *sender == self.tree.my_pos);
+        let credential_private_key = if let Some((_, _, proposal_id)) = self_update_proposal {
+            // apply the pending credential_private_key
+            self.pending_updates
+                .get(proposal_id)
+                .ok_or(ProcessCommitError::PendingCredentialPrivateKeyNotFound)?
+        } else {
+            &self.kp_secret.credential_private_key
+        };
+
+        let commit_id = ProposalId(self.tree.cs.hash(&commit.get_encoding()));
+        let init_private_key =
+            if commit_content.commit.path.is_some() && commit_content.sender == self.tree.my_pos {
+                // apply pending `init_private_key` if I'm the committer
+                self.pending_commit
+                    .get(&commit_id)
+                    .ok_or(ProcessCommitError::PendingInitPrivateKeyNotFound)?
+            } else {
+                &self.kp_secret.init_private_key
+            };
+
+        // verify the leaf key package in commit path
+        if let Some(path) = &commit_content.commit.path {
+            if commit_content.sender == self.tree.my_pos {
+                verify_keypackage_and_secrets(
+                    &path.leaf_key_package,
+                    init_private_key,
+                    credential_private_key,
+                    ra_verifier,
+                    now,
+                )?;
+            } else {
+                path.leaf_key_package.verify(ra_verifier, now)?;
+            }
+        }
+
+        // check path populating condition
+        let should_populate_path = (commit_content.additions.is_empty()
+            && commit_content.updates.is_empty()
+            && commit_content.removes.is_empty())
+            || !commit_content.updates.is_empty()
+            || !commit_content.removes.is_empty();
+        if should_populate_path && commit_content.commit.path.is_none() {
+            return Err(ProcessCommitError::CommitPathNotPopulated);
+        }
+
+        let mut tree = self.tree.clone();
+        tree.update(
+            &commit_content.additions,
+            &commit_content.updates,
+            &commit_content.removes,
+        );
+        // "If the path value is populated: Process the path value..."
+        let tree_diff = if let Some(path) = &commit_content.commit.path {
+            let leaf_parent_hash = tree.merge(commit_content.sender, &path.nodes);
+            let tree_diff = self.tree_secret.apply_path_secrets(
+                commit_content.sender,
+                &tree,
+                &self.context.get_encoding(),
+                &path.nodes,
+                &init_private_key,
+            )?;
+            // Verify that the KeyPackage has a `parent_hash` extension and that its value
+            // matches the new parent of the sender's leaf node.
+            let ext = path
+                .leaf_key_package
+                .payload
+                .find_extension::<ext::ParentHashExt>()?;
+            if !bool::from(ext.0.ct_eq(&leaf_parent_hash)) {
+                return Err(ProcessCommitError::LeafParentHashDontMatch);
+            }
+
+            tree.set_package(commit_content.sender, path.leaf_key_package.clone());
+            Some(tree_diff)
+        } else {
+            None
+        };
 
         // "Update the new GroupContext's confirmed and interim transcript hashes using the new Commit."
         let confirmed_transcript_hash = self.get_init_confirmed_transcript_hash(
@@ -460,18 +539,18 @@ impl GroupAux {
 
         let updated_group_context = GroupContext {
             epoch: self.context.epoch + 1,
-            tree_hash: self.tree.compute_tree_hash(),
+            tree_hash: tree.compute_tree_hash(),
             confirmed_transcript_hash,
             ..self.context.clone()
         };
-        let updated_group_context_hash = self.tree.cs.hash(&updated_group_context.get_encoding());
+        let updated_group_context_hash = tree.cs.hash(&updated_group_context.get_encoding());
 
         // "Use the commit_secret, the provisional GroupContext,
         // and the init secret from the previous epoch to compute the epoch secret and derived secrets for the new epoch."
         let epoch_secrets = self.secrets.generate_new_epoch_secrets(
             &self.tree_secret.update_secret,
             updated_group_context_hash,
-            self.tree.leaf_len(),
+            tree.leaf_len(),
         );
         let confirmation_computed =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
@@ -486,30 +565,33 @@ impl GroupAux {
             return Err(ProcessCommitError::GroupInfoIntegrityError);
         }
 
-        // update kp_secret for self updating proposal
-        let self_update_proposal = commit_content
-            .updates
-            .iter()
-            .filter_map(|(sender, update)| {
-                if *sender == self.tree.my_pos {
-                    Some(&update.key_package)
-                } else {
-                    None
-                }
-            })
-            .next();
-        if self_update_proposal.is_some() {
-            // apply the kp_secret_pending
-            self.kp_secret.credential_private_key = self
-                .kp_secret_pending
-                .take()
-                .ok_or(ProcessCommitError::CommitError)?
-                .credential_private_key;
-        }
-
         // "If the above checks are successful, consider the updated GroupContext object as the current state of the group."
         self.context = updated_group_context;
         self.secrets = epoch_secrets;
+        self.tree = tree;
+        if let Some(diff) = tree_diff {
+            self.tree_secret.apply_tree_diff(diff);
+        }
+        // set pending credential_private_key
+        if let Some((_, _, proposal_id)) = self_update_proposal {
+            self.kp_secret.credential_private_key = self
+                .pending_updates
+                .remove(proposal_id)
+                .expect("impossible, checked above");
+
+            // clear pending secrets after one proposal committed
+            self.pending_updates.clear();
+        }
+
+        // set pending init_private_key
+        if commit_content.commit.path.is_some() && commit_content.sender == self.tree.my_pos {
+            self.kp_secret.init_private_key = self
+                .pending_commit
+                .remove(&commit_id)
+                .expect("impossible, checked above");
+        }
+        // clear pending commit secrets since they are invalid now
+        self.pending_commit.clear();
 
         Ok(())
     }
@@ -660,7 +742,8 @@ impl GroupAux {
             tree_secret: TreeSecret::empty(cs),
             kp_secret,
             secrets,
-            kp_secret_pending: None,
+            pending_updates: BTreeMap::new(),
+            pending_commit: BTreeMap::new(),
         };
         // * "Verify the confirmation MAC in the GroupInfo using the derived confirmation key and the confirmed_transcript_hash from the GroupInfo."
         let confirmation = group
@@ -843,8 +926,14 @@ pub enum ProcessCommitError {
     MsgSignatureVerifyFailed(ring::error::Unspecified),
     #[error("commit path is not populated")]
     CommitPathNotPopulated,
+    #[error("hkdf error")]
+    HkdfError(#[from] hkdf::InvalidLength),
     #[error("hpke error")]
-    HpkeError(#[from] InvalidLength),
+    HpkeError(#[from] hpke::HpkeError),
+    #[error("pending init_private_key not found")]
+    PendingInitPrivateKeyNotFound,
+    #[error("pending credential private key not found")]
+    PendingCredentialPrivateKeyNotFound,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -882,9 +971,11 @@ mod test {
         KeyPackage, KeyPackagePayload, MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
         PROTOCOL_VERSION_MLS10,
     };
+    use crate::tree_math::ParentSize;
     use chrono::{DateTime, Utc};
-    use ra_client::ENCLAVE_CERT_VERIFIER;
-    use ra_client::{AttestedCertVerifier, CertVerifyResult, EnclaveCertVerifierError};
+    use ra_client::{
+        AttestedCertVerifier, CertVerifyResult, EnclaveCertVerifierError, ENCLAVE_CERT_VERIFIER,
+    };
     use rustls::internal::msgs::codec::Codec;
 
     #[derive(Clone)]
@@ -1010,6 +1101,7 @@ mod test {
                 Update {
                     key_package: to_be_updated.clone(),
                 },
+                ProposalId(vec![]),
             )],
             &[],
         );
@@ -1128,6 +1220,61 @@ mod test {
         assert_eq!(
             member2_group.tree.get_package(member3_group.tree.my_pos),
             None
+        );
+    }
+
+    #[test]
+    fn test_invalid_commit() {
+        // process invalid commit don't end up partial mutated state.
+        let (member1, member1_secret) = get_fake_keypackage();
+        let (member2, member2_secret) = get_fake_keypackage();
+        let (member3, _member3_secret) = get_fake_keypackage();
+        let ra_verifier = MockVerifier {};
+
+        // add member2 in genesis
+        let (mut member1_group, proposals, commit, welcome) =
+            GroupAux::init_group(member1, member1_secret, &[member2.clone()], &ra_verifier, 0)
+                .expect("group init");
+
+        // after commit/welcome get confirmed
+        member1_group
+            .process_commit(commit, &proposals, &ra_verifier, 0)
+            .expect("commit ok");
+        let mut member2_group =
+            GroupAux::init_group_from_welcome(member2, member2_secret, welcome, &ra_verifier, 0)
+                .expect("group init from welcome");
+
+        // they should get to the same context
+        assert_eq!(&member1_group.context, &member2_group.context);
+
+        // mess up keypackage of member2
+        member1_group.tree.set_package(LeafSize(1), member3);
+
+        // add member3
+        let (commit, _welcome) = member1_group.commit_proposals(&[]);
+
+        // after commit/welcome get confirmed
+        member1_group
+            .process_commit(commit.clone(), &[], &ra_verifier, 0)
+            .expect("commit ok");
+
+        let old_parent_node = member2_group
+            .tree
+            .get_parent_node(ParentSize(0))
+            .unwrap()
+            .clone();
+        // decryption error
+        assert!(matches!(
+            member2_group.process_commit(commit, &[], &ra_verifier, 0),
+            Err(ProcessCommitError::HpkeError(hpke::HpkeError::InvalidTag))
+        ));
+        assert_eq!(
+            old_parent_node.get_encoding(),
+            member2_group
+                .tree
+                .get_parent_node(ParentSize(0))
+                .unwrap()
+                .get_encoding()
         );
     }
 }

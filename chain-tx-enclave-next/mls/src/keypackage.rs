@@ -7,6 +7,7 @@ use ra_client::{AttestedCertVerifier, CertVerifyResult, EnclaveCertVerifierError
 #[cfg(target_env = "sgx")]
 use ra_enclave::{Certificate, EnclaveRaContext, EnclaveRaContextError};
 use rustls::internal::msgs::codec::{self, Codec, Reader};
+use subtle::ConstantTimeEq;
 #[cfg(target_env = "sgx")]
 use x509_parser::{parse_x509_der, x509};
 
@@ -218,6 +219,18 @@ impl KeyPackage {
             .map_err(Error::SignatureVerifyError)?;
         Ok(info)
     }
+
+    /// re-sign payload
+    pub fn update_signature(&mut self, private_key: &IdentityPrivateKey) {
+        self.signature = private_key.sign(&self.payload.get_encoding());
+    }
+
+    /// re-generate init key
+    pub fn update_init_key(&mut self) -> HPKEPrivateKey {
+        let (hpke_secret, hpke_public) = HPKEPrivateKey::generate();
+        self.payload.init_key = hpke_public;
+        hpke_secret
+    }
 }
 
 pub struct KeyPackageSecret {
@@ -275,9 +288,7 @@ impl KeyPackageSecret {
 
     /// re-sign payload
     pub fn update_signature(&self, keypackage: &mut KeyPackage) {
-        keypackage.signature = self
-            .credential_private_key
-            .sign(&keypackage.payload.get_encoding());
+        keypackage.update_signature(&self.credential_private_key)
     }
 
     /// re-generate init key
@@ -286,6 +297,50 @@ impl KeyPackageSecret {
         keypackage.payload.init_key = hpke_public;
         self.init_private_key = hpke_secret;
     }
+
+    /// Verify key package secret and keypackage
+    pub fn verify(
+        &self,
+        kp: &KeyPackage,
+        ra_verifier: &impl AttestedCertVerifier,
+        now: Timespec,
+    ) -> Result<CertVerifyResult, Error> {
+        verify_keypackage_and_secrets(
+            kp,
+            &self.init_private_key,
+            &self.credential_private_key,
+            ra_verifier,
+            now,
+        )
+    }
+}
+
+/// Verify key package secret and keypackage
+pub fn verify_keypackage_and_secrets(
+    kp: &KeyPackage,
+    init_private_key: &HPKEPrivateKey,
+    credential_private_key: &IdentityPrivateKey,
+    ra_verifier: &impl AttestedCertVerifier,
+    now: Timespec,
+) -> Result<CertVerifyResult, Error> {
+    let info = kp.verify(ra_verifier, now)?;
+    // verify init public key and private key match
+    if !bool::from(
+        kp.payload
+            .init_key
+            .marshal()
+            .ct_eq(&init_private_key.public_key().marshal()),
+    ) {
+        return Err(Error::KeypackageSecretDontMatch);
+    }
+    // verify signature public key and private key match
+    if !bool::from(
+        info.public_key
+            .ct_eq(credential_private_key.public_key_raw()),
+    ) {
+        return Err(Error::KeypackageSecretDontMatch);
+    }
+    Ok(info)
 }
 
 /// Error type for key package verification.
@@ -309,6 +364,8 @@ pub enum Error {
     CertificateVerifyError(EnclaveCertVerifierError),
     #[error("unsupported cipher suite: {0}")]
     UnsupportedCipherSuite(CipherSuite),
+    #[error("Keypackage public keys don't match private keys")]
+    KeypackageSecretDontMatch,
 }
 
 #[derive(thiserror::Error, Debug)]

@@ -13,7 +13,7 @@ use crate::message::DirectPathNode;
 use crate::message::*;
 use crate::tree_math::{LeafSize, NodeSize, ParentSize};
 use crate::utils::{decode_option, encode_option, encode_vec_u32, read_vec_u32};
-use chain_util::non_empty::NonEmpty;
+use chain_util::NonEmpty;
 use ra_client::AttestedCertVerifier;
 use rustls::internal::msgs::codec::{self, Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
@@ -299,6 +299,10 @@ impl TreePublicKey {
         self.set_package(self.my_pos, kp)
     }
 
+    pub fn get_parent_node(&self, pos: ParentSize) -> Option<&ParentNode> {
+        self.nodes[pos.node_index()].parent_node()
+    }
+
     pub fn from_group_info(
         my_pos: LeafSize,
         cs: CipherSuite,
@@ -399,11 +403,11 @@ impl TreePublicKey {
     pub fn update(
         &mut self,
         adds: &[Add],
-        updates: &[(LeafSize, Update)],
+        updates: &[(LeafSize, Update, ProposalId)],
         removes: &[Remove],
     ) -> Vec<(NodeSize, KeyPackage)> {
         // spec: draft-ietf-mls-protocol.md#update
-        for (sender, update) in updates.iter() {
+        for (sender, update, _) in updates.iter() {
             self.set_package(*sender, update.key_package.clone());
             for p in NodeSize::from(*sender).direct_path(self.leaf_len()) {
                 self.set_blank(p.into());
@@ -480,13 +484,13 @@ impl TreePublicKey {
     ///
     /// update path secrets
     ///
-    /// returns: direct path nodes, parent_hash, tree_private_key
+    /// returns: direct path nodes, parent_hash, tree_secret
     pub fn evolve(
         &mut self,
         ctx: &[u8],
         leaf_secret: &SecretVec<u8>,
     ) -> (Vec<DirectPathNode>, Vec<u8>, TreeSecret) {
-        let tree_private_key =
+        let tree_secret =
             TreeSecret::new(self.cs, self.my_pos.into(), self.leaf_len(), &leaf_secret)
                 .expect("invalid length");
         let leaf_len = self.leaf_len();
@@ -498,10 +502,7 @@ impl TreePublicKey {
         // the root node is the last node of path,
         // and n won't be the root node because of skip(1) in iterator.
         let full_path = iter::once(my_node).chain(path.iter().copied().map(NodeSize::from));
-        let path_with_secrets = path
-            .iter()
-            .copied()
-            .zip(tree_private_key.path_secrets.iter());
+        let path_with_secrets = path.iter().copied().zip(tree_secret.path_secrets.iter());
         for (node, (parent, secret)) in full_path.zip(path_with_secrets) {
             // encrypt the secret to resolution maintained
             let sibling = node.sibling(leaf_len).expect("not root node");
@@ -538,7 +539,7 @@ impl TreePublicKey {
         // update parent hash in path
         let leaf_parent_hash = self.set_parent_hash_path(self.my_pos);
 
-        (path_nodes, leaf_parent_hash, tree_private_key)
+        (path_nodes, leaf_parent_hash, tree_secret)
     }
 
     /// merge parent node public keys from `DirectPath`
@@ -570,6 +571,26 @@ impl TreePublicKey {
         }
         self.nodes[path[0].node_index()].compute_parent_hash(self.cs)
     }
+
+    /// Verify the secret match the public key in the parent node
+    pub(crate) fn verify_node_private_key(
+        &self,
+        secret: &SecretVec<u8>,
+        pos: ParentSize,
+    ) -> Result<(), ()> {
+        if let Some(node) = self.get_parent_node(pos) {
+            let private_key = self.cs.derive_private_key(secret);
+            if bool::from(
+                private_key
+                    .public_key()
+                    .marshal()
+                    .ct_eq(&node.public_key.marshal()),
+            ) {
+                return Ok(());
+            }
+        }
+        Err(())
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -584,6 +605,24 @@ pub enum TreeIntegrityError {
     ParentHashDontMatch,
 }
 
+/// Store the path secrets for a leaf node.
+///
+/// For example, in this tree:
+///
+/// ```plain
+///                                              X
+///                      X
+///          X                       X                       X
+///    X           X           X           X           X
+/// X     X     X     X     X     X     X     X     X     X     X
+/// 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20
+/// ```
+///
+/// The direct path of leaf 0 is [1, 3, 7, 15], the secret of the nodes in the direct path is
+/// stored in `path_secrets`, and the secrets for the leaf node itself is stored in `kp_secret` in
+/// `GroupAux`.
+///
+/// The `update_secret` is derived from the secret of the root node.
 pub struct TreeSecret {
     /// Not including leaf private key
     pub path_secrets: Vec<SecretVec<u8>>,
@@ -642,25 +681,26 @@ impl TreeSecret {
         ctx: &[u8],
         path_nodes: &[DirectPathNode],
         leaf_private_key: &HPKEPrivateKey,
-    ) -> Option<(ParentSize, SecretVec<u8>)> {
+    ) -> Result<Option<(ParentSize, SecretVec<u8>)>, ProcessCommitError> {
         let leaf_len = tree.leaf_len();
         let ancestor = ParentSize::common_ancestor(sender, tree.my_pos);
         match ancestor {
             None => {
                 // `sender` and `my_pos` are the same leaf node
                 let node_index = NodeSize::from(sender);
-                Some((
-                    node_index.parent(leaf_len)?,
-                    tree.cs
-                        .expand_label(
+                match node_index.parent(leaf_len) {
+                    Some(node) => Ok(Some((
+                        node,
+                        tree.cs.expand_label(
                             &leaf_private_key.marshal(),
                             vec![],
                             "path",
                             &[],
                             tree.cs.secret_size(),
-                        )
-                        .expect("invalid length"),
-                ))
+                        )?,
+                    ))),
+                    None => Ok(None),
+                }
             }
             Some(ancestor) => {
                 // find the path node correspounding to the ancestor
@@ -680,21 +720,19 @@ impl TreeSecret {
                 // move one level down from ancestor to get to the node the secret encrypted to,
                 // `None` means it's leaf node under the ancestor.
                 let secret = match pos.checked_sub(1) {
-                    None => tree
-                        .cs
-                        .decrypt(&leaf_private_key, ctx, &path_node.encrypted_path_secret[0])
-                        .expect("decrypt failed"),
-                    Some(pos) => tree
-                        .cs
-                        .decrypt(
-                            &HPKEPrivateKey::unmarshal(self.path_secrets[pos].expose_secret())
-                                .expect("invalid secret"),
-                            ctx,
-                            &path_node.encrypted_path_secret[0],
-                        )
-                        .expect("decrypt failed"),
+                    None => tree.cs.decrypt(
+                        &leaf_private_key,
+                        ctx,
+                        &path_node.encrypted_path_secret[0],
+                    )?,
+                    Some(pos) => tree.cs.decrypt(
+                        &HPKEPrivateKey::unmarshal(self.path_secrets[pos].expose_secret())
+                            .expect("invalid secret"),
+                        ctx,
+                        &path_node.encrypted_path_secret[0],
+                    )?,
                 };
-                Some((ancestor, SecretVec::new(secret)))
+                Ok(Some((ancestor, SecretVec::new(secret))))
             }
         }
     }
@@ -703,60 +741,103 @@ impl TreeSecret {
     ///
     /// find the overlap parent node, decrypt the secret and implant it
     ///
-    /// returns (leaf_parent_hash, commit_secret)
+    /// it don't mutate self directly, but return a `TreeSecretDiff` which can be applied to
+    /// `TreeSecret` later.
     pub(crate) fn apply_path_secrets(
-        &mut self,
+        &self,
         sender: LeafSize,
         tree: &TreePublicKey,
         ctx: &[u8],
         path_nodes: &[DirectPathNode],
         leaf_private_key: &HPKEPrivateKey,
-    ) -> Result<(), ProcessCommitError> {
+    ) -> Result<TreeSecretDiff, ProcessCommitError> {
         let leaf_len = tree.leaf_len();
         // Find overlap and decrypt the path secret
-        if let Some((overlap, last_secret)) =
-            self.decrypt_path_secrets(sender, tree, ctx, path_nodes, leaf_private_key)
+        if let Some((overlap, overlap_secret)) =
+            self.decrypt_path_secrets(sender, tree, ctx, path_nodes, leaf_private_key)?
         {
-            let mut secrets = NonEmpty::from(last_secret);
-            for _ in NodeSize::from(overlap).direct_path(leaf_len).iter() {
-                secrets.push(tree.cs.expand_label(
-                    secrets.last(),
+            let direct_path = NodeSize::from(tree.my_pos).direct_path(leaf_len);
+            let overlap_pos = direct_path
+                .iter()
+                .position(|&p| p == overlap)
+                .expect("overlap is supposed to be ancestor");
+            let overlap_path = &direct_path[overlap_pos + 1..];
+            debug_assert_eq!(
+                overlap_path.iter().copied().collect::<Vec<_>>(),
+                NodeSize::from(overlap).direct_path(leaf_len)
+            );
+
+            // verify the new path secrets match public keys
+            tree.verify_node_private_key(&overlap_secret, overlap)
+                .map_err(|_| ProcessCommitError::PathSecretPublicKeyDontMatch)?;
+            // the path secrets above(including) the overlap node
+            let mut path_secrets = NonEmpty::from(overlap_secret);
+            for _ in overlap_path.iter() {
+                path_secrets.push(tree.cs.expand_label(
+                    path_secrets.last(),
                     vec![],
                     "path",
                     &[],
                     tree.cs.secret_size(),
                 )?);
             }
-            let pos = NodeSize::from(tree.my_pos)
-                .direct_path(leaf_len)
-                .iter()
-                .position(|&p| p == overlap)
-                .expect("overlap is supposed to be ancestor");
-            self.path_secrets.truncate(pos);
-            self.path_secrets
-                .extend(<Vec<SecretVec<u8>>>::from(secrets));
+            assert_eq!(overlap_pos + path_secrets.len().get(), direct_path.len());
+
+            // verify the new path secrets match public keys
+            for (secret, &parent) in path_secrets.iter().skip(1).zip(overlap_path) {
+                tree.verify_node_private_key(secret, parent)
+                    .map_err(|_| ProcessCommitError::PathSecretPublicKeyDontMatch)?;
+            }
 
             // Define `commit_secret` as the value `path_secret[n+1]` derived from the
             // `path_secret[n]` value assigned to the root node.
-            self.update_secret = tree.cs.expand_label(
-                self.path_secrets.last().expect("path secret not empty"),
+            let update_secret = tree.cs.expand_label(
+                path_secrets.last(),
                 vec![],
                 "path",
                 &[],
                 tree.cs.secret_size(),
-            )?
+            )?;
+
+            Ok(TreeSecretDiff {
+                overlap_pos: Some(overlap_pos),
+                path_secrets: path_secrets.into(),
+                update_secret,
+            })
         } else {
-            self.update_secret = tree.cs.expand_label(
+            let update_secret = tree.cs.expand_label(
                 &leaf_private_key.marshal(),
                 vec![],
                 "path",
                 &[],
                 tree.cs.secret_size(),
             )?;
-        };
-
-        Ok(())
+            Ok(TreeSecretDiff {
+                overlap_pos: None,
+                path_secrets: vec![],
+                update_secret,
+            })
+        }
     }
+
+    pub(crate) fn apply_tree_diff(&mut self, tree_diff: TreeSecretDiff) {
+        if let Some(overlap_pos) = tree_diff.overlap_pos {
+            self.path_secrets.truncate(overlap_pos);
+            self.path_secrets.extend(tree_diff.path_secrets);
+        }
+        self.update_secret = tree_diff.update_secret;
+    }
+}
+
+/// Represent the diff needs to be applied later to `TreeSecret`
+pub struct TreeSecretDiff {
+    /// the nodes from overlap_pos to root need to be updated
+    ///
+    /// None means no common ancestor
+    pub overlap_pos: Option<usize>,
+    /// the path secrets from(including) overlap_pos to root
+    pub path_secrets: Vec<SecretVec<u8>>,
+    pub update_secret: SecretVec<u8>,
 }
 
 /// draft-ietf-mls-protocol.md#tree-hashes
