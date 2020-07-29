@@ -645,14 +645,21 @@ fn check_staking_address_for_deposit<T: WalletClient, N: NetworkOpsClient>(
     address: &StakedStateAddress,
 ) -> Result<()> {
     // if the to_address belongs to current wallet, we do not check the state
-    let staking_addresses = wallet_client.staking_addresses(name, enckey)?;
-    if !staking_addresses.contains(address) {
-        let staking = network_ops.get_staked_state(name, address, true).err_kind(ErrorKind::ValidationError,|| "Address not found in the current wallet and is not yet initialized on the blockchain")?;
-        if staking.is_jailed() {
-            return Err(Error::new(
-                ErrorKind::ValidationError,
-                "staking address is jailed",
-            ));
+    match address {
+        StakedStateAddress::BasicRedeem(ref redeem_address) => {
+            // if to_address doesn't belong to current wallet, we check the state
+            if wallet_client
+                .find_staking_key(name, enckey, redeem_address)?
+                .is_none()
+            {
+                let staking = network_ops.get_staked_state(name, address, true).err_kind(ErrorKind::ValidationError,|| "Address not found in the current wallet and is not yet initialized on the blockchain")?;
+                if staking.is_jailed() {
+                    return Err(Error::new(
+                        ErrorKind::ValidationError,
+                        "staking address is jailed",
+                    ));
+                }
+            }
         }
     }
     Ok(())

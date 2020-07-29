@@ -156,8 +156,8 @@ where
     ) -> Result<bool> {
         let is_exist = self
             .wallet_service
-            .find_root_hash(name, enckey, &extended_addr)
-            .is_ok();
+            .find_root_hash(name, enckey, &extended_addr)?
+            .is_some();
         if is_exist {
             // no need
             return Ok(false);
@@ -631,12 +631,12 @@ where
 
     #[inline]
     fn staking_keys(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<PublicKey>> {
-        self.wallet_service.staking_keys(name, enckey)
+        self.wallet_service.staking_keys(name, enckey, 0, 0, false)
     }
 
     #[inline]
     fn root_hashes(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<H256>> {
-        self.wallet_service.root_hashes(name, enckey)
+        self.wallet_service.root_hashes(name, enckey, 0, 0, false)
     }
 
     #[inline]
@@ -644,13 +644,25 @@ where
         &self,
         name: &str,
         enckey: &SecKey,
+        offset: u64,
+        limit: u64,
+        reversed: bool,
     ) -> Result<IndexSet<StakedStateAddress>> {
-        self.wallet_service.staking_addresses(name, enckey)
+        self.wallet_service
+            .staking_addresses(name, enckey, offset, limit, reversed)
     }
 
     #[inline]
-    fn transfer_addresses(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<ExtendedAddr>> {
-        self.wallet_service.transfer_addresses(name, enckey)
+    fn transfer_addresses(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        offset: u64,
+        limit: u64,
+        reversed: bool,
+    ) -> Result<IndexSet<ExtendedAddr>> {
+        self.wallet_service
+            .transfer_addresses(name, enckey, offset, limit, reversed)
     }
 
     #[inline]
@@ -924,7 +936,7 @@ where
     }
 
     fn get_multisig_addresses(&self, name: &str, enckey: &SecKey) -> Result<Vec<MultiSigAddress>> {
-        let root_hashes = self.wallet_service.root_hashes(name, enckey)?;
+        let root_hashes = self.wallet_service.root_hashes(name, enckey, 0, 0, false)?;
         root_hashes
             .iter()
             .map(|hash| {
@@ -1613,7 +1625,9 @@ mod tests {
         assert_eq!(staking_address_1, staking_address_2);
         let transfer_address_22 = client.new_transfer_address(name2, &enckey2).unwrap();
         assert_ne!(transfer_address_2, transfer_address_22);
-        let transfer_addresses = client.transfer_addresses(name2, &enckey2).unwrap();
+        let transfer_addresses = client
+            .transfer_addresses(name2, &enckey2, 0, 0, false)
+            .unwrap();
         assert_eq!(transfer_addresses.len(), 2);
     }
 

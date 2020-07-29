@@ -78,6 +78,17 @@ pub enum AddressCommand {
             case_insensitive = true
         )]
         address_type: AddressType,
+        #[structopt(name = "offset", short, long, help = "Offset", default_value = "0")]
+        offset: u64,
+        #[structopt(name = "limit", short, long, help = "Limit", default_value = "0")]
+        limit: u64,
+        #[structopt(
+            name = "reversed",
+            short,
+            long,
+            help = "Reverse order (default is from old to new)"
+        )]
+        reversed: bool,
     },
     #[structopt(name = "list-pub-key", about = "Shows the public keys of a wallet")]
     ListPubKey {
@@ -106,9 +117,20 @@ impl AddressCommand {
             AddressCommand::New { name, address_type } => {
                 Self::new_address(wallet_client, name, address_type)
             }
-            AddressCommand::List { name, address_type } => {
-                Self::list_addresses(wallet_client, name, address_type)
-            }
+            AddressCommand::List {
+                name,
+                address_type,
+                offset,
+                limit,
+                reversed,
+            } => Self::list_addresses(
+                wallet_client,
+                name,
+                address_type,
+                *offset,
+                *limit,
+                *reversed,
+            ),
             AddressCommand::ListPubKey { name, address_type } => {
                 Self::list_pubkeys(wallet_client, name, address_type)
             }
@@ -151,12 +173,16 @@ impl AddressCommand {
         wallet_client: T,
         name: &str,
         address_type: &AddressType,
+        offset: u64,
+        limit: u64,
+        reversed: bool,
     ) -> Result<()> {
         let enckey = ask_seckey(None)?;
 
         match address_type {
             AddressType::Staking => {
-                let addresses = wallet_client.staking_addresses(name, &enckey)?;
+                let addresses =
+                    wallet_client.staking_addresses(name, &enckey, offset, limit, reversed)?;
                 if !addresses.is_empty() {
                     for address in addresses {
                         ask("Address: ");

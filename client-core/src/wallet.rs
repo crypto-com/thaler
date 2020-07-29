@@ -158,10 +158,20 @@ pub trait WalletClient: Send + Sync {
         &self,
         name: &str,
         enckey: &SecKey,
+        offset: u64,
+        limit: u64,
+        reversed: bool,
     ) -> Result<IndexSet<StakedStateAddress>>;
 
     /// Returns all the multi-sig transfer addresses in current wallet
-    fn transfer_addresses(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<ExtendedAddr>>;
+    fn transfer_addresses(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        offset: u64,
+        limit: u64,
+        reversed: bool,
+    ) -> Result<IndexSet<ExtendedAddr>>;
 
     /// Finds staking key corresponding to given redeem address
     fn find_staking_key(

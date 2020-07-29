@@ -531,6 +531,29 @@ pub fn load_wallet<S: SecureStorage + 'static>(
     }
     Ok(None)
 }
+
+fn generate_page(all_items_count: u64, offset: u64, limit: u64, reversed: bool) -> Vec<u64> {
+    let ret: Vec<u64>;
+    if reversed {
+        let start = all_items_count.saturating_sub(offset);
+        let mut end = 0;
+        if limit > 0 {
+            end = start.saturating_sub(limit);
+        }
+        let mut tmp: Vec<u64> = (end..start).collect();
+        tmp.reverse();
+        ret = tmp;
+    } else {
+        let start = offset;
+        let mut end = all_items_count;
+        if limit > 0 {
+            end = std::cmp::min(offset + limit, all_items_count);
+        }
+        ret = (start..end).collect();
+    }
+    ret
+}
+
 /// Maintains mapping `wallet-name -> wallet-details`
 #[derive(Debug, Default, Clone)]
 pub struct WalletService<T: Storage> {
@@ -618,7 +641,6 @@ where
         redeem_address: &RedeemAddress,
     ) -> Result<Option<PublicKey>> {
         let stakingkey_keyspace = get_stakingkeyset_keyspace(name);
-
         if let Ok(value) = read_pubkey(
             &self.storage,
             &stakingkey_keyspace,
@@ -626,10 +648,7 @@ where
         ) {
             Ok(Some(value))
         } else {
-            Err(Error::new(
-                ErrorKind::InvalidInput,
-                "Address is not found in current wallet",
-            ))
+            Ok(None)
         }
     }
 
@@ -673,7 +692,7 @@ where
             let privatekey = PrivateKey::deserialize_from(&raw_value)?;
             Ok(Some(privatekey))
         } else {
-            Err(Error::new(ErrorKind::InvalidInput, "private_key not found"))
+            Ok(None)
         }
     }
 
@@ -703,7 +722,7 @@ where
             }
         }
 
-        Err(Error::new(ErrorKind::InvalidInput, "private_key not found"))
+        Ok(None)
     }
 
     /// Creates a new wallet and returns wallet ID
@@ -761,7 +780,14 @@ where
     }
 
     /// Returns all public keys corresponding to staking addresses stored in a wallet
-    pub fn staking_keys(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<PublicKey>> {
+    pub fn staking_keys(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        offset: u64,
+        limit: u64,
+        reversed: bool,
+    ) -> Result<IndexSet<PublicKey>> {
         if !self.storage.contains_key(KEYSPACE, name)? {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -774,7 +800,9 @@ where
         let info_keyspace = get_info_keyspace(name);
         let staking_count: u64 =
             read_number(&self.storage, &info_keyspace, "stakingkeyindex", None)?;
-        for i in 0..staking_count {
+
+        let items = generate_page(staking_count, offset, limit, reversed);
+        for i in items {
             let pubkey = read_pubkey(&self.storage, &stakingkey_keyspace, &format!("{}", i))?;
             ret.insert(pubkey);
         }
@@ -786,8 +814,12 @@ where
         &self,
         name: &str,
         enckey: &SecKey,
+        offset: u64,
+        limit: u64,
+        reversed: bool,
     ) -> Result<IndexSet<StakedStateAddress>> {
-        let pubkeys: IndexSet<PublicKey> = self.staking_keys(name, enckey)?;
+        let pubkeys: IndexSet<PublicKey> =
+            self.staking_keys(name, enckey, offset, limit, reversed)?;
         let mut ret: IndexSet<StakedStateAddress> = IndexSet::<StakedStateAddress>::new();
         for pubkey in &pubkeys {
             let staked = StakedStateAddress::BasicRedeem(RedeemAddress::from(pubkey));
@@ -797,7 +829,14 @@ where
     }
 
     /// Returns all multi-sig addresses stored in a wallet
-    pub fn root_hashes(&self, name: &str, enckey: &SecKey) -> Result<IndexSet<H256>> {
+    pub fn root_hashes(
+        &self,
+        name: &str,
+        enckey: &SecKey,
+        offset: u64,
+        limit: u64,
+        reversed: bool,
+    ) -> Result<IndexSet<H256>> {
         if !self.storage.contains_key(KEYSPACE, name)? {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -810,7 +849,9 @@ where
         let info_keyspace = get_info_keyspace(name);
         let roothash_count: u64 =
             read_number(&self.storage, &info_keyspace, "roothashindex", None)?;
-        for i in 0..roothash_count {
+
+        let items = generate_page(roothash_count, offset, limit, reversed);
+        for i in items {
             let value = self.storage.get(&roothash_keyspace, format!("{}", i))?;
             if let Some(raw_value) = value {
                 let mut roothash_found: H256 = H256::default();
@@ -818,6 +859,7 @@ where
                 ret.insert(roothash_found);
             }
         }
+
         Ok(ret)
     }
 
@@ -826,8 +868,11 @@ where
         &self,
         name: &str,
         enckey: &SecKey,
+        offset: u64,
+        limit: u64,
+        reversed: bool,
     ) -> Result<IndexSet<ExtendedAddr>> {
-        let roothashes: IndexSet<H256> = self.root_hashes(name, enckey)?;
+        let roothashes: IndexSet<H256> = self.root_hashes(name, enckey, offset, limit, reversed)?;
         let mut ret: IndexSet<ExtendedAddr> = IndexSet::<ExtendedAddr>::new();
         for roothash_found in &roothashes {
             let extended_addr = ExtendedAddr::OrTree(*roothash_found);
