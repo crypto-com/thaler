@@ -919,7 +919,6 @@ fn filter_staking_transactions(
 /// the staking address in the transaction is self_wallet staking address
 fn filter_incomming_staking_transactions(
     block_results: &BlockResultsResponse,
-    //  staking_addresses: impl Iterator<Item = &'a StakedStateAddress>,
     wallet: Box<dyn Fn(StakedStateAddress) -> bool>,
     block: &Block,
 ) -> Result<Vec<Transaction>> {

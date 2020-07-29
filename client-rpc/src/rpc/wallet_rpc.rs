@@ -77,10 +77,22 @@ pub trait WalletRpc: Send + Sync {
     fn list_public_keys(&self, request: WalletRequest) -> Result<Vec<PublicKey>>;
 
     #[rpc(name = "wallet_listStakingAddresses")]
-    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
+    fn list_staking_addresses(
+        &self,
+        request: WalletRequest,
+        offset: Option<u64>,
+        limit: Option<u64>,
+        reversed: Option<bool>,
+    ) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_listTransferAddresses")]
-    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>>;
+    fn list_transfer_addresses(
+        &self,
+        request: WalletRequest,
+        offset: Option<u64>,
+        limit: Option<u64>,
+        reversed: Option<bool>,
+    ) -> Result<Vec<String>>;
 
     #[rpc(name = "wallet_listUTxO")]
     fn list_utxo(&self, request: WalletRequest) -> Result<UnspentTransactions>;
@@ -239,11 +251,23 @@ where
             .map_err(to_rpc_error)
     }
     fn create_staking_address_batch(&self, request: WalletRequest, count: u32) -> Result<u32> {
-        for _i in 0..count {
+        let total_now = std::time::Instant::now();
+
+        for i in 0..count {
+            let now = std::time::Instant::now();
+            let progress = i as f64 / count as f64 * 100.0;
             self.client
                 .new_staking_address(&request.name, &request.enckey)
                 .map(|staked_state_addr| staked_state_addr.to_string())
                 .map_err(to_rpc_error)?;
+            log::debug!(
+                "staking-address progress {:.2}% created {}/{}  for each {} micro-seconds  total {} seconds",
+                progress,
+                i + 1,
+                count,
+                now.elapsed().as_micros(),
+                total_now.elapsed().as_secs()
+            );
         }
         Ok(count)
     }
@@ -277,7 +301,7 @@ where
                 .new_transfer_address(&request.name, &request.enckey)
                 .map_err(to_rpc_error)?;
             log::debug!(
-                "progress {:.2}% created {}/{}  for each {} micro-seconds  total {} seconds",
+                "transfer-address progress {:.2}% created {}/{}  for each {} micro-seconds  total {} seconds",
                 progress,
                 i + 1,
                 count,
@@ -330,16 +354,40 @@ where
             .map_err(to_rpc_error)
     }
 
-    fn list_staking_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
+    fn list_staking_addresses(
+        &self,
+        request: WalletRequest,
+        offset: Option<u64>,
+        limit: Option<u64>,
+        reversed: Option<bool>,
+    ) -> Result<Vec<String>> {
         self.client
-            .staking_addresses(&request.name, &request.enckey)
+            .staking_addresses(
+                &request.name,
+                &request.enckey,
+                offset.unwrap_or(0),
+                std::cmp::max(1, std::cmp::min(limit.unwrap_or(1000), 10000)),
+                reversed.unwrap_or(false),
+            )
             .map(|addresses| addresses.iter().map(ToString::to_string).collect())
             .map_err(to_rpc_error)
     }
 
-    fn list_transfer_addresses(&self, request: WalletRequest) -> Result<Vec<String>> {
+    fn list_transfer_addresses(
+        &self,
+        request: WalletRequest,
+        offset: Option<u64>,
+        limit: Option<u64>,
+        reversed: Option<bool>,
+    ) -> Result<Vec<String>> {
         self.client
-            .transfer_addresses(&request.name, &request.enckey)
+            .transfer_addresses(
+                &request.name,
+                &request.enckey,
+                offset.unwrap_or(0),
+                std::cmp::max(1, std::cmp::min(limit.unwrap_or(1000), 10000)),
+                reversed.unwrap_or(false),
+            )
             .map(|addresses| addresses.iter().map(ToString::to_string).collect())
             .map_err(to_rpc_error)
     }
@@ -748,14 +796,14 @@ pub mod tests {
             assert_eq!(
                 1,
                 wallet_rpc
-                    .list_transfer_addresses(wallet_request.clone())
+                    .list_transfer_addresses(wallet_request.clone(), None, None, None)
                     .unwrap()
                     .len()
             );
             assert_eq!(
                 1,
                 wallet_rpc
-                    .list_staking_addresses(wallet_request.clone())
+                    .list_staking_addresses(wallet_request.clone(), None, None, None)
                     .unwrap()
                     .len()
             );
@@ -773,7 +821,7 @@ pub mod tests {
         assert_eq!(
             1,
             wallet_rpc
-                .list_staking_addresses(wallet_request.clone())
+                .list_staking_addresses(wallet_request.clone(), None, None, None)
                 .unwrap()
                 .len()
         );
@@ -785,7 +833,7 @@ pub mod tests {
         assert_eq!(
             2,
             wallet_rpc
-                .list_staking_addresses(wallet_request.clone())
+                .list_staking_addresses(wallet_request.clone(), None, None, None)
                 .unwrap()
                 .len()
         );
@@ -803,7 +851,7 @@ pub mod tests {
         assert_eq!(
             1,
             wallet_rpc
-                .list_transfer_addresses(wallet_request.clone())
+                .list_transfer_addresses(wallet_request.clone(), None, None, None)
                 .unwrap()
                 .len()
         );
@@ -815,7 +863,7 @@ pub mod tests {
         assert_eq!(
             2,
             wallet_rpc
-                .list_transfer_addresses(wallet_request.clone())
+                .list_transfer_addresses(wallet_request.clone(), None, None, None)
                 .unwrap()
                 .len()
         );
@@ -847,12 +895,12 @@ pub mod tests {
             .create(create_request.clone(), WalletKind::Basic, None)
             .unwrap();
         let old_staking_address = wallet_rpc
-            .list_staking_addresses(wallet_request.clone())
+            .list_staking_addresses(wallet_request.clone(), None, None, None)
             .unwrap()[0]
             .clone();
 
         let old_transfer_address = wallet_rpc
-            .list_transfer_addresses(wallet_request.clone())
+            .list_transfer_addresses(wallet_request.clone(), None, None, None)
             .unwrap()[0]
             .clone();
         let old_enckey = wallet_rpc.get_enc_key(create_request.clone()).unwrap();
@@ -865,11 +913,11 @@ pub mod tests {
             .unwrap();
 
         let new_staking_address = wallet_rpc
-            .list_staking_addresses(wallet_request.clone())
+            .list_staking_addresses(wallet_request.clone(), None, None, None)
             .unwrap()[0]
             .clone();
         let new_transfer_address = wallet_rpc
-            .list_transfer_addresses(wallet_request.clone())
+            .list_transfer_addresses(wallet_request.clone(), None, None, None)
             .unwrap()[0]
             .clone();
         assert_eq!(old_transfer_address, new_transfer_address);
