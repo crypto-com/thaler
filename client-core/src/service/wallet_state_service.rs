@@ -411,6 +411,18 @@ enum MementoOperation {
 }
 
 impl WalletStateMemento {
+    /// get length of memento
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// is memento empty?
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     /// Adds transaction change to memento
     #[inline]
     pub fn add_transaction_change(&mut self, transaction_change: TransactionChange) {

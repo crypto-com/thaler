@@ -344,12 +344,15 @@ impl<
     }
 
     fn update_state(&mut self, memento: &WalletStateMemento) -> Result<()> {
-        self.wallet_state = service::modify_wallet_state(
-            &self.env.storage,
-            &self.env.name,
-            &self.env.enckey,
-            |state| state.apply_memento(memento),
-        )?;
+        // if there is a job, then fetch & update, if not skip
+        if !memento.is_empty() {
+            self.wallet_state = service::modify_wallet_state(
+                &self.env.storage,
+                &self.env.name,
+                &self.env.enckey,
+                |state| state.apply_memento(memento),
+            )?;
+        }
         Ok(())
     }
 
@@ -446,6 +449,13 @@ impl<
     }
 
     fn sync(&mut self) -> Result<()> {
+        service::save_wallet_state(
+            &self.env.storage,
+            &self.env.name,
+            &self.env.enckey,
+            &self.wallet_state,
+        )?;
+
         let status = self.env.client.status()?;
         if status.sync_info.catching_up {
             return Err(Error::new(
