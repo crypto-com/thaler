@@ -11,11 +11,12 @@ ring = "0.16.15"
 thiserror = "1.0"
 rustls = "0.18"
 x509-parser = "0.8.0-beta4"
+nom = "5.1"
 secrecy = "0.7.0"
 sha2 = "0.9"
 hkdf = { version = "0.9", features = ["std"] }
 hpke = { version = "0.1.8", default-features = false, features = ["p256", "std"] }
-aead = "0.3"
+aead = { version = "0.3", features = ["std"] }
 rand = "0.7"
 chrono="0.4.13"
 ra-client = { path = "../enclave-ra/ra-client" }

@@ -4,7 +4,7 @@ use std::iter;
 
 use crate::ciphersuite::CipherSuite;
 use crate::extensions as ext;
-use crate::group::ProcessCommitError;
+use crate::group::CommitError;
 use crate::key::{HPKEPrivateKey, HPKEPublicKey};
 use crate::keypackage::{
     self as kp, KeyPackage, Timespec, MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
@@ -240,6 +240,9 @@ impl Codec for LeafNodeHashInput {
 
 /// spec: draft-ietf-mls-protocol.md#tree-math
 /// TODO: https://github.com/mlswg/mls-protocol/pull/327/files
+///
+/// Invariants:
+/// - at least one leaf node
 #[derive(Clone)]
 pub struct TreePublicKey {
     /// all tree nodes stored in a vector
@@ -252,12 +255,33 @@ pub struct TreePublicKey {
 }
 
 impl TreePublicKey {
+    /// construct single leaf tree
     pub fn new(kp: KeyPackage) -> Self {
         TreePublicKey {
             nodes: vec![Node::Leaf(Some(kp))],
             cs: CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
             my_pos: LeafSize(0),
         }
+    }
+
+    /// construct from group info object in welcome message
+    pub fn from_group_info(
+        my_pos: usize,
+        nodes: Vec<Node>,
+        ra_verifier: &impl AttestedCertVerifier,
+        time: Timespec,
+        cs: CipherSuite,
+    ) -> Result<Self, TreeIntegrityError> {
+        Self::integrity_check(&nodes, ra_verifier, time, cs)?;
+        let my_pos = u32::try_from(my_pos)
+            .ok()
+            .and_then(|pos| LeafSize::try_from(NodeSize(pos)).ok())
+            .ok_or(TreeIntegrityError::InvalidMyPos)?;
+        let tree = Self { nodes, cs, my_pos };
+        if my_pos >= tree.leaf_len() {
+            return Err(TreeIntegrityError::InvalidMyPos);
+        }
+        Ok(tree)
     }
 
     pub fn get_package(&self, leaf_index: LeafSize) -> Option<&KeyPackage> {
@@ -287,11 +311,13 @@ impl TreePublicKey {
     }
 
     pub fn get_my_package(&self) -> &KeyPackage {
-        self.get_package(self.my_pos).expect("corrupted tree")
+        self.get_package(self.my_pos)
+            .expect("impossible, checked in integrity_check")
     }
 
     pub fn get_my_package_mut(&mut self) -> &mut KeyPackage {
-        self.get_package_mut(self.my_pos).expect("corrupted tree")
+        self.get_package_mut(self.my_pos)
+            .expect("impossible, checked in integrity_check")
     }
 
     /// Update keypackage of my leaf node
@@ -303,34 +329,29 @@ impl TreePublicKey {
         self.nodes[pos.node_index()].parent_node()
     }
 
-    pub fn from_group_info(
-        my_pos: LeafSize,
-        cs: CipherSuite,
-        nodes: Vec<Node>,
-    ) -> Result<Self, kp::Error> {
-        // FIXME: generate path secrets
-        Ok(Self { nodes, cs, my_pos })
-    }
-
-    pub fn integrity_check(
+    /// Check TreeIntegrityError's branches for invariants list
+    fn integrity_check(
         nodes: &[Node],
         ra_verifier: &impl AttestedCertVerifier,
         time: Timespec,
         cs: CipherSuite,
     ) -> Result<(), TreeIntegrityError> {
-        let nodes_len = u32::try_from(nodes.len())
-            .map_err(|_| TreeIntegrityError::CorruptedTree("node count overflow"))?;
+        if nodes.is_empty() {
+            return Err(TreeIntegrityError::EmptyTree);
+        }
+        let nodes_len =
+            u32::try_from(nodes.len()).map_err(|_| TreeIntegrityError::NodeCountOverflow)?;
         let leafs_len = NodeSize(nodes_len)
             .leafs_len()
-            .ok_or(TreeIntegrityError::CorruptedTree("node count is not even"))?;
+            .ok_or(TreeIntegrityError::NodeCountNotEven)?;
 
         // leaf should be even position, and parent should be odd position
         for (i, node) in nodes.iter().enumerate() {
             if matches!(node, Node::Leaf(_)) && i % 2 != 0 {
-                return Err(TreeIntegrityError::CorruptedTree("leaf index is not even"));
+                return Err(TreeIntegrityError::LeafIndexIsNotEven);
             }
             if matches!(node, Node::Parent(_)) && i % 2 != 1 {
-                return Err(TreeIntegrityError::CorruptedTree("parent index is not odd"));
+                return Err(TreeIntegrityError::ParentIndexIsNotOdd);
             }
         }
 
@@ -405,7 +426,7 @@ impl TreePublicKey {
         adds: &[Add],
         updates: &[(LeafSize, Update, ProposalId)],
         removes: &[Remove],
-    ) -> Vec<(NodeSize, KeyPackage)> {
+    ) -> Result<Vec<(NodeSize, KeyPackage)>, CommitError> {
         // spec: draft-ietf-mls-protocol.md#update
         for (sender, update, _) in updates.iter() {
             self.set_package(*sender, update.key_package.clone());
@@ -427,7 +448,7 @@ impl TreePublicKey {
             // "If necessary, extend the tree to the right until it has at least index + 1 leaves"
             let position = self
                 .get_free_leaf_or_extend()
-                .expect("node size overflowed u32");
+                .map_err(|_| CommitError::TooManyNodes)?;
             let leafs = self.leaf_len();
             let dirpath = position.direct_path(leafs);
             for d in dirpath.iter() {
@@ -447,7 +468,7 @@ impl TreePublicKey {
             self.nodes[position.node_index()] = leaf_node;
             positions.push((position, add.key_package.clone()));
         }
-        positions
+        Ok(positions)
     }
 
     fn node_hash(&self, index: NodeSize) -> Vec<u8> {
@@ -456,9 +477,10 @@ impl TreePublicKey {
 
     pub fn leaf_len(&self) -> LeafSize {
         // node count is verified in integrity_check
-        NodeSize(self.nodes.len() as u32)
-            .leafs_len()
-            .expect("invalid node count")
+        u32::try_from(self.nodes.len())
+            .ok()
+            .and_then(|len| NodeSize(len).leafs_len())
+            .expect("impossible, invalid node length, checked in integrity_check")
     }
 
     pub fn compute_tree_hash(&self) -> Vec<u8> {
@@ -489,10 +511,9 @@ impl TreePublicKey {
         &mut self,
         ctx: &[u8],
         leaf_secret: &SecretVec<u8>,
-    ) -> (Vec<DirectPathNode>, Vec<u8>, TreeSecret) {
+    ) -> Result<(Vec<DirectPathNode>, Vec<u8>, TreeSecret), CommitError> {
         let tree_secret =
-            TreeSecret::new(self.cs, self.my_pos.into(), self.leaf_len(), &leaf_secret)
-                .expect("invalid length");
+            TreeSecret::new(self.cs, self.my_pos.into(), self.leaf_len(), &leaf_secret)?;
         let leaf_len = self.leaf_len();
         let my_node = NodeSize::from(self.my_pos);
         let path = my_node.direct_path(leaf_len);
@@ -505,19 +526,21 @@ impl TreePublicKey {
         let path_with_secrets = path.iter().copied().zip(tree_secret.path_secrets.iter());
         for (node, (parent, secret)) in full_path.zip(path_with_secrets) {
             // encrypt the secret to resolution maintained
-            let sibling = node.sibling(leaf_len).expect("not root node");
-            let encrypted_path_secret = resolve(&self.nodes, sibling)
+            let sibling = node
+                .sibling(leaf_len)
+                .expect("impossible, node is not root node");
+            let encrypted_path_secret = self
+                .resolve(sibling)
                 .iter()
                 .map(|node| {
                     // encrypt to sibling's public key
                     let init_key = self.nodes[node.node_index()]
                         .public_key()
-                        .expect("not blank node");
+                        .expect("not blank node TODO");
                     self.cs
                         .encrypt(secret.expose_secret().clone(), &init_key, ctx)
-                        .expect("encrypt failed")
                 })
-                .collect::<Vec<_>>();
+                .collect::<Result<Vec<_>, _>>()?;
 
             // derive keypair for parent
             let private_key = self.cs.derive_private_key(&secret);
@@ -539,7 +562,7 @@ impl TreePublicKey {
         // update parent hash in path
         let leaf_parent_hash = self.set_parent_hash_path(self.my_pos);
 
-        (path_nodes, leaf_parent_hash, tree_secret)
+        Ok((path_nodes, leaf_parent_hash, tree_secret))
     }
 
     /// merge parent node public keys from `DirectPath`
@@ -591,6 +614,37 @@ impl TreePublicKey {
         }
         Err(())
     }
+
+    /// draft-ietf-mls-protocol.md#ratchet-tree-nodes
+    /// no blank nodes return
+    fn resolve(&self, index: NodeSize) -> Vec<NodeSize> {
+        match &self.nodes[index.node_index()] {
+            // Resolution of blank leaf is the empty list
+            Node::Leaf(None) => vec![],
+            // Resolution of non-blank leaf is node itself
+            Node::Leaf(Some(_)) => vec![index],
+            // Resolution of blank intermediate node is concatenation of the resolutions
+            // of the children
+            Node::Parent(None) => {
+                let pindex = ParentSize::try_from(index)
+                    .expect("impossible, must be parent node index, checked in integrity_check");
+                [
+                    self.resolve(pindex.left()),
+                    self.resolve(pindex.right(self.leaf_len())),
+                ]
+                .concat()
+            }
+            // Resolution of non-blank leaf is node + unmerged leaves
+            Node::Parent(Some(p)) => iter::once(index)
+                .chain(
+                    p.unmerged_leaves
+                        .iter()
+                        .copied()
+                        .map(|n| NodeSize::from(LeafSize(n))),
+                )
+                .collect::<Vec<_>>(),
+        }
+    }
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -603,6 +657,18 @@ pub enum TreeIntegrityError {
     ParentHashEmpty,
     #[error("parent hash value don't match")]
     ParentHashDontMatch,
+    #[error("my_pos is invalid")]
+    InvalidMyPos,
+    #[error("tree should have at least one leaf node")]
+    EmptyTree,
+    #[error("node count overflow u32")]
+    NodeCountOverflow,
+    #[error("node count is not even number")]
+    NodeCountNotEven,
+    #[error("leaf node index is not even number")]
+    LeafIndexIsNotEven,
+    #[error("parent node index is not odd number")]
+    ParentIndexIsNotOdd,
 }
 
 /// Store the path secrets for a leaf node.
@@ -681,7 +747,7 @@ impl TreeSecret {
         ctx: &[u8],
         path_nodes: &[DirectPathNode],
         leaf_private_key: &HPKEPrivateKey,
-    ) -> Result<Option<(ParentSize, SecretVec<u8>)>, ProcessCommitError> {
+    ) -> Result<Option<(ParentSize, SecretVec<u8>)>, CommitError> {
         let leaf_len = tree.leaf_len();
         let ancestor = ParentSize::common_ancestor(sender, tree.my_pos);
         match ancestor {
@@ -709,14 +775,14 @@ impl TreeSecret {
                     .into_iter()
                     .zip(path_nodes.iter())
                     .find(|(n, _)| *n == ancestor)
-                    .expect("invalid path nodes")
+                    .expect("impossible, ancestor must in direct_path of sender")
                     .1;
                 // find the index of ancestor in the direct_path/path_secrets
                 let pos = NodeSize::from(tree.my_pos)
                     .direct_path(leaf_len)
                     .iter()
                     .position(|&p| p == ancestor)
-                    .expect("ancestor in direct path");
+                    .expect("impossible, ancestor must in direct path of my_pos");
                 // move one level down from ancestor to get to the node the secret encrypted to,
                 // `None` means it's leaf node under the ancestor.
                 let secret = match pos.checked_sub(1) {
@@ -726,8 +792,7 @@ impl TreeSecret {
                         &path_node.encrypted_path_secret[0],
                     )?,
                     Some(pos) => tree.cs.decrypt(
-                        &HPKEPrivateKey::unmarshal(self.path_secrets[pos].expose_secret())
-                            .expect("invalid secret"),
+                        &HPKEPrivateKey::unmarshal(self.path_secrets[pos].expose_secret())?,
                         ctx,
                         &path_node.encrypted_path_secret[0],
                     )?,
@@ -750,7 +815,7 @@ impl TreeSecret {
         ctx: &[u8],
         path_nodes: &[DirectPathNode],
         leaf_private_key: &HPKEPrivateKey,
-    ) -> Result<TreeSecretDiff, ProcessCommitError> {
+    ) -> Result<TreeSecretDiff, CommitError> {
         let leaf_len = tree.leaf_len();
         // Find overlap and decrypt the path secret
         if let Some((overlap, overlap_secret)) =
@@ -760,7 +825,7 @@ impl TreeSecret {
             let overlap_pos = direct_path
                 .iter()
                 .position(|&p| p == overlap)
-                .expect("overlap is supposed to be ancestor");
+                .expect("impossible, overlap must in the direct path of my_pos");
             let overlap_path = &direct_path[overlap_pos + 1..];
             debug_assert_eq!(
                 overlap_path.iter().copied().collect::<Vec<_>>(),
@@ -769,7 +834,7 @@ impl TreeSecret {
 
             // verify the new path secrets match public keys
             tree.verify_node_private_key(&overlap_secret, overlap)
-                .map_err(|_| ProcessCommitError::PathSecretPublicKeyDontMatch)?;
+                .map_err(|_| CommitError::PathSecretPublicKeyDontMatch)?;
             // the path secrets above(including) the overlap node
             let mut path_secrets = NonEmpty::from(overlap_secret);
             for _ in overlap_path.iter() {
@@ -786,7 +851,7 @@ impl TreeSecret {
             // verify the new path secrets match public keys
             for (secret, &parent) in path_secrets.iter().skip(1).zip(overlap_path) {
                 tree.verify_node_private_key(secret, parent)
-                    .map_err(|_| ProcessCommitError::PathSecretPublicKeyDontMatch)?;
+                    .map_err(|_| CommitError::PathSecretPublicKeyDontMatch)?;
             }
 
             // Define `commit_secret` as the value `path_secret[n+1]` derived from the
@@ -850,7 +915,8 @@ fn node_hash(nodes: &[Node], cs: CipherSuite, index: NodeSize, leaf_size: LeafSi
         }
         .get_encoding(),
         Node::Parent(pn) => {
-            let pindex = ParentSize::try_from(index).expect("must be parent node index");
+            let pindex = ParentSize::try_from(index)
+                .expect("impossible, must be parent node index, checked in integrity_check");
             let left_index = pindex.left();
             let left_hash = node_hash(nodes, cs, left_index, leaf_size);
             let right_index = pindex.right(leaf_size);
@@ -865,41 +931,4 @@ fn node_hash(nodes: &[Node], cs: CipherSuite, index: NodeSize, leaf_size: LeafSi
         }
     };
     cs.hash(&payload)
-}
-
-/// draft-ietf-mls-protocol.md#ratchet-tree-nodes
-/// no blank nodes return
-fn resolve(nodes: &[Node], index: NodeSize) -> Vec<NodeSize> {
-    match &nodes[index.node_index()] {
-        // Resolution of blank leaf is the empty list
-        Node::Leaf(None) => vec![],
-        // Resolution of non-blank leaf is node itself
-        Node::Leaf(Some(_)) => vec![index],
-        // Resolution of blank intermediate node is concatenation of the resolutions
-        // of the children
-        Node::Parent(None) => {
-            let pindex = ParentSize::try_from(index).expect("must be parent node index");
-            [
-                resolve(nodes, pindex.left()),
-                resolve(
-                    nodes,
-                    pindex.right(
-                        NodeSize(nodes.len() as u32)
-                            .leafs_len()
-                            .expect("invalid node size"),
-                    ),
-                ),
-            ]
-            .concat()
-        }
-        // Resolution of non-blank leaf is node + unmerged leaves
-        Node::Parent(Some(p)) => iter::once(index)
-            .chain(
-                p.unmerged_leaves
-                    .iter()
-                    .copied()
-                    .map(|n| NodeSize::from(LeafSize(n))),
-            )
-            .collect::<Vec<_>>(),
-    }
 }

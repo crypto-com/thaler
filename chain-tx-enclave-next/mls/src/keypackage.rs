@@ -9,7 +9,7 @@ use ra_enclave::{Certificate, EnclaveRaContext, EnclaveRaContextError};
 use rustls::internal::msgs::codec::{self, Codec, Reader};
 use subtle::ConstantTimeEq;
 #[cfg(target_env = "sgx")]
-use x509_parser::{parse_x509_der, x509};
+use x509_parser::{error::X509Error, parse_x509_der, x509};
 
 use crate::credential::Credential;
 use crate::extensions::{self as ext, MLSExtension};
@@ -221,8 +221,12 @@ impl KeyPackage {
     }
 
     /// re-sign payload
-    pub fn update_signature(&mut self, private_key: &IdentityPrivateKey) {
-        self.signature = private_key.sign(&self.payload.get_encoding());
+    pub fn update_signature(
+        &mut self,
+        private_key: &IdentityPrivateKey,
+    ) -> Result<(), ring::error::Unspecified> {
+        self.signature = private_key.sign(&self.payload.get_encoding())?;
+        Ok(())
     }
 
     /// re-generate init key
@@ -238,16 +242,29 @@ pub struct KeyPackageSecret {
     pub init_private_key: HPKEPrivateKey,
 }
 
+#[cfg(target_env = "sgx")]
+#[derive(thiserror::Error, Debug)]
+pub enum GenKeyPackageError {
+    #[error("ra context error: {0}")]
+    RaContextError(#[from] EnclaveRaContextError),
+    #[error("sign error: {0}")]
+    SignError(#[from] ring::error::Unspecified),
+    #[error("generated invalid certificate: {0}")]
+    InvalidCertificate(#[from] nom::Err<X509Error>),
+    #[error("generated invalid certificate private key: {0}")]
+    InvalidPrivateKey(#[from] ring::error::KeyRejected),
+}
+
 impl KeyPackageSecret {
     #[cfg(target_env = "sgx")]
-    pub fn gen(ra_ctx: EnclaveRaContext) -> Result<(Self, KeyPackage), EnclaveRaContextError> {
+    pub fn gen(ra_ctx: EnclaveRaContext) -> Result<(Self, KeyPackage), GenKeyPackageError> {
         let Certificate {
             certificate,
             private_key,
             ..
         } = ra_ctx.get_certificate()?;
 
-        let (_, cert) = parse_x509_der(&certificate.0).expect("invalid cert");
+        let (_, cert) = parse_x509_der(&certificate.0)?;
         let x509::Validity {
             not_before,
             not_after,
@@ -263,8 +280,7 @@ impl KeyPackageSecret {
             .entry(),
         ];
 
-        let credential_private_key =
-            IdentityPrivateKey::from_pkcs8(&private_key.0).expect("invalid private key");
+        let credential_private_key = IdentityPrivateKey::from_pkcs8(&private_key.0)?;
         let (init_private_key, init_key) = HPKEPrivateKey::generate();
         let payload = KeyPackagePayload {
             version: PROTOCOL_VERSION_MLS10,
@@ -275,7 +291,7 @@ impl KeyPackageSecret {
         };
 
         // sign payload
-        let signature = credential_private_key.sign(&payload.get_encoding());
+        let signature = credential_private_key.sign(&payload.get_encoding())?;
 
         Ok((
             Self {
@@ -287,7 +303,10 @@ impl KeyPackageSecret {
     }
 
     /// re-sign payload
-    pub fn update_signature(&self, keypackage: &mut KeyPackage) {
+    pub fn update_signature(
+        &self,
+        keypackage: &mut KeyPackage,
+    ) -> Result<(), ring::error::Unspecified> {
         keypackage.update_signature(&self.credential_private_key)
     }
 
