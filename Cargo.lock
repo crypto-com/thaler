@@ -2650,6 +2650,7 @@ dependencies = [
  "chrono",
  "hkdf",
  "hpke",
+ "nom",
  "ra-client",
  "ra-enclave",
  "rand 0.7.3",

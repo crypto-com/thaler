@@ -172,7 +172,7 @@ impl CipherSuite {
         // FIXME: only for updates/with path secrets?
         // group_context: &GroupContext,
         kp: &KeyPackage,
-    ) -> EncryptedGroupSecrets {
+    ) -> Result<EncryptedGroupSecrets, HpkeError> {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 let mut csprng = rand::thread_rng();
@@ -188,21 +188,18 @@ impl CipherSuite {
                     recip_pk.kex_pubkey(),
                     b"",
                     &mut csprng,
-                )
-                .expect("setup sender");
+                )?;
                 let mut output = group_secret.get_encoding();
-                let tag = context
-                    .seal(&mut output, &[]) // FIXME ?: &group_context.get_encoding())
-                    .expect("encryption failed");
+                let tag = context.seal(&mut output, &[])?; // FIXME ?: &group_context.get_encoding())
                 output.extend_from_slice(&tag.marshal());
 
-                EncryptedGroupSecrets {
+                Ok(EncryptedGroupSecrets {
                     encrypted_group_secrets: HPKECiphertext {
                         kem_output: kem_output.marshal().to_vec(),
                         ciphertext: output,
                     },
                     key_package_hash,
-                }
+                })
             }
         }
     }
@@ -213,7 +210,7 @@ impl CipherSuite {
         encrypted_group_secret: &EncryptedGroupSecrets,
         // FIXME: group_context: &GroupContext,
         kp_secret: &KeyPackageSecret,
-    ) -> GroupSecret {
+    ) -> Result<Option<GroupSecret>, HpkeError> {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 // FIXME: errors instead of panicking
@@ -221,8 +218,7 @@ impl CipherSuite {
                 let encapped_key =
                     EncappedKey::<<hpke::kem::DhP256HkdfSha256 as hpke::kem::Kem>::Kex>::unmarshal(
                         &encrypted_group_secret.encrypted_group_secrets.kem_output,
-                    )
-                    .expect("valid encapped key");
+                    )?;
                 let payload_len = encrypted_group_secret
                     .encrypted_group_secrets
                     .ciphertext
@@ -233,20 +229,17 @@ impl CipherSuite {
                 let tag_bytes = &encrypted_group_secret.encrypted_group_secrets.ciphertext
                     [payload_len - 16..payload_len];
 
-                let tag = AeadTag::<AesGcm128>::unmarshal(tag_bytes).expect("valid tag");
+                let tag = AeadTag::<AesGcm128>::unmarshal(tag_bytes)?;
 
                 let mut receiver_ctx =
                     hpke::setup_receiver::<
                         AesGcm128,
                         hpke::kdf::HkdfSha256,
                         hpke::kem::DhP256HkdfSha256,
-                    >(&hpke::OpModeR::Base, &recip_secret, &encapped_key, b"")
-                    .expect("setup receiver");
+                    >(&hpke::OpModeR::Base, &recip_secret, &encapped_key, b"")?;
 
-                receiver_ctx
-                    .open(&mut payload, &[], &tag) // FIXME: group context?
-                    .expect("decryption failed");
-                GroupSecret::read_bytes(&payload).expect("decoding group secret")
+                receiver_ctx.open(&mut payload, &[], &tag)?; // FIXME: group context?
+                Ok(GroupSecret::read_bytes(&payload))
             }
         }
     }
@@ -257,19 +250,16 @@ impl CipherSuite {
         encrypted_group_info: &[u8],
         welcome_key: SecretVec<u8>,
         welcome_nonce: Vec<u8>,
-    ) -> GroupInfo {
+    ) -> Result<Option<GroupInfo>, aead::Error> {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 let aead = <AesGcm128 as hpke::aead::Aead>::AeadImpl::new(
                     &GenericArray::clone_from_slice(welcome_key.expose_secret()),
                 );
                 let nonce = GenericArray::from_slice(&welcome_nonce);
-                GroupInfo::read_bytes(
-                    &aead
-                        .decrypt(nonce, encrypted_group_info)
-                        .expect("decryption failure!"),
-                )
-                .expect("decoding failure")
+                Ok(GroupInfo::read_bytes(
+                    &aead.decrypt(nonce, encrypted_group_info)?,
+                ))
             }
         }
     }
@@ -280,7 +270,7 @@ impl CipherSuite {
         group_info: &GroupInfo,
         welcome_key: SecretVec<u8>,
         welcome_nonce: Vec<u8>,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, aead::Error> {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 let aead = <AesGcm128 as hpke::aead::Aead>::AeadImpl::new(
@@ -288,7 +278,6 @@ impl CipherSuite {
                 );
                 let nonce = GenericArray::from_slice(&welcome_nonce);
                 aead.encrypt(nonce, group_info.get_encoding().as_ref())
-                    .expect("encryption failure!")
             }
         }
     }
@@ -398,13 +387,15 @@ impl CipherSuite {
                     b"",
                 )?;
 
-                let payload_len = ct.ciphertext.len();
-                let mut payload = ct.ciphertext[0..payload_len - 16].to_vec();
-                let tag_bytes = &ct.ciphertext[payload_len - 16..payload_len];
-                let tag = AeadTag::<AesGcm128>::unmarshal(tag_bytes)?;
-
-                context.open(&mut payload, aad, &tag)?;
-                Ok(payload)
+                if let Some(split_point) = ct.ciphertext.len().checked_sub(16) {
+                    let (payload, tag_bytes) = ct.ciphertext.split_at(split_point);
+                    let tag = AeadTag::<AesGcm128>::unmarshal(tag_bytes)?;
+                    let mut payload = payload.to_vec();
+                    context.open(&mut payload, aad, &tag)?;
+                    Ok(payload)
+                } else {
+                    Err(HpkeError::InvalidTag)
+                }
             }
         }
     }

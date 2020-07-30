@@ -149,11 +149,11 @@ impl IdentityPrivateKey {
         IdentityPublicKey(self.0.public_key().as_ref().to_vec())
     }
 
-    pub fn sign(&self, msg: &[u8]) -> Vec<u8> {
-        self.0
-            .sign(&ringrang::SystemRandom::new(), msg)
-            .unwrap()
+    pub fn sign(&self, msg: &[u8]) -> Result<Vec<u8>, error::Unspecified> {
+        Ok(self
+            .0
+            .sign(&ringrang::SystemRandom::new(), msg)?
             .as_ref()
-            .to_vec()
+            .to_vec())
     }
 }
