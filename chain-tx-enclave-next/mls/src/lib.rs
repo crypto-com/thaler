@@ -1,5 +1,8 @@
 //! This crate implements [mls protocol](https://github.com/mlswg/mls-protocol/blob/8264f452c27354ac043d289a893b4bec80c1d556/draft-ietf-mls-protocol.md)
-pub mod astree;
+//! Note: "Application Secret Tree" is not implemented here, as it's not being used in the latest
+//! TDBE iteration: https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md#new-obfuscation-key
+//! (i.e. instead of exchanging application messages, only node tree ratcheting + secret derivations are used,
+//! as the obfuscation key for transactions is obtained directly using the MLS "exporter" construct that didn't exist in the earlier protocol drafts)
 pub mod ciphersuite;
 pub mod credential;
 pub mod extensions;
