@@ -1,3 +1,5 @@
+use chrono::Duration;
+
 /// Configuration required by SP for remote attestation
 #[derive(Debug)]
 pub struct EnclaveRaConfig {
@@ -5,4 +7,6 @@ pub struct EnclaveRaConfig {
     pub sp_addr: String,
     /// Duration for which a certificate will be valid (in secs)
     pub certificate_validity_secs: u32,
+    /// The certificate expiration tie
+    pub certificate_expiration_time: Option<Duration>,
 }

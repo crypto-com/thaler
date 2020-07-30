@@ -2,7 +2,7 @@ import json
 import pytest
 import os
 import time
-from client_cli import Wallet, Transaction
+from client_cli import Wallet, Transaction, run
 
 PASSPHRASE = "123456"
 CRO = 10**8
@@ -21,6 +21,10 @@ def write_wallet_info_to_file(wallet_list, from_file = "/tmp/from_file"):
     with open(from_file, "w") as f:
         json.dump(wallet_info, f)
 
+def test_cert_expiration():
+    if os.environ.get("BUILD_MODE", "sgx") == "sgx":
+        cmd = ["test_cert_expiration", "26651", "202"]
+        run(cmd)
 
 @pytest.mark.zerofee
 def test_wallet_basic():
@@ -223,7 +227,8 @@ def test_deposit_to_other_wallet():
 
 @pytest.mark.zerofee
 def test_withdraw_to_other_wallet():
-    time.sleep(3)
+    # the tx-query cert_validation is 200 (setted in .drone.yaml), check the cert refresh or not
+    test_cert_expiration()
     state2 = wallet_2.state(staking_address_wallet_1)
     unbounded_transaction(wallet_1, staking_address_wallet_1, 10000)
     wallet_2.sync()

@@ -16,7 +16,13 @@ impl Certificate {
     /// Checks if current certificate is valid or not
     pub fn is_valid(&self, validity_duration: Duration) -> bool {
         let current_time = Utc::now();
-        self.created + validity_duration >= current_time
+        // add extra 15 seconds offset to avoid the impact of network transfer delay
+        // and difference of the os system time
+        if validity_duration > Duration::seconds(15) {
+            current_time - self.created <= validity_duration - Duration::seconds(15)
+        } else {
+            current_time - self.created < validity_duration
+        }
     }
 
     /// Sets current certificate in given `rustls` server config

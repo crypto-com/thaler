@@ -16,6 +16,7 @@ rustls = "0.18"
 secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "535790e91fac1b3b00c770cb339a06feadc5f48d", features = ["lowmemory"] }
 thread-pool = "0.1"
 zeroize = "1.1"
+chrono = "0.4"
 
 chain-core = { path = "../../../chain-core", default-features = false, features = ["edp"] }
 enclave-protocol = { path = "../../../enclave-protocol", features = ["edp"] }

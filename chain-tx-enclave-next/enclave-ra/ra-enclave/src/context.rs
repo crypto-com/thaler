@@ -19,11 +19,15 @@ use crate::{
     config::EnclaveRaConfig,
 };
 
+/// 90 days
+pub const DEFAULT_EXPIRATION_SECS: i64 = 7776000;
+
 /// Wraps all the in-enclave operations required for remote attestation
 pub struct EnclaveRaContext {
     certificate: Arc<Mutex<Option<Certificate>>>,
     sp_ra_client: SpRaClient,
     validity_duration: Duration,
+    expiration_duration: Duration,
 }
 
 impl EnclaveRaContext {
@@ -31,11 +35,15 @@ impl EnclaveRaContext {
     pub fn new(config: &EnclaveRaConfig) -> Result<Self, EnclaveRaContextError> {
         let sp_ra_client = SpRaClient::connect(&config.sp_addr)?;
         let validity_duration = Duration::seconds(config.certificate_validity_secs.into());
+        let expiration_duration = config
+            .certificate_expiration_time
+            .unwrap_or_else(|| Duration::seconds(DEFAULT_EXPIRATION_SECS));
 
         Ok(Self {
             certificate: Default::default(),
             sp_ra_client,
             validity_duration,
+            expiration_duration,
         })
     }
 
@@ -156,7 +164,7 @@ impl EnclaveRaContext {
         let current_time = Utc::now();
         // 1 minute offset is to make the keypackage immediately usable, because block time might lag behind the system time
         certificate_params.not_before = current_time - Duration::minutes(1);
-        certificate_params.not_after = current_time + Duration::days(90);
+        certificate_params.not_after = current_time + self.expiration_duration;
 
         certificate_params.subject_alt_names =
             vec![SanType::Rfc822Name("security@crypto.com".to_string())];

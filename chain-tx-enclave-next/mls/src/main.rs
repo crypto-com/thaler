@@ -5,14 +5,15 @@ pub type Timespec = u64;
 #[cfg(target_env = "sgx")]
 fn main() -> io::Result<()> {
     use mls::KeyPackageSecret;
-    use ra_enclave::{EnclaveRaConfig, EnclaveRaContext};
+    use ra_enclave::{EnclaveRaConfig, EnclaveRaContext, DEFAULT_EXPIRATION_SECS};
     #[allow(unused_imports)]
     use rs_libc::alloc::*;
     use rustls::internal::msgs::codec::Codec;
 
     let config = EnclaveRaContext::new(&EnclaveRaConfig {
         sp_addr: "0.0.0.0:8989".to_owned(),
-        certificate_validity_secs: 86400,
+        certificate_validity_secs: DEFAULT_EXPIRATION_SECS as u32,
+        certificate_expiration_time: None,
     });
     if config.is_err() {
         eprintln!("cannot connect ra-sp-server, run ra-sp-server beforehand e.g.) ra-sp-server --quote-type Unlinkable --ias-key $IAS_API_KEY --spid $SPID")

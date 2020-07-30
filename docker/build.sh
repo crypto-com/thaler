@@ -29,6 +29,7 @@ if [ $BUILD_MODE == "sgx" ]; then
 
     cargo build $CARGO_ARGS
     cargo build $CARGO_ARGS --features mock-hardware-wallet --manifest-path client-cli/Cargo.toml
+    cargo build $CARGO_ARGS --manifest-path integration-tests/rust_tests/test_cert_expiration/Cargo.toml
     make -C chain-tx-enclave/tx-validation
 
     # Add fortanix target and tools
