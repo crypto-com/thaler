@@ -994,7 +994,7 @@ pub enum InitGroupError {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
 
     use super::*;
     use crate::credential::Credential;
@@ -1012,7 +1012,7 @@ mod test {
     use rustls::internal::msgs::codec::Codec;
 
     #[derive(Clone)]
-    struct MockVerifier();
+    pub struct MockVerifier();
 
     impl AttestedCertVerifier for MockVerifier {
         fn verify_attested_cert(
@@ -1035,7 +1035,7 @@ mod test {
         }
     }
 
-    fn get_fake_keypackage() -> (KeyPackage, KeyPackageSecret) {
+    pub fn get_fake_keypackage() -> (KeyPackage, KeyPackageSecret) {
         let keypair = ring::signature::EcdsaKeyPair::generate_pkcs8(
             &ring::signature::ECDSA_P256_SHA256_ASN1_SIGNING,
             &ring::rand::SystemRandom::new(),
@@ -1156,8 +1156,7 @@ mod test {
         assert!(!tree.nodes[2].is_empty_node());
     }
 
-    #[test]
-    fn test_group_update() {
+    pub fn three_member_setup() -> (GroupAux, GroupAux, GroupAux) {
         let (member1, member1_secret) = get_fake_keypackage();
         let (member2, member2_secret) = get_fake_keypackage();
         let (member3, member3_secret) = get_fake_keypackage();
@@ -1190,7 +1189,7 @@ mod test {
         member2_group
             .process_commit(commit, &proposals, &ra_verifier, 0)
             .expect("commit ok");
-        let mut member3_group =
+        let member3_group =
             GroupAux::init_group_from_welcome(member3, member3_secret, welcome, &ra_verifier, 0)
                 .expect("group init from welcome");
 
@@ -1204,6 +1203,13 @@ mod test {
             .tree
             .get_package(member3_group.tree.my_pos)
             .expect("member3 should exists");
+        (member1_group, member2_group, member3_group)
+    }
+
+    #[test]
+    fn test_group_update() {
+        let ra_verifier = MockVerifier {};
+        let (mut member1_group, mut member2_group, mut member3_group) = three_member_setup();
 
         // member2 do a self update
         let (member2, member2_secret) = get_fake_keypackage();

@@ -617,7 +617,7 @@ impl TreePublicKey {
 
     /// draft-ietf-mls-protocol.md#ratchet-tree-nodes
     /// no blank nodes return
-    fn resolve(&self, index: NodeSize) -> Vec<NodeSize> {
+    pub(crate) fn resolve(&self, index: NodeSize) -> Vec<NodeSize> {
         match &self.nodes[index.node_index()] {
             // Resolution of blank leaf is the empty list
             Node::Leaf(None) => vec![],
