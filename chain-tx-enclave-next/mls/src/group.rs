@@ -43,7 +43,7 @@ impl GroupAux {
     fn new(context: GroupContext, tree: TreePublicKey, kp_secret: KeyPackageSecret) -> Self {
         let secrets: EpochSecrets<Sha256> = match &tree.cs {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
-                EpochSecrets::new(tree.cs.hash(&context.get_encoding()), tree.leaf_len())
+                EpochSecrets::new(tree.cs.hash(&context.get_encoding()))
             }
         };
         let cs = tree.cs;
@@ -341,11 +341,9 @@ impl GroupAux {
             ..self.context.clone()
         };
         let updated_group_context_hash = self.tree.cs.hash(&updated_group_context.get_encoding());
-        let epoch_secrets = self.secrets.generate_new_epoch_secrets(
-            &tree_secret.update_secret,
-            updated_group_context_hash,
-            updated_tree.leaf_len(),
-        );
+        let epoch_secrets = self
+            .secrets
+            .generate_new_epoch_secrets(&tree_secret.update_secret, updated_group_context_hash);
         let confirmation =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
         let sender = self.get_sender();
@@ -550,7 +548,6 @@ impl GroupAux {
         let epoch_secrets = self.secrets.generate_new_epoch_secrets(
             &self.tree_secret.update_secret,
             updated_group_context_hash,
-            tree.leaf_len(),
         );
         let confirmation_computed =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
@@ -734,7 +731,6 @@ impl GroupAux {
         let secrets = EpochSecrets::from_epoch_secret(
             (group_secret.epoch_secret, epoch_secret),
             tree.cs.hash(&context.get_encoding()),
-            tree.leaf_len(),
         );
         let group = GroupAux {
             context,

@@ -1,4 +1,4 @@
-FROM rustlang/rust:nightly-stretch
+FROM rustlang/rust:nightly-buster
 LABEL maintainer="Crypto.com"
 
 RUN apt-get update && \
