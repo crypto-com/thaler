@@ -34,3 +34,8 @@ members = ["."]
 [[bin]]
 name = "abci-cycle"
 path = "fuzz_targets/abci_cycle.rs"
+
+[patch.crates-io]
+ring = { git = "https://github.com/crypto-com/ring.git", rev = "bdbcc7041095f028d49d9fecd7edcf26d6083274" }
+# FIXME: before official spec has a solution
+hpke = { git = "https://github.com/crypto-com/rust-hpke.git", rev = "25686eb87d2862535b1d5107d74e2ac8bd992bae" }
