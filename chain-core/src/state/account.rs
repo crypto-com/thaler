@@ -13,10 +13,8 @@ pub use op::data::unbond::UnbondTx;
 pub use op::data::withdraw::WithdrawUnbondedTx;
 pub use op::witness::StakedStateOpWitness;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::From;
-#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 use std::prelude::v1::Vec;
 use std::prelude::v1::{String, ToString};
@@ -48,21 +46,16 @@ pub enum MLSInit {
 }
 
 /// the initial data a node submits to join a MLS group
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub struct ConfidentialInit {
     /// MLS credential with attestation payload
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(
-            serialize_with = "serialize_base64",
-            deserialize_with = "deserialize_base64"
-        )
+    #[serde(
+        serialize_with = "serialize_base64",
+        deserialize_with = "deserialize_base64"
     )]
     pub init_payload: MLSInit,
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn serialize_base64<S>(init_payload: &MLSInit, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -73,7 +66,6 @@ where
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_base64<'de, D>(deserializer: D) -> Result<MLSInit, D::Error>
 where
     D: Deserializer<'de>,
@@ -85,8 +77,7 @@ where
 }
 
 /// Information common to different node types
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub struct NodeCommonInfo {
     /// name / moniker (just for reference / human use)
     pub name: NodeName,
@@ -97,7 +88,6 @@ pub struct NodeCommonInfo {
     pub confidential_init: ConfidentialInit,
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for NodeCommonInfo {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
@@ -161,11 +151,10 @@ impl Decode for NodeCommonInfo {
 }
 
 /// holds state about a node responsible for transaction validation / block signing
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub struct CouncilNodeMeta {
     /// name, security contact and TDBE/MLS keypackage
-    #[cfg_attr(not(feature = "mesalock_sgx"), serde(flatten))]
+    #[serde(flatten)]
     pub node_info: NodeCommonInfo,
     /// Tendermint consensus validator-associated public key
     pub consensus_pubkey: TendermintValidatorPubKey,
@@ -213,8 +202,7 @@ impl Decode for CouncilNodeMeta {
 }
 
 /// info about a node
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub enum NodeMetadata {
     /// validator
     CouncilNode(CouncilNodeMeta),
@@ -222,7 +210,6 @@ pub enum NodeMetadata {
     CommunityNode(NodeCommonInfo),
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for NodeMetadata {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -337,8 +324,9 @@ impl CouncilNodeMeta {
 }
 
 /// Types of possible punishments
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize,
+)]
 pub enum PunishmentKind {
     /// liveness fault
     NonLive,
@@ -346,7 +334,6 @@ pub enum PunishmentKind {
     ByzantineFault,
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for PunishmentKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -357,8 +344,7 @@ impl fmt::Display for PunishmentKind {
 }
 
 /// Details of a punishment for a staked state
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize)]
 pub struct SlashRecord {
     /// why
     pub kind: PunishmentKind,
@@ -368,7 +354,6 @@ pub struct SlashRecord {
     pub amount: Coin,
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for CouncilNodeMeta {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} -- {}", self.node_info, self.consensus_pubkey)
@@ -385,8 +370,7 @@ impl fmt::Display for CouncilNodeMeta {
 ///
 /// Invariant 1.2:
 ///   `! (is_jailed() && is_active())`
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize)]
 pub struct Validator {
     /// council node metadata
     pub council_node: CouncilNodeMeta,
@@ -399,7 +383,7 @@ pub struct Validator {
     pub inactive_block: Option<BlockHeight>,
 
     /// last N (10?) used consensus pubkeys/addresses
-    #[cfg_attr(not(feature = "mesalock_sgx"), serde(skip))]
+    #[serde(skip)]
     pub used_validator_addresses: Vec<(TendermintValidatorAddress, Timespec)>,
 }
 
@@ -416,7 +400,6 @@ impl Validator {
     }
 
     /// extracts validator address from the pubkey
-    #[cfg(not(feature = "mesalock_sgx"))]
     pub fn validator_address(&self) -> TendermintValidatorAddress {
         TendermintValidatorAddress::from(&self.council_node.consensus_pubkey)
     }
@@ -477,8 +460,7 @@ impl Validator {
 }
 
 /// represents node state metadata
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize)]
 pub enum NodeState {
     /// information related to council nodes (validator metadata + keypackage from TDBE)
     CouncilNode(Validator),
@@ -498,8 +480,7 @@ pub enum NodeState {
 ///       }
 ///   }
 ///   ```
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize)]
 pub struct StakedState {
     /// "from" operations counter
     pub nonce: Nonce,
@@ -629,8 +610,7 @@ impl StakedState {
 }
 
 /// bond status for StakedState initialize
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum StakedStateDestination {
     /// initialize in genesis as bonded
     Bonded,

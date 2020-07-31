@@ -11,11 +11,10 @@ pub mod input;
 /// Transaction outputs (amount to an address)
 pub mod output;
 
-#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::{Deserialize, Serialize};
 
 use crate::common::H256;
@@ -44,8 +43,7 @@ pub const TXID_HASH_ID: &[u8; 6] = b"blake3";
 pub type TxId = H256;
 
 /// A Transaction containing tx inputs and tx outputs.
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct Tx {
     /// previous transaction outputs to be spent
     pub inputs: Vec<TxoPointer>,
@@ -89,7 +87,6 @@ impl Decode for Tx {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for Tx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for input in self.inputs.iter() {

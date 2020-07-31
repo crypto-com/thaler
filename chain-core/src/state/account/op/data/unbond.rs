@@ -4,15 +4,14 @@ use crate::state::account::op::data::attribute::StakedStateOpAttributes;
 use crate::state::account::Nonce;
 use crate::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::{Deserialize, Serialize};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use std::fmt;
 
 /// updates the StakedState by moving some of the bonded amount - fee into unbonded,
 /// and setting the unbonded_from to last_block_time+min_unbonding_time (network parameter)
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct UnbondTx {
     /// which (staking) state to unbond from
     pub from_staked_account: StakedStateAddress,
@@ -75,7 +74,6 @@ impl UnbondTx {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for UnbondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(

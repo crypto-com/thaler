@@ -1,5 +1,0 @@
-**/enclave/Enclave_t.*
-**/app/Enclave_u.*
-
-rust-sgx-sdk/compiler-rt/libcompiler-rt-patch.a
-rust-sgx-sdk/compiler-rt/muloti4.o

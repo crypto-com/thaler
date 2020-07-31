@@ -82,19 +82,6 @@ rust: &rust
 
   after_success: |
     if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-      # a small hack, as kcov doesn't have an option to only build default members
-      sed 's/"chain-tx-enclave\//#"chain-tx-enclave\//g' -i Cargo.toml;
-      # more hacks for kcov :(
-      # sed 's/default = \[\]/default = \["mock-enclave"\]/g' -i chain-abci/Cargo.toml;
-      # sed 's/sgx/#sgx/g' -i chain-abci/Cargo.toml;
-      sed 's/legacy/#legacy/g' -i chain-abci/Cargo.toml;
-      sed 's/sgx-test/#sgx-test/g' -i chain-abci/Cargo.toml;
-      sed 's/enclave-u-common =/#enclave-u-common =/g' -i chain-abci/Cargo.toml;
-      sed 's/sgx_types =/#sgx_types =/g' -i chain-abci/Cargo.toml;
-      sed 's/sgx_urts =/#sgx_urts =/g' -i chain-abci/Cargo.toml;
-      
-      sed 's/CARGO/_CARGO/g' -i chain-abci/build.rs;
-
       travis_wait 30 cargo kcov --all;
       bash <(curl -s https://codecov.io/bash);
     fi

@@ -9,11 +9,9 @@ edition = "2018"
 [features]
 default = ["chain-core/default"]
 edp = ["chain-core/edp", "parity-scale-codec/std", "secp256k1/lowmemory"]
-mesalock_sgx = ["sgx_tstd", "secp256k1/lowmemory", "chain-core/mesalock_sgx", "chain-tx-validation/mesalock_sgx"]
 
 [dependencies]
 chain-core = { path = "../chain-core", default-features = false }
 chain-tx-validation = { path = "../chain-tx-validation", default-features = false }
-parity-scale-codec = { version = "1.3", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "1.3", features = ["derive"] }
 secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "535790e91fac1b3b00c770cb339a06feadc5f48d" }
-sgx_tstd = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }

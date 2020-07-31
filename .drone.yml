@@ -76,16 +76,13 @@ steps:
   - name: sgx
     path: /dev/sgx
   environment:
-    SGX_TEST: 1
     RUST_LOG: debug
   commands:
   - export CARGO_HOME=$PWD/drone/cargo
-  - export CARGO_TARGET_DIR=/tmp
+  - export CARGO_TARGET_DIR=$PWD/drone/target
+  - export PATH=$CARGO_HOME/bin:$PATH
   - LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
-  - make -C chain-tx-enclave/tx-validation
-  - cargo build --no-default-features --features sgx-test --manifest-path chain-abci/Cargo.toml
-  - cd $CARGO_TARGET_DIR/debug
-  - ./chain-abci
+  - ./docker/sgx_test.sh
 
 - name: teardown
   image: cryptocom/chain-test:latest
@@ -137,6 +134,6 @@ trigger:
 
 ---
 kind: signature
-hmac: 5b35c24e5f5071022a34edaeb72dbd31824c4d330fd4d69541741772ee24ec9a
+hmac: cdaf463e399063ff58aeed14d5fe48b678ed77fd38d4a51482f8983a07e95c0a
 
 ...

@@ -8,14 +8,12 @@ edition = "2018"
 
 [features]
 default = ["bit-vec/std", "chain-core/default"]
-mesalock_sgx = ["sgx_tstd", "secp256k1/lowmemory"]
 
 [dependencies]
 chain-core = { default-features = false, path = "../chain-core" }
-parity-scale-codec = { default-features = false, version = "1.3" }
+parity-scale-codec = { version = "1.3" }
 secp256k1 = { default-features = false, git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "535790e91fac1b3b00c770cb339a06feadc5f48d", features = ["endomorphism"] }
 bit-vec = { default-features = false, version = "0.6" }
-sgx_tstd = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
 
 [dev-dependencies]
 quickcheck = "0.9"

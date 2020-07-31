@@ -8,15 +8,8 @@ use parity_scale_codec::{Decode, Encode};
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
-#[cfg(all(
-    not(feature = "mock-enclave"),
-    not(feature = "legacy"),
-    feature = "edp",
-    target_os = "linux"
-))]
+#[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
 use crate::enclave_bridge::edp::start_zmq;
-#[cfg(all(not(feature = "mock-enclave"), feature = "legacy", target_os = "linux"))]
-use crate::enclave_bridge::real::start_zmq;
 use crate::enclave_bridge::EnclaveProxy;
 use crate::staking::StakingTable;
 use chain_core::common::MerkleTree;
@@ -319,14 +312,7 @@ impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
             .expect("failed to decode two last hex digits in chain ID")[0];
 
         if let (Some(_), Some(_conn_str)) = (tx_query_address.as_ref(), enclave_server.as_ref()) {
-            #[cfg(all(not(feature = "mock-enclave"), feature = "legacy", target_os = "linux"))]
-            let _ = start_zmq(_conn_str, chain_hex_id, storage.get_read_only());
-            #[cfg(all(
-                not(feature = "mock-enclave"),
-                not(feature = "legacy"),
-                feature = "edp",
-                target_os = "linux"
-            ))]
+            #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
             let _ = start_zmq(
                 tx_validator.clone(),
                 _conn_str,

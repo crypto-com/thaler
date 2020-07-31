@@ -3,16 +3,13 @@
 //! Copyright (c) 2018, Input Output HK (licensed under the MIT License)
 //! Modifications Copyright (c) 2018 - 2020, Foris Limited (licensed under the Apache License, Version 2.0)
 
-#[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::config::SlashRatio;
 use crate::init::{MAX_COIN, MAX_COIN_DECIMALS, MAX_COIN_UNITS};
 use crate::state::tendermint::TendermintVotePower;
 use crate::state::tendermint::TENDERMINT_MAX_VOTE_POWER;
 use parity_scale_codec::{Decode, Encode, EncodeLike, Error as ScaleError, Input, Output};
 
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::de::{Deserializer, Error, Visitor};
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize, Serializer};
 
 use static_assertions::const_assert;
@@ -45,7 +42,6 @@ pub enum CoinError {
     Overflow,
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl Serialize for Coin {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -56,7 +52,6 @@ impl Serialize for Coin {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl<'de> Deserialize<'de> for Coin {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -246,7 +241,6 @@ impl ops::Rem<u64> for Coin {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl ops::Mul<SlashRatio> for Coin {
     type Output = Self;
 

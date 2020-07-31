@@ -1,10 +1,8 @@
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 
 /// attributes in StakedState-related transactions
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct StakedStateOpAttributes {
     /// network identifier
     pub chain_hex_id: u8,

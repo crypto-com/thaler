@@ -1,12 +1,10 @@
 use crate::tx::witness::{tree::RawSignature, EcdsaSignature};
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 
 /// A witness for StakedState operations
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub enum StakedStateOpWitness {
     /// Eth-style recoverable signature
     BasicRedeem(EcdsaSignature),

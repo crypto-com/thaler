@@ -4,16 +4,15 @@ use crate::tx::data::attribute::TxAttributes;
 use crate::tx::data::output::TxOut;
 use crate::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::{Deserialize, Serialize};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use std::fmt;
 use std::prelude::v1::Vec;
 
 /// takes the StakedState (implicit from the witness) and creates UTXOs
 /// (update's StakedState's unbonded + nonce)
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct WithdrawUnbondedTx {
     /// counter to check against
     pub nonce: Nonce,
@@ -69,7 +68,6 @@ impl WithdrawUnbondedTx {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for WithdrawUnbondedTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "-> (unbonded) (nonce: {})", self.nonce)?;

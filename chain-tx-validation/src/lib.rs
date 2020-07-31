@@ -1,18 +1,9 @@
-#![cfg_attr(all(feature = "mesalock_sgx", not(target_env = "sgx")), no_std)]
-#![cfg_attr(
-    all(target_env = "sgx", target_vendor = "mesalock"),
-    feature(rustc_private)
-)]
 #![deny(missing_docs, unsafe_code, unstable_features)]
 //! This crate contains functionality for transaction validation. It's currently tested in chain-abci. (TODO: move tests)
 //! WARNING: all validation is pure functions / without DB access => it assumes double-spending BitVec is checked in chain-abci
 
 /// transaction witness verification
 pub mod witness;
-
-#[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
-#[macro_use]
-extern crate sgx_tstd as std;
 
 use chain_core::init::coin::Coin;
 use chain_core::state::account::{DepositBondTx, StakedState, WithdrawUnbondedTx};
