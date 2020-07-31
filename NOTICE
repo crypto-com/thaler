@@ -13,21 +13,6 @@ This project contains portions of code derived from the following libraries:
  * License: Apache License 2.0
  * Repository: https://github.com/ETCDEVTeam/emerald-rs
 
-* Apache Teaclave SGX SDK
- * Copyright: Copyright (c) 2017-2020 Apache Teaclave Authors
- * License: Apache 2
- * Repository: https://github.com/apache/incubator-teaclave-sgx-sdk/
-
-* substraTEE worker
- * Copyright: Copyright (c) 2019-2020 Supercomputing Systems AG
- * License: Apache License 2.0
- * Repository: https://github.com/scs/substraTEE-worker
-
-* Apache Teaclave
- * Copyright: Copyright (c) 2019-2020 Apache Teaclave Authors
- * License: Apache License 2.0
- * Repository: https://github.com/apache/incubator-teaclave
-
 * Etcommon
  * Copyright: Copyright (c) 2018 ETCDEV
  * License: Apache License 2.0

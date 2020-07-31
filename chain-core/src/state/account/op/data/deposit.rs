@@ -3,9 +3,7 @@ use crate::state::account::op::data::attribute::StakedStateOpAttributes;
 use crate::tx::data::input::TxoPointer;
 use crate::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
-#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
 use std::prelude::v1::Vec;
 
@@ -17,8 +15,7 @@ const MAX_DEPOSIT_TX_SIZE: usize = 2200; // 2200 bytes
 
 /// takes UTXOs inputs, deposits them in the specified StakedState's bonded amount - fee
 /// (updates StakedState's bonded + nonce)
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct DepositBondTx {
     /// previous transaction outputs to spend
     pub inputs: Vec<TxoPointer>,
@@ -79,7 +76,6 @@ impl DepositBondTx {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for DepositBondTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for input in self.inputs.iter() {

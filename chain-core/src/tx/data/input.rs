@@ -1,13 +1,13 @@
 use std::fmt;
 
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::de::{
     self,
     value::{Error as ValueError, StrDeserializer},
     IntoDeserializer,
 };
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::tx::data::TxId;
@@ -18,18 +18,11 @@ pub type TxoSize = u16;
 /// Structure used for addressing a specific output of a transaction
 /// built from a TxId (hash of the tx) and the offset in the outputs of this
 /// transaction.
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Serialize, Deserialize)]
 pub struct TxoPointer {
     /// the previous transaction identifier
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(serialize_with = "serialize_transaction_id")
-    )]
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(deserialize_with = "deserialize_transaction_id")
-    )]
+    #[serde(serialize_with = "serialize_transaction_id")]
+    #[serde(deserialize_with = "deserialize_transaction_id")]
     pub id: TxId,
     /// the output index in the previous transaction
     pub index: TxoSize,
@@ -54,7 +47,6 @@ impl Decode for TxoPointer {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn serialize_transaction_id<S>(
     transaction_id: &TxId,
     serializer: S,
@@ -65,7 +57,6 @@ where
     serializer.serialize_str(&hex::encode(transaction_id))
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_transaction_id<'de, D>(deserializer: D) -> std::result::Result<TxId, D::Error>
 where
     D: Deserializer<'de>,
@@ -120,7 +111,7 @@ impl TxoPointer {
 }
 
 /// converts transaction ID from hex string?
-#[cfg(not(feature = "mesalock_sgx"))]
+
 pub fn str2txid<S: AsRef<str>>(s: S) -> Result<TxId, ValueError> {
     let deserializer: StrDeserializer<ValueError> = s.as_ref().into_deserializer();
     deserialize_transaction_id(deserializer)

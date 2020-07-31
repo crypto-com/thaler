@@ -1,27 +1,20 @@
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::de;
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use std::fmt;
 use std::prelude::v1::Vec;
 
 use crate::tx::data::access::TxAccessPolicy;
 
 /// Tx extra metadata, e.g. network ID
-#[derive(Debug, Default, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, Default, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TxAttributes {
     /// the network identifier
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(serialize_with = "serialize_chain_hex_id")
-    )]
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(deserialize_with = "deserialize_chain_hex_id")
-    )]
+    #[serde(serialize_with = "serialize_chain_hex_id")]
+    #[serde(deserialize_with = "deserialize_chain_hex_id")]
     pub chain_hex_id: u8,
     /// who is allowed to view the transaction content (enforced by tx-query)
     pub allowed_view: Vec<TxAccessPolicy>,
@@ -62,7 +55,6 @@ impl Decode for TxAttributes {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 #[allow(clippy::trivially_copy_pass_by_ref)]
 fn serialize_chain_hex_id<S>(
     chain_hex_id: &u8,
@@ -74,7 +66,6 @@ where
     serializer.serialize_str(&hex::encode_upper(vec![*chain_hex_id]))
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_chain_hex_id<'de, D>(deserializer: D) -> std::result::Result<u8, D::Error>
 where
     D: Deserializer<'de>,

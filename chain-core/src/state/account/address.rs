@@ -1,15 +1,10 @@
-#[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::address::ErrorAddress;
 use crate::init::address::RedeemAddress;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::From;
-#[cfg(not(feature = "mesalock_sgx"))]
 use std::convert::TryFrom;
-#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
-#[cfg(not(feature = "mesalock_sgx"))]
 use std::str::FromStr;
 
 /// StakedState address type
@@ -49,7 +44,6 @@ impl Decode for StakedStateAddress {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl Serialize for StakedStateAddress {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -59,7 +53,6 @@ impl Serialize for StakedStateAddress {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl<'de> Deserialize<'de> for StakedStateAddress {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -88,7 +81,6 @@ impl<'de> Deserialize<'de> for StakedStateAddress {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl TryFrom<&[u8]> for StakedStateAddress {
     type Error = ErrorAddress;
 
@@ -104,7 +96,6 @@ impl From<RedeemAddress> for StakedStateAddress {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for StakedStateAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -113,7 +104,6 @@ impl fmt::Display for StakedStateAddress {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl FromStr for StakedStateAddress {
     type Err = ErrorAddress;
 

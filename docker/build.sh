@@ -30,7 +30,6 @@ if [ $BUILD_MODE == "sgx" ]; then
     cargo build $CARGO_ARGS
     cargo build $CARGO_ARGS --features mock-hardware-wallet --manifest-path client-cli/Cargo.toml
     cargo build $CARGO_ARGS --manifest-path integration-tests/rust_tests/test_cert_expiration/Cargo.toml
-    make -C chain-tx-enclave/tx-validation
 
     # Add fortanix target and tools
     rustup target add x86_64-fortanix-unknown-sgx
@@ -44,24 +43,25 @@ if [ $BUILD_MODE == "sgx" ]; then
     cargo build --target=x86_64-fortanix-unknown-sgx -p mls
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/mls \
         --stack-size 0x40000 --heap-size 0x20000000 --threads 1 $EDP_ARGS
-    sgxs-sign --key chain-tx-enclave/tx-validation/enclave/Enclave_private.pem $EDP_TARGET_DIR/mls.sgxs $EDP_TARGET_DIR/mls.sig \
+    openssl genrsa -3 3072 > DEV_ONLY_KEY.kem
+    sgxs-sign --key DEV_ONLY_KEY.kem $EDP_TARGET_DIR/mls.sgxs $EDP_TARGET_DIR/mls.sig \
         -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
 
     # tx-query enclave
     cargo build --package tx-query2-app-runner
     RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha" cargo build --target x86_64-fortanix-unknown-sgx --package tx-query2-enclave-app
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/tx-query2-enclave-app --heap-size 0x2000000 --stack-size 0x80000 --threads 6 $EDP_ARGS
-    sgxs-sign --key chain-tx-enclave/tx-validation/enclave/Enclave_private.pem $EDP_TARGET_DIR/tx-query2-enclave-app.sgxs $EDP_TARGET_DIR/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
+    sgxs-sign --key DEV_ONLY_KEY.kem $EDP_TARGET_DIR/tx-query2-enclave-app.sgxs $EDP_TARGET_DIR/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
 
     # tdbe
     cargo build --package tdb-app-runner
     RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul" cargo build --target x86_64-fortanix-unknown-sgx --package tdb-enclave-app
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/tdb-enclave-app --heap-size 0x2000000 --stack-size 0x80000 --threads 6 $EDP_ARGS
-    sgxs-sign --key chain-tx-enclave/tx-validation/enclave/Enclave_private.pem $EDP_TARGET_DIR/tdb-enclave-app.sgxs $EDP_TARGET_DIR/tdb-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
+    sgxs-sign --key DEV_ONLY_KEY.kem $EDP_TARGET_DIR/tdb-enclave-app.sgxs $EDP_TARGET_DIR/tdb-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
     # tx-validation enclave
     RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha" cargo build --target x86_64-fortanix-unknown-sgx --package tx-validation-next
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/tx-validation-next --heap-size 0x20000000 --stack-size 0x40000 --threads 2 $EDP_ARGS
-    sgxs-sign --key chain-tx-enclave/tx-validation/enclave/Enclave_private.pem $EDP_TARGET_DIR/tx-validation-next.sgxs $EDP_TARGET_DIR/tx-validation-next.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
+    sgxs-sign --key DEV_ONLY_KEY.kem $EDP_TARGET_DIR/tx-validation-next.sgxs $EDP_TARGET_DIR/tx-validation-next.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
 
 else
     cargo build $CARGO_ARGS --features mock-enclave --manifest-path client-rpc/server/Cargo.toml

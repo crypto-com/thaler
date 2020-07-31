@@ -1,18 +1,17 @@
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::{Deserialize, Serialize};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use std::fmt;
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use std::str::FromStr;
 
 use crate::common::H256;
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use crate::init::address::{CroAddress, CroAddressError};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use bech32::{self, u5, FromBase32, ToBase32};
 
-#[cfg(not(feature = "mesalock_sgx"))]
 use crate::init::network::{get_bech32_human_part_from_network, get_network, Network};
 
 type TreeRoot = H256;
@@ -20,8 +19,7 @@ type TreeRoot = H256;
 /// MAST of Or operations (records the root).
 /// Root of a Merkle tree where leafs are X-only
 /// (potentially summed up / combined) pubkeys
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Hash, Serialize, Deserialize)]
 pub enum ExtendedAddr {
     /// ref: https://blockstream.com/2015/08/24/en-treesignatures/
     /// but each operation is "OR"
@@ -61,7 +59,6 @@ impl Decode for ExtendedAddr {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl CroAddress<ExtendedAddr> for ExtendedAddr {
     fn to_cro(&self, network: Network) -> Result<String, CroAddressError> {
         match self {
@@ -93,14 +90,12 @@ impl CroAddress<ExtendedAddr> for ExtendedAddr {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for ExtendedAddr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_cro(get_network()).unwrap())
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl FromStr for ExtendedAddr {
     type Err = CroAddressError;
 

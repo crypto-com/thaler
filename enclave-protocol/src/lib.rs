@@ -1,15 +1,6 @@
 //! This crate contains messages exchanged in REQ-REP socket between chain-abci app to enclave wrapper server
 //! as well as direct communication over TCP-TLS with optional querying enclaves
 
-#![cfg_attr(all(feature = "mesalock_sgx", not(target_env = "sgx")), no_std)]
-#![cfg_attr(
-    all(target_env = "sgx", target_vendor = "mesalock"),
-    feature(rustc_private)
-)]
-
-#[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
-extern crate sgx_tstd as std;
-
 pub mod codec;
 pub mod error;
 #[cfg(feature = "edp")]

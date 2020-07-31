@@ -9,7 +9,6 @@ edition = "2018"
 [features]
 default = ["sha2", "serde", "bech32", "hex", "base64", "secp256k1/serde", "secp256k1/std", "mls", "ra-client"]
 edp = ["secp256k1/lowmemory"]
-mesalock_sgx = ["secp256k1/lowmemory", "sgx_tstd"]
 
 [dependencies]
 mls = { path = "../chain-tx-enclave-next/mls", optional = true }
@@ -21,9 +20,8 @@ hex = { version = "0.4", optional = true }
 secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "535790e91fac1b3b00c770cb339a06feadc5f48d", features = ["recovery", "endomorphism", "schnorrsig"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 blake3 = { version = "0.3.6", default-features = false }
-parity-scale-codec = { features = ["derive"], default-features = false, version = "1.3" }
+parity-scale-codec = { features = ["derive"], version = "1.3" }
 base64 = { version = "0.12", optional = true }
-sgx_tstd = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
 static_assertions = { version = "1.1.0", default-features = false}
 bech32 = { version = "0.7.2", optional = true }
 aead = "0.3"

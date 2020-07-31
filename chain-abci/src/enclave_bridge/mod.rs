@@ -3,9 +3,6 @@ use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponse};
 /// TODO: feature-guard when workspaces can be built with --features flag: https://github.com/rust-lang/cargo/issues/5015
 pub mod mock;
 
-#[cfg(all(not(feature = "mock-enclave"), feature = "legacy", target_os = "linux"))]
-pub mod real;
-
 #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
 pub mod edp;
 

@@ -1,14 +1,5 @@
 #![deny(missing_docs, unsafe_code, unstable_features)]
 //! The core data types (such as transaction and witness payloads)
-#![cfg_attr(all(feature = "mesalock_sgx", not(target_env = "sgx")), no_std)]
-#![cfg_attr(
-    all(target_env = "sgx", target_vendor = "mesalock"),
-    feature(rustc_private)
-)]
-
-#[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
-#[macro_use]
-extern crate sgx_tstd as std;
 
 /// Miscellaneous definitions and generic merkle tree
 pub mod common;

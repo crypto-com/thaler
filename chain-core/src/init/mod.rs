@@ -6,11 +6,9 @@ pub mod address;
 /// Fixed supply coin/amounts
 pub mod coin;
 /// Configuration in JSON passed to InitChain
-#[cfg(not(feature = "mesalock_sgx"))]
 pub mod config;
 
 /// Network static configuration
-#[cfg(not(feature = "mesalock_sgx"))]
 pub mod network;
 
 /// Network parameters

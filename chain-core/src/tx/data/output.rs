@@ -1,12 +1,11 @@
-#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use std::str::FromStr;
 
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::de;
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::Timespec;
@@ -14,18 +13,11 @@ use crate::init::coin::Coin;
 use crate::tx::data::address::ExtendedAddr;
 
 /// Tx Output composed of an address and a coin value
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TxOut {
     /// address to lock the output for
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(serialize_with = "serialize_address")
-    )]
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(deserialize_with = "deserialize_address")
-    )]
+    #[serde(serialize_with = "serialize_address")]
+    #[serde(deserialize_with = "deserialize_address")]
     pub address: ExtendedAddr,
     /// the amount to lock in base units
     pub value: Coin,
@@ -64,7 +56,6 @@ impl Decode for TxOut {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn serialize_address<S>(
     address: &ExtendedAddr,
     serializer: S,
@@ -75,7 +66,6 @@ where
     serializer.serialize_str(&address.to_string())
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_address<'de, D>(deserializer: D) -> std::result::Result<ExtendedAddr, D::Error>
 where
     D: Deserializer<'de>,
@@ -101,7 +91,6 @@ where
     deserializer.deserialize_str(StrVisitor)
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for TxOut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} -> {}", self.address, self.value)

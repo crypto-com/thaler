@@ -3,7 +3,6 @@ use crate::init::coin::{Coin, CoinError};
 use crate::tx::fee::{Fee, FeeAlgorithm};
 use crate::tx::fee::{LinearFee, Milli, MilliError};
 use parity_scale_codec::{Decode, Encode};
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::convert::TryFrom;
 use std::fmt;
@@ -14,8 +13,7 @@ const MAX_SLASH_RATIO: Milli = Milli::new(1, 0); // 1.0
 
 /// network parameters specified at genesis
 /// ref: https://crypto-com.github.io/getting-started/network-parameters.html
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct InitNetworkParameters {
     /// Initial fee setting
     /// -- TODO: perhaps change to be against T: FeeAlgorithm
@@ -34,8 +32,7 @@ pub struct InitNetworkParameters {
 }
 
 /// so far only one specified at genesis
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode, Serialize, Deserialize)]
 pub enum NetworkParameters {
     /// parameters specified at genesis time
     Genesis(InitNetworkParameters),
@@ -146,8 +143,7 @@ impl NetworkParameters {
 }
 
 /// infraction parameters for jailing
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode, Serialize, Deserialize)]
 pub struct JailingParameters {
     /// Number of blocks for which the moving average is calculated for uptime tracking
     pub block_signing_window: u16,
@@ -157,8 +153,7 @@ pub struct JailingParameters {
 }
 
 /// infraction parameters for slashing
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode, Serialize, Deserialize)]
 pub struct SlashingParameters {
     /// Percentage of funds (bonded + unbonded) slashed when validator is not live (liveness is calculated by jailing
     /// parameters)
@@ -169,8 +164,7 @@ pub struct SlashingParameters {
 
 /// reward parameters
 /// ref: https://crypto-com.github.io/getting-started/reward-and-punishments.html#validator-rewards
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Encode, Decode, Serialize, Deserialize)]
 pub struct RewardsParameters {
     /// Maximum monetary expansion for rewards.
     pub monetary_expansion_cap: Coin,
@@ -256,7 +250,6 @@ impl fmt::Display for SlashRatio {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl Serialize for SlashRatio {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -266,7 +259,6 @@ impl Serialize for SlashRatio {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl<'de> Deserialize<'de> for SlashRatio {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

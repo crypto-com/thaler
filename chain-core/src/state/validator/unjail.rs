@@ -1,14 +1,13 @@
 use crate::state::account::{Nonce, StakedStateAddress, StakedStateOpAttributes};
 use crate::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::{Deserialize, Serialize};
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use std::fmt;
 
 /// Unjails an account
-#[derive(Debug, PartialEq, Eq, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct UnjailTx {
     /// the expected nonce on the corresponding state
     pub nonce: Nonce,
@@ -62,7 +61,6 @@ impl UnjailTx {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for UnjailTx {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "unjailed: {} (nonce: {})", self.address, self.nonce)?;

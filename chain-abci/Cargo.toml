@@ -8,10 +8,8 @@ edition = "2018"
 
 [features]
 default = ["edp"]
-sgx-test = ["legacy"]
 mock-enclave = []
 edp = ["aesm-client", "enclave-runner", "sgxs-loaders", "tokio"]
-legacy = ["enclave-u-common", "sgx_types", "sgx_urts"]
 
 [dependencies]
 abci = "0.7"
@@ -47,9 +45,6 @@ enclave-runner = {version = "0.4", optional = true}
 sgxs-loaders = {version = "0.2", optional = true}
 tokio = { version = "0.2", optional = true }
 
-enclave-u-common = { path = "../chain-tx-enclave/enclave-u-common", optional = true }
-sgx_types = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
-sgx_urts = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
 zmq = "0.9"
 rand = "0.7"
 

@@ -6,7 +6,6 @@ pub mod tendermint;
 pub mod validator;
 
 use parity_scale_codec::{Decode, Encode};
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{Deserialize, Serialize};
 use std::prelude::v1::Vec;
 
@@ -18,8 +17,7 @@ use crate::init::params::NetworkParameters;
 use crate::tx::data::TxId;
 
 /// ABCI chain state
-#[derive(PartialEq, Debug, Clone, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(PartialEq, Debug, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct ChainState {
     /// root hash of the sparse merkle patricia trie of staking account states
     pub account_root: H256,
@@ -43,8 +41,7 @@ impl ChainState {
 }
 
 /// State from which periodic rewards are distributed and calculated
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct RewardsPoolState {
     /// Rewards accumulated in current period
     pub period_bonus: Coin,

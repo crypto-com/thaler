@@ -1,13 +1,12 @@
-#[cfg(not(feature = "mesalock_sgx"))]
 use std::fmt;
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use std::str::FromStr;
 
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use secp256k1::key::PublicKey;
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::de;
-#[cfg(not(feature = "mesalock_sgx"))]
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::common::H264;
@@ -16,8 +15,7 @@ use crate::common::H264;
 /// Initial schema will only allow access to all TX data,
 /// but this may later be extended to restrict to e.g. particular tx outputs
 /// or metadata
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum TxAccess {
     /// everything can be accessed
     AllData,
@@ -56,25 +54,17 @@ impl Encode for TxAccess {
 }
 
 /// Specifies who can access what
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct TxAccessPolicy {
     /// the corresponding private key is used for authentication
     /// in tx-query protocol
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(serialize_with = "serialize_view_key")
-    )]
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(deserialize_with = "deserialize_view_key")
-    )]
+    #[serde(serialize_with = "serialize_view_key")]
+    #[serde(deserialize_with = "deserialize_view_key")]
     pub view_key: PublicKey,
     /// what can be accessed
     pub access: TxAccess,
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn serialize_view_key<S>(
     view_key: &PublicKey,
     serializer: S,
@@ -86,7 +76,6 @@ where
     serializer.serialize_str(&view_key_string)
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_view_key<'de, D>(deserializer: D) -> std::result::Result<PublicKey, D::Error>
 where
     D: Deserializer<'de>,

@@ -4,17 +4,10 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 use chain_abci::app::{sanity_check_enabled, ChainNodeApp};
-#[cfg(all(
-    not(feature = "mock-enclave"),
-    not(feature = "legacy"),
-    feature = "edp",
-    target_os = "linux"
-))]
+#[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
 use chain_abci::enclave_bridge::edp::{launch_tx_validation, TxValidationApp};
 #[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 use chain_abci::enclave_bridge::mock::MockClient;
-#[cfg(all(not(feature = "mock-enclave"), feature = "legacy", target_os = "linux"))]
-use chain_abci::enclave_bridge::real::TxValidationApp;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_storage::{Storage, StorageConfig, StorageType};
 use log::warn;
@@ -135,19 +128,8 @@ pub struct AbciOpt {
     tx_query: Option<String>,
 }
 
-/// legacy
-#[cfg(all(not(feature = "mock-enclave"), feature = "legacy", target_os = "linux"))]
-fn get_enclave_proxy() -> TxValidationApp {
-    TxValidationApp::default()
-}
-
 /// edp
-#[cfg(all(
-    not(feature = "mock-enclave"),
-    not(feature = "legacy"),
-    feature = "edp",
-    target_os = "linux"
-))]
+#[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
 fn get_enclave_proxy() -> TxValidationApp {
     launch_tx_validation()
 }

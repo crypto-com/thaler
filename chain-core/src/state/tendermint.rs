@@ -1,23 +1,19 @@
 use crate::init::coin::Coin;
 use crate::init::MAX_COIN_DECIMALS;
 use parity_scale_codec::{Decode, Encode, EncodeLike, Error, Input, Output};
-#[cfg(not(feature = "mesalock_sgx"))]
 use serde::{
     de::{self, Error as _, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
-#[cfg(not(feature = "mesalock_sgx"))]
 use sha2::{Digest, Sha256};
 use std::convert::TryFrom;
 use std::fmt;
 use std::prelude::v1::{String, ToString, Vec};
-#[cfg(not(feature = "mesalock_sgx"))]
 use thiserror::Error;
 
 /// Tendermint block height
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-#[cfg_attr(not(feature = "mesalock_sgx"), serde(transparent))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct BlockHeight(u64);
 
 impl Encode for BlockHeight {
@@ -154,17 +150,13 @@ where
 /// The protobuf structure currently has "String" to denote the type / length
 /// and variable length byte array. In this internal representation,
 /// it's desirable to keep it restricted and compact. (TM should be encoding using the compressed form.)
-#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
-#[cfg_attr(not(feature = "mesalock_sgx"), serde(tag = "type", content = "value"))]
+#[derive(Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
 pub enum TendermintValidatorPubKey {
-    #[cfg_attr(
-        not(feature = "mesalock_sgx"),
-        serde(
-            rename = "tendermint/PubKeyEd25519",
-            serialize_with = "serialize_ed25519_base64",
-            deserialize_with = "deserialize_ed25519_base64"
-        )
+    #[serde(
+        rename = "tendermint/PubKeyEd25519",
+        serialize_with = "serialize_ed25519_base64",
+        deserialize_with = "deserialize_ed25519_base64"
     )]
     /// Ed25519 pubkey (without TM prefix bytes 0x1624DE64) https://docs.tendermint.com/master/spec/blockchain/encoding.html
     Ed25519([u8; PUBLIC_KEY_SIZE]),
@@ -206,7 +198,6 @@ impl Decode for TendermintValidatorPubKey {
 }
 
 /// Serialize the bytes of an Ed25519 public key as Base64. Used for serializing JSON
-#[cfg(not(feature = "mesalock_sgx"))]
 fn serialize_ed25519_base64<S>(pk: &[u8], serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -214,7 +205,6 @@ where
     base64::encode(pk).serialize(serializer)
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 fn deserialize_ed25519_base64<'de, D>(deserializer: D) -> Result<[u8; PUBLIC_KEY_SIZE], D::Error>
 where
     D: Deserializer<'de>,
@@ -224,7 +214,6 @@ where
         .map_err(|e| D::Error::custom(format!("{}", e)))
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for TendermintValidatorPubKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -234,7 +223,6 @@ impl fmt::Display for TendermintValidatorPubKey {
 }
 
 /// Error of decoding a public key
-#[cfg(not(feature = "mesalock_sgx"))]
 #[derive(Error, Debug)]
 pub enum PubKeyDecodeError {
     /// base64 encoding was incorrect
@@ -247,7 +235,6 @@ pub enum PubKeyDecodeError {
 
 impl TendermintValidatorPubKey {
     /// decode from base64 payload
-    #[cfg(not(feature = "mesalock_sgx"))]
     pub fn from_base64(input: &[u8]) -> Result<TendermintValidatorPubKey, PubKeyDecodeError> {
         let bytes = base64::decode(input)?;
         if bytes.len() != PUBLIC_KEY_SIZE {
@@ -288,7 +275,6 @@ impl From<&TendermintValidatorAddress> for [u8; 20] {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl Serialize for TendermintValidatorAddress {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -298,7 +284,6 @@ impl Serialize for TendermintValidatorAddress {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl<'de> Deserialize<'de> for TendermintValidatorAddress {
     fn deserialize<D>(deserializer: D) -> Result<TendermintValidatorAddress, D::Error>
     where
@@ -327,14 +312,12 @@ impl<'de> Deserialize<'de> for TendermintValidatorAddress {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl fmt::Display for TendermintValidatorAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(&self.0))
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl From<&TendermintValidatorPubKey> for TendermintValidatorAddress {
     fn from(pub_key: &TendermintValidatorPubKey) -> TendermintValidatorAddress {
         let mut hasher = Sha256::new();
@@ -353,7 +336,6 @@ impl From<&TendermintValidatorPubKey> for TendermintValidatorAddress {
     }
 }
 
-#[cfg(not(feature = "mesalock_sgx"))]
 impl From<TendermintValidatorPubKey> for TendermintValidatorAddress {
     #[inline]
     fn from(pub_key: TendermintValidatorPubKey) -> TendermintValidatorAddress {
@@ -409,8 +391,9 @@ impl TryFrom<&[u8]> for TendermintValidatorAddress {
 pub const TENDERMINT_MAX_VOTE_POWER: i64 = std::i64::MAX / 1000;
 
 /// Tendermint consensus voting power
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode, Decode)]
-#[cfg_attr(not(feature = "mesalock_sgx"), derive(Serialize, Deserialize))]
+#[derive(
+    Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Encode, Decode, Serialize, Deserialize,
+)]
 pub struct TendermintVotePower(i64);
 
 impl From<TendermintVotePower> for i64 {

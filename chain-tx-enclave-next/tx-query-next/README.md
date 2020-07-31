@@ -18,7 +18,7 @@ cd enclave-app
 cargo +nightly build --target=x86_64-fortanix-unknown-sgx
 cd ../../../target/x86_64-fortanix-unknown-sgx/debug
 ftxsgx-elf2sgxs tx-query2-enclave-app --heap-size 0x20000 --stack-size 0x20000 --threads 6 --debug
-sgxs-sign --key ../../../chain-tx-enclave/tx-validation/enclave/Enclave_private.pem tx-query2-enclave-app.sgxs tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
+sgxs-sign --key <KEY> tx-query2-enclave-app.sgxs tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
 ```
 
 running:
