@@ -13,7 +13,8 @@ use chain_core::tx::witness::TxWitness;
 use chain_core::tx::{PlainTxAux, TransactionId, TxWithOutputs};
 use mls::{
     message::Add, message::ContentType, message::MLSPlaintext, message::MLSPlaintextCommon,
-    message::Proposal, message::Sender, message::SenderType, Codec, KeyPackage,
+    message::Proposal, message::Sender, message::SenderType, tree_math::LeafSize, Codec,
+    KeyPackage,
 };
 
 /// A struct which the sender can download and the receiver can import
@@ -166,7 +167,7 @@ pub fn temporary_mls_init(kp: Vec<u8>) -> Vec<u8> {
     let key_package = KeyPackage::read_bytes(&kp).expect("it was validated before");
     let sender = Sender {
         sender_type: SenderType::Member,
-        sender: 0,
+        sender: LeafSize(0),
     };
     let add_content = MLSPlaintextCommon {
         group_id: vec![],

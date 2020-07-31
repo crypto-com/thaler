@@ -2,16 +2,19 @@ use rustls::internal::msgs::codec::{self, Codec, Reader};
 use std::convert::{TryFrom, TryInto};
 
 use crate::keypackage::{CipherSuite, ProtocolVersion, Timespec};
+use crate::tree::Node;
+use crate::utils::{encode_vec_option_u32, read_vec_option_u32};
 
 /// spec: draft-ietf-mls-protocol.md#key-packages
+#[repr(u16)]
 #[derive(Debug, PartialEq, Copy, Clone, Ord, PartialOrd, Eq)]
 pub enum ExtensionType {
     Invalid = 0,
-    SupportedVersions = 1,
-    SupportedCipherSuites = 2,
-    LifeTime = 3,
-    KeyID = 4,
-    ParentHash = 5,
+    Capabilities = 1,
+    LifeTime = 2,
+    KeyID = 3,
+    ParentHash = 4,
+    RatchetTree = 5,
 }
 
 impl TryFrom<u16> for ExtensionType {
@@ -19,17 +22,22 @@ impl TryFrom<u16> for ExtensionType {
     fn try_from(v: u16) -> Result<Self, Self::Error> {
         match v {
             x if x == ExtensionType::Invalid as u16 => Ok(ExtensionType::Invalid),
-            x if x == ExtensionType::SupportedVersions as u16 => {
-                Ok(ExtensionType::SupportedVersions)
-            }
-            x if x == ExtensionType::SupportedCipherSuites as u16 => {
-                Ok(ExtensionType::SupportedCipherSuites)
-            }
+            x if x == ExtensionType::Capabilities as u16 => Ok(ExtensionType::Capabilities),
             x if x == ExtensionType::LifeTime as u16 => Ok(ExtensionType::LifeTime),
             x if x == ExtensionType::KeyID as u16 => Ok(ExtensionType::KeyID),
             x if x == ExtensionType::ParentHash as u16 => Ok(ExtensionType::ParentHash),
+            x if x == ExtensionType::RatchetTree as u16 => Ok(ExtensionType::RatchetTree),
             _ => Err(()),
         }
+    }
+}
+
+impl Codec for ExtensionType {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        (*self as u16).encode(bytes)
+    }
+    fn read(r: &mut Reader) -> Option<Self> {
+        u16::read(r).map(|n| Self::try_from(n).ok()).flatten()
     }
 }
 
@@ -44,42 +52,35 @@ pub trait MLSExtension: Codec {
     }
 }
 
-/// spec: draft-ietf-mls-protocol.md#supported-versions-and-supported-ciphersuites
+/// spec: draft-ietf-mls-protocol.md#client-capabilities
 #[derive(Debug)]
-pub struct SupportedVersionsExt(pub Vec<ProtocolVersion>);
+pub struct CapabilitiesExt {
+    pub versions: Vec<ProtocolVersion>,
+    pub ciphersuites: Vec<CipherSuite>,
+    pub extensions: Vec<ExtensionType>,
+}
 
-impl Codec for SupportedVersionsExt {
+impl Codec for CapabilitiesExt {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        debug_assert!(self.0.len() <= 0xff);
-        (self.0.len() as u8).encode(bytes);
-        bytes.extend_from_slice(&self.0);
+        codec::encode_vec_u8(bytes, &self.versions);
+        codec::encode_vec_u8(bytes, &self.ciphersuites);
+        codec::encode_vec_u8(bytes, &self.extensions);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let len = u8::read(r)? as usize;
-        r.take(len)
-            .map(|slice| SupportedVersionsExt(slice.to_vec()))
+        let versions = codec::read_vec_u8(r)?;
+        let ciphersuites = codec::read_vec_u8(r)?;
+        let extensions = codec::read_vec_u8(r)?;
+        Some(Self {
+            versions,
+            ciphersuites,
+            extensions,
+        })
     }
 }
 
-impl MLSExtension for SupportedVersionsExt {
-    const EXTENSION_TYPE: ExtensionType = ExtensionType::SupportedVersions;
-}
-
-/// spec: draft-ietf-mls-protocol.md#supported-versions-and-supported-ciphersuites
-#[derive(Debug, PartialEq)]
-pub struct SupportedCipherSuitesExt(pub Vec<CipherSuite>);
-impl Codec for SupportedCipherSuitesExt {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        codec::encode_vec_u8(bytes, &self.0)
-    }
-
-    fn read(r: &mut Reader) -> Option<Self> {
-        codec::read_vec_u8(r).map(Self)
-    }
-}
-impl MLSExtension for SupportedCipherSuitesExt {
-    const EXTENSION_TYPE: ExtensionType = ExtensionType::SupportedCipherSuites;
+impl MLSExtension for CapabilitiesExt {
+    const EXTENSION_TYPE: ExtensionType = ExtensionType::Capabilities;
 }
 
 /// spec: draft-ietf-mls-protocol.md#lifetime
@@ -152,6 +153,32 @@ impl Codec for ParentHashExt {
 
 impl MLSExtension for ParentHashExt {
     const EXTENSION_TYPE: ExtensionType = ExtensionType::ParentHash;
+}
+
+/// spec: draft-ietf-mls-protocol.md#parent-hash
+#[derive(Debug)]
+pub struct RatchetTreeExt {
+    pub nodes: Vec<Option<Node>>,
+}
+
+impl Codec for RatchetTreeExt {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        encode_vec_option_u32(bytes, &self.nodes);
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        read_vec_option_u32(r).map(|nodes| Self { nodes })
+    }
+}
+
+impl MLSExtension for RatchetTreeExt {
+    const EXTENSION_TYPE: ExtensionType = ExtensionType::RatchetTree;
+}
+
+impl RatchetTreeExt {
+    pub fn new(nodes: Vec<Option<Node>>) -> Self {
+        Self { nodes }
+    }
 }
 
 /// Extension entry included in `KeyPackage`

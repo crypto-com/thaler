@@ -7,8 +7,7 @@ use crate::utils;
 #[derive(Debug, Clone, Ord, PartialOrd, Eq, PartialEq)]
 pub struct BasicCredential {
     identity: Vec<u8>,
-    sig_schema: u16,
-    sig_pubkey: Vec<u8>,
+    public_key: Vec<u8>,
 }
 
 /// Credential in keypackage
@@ -24,13 +23,12 @@ impl Codec for Credential {
     fn encode(&self, bytes: &mut Vec<u8>) {
         match self {
             Credential::Basic(v) => {
-                0_u8.encode(bytes);
+                1_u8.encode(bytes);
                 utils::encode_vec_u8_u16(bytes, &v.identity);
-                v.sig_schema.encode(bytes);
-                utils::encode_vec_u8_u16(bytes, &v.sig_pubkey);
+                utils::encode_vec_u8_u16(bytes, &v.public_key);
             }
             Credential::X509(data) => {
-                1_u8.encode(bytes);
+                2_u8.encode(bytes);
                 utils::encode_vec_u8_u24(bytes, data);
             }
         }
@@ -38,17 +36,15 @@ impl Codec for Credential {
 
     fn read(r: &mut Reader) -> Option<Self> {
         match u8::read(r)? {
-            0 => {
+            1 => {
                 let identity = utils::read_vec_u8_u16(r)?;
-                let sig_schema = u16::read(r)?;
-                let sig_pubkey = utils::read_vec_u8_u16(r)?;
+                let public_key = utils::read_vec_u8_u16(r)?;
                 Some(Credential::Basic(BasicCredential {
                     identity,
-                    sig_schema,
-                    sig_pubkey,
+                    public_key,
                 }))
             }
-            1 => utils::read_vec_u8_u24_limited(r, 0xff_ffff).map(Credential::X509),
+            2 => utils::read_vec_u8_u24_limited(r, 0xff_ffff).map(Credential::X509),
             _ => None,
         }
     }

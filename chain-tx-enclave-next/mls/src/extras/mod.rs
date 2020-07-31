@@ -50,7 +50,7 @@ pub use dleq::NackDleqProof;
 #[derive(Encode, Decode)]
 pub struct NackMsgContent {
     /// the sender leaf of NACK -- i.e. affected receiver of Commit
-    pub sender: u32,
+    pub sender: LeafSize,
     /// sha-2 hash of `MLSPlaintext` with Commit
     pub commit_id: [u8; 32],
     /// index of affected encrypted_path_secret
@@ -100,8 +100,8 @@ impl NackMsg {
         encoded_ctx: &[u8],
     ) -> Result<NackResult, NackError> {
         let leaf_len = tree.leaf_len();
-        let commit_sender = LeafSize(commit.content.sender.sender);
-        let nack_sender = LeafSize(self.content.sender);
+        let commit_sender = commit.content.sender.sender;
+        let nack_sender = self.content.sender;
         let nack_sender_kp = tree
             .get_package(nack_sender)
             .ok_or(NackError::InvalidSender)?;
@@ -137,9 +137,10 @@ impl NackMsg {
             .get(self.content.path_secret_index as usize)
             .ok_or(NackError::InvalidPath)?;
         // one won't encrypt to blank nodes
-        let node_key = tree.nodes[node_index.node_index()]
-            .public_key()
-            .ok_or(NackError::InvalidPath)?;
+        let node_key = tree
+            .get(*node_index)
+            .ok_or(NackError::InvalidPath)?
+            .public_key();
         self.content
             .proof
             .verify(&node_key, &affected_path_secret.kem_output)
@@ -170,9 +171,8 @@ impl NackMsg {
             for _ in overlap_path.iter() {
                 secrets.push(
                     tree.cs
-                        .expand_label(
+                        .expand_with_label(
                             secrets.last().unwrap_or(&overlap_path_secret),
-                            vec![],
                             "path",
                             &[],
                             tree.cs.secret_size(),
@@ -204,8 +204,9 @@ impl NackMsg {
 mod test {
     use super::*;
     use crate::group::test::{get_fake_keypackage, three_member_setup, MockVerifier};
-    use crate::group::GroupAux;
+    use crate::group::{CommitError, GroupAux};
     use crate::message::{ContentType, MLSPlaintextTBS};
+    use assert_matches::assert_matches;
 
     fn corrupt_and_sign_commit(
         commit: &MLSPlaintext,
@@ -223,8 +224,9 @@ mod test {
         let mut path = new_commit_content.path.clone().expect("path");
         if valid_ciphertext {
             let init_key = sender.tree.nodes[0]
-                .public_key()
-                .expect("not blank node TODO");
+                .as_ref()
+                .expect("not blank node TODO")
+                .public_key();
             path.nodes[0].encrypted_path_secret[0] = sender
                 .tree
                 .cs
@@ -280,7 +282,7 @@ mod test {
 
         commit_id.copy_from_slice(&member1_group.tree.cs.hash(&commit.get_encoding()));
         let nack_content = NackMsgContent {
-            sender: 0,
+            sender: LeafSize(0),
             commit_id,
             path_secret_index: 0,
             proof,
@@ -325,14 +327,17 @@ mod test {
 
         // FIXME: the error shouldn't be discovered in "process commit", but some "verify" commit
         // + many things in Commit should be verified -- e.g. that "kem_output" is a valid pubkey
-        member1_group
-            .process_commit(commit.clone(), &proposals, &ra_verifier, 0)
-            .expect_err("commit not ok");
+        assert_matches!(
+            member1_group.process_commit(commit.clone(), &proposals, &ra_verifier, 0),
+            Err(CommitError::HpkeError(hpke::HpkeError::InvalidTag))
+        );
         let ctx = member3_group.context.get_encoding();
-        // for group 3, it should look ok
-        member3_group
-            .process_commit(commit.clone(), &proposals, &ra_verifier, 0)
-            .expect("commit ok");
+        // for group 3, it should be ok
+        // FIXME https://github.com/crypto-com/chain/issues/2066
+        assert!(matches!(
+            member3_group.process_commit(commit.clone(), &proposals, &ra_verifier, 0),
+            Err(CommitError::GroupInfoIntegrityError)
+        ));
         let path = commit
             .get_commit()
             .expect("commit")
@@ -348,7 +353,7 @@ mod test {
 
         commit_id.copy_from_slice(&member1_group.tree.cs.hash(&commit.get_encoding()));
         let nack_content = NackMsgContent {
-            sender: 0,
+            sender: LeafSize(0),
             commit_id,
             path_secret_index: 0,
             proof,
@@ -387,14 +392,17 @@ mod test {
 
         // FIXME: the error shouldn't be discovered in "process commit", but some "verify" commit
         // + many things in Commit should be verified -- e.g. that "kem_output" is a valid pubkey
-        member1_group
-            .process_commit(commit.clone(), &proposals, &ra_verifier, 0)
-            .expect_err("commit not ok");
+        assert_matches!(
+            member1_group.process_commit(commit.clone(), &proposals, &ra_verifier, 0),
+            Err(CommitError::PathSecretPublicKeyDontMatch)
+        );
         let ctx = member3_group.context.get_encoding();
-        // for group 3, it should look ok
-        member3_group
-            .process_commit(commit.clone(), &proposals, &ra_verifier, 0)
-            .expect("commit ok");
+        // for group 3, it should be ok
+        // FIXME https://github.com/crypto-com/chain/issues/2066
+        assert_matches!(
+            member3_group.process_commit(commit.clone(), &proposals, &ra_verifier, 0),
+            Err(CommitError::GroupInfoIntegrityError)
+        );
 
         let path = commit
             .get_commit()
@@ -411,7 +419,7 @@ mod test {
 
         commit_id.copy_from_slice(&member1_group.tree.cs.hash(&commit.get_encoding()));
         let nack_content = NackMsgContent {
-            sender: 0,
+            sender: LeafSize(0),
             commit_id,
             path_secret_index: 0,
             proof,
