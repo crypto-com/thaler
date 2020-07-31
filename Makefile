@@ -10,13 +10,16 @@ build_mode ?= debug
 TX_QUERY_HOSTNAME ?=
 MAKE_CMD = make
 
-# SGX_DEVICE should be /dev/isgx as latest dcap driver /dev/sgx is not supported by fortanix
-ifeq ($(shell test -e /dev/sgx && echo -n yes),yes)
-$(warning /dev/sgx is not supported. Please remove dcap sgx driver by "make rm-dcap-sgx-driver" and install intel sgx driver by "make install-isgx-driver")
-else ifeq ($(shell test -e /dev/isgx && echo -n yes),yes)
-	SGX_DEVICE=/dev/isgx
+# SGX_DEVICE should be /dev/isgx as latest dcap driver /dev/sgx higher than v1.31 is not supported by fortanix
+ifeq ($(shell test -e /dev/isgx && echo -n yes),yes)
+SGX_DEVICE=/dev/isgx
+else ifeq ($(shell test -e /dev/sgx && VERSION=$$(dmesg | grep "Intel SGX DCAP Driver v" | awk '{ print $$NF }' | tr -d "v" | awk -F. '{ printf("%d%03d", $$1,$$2) }'); \
+	if [ $$VERSION -gt 1031 ]; then echo "yes";fi;),yes)
+$(error /dev/sgx higher than v1.31 is not supported. Please remove dcap sgx driver by "make rm-dcap-sgx-driver" and install intel sgx driver by "make install-isgx-driver")
+else ifeq ($(shell test -e /dev/sgx && echo "yes"),yes)
+SGX_DEVICE=/dev/sgx
 else
-$(warning No sgx device detected! Please install intel sgx driver by "make install-isgx-driver")
+$(error No sgx device detected! Please install intel sgx driver by "make install-isgx-driver")
 endif
 
 
