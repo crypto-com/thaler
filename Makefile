@@ -199,19 +199,22 @@ build-chain:
 			cd ../client-rpc/server && $(CARGO_BUILD_CMD_CLI)'; \
 	fi
 
-# build the enclave queury-next binary and sig
-build-sgx-query-next:
-	@echo "\033[32mcompile sgx query-next\033[0m"; \
+# build the enclave queury-next and tx-validation-next binary and sig
+build-sgx-query-validation-next:
+	@echo "\033[32mcompile sgx query-next and tx-validation-next\033[0m"; \
 	docker run -i --rm \
 		-v ${HOME}/.cargo/git:/root/.cargo/git \
 		-v ${HOME}/.cargo/registry:/root/.cargo/registry \
 		-v `pwd`:/chain \
 		--env SGX_MODE=$(SGX_MODE) \
 		--env CFLAGS=-gz=none \
+		--env NETWORK_ID=$(NETWORK_ID) \
 		--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha \
 		--workdir=/chain \
 		$(IMAGE_RUST):latest \
 		bash -c '. /root/.docker_bashrc && \
+		echo "========  openssl gen privatekey  =========" && \
+		openssl genrsa -3 3072 > sgx.pem && \
 		rustup target add x86_64-fortanix-unknown-sgx && \
 		echo "========  build tx-query2-enclave-app   =========" && \
 		$(CARGO_BUILD_CMD) --target=x86_64-fortanix-unknown-sgx -p tx-query2-enclave-app && \
@@ -223,54 +226,14 @@ build-sgx-query-next:
 		cargo install fortanix-sgx-tools sgxs-tools && \
 		echo "========  run ftxsgx-elf2sgxs   =========" && \
 		ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-query2-enclave-app --output ./target/$(build_mode)/tx-query2-enclave-app.sgxs --heap-size 0x2000000 --stack-size 0x80000 --threads 6 --debug && \
-		echo "========  run sgxs-sign  =========" && \
-		sgxs-sign --key ./chain-tx-enclave/tx-validation/enclave/Enclave_private.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
-
-build-mls:
-	@echo "\033[32mcompile mls\033[0m"; \
-	docker run -i --rm \
-		-v ${HOME}/.cargo/git:/root/.cargo/git \
-		-v ${HOME}/.cargo/registry:/root/.cargo/registry \
-		-v `pwd`:/chain \
-		--env SGX_MODE=$(SGX_MODE) \
-		--env CFLAGS=-gz=none \
-		--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul \
-		--workdir=/chain \
-		$(IMAGE_RUST):latest \
-		bash -c '. /root/.docker_bashrc && \
-		rustup target add x86_64-fortanix-unknown-sgx && \
-		echo "========  mls   =========" && \
-		$(CARGO_BUILD_CMD) --target=x86_64-fortanix-unknown-sgx -p mls && \
-		echo "========  fortanix-sgx-tools sgxs-tools   =========" && \
-		cargo install fortanix-sgx-tools sgxs-tools && \
-		echo "========  ftxsgx-elf2sgxs   =========" && \
-		ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/mls --stack-size 0x40000 --heap-size 0x20000000 --threads 1 && \
-		echo "========  sgxs-sign  =========" && \
-		sgxs-sign --key ./chain-tx-enclave/tx-validation/enclave/Enclave_private.pem ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/mls.sgxs ./target/$(build_mode)/mls.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
-
-# build the enclave tx-validation-next binary and sig
-build-sgx-validation-next:
-	@echo "\033[32mcompile sgx tx-validation-next\033[0m"; \
-	docker run -i --rm \
-		-v ${HOME}/.cargo/git:/root/.cargo/git \
-		-v ${HOME}/.cargo/registry:/root/.cargo/registry \
-		-v `pwd`:/chain \
-		--env NETWORK_ID=$(NETWORK_ID) \
-		--env SGX_MODE=$(SGX_MODE) \
-		--env CFLAGS=-gz=none \
-		--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha \
-		--workdir=/chain \
-		$(IMAGE_RUST):latest \
-		bash -c '. /root/.docker_bashrc && \
-		rustup target add x86_64-fortanix-unknown-sgx && \
+		echo "========  run sgxs-sign tx-query2-enclave-app   =========" && \
+		sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0 && \
 		echo "========  build tx-validation-next   =========" && \
 		$(CARGO_BUILD_CMD) --target x86_64-fortanix-unknown-sgx -p tx-validation-next && \
-		echo "========  install fortanix-sgx-tools sgxs-tools   =========" && \
-		cargo install fortanix-sgx-tools sgxs-tools && \
 		echo "========  run ftxsgx-elf2sgxs   =========" && \
 		ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-validation-next --output ./target/$(build_mode)/tx-validation-next.sgxs  --heap-size 0x20000000 --stack-size 0x40000 --threads 2 --debug && \
-		echo "========  run sgxs-sign  =========" && \
-		sgxs-sign --key ./chain-tx-enclave/tx-validation/enclave/Enclave_private.pem ./target/$(build_mode)/tx-validation-next.sgxs ./target/$(build_mode)/tx-validation-next.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
+		echo "========  run sgxs-sign tx-validation-next   =========" && \
+		sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-validation-next.sgxs ./target/$(build_mode)/tx-validation-next.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
 
 create-network:
 	@if [ `docker network ls -f NAME=$(NETWORK) | wc -l ` -eq 2 ]; then \
@@ -414,7 +377,7 @@ clean:
 		bash -c ". /root/.docker_bashrc && cargo clean"
 
 prepare:    create-path install-isgx-driver init-tendermint
-build-sgx:  build-sgx-query-next build-chain build-sgx-validation-next
+build-sgx:  build-sgx-query-validation-next build-chain
 build:      build-chain build-sgx
 run-sgx:    create-network run-sgx-query-next
 run-chain:  create-network run-tendermint run-abci run-client-rpc
