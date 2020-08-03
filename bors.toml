@@ -1,5 +1,5 @@
 status = [
-  "continuous-integration/travis-ci/push",
+  "test-stable",
   "drone-hw/push"
 ]
 
