@@ -33,7 +33,7 @@ rand = "0.7"
 rust-argon2 = "0.8"
 rustls =  { version = "0.18", features = ["dangerous_configuration"] }
 # secp256k1experimental = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "cccfdb77c068b9cefa07b6884849f8473683d6d4", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
-secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "535790e91fac1b3b00c770cb339a06feadc5f48d", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "schnorrsig"] }
+secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "984ccbccb48d62f5cb46f6fc1c75a04f34102987", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "schnorrsig"] }
 secstr = { version = "0.4.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

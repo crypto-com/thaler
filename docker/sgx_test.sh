@@ -16,11 +16,7 @@ else
     EDP_ARGS=
 fi
 
-# fix the rust-lld error: contains a compressed section, but zlib is not available
-export CFLAGS="-gz=none"
-# Add fortanix target and tools
-rustup target add x86_64-fortanix-unknown-sgx
-cargo install fortanix-sgx-tools sgxs-tools
+# Add a test runner
 mkdir .cargo
 echo "[target.x86_64-fortanix-unknown-sgx]
 runner = \"ftxsgx-runner-cargo\"" >> .cargo/config
