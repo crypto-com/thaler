@@ -3,6 +3,7 @@
 use std::convert::TryInto;
 use std::time::{Duration, UNIX_EPOCH};
 
+use once_cell::sync::Lazy;
 use ra_client::{AttestedCertVerifier, CertVerifyResult, EnclaveCertVerifierError};
 #[cfg(target_env = "sgx")]
 use ra_enclave::{Certificate, EnclaveRaContext, EnclaveRaContextError};
@@ -12,7 +13,7 @@ use subtle::ConstantTimeEq;
 use x509_parser::{error::X509Error, parse_x509_der, x509};
 
 use crate::credential::Credential;
-use crate::extensions::{self as ext, MLSExtension};
+use crate::extensions::{self as ext, ExtensionType, MLSExtension};
 use crate::key::{HPKEPrivateKey, HPKEPublicKey, IdentityPrivateKey, IdentityPublicKey};
 use crate::utils;
 use core::cmp::Ordering;
@@ -25,6 +26,17 @@ pub const PROTOCOL_VERSION_MLS10: ProtocolVersion = 0;
 pub const DEFAULT_LIFE_TIME: Timespec = 90 * 24 * 3600; // certificate has 90 days valid duration
 pub const MLS10_128_DHKEMP256_AES128GCM_SHA256_P256: CipherSuite = 2;
 pub const CREDENTIAL_TYPE_X509: u8 = 1;
+pub static DEFAULT_CAPABILITIES_EXT: Lazy<ext::CapabilitiesExt> =
+    Lazy::new(|| ext::CapabilitiesExt {
+        versions: vec![PROTOCOL_VERSION_MLS10],
+        ciphersuites: vec![MLS10_128_DHKEMP256_AES128GCM_SHA256_P256],
+        extensions: vec![
+            ExtensionType::Capabilities,
+            ExtensionType::LifeTime,
+            ExtensionType::KeyID,
+            ExtensionType::ParentHash,
+        ],
+    });
 
 /// spec: draft-ietf-mls-protocol.md#key-packages
 #[derive(Debug, Clone)]
@@ -63,23 +75,7 @@ impl Codec for KeyPackagePayload {
 
 impl KeyPackagePayload {
     pub fn find_extension<T: MLSExtension>(&self) -> Result<T, FindExtensionError> {
-        let data = self
-            .extensions
-            .iter()
-            .filter_map(|ext::ExtensionEntry { etype, data }| {
-                if *etype == T::EXTENSION_TYPE {
-                    Some(data)
-                } else {
-                    None
-                }
-            })
-            .next()
-            .ok_or(FindExtensionError(T::EXTENSION_TYPE, "extension not found"))?;
-        // FIXME check remaining data, need support from Codec trait
-        <T>::read_bytes(data).ok_or(FindExtensionError(
-            T::EXTENSION_TYPE,
-            "extension decoding fails",
-        ))
+        find_extension(&self.extensions)
     }
 
     /// insert or update extension
@@ -106,14 +102,12 @@ impl KeyPackagePayload {
         }
 
         // Check for required extensions
-        let versions = self.find_extension::<ext::SupportedVersionsExt>()?;
-        if !versions.0.contains(&PROTOCOL_VERSION_MLS10) {
+        let capabilities = self.find_extension::<ext::CapabilitiesExt>()?;
+        if !capabilities.versions.contains(&PROTOCOL_VERSION_MLS10) {
             return Err(Error::InvalidSupportedVersions);
         }
-
-        let ciphersuites = self.find_extension::<ext::SupportedCipherSuitesExt>()?;
-        if !ciphersuites
-            .0
+        if !capabilities
+            .ciphersuites
             .contains(&MLS10_128_DHKEMP256_AES128GCM_SHA256_P256)
         {
             return Err(Error::InvalidSupportedCipherSuites);
@@ -134,6 +128,20 @@ impl KeyPackagePayload {
             .map_err(Error::CertificateVerifyError)?;
         Ok(info)
     }
+}
+
+pub(crate) fn find_extension<T: MLSExtension>(
+    extensions: &[ext::ExtensionEntry],
+) -> Result<T, FindExtensionError> {
+    let entry = extensions
+        .iter()
+        .find(|entry| entry.etype == T::EXTENSION_TYPE)
+        .ok_or(FindExtensionError(T::EXTENSION_TYPE, "extension not found"))?;
+    // FIXME check remaining data, need support from Codec trait
+    <T>::read_bytes(&entry.data).ok_or(FindExtensionError(
+        T::EXTENSION_TYPE,
+        "extension decoding fails",
+    ))
 }
 
 /// Key package, only send `(payload, signature)` to other nodes.
@@ -271,8 +279,7 @@ impl KeyPackageSecret {
         } = &cert.tbs_certificate.validity;
 
         let extensions = vec![
-            ext::SupportedVersionsExt(vec![PROTOCOL_VERSION_MLS10]).entry(),
-            ext::SupportedCipherSuitesExt(vec![MLS10_128_DHKEMP256_AES128GCM_SHA256_P256]).entry(),
+            DEFAULT_CAPABILITIES_EXT.entry(),
             ext::LifeTimeExt::new(
                 not_before.timestamp().try_into().unwrap(),
                 not_after.timestamp().try_into().unwrap(),
@@ -389,4 +396,4 @@ pub enum Error {
 
 #[derive(thiserror::Error, Debug)]
 #[error("find extension error: {0:?}, {1}")]
-pub struct FindExtensionError(ext::ExtensionType, &'static str);
+pub struct FindExtensionError(ExtensionType, &'static str);

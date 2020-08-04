@@ -28,15 +28,34 @@
 //!   So moving from parent to children or vice versa, is only about switching one or two bits.
 //!
 //! The left sub-tree of the root node is always complete, but the right part might not.
+use parity_scale_codec::{Decode, Encode};
+use rustls::internal::msgs::codec::{Codec, Reader};
 use std::convert::{From, TryFrom};
 use std::iter;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode)]
 pub struct LeafSize(pub u32);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ParentSize(pub u32);
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NodeSize(pub u32);
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum NodeType {
+    Leaf(LeafSize),
+    Parent(ParentSize),
+}
+
+impl Codec for LeafSize {
+    #[inline]
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        Codec::encode(&self.0, bytes)
+    }
+
+    #[inline]
+    fn read(r: &mut Reader) -> Option<Self> {
+        u32::read(r).map(Self)
+    }
+}
 
 impl From<LeafSize> for NodeSize {
     #[inline]
@@ -57,10 +76,9 @@ impl TryFrom<NodeSize> for LeafSize {
 
     #[inline]
     fn try_from(n: NodeSize) -> Result<Self, Self::Error> {
-        if n.0 % 2 == 0 {
-            Ok(Self(n.0 / 2))
-        } else {
-            Err(())
+        match n.node_type() {
+            NodeType::Leaf(index) => Ok(index),
+            _ => Err(()),
         }
     }
 }
@@ -70,10 +88,9 @@ impl TryFrom<NodeSize> for ParentSize {
 
     #[inline]
     fn try_from(n: NodeSize) -> Result<Self, Self::Error> {
-        if n.0 % 2 == 1 {
-            Ok(Self((n.0 - 1) / 2))
-        } else {
-            Err(())
+        match n.node_type() {
+            NodeType::Parent(index) => Ok(index),
+            _ => Err(()),
         }
     }
 }
@@ -159,6 +176,15 @@ impl ParentSize {
 }
 
 impl NodeSize {
+    #[inline]
+    pub fn node_type(self) -> NodeType {
+        if self.0 % 2 == 1 {
+            NodeType::Parent(ParentSize((self.0 - 1) / 2))
+        } else {
+            NodeType::Leaf(LeafSize(self.0 / 2))
+        }
+    }
+
     #[inline]
     pub fn node_index(self) -> usize {
         self.0 as usize

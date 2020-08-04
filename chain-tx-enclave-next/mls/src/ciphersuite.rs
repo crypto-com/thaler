@@ -1,7 +1,7 @@
 use crate::group::GroupInfo;
 use crate::key::{HPKEPrivateKey, HPKEPublicKey};
 use crate::keypackage::{KeyPackage, KeyPackageSecret};
-use crate::message::*;
+use crate::message::{EncryptedGroupSecrets, GroupSecret, HPKECiphertext};
 use crate::utils::{encode_vec_u32, encode_vec_u8_u8, read_vec_u32, read_vec_u8_u8};
 use aead::{Aead, NewAead};
 use hkdf::{Hkdf, InvalidLength};
@@ -12,7 +12,7 @@ use hpke::{
 };
 use rustls::internal::msgs::codec::{Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
-use sha2::digest::generic_array::GenericArray;
+use sha2::digest::generic_array::{typenum::Unsigned, GenericArray};
 use sha2::digest::{BlockInput, FixedOutput, Reset, Update as UpdateTrait};
 use sha2::{Digest, Sha256};
 
@@ -25,9 +25,7 @@ pub enum CipherSuite {
 
 /// spec: draft-ietf-mls-protocol.md#key-schedule
 #[derive(Debug)]
-struct HKDFLabel {
-    // 0..255 -- hash of group context
-    pub group_context: Vec<u8>,
+struct KDFLabel {
     pub length: u16,
     // 7..255 -- prefixed with "mls10 "
     pub label: Vec<u8>,
@@ -35,21 +33,18 @@ struct HKDFLabel {
     pub context: Vec<u8>,
 }
 
-impl Codec for HKDFLabel {
+impl Codec for KDFLabel {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_vec_u8_u8(bytes, &self.group_context);
         self.length.encode(bytes);
         encode_vec_u8_u8(bytes, &self.label);
         encode_vec_u32(bytes, &self.context);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let group_context = read_vec_u8_u8(r)?;
         let length = u16::read(r)?;
         let label = read_vec_u8_u8(r)?;
         let context: Vec<u8> = read_vec_u32(r)?;
         Some(Self {
-            group_context,
             length,
             label,
             context,
@@ -81,22 +76,15 @@ impl Codec for ApplicationContext {
 ///
 /// draft-ietf-mls-protocol.md#key-schedule
 pub trait HkdfExt {
-    fn expand_label(
+    fn expand_with_label(
         &self,
-        group_context_hash: Vec<u8>,
         label: &str,
         context: &[u8],
         length: u16,
     ) -> Result<Vec<u8>, hkdf::InvalidLength>;
-    fn derive_secret(
-        &self,
-        group_context_hash: Vec<u8>,
-        label: &str,
-        length: u16,
-    ) -> Result<Vec<u8>, hkdf::InvalidLength>;
+    fn derive_secret(&self, label: &str) -> Result<Vec<u8>, hkdf::InvalidLength>;
     fn derive_app_secret(
         &self,
-        group_context_hash: Vec<u8>,
         label: &str,
         node: u32,
         generation: u32,
@@ -108,16 +96,14 @@ impl<D> HkdfExt for Hkdf<D>
 where
     D: BlockInput + FixedOutput + Reset + UpdateTrait + Default + Clone,
 {
-    fn expand_label(
+    fn expand_with_label(
         &self,
-        group_context_hash: Vec<u8>,
         label: &str,
         context: &[u8],
         length: u16,
     ) -> Result<Vec<u8>, InvalidLength> {
         let full_label = "mls10 ".to_owned() + label;
-        let labeled_payload = HKDFLabel {
-            group_context: group_context_hash,
+        let labeled_payload = KDFLabel {
             length,
             label: full_label.into_bytes().to_vec(),
             context: context.to_vec(),
@@ -128,25 +114,20 @@ where
         Ok(okm)
     }
 
-    fn derive_secret(
-        &self,
-        group_context_hash: Vec<u8>,
-        label: &str,
-        length: u16,
-    ) -> Result<Vec<u8>, InvalidLength> {
-        self.expand_label(group_context_hash, label, b"", length)
+    fn derive_secret(&self, label: &str) -> Result<Vec<u8>, InvalidLength> {
+        // The value `KDF.Nh` is the size of an output from `KDF.Extract`, in bytes.
+        self.expand_with_label(label, b"", D::OutputSize::to_u16())
     }
 
     fn derive_app_secret(
         &self,
-        group_context_hash: Vec<u8>,
         label: &str,
         node: u32,
         generation: u32,
         length: u16,
     ) -> Result<Vec<u8>, InvalidLength> {
         let app_context = ApplicationContext { node, generation }.get_encoding();
-        self.expand_label(group_context_hash, label, &app_context, length)
+        self.expand_with_label(label, &app_context, length)
     }
 }
 
@@ -168,7 +149,7 @@ impl CipherSuite {
     /// ciphertext = context.Seal(group_context, group_secret)
     pub fn seal_group_secret(
         self,
-        group_secret: GroupSecret,
+        group_secret: &GroupSecret,
         // FIXME: only for updates/with path secrets?
         // group_context: &GroupContext,
         kp: &KeyPackage,
@@ -296,10 +277,10 @@ impl CipherSuite {
     }
 
     /// spec: draft-ietf-mls-protocol.md#key-schedule
-    pub fn expand_label(
+    #[inline]
+    pub fn expand_with_label(
         self,
         secret: &SecretVec<u8>,
-        group_context_hash: Vec<u8>,
         label: &str,
         context: &[u8],
         length: u16,
@@ -307,24 +288,23 @@ impl CipherSuite {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
                 Hkdf::<Sha256>::new(None, secret.expose_secret())
-                    .expand_label(group_context_hash, label, context, length)
+                    .expand_with_label(label, context, length)
                     .map(<SecretVec<u8>>::new)
             }
         }
     }
 
+    #[inline]
     pub fn secret_size(self) -> u16 {
         match self {
-            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => 32,
+            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
+                <<hpke::kex::DhP256 as hpke::KeyExchange>::PrivateKey as Marshallable>::OutputSize::to_u16(
+                )
+            }
         }
     }
 
-    pub fn keypair_secret_size(self) -> u16 {
-        match self {
-            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => 32,
-        }
-    }
-
+    #[inline]
     pub fn derive_private_key(self, secret: &SecretVec<u8>) -> HPKEPrivateKey {
         match self {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {

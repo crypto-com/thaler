@@ -27,7 +27,7 @@ pub struct Update {
 /// spec: draft-ietf-mls-protocol.md#Remove
 #[derive(Debug, Clone)]
 pub struct Remove {
-    pub removed: u32,
+    pub removed: LeafSize,
 }
 
 /// spec: draft-ietf-mls-protocol.md#Proposal
@@ -70,7 +70,7 @@ impl Codec for Proposal {
                 Some(Proposal::Update(Update { key_package }))
             }
             3 => {
-                let removed = u32::read(r)?;
+                let removed = LeafSize::read(r)?;
                 Some(Proposal::Remove(Remove { removed }))
             }
             _ => None,
@@ -411,7 +411,7 @@ impl Codec for PathSecret {
 /// spec: draft-ietf-mls-protocol.md#Welcoming-New-Members
 pub struct GroupSecret {
     /// 1..255
-    pub epoch_secret: SecretVec<u8>,
+    pub joiner_secret: SecretVec<u8>,
     pub path_secret: Option<PathSecret>,
 }
 
@@ -424,16 +424,16 @@ impl Debug for GroupSecret {
 
 impl Codec for GroupSecret {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_vec_u8_u8(bytes, &self.epoch_secret.expose_secret());
+        encode_vec_u8_u8(bytes, &self.joiner_secret.expose_secret());
         encode_option(bytes, &self.path_secret);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let epoch_secret = read_vec_u8_u8(r)?;
+        let joiner_secret = SecretVec::new(read_vec_u8_u8(r)?);
         let path_secret = decode_option(r)?;
 
         Some(GroupSecret {
-            epoch_secret: SecretVec::new(epoch_secret),
+            joiner_secret,
             path_secret,
         })
     }
@@ -551,7 +551,7 @@ pub enum SenderType {
 #[derive(Debug, Clone)]
 pub struct Sender {
     pub sender_type: SenderType,
-    pub sender: u32,
+    pub sender: LeafSize,
 }
 
 impl Codec for Sender {
@@ -568,7 +568,7 @@ impl Codec for Sender {
             3 => Some(SenderType::NewMember),
             _ => None,
         }?;
-        let sender = u32::read(r)?;
+        let sender = LeafSize::read(r)?;
         Some(Self {
             sender_type,
             sender,
@@ -593,7 +593,7 @@ impl CommitContent {
         commit: &MLSPlaintext,
         proposals: &[MLSPlaintext],
     ) -> Result<Self, ()> {
-        let sender = LeafSize(commit.content.sender.sender);
+        let sender = commit.content.sender.sender;
         let (commit, confirmation) = match &commit.content.content {
             ContentType::Commit {
                 commit,
@@ -635,13 +635,9 @@ impl CommitContent {
                 proposals_ids
                     .get(proposal_id)
                     .and_then(|p| {
-                        p.get_update().cloned().map(|update| {
-                            (
-                                LeafSize(p.content.sender.sender),
-                                update,
-                                proposal_id.clone(),
-                            )
-                        })
+                        p.get_update()
+                            .cloned()
+                            .map(|update| (p.content.sender.sender, update, proposal_id.clone()))
                     })
                     .ok_or(())
             })

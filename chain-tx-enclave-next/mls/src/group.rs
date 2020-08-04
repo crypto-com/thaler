@@ -1,20 +1,22 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::ciphersuite::*;
-use crate::extensions as ext;
+use crate::ciphersuite::CipherSuite;
+use crate::extensions::{self as ext, ExtensionType, MLSExtension};
 use crate::key::{HPKEPrivateKey, IdentityPrivateKey, IdentityPublicKey};
 use crate::keypackage::{
-    self as kp, verify_keypackage_and_secrets, KeyPackage, KeyPackageSecret, Timespec,
-    PROTOCOL_VERSION_MLS10,
+    self as kp, find_extension, verify_keypackage_and_secrets, FindExtensionError, KeyPackage,
+    KeyPackageSecret, Timespec, PROTOCOL_VERSION_MLS10,
 };
-use crate::message::*;
-use crate::secrets::*;
-use crate::tree::*;
-use crate::tree_math::{LeafSize, NodeSize};
-use crate::utils::{
-    encode_vec_option_u32, encode_vec_u8_u16, encode_vec_u8_u8, read_vec_option_u32,
-    read_vec_u8_u16, read_vec_u8_u8,
+use crate::message::{
+    self, Add, Commit, CommitContent, ContentType, DirectPath, GroupSecret, MLSPlaintext,
+    MLSPlaintextCommon, MLSPlaintextTBS, PathSecret, Proposal, ProposalId, Remove, Sender,
+    SenderType, Update, Welcome,
 };
+use crate::secrets::EpochSecrets;
+use crate::tree::{Node, TreeIntegrityError, TreePublicKey, TreeSecret};
+use crate::tree_math::{LeafSize, NodeSize, NodeType, ParentSize};
+use crate::utils::{encode_vec_u8_u16, encode_vec_u8_u8, read_vec_u8_u16, read_vec_u8_u8};
+use hkdf::Hkdf;
 use ra_client::AttestedCertVerifier;
 use rustls::internal::msgs::codec::{self, Codec, Reader};
 use secrecy::{ExposeSecret, SecretVec};
@@ -23,12 +25,21 @@ use subtle::ConstantTimeEq;
 
 /// auxiliary structure to hold group context + tree
 pub struct GroupAux {
+    // public and shared
     pub context: GroupContext,
     pub tree: TreePublicKey,
+
+    // public and specific to current participant
+    /// position of the participant in the tree
+    pub my_pos: LeafSize,
+
+    // secrets
     pub tree_secret: TreeSecret,
     pub secrets: EpochSecrets<Sha256>,
+    /// secrets for the leaf keypackage
     pub kp_secret: KeyPackageSecret,
 
+    // secrets for pending commits and updates
     /// record the pending credential secret for self-update proposals.
     /// inserted when commit self update proposal, removed when processing the commit.
     pub pending_updates: BTreeMap<ProposalId, IdentityPrivateKey>,
@@ -41,17 +52,19 @@ impl GroupAux {
     fn new(
         context: GroupContext,
         tree: TreePublicKey,
+        my_pos: LeafSize,
         kp_secret: KeyPackageSecret,
     ) -> Result<Self, hkdf::InvalidLength> {
         let secrets: EpochSecrets<Sha256> = match &tree.cs {
             CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => {
-                EpochSecrets::new(tree.cs.hash(&context.get_encoding()))?
+                EpochSecrets::new(&context.get_encoding())?
             }
         };
         let cs = tree.cs;
         Ok(GroupAux {
             context,
             tree,
+            my_pos,
             tree_secret: TreeSecret::empty(cs),
             secrets,
             kp_secret,
@@ -63,14 +76,14 @@ impl GroupAux {
     fn get_sender(&self) -> Sender {
         Sender {
             sender_type: SenderType::Member,
-            sender: self.tree.my_pos.0 as u32,
+            sender: self.my_pos,
         }
     }
 
     /// Generate and sign add proposal
     pub fn get_signed_add(
         &self,
-        kp: &KeyPackage,
+        key_package: KeyPackage,
     ) -> Result<MLSPlaintext, ring::error::Unspecified> {
         let sender = self.get_sender();
         let add_content = MLSPlaintextCommon {
@@ -78,9 +91,7 @@ impl GroupAux {
             epoch: self.context.epoch,
             sender,
             authenticated_data: vec![],
-            content: ContentType::Proposal(Proposal::Add(Add {
-                key_package: kp.clone(),
-            })),
+            content: ContentType::Proposal(Proposal::Add(Add { key_package })),
         };
         let to_be_signed = MLSPlaintextTBS {
             context: self.context.clone(),
@@ -99,7 +110,7 @@ impl GroupAux {
     /// The secret will be stored tempararily, and take effect when processing the commit.
     pub fn get_signed_self_update(
         &mut self,
-        keypackage: KeyPackage,
+        key_package: KeyPackage,
         secret: KeyPackageSecret,
     ) -> Result<MLSPlaintext, ring::error::Unspecified> {
         let sender = self.get_sender();
@@ -108,9 +119,7 @@ impl GroupAux {
             epoch: self.context.epoch,
             sender,
             authenticated_data: vec![],
-            content: ContentType::Proposal(Proposal::Update(Update {
-                key_package: keypackage,
-            })),
+            content: ContentType::Proposal(Proposal::Update(Update { key_package })),
         };
         let to_be_signed = MLSPlaintextTBS {
             context: self.context.clone(),
@@ -132,7 +141,7 @@ impl GroupAux {
     /// * `to_remove` - The leaf index to be removed
     pub fn get_signed_remove(
         &self,
-        to_remove: LeafSize,
+        removed: LeafSize,
     ) -> Result<MLSPlaintext, ring::error::Unspecified> {
         let sender = self.get_sender();
         let add_content = MLSPlaintextCommon {
@@ -140,9 +149,7 @@ impl GroupAux {
             epoch: self.context.epoch,
             sender,
             authenticated_data: vec![],
-            content: ContentType::Proposal(Proposal::Remove(Remove {
-                removed: to_remove.0,
-            })),
+            content: ContentType::Proposal(Proposal::Remove(Remove { removed })),
         };
         let to_be_signed = MLSPlaintextTBS {
             context: self.context.clone(),
@@ -158,7 +165,7 @@ impl GroupAux {
 
     fn get_init_confirmed_transcript_hash(&self, sender: Sender, commit: &Commit) -> Vec<u8> {
         let interim_transcript_hash = b"".to_vec(); // TODO
-        let content_to_commit = MLSPlaintextCommitContent::new(
+        let content_to_commit = message::MLSPlaintextCommitContent::new(
             self.context.group_id.clone(),
             self.context.epoch,
             sender,
@@ -175,7 +182,7 @@ impl GroupAux {
         commit_msg_sig: Vec<u8>,
         confirmed_transcript: Vec<u8>,
     ) -> Vec<u8> {
-        let commit_auth = MLSPlaintextCommitAuthData {
+        let commit_auth = message::MLSPlaintextCommitAuthData {
             confirmation: commit_confirmation,
             signature: commit_msg_sig,
         }
@@ -202,24 +209,61 @@ impl GroupAux {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn get_welcome_msg(
         &self,
-        updated_tree: &TreePublicKey,
+        updated_tree: TreePublicKey,
         updated_group_context: &GroupContext,
         updated_secrets: &EpochSecrets<Sha256>,
         confirmation: Vec<u8>,
         interim_transcript_hash: Vec<u8>,
-        positions: Vec<(NodeSize, KeyPackage)>,
+        positions: Vec<(LeafSize, KeyPackage)>,
+        tree_secret: Option<TreeSecret>,
     ) -> Result<Welcome, CommitError> {
+        let mut secrets = Vec::with_capacity(positions.len());
+        for (position, key_package) in positions.iter() {
+            let path_secret = if let Some(tree_secret) = &tree_secret {
+                let overlap = ParentSize::common_ancestor(self.my_pos, *position)
+                    .ok_or(CommitError::CommitSelfAdd)?;
+                let direct_path = NodeSize::from(self.my_pos).direct_path(updated_tree.leaf_len());
+                let overlap_pos = direct_path
+                    .iter()
+                    .position(|&p| p == overlap)
+                    .expect("impossible, overlap must in the direct path of my_pos");
+                Some(PathSecret {
+                    path_secret: SecretVec::new(
+                        tree_secret.path_secrets[overlap_pos]
+                            .expose_secret()
+                            .to_vec(),
+                    ),
+                })
+            } else {
+                None
+            };
+            let group_secret = GroupSecret {
+                joiner_secret: SecretVec::new(
+                    updated_secrets.joiner_secret.0.expose_secret().to_vec(),
+                ),
+                path_secret,
+            };
+
+            let encrypted_group_secret =
+                self.tree.cs.seal_group_secret(&group_secret, key_package)?; // FIXME: &self.context ?
+            secrets.push(encrypted_group_secret);
+        }
+
+        let tree_hash = updated_tree.compute_tree_hash();
+        let mut extensions = updated_group_context.extensions.clone();
+        extensions.push(ext::RatchetTreeExt::new(updated_tree.nodes).entry());
         let group_info_p = GroupInfoPayload {
             group_id: updated_group_context.group_id.clone(),
             epoch: updated_group_context.epoch,
-            tree: updated_tree.for_group_info(),
+            tree_hash,
             confirmed_transcript_hash: updated_group_context.confirmed_transcript_hash.clone(),
             interim_transcript_hash,
-            extensions: updated_group_context.extensions.clone(), // FIXME: gen new keypackage + extension with parent hash?
+            extensions, // FIXME: gen new keypackage + extension with parent hash?
             confirmation,
-            signer_index: self.get_sender().sender,
+            signer_index: self.my_pos,
         };
         let signature = self
             .kp_secret
@@ -237,17 +281,7 @@ impl GroupAux {
             self.tree
                 .cs
                 .encrypt_group_info(&group_info, welcome_key, welcome_nonce)?;
-        let mut secrets = Vec::with_capacity(positions.len());
-        let epoch_secret = &updated_secrets.epoch_secret.0;
-        for (_position, key_package) in positions.iter() {
-            let group_secret = GroupSecret {
-                epoch_secret: SecretVec::new(epoch_secret.expose_secret().to_vec()),
-                path_secret: None, // FIXME
-            };
-            let encrypted_group_secret =
-                self.tree.cs.seal_group_secret(group_secret, key_package)?; // FIXME: &self.context ?
-            secrets.push(encrypted_group_secret);
-        }
+
         Ok(Welcome {
             version: PROTOCOL_VERSION_MLS10,
             cipher_suite: self.tree.cs as u16,
@@ -278,11 +312,7 @@ impl GroupAux {
                 }
                 ContentType::Proposal(Proposal::Update(update)) => {
                     update_proposals_ids.push(proposal_id.clone());
-                    updates.push((
-                        LeafSize(p.content.sender.sender),
-                        update.clone(),
-                        proposal_id,
-                    ));
+                    updates.push((p.content.sender.sender, update.clone(), proposal_id));
                 }
                 ContentType::Proposal(Proposal::Remove(remove)) => {
                     remove_proposals_ids.push(proposal_id);
@@ -297,7 +327,7 @@ impl GroupAux {
 
         let self_update_proposal = updates
             .iter()
-            .find(|(sender, _, _)| *sender == self.tree.my_pos)
+            .find(|(sender, _, _)| *sender == self.my_pos)
             .map(|(_, _, proposal_id)| proposal_id);
         let credential_private_key = if let Some(proposal_id) = self_update_proposal {
             self.pending_updates
@@ -313,13 +343,21 @@ impl GroupAux {
 
         let (path, tree_secret, init_private_key) = if should_populate_path {
             // new init key
-            let init_private_key = updated_tree.get_my_package_mut().update_init_key();
+            let init_private_key = updated_tree
+                .get_package_mut(self.my_pos)
+                .expect("my keypackage not exists")
+                .update_init_key();
 
             // update path secrets
-            let (path_nodes, parent_hash, tree_secret) =
-                updated_tree.evolve(&self.context.get_encoding(), &init_private_key.marshal())?;
+            let (path_nodes, parent_hash, tree_secret) = updated_tree.evolve(
+                &self.context.get_encoding(),
+                self.my_pos,
+                &init_private_key.marshal(),
+            )?;
 
-            let kp = updated_tree.get_my_package_mut();
+            let kp = updated_tree
+                .get_package_mut(self.my_pos)
+                .expect("my keypackage not exists");
             // update keypackage's parent_hash extension
             kp.payload.put_extension(&ext::ParentHashExt(parent_hash));
             kp.update_signature(credential_private_key)?;
@@ -328,11 +366,11 @@ impl GroupAux {
                     leaf_key_package: kp.clone(),
                     nodes: path_nodes,
                 }),
-                tree_secret,
+                Some(tree_secret),
                 Some(init_private_key),
             )
         } else {
-            (None, TreeSecret::empty(self.tree.cs), None)
+            (None, None, None)
         };
 
         let commit = Commit {
@@ -350,10 +388,15 @@ impl GroupAux {
             confirmed_transcript_hash,
             ..self.context.clone()
         };
-        let updated_group_context_hash = self.tree.cs.hash(&updated_group_context.get_encoding());
-        let epoch_secrets = self
-            .secrets
-            .generate_new_epoch_secrets(&tree_secret.update_secret, updated_group_context_hash)?;
+        let commit_secret = tree_secret
+            .as_ref()
+            .map(|secret| &secret.update_secret)
+            .unwrap_or_else(|| &self.tree_secret.update_secret);
+        let epoch_secrets = EpochSecrets::generate(
+            &self.secrets.init_secret,
+            commit_secret,
+            &updated_group_context.get_encoding(),
+        )?;
         let confirmation =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
         let sender = self.get_sender();
@@ -373,15 +416,17 @@ impl GroupAux {
             signed_commit.signature.clone(),
             updated_group_context.confirmed_transcript_hash.clone(),
         );
+
         Ok((
             signed_commit,
             self.get_welcome_msg(
-                &updated_tree,
+                updated_tree,
                 &updated_group_context,
                 &epoch_secrets,
                 confirmation,
                 interim_transcript_hash,
                 positions,
+                tree_secret,
             )?,
             init_private_key,
         ))
@@ -426,7 +471,7 @@ impl GroupAux {
     ) -> Result<(), CommitError> {
         let kp = self
             .tree
-            .get_package(LeafSize(msg.content.sender.sender))
+            .get_package(msg.content.sender.sender)
             .ok_or(CommitError::SenderNotFound)?;
         let pk = IdentityPublicKey::new_unsafe(kp.verify(ra_verifier, now)?.public_key.to_vec());
         Ok(msg.verify_signature(&self.context, &pk)?)
@@ -460,7 +505,7 @@ impl GroupAux {
         let self_update_proposal = commit_content
             .updates
             .iter()
-            .find(|(sender, _, _)| *sender == self.tree.my_pos);
+            .find(|(sender, _, _)| *sender == self.my_pos);
         let credential_private_key = if let Some((_, _, proposal_id)) = self_update_proposal {
             // apply the pending credential_private_key
             self.pending_updates
@@ -472,7 +517,7 @@ impl GroupAux {
 
         let commit_id = ProposalId(self.tree.cs.hash(&commit.get_encoding()));
         let init_private_key =
-            if commit_content.commit.path.is_some() && commit_content.sender == self.tree.my_pos {
+            if commit_content.commit.path.is_some() && commit_content.sender == self.my_pos {
                 // apply pending `init_private_key` if I'm the committer
                 self.pending_commit
                     .get(&commit_id)
@@ -483,7 +528,7 @@ impl GroupAux {
 
         // verify the leaf key package in commit path
         if let Some(path) = &commit_content.commit.path {
-            if commit_content.sender == self.tree.my_pos {
+            if commit_content.sender == self.my_pos {
                 verify_keypackage_and_secrets(
                     &path.leaf_key_package,
                     init_private_key,
@@ -517,6 +562,7 @@ impl GroupAux {
             let leaf_parent_hash = tree.merge(commit_content.sender, &path.nodes);
             let tree_diff = self.tree_secret.apply_path_secrets(
                 commit_content.sender,
+                self.my_pos,
                 &tree,
                 &self.context.get_encoding(),
                 &path.nodes,
@@ -557,23 +603,27 @@ impl GroupAux {
             confirmed_transcript_hash,
             ..self.context.clone()
         };
-        let updated_group_context_hash = tree.cs.hash(&updated_group_context.get_encoding());
 
         // "Use the commit_secret, the provisional GroupContext,
         // and the init secret from the previous epoch to compute the epoch secret and derived secrets for the new epoch."
-        let epoch_secrets = self.secrets.generate_new_epoch_secrets(
-            &self.tree_secret.update_secret,
-            updated_group_context_hash,
+        let commit_secret = tree_diff
+            .as_ref()
+            .map(|diff| &diff.update_secret)
+            .unwrap_or_else(|| &self.tree_secret.update_secret);
+        let epoch_secrets = EpochSecrets::generate(
+            &self.secrets.init_secret,
+            commit_secret,
+            &updated_group_context.get_encoding(),
         )?;
+        // "Use the confirmation_key for the new epoch to compute the confirmation MAC for this message,
+        // as described below, and verify that it is the same as the confirmation field in the MLSPlaintext object."
         let confirmation_computed =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
 
-        // "Use the confirmation_key for the new epoch to compute the confirmation MAC for this message,
-        // as described below, and verify that it is the same as the confirmation field in the MLSPlaintext object."
-        let confirmation =
-            epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
-
-        let confirmation_ok: bool = confirmation.ct_eq(&confirmation_computed).into();
+        let confirmation_ok: bool = commit_content
+            .confirmation
+            .ct_eq(&confirmation_computed)
+            .into();
         if !confirmation_ok {
             return Err(CommitError::GroupInfoIntegrityError);
         }
@@ -597,7 +647,7 @@ impl GroupAux {
         }
 
         // set pending init_private_key
-        if commit_content.commit.path.is_some() && commit_content.sender == self.tree.my_pos {
+        if commit_content.commit.path.is_some() && commit_content.sender == self.my_pos {
             self.kp_secret.init_private_key = self
                 .pending_commit
                 .remove(&commit_id)
@@ -612,27 +662,26 @@ impl GroupAux {
     pub fn init_group(
         creator_kp: KeyPackage,
         secret: KeyPackageSecret,
-        others: &[KeyPackage],
+        others: Vec<KeyPackage>,
         ra_verifier: &impl AttestedCertVerifier,
         genesis_time: Timespec,
     ) -> Result<(Self, Vec<MLSPlaintext>, MLSPlaintext, Welcome), InitGroupError> {
-        let mut kps = BTreeSet::new();
-        for kp in others.iter() {
-            if kps.contains(kp) {
-                return Err(InitGroupError::DuplicateKeyPackage);
-            } else {
-                kp.verify(ra_verifier, genesis_time)?;
-                kps.insert(kp.clone());
-            }
+        let others_len = others.len();
+        let kps = others.into_iter().collect::<BTreeSet<_>>();
+        if kps.len() < others_len {
+            return Err(InitGroupError::DuplicateKeyPackage);
+        }
+        for kp in kps.iter() {
+            kp.verify(ra_verifier, genesis_time)?;
         }
         if kps.contains(&creator_kp) {
             Err(InitGroupError::DuplicateKeyPackage)
         } else {
             creator_kp.verify(ra_verifier, genesis_time)?;
             let (context, tree) = GroupContext::init(creator_kp);
-            let mut group = GroupAux::new(context, tree, secret)?;
-            let add_proposals: Vec<MLSPlaintext> = others
-                .iter()
+            let mut group = GroupAux::new(context, tree, LeafSize(0), secret)?;
+            let add_proposals: Vec<MLSPlaintext> = kps
+                .into_iter()
                 .map(|kp| group.get_signed_add(kp))
                 .collect::<Result<_, _>>()?;
             let (commit, welcome) = group.init_commit(&add_proposals);
@@ -673,11 +722,9 @@ impl GroupAux {
         let group_secret = cs
             .open_group_secret(&secret, &kp_secret)?
             .ok_or(ProcessWelcomeError::InvalidGroupSecret)?;
-        let epoch_secret =
-            EpochSecrets::<Sha256>::get_epoch_secret(&group_secret.epoch_secret.expose_secret())?;
-        // * "From the epoch_secret in the decrypted GroupSecrets object, derive the welcome_secret, welcome_key, and welcome_nonce..."
+        // * "From the joiner_secret in the decrypted GroupSecrets object, derive the welcome_secret, welcome_key, and welcome_nonce..."
         let (welcome_key, welcome_nonce) = EpochSecrets::derive_welcome_secrets(
-            &epoch_secret,
+            &Hkdf::<Sha256>::from_prk(&group_secret.joiner_secret.expose_secret().as_ref())?,
             cs.aead_key_len(),
             cs.aead_nonce_len(),
         )?;
@@ -685,31 +732,26 @@ impl GroupAux {
             .open_group_info(&welcome.encrypted_group_info, welcome_key, welcome_nonce)?
             .ok_or(ProcessWelcomeError::InvalidGroupInfo)?;
 
-        // convert Vec<Option<Node>> to Vec<Node>
-        let nodes = group_info
-            .payload
-            .tree
-            .clone()
-            .into_iter()
-            .enumerate()
-            .map(|(i, node)| {
-                node.unwrap_or_else(|| {
-                    if i % 2 == 0 {
-                        Node::Leaf(None)
-                    } else {
-                        Node::Parent(None)
-                    }
-                })
-            })
-            .collect::<Vec<_>>();
+        // * "Verify the integrity of the ratchet tree..."
+        let tree_ext = group_info.payload.find_extension::<ext::RatchetTreeExt>()?;
+        let tree = TreePublicKey::from_group_info(tree_ext.nodes, ra_verifier, genesis_time, cs)?;
+
+        // Verify that the tree hash of the ratchet tree matches the tree_hash field in the GroupInfo
+        if !bool::from(
+            group_info
+                .payload
+                .tree_hash
+                .ct_eq(&tree.compute_tree_hash()),
+        ) {
+            return Err(ProcessWelcomeError::TreeHashDontMatch);
+        }
 
         // * "Verify the signature on the GroupInfo object..."
-        let signer = match nodes.get(group_info.payload.signer_index as usize) {
-            Some(Node::Leaf(Some(kp))) => Ok(kp.clone()),
-            _ => Err(ProcessWelcomeError::KeyPackageNotFound),
-        }?;
+        let signer_kp = tree
+            .get_package(group_info.payload.signer_index)
+            .ok_or(ProcessWelcomeError::KeyPackageNotFound)?;
         let identity_pk = IdentityPublicKey::new_unsafe(
-            signer
+            signer_kp
                 .verify(ra_verifier, genesis_time)?
                 .public_key
                 .to_vec(),
@@ -718,41 +760,64 @@ impl GroupAux {
         identity_pk
             .verify_signature(&payload, &group_info.signature)
             .map_err(kp::Error::SignatureVerifyError)?;
-        // * "Identify a leaf in the tree array..."
-        let node_index = nodes
-            .iter()
-            .enumerate()
-            .find(|(_, node)| match node {
-                Node::Leaf(Some(kp)) => kp == &my_kp,
-                _ => false,
-            })
-            .map(|(i, _)| i)
-            .ok_or(ProcessWelcomeError::KeyPackageNotFound)?;
-        // * "Verify the integrity of the ratchet tree..."
+
         // * "Construct a new group state using the information in the GroupInfo object..."
-        let tree =
-            TreePublicKey::from_group_info(node_index, nodes, ra_verifier, genesis_time, cs)?;
-        if let Some(_path_secret) = group_secret.path_secret {
-            // FIXME
+        // * "Identify a leaf in the tree array..."
+        let my_pos = tree
+            .iter_nodes()
+            .filter_map(|(node_type, node)| match (node_type, node) {
+                (NodeType::Leaf(index), Some(Node::Leaf(kp))) if kp == &my_kp => Some(index),
+                _ => None,
+            })
+            .next()
+            .ok_or(ProcessWelcomeError::KeyPackageNotFound)?;
+
+        let mut tree_secret = TreeSecret::new(
+            cs,
+            my_pos.into(),
+            tree.leaf_len(),
+            &kp_secret.init_private_key.marshal(),
+        )?;
+        if let Some(PathSecret { path_secret, .. }) = group_secret.path_secret {
+            tree_secret.apply_welcome_secret(
+                group_info.payload.signer_index,
+                my_pos,
+                path_secret,
+                &tree,
+            )?;
         }
+
+        // The presence of a `ratchet_tree` extension in a GroupInfo message does not
+        // result in any changes to the GroupContext extensions for the group.
+        let extensions = group_info
+            .payload
+            .extensions
+            .iter()
+            .filter(|ext| ext.etype != ExtensionType::RatchetTree)
+            .cloned()
+            .collect::<Vec<_>>();
+
         // * "Set the confirmed transcript hash in the new state to the value of the confirmed_transcript_hash in the GroupInfo."
         let context = GroupContext {
             group_id: group_info.payload.group_id.clone(),
             epoch: group_info.payload.epoch,
-            tree_hash: tree.compute_tree_hash(),
+            tree_hash: group_info.payload.tree_hash,
             confirmed_transcript_hash: group_info.payload.confirmed_transcript_hash.clone(),
-            extensions: group_info.payload.extensions,
+            extensions,
         };
 
         // * "Use the epoch_secret from the GroupSecrets object to generate the epoch secret and other derived secrets for the current epoch."
-        let secrets = EpochSecrets::from_epoch_secret(
-            (group_secret.epoch_secret, epoch_secret),
-            tree.cs.hash(&context.get_encoding()),
+        let joiner_hkdf =
+            Hkdf::<Sha256>::from_prk(group_secret.joiner_secret.expose_secret().as_ref())?;
+        let secrets = EpochSecrets::from_joiner_secret(
+            (group_secret.joiner_secret, joiner_hkdf),
+            &context.get_encoding(),
         )?;
         let group = GroupAux {
             context,
             tree,
-            tree_secret: TreeSecret::empty(cs),
+            my_pos,
+            tree_secret,
             kp_secret,
             secrets,
             pending_updates: BTreeMap::new(),
@@ -846,9 +911,8 @@ pub struct GroupInfoPayload {
     /// (incremented by 1 for each Commit message
     /// that is processed)
     pub epoch: u64,
-    /// 1..2^32-1
-    /// FIXME representation may change https://github.com/mlswg/mls-protocol/issues/344
-    pub tree: Vec<Option<Node>>,
+    /// 0..255
+    pub tree_hash: Vec<u8>,
     /// 0..255
     pub confirmed_transcript_hash: Vec<u8>,
     /// 0..255
@@ -857,14 +921,14 @@ pub struct GroupInfoPayload {
     pub extensions: Vec<ext::ExtensionEntry>,
     /// 0..255
     pub confirmation: Vec<u8>,
-    pub signer_index: u32,
+    pub signer_index: LeafSize,
 }
 
 impl Codec for GroupInfoPayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         encode_vec_u8_u8(bytes, &self.group_id);
         self.epoch.encode(bytes);
-        encode_vec_option_u32(bytes, &self.tree);
+        encode_vec_u8_u8(bytes, &self.tree_hash);
         encode_vec_u8_u8(bytes, &self.confirmed_transcript_hash);
         encode_vec_u8_u8(bytes, &self.interim_transcript_hash);
         codec::encode_vec_u16(bytes, &self.extensions);
@@ -875,22 +939,28 @@ impl Codec for GroupInfoPayload {
     fn read(r: &mut Reader) -> Option<Self> {
         let group_id = read_vec_u8_u8(r)?;
         let epoch = u64::read(r)?;
-        let tree = read_vec_option_u32(r)?;
+        let tree_hash = read_vec_u8_u8(r)?;
         let confirmed_transcript_hash = read_vec_u8_u8(r)?;
         let interim_transcript_hash = read_vec_u8_u8(r)?;
         let extensions = codec::read_vec_u16(r)?;
         let confirmation = read_vec_u8_u8(r)?;
-        let signer_index = u32::read(r)?;
+        let signer_index = LeafSize::read(r)?;
         Some(GroupInfoPayload {
             group_id,
             epoch,
-            tree,
+            tree_hash,
             confirmed_transcript_hash,
             interim_transcript_hash,
             extensions,
             confirmation,
             signer_index,
         })
+    }
+}
+
+impl GroupInfoPayload {
+    pub fn find_extension<T: MLSExtension>(&self) -> Result<T, FindExtensionError> {
+        find_extension(&self.extensions)
     }
 }
 
@@ -951,6 +1021,8 @@ pub enum CommitError {
     InvalidCommitMessage,
     #[error("fail to encrypt group info: {0}")]
     EncryptGroupInfoError(#[from] aead::Error),
+    #[error("commit self add proposal")]
+    CommitSelfAdd,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -979,6 +1051,14 @@ pub enum ProcessWelcomeError {
     HkdfError(#[from] hkdf::InvalidLength),
     #[error("fail to decrypt group info: {0}")]
     DecryptGroupInfoError(#[from] aead::Error),
+    #[error("ratchet tree extension not found")]
+    RatchetTreeNotFound(#[from] FindExtensionError),
+    #[error("tree hash of the ratchet tree don't match the tree_hash field in the GroupInfo")]
+    TreeHashDontMatch,
+    #[error("process welcome message signed by self")]
+    SelfWelcome,
+    #[error("decrypted path secret don't match the public key")]
+    PathSecretPublicKeyDontMatch,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -1001,8 +1081,8 @@ pub mod test {
     use crate::extensions::{self as ext, MLSExtension};
     use crate::key::{HPKEPrivateKey, IdentityPrivateKey};
     use crate::keypackage::{
-        KeyPackage, KeyPackagePayload, MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
-        PROTOCOL_VERSION_MLS10,
+        KeyPackage, KeyPackagePayload, DEFAULT_CAPABILITIES_EXT,
+        MLS10_128_DHKEMP256_AES128GCM_SHA256_P256, PROTOCOL_VERSION_MLS10,
     };
     use crate::tree_math::ParentSize;
     use chrono::{DateTime, Utc};
@@ -1042,8 +1122,7 @@ pub mod test {
         )
         .unwrap();
         let extensions = vec![
-            ext::SupportedVersionsExt(vec![PROTOCOL_VERSION_MLS10]).entry(),
-            ext::SupportedCipherSuitesExt(vec![MLS10_128_DHKEMP256_AES128GCM_SHA256_P256]).entry(),
+            DEFAULT_CAPABILITIES_EXT.entry(),
             ext::LifeTimeExt::new(0, 100).entry(),
         ];
 
@@ -1076,8 +1155,8 @@ pub mod test {
         let (creator_kp, creator_secret) = get_fake_keypackage();
         let (to_be_added, _) = get_fake_keypackage();
         let (context, tree) = GroupContext::init(creator_kp);
-        let group_aux = GroupAux::new(context, tree, creator_secret).unwrap();
-        let plain = group_aux.get_signed_add(&to_be_added).unwrap();
+        let group_aux = GroupAux::new(context, tree, LeafSize(0), creator_secret).unwrap();
+        let plain = group_aux.get_signed_add(to_be_added).unwrap();
         assert!(plain
             .verify_signature(
                 &group_aux.context,
@@ -1093,7 +1172,7 @@ pub mod test {
         let (mut creator_group, adds, commit, welcome) = GroupAux::init_group(
             creator_kp,
             creator_secret,
-            &[to_be_added.clone()],
+            vec![to_be_added.clone()],
             &MockVerifier {},
             0,
         )
@@ -1141,9 +1220,16 @@ pub mod test {
         )
         .unwrap();
         assert_eq!(tree.nodes.len(), 3);
-        tree.update(&[], &[], &[Remove { removed: 1 }]).unwrap();
+        tree.update(
+            &[],
+            &[],
+            &[Remove {
+                removed: LeafSize(1),
+            }],
+        )
+        .unwrap();
         assert_eq!(tree.nodes.len(), 3);
-        assert!(tree.nodes[2].is_empty_node());
+        assert!(tree.nodes[2].is_none());
         tree.update(
             &[Add {
                 key_package: to_be_added,
@@ -1153,7 +1239,7 @@ pub mod test {
         )
         .unwrap();
         assert_eq!(tree.nodes.len(), 3);
-        assert!(!tree.nodes[2].is_empty_node());
+        assert!(!tree.nodes[2].is_none());
     }
 
     pub fn three_member_setup() -> (GroupAux, GroupAux, GroupAux) {
@@ -1163,9 +1249,14 @@ pub mod test {
         let ra_verifier = MockVerifier {};
 
         // add member2 in genesis
-        let (mut member1_group, proposals, commit, welcome) =
-            GroupAux::init_group(member1, member1_secret, &[member2.clone()], &ra_verifier, 0)
-                .expect("group init");
+        let (mut member1_group, proposals, commit, welcome) = GroupAux::init_group(
+            member1,
+            member1_secret,
+            vec![member2.clone()],
+            &ra_verifier,
+            0,
+        )
+        .expect("group init");
 
         // after commit/welcome get confirmed
         member1_group
@@ -1179,7 +1270,7 @@ pub mod test {
         assert_eq!(&member1_group.context, &member2_group.context);
 
         // add member3
-        let proposals = vec![member1_group.get_signed_add(&member3).unwrap()];
+        let proposals = vec![member1_group.get_signed_add(member3.clone()).unwrap()];
         let (commit, welcome) = member1_group.commit_proposals(&proposals).unwrap();
 
         // after commit/welcome get confirmed
@@ -1198,10 +1289,10 @@ pub mod test {
         assert_eq!(&member2_group.context, &member3_group.context);
 
         // check add result
-        assert_eq!(member3_group.tree.my_pos, LeafSize(2));
+        assert_eq!(member3_group.my_pos, LeafSize(2));
         member2_group
             .tree
-            .get_package(member3_group.tree.my_pos)
+            .get_package(member3_group.my_pos)
             .expect("member3 should exists");
         (member1_group, member2_group, member3_group)
     }
@@ -1238,7 +1329,7 @@ pub mod test {
         assert_eq!(
             &member2_group
                 .tree
-                .get_package(member2_group.tree.my_pos)
+                .get_package(member2_group.my_pos)
                 .unwrap()
                 .payload
                 .credential,
@@ -1247,7 +1338,7 @@ pub mod test {
 
         // remove member3
         let proposals = vec![member1_group
-            .get_signed_remove(member3_group.tree.my_pos)
+            .get_signed_remove(member3_group.my_pos)
             .unwrap()];
         let (commit, _welcome) = member1_group.commit_proposals(&proposals).unwrap();
 
@@ -1263,10 +1354,7 @@ pub mod test {
         assert_eq!(&member1_group.context, &member2_group.context);
 
         // check remove result
-        assert_eq!(
-            member2_group.tree.get_package(member3_group.tree.my_pos),
-            None
-        );
+        assert_eq!(member2_group.tree.get_package(member3_group.my_pos), None);
     }
 
     #[test]
@@ -1278,9 +1366,14 @@ pub mod test {
         let ra_verifier = MockVerifier {};
 
         // add member2 in genesis
-        let (mut member1_group, proposals, commit, welcome) =
-            GroupAux::init_group(member1, member1_secret, &[member2.clone()], &ra_verifier, 0)
-                .expect("group init");
+        let (mut member1_group, proposals, commit, welcome) = GroupAux::init_group(
+            member1,
+            member1_secret,
+            vec![member2.clone()],
+            &ra_verifier,
+            0,
+        )
+        .expect("group init");
 
         // after commit/welcome get confirmed
         member1_group

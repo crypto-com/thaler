@@ -565,7 +565,7 @@ mod tests {
         // FIXME: update documentation, as in 0.6 the confidential init is defined
         assert_eq!(
             nodejoin_vector.tx_id,
-            "e0c2dfc3f25ef87f0866a0ac6f649904d42c9504a6140b96549e3cef940d2106"
+            "5b096d800553c0e7d818bf2fa7027ddd14d59dfd554791d977371cd1337dce70"
         );
         // check unbonded stake vector
         let unbonded_stake_vector = test_vectors.unbonded_stake_vector.clone().unwrap();
