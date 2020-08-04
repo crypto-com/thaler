@@ -10,18 +10,6 @@ build_mode ?= debug
 TX_QUERY_HOSTNAME ?=
 MAKE_CMD = make
 
-# SGX_DEVICE should be /dev/isgx as latest dcap driver /dev/sgx higher than v1.31 is not supported by fortanix
-ifeq ($(shell test -e /dev/isgx && echo -n yes),yes)
-SGX_DEVICE=/dev/isgx
-else ifeq ($(shell test -e /dev/sgx && VERSION=$$(dmesg | grep "Intel SGX DCAP Driver v" | awk '{ print $$NF }' | tr -d "v" | awk -F. '{ printf("%d%03d", $$1,$$2) }'); \
-	if [ $$VERSION -gt 1031 ]; then echo "yes";fi;),yes)
-$(error /dev/sgx higher than v1.31 is not supported. Please remove dcap sgx driver by "make rm-dcap-sgx-driver" and install intel sgx driver by "make install-isgx-driver")
-else ifeq ($(shell test -e /dev/sgx && echo "yes"),yes)
-SGX_DEVICE=/dev/sgx
-else
-$(error No sgx device detected! Please install intel sgx driver by "make install-isgx-driver")
-endif
-
 
 ifeq ($(build_mode), release)
 	CARGO_BUILD_CMD = cargo build --release
@@ -127,6 +115,24 @@ else ifeq ($(chain), testnet)
 else ifeq ($(chain), mainnet)
 	@echo "\033[32mcopy mainnet tendermint config\033[0m"
 	bash -c "cp docker/config/mainnet/tendermint/{config.toml,genesis.json} $(data_path)/tendermint/config/"
+endif
+
+check-sgx-device:
+# SGX_DEVICE should be /dev/isgx as latest dcap driver /dev/sgx higher than v1.31 is not supported by fortanix
+ifeq ($(SGX_MODE), HW)
+ifeq ($(shell test -e /dev/isgx && echo -n yes),yes)
+	$(eval SGX_DEVICE=/dev/isgx)
+	@echo "\033[32mSet SGX_DEVICE=/dev/isgx\033[0m"
+else ifeq ($(shell test -e /dev/sgx && VERSION=$$(dmesg | grep "Intel SGX DCAP Driver v" | awk '{ print $$NF }' | tr -d "v" | awk -F. '{ printf("%d%03d", $$1,$$2) }') && if [ $$VERSION -gt 1031 ]; then echo "yes";fi;),yes)
+	$(error /dev/sgx higher than v1.31 is not supported. Please remove dcap sgx driver by "make rm-dcap-sgx-driver" and install intel sgx driver by "make install-isgx-driver")
+else ifeq ($(shell test -e /dev/sgx && echo "yes"),yes)
+	$(eval SGX_DEVICE=/dev/sgx)
+	@echo "\033[32mSet SGX_DEVICE=/dev/sgx\033[0m"
+else
+	$(error No sgx device detected! Please install intel sgx driver by "make install-isgx-driver")
+endif
+else
+	@echo "\033[32mSGX_MODE is SW, skip to check sgx driver\033[0m"
 endif
 
 source=https://download.01.org/intel-sgx/sgx-linux/2.9.1/distro/ubuntu18.04-server/sgx_linux_x64_driver_2.6.0_95eaa6f.bin
@@ -246,7 +252,7 @@ rm-network:
 	@echo "\033\[32mremove network ${NETWORK}\033[0m"
 	docker network rm $(NETWORK)
 
-run-sgx-query-next:
+run-sgx-query-next: check-sgx-device
 	@if [ "${SPID}x" = "x" ] || [ "${IAS_API_KEY}x" = "x" ]; then \
 		echo "environment SPID and IAS_API_KEY should be set"; \
 	else \
@@ -269,7 +275,7 @@ run-sgx-query-next:
 		bash ./run_tx_query_next.sh; \
 	fi
 
-run-abci:
+run-abci: check-sgx-device
 	@echo "\033[32mrun docker chain-abci\033[0m"; \
 	docker run -d \
 	--net $(NETWORK) \
