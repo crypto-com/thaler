@@ -9,7 +9,6 @@ use chain_core::tx::{
         TxId,
     },
     fee::Fee,
-    TransactionId,
 };
 use chain_util::NonEmpty;
 use client_common::tendermint::types::Time;
@@ -257,7 +256,6 @@ mod tests {
     };
     use chain_core::tx::data::{address::ExtendedAddr, attribute::TxAttributes, output::TxOut, Tx};
     use chain_core::tx::fee::Fee;
-    use chain_core::tx::TransactionId;
     use chain_tx_filter::BlockFilter;
     use client_common::{storage::MemoryStorage, PublicKey, Result, Transaction};
 

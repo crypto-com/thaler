@@ -29,7 +29,7 @@ use chain_core::tx::fee::Fee;
 use chain_core::tx::witness::tree::RawXOnlyPubkey;
 #[cfg(feature = "experimental")]
 use chain_core::tx::witness::{TxInWitness, TxWitness};
-use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxObfuscated};
+use chain_core::tx::{TxAux, TxEnclaveAux, TxObfuscated};
 use client_common::tendermint::types::Time;
 use client_common::tendermint::types::{AbciQueryExt, BlockResults, BroadcastTxResponse};
 use client_common::tendermint::{Client, UnauthorizedClient};

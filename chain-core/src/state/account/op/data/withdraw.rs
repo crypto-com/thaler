@@ -2,6 +2,9 @@ use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::state::account::Nonce;
 use crate::tx::data::attribute::TxAttributes;
 use crate::tx::data::output::TxOut;
+#[cfg(feature = "new-txid")]
+use crate::tx::TaggedTransaction;
+#[cfg(not(feature = "new-txid"))]
 use crate::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
@@ -48,7 +51,15 @@ impl Encode for WithdrawUnbondedTx {
     }
 }
 
+#[cfg(not(feature = "new-txid"))]
 impl TransactionId for WithdrawUnbondedTx {}
+
+#[cfg(feature = "new-txid")]
+impl From<WithdrawUnbondedTx> for TaggedTransaction {
+    fn from(tx: WithdrawUnbondedTx) -> TaggedTransaction {
+        TaggedTransaction::Withdraw(tx)
+    }
+}
 
 impl WithdrawUnbondedTx {
     /// creates a new tx to withdraw unbonded stake

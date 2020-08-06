@@ -267,12 +267,12 @@ impl From<&Transaction> for TransactionType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chain_core::{init::coin::Coin, tx::data::txid_hash};
+    use chain_core::init::coin::Coin;
 
     #[test]
     fn check_transaction_change_encode_decode() {
         let transaction_change = TransactionChange {
-            transaction_id: txid_hash(&[0, 1, 2]),
+            transaction_id: blake3::hash(&[0, 1, 2]).into(),
             inputs: Vec::new(),
             outputs: Vec::new(),
             balance_change: BalanceChange::Incoming {

@@ -1,5 +1,4 @@
 use crate::Transaction;
-use chain_core::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use rand::rngs::OsRng;
 use secp256k1::schnorrsig::{schnorr_sign, schnorr_sign_aux, AuxRandNonce, SchnorrSignature};

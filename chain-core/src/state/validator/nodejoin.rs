@@ -1,4 +1,7 @@
 use crate::state::account::{NodeMetadata, Nonce, StakedStateAddress, StakedStateOpAttributes};
+#[cfg(feature = "new-txid")]
+use crate::tx::TaggedTransaction;
+#[cfg(not(feature = "new-txid"))]
 use crate::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
@@ -60,7 +63,15 @@ impl Encode for NodeJoinRequestTx {
     }
 }
 
+#[cfg(not(feature = "new-txid"))]
 impl TransactionId for NodeJoinRequestTx {}
+
+#[cfg(feature = "new-txid")]
+impl From<NodeJoinRequestTx> for TaggedTransaction {
+    fn from(tx: NodeJoinRequestTx) -> TaggedTransaction {
+        TaggedTransaction::NodeJoinTx(tx)
+    }
+}
 
 impl NodeJoinRequestTx {
     /// constructs a new node join request transaction from the provided components

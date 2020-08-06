@@ -32,7 +32,7 @@ use chain_core::tx::{
         attribute::TxAttributes,
         input::{TxoPointer, TxoSize},
         output::TxOut,
-        txid_hash, Tx, TxId,
+        Tx, TxId,
     },
     witness::{TxInWitness, TxWitness},
     PlainTxAux, TransactionId, TxAux, TxEnclaveAux, TxPublicAux,
@@ -1196,7 +1196,8 @@ fn query_should_return_proof_for_committed_tx() {
         }
         _ => unreachable!(),
     }
-    assert_eq!(proof.ops[1].data, txid_hash(&qresp.value));
+    let witness_hash: [u8; 32] = blake3::hash(&qresp.value).into();
+    assert_eq!(proof.ops[1].data, witness_hash.to_vec());
 }
 
 #[test]

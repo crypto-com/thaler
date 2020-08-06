@@ -1,4 +1,7 @@
 use crate::state::account::{Nonce, StakedStateAddress, StakedStateOpAttributes};
+#[cfg(feature = "new-txid")]
+use crate::tx::TaggedTransaction;
+#[cfg(not(feature = "new-txid"))]
 use crate::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 
@@ -43,7 +46,15 @@ impl Encode for UnjailTx {
     }
 }
 
+#[cfg(not(feature = "new-txid"))]
 impl TransactionId for UnjailTx {}
+
+#[cfg(feature = "new-txid")]
+impl From<UnjailTx> for TaggedTransaction {
+    fn from(tx: UnjailTx) -> TaggedTransaction {
+        TaggedTransaction::UnjailTx(tx)
+    }
+}
 
 impl UnjailTx {
     /// constructs a new unjail transaction from the provided components

@@ -17,7 +17,7 @@ use chain_core::state::account::StakedState;
 use chain_core::state::account::StakedStateOpWitness;
 use chain_core::state::account::WithdrawUnbondedTx;
 use chain_core::tx::data::input::TxoPointer;
-use chain_core::tx::data::{txid_hash, Tx, TxId};
+use chain_core::tx::data::{Tx, TxId};
 use chain_core::tx::witness::TxWitness;
 use chain_core::tx::TxObfuscated;
 use chain_core::tx::{fee::Fee, TxEnclaveAux};
@@ -274,6 +274,13 @@ impl DecryptionRequestBody {
             challenge,
         }
     }
+
+    pub(crate) fn hash(&self) -> H256 {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(b"decryptionrequest");
+        hasher.update(&self.encode());
+        hasher.finalize().into()
+    }
 }
 
 impl Encode for DecryptionRequestBody {
@@ -314,8 +321,7 @@ impl DecryptionRequest {
     ) -> Self {
         let public_key = PublicKey::from_secret_key(&secp, &view_secret_key);
         let body = DecryptionRequestBody::new(txs, public_key, challenge);
-        let body_hash = txid_hash(&body.encode());
-        let message = Message::from_slice(&body_hash[..]).expect("32 bytes");
+        let message = Message::from_slice(&body.hash()[..]).expect("32 bytes");
         let sig = secp.sign(&message, &view_secret_key);
         DecryptionRequest::new(body, sig)
     }
@@ -328,8 +334,7 @@ impl DecryptionRequest {
         if self.body.challenge != challenge {
             return Err(secp256k1::Error::InvalidMessage);
         }
-        let body_hash = txid_hash(&self.body.encode());
-        let message = Message::from_slice(&body_hash[..]).expect("32 bytes");
+        let message = Message::from_slice(&self.body.hash()[..]).expect("32 bytes");
         secp.verify(&message, &self.view_key_sig, &self.body.view_key)
     }
 }

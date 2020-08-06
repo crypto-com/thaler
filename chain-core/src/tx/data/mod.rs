@@ -20,6 +20,9 @@ use serde::{Deserialize, Serialize};
 use crate::common::H256;
 use crate::init::coin::{sum_coins, Coin, CoinError};
 use crate::tx::data::{attribute::TxAttributes, input::TxoPointer, output::TxOut};
+#[cfg(feature = "new-txid")]
+use crate::tx::TaggedTransaction;
+#[cfg(not(feature = "new-txid"))]
 use crate::tx::TransactionId;
 
 /// Each input is 34 bytes
@@ -29,12 +32,6 @@ use crate::tx::TransactionId;
 /// Assuming maximum inputs and outputs allowed are 64 each,
 /// So, maximum transaction size (34 * 64) + (50 * 64) + 2688 = 8064
 const MAX_TX_SIZE: usize = 8100; // 8100 bytes
-
-/// Calculates hash of the input data -- if SCALE-serialized TX is passed in, it's equivalent to TxId.
-/// It uses blake3.
-pub fn txid_hash(buf: &[u8]) -> H256 {
-    blake3::hash(buf).into()
-}
 
 /// Key to identify the used TXID hash function, e.g. in ProofOps.
 pub const TXID_HASH_ID: &[u8; 6] = b"blake3";
@@ -99,7 +96,15 @@ impl fmt::Display for Tx {
     }
 }
 
+#[cfg(not(feature = "new-txid"))]
 impl TransactionId for Tx {}
+
+#[cfg(feature = "new-txid")]
+impl From<Tx> for TaggedTransaction {
+    fn from(tx: Tx) -> TaggedTransaction {
+        TaggedTransaction::Transfer(tx)
+    }
+}
 
 impl Tx {
     /// creates an empty TX

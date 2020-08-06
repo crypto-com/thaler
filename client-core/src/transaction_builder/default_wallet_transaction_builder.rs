@@ -13,7 +13,7 @@ use client_common::{
 use crate::signer::WalletSignerManager;
 use crate::transaction_builder::RawTransferTransactionBuilder;
 use crate::{SelectedUnspentTransactions, UnspentTransactions, WalletTransactionBuilder};
-use chain_core::tx::{data::TxId, TransactionId};
+use chain_core::tx::data::TxId;
 
 /// Default implementation of `TransactionBuilder`
 ///

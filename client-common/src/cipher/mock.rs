@@ -4,7 +4,7 @@ use std::convert::TryInto;
 use crate::tendermint::Client;
 use crate::{PrivateKey, Result, SignedTransaction, Transaction};
 use chain_core::tx::data::TxId;
-use chain_core::tx::{TransactionId, TxAux, TxEnclaveAux, TxWithOutputs};
+use chain_core::tx::{TxAux, TxEnclaveAux, TxWithOutputs};
 use mock_utils::{encrypt, unseal};
 
 use crate::TransactionObfuscation;
@@ -60,7 +60,7 @@ where
     }
 
     fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
-        let payload = encrypt(&transaction.clone().into(), transaction.id());
+        let payload = encrypt(&transaction.clone().into(), transaction.tx_id());
         let enclave_tx = match transaction {
             SignedTransaction::TransferTransaction(tx, _) => TxEnclaveAux::TransferTx {
                 inputs: tx.inputs.clone(),

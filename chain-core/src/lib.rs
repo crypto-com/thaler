@@ -30,15 +30,16 @@ use tx::fee::Fee;
 ///
 /// version 0 -- 0.4.0 release
 /// version 1 -- 0.5.0 release (wire format didn't change, but unbond tx semantics changed: https://github.com/crypto-com/chain/pull/1516)
-/// version 2 -- 0.6.0 (not yet released --> transaction data bootstrapping, new TX types, genesis changes..);
-/// FIXME: bump to 2 with https://github.com/crypto-com/chain/issues/1715#issuecomment-650845116
+#[cfg(not(feature = "new-txid"))]
 pub const APP_VERSION: u64 = 1;
+#[cfg(feature = "new-txid")]
+/// version 2 -- 0.6.0 (not yet released --> transaction data bootstrapping, new TX types, genesis changes, TXID calculation change, app hash calculation change);
+pub const APP_VERSION: u64 = 2;
 
 /// computes the "global" application hash (used by Tendermint to check consistency + block replaying)
-/// currently: app_hash = blake3(root of valid TX merkle tree
+/// currently: app_hash = blake3(b"app_hash" || root of valid TX merkle tree
 /// || root of account/staked state trie || blake3(scale bytes(rewards pool state)) || blake3(scale bytes(network params)))
 /// TODO: cache (as many parts remain static)
-/// MUST/TODO: include node whitelists
 pub fn compute_app_hash(
     valid_tx_id_tree: &MerkleTree<H256>,
     account_state_root: &H256,
@@ -49,6 +50,7 @@ pub fn compute_app_hash(
     let rewards_pool_part = reward_pool.hash();
     let network_params_part = params.hash();
     let mut hasher = blake3::Hasher::new();
+    hasher.update(b"app_hash");
     hasher.update(&valid_tx_part);
     hasher.update(&account_state_root[..]);
     hasher.update(&rewards_pool_part);

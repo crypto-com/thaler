@@ -9,6 +9,7 @@ edition = "2018"
 [features]
 default = ["sha2", "serde", "bech32", "hex", "base64", "secp256k1/serde", "secp256k1/std", "mls", "ra-client"]
 edp = ["secp256k1/lowmemory"]
+new-txid = []
 
 [dependencies]
 mls = { path = "../chain-tx-enclave-next/mls", optional = true }
