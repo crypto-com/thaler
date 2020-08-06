@@ -485,7 +485,7 @@ impl<
                     .env
                     .light_client
                     .verify_to_highest()
-                    .err_kind(ErrorKind::VerifyError, || "")?;
+                    .map_err(|e| Error::new(ErrorKind::VerifyError, format!("{}", e)))?;
 
                 let target_height = light_block.signed_header.header.height.value();
                 let target_app_hash = hex::encode_upper(&light_block.signed_header.header.app_hash);
