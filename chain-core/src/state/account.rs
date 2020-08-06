@@ -499,12 +499,16 @@ pub struct StakedState {
 }
 
 /// the tree used in StakedState storage db has a hardcoded 32-byte keys,
-/// this computes a key as blake3(StakedState.address) where
+/// this computes a key as blake3(0 || StakedState.address) where
 /// the StakedState address itself is ETH-style address (20 bytes from keccak hash of public key)
 pub fn to_stake_key(address: &StakedStateAddress) -> [u8; HASH_SIZE_256] {
-    // TODO: prefix with zero
     match address {
-        StakedStateAddress::BasicRedeem(a) => blake3::hash(a),
+        StakedStateAddress::BasicRedeem(a) => {
+            let mut hasher = blake3::Hasher::new();
+            hasher.update(&[0u8]);
+            hasher.update(a);
+            hasher.finalize()
+        }
     }
     .into()
 }

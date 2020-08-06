@@ -1,6 +1,9 @@
 use crate::state::account::address::StakedStateAddress;
 use crate::state::account::op::data::attribute::StakedStateOpAttributes;
 use crate::tx::data::input::TxoPointer;
+#[cfg(feature = "new-txid")]
+use crate::tx::TaggedTransaction;
+#[cfg(not(feature = "new-txid"))]
 use crate::tx::TransactionId;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use serde::{Deserialize, Serialize};
@@ -59,7 +62,15 @@ impl Encode for DepositBondTx {
     }
 }
 
+#[cfg(not(feature = "new-txid"))]
 impl TransactionId for DepositBondTx {}
+
+#[cfg(feature = "new-txid")]
+impl From<DepositBondTx> for TaggedTransaction {
+    fn from(tx: DepositBondTx) -> TaggedTransaction {
+        TaggedTransaction::Deposit(tx)
+    }
+}
 
 impl DepositBondTx {
     /// create a new tx

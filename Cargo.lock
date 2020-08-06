@@ -551,6 +551,7 @@ dependencies = [
  "aesm-client",
  "base64 0.12.3",
  "bit-vec",
+ "blake3",
  "byteorder",
  "cc",
  "chain-core",
@@ -1412,6 +1413,7 @@ dependencies = [
 name = "enclave-protocol"
 version = "0.6.0"
 dependencies = [
+ "blake3",
  "chain-core",
  "chain-tx-validation",
  "parity-scale-codec",

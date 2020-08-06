@@ -7,7 +7,7 @@ use chain_core::common::{MerkleTree, Proof as MerkleProof, H256, HASH_SIZE_256};
 use chain_core::state::account::StakedStateAddress;
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::state::ChainState;
-use chain_core::tx::data::{txid_hash, TXID_HASH_ID};
+use chain_core::tx::data::TXID_HASH_ID;
 use chain_storage::jellyfish::get_with_proof;
 use chain_storage::LookupItem;
 use parity_scale_codec::{Decode, Encode};
@@ -17,7 +17,8 @@ fn get_witness_proof_op(witness: &[u8]) -> ProofOp {
     let mut op = ProofOp::new();
     op.set_field_type("witness".into());
     op.set_key(TXID_HASH_ID.to_vec());
-    op.set_data(txid_hash(witness).to_vec());
+    let witness_hash: [u8; 32] = blake3::hash(&witness).into();
+    op.set_data(witness_hash.to_vec());
     op
 }
 

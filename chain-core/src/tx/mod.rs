@@ -20,7 +20,7 @@ use crate::state::account::{
 };
 use crate::state::tendermint::BlockHeight;
 use crate::state::validator::NodeJoinRequestTx;
-use crate::tx::data::{txid_hash, TxId};
+use crate::tx::data::TxId;
 use aead::Payload;
 use data::input::{TxoPointer, TxoSize};
 use data::output::TxOut;
@@ -363,7 +363,7 @@ impl Decode for TxEnclaveAux {
 }
 
 impl TxEnclaveAux {
-    /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
+    /// retrieves a TX ID (of plaintxaux if relevant -- blake3(<tx type tag> || scale_codec_bytes(tx)))
     pub fn tx_id(&self) -> TxId {
         match self {
             TxEnclaveAux::TransferTx {
@@ -447,7 +447,7 @@ impl Decode for TxPublicAux {
 }
 
 impl TxPublicAux {
-    /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
+    /// retrieves a TX ID (currently blake3(<tx type tag> || scale_codec_bytes(tx)))
     pub fn tx_id(&self) -> TxId {
         match self {
             TxPublicAux::UnbondStakeTx(tx, _) => tx.id(),
@@ -543,20 +543,69 @@ impl Decode for TxAux {
 /// For the outer type, you can use a custom function (like `tx_id`)
 /// or make sure you override the default implementation to take the identifier
 /// from the transaction data type.
-pub trait TransactionId: Encode {
-    /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
+#[cfg(feature = "new-txid")]
+pub trait TransactionId {
+    /// retrieves a TX ID (currently blake3(<tx type tag> || scale_codec_bytes(tx)))
+    fn id(&self) -> TxId;
+}
+
+#[cfg(feature = "new-txid")]
+impl<T: Into<TaggedTransaction> + Clone> TransactionId for T {
     fn id(&self) -> TxId {
-        txid_hash(&self.encode())
+        let tx: TaggedTransaction = self.clone().into();
+        TaggedTransaction::from(tx).id()
+    }
+}
+
+/// 0.5-compatible version: This trait is for transaction data type to define the "txid"
+/// that's used as a message digest in signing.
+#[cfg(not(feature = "new-txid"))]
+pub trait TransactionId: Encode {
+    /// 0.5-compatible version: retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
+    fn id(&self) -> TxId {
+        blake3::hash(&self.encode()).into()
+    }
+}
+
+/// used for TXID calculation -- contains all possible tx types
+/// NOTE: do not reorder, as the byte tag is used in txid calculation
+#[cfg(feature = "new-txid")]
+#[derive(Encode)]
+pub enum TaggedTransaction {
+    /// transfer transaction
+    Transfer(Tx),
+    /// deposit stake to bonded amount
+    Deposit(DepositBondTx),
+    /// withdraw unbonded amount
+    Withdraw(WithdrawUnbondedTx),
+    /// unbond stake
+    UnbondStakeTx(UnbondTx),
+    /// unjail request
+    UnjailTx(UnjailTx),
+    /// node join request
+    NodeJoinTx(NodeJoinRequestTx),
+    /// removal proposals + commit
+    MLSRemoveCommitProposal(crate::mls::CommitRemoveTx),
+    /// update proposal + commit
+    MLSSelfUpdateProposal(crate::mls::SelfUpdateProposalTx),
+    /// NACK
+    MLSMsgNack(crate::mls::NackMsgTx),
+}
+
+#[cfg(feature = "new-txid")]
+impl TaggedTransaction {
+    fn id(&self) -> TxId {
+        blake3::hash(&self.encode()).into()
     }
 }
 
 impl TxAux {
-    /// retrieves a TX ID (currently blake3(scale_codec_bytes(tx)))
+    /// retrieves a TX ID (currently blake3(<tx type tag> || scale_codec_bytes(tx)))
     pub fn tx_id(&self) -> TxId {
         match self {
             TxAux::EnclaveTx(tx) => tx.tx_id(),
             TxAux::PublicTx(tx) => tx.tx_id(),
-            TxAux::MLSHandshake(tx) => tx.id(),
+            TxAux::MLSHandshake(tx) => tx.tx_id(),
         }
     }
 }

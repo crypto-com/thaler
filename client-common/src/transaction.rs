@@ -103,8 +103,9 @@ impl Transaction {
     }
 }
 
-impl TransactionId for Transaction {
-    fn id(&self) -> TxId {
+impl Transaction {
+    /// transaction id of the encapsulated transaction type
+    pub fn id(&self) -> TxId {
         match self {
             Transaction::TransferTransaction(ref transaction) => transaction.id(),
             Transaction::DepositStakeTransaction(ref transaction) => transaction.id(),
@@ -136,8 +137,9 @@ pub enum SignedTransaction {
     WithdrawUnbondedStakeTransaction(WithdrawUnbondedTx, StakedStateOpWitness),
 }
 
-impl TransactionId for SignedTransaction {
-    fn id(&self) -> TxId {
+impl SignedTransaction {
+    /// transaction ID of the inner types
+    pub fn tx_id(&self) -> TxId {
         match self {
             SignedTransaction::TransferTransaction(ref transaction, _) => transaction.id(),
             SignedTransaction::DepositStakeTransaction(ref transaction, _) => transaction.id(),

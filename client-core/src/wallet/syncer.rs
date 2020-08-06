@@ -35,7 +35,6 @@ use chain_core::state::ChainState;
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
-use chain_core::tx::TransactionId;
 use chain_storage::jellyfish::compute_staking_root;
 use chain_tx_filter::BlockFilter;
 use chain_util::NonEmpty;
@@ -702,6 +701,7 @@ const CRYPTO_GENESIS_FINGERPRINT: &str =
 /// compute the hash of genesis
 pub fn compute_genesis_fingerprint(genesis: &Genesis) -> Result<String> {
     let mut hasher = blake3::Hasher::new();
+    hasher.update(b"genesis_fingerprint");
     hasher.update(genesis.app_hash.as_ref());
     for validator in genesis
         .validators

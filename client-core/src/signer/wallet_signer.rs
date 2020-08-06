@@ -201,7 +201,6 @@ mod wallet_signer_tests {
     use secstr::SecUtf8;
 
     use chain_core::tx::data::Tx;
-    use chain_core::tx::TransactionId;
     use chain_tx_validation::witness::verify_tx_address;
     use client_common::storage::MemoryStorage;
 
