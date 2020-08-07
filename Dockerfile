@@ -13,7 +13,7 @@ RUN set -e; \
     apt-get install -y libzmq3-dev libssl1.1 libprotobuf10 libsgx-launch libsgx-urts libsgx-epid libsgx-quote-ex; \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=tendermint/tendermint:v0.33.4 /usr/bin/tendermint /usr/bin/tendermint
+COPY --from=tendermint/tendermint:v0.33.7 /usr/bin/tendermint /usr/bin/tendermint
 
 FROM baiduxlab/sgx-rust:1804-1.1.2 AS BUILDER_BASE
 LABEL maintainer="blockchain@crypto.com"
@@ -34,17 +34,20 @@ RUN set -e; \
       cmake \
       libgflags-dev \
       libzmq3-dev \
-      pkg-config \
-      clang; \
+      pkg-config xz-utils; \
+    wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc1/clang+llvm-11.0.0-rc1-x86_64-linux-gnu-ubuntu-16.04.tar.xz; \
+    tar -xf clang+llvm-11.0.0-rc1-x86_64-linux-gnu-ubuntu-16.04.tar.xz --strip-components=1 -C /usr/; \
+    update-alternatives --install /usr/bin/cc cc /usr/bin/clang 30; \
+    ln -s /usr/lib/x86_64-linux-gnu/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so; \
     rm -rf /var/lib/apt/lists/*
 
 # fortanix environment
-ENV CFLAGS "-gz=none"
 RUN set -e; \
+    rustup update; \
     rustup target add x86_64-fortanix-unknown-sgx; \
     cargo install fortanix-sgx-tools sgxs-tools cargo-crate-type
 
-COPY --from=tendermint/tendermint:v0.33.4 /usr/bin/tendermint /usr/bin/tendermint
+COPY --from=tendermint/tendermint:v0.33.7 /usr/bin/tendermint /usr/bin/tendermint
 
 FROM BUILDER_BASE AS TEST
 LABEL maintainer="blockchain@crypto.com"
@@ -93,10 +96,6 @@ RUN set -e; \
       client-cli \
       client-rpc \
       dev-utils \
-      tx-validation-app \
-      tx-query-app \
-      tx_query_enclave.signed.so \
-      tx_validation_enclave.signed.so ; \
     do mv "./target/${BUILD_PROFILE}/${bin}" /output; done; \
     cargo clean;
 

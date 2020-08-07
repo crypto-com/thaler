@@ -1,3 +1,4 @@
+
 [package]
 name = "enclave-protocol"
 version = "0.6.0"
@@ -14,5 +15,5 @@ edp = ["chain-core/edp", "parity-scale-codec/std", "secp256k1/lowmemory"]
 chain-core = { path = "../chain-core", default-features = false }
 chain-tx-validation = { path = "../chain-tx-validation", default-features = false }
 parity-scale-codec = { version = "1.3", features = ["derive"] }
-secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "535790e91fac1b3b00c770cb339a06feadc5f48d" }
 blake3 = { version = "0.3.6", default-features = false }
+secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", default-features = false, rev = "984ccbccb48d62f5cb46f6fc1c75a04f34102987" }
