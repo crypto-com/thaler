@@ -36,6 +36,7 @@ impl Server {
                 enable_address_recovery: !options.disable_address_recovery,
                 batch_size: options.batch_size,
                 block_height_ensure: options.block_height_ensure,
+                light_client_peers: options.light_client_peers,
             },
         })
     }

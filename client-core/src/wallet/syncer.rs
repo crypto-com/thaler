@@ -10,6 +10,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
+use tendermint_light_client::peer_list::PeerListBuilder;
 pub use tendermint_light_client::supervisor::Handle;
 use tendermint_light_client::{
     components::{
@@ -22,7 +23,6 @@ use tendermint_light_client::{
     fork_detector::ProdForkDetector,
     light_client::{self, LightClient},
     operations::hasher::{Hasher, ProdHasher},
-    peer_list::PeerList,
     state::State,
     store::{sled::SledStore, LightStore},
     supervisor::{Instance, Supervisor},
@@ -112,6 +112,7 @@ pub struct SyncerOptions {
     pub enable_address_recovery: bool,
     pub batch_size: usize,
     pub block_height_ensure: u64,
+    pub light_client_peers: String,
 }
 
 /// Common configs for wallet syncer with `TransactionObfuscation`
@@ -1045,6 +1046,7 @@ mod tests {
                     enable_address_recovery: false,
                     batch_size: 20,
                     block_height_ensure: 50,
+                    light_client_peers: "".into(),
                 },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
@@ -1168,6 +1170,7 @@ mod tests {
                     enable_address_recovery: false,
                     batch_size: 20,
                     block_height_ensure: 50,
+                    light_client_peers: "".into(),
                 },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
@@ -1221,6 +1224,7 @@ mod tests {
                     enable_address_recovery: true,
                     batch_size: 20,
                     block_height_ensure: 50,
+                    light_client_peers: "".into(),
                 },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
@@ -1281,6 +1285,7 @@ mod tests {
                     enable_address_recovery: true,
                     batch_size: 20,
                     block_height_ensure: 50,
+                    light_client_peers: "".into(),
                 },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
@@ -1337,50 +1342,113 @@ mod tests {
     }
 }
 
+// nodelist_info : example)  "nodeid@ip:port,nodeid@ip:port"
+fn parse_node(nodelist_info: &str) -> Result<Vec<(String, String, u32)>> {
+    let split_nodes = nodelist_info.split(',');
+    let mut all_nodes: Vec<(String, String, u32)> = vec![];
+    for a_node in split_nodes.into_iter() {
+        let split_nodeid: Vec<String> = a_node.split('@').map(|a| a.to_string()).collect();
+        if 2 != split_nodeid.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("invalid nodelist_info nodeid {}", a_node),
+            ));
+        }
+        let nodeid = split_nodeid[0].clone();
+        let ip_port = split_nodeid[1].clone();
+        ip_port.split(':');
+        let split_ip: Vec<String> = ip_port.split(':').map(|a| a.to_string()).collect();
+        if 2 != split_ip.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("invalid nodelist_info ip_port {}", ip_port),
+            ));
+        }
+        let ip = split_ip[0].clone();
+        let port = split_ip[1]
+            .parse::<u32>()
+            .chain(|| (ErrorKind::InvalidInput, "Unable to parse node string"))?;
+        all_nodes.push((nodeid, ip, port));
+    }
+    Ok(all_nodes)
+}
+
 /// [new light client design](https://github.com/informalsystems/tendermint-rs/blob/master/docs/architecture/adr-006-light-client-refactor.md)
 pub fn spawn_light_client_supervisor(
     db_path: &Path,
-    addr: &str,
     trusting_period: Duration,
+    light_client_peers: String,
 ) -> Result<LightClientWrapper<impl Handle + 'static>> {
-    // convert "ws://host:port/websocket" to "tcp://host:port"
-    let addr = format!(
-        "tcp://{}",
-        strip_prefix(addr, "ws://")
-            .and_then(|addr| strip_suffix(addr, "/websocket"))
-            .err_kind(ErrorKind::InvalidInput, || "invalid tendermint rpc address")?
+    if "" == light_client_peers {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "there is no light-client peers.\nspecify at least two peers, use light-client-peers option",
+        ));
+    }
+
+    // tuples (nodeid, ip, port)
+    let mut peers: Vec<(String, String, u32)> = vec![];
+    if let Ok(value) = parse_node(&light_client_peers) {
+        peers = value;
+    }
+    // check redundant peer
+    let mut check_peer_set = std::collections::HashSet::new();
+    for peer in &peers {
+        check_peer_set.insert(peer.0.clone());
+    }
+    if peers.len() != check_peer_set.len() {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            "peerid should be unique\ncheck light-client-peers option",
+        ));
+    }
+
+    log::info!(
+        "light client peers {}",
+        serde_json::to_string_pretty(&peers)
+            .chain(|| (ErrorKind::InvalidInput, "Invalid input"))?
     );
-    let addr = tendermint::net::Address::from_str(&addr).unwrap();
 
-    // FIXME use actual tendermint node id as peer id
-    let primary: PeerId = "BADFADAD0BEFEEDC0C0ADEADBEEFC0FFEEFACADE".parse().unwrap();
-    let witness: PeerId = "CEFEEDBADFADAD0C0CEEFACADE0ADEADBEEFC0FF".parse().unwrap();
-
-    let primary_path = db_path.join(primary.to_string());
-    let witness_path = db_path.join(witness.to_string());
-
-    let primary_instance =
-        make_light_client_instance(primary, addr.clone(), primary_path, trusting_period)?;
-    let witness_instance =
-        make_light_client_instance(witness, addr.clone(), witness_path, trusting_period)?;
-
-    let mut peer_addr = HashMap::new();
-    peer_addr.insert(primary, addr.clone());
-    peer_addr.insert(witness, addr);
-
-    let peer_list = PeerList::builder()
-        .primary(primary, primary_instance)
-        .witness(witness, witness_instance)
-        .build();
+    // address format "tcp://host:port"
+    let mut peerlist_builder = PeerListBuilder::<Instance>::default();
+    // key: nodeid,  data: Address <- ip, port
+    let mut all_peers_map = HashMap::new();
+    //for peer_info in peers
+    for (i, peer_info) in peers.iter().enumerate() {
+        let (nodeid, nodeip, nodeport) = peer_info;
+        let node_peerid: PeerId = nodeid
+            .parse()
+            .map_err(|_| Error::new(ErrorKind::InvalidInput, "Unable to parse node_peerid"))?;
+        let node_db_path = db_path.join(node_peerid.to_string());
+        let node_address =
+            tendermint::net::Address::from_str(&format!("tcp://{}:{}", nodeip, nodeport))
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Unable to parse node_address"))?;
+        log::debug!("node instance {:?} {:?}", node_peerid, node_address);
+        let node_instance = make_light_client_instance(
+            node_peerid,
+            node_address.clone(),
+            node_db_path,
+            trusting_period,
+        )?;
+        all_peers_map.insert(node_peerid, node_address.clone());
+        if 0 == i {
+            peerlist_builder = peerlist_builder.primary(node_peerid, node_instance);
+        } else {
+            peerlist_builder = peerlist_builder.witness(node_peerid, node_instance);
+        }
+    }
+    // get peer_list
+    let all_peers_list = peerlist_builder.build();
     let mut supervisor = Supervisor::new(
-        peer_list,
+        all_peers_list,
         ProdForkDetector::default(),
-        ProdEvidenceReporter::new(peer_addr),
+        ProdEvidenceReporter::new(all_peers_map),
     );
-    let handle = supervisor.handle();
+    // handle is supervisor light client implementation
+    let light_client_core_handle = supervisor.handle();
     std::thread::spawn(|| supervisor.run());
     Ok(LightClientWrapper {
-        inner: Arc::new(handle),
+        inner: Arc::new(light_client_core_handle),
     })
 }
 
@@ -1425,20 +1493,28 @@ impl<L: Handle> Handle for LightClientWrapper<L> {
     }
 }
 
-/// FIXME change to str::strip_prefix after toolchain upgraded.
-fn strip_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
-    if s.len() >= prefix.len() && &s[0..prefix.len()] == prefix {
-        Some(&s[prefix.len()..])
-    } else {
-        None
-    }
-}
+#[cfg(test)]
+mod test_syncer {
+    use super::*;
 
-/// FIXME change to str::strip_suffix after toolchain upgraded.
-fn strip_suffix<'a>(s: &'a str, suffix: &str) -> Option<&'a str> {
-    if s.len() >= suffix.len() && &s[s.len() - suffix.len()..s.len()] == suffix {
-        Some(&s[0..s.len() - suffix.len()])
-    } else {
-        None
+    #[test]
+    fn check_parse_node() {
+        let a=parse_node("1ADFADAD0BEFEEDC0C0ADEADBEEFC0FFEEFACADE@1.2.3.4:1000,2ADFADAD0BEFEEDC0C0ADEADBEEFC0FFEEFACADF@5.6.7.8:2000").unwrap();
+        assert!(2 == a.len());
+        let (id, ip, port) = &a[0];
+        assert!("1ADFADAD0BEFEEDC0C0ADEADBEEFC0FFEEFACADE" == id);
+        assert!("1.2.3.4" == ip);
+        assert!(1000 == *port);
+        let (id, ip, port) = &a[1];
+        assert!("2ADFADAD0BEFEEDC0C0ADEADBEEFC0FFEEFACADF" == id);
+        assert!("5.6.7.8" == ip);
+        assert!(2000 == *port);
+        println!("{:?}", a);
+    }
+
+    #[test]
+    fn check_parse_node_blank() {
+        let a = parse_node("");
+        assert!(a.is_err());
     }
 }

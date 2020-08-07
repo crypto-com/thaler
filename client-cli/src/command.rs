@@ -214,6 +214,16 @@ pub enum Command {
             help = "Disable light client, which is not secure when connecting to outside nodes"
         )]
         disable_light_client: bool,
+
+        #[structopt(
+            name = "light client peer",
+            short = "l",
+            long = "light-client-peers",
+            default_value = "",
+            help = "Light client peers"
+        )]
+        light_client_peers: String,
+
         #[structopt(
             name = "disable-address-recovery",
             long,
@@ -391,6 +401,7 @@ impl Command {
                 disable_light_client,
                 disable_address_recovery,
                 block_height_ensure,
+                light_client_peers,
             } => {
                 let enckey = ask_seckey(None)?;
                 let rpc_url = tendermint_url();
@@ -401,8 +412,8 @@ impl Command {
                 let storage = SledStorage::new(&db_path)?;
                 let handle = spawn_light_client_supervisor(
                     db_path.as_ref(),
-                    &rpc_url,
                     tendermint_client.genesis()?.trusting_period(),
+                    light_client_peers.into(),
                 )?;
                 let config = ObfuscationSyncerConfig::new(
                     storage.clone(),
@@ -414,6 +425,7 @@ impl Command {
                         enable_address_recovery: !*disable_address_recovery,
                         batch_size: *batch_size,
                         block_height_ensure: *block_height_ensure,
+                        light_client_peers: light_client_peers.clone(),
                     },
                     handle.clone(),
                 );
