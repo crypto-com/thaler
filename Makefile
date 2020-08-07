@@ -71,7 +71,6 @@ ifeq ($(chain), devnet)
 	CHAIN_ID   = test-chain-y3m1e6-AB
 	NETWORK_ID = AB
 	SGX_MODE   = $(sgx_mode)
-	CRYPTO_GENESIS_FINGERPRINT = 90AD273828E66F9E226A7848A85930A586DF72953525C55E693232C066FA5D0D
 else ifeq ($(chain), testnet)
 	CHAIN_ID   = testnet-thaler-crypto-com-chain-42
 	NETWORK_ID = 42
@@ -88,7 +87,7 @@ endif
 
 IMAGE                  = crypto-chain
 IMAGE_RUST             = cryptocom/chain
-IMAGE_TENDERMINT       = tendermint/tendermint:v0.33.4
+IMAGE_TENDERMINT       = tendermint/tendermint:v0.33.7
 DOCKER_FILE            = docker/Dockerfile
 DOCKER_FILE_RELEASE    = docker/Dockerfile.release
 ITEMS_START            = sgx-query-next chain-abci tendermint client-rpc
@@ -312,7 +311,7 @@ run-tendermint:
 	--rpc.laddr=tcp://0.0.0.0:26657 \
 	--consensus.create_empty_blocks=true
 
-run-client-rpc:
+run-client-rpc: set-genesis-fingerprint
 	@echo "\033[32mrun docker client-rpc\033[0m"; \
 	docker run -d \
 	--net $(NETWORK) \
@@ -329,7 +328,12 @@ run-client-rpc:
 	--storage-dir=/crypto-chain/wallet \
 	--disable-light-client \
 	--websocket-url=ws://$(prefix)tendermint:26657/websocket
-	
+
+set-genesis-fingerprint:
+ifeq ($(chain), devnet)
+	$(eval CRYPTO_GENESIS_FINGERPRINT=$(shell ./target/$(build_mode)/dev-utils genesis fingerprint -t ./docker/config/devnet/tendermint/genesis.json))
+endif
+	@echo "CRYPTO_GENESIS_FINGERPRINT = \033[32m$(CRYPTO_GENESIS_FINGERPRINT)\033[0m";
 
 .PHONY: sgx-query-next chain-abci tendermint client-rpc
 
