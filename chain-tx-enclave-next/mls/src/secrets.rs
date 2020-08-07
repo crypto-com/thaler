@@ -1,5 +1,6 @@
 use crate::ciphersuite::HkdfExt;
 use hkdf::{Hkdf, InvalidPrkLength};
+use rand::{thread_rng, RngCore};
 use secrecy::{ExposeSecret, SecretVec};
 use sha2::digest::{generic_array, BlockInput, FixedOutput, Reset, Update};
 
@@ -17,8 +18,14 @@ impl<D: BlockInput + FixedOutput + Reset + Update + Default + Clone> EpochSecret
 
     pub fn new(group_context: &[u8]) -> Result<Self, hkdf::InvalidLength> {
         use generic_array::typenum::Unsigned;
+
+        // * Init secret: a fresh random value of size `KDF.Nh`
+        let mut init_secret = vec![0u8; D::OutputSize::to_usize()];
+        thread_rng().fill_bytes(&mut init_secret);
+        let init_secret = SecretVec::new(init_secret);
+
         let init_commit_secret = SecretVec::new(vec![0u8; D::OutputSize::to_usize()]);
-        Self::generate(&init_commit_secret, &init_commit_secret, group_context)
+        Self::generate(&init_secret, &init_commit_secret, group_context)
     }
 
     /// A number of secrets are derived from the epoch secret for different purposes

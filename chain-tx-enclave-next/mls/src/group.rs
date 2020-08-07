@@ -218,28 +218,25 @@ impl GroupAux {
         confirmation: Vec<u8>,
         interim_transcript_hash: Vec<u8>,
         positions: Vec<(LeafSize, KeyPackage)>,
-        tree_secret: Option<TreeSecret>,
+        tree_secret: &TreeSecret,
     ) -> Result<Welcome, CommitError> {
         let mut secrets = Vec::with_capacity(positions.len());
         for (position, key_package) in positions.iter() {
-            let path_secret = if let Some(tree_secret) = &tree_secret {
-                let overlap = ParentSize::common_ancestor(self.my_pos, *position)
-                    .ok_or(CommitError::CommitSelfAdd)?;
-                let direct_path = NodeSize::from(self.my_pos).direct_path(updated_tree.leaf_len());
-                let overlap_pos = direct_path
-                    .iter()
-                    .position(|&p| p == overlap)
-                    .expect("impossible, overlap must in the direct path of my_pos");
-                Some(PathSecret {
-                    path_secret: SecretVec::new(
-                        tree_secret.path_secrets[overlap_pos]
-                            .expose_secret()
-                            .to_vec(),
-                    ),
-                })
-            } else {
-                None
-            };
+            let overlap = ParentSize::common_ancestor(self.my_pos, *position)
+                .ok_or(CommitError::CommitSelfAdd)?;
+            let direct_path = NodeSize::from(self.my_pos).direct_path(updated_tree.leaf_len());
+            let overlap_pos = direct_path
+                .iter()
+                .position(|&p| p == overlap)
+                .expect("impossible, overlap must in the direct path of my_pos");
+            // FIXME it's only correct when new empty nodes are extension of old direct_path.
+            // https://github.com/crypto-com/chain/issues/2087
+            let path_secret = tree_secret
+                .path_secrets
+                .get(overlap_pos)
+                .map(|secret| PathSecret {
+                    path_secret: SecretVec::new(secret.expose_secret().to_vec()),
+                });
             let group_secret = GroupSecret {
                 joiner_secret: SecretVec::new(
                     updated_secrets.joiner_secret.0.expose_secret().to_vec(),
@@ -294,7 +291,6 @@ impl GroupAux {
     fn do_commit_proposals(
         &self,
         proposals: &[MLSPlaintext],
-        init_genesis: bool,
     ) -> Result<(MLSPlaintext, Welcome, Option<HPKEPrivateKey>), CommitError> {
         // split proposals by types
         let mut add_proposals_ids: Vec<ProposalId> = Vec::new();
@@ -339,7 +335,7 @@ impl GroupAux {
 
         // pathRequired = isGenesisInit || haveUpdateOrRemove || haveNoProposalsAtAll
         let should_populate_path =
-            init_genesis || proposals.is_empty() || !updates.is_empty() || !removes.is_empty();
+            proposals.is_empty() || !updates.is_empty() || !removes.is_empty();
 
         let (path, tree_secret, init_private_key) = if should_populate_path {
             // new init key
@@ -388,10 +384,15 @@ impl GroupAux {
             confirmed_transcript_hash,
             ..self.context.clone()
         };
+
+        // If not populating the `path` field: ... Define `commit_secret` as the all-zero vector of the same
+        // length as a `path_secret` value would be.
+        let empty_commit_secret = SecretVec::new(vec![0; self.tree.cs.secret_size() as usize]);
         let commit_secret = tree_secret
             .as_ref()
             .map(|secret| &secret.update_secret)
-            .unwrap_or_else(|| &self.tree_secret.update_secret);
+            .unwrap_or(&empty_commit_secret);
+
         let epoch_secrets = EpochSecrets::generate(
             &self.secrets.init_secret,
             commit_secret,
@@ -426,7 +427,7 @@ impl GroupAux {
                 confirmation,
                 interim_transcript_hash,
                 positions,
-                tree_secret,
+                tree_secret.as_ref().unwrap_or(&self.tree_secret),
             )?,
             init_private_key,
         ))
@@ -437,7 +438,7 @@ impl GroupAux {
         &mut self,
         proposals: &[MLSPlaintext],
     ) -> Result<(MLSPlaintext, Welcome), CommitError> {
-        let (msg, welcome, init_private_key) = self.do_commit_proposals(proposals, false)?;
+        let (msg, welcome, init_private_key) = self.do_commit_proposals(proposals)?;
         if let Some(init_private_key) = init_private_key {
             self.pending_commit.insert(
                 ProposalId(self.tree.cs.hash(&msg.get_encoding())),
@@ -445,22 +446,6 @@ impl GroupAux {
             );
         }
         Ok((msg, welcome))
-    }
-
-    /// commit the proposals in genesis
-    ///
-    /// panic if proposals are invalid
-    pub fn init_commit(&mut self, proposals: &[MLSPlaintext]) -> (MLSPlaintext, Welcome) {
-        let (msg, welcome, init_private_key) = self
-            .do_commit_proposals(proposals, true)
-            .expect("genesis proposals should be valid");
-        if let Some(init_private_key) = init_private_key {
-            self.pending_commit.insert(
-                ProposalId(self.tree.cs.hash(&msg.get_encoding())),
-                init_private_key,
-            );
-        }
-        (msg, welcome)
     }
 
     fn verify_msg_signature(
@@ -606,10 +591,11 @@ impl GroupAux {
 
         // "Use the commit_secret, the provisional GroupContext,
         // and the init secret from the previous epoch to compute the epoch secret and derived secrets for the new epoch."
+        let empty_commit_secret = SecretVec::new(vec![0; tree.cs.secret_size() as usize]);
         let commit_secret = tree_diff
             .as_ref()
             .map(|diff| &diff.update_secret)
-            .unwrap_or_else(|| &self.tree_secret.update_secret);
+            .unwrap_or(&empty_commit_secret);
         let epoch_secrets = EpochSecrets::generate(
             &self.secrets.init_secret,
             commit_secret,
@@ -678,13 +664,14 @@ impl GroupAux {
             Err(InitGroupError::DuplicateKeyPackage)
         } else {
             creator_kp.verify(ra_verifier, genesis_time)?;
-            let (context, tree) = GroupContext::init(creator_kp);
+            let tree = TreePublicKey::init(creator_kp);
+            let context = GroupContext::new(&tree);
             let mut group = GroupAux::new(context, tree, LeafSize(0), secret)?;
             let add_proposals: Vec<MLSPlaintext> = kps
                 .into_iter()
                 .map(|kp| group.get_signed_add(kp))
                 .collect::<Result<_, _>>()?;
-            let (commit, welcome) = group.init_commit(&add_proposals);
+            let (commit, welcome) = group.commit_proposals(&add_proposals)?;
             Ok((group, add_proposals, commit, welcome))
         }
     }
@@ -886,19 +873,18 @@ impl Codec for GroupContext {
 }
 
 impl GroupContext {
-    pub fn init(creator_kp: KeyPackage) -> (Self, TreePublicKey) {
-        let extensions = creator_kp.payload.extensions.clone();
-        let tree = TreePublicKey::init(creator_kp);
-        (
-            GroupContext {
-                group_id: TDBE_GROUP_ID.to_vec(),
-                epoch: 0,
-                tree_hash: tree.compute_tree_hash(),
-                confirmed_transcript_hash: vec![],
-                extensions,
-            },
-            tree,
-        )
+    pub fn new(tree: &TreePublicKey) -> Self {
+        let kp = tree
+            .get_package(LeafSize(0))
+            .expect("init tree has first leaf node");
+        let extensions = kp.payload.extensions.clone();
+        Self {
+            group_id: TDBE_GROUP_ID.to_vec(),
+            epoch: 0,
+            tree_hash: tree.compute_tree_hash(),
+            confirmed_transcript_hash: vec![],
+            extensions,
+        }
     }
 }
 
@@ -1071,6 +1057,8 @@ pub enum InitGroupError {
     SignatureCryptographicError(#[from] ring::error::Unspecified),
     #[error("invalid secret length: {0}")]
     InvalidSecretLength(#[from] hkdf::InvalidLength),
+    #[error("commit failed: {0}")]
+    CommitError(#[from] CommitError),
 }
 
 #[cfg(test)]
@@ -1084,7 +1072,6 @@ pub mod test {
         KeyPackage, KeyPackagePayload, DEFAULT_CAPABILITIES_EXT,
         MLS10_128_DHKEMP256_AES128GCM_SHA256_P256, PROTOCOL_VERSION_MLS10,
     };
-    use crate::tree_math::ParentSize;
     use chrono::{DateTime, Utc};
     use ra_client::{
         AttestedCertVerifier, CertVerifyResult, EnclaveCertVerifierError, ENCLAVE_CERT_VERIFIER,
@@ -1154,7 +1141,8 @@ pub mod test {
     fn test_sign_verify_add() {
         let (creator_kp, creator_secret) = get_fake_keypackage();
         let (to_be_added, _) = get_fake_keypackage();
-        let (context, tree) = GroupContext::init(creator_kp);
+        let tree = TreePublicKey::new(creator_kp);
+        let context = GroupContext::new(&tree);
         let group_aux = GroupAux::new(context, tree, LeafSize(0), creator_secret).unwrap();
         let plain = group_aux.get_signed_add(to_be_added).unwrap();
         assert!(plain
@@ -1397,23 +1385,13 @@ pub mod test {
             .process_commit(commit.clone(), &[], &ra_verifier, 0)
             .expect("commit ok");
 
-        let old_parent_node = member2_group
-            .tree
-            .get_parent_node(ParentSize(0))
-            .unwrap()
-            .clone();
+        // check after unsuccessful process commit, the state is not changed.
+        let old_tree_hash = member2_group.tree.compute_tree_hash();
         // decryption error
         assert!(matches!(
             member2_group.process_commit(commit, &[], &ra_verifier, 0),
             Err(CommitError::HpkeError(hpke::HpkeError::InvalidTag))
         ));
-        assert_eq!(
-            old_parent_node.get_encoding(),
-            member2_group
-                .tree
-                .get_parent_node(ParentSize(0))
-                .unwrap()
-                .get_encoding()
-        );
+        assert_eq!(old_tree_hash, member2_group.tree.compute_tree_hash());
     }
 }
