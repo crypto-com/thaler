@@ -279,8 +279,10 @@ class Wallet():
             enable_fast_forward=True,
             batch_size=20,
             block_height_ensure=50,
+            light_client_peers="0000000000000000000000000000000000000000@127.0.0.1:26657,1000000000000000000000000000000000000000@127.0.0.1:26657"
     ):
-        cmd = ["client-cli", "sync", "-n", self.name, "--batch-size", str(batch_size), "--block-height-ensure", str(block_height_ensure)]
+        cmd = ["client-cli", "sync", "-n", self.name, "--batch-size", str(batch_size), "--block-height-ensure", str(block_height_ensure),
+        "--light-client-peers", light_client_peers]
         if force:
             cmd.append("--force")
         if disable_address_recovery:

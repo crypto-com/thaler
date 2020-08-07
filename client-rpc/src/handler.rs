@@ -67,8 +67,8 @@ impl RpcHandler {
         )?;
         let handle = spawn_light_client_supervisor(
             storage_dir.as_ref(),
-            websocket_url,
             tendermint_client.genesis()?.trusting_period(),
+            sync_options.light_client_peers.clone(),
         )?;
         let syncer_config = AppSyncerConfig::new(
             storage.clone(),
