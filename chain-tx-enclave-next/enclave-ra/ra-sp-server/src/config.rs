@@ -1,7 +1,8 @@
+use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 
 /// Configuration required by SP for remote attestation
-#[derive(Debug, StructOpt)]
+#[derive(Debug, StructOpt, Serialize, Deserialize)]
 pub struct SpRaConfig {
     /// TCP address of SP server
     #[structopt(

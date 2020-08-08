@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+///! FIXME: dead_code should disappear once this is started up in chain-abci / enclave
+///! (pass SPID/ias_key to the enclave on the launch, but fixed URLs are at compile-time)
 use reqwest::blocking::Client;
 use reqwest::header::HeaderMap;
 use thiserror::Error;

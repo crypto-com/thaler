@@ -2,7 +2,7 @@
 name = "chain-abci"
 version = "0.6.0"
 authors = ["Crypto.com <chain@crypto.com>"]
-description = "Pre-alpha version prototype of Crypto.com Chain node (Tendermint ABCI application)"
+description = "Crypto.com Chain node (Tendermint ABCI application)"
 readme = "README.md"
 edition = "2018"
 
@@ -21,6 +21,7 @@ enclave-protocol = { path = "../enclave-protocol" }
 mock-utils = { path = "../chain-tx-enclave/mock-utils" }
 mls = { path = "../chain-tx-enclave-next/mls" }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
+ra-sp-server = { path = "../chain-tx-enclave-next/enclave-ra/ra-sp-server" }
 blake3 = { version = "0.3.6", default-features = false }
 
 log = "0.4.11"

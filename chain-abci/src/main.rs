@@ -1,8 +1,3 @@
-use log::info;
-use std::fs::File;
-use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
-
 use chain_abci::app::{sanity_check_enabled, ChainNodeApp};
 #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
 use chain_abci::enclave_bridge::edp::{launch_tx_validation, TxValidationApp};
@@ -10,19 +5,27 @@ use chain_abci::enclave_bridge::edp::{launch_tx_validation, TxValidationApp};
 use chain_abci::enclave_bridge::mock::MockClient;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_storage::{Storage, StorageConfig, StorageType};
-use log::warn;
-use serde::Deserialize;
+use log::{error, info, warn};
+use ra_sp_server::config::SpRaConfig;
+use serde::{Deserialize, Serialize};
+use std::env::var;
+use std::fs::{create_dir_all, write, File};
 use std::io::BufReader;
+use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
-#[derive(Deserialize, Debug)]
+/// TODO: should this also set the tx-query enclave file path
+/// or just assume (as with tx-validation), its SGXS/SIG are in the same directory
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     port: u16,
     host: String,
-    genesis_app_hash: Option<String>,
-    chain_id: Option<String>,
+    genesis_app_hash: String,
+    chain_id: String,
     enclave_server: Option<String>,
     tx_query: Option<String>,
+    remote_attestation: SpRaConfig,
 }
 
 impl Default for Config {
@@ -30,10 +33,26 @@ impl Default for Config {
         Self {
             port: 26658,
             host: "127.0.0.1".into(),
-            genesis_app_hash: None,
-            chain_id: None,
+            genesis_app_hash: "54F4F05167492B83F0135AA55D27308C43AEA36E3FE91F4AD21028728207D70F"
+                .into(),
+            chain_id: "testnet-thaler-crypto-com-chain-42".into(),
             enclave_server: None,
             tx_query: None,
+            remote_attestation: SpRaConfig {
+                // TODO: this is probably not necessary if chain-abci is the launcher
+                // (it can just open some local unix domain socket and provide it via usercall extension)
+                address: "0.0.0.0:8989".into(),
+                ias_key: var("IAS_KEY").unwrap_or_else(|_| "".into()),
+                spid: var("SPID").unwrap_or_else(|_| "".into()),
+                // TODO: should this be fixed "Unlinkable"?
+                quote_type: "Unlinkable".into(),
+                // TODO: should this be compile-time? also the enclave should verify
+                ias_base_uri: "https://api.trustedservices.intel.com/sgx/dev".into(),
+                // TODO: compile-time? only needed to change with version upgrades
+                ias_sig_rl_path: "/attestation/v4/sigrl/".into(),
+                // TODO: compile-time? only needed to change with version upgrades
+                ias_report_path: "/attestation/v4/report".into(),
+            },
         }
     }
 }
@@ -52,11 +71,11 @@ impl Config {
         if opt.port.is_some() {
             self.port = opt.port.unwrap();
         }
-        if opt.genesis_app_hash.is_some() {
-            self.genesis_app_hash = opt.genesis_app_hash.clone();
+        if let Some(gah) = opt.genesis_app_hash.as_ref() {
+            self.genesis_app_hash = gah.clone();
         }
-        if opt.chain_id.is_some() {
-            self.chain_id = opt.chain_id.clone();
+        if let Some(cid) = opt.chain_id.as_ref() {
+            self.chain_id = cid.clone();
         }
         if opt.enclave_server.is_some() {
             self.enclave_server = opt.enclave_server.clone();
@@ -67,27 +86,53 @@ impl Config {
     }
     pub fn is_valid(&self) -> bool {
         let mut valid = true;
-        if self.genesis_app_hash.is_none() {
-            log::error!("genesis_app_hash should be set");
+        if self.genesis_app_hash.is_empty() {
+            error!("genesis_app_hash should be set");
             valid = false
         }
-        if self.chain_id.is_none() {
-            log::error!("chain_id should be set");
+        if self.chain_id.is_empty() {
+            error!("chain_id should be set");
             valid = false
         }
         if self.enclave_server.is_none() {
-            log::error!("enclave_server should be set");
+            error!("enclave_server should be set");
             valid = false
         }
         valid
     }
 }
 
+/// Enum used to specify top-level chain-abci commands
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "chain-abci",
-    about = " Pre-alpha version prototype of Crypto.com Chain node (Tendermint ABCI application)."
+    about = "Crypto.com Chain node (Tendermint ABCI application)."
 )]
+pub enum AbciApp {
+    /// Run chain-abci
+    #[structopt(name = "run", about = "start up the chain-abci process")]
+    Run {
+        #[structopt(flatten)]
+        run_command: AbciOpt,
+    },
+
+    /// Used for initializing the configuration file
+    #[structopt(
+        name = "init",
+        about = "Initialize the configuration file in the data directory"
+    )]
+    Init {
+        #[structopt(
+            short = "d",
+            long = "data",
+            default_value = ".cro-storage/",
+            help = "Sets a data storage directory"
+        )]
+        data: String,
+    },
+}
+
+#[derive(Debug, StructOpt)]
 pub struct AbciOpt {
     #[structopt(
         short = "d",
@@ -96,8 +141,6 @@ pub struct AbciOpt {
         help = "Sets a data storage directory"
     )]
     data: String,
-    #[structopt(long = "config", help = "Sets a config file path")]
-    config: Option<PathBuf>,
     #[structopt(short = "p", long = "port", help = "Sets a port to listen on")]
     port: Option<u16>,
     #[structopt(short = "h", long = "host", help = "Sets the ip address to listen on")]
@@ -141,54 +184,71 @@ fn get_enclave_proxy() -> MockClient {
     MockClient::new(get_network_id())
 }
 
-#[cfg(feature = "sgx-test")]
-fn main() {
-    // Teaclave SGX SDK doesn't work with Rust unit testing facility
-    chain_abci::enclave_bridge::real::test::test_sealing();
-}
-
-#[cfg(not(feature = "sgx-test"))]
 fn main() {
     env_logger::init();
-    let opt = AbciOpt::from_args();
-    // if the config file not set, we use DATA_PATH/config.yaml as default
-    let mut default_config_file = PathBuf::from(&opt.data);
-    default_config_file.push("config.yaml");
-    let config_file = opt.config.clone().unwrap_or(default_config_file);
-    let mut config = if config_file.exists() {
-        Config::from_file(config_file.as_path())
-    } else {
-        Config::default()
-    };
-    config.update(&opt);
-    if !config.is_valid() {
-        return;
-    }
+    let app_command = AbciApp::from_args();
+    match app_command {
+        AbciApp::Init { data } => {
+            let mut config_file = PathBuf::from(&data);
+            config_file.push("config.yaml");
+            if config_file.exists() {
+                warn!("{} already exists", config_file.display());
+            } else {
+                let config = Config::default();
+                let config_payload =
+                    serde_yaml::to_string(&config).expect("failed to serialize config");
+                info!("writing {}", &config_file.display());
+                if create_dir_all(data).is_err() {
+                    warn!("failed to create data directory");
+                }
+                if write(config_file, config_payload).is_err() {
+                    error!("failed to write configuration");
+                } else {
+                    info!("please adjust the configuration as needed");
+                }
+            };
+        }
+        AbciApp::Run { run_command } => {
+            let opt = run_command;
+            // use DATA_PATH/config.yaml as default
+            let mut config_file = PathBuf::from(&opt.data);
+            config_file.push("config.yaml");
+            let mut config = if config_file.exists() {
+                Config::from_file(config_file.as_path())
+            } else {
+                Config::default()
+            };
+            config.update(&opt);
+            if !config.is_valid() {
+                return;
+            }
 
-    init_chain_id(&config.chain_id.clone().unwrap());
-    info!(
-        "network={:?} network_id={:X}",
-        get_network(),
-        get_network_id()
-    );
-    let tx_validator = get_enclave_proxy();
-    if sanity_check_enabled() {
-        warn!("Enabled sanity checks");
-    }
+            init_chain_id(&config.chain_id);
+            info!(
+                "network={:?} network_id={:X}",
+                get_network(),
+                get_network_id()
+            );
+            let tx_validator = get_enclave_proxy();
+            if sanity_check_enabled() {
+                warn!("Enabled sanity checks");
+            }
 
-    let host = config.host.parse().expect("invalid host");
-    let addr = SocketAddr::new(host, config.port);
-    let storage = Storage::new(&StorageConfig::new(&opt.data, StorageType::Node));
-    info!("starting up");
-    abci::run(
-        addr,
-        ChainNodeApp::new_with_storage(
-            tx_validator,
-            &config.genesis_app_hash.unwrap(),
-            &config.chain_id.unwrap(),
-            storage,
-            config.tx_query,
-            config.enclave_server,
-        ),
-    );
+            let host = config.host.parse().expect("invalid host");
+            let addr = SocketAddr::new(host, config.port);
+            let storage = Storage::new(&StorageConfig::new(&opt.data, StorageType::Node));
+            info!("starting up");
+            abci::run(
+                addr,
+                ChainNodeApp::new_with_storage(
+                    tx_validator,
+                    &config.genesis_app_hash,
+                    &config.chain_id,
+                    storage,
+                    config.tx_query,
+                    config.enclave_server,
+                ),
+            );
+        }
+    }
 }

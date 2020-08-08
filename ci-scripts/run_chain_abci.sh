@@ -23,7 +23,7 @@ PID=$!
 trap 'kill -TERM $PID' TERM INT EXIT
 
 echo "[Config] start chain abci on port 26658"
-chain-abci \
+chain-abci run \
     --chain_id ${CHAIN_ID} \
     --data /crypto-chain/chain-storage \
     --enclave_server ${TX_VALIDATION_CONN} \

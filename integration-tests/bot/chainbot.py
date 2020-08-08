@@ -259,7 +259,7 @@ def programs(node, app_hash, root_path, cfg):
                 ('tdbe-2', f"tdb-app-runner --enclave-path 'tdb-enclave-app.sgxs' --address 127.0.0.1:{tdbe_2_port} --zmq-conn-str tcp://127.0.0.1:{tx_validation_port} --sp-address 127.0.0.1:8989 --tdbe-address 127.0.0.1:{tdbe_1_port} --tdbe-dns-name localhost --txids 37d7eaa7987ab1d6c9d7d4ed4398cb3f326b02d35e2f8e9d8d824fa676fa3ce5", dict(def_env)),
         ]
     commands += [
-        ('chain-abci', f"chain-abci -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{tx_validation_port} --data {node_path / Path('chain')} -p {chain_abci_port} --tx_query 127.0.0.1:{tx_query_port}",
+        ('chain-abci', f"chain-abci run -g {app_hash} -c {cfg['chain_id']} --enclave_server tcp://127.0.0.1:{tx_validation_port} --data {node_path / Path('chain')} -p {chain_abci_port} --tx_query 127.0.0.1:{tx_query_port}",
          def_env),
         ('tendermint', f"tendermint node --home={node_path / Path('tendermint')} --proxy_app=127.0.0.1:{chain_abci_port} --rpc.laddr=tcp://0.0.0.0:{tendermint_rpc_port}",
          def_env),
