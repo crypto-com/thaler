@@ -182,7 +182,7 @@ endif
 
 # build the chain binary in docker
 build-chain:
-	@if [ -e "./target/${BUILD_MODE}/client-cli" ] && [ -e "./target/${BUILD_MODE}/chain-abci" ] && [ -e "./target/${BUILD_MODE}/client-rpc" ] && [ -e "./target/${BUILD_MODE}/dev-utils" ]; then \
+	@if [ -e "./target/$(build_mode)/client-cli" ] && [ -e "./target/$(build_mode)/chain-abci" ] && [ -e "./target/$(build_mode)/client-rpc" ] && [ -e "./target/$(build_mode)/dev-utils" ]; then \
 		echo "\033[32mbinary already exist or delete binary to force new build for chain\033[0m"; \
 	else \
 		echo "\033[32mbuilding binary\033[0m"; \
@@ -327,10 +327,15 @@ run-client-rpc: set-genesis-fingerprint
 	--chain-id=$(CHAIN_ID) \
 	--storage-dir=/crypto-chain/wallet \
 	--disable-light-client \
+	--light-client-peers 0000000000000000000000000000000000000000@$(prefix)tendermint:26657,1000000000000000000000000000000000000000@$(prefix)tendermint:26657 \
 	--websocket-url=ws://$(prefix)tendermint:26657/websocket
 
 set-genesis-fingerprint:
 ifeq ($(chain), devnet)
+	@if [ $$(dpkg-query -W -f='$${Status}' libzmq3-dev 2>/dev/null | grep -c "ok installed") -eq 0 ]; \
+	then \
+		sudo apt install libzmq3-dev -y; \
+	fi; 
 	$(eval CRYPTO_GENESIS_FINGERPRINT=$(shell ./target/$(build_mode)/dev-utils genesis fingerprint -t ./docker/config/devnet/tendermint/genesis.json))
 endif
 	@echo "CRYPTO_GENESIS_FINGERPRINT = \033[32m$(CRYPTO_GENESIS_FINGERPRINT)\033[0m";
