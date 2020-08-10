@@ -1,6 +1,8 @@
 use chain_abci::app::{sanity_check_enabled, ChainNodeApp};
 #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
-use chain_abci::enclave_bridge::edp::{launch_tx_validation, TxValidationApp};
+use chain_abci::enclave_bridge::edp::{
+    launch_tx_validation, temp_start_up_ra_tx_query, TempTxQueryOptions, TxValidationApp,
+};
 #[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 use chain_abci::enclave_bridge::mock::MockClient;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
@@ -25,6 +27,7 @@ pub struct Config {
     chain_id: String,
     enclave_server: Option<String>,
     tx_query: Option<String>,
+    launch_ra_proxy: bool,
     remote_attestation: SpRaConfig,
 }
 
@@ -38,10 +41,12 @@ impl Default for Config {
             chain_id: "testnet-thaler-crypto-com-chain-42".into(),
             enclave_server: None,
             tx_query: None,
+            // in multi-node integration tests, the proxy is shared among nodes
+            launch_ra_proxy: false,
             remote_attestation: SpRaConfig {
                 // TODO: this is probably not necessary if chain-abci is the launcher
                 // (it can just open some local unix domain socket and provide it via usercall extension)
-                address: "0.0.0.0:8989".into(),
+                address: "127.0.0.1:8989".into(),
                 ias_key: var("IAS_KEY").unwrap_or_else(|_| "".into()),
                 spid: var("SPID").unwrap_or_else(|_| "".into()),
                 // TODO: should this be fixed "Unlinkable"?
@@ -184,6 +189,33 @@ fn get_enclave_proxy() -> MockClient {
     MockClient::new(get_network_id())
 }
 
+/// edp
+#[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
+fn start_up_ra_tx_query(config: &Config) {
+    if let (Some(tx_query_address), Some(zmq_conn)) =
+        (config.tx_query.as_ref(), config.enclave_server.as_ref())
+    {
+        temp_start_up_ra_tx_query(
+            if config.launch_ra_proxy {
+                Some(config.remote_attestation.clone())
+            } else {
+                None
+            },
+            TempTxQueryOptions {
+                zmq_conn_str: zmq_conn.clone(),
+                sp_address: config.remote_attestation.address.clone(),
+                address: tx_query_address.clone(),
+            },
+        );
+    }
+}
+
+/// for development
+#[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
+fn start_up_ra_tx_query(_config: &Config) {
+    // nothing
+}
+
 fn main() {
     env_logger::init();
     let app_command = AbciApp::from_args();
@@ -237,6 +269,7 @@ fn main() {
             let host = config.host.parse().expect("invalid host");
             let addr = SocketAddr::new(host, config.port);
             let storage = Storage::new(&StorageConfig::new(&opt.data, StorageType::Node));
+            start_up_ra_tx_query(&config);
             info!("starting up");
             abci::run(
                 addr,

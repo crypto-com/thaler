@@ -561,6 +561,7 @@ dependencies = [
  "digest 0.9.0",
  "enclave-protocol",
  "enclave-runner",
+ "enclave-utils",
  "env_logger",
  "hex",
  "integer-encoding",
@@ -4943,20 +4944,6 @@ name = "two-lock-queue"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bdabfad4e8dcb814adfc10fbe446a7388a7e0eea8453d419dbc272101dc82fa9"
-
-[[package]]
-name = "tx-query2-app-runner"
-version = "0.6.0"
-dependencies = [
- "aesm-client",
- "enclave-runner",
- "enclave-utils",
- "env_logger",
- "log",
- "sgxs-loaders",
- "structopt",
- "tokio 0.2.20",
-]
 
 [[package]]
 name = "tx-query2-enclave-app"

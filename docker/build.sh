@@ -38,7 +38,6 @@ if [ $BUILD_MODE == "sgx" ]; then
         -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
 
     # tx-query enclave
-    cargo build --package tx-query2-app-runner
     RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha" cargo build --target x86_64-fortanix-unknown-sgx --package tx-query2-enclave-app
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/tx-query2-enclave-app --heap-size 0x2000000 --stack-size 0x80000 --threads 6 $EDP_ARGS
     sgxs-sign --key DEV_ONLY_KEY.kem $EDP_TARGET_DIR/tx-query2-enclave-app.sgxs $EDP_TARGET_DIR/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0

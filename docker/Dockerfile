@@ -22,7 +22,6 @@ COPY ./target/${BUILD_MODE}/chain-abci /usr/local/bin/
 COPY ./target/${BUILD_MODE}/client-rpc /usr/local/bin/
 COPY ./target/${BUILD_MODE}/dev-utils /usr/local/bin/
 # copy sgx binary file
-COPY ./target/${BUILD_MODE}/tx-query2-app-runner /usr/local/bin
 COPY ./target/${BUILD_MODE}/tx-query2-enclave-app.sig /usr/local/bin
 COPY ./target/${BUILD_MODE}/tx-query2-enclave-app.sgxs /usr/local/bin
 COPY ./target/${BUILD_MODE}/tx-validation-next.sig /usr/local/bin
