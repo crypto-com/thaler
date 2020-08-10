@@ -8,7 +8,7 @@ use parity_scale_codec::{Decode, Encode};
 
 use crate::{
     tendermint::{types::AbciQueryExt, Client},
-    Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction, SECP,
+    Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction,
 };
 use chain_core::tx::{data::TxId, TxAux, TxWithOutputs};
 use enclave_protocol::{
@@ -138,14 +138,13 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
                     ))
                 }
             };
-            let request = SECP.with(|secp| {
-                DecryptionRequest::create(
-                    &secp,
-                    transaction_ids.to_owned(),
-                    ch,
-                    &private_key.into(),
-                )
-            });
+
+            let request = DecryptionRequest::create(
+                secp256k1::SECP256K1,
+                transaction_ids.to_owned(),
+                ch,
+                &private_key.into(),
+            );
             tls.write_all(&request.encode()).chain(|| {
                 (
                     ErrorKind::IoError,

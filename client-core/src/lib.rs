@@ -44,6 +44,3 @@ pub use crate::wallet::WalletClient;
 #[cfg(feature = "experimental")]
 #[doc(inline)]
 pub use crate::wallet::MultiSigWalletClient;
-
-#[macro_use]
-extern crate lazy_static;

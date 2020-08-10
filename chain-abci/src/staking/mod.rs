@@ -5,10 +5,7 @@ pub use table::{RewardsDistribution, StakingTable};
 
 #[cfg(test)]
 mod tests {
-    use secp256k1::{
-        key::{PublicKey, SecretKey},
-        Secp256k1,
-    };
+    use secp256k1::key::{PublicKey, SecretKey};
     use std::str::FromStr;
 
     use chain_core::init::address::RedeemAddress;
@@ -46,7 +43,7 @@ mod tests {
     type StakingMemStore = MemStore<StakedStateAddress, StakedState>;
 
     fn staking_address(seed: &[u8; 32]) -> StakedStateAddress {
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let secret_key = SecretKey::from_slice(seed).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 

@@ -368,7 +368,7 @@ pub mod tests {
 
     #[test]
     fn check_basic_dec_verify() {
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("Unable to create secret key");
         let req =
             DecryptionRequest::create(&secp, vec![[0u8; 32], [1u8; 32]], [2u8; 32], &secret_key);
@@ -380,7 +380,7 @@ pub mod tests {
 
     #[test]
     fn check_wrong_challenge_not_verify() {
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("Unable to create secret key");
         let req =
             DecryptionRequest::create(&secp, vec![[0u8; 32], [1u8; 32]], [2u8; 32], &secret_key);

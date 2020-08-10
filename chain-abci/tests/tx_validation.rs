@@ -92,7 +92,7 @@ fn verify_public_tx(
 }
 
 pub fn get_tx_witness<C: Signing>(
-    secp: Secp256k1<C>,
+    secp: &Secp256k1<C>,
     txid: &TxId,
     secret_key: &SecretKey,
     merkle_tree: &MerkleTree<RawXOnlyPubkey>,
@@ -108,7 +108,7 @@ pub fn get_tx_witness<C: Signing>(
 }
 
 pub fn get_account_op_witness<C: Signing>(
-    secp: Secp256k1<C>,
+    secp: &Secp256k1<C>,
     txid: &TxId,
     secret_key: &SecretKey,
 ) -> StakedStateOpWitness {
@@ -205,7 +205,7 @@ fn prepate_init_tx(
 ) {
     let db = create_db();
 
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
 
     let (addr, merkle_tree) = get_address(&secp, &secret_key);
@@ -242,7 +242,7 @@ fn prepare_app_valid_transfer_tx(
     Storage,
 ) {
     let (db, txp, addr, merkle_tree, secret_key) = prepate_init_tx(timelocked);
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let mut tx = Tx::new();
     tx.add_input(txp);
     tx.add_output(TxOut::new(addr, Coin::new(9).unwrap()));
@@ -270,7 +270,7 @@ fn prepare_app_valid_transfer_tx(
 
 fn prepare_app_valid_unbond_tx() -> (TxPublicAux, UnbondTx, SecretKey, Storage) {
     let mut storage = Storage::new_db(create_db());
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
@@ -313,7 +313,7 @@ fn test_account_unbond_verify_fail() {
         tx.attributes.app_version = chain_core::APP_VERSION + 1;
         let txaux = TxPublicAux::UnbondStakeTx(
             tx.clone(),
-            get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key),
         );
         let result = verify_public_tx(&txaux, &extra_info, NodeInfoWrap::default(), 0, &storage);
         expect_error_public(&result, PublicTxError::UnsupportedVersion);
@@ -335,7 +335,7 @@ fn test_account_unbond_verify_fail() {
         tx.nonce = 0;
         let txaux = TxPublicAux::UnbondStakeTx(
             tx.clone(),
-            get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key),
         );
         let result = verify_public_tx(&txaux, &extra_info, NodeInfoWrap::default(), 0, &storage);
         expect_error_public(&result, PublicTxError::IncorrectNonce);
@@ -346,7 +346,7 @@ fn test_account_unbond_verify_fail() {
         tx.value = Coin::zero();
         let txaux = TxPublicAux::UnbondStakeTx(
             tx.clone(),
-            get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key),
         );
         let result = verify_public_tx(&txaux, &extra_info, NodeInfoWrap::default(), 0, &storage);
         expect_error_unbond(&result, UnbondError::ZeroValue);
@@ -357,7 +357,7 @@ fn test_account_unbond_verify_fail() {
         tx.value = (tx.value + Coin::one()).unwrap();
         let txaux = TxPublicAux::UnbondStakeTx(
             tx.clone(),
-            get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key),
         );
         let result = verify_public_tx(&txaux, &extra_info, NodeInfoWrap::default(), 0, &storage);
         expect_error_unbond(&result, UnbondError::CoinError(CoinError::Negative));
@@ -375,7 +375,7 @@ fn prepare_app_valid_withdraw_tx(
     Storage,
 ) {
     let mut storage = create_storage();
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
@@ -442,7 +442,7 @@ fn test_account_withdraw_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.attributes.app_version = chain_core::APP_VERSION + 1;
-        let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+        let witness = get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key);
         let txaux = replace_tx_payload(
             txaux.clone(),
             PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()),
@@ -458,7 +458,7 @@ fn test_account_withdraw_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.outputs.clear();
-        let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+        let witness = get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key);
         let txaux = replace_tx_payload(
             txaux.clone(),
             PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()),
@@ -474,7 +474,7 @@ fn test_account_withdraw_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.outputs[0].value = Coin::zero();
-        let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+        let witness = get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key);
         let txaux = replace_tx_payload(
             txaux.clone(),
             PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()),
@@ -492,7 +492,7 @@ fn test_account_withdraw_verify_fail() {
         tx.outputs[0].value = Coin::max();
         let outp = tx.outputs[0].clone();
         tx.outputs.push(outp);
-        let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+        let witness = get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key);
         let txaux = replace_tx_payload(
             txaux.clone(),
             PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()),
@@ -511,7 +511,7 @@ fn test_account_withdraw_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.outputs[0].value = (tx.outputs[0].value + Coin::one()).unwrap();
-        let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+        let witness = get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key);
         let txaux = replace_tx_payload(
             txaux.clone(),
             PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()),
@@ -532,7 +532,7 @@ fn test_account_withdraw_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.nonce = 0;
-        let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+        let witness = get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key);
         let txaux = replace_tx_payload(
             txaux.clone(),
             PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()),
@@ -548,7 +548,7 @@ fn test_account_withdraw_verify_fail() {
     {
         let mut tx = tx.clone();
         tx.outputs[0].valid_from = None;
-        let witness = get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key);
+        let witness = get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key);
         let txaux = replace_tx_payload(
             txaux,
             PlainTxAux::WithdrawUnbondedStakeTx(tx.clone()),
@@ -582,7 +582,7 @@ fn prepare_app_valid_deposit_tx(
     Storage,
 ) {
     let (db, txp, _, merkle_tree, secret_key) = prepate_init_tx(timelocked);
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let sk2 = SecretKey::from_slice(&[0x11; 32]).expect("32 bytes, within curve order");
     let pk2 = PublicKey::from_secret_key(&secp, &sk2);
     let tx = DepositBondTx::new(
@@ -776,7 +776,7 @@ fn test_deposit_verify_fail() {
     }
     // Invalid signature (EcdsaCrypto)
     {
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let mut witness = witness.clone();
         witness[0] = get_tx_witness(
             secp.clone(),
@@ -1027,7 +1027,7 @@ fn test_transfer_verify_fail() {
         let outp = tx.outputs[0].clone();
         tx.outputs.push(outp);
         let mut witness = witness.clone();
-        witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key, &merkle_tree);
+        witness[0] = get_tx_witness(secp256k1::SECP256K1, &tx.id(), &secret_key, &merkle_tree);
         let result = verify_transfer(&tx, &witness, &extra_info, vec![]);
         expect_error(
             &result,
@@ -1065,7 +1065,7 @@ fn test_transfer_verify_fail() {
     }
     // Invalid signature (EcdsaCrypto)
     {
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let mut witness = witness.clone();
         witness[0] = get_tx_witness(
             secp.clone(),
@@ -1112,7 +1112,7 @@ fn test_transfer_verify_fail() {
         let mut witness = witness;
 
         tx.outputs[0].value = (tx.outputs[0].value + Coin::one()).unwrap();
-        witness[0] = get_tx_witness(Secp256k1::new(), &tx.id(), &secret_key, &merkle_tree);
+        witness[0] = get_tx_witness(secp256k1::SECP256K1, &tx.id(), &secret_key, &merkle_tree);
         let result = verify_transfer(&tx, &witness, &extra_info, vec![]);
         expect_error(&result, Error::InputOutputDoNotMatch);
         let txaux = replace_tx_payload(txaux, PlainTxAux::TransferTx(tx, witness), None, None);
@@ -1122,7 +1122,7 @@ fn test_transfer_verify_fail() {
     // OutputInTimelock
     {
         let (_, txaux, tx, witness, _, _, storage) = prepare_app_valid_transfer_tx(true);
-        let addr = get_address(&Secp256k1::new(), &secret_key).0;
+        let addr = get_address(&secp256k1::SECP256K1, &secret_key).0;
         let input_tx = get_old_tx(addr, true);
         let result = verify_transfer(
             &tx,
@@ -1144,7 +1144,7 @@ fn prepare_jailed_accounts() -> (
 ) {
     let mut storage = create_storage();
 
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     let x_public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);
@@ -1172,7 +1172,7 @@ fn prepare_jailed_accounts() -> (
 }
 
 fn prepare_withdraw_transaction(secret_key: &SecretKey) -> TxEnclaveAux {
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
 
     let tx = WithdrawUnbondedTx::new(1, vec![], TxAttributes::new(DEFAULT_CHAIN_ID));
     let witness = get_account_op_witness(secp, &tx.id(), secret_key);
@@ -1189,7 +1189,7 @@ fn prepare_deposit_transaction(
     address: RedeemAddress,
     merkle_tree: &MerkleTree<RawXOnlyPubkey>,
 ) -> TxEnclaveAux {
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
 
     let tx = DepositBondTx::new(
         vec![],
@@ -1206,7 +1206,7 @@ fn prepare_deposit_transaction(
 }
 
 fn prepare_unbond_transaction(secret_key: &SecretKey, address: StakedStateAddress) -> TxPublicAux {
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
 
     let tx = UnbondTx::new(
         address,
@@ -1224,7 +1224,7 @@ fn prepare_unjail_transaction(
     address: StakedStateAddress,
     nonce: u64,
 ) -> TxPublicAux {
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
 
     let tx = UnjailTx {
         nonce,
@@ -1337,7 +1337,7 @@ fn prepare_nodejoin_transaction(
     secret_key: &SecretKey,
     address: StakedStateAddress,
 ) -> (TxPublicAux, NodeJoinRequestTx) {
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
 
     let tx = NodeJoinRequestTx {
         nonce: 1,
@@ -1365,7 +1365,7 @@ fn prepare_valid_nodejoin_tx(
     Storage,
 ) {
     let mut storage = Storage::new_db(create_db());
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
@@ -1419,7 +1419,7 @@ fn test_nodejoin_fail() {
         tx.attributes.app_version = chain_core::APP_VERSION + 1;
         let txaux = TxPublicAux::NodeJoinTx(
             tx.clone(),
-            get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key),
         );
         let result = verify_public_tx(&txaux, &extra_info, NodeInfoWrap::default(), 0, &storage);
         expect_error_public(&result, PublicTxError::UnsupportedVersion);
@@ -1441,7 +1441,7 @@ fn test_nodejoin_fail() {
         tx.nonce = 0;
         let txaux = TxPublicAux::NodeJoinTx(
             tx.clone(),
-            get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key),
         );
         let result = verify_public_tx(&txaux, &extra_info, NodeInfoWrap::default(), 0, &storage);
         expect_error_public(&result, PublicTxError::IncorrectNonce);
@@ -1452,7 +1452,7 @@ fn test_nodejoin_fail() {
         tx.address = StakedStateAddress::from(RedeemAddress::from([1u8; 20]));
         let txaux = TxPublicAux::NodeJoinTx(
             tx.clone(),
-            get_account_op_witness(Secp256k1::new(), &tx.id(), &secret_key),
+            get_account_op_witness(secp256k1::SECP256K1, &tx.id(), &secret_key),
         );
         let result = verify_public_tx(&txaux, &extra_info, NodeInfoWrap::default(), 0, &storage);
         expect_error_public(&result, PublicTxError::StakingWitnessNotMatch);

@@ -14,7 +14,7 @@ use secp256k1experimental::{All, Secp256k1};
 
 thread_local! {
     /// Thread local static Secp object
-    static SECP: Secp256k1<All> = Secp256k1::new();
+    static SECP: Secp256k1<All> = secp256k1::SECP256K1;
 }
 
 use chain_core::common::H256;

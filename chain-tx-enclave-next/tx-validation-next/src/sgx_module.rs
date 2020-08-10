@@ -276,7 +276,7 @@ mod tests {
             }
         };
 
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let x_public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);

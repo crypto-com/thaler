@@ -285,9 +285,12 @@ mod multi_sig_builder_tests {
         let combined_public_key = PublicKey::combine(&public_keys).unwrap().0;
         let message = Message::from_slice(&message).unwrap();
 
-        SECP.with(|secp| {
-            schnorr_verify(&secp, &message, &signature_1, &combined_public_key.into())
-                .expect("Invalid signature");
-        })
+        schnorr_verify(
+            secp256k1::SECP256K1,
+            &message,
+            &signature_1,
+            &combined_public_key.into(),
+        )
+        .expect("Invalid signature");
     }
 }

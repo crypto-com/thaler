@@ -16,7 +16,7 @@ chain-storage = { path = "../chain-storage", default-features = false }
 once_cell = "1.4"
 mock-utils = { path = "../chain-tx-enclave/mock-utils" }
 # secp256k1experimental = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "cccfdb77c068b9cefa07b6884849f8473683d6d4", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
-secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "984ccbccb48d62f5cb46f6fc1c75a04f34102987", features = ["serde", "rand", "recovery", "endomorphism", "schnorrsig"] }
+secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "1aae6edc5f1de0bbdcdb26f1f1d8b00ca28e012a", features = ["serde", "rand", "recovery", "endomorphism", "schnorrsig", "global-context"] }
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.7"
@@ -34,7 +34,6 @@ serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "0.1.22", default-features = false, features = ["rt-full"] }
 tiny-bip39 = { version = "0.7", default-features = false }
 unicase = "2.6.0"
-lazy_static = "1.4.0"
 ring = "0.16.15"
 tendermint = "0.15"
 tendermint-light-client = "0.15"

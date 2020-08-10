@@ -14,12 +14,7 @@ use crate::hd_wallet::{
 use key_index::KeyIndex;
 use rand::Rng;
 use ring::hmac::{Context, Key, HMAC_SHA512};
-use secp256k1::{PublicKey, Secp256k1, SecretKey, SignOnly, VerifyOnly};
-
-lazy_static! {
-    static ref SECP256K1_SIGN_ONLY: Secp256k1<SignOnly> = Secp256k1::signing_only();
-    static ref SECP256K1_VERIFY_ONLY: Secp256k1<VerifyOnly> = Secp256k1::verification_only();
-}
+use secp256k1::{PublicKey, SecretKey};
 
 /// Random entropy, part of extended key.
 type ChainCode = Vec<u8>;
@@ -89,7 +84,7 @@ impl ExtendedPrivKey {
     fn sign_normal_key(&self, index: u32) -> ring::hmac::Tag {
         let signing_key = Key::new(HMAC_SHA512, &self.chain_code);
         let mut h = Context::with_key(&signing_key);
-        let public_key = PublicKey::from_secret_key(&*SECP256K1_SIGN_ONLY, &self.private_key);
+        let public_key = PublicKey::from_secret_key(secp256k1::SECP256K1, &self.private_key);
         h.update(&public_key.serialize());
         h.update(&index.to_be_bytes());
         h.sign()
@@ -149,7 +144,7 @@ impl ExtendedPubKey {
         let (key, chain_code) = sig_bytes.split_at(sig_bytes.len() / 2);
         let private_key = SecretKey::from_slice(key)?;
         let mut public_key = self.public_key;
-        public_key.add_exp_assign(&*SECP256K1_VERIFY_ONLY, &private_key[..])?;
+        public_key.add_exp_assign(secp256k1::SECP256K1, &private_key[..])?;
         Ok(ExtendedPubKey {
             public_key,
             chain_code: chain_code.to_vec(),
@@ -159,7 +154,7 @@ impl ExtendedPubKey {
     /// ExtendedPubKey from ExtendedPrivKey
     pub fn from_private_key(extended_key: &ExtendedPrivKey) -> Self {
         let public_key =
-            PublicKey::from_secret_key(&*SECP256K1_SIGN_ONLY, &extended_key.private_key);
+            PublicKey::from_secret_key(secp256k1::SECP256K1, &extended_key.private_key);
         ExtendedPubKey {
             public_key,
             chain_code: extended_key.chain_code.clone(),

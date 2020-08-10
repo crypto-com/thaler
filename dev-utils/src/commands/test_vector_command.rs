@@ -25,7 +25,6 @@ use client_common::key::PrivateKeyAction;
 use client_common::{MultiSigAddress, PrivateKey, PublicKey, Result, Transaction};
 use client_core::service::{HDAccountType, HdKey};
 use client_core::HDSeed;
-use secp256k1::Secp256k1;
 use secp256k1::{key::XOnlyPublicKey, SecretKey};
 use test_common::chain_env::mock_confidential_init;
 
@@ -406,7 +405,7 @@ impl VectorFactory {
                 address.to_cro(Network::Testnet).unwrap()
             );
             let xonly =
-                XOnlyPublicKey::from_secret_key(&Secp256k1::new(), &SecretKey::from(secret));
+                XOnlyPublicKey::from_secret_key(&secp256k1::SECP256K1, &SecretKey::from(secret));
             println!("secret: {}", hex::encode(secret.serialize()));
             println!("public key: {}", hex::encode(public.serialize()));
             println!("X only public key: {}", hex::encode(&xonly.serialize()));

@@ -36,7 +36,7 @@ hex = "0.4"
 protobuf = "2.7.0"
 integer-encoding = "1.1.5"
 structopt = "0.3"
-secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "984ccbccb48d62f5cb46f6fc1c75a04f34102987", features = ["recovery", "endomorphism"] }
+secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "1aae6edc5f1de0bbdcdb26f1f1d8b00ca28e012a", features = ["recovery", "endomorphism", "global-context"] }
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 thiserror = "1.0"
 
