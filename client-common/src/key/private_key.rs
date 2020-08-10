@@ -6,7 +6,7 @@ use secp256k1::{recovery::RecoverableSignature, Message, PublicKey as SecpPublic
 use std::convert::TryInto;
 use zeroize::Zeroize;
 
-use crate::{ErrorKind, PublicKey, Result, ResultExt, SECP};
+use crate::{ErrorKind, PublicKey, Result, ResultExt};
 
 /// a object acts like a private key should impl the trait
 pub trait PrivateKeyAction: Sync + Send {
@@ -37,7 +37,7 @@ impl PrivateKeyAction for PrivateKey {
                 "Unable to deserialize message to sign",
             )
         })?;
-        let signature = SECP.with(|secp| secp.sign_recoverable(&message, &self.0));
+        let signature = secp256k1::SECP256K1.sign_recoverable(&message, &self.0);
         Ok(signature)
     }
 
@@ -49,7 +49,7 @@ impl PrivateKeyAction for PrivateKey {
                 "Unable to deserialize message to sign",
             )
         })?;
-        let signature = SECP.with(|secp| schnorr_sign(&secp, &message, &self.0, &mut OsRng));
+        let signature = schnorr_sign(secp256k1::SECP256K1, &message, &self.0, &mut OsRng);
         Ok(signature)
     }
 
@@ -70,14 +70,14 @@ impl PrivateKeyAction for PrivateKey {
             .chain(|| (ErrorKind::InvalidInput, "invalid aux_payload length"))?;
 
         let aux_rand = AuxRandNonce::deserialize_from(aux_payload);
-        let signature = SECP.with(|secp| schnorr_sign_aux(&secp, &message, &self.0, &aux_rand));
+        let signature = schnorr_sign_aux(secp256k1::SECP256K1, &message, &self.0, &aux_rand);
         Ok(signature)
     }
 
     fn public_key(&self) -> Result<PublicKey> {
         let secret_key = &self.0;
 
-        let public_key = SECP.with(|secp| SecpPublicKey::from_secret_key(secp, secret_key));
+        let public_key = SecpPublicKey::from_secret_key(secp256k1::SECP256K1, secret_key);
 
         Ok(public_key.into())
     }

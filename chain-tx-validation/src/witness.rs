@@ -3,7 +3,7 @@ use chain_core::state::account::{StakedStateAddress, StakedStateOpWitness};
 use chain_core::tx::data::address::ExtendedAddr;
 use chain_core::tx::data::TxId;
 use chain_core::tx::witness::TxInWitness;
-use secp256k1::{key::XOnlyPublicKey, schnorrsig::schnorr_verify, Message, Secp256k1};
+use secp256k1::{key::XOnlyPublicKey, schnorrsig::schnorr_verify, Message};
 
 /// verify a given extended address is associated to the witness
 /// and the signature against the given transaction `Tx`
@@ -14,9 +14,7 @@ pub fn verify_tx_address(
     txid: &TxId,
     address: &ExtendedAddr,
 ) -> Result<(), secp256k1::Error> {
-    // FIXME: provide secp as ref
-    let mut buf_vfy = vec![0u8; Secp256k1::preallocate_verification_size()];
-    let secp = Secp256k1::preallocated_verification_only(&mut buf_vfy)?;
+    let secp = secp256k1::SECP256K1;
     let message = Message::from_slice(&txid[..])?;
 
     match (witness, address) {
@@ -44,9 +42,7 @@ pub fn verify_tx_recover_address(
 ) -> Result<StakedStateAddress, secp256k1::Error> {
     match witness {
         StakedStateOpWitness::BasicRedeem(sig) => {
-            // FIXME: provide secp as ref
-            let mut buf_vfy = vec![0u8; Secp256k1::preallocate_verification_size()];
-            let secp = Secp256k1::preallocated_verification_only(&mut buf_vfy)?;
+            let secp = secp256k1::SECP256K1;
             let message = Message::from_slice(txid)?;
             let pk = secp.recover(&message, &sig)?;
             secp.verify(&message, &sig.to_standard(), &pk)?;
@@ -71,7 +67,7 @@ pub mod tests {
     fn check_1_of_1_verify() {
         let transation = Tx::new();
 
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
 
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("Unable to create secret key");
         let public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);
@@ -98,7 +94,7 @@ pub mod tests {
     fn check_1_of_2_verify() {
         let transation = Tx::new();
 
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
 
         let secret_keys = [
             SecretKey::from_slice(&[0xcd; 32]).expect("Unable to create secret key"),
@@ -134,7 +130,7 @@ pub mod tests {
     fn check_1_of_2_incorrect_proof() {
         let transation = Tx::new();
 
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
 
         let secret_keys = [
             SecretKey::from_slice(&[0xcd; 32]).expect("Unable to create secret key"),
@@ -170,7 +166,7 @@ pub mod tests {
     fn check_staked_verify() {
         let transation = Tx::new();
 
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
 
         let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("Unable to create secret key");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);

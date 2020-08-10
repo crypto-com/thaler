@@ -19,7 +19,7 @@ pub fn combine_to_raw_pubkey(public_keys: &[PublicKey]) -> Result<RawXOnlyPubkey
 #[cfg(feature = "experimental")]
 /// Combines multiple public keys into one and also return a musig pre-session
 pub fn combine(public_keys: &[Self]) -> Result<(XOnlyPublicKey, MuSigPreSession)> {
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let (public_key, pre_session) = {
         pubkey_combine(
             &secp,
@@ -391,17 +391,15 @@ mod multi_sig_tests {
                 .unwrap()
                 .0;
 
-            let manual_combination = SECP.with(|secp| {
-                pubkey_combine(
-                    secp,
-                    &[
-                        XOnlyPublicKey::from_pubkey(&public_key_1.into()).0,
-                        XOnlyPublicKey::from_pubkey(&public_key_2.into()).0,
-                    ],
-                )
-                .unwrap()
-                .0
-            });
+            let manual_combination = pubkey_combine(
+                secp256k1::SECP256K1,
+                &[
+                    XOnlyPublicKey::from_pubkey(&public_key_1.into()).0,
+                    XOnlyPublicKey::from_pubkey(&public_key_2.into()).0,
+                ],
+            )
+            .unwrap()
+            .0;
 
             assert_eq!(manual_combination, combination);
         }

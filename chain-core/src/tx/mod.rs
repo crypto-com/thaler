@@ -672,9 +672,7 @@ pub mod tests {
     use crate::tx::witness::tree::RawXOnlyPubkey;
     use crate::tx::witness::TxInWitness;
     use parity_scale_codec::{Decode, Encode};
-    use secp256k1::{
-        key::XOnlyPublicKey, schnorrsig::schnorr_sign, Message, PublicKey, Secp256k1, SecretKey,
-    };
+    use secp256k1::{key::XOnlyPublicKey, schnorrsig::schnorr_sign, Message, PublicKey, SecretKey};
 
     // TODO: rewrite as quickcheck prop
     #[test]
@@ -683,7 +681,7 @@ pub mod tests {
         let mut tx = Tx::new();
         tx.add_input(TxoPointer::new([0x01; 32], 1));
         tx.add_output(TxOut::new(ExtendedAddr::OrTree([0xbb; 32]), Coin::unit()));
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let sk1 = SecretKey::from_slice(&[0xcc; 32][..]).expect("secret key");
         let pk1 = PublicKey::from_secret_key(&secp, &sk1);
         let raw_pk1 = RawXOnlyPubkey::from(XOnlyPublicKey::from_pubkey(&pk1).0.serialize());

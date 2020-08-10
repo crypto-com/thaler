@@ -221,7 +221,7 @@ impl Account {
         validator_pub_key: TendermintValidatorPubKey,
         name: String,
     ) -> Account {
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let secret_key = SecretKey::from_slice(seed).expect("32 bytes, within curve order");
         let public_key = PublicKey::from_secret_key(&secp, &secret_key);
         let address = RedeemAddress::from(&public_key);
@@ -351,7 +351,7 @@ impl ChainEnv {
             StakedStateOpAttributes::new(0),
             NodeMetadata::CouncilNode(node_meta),
         );
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let witness = StakedStateOpWitness::new(get_ecdsa_witness(
             &secp,
             &tx.id(),
@@ -367,7 +367,7 @@ impl ChainEnv {
             coin,
             StakedStateOpAttributes::new(0),
         );
-        let secp = Secp256k1::new();
+        let secp = secp256k1::SECP256K1;
         let witness = StakedStateOpWitness::new(get_ecdsa_witness(
             &secp,
             &tx.id(),

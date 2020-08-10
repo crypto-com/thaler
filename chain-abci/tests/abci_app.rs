@@ -451,7 +451,7 @@ fn check_tx_should_reject_invalid_tx() {
 }
 
 fn prepare_app_valid_tx() -> (ChainNodeApp<MockClient>, TxAux, WithdrawUnbondedTx) {
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
     let addr = RedeemAddress::from(&public_key);
@@ -901,7 +901,7 @@ fn get_tx_meta(txid: &TxId, app: &ChainNodeApp<MockClient>) -> BitVec {
 #[test]
 #[allow(clippy::cognitive_complexity)]
 fn all_valid_tx_types_should_commit() {
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let secret_key = SecretKey::from_slice(&[0xcd; 32]).expect("32 bytes, within curve order");
     let x_public_key = XOnlyPublicKey::from_secret_key(&secp, &secret_key);
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
@@ -1066,7 +1066,7 @@ fn all_valid_tx_types_should_commit() {
         StakedStateOpAttributes::new(0),
         mock_council_node_join(TendermintValidatorPubKey::Ed25519([2u8; 32])),
     );
-    let secp = Secp256k1::new();
+    let secp = secp256k1::SECP256K1;
     let witness = StakedStateOpWitness::new(get_ecdsa_witness(&secp, &tx.id(), &secret_key));
     let nodejointx = TxAux::PublicTx(TxPublicAux::NodeJoinTx(tx, witness));
     {
