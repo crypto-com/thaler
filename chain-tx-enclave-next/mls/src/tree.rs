@@ -208,7 +208,7 @@ impl Codec for LeafNodeHashInput {
 /// TODO: https://github.com/mlswg/mls-protocol/pull/327/files
 ///
 /// Invariants:
-/// - at least one leaf node
+/// - there's at least one leaf node
 #[derive(Clone)]
 pub struct TreePublicKey {
     /// all tree nodes stored in a vector
@@ -546,7 +546,9 @@ impl TreePublicKey {
                 node.parent_node_mut().parent_hash = hash;
             }
         }
-        self.compute_parent_hash(path[0])
+        path.first()
+            .map(|&p| self.compute_parent_hash(p))
+            .unwrap_or_default()
     }
 
     /// compute the parent hash to be referenced by children
@@ -702,7 +704,7 @@ impl TreeSecret {
     pub fn empty(cs: CipherSuite) -> Self {
         Self {
             path_secrets: vec![],
-            update_secret: SecretVec::new(vec![0; cs.hash_len()]),
+            update_secret: SecretVec::new(vec![0; cs.secret_size() as usize]),
         }
     }
 

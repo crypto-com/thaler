@@ -270,12 +270,6 @@ impl CipherSuite {
         }
     }
 
-    pub fn hash_len(self) -> usize {
-        match self {
-            CipherSuite::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => 32,
-        }
-    }
-
     /// spec: draft-ietf-mls-protocol.md#key-schedule
     #[inline]
     pub fn expand_with_label(
