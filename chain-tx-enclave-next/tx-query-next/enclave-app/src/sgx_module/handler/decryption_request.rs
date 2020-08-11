@@ -6,7 +6,7 @@ use std::{
 };
 
 use parity_scale_codec::{Decode, Encode};
-use secp256k1::{key::PublicKey, Secp256k1};
+use secp256k1::key::PublicKey;
 use zeroize::Zeroize;
 
 use chain_core::{
