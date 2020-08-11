@@ -182,8 +182,8 @@ endif
 
 # build the chain binary in docker
 build-chain:
-	@if [ -e "./target/${BUILD_MODE}/client-cli" ] && [ -e "./target/${BUILD_MODE}/chain-abci" ] && [ -e "./target/${BUILD_MODE}/client-rpc" ] && [ -e "./target/${BUILD_MODE}/dev-utils" ]; then \
-		echo "\033[32mbinary already exist or delete binary to force new build for chain\033[0m"; \
+	@if [ -e "./target/$(build_mode)/client-cli" -a -e "./target/$(build_mode)/chain-abci" -a -e "./target/$(build_mode)/client-rpc" -a -e "./target/$(build_mode)/dev-utils" ]; then \
+		echo "\033[32mchain binary already exist or delete binary by 'make clean' to force new build for chain\033[0m"; \
 	else \
 		echo "\033[32mbuilding binary\033[0m"; \
 		docker run -i --rm \
@@ -206,39 +206,46 @@ build-chain:
 
 # build the enclave queury-next and tx-validation-next binary and sig
 build-sgx-query-validation-next:
-	@echo "\033[32mcompile sgx query-next and tx-validation-next\033[0m"; \
-	docker run -i --rm \
-		-v ${HOME}/.cargo/git:/root/.cargo/git \
-		-v ${HOME}/.cargo/registry:/root/.cargo/registry \
-		-v `pwd`:/chain \
-		--env SGX_MODE=$(SGX_MODE) \
-		--env CFLAGS=-gz=none \
-		--env NETWORK_ID=$(NETWORK_ID) \
-		--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha \
-		--workdir=/chain \
-		$(IMAGE_RUST):latest \
-		bash -c '. /root/.docker_bashrc && \
-		echo "========  openssl gen privatekey  =========" && \
-		openssl genrsa -3 3072 > sgx.pem && \
-		rustup target add x86_64-fortanix-unknown-sgx && \
-		echo "========  build tx-query2-enclave-app   =========" && \
-		$(CARGO_BUILD_CMD) --target=x86_64-fortanix-unknown-sgx -p tx-query2-enclave-app && \
-		echo "========  build tx-query2-app-runner   =========" && \
-		$(CARGO_BUILD_CMD) -p tx-query2-app-runner && \
-		echo "========  build ra-sp-server   =========" && \
-		$(CARGO_BUILD_CMD) -p ra-sp-server && \
-		echo "========  install fortanix-sgx-tools sgxs-tools   =========" && \
-		cargo install fortanix-sgx-tools sgxs-tools && \
-		echo "========  run ftxsgx-elf2sgxs   =========" && \
-		ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-query2-enclave-app --output ./target/$(build_mode)/tx-query2-enclave-app.sgxs --heap-size 0x2000000 --stack-size 0x80000 --threads 6 --debug && \
-		echo "========  run sgxs-sign tx-query2-enclave-app   =========" && \
-		sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0 && \
-		echo "========  build tx-validation-next   =========" && \
-		$(CARGO_BUILD_CMD) --target x86_64-fortanix-unknown-sgx -p tx-validation-next && \
-		echo "========  run ftxsgx-elf2sgxs   =========" && \
-		ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-validation-next --output ./target/$(build_mode)/tx-validation-next.sgxs  --heap-size 0x20000000 --stack-size 0x40000 --threads 2 --debug && \
-		echo "========  run sgxs-sign tx-validation-next   =========" && \
-		sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-validation-next.sgxs ./target/$(build_mode)/tx-validation-next.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'
+	@if [ -e "./target/$(build_mode)/tx-query2-app-runner" -a -e "./target/$(build_mode)/tx-query2-enclave-app.sig" -a \
+	-e "./target/$(build_mode)/tx-query2-enclave-app.sgxs" -a -e "./target/$(build_mode)/tx-validation-next.sig" -a \
+	-e ./target/${build_mode}/tx-validation-next.sgxs -a -e ./target/${build_mode}/ra-sp-server ]; \
+	then \
+		echo "\033[32msgx binary already exist or delete binary by 'make clean' to force new build for chain\033[0m"; \
+	else \
+		echo "\033[32mcompile sgx query-next and tx-validation-next\033[0m"; \
+		docker run -i --rm \
+			-v ${HOME}/.cargo/git:/root/.cargo/git \
+			-v ${HOME}/.cargo/registry:/root/.cargo/registry \
+			-v `pwd`:/chain \
+			--env SGX_MODE=$(SGX_MODE) \
+			--env CFLAGS=-gz=none \
+			--env NETWORK_ID=$(NETWORK_ID) \
+			--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha \
+			--workdir=/chain \
+			$(IMAGE_RUST):latest \
+			bash -c '. /root/.docker_bashrc && \
+			echo "========  openssl gen privatekey  =========" && \
+			openssl genrsa -3 3072 > sgx.pem && \
+			rustup target add x86_64-fortanix-unknown-sgx && \
+			echo "========  build tx-query2-enclave-app   =========" && \
+			$(CARGO_BUILD_CMD) --target=x86_64-fortanix-unknown-sgx -p tx-query2-enclave-app && \
+			echo "========  build tx-query2-app-runner   =========" && \
+			$(CARGO_BUILD_CMD) -p tx-query2-app-runner && \
+			echo "========  build ra-sp-server   =========" && \
+			$(CARGO_BUILD_CMD) -p ra-sp-server && \
+			echo "========  install fortanix-sgx-tools sgxs-tools   =========" && \
+			cargo install fortanix-sgx-tools sgxs-tools && \
+			echo "========  run ftxsgx-elf2sgxs   =========" && \
+			ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-query2-enclave-app --output ./target/$(build_mode)/tx-query2-enclave-app.sgxs --heap-size 0x2000000 --stack-size 0x80000 --threads 6 --debug && \
+			echo "========  run sgxs-sign tx-query2-enclave-app   =========" && \
+			sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0 && \
+			echo "========  build tx-validation-next   =========" && \
+			$(CARGO_BUILD_CMD) --target x86_64-fortanix-unknown-sgx -p tx-validation-next && \
+			echo "========  run ftxsgx-elf2sgxs   =========" && \
+			ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-validation-next --output ./target/$(build_mode)/tx-validation-next.sgxs  --heap-size 0x20000000 --stack-size 0x40000 --threads 2 --debug && \
+			echo "========  run sgxs-sign tx-validation-next   =========" && \
+			sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-validation-next.sgxs ./target/$(build_mode)/tx-validation-next.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'; \
+	fi;
 
 create-network:
 	@if [ `docker network ls -f NAME=$(NETWORK) | wc -l ` -eq 2 ]; then \
@@ -331,6 +338,10 @@ run-client-rpc: set-genesis-fingerprint
 
 set-genesis-fingerprint:
 ifeq ($(chain), devnet)
+	@if [ $$(dpkg-query -W -f='$${Status}' libzmq3-dev 2>/dev/null | grep -c "ok installed") -eq 0 ]; \
+	then \
+		sudo apt install libzmq3-dev -y; \
+	fi; 
 	$(eval CRYPTO_GENESIS_FINGERPRINT=$(shell ./target/$(build_mode)/dev-utils genesis fingerprint -t ./docker/config/devnet/tendermint/genesis.json))
 endif
 	@echo "CRYPTO_GENESIS_FINGERPRINT = \033[32m$(CRYPTO_GENESIS_FINGERPRINT)\033[0m";
