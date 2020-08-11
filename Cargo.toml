@@ -25,7 +25,6 @@ members = [
     "chain-tx-enclave-next/tdbe/tdbe-common",
     "chain-tx-enclave-next/tdbe/app-runner",
     "chain-tx-enclave-next/tdbe/enclave-app",
-    "chain-tx-enclave-next/tx-query-next/app-runner",
     "chain-tx-enclave-next/tx-query-next/enclave-app",
     "chain-tx-enclave-next/tx-validation-next",
     "chain-tx-enclave/mock-utils",

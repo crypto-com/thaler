@@ -20,10 +20,3 @@ cd ../../../target/x86_64-fortanix-unknown-sgx/debug
 ftxsgx-elf2sgxs tx-query2-enclave-app --heap-size 0x20000 --stack-size 0x20000 --threads 6 --debug
 sgxs-sign --key <KEY> tx-query2-enclave-app.sgxs tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0
 ```
-
-running:
-```
-cd ../../debug/
-./tx-query2-app-runner ../x86_64-fortanix-unknown-sgx/debug/tx-query2-enclave-app.sgxs ipc://test.socket
-
-```

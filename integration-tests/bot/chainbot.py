@@ -254,7 +254,6 @@ def programs(node, app_hash, root_path, cfg):
     commands = []
     if not cfg.get('mock_mode'):
         commands += [
-                ('tx-query', f"tx-query2-app-runner --enclave-path 'tx-query2-enclave-app.sgxs' --address 127.0.0.1:{tx_query_port} --zmq-conn-str tcp://127.0.0.1:{tx_validation_port} --sp-address 127.0.0.1:8989", dict(def_env)),
                 ('tdbe-1', f"tdb-app-runner --enclave-path 'tdb-enclave-app.sgxs' --address 127.0.0.1:{tdbe_1_port} --zmq-conn-str tcp://127.0.0.1:{tx_validation_port} --sp-address 127.0.0.1:8989", dict(def_env)),
                 ('tdbe-2', f"tdb-app-runner --enclave-path 'tdb-enclave-app.sgxs' --address 127.0.0.1:{tdbe_2_port} --zmq-conn-str tcp://127.0.0.1:{tx_validation_port} --sp-address 127.0.0.1:8989 --tdbe-address 127.0.0.1:{tdbe_1_port} --tdbe-dns-name localhost --txids 37d7eaa7987ab1d6c9d7d4ed4398cb3f326b02d35e2f8e9d8d824fa676fa3ce5", dict(def_env)),
         ]
