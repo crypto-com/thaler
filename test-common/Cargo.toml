@@ -14,9 +14,9 @@ subtle-encoding = { version = "0.5", features = ["bech32-preview"] }
 secstr = { version = "0.4.0", features = ["serde"] }
 lazy_static  = { version = "1.4", features = ["spin_no_std"] }
 signature = "1.1"
-abci = "0.7"
+abci = { version = "0.7", git = "https://github.com/crypto-com/rust-abci.git", rev = "d7e007cea9179d560f9d51075525a9cc9449a808" }
 kvdb-memorydb = "0.7"
-protobuf = "2.7.0"
+protobuf = "2.16.2"
 secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "1aae6edc5f1de0bbdcdb26f1f1d8b00ca28e012a", features = ["recovery", "endomorphism", "schnorrsig", "global-context"] }
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 base64 = "0.12"
