@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 use indexmap::IndexMap;
 use itertools::{izip, Itertools};
-use std::cmp::{max, Ordering};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::iter;
 use std::path::Path;
@@ -50,6 +50,8 @@ use client_common::{
 use super::syncer_logic::handle_blocks;
 use crate::service;
 use crate::service::{KeyService, SyncState, Wallet, WalletState, WalletStateMemento};
+use std::sync::Mutex;
+type BlockConfirmFunc = Arc<Mutex<Box<dyn Fn(u64, String) -> bool>>>; // height, blockhash
 
 pub trait LightClientHandle: Handle + Send + Sync + Clone {}
 impl<T: Handle + Send + Sync + Clone> LightClientHandle for T {}
@@ -113,6 +115,9 @@ pub struct SyncerOptions {
     pub batch_size: usize,
     pub block_height_ensure: u64,
     pub light_client_peers: String,
+    pub light_client_trusting_period_seconds: u64,
+    pub light_client_trusting_height: u64,
+    pub light_client_trusting_blockhash: String,
 }
 
 /// Common configs for wallet syncer with `TransactionObfuscation`
@@ -127,7 +132,7 @@ pub struct ObfuscationSyncerConfig<
     pub storage: S,
     pub client: C,
     pub obfuscation: O,
-    pub light_client: L,
+    pub light_client: Option<L>,
 
     // configs
     pub options: SyncerOptions,
@@ -142,7 +147,7 @@ impl<S: SecureStorage, C: Client, O: TransactionObfuscation, L: LightClientHandl
         client: C,
         obfuscation: O,
         options: SyncerOptions,
-        light_client: L,
+        light_client: Option<L>,
     ) -> ObfuscationSyncerConfig<S, C, O, L> {
         ObfuscationSyncerConfig {
             storage,
@@ -160,7 +165,7 @@ pub struct SyncerConfig<S: SecureStorage, C: Client, L: LightClientHandle> {
     // services
     storage: S,
     client: C,
-    light_client: L,
+    light_client: Option<L>,
 
     // configs
     options: SyncerOptions,
@@ -185,7 +190,7 @@ pub struct WalletSyncer<
     decryptor: D,
     name: String,
     enckey: SecKey,
-    light_client: L,
+    light_client: Option<L>,
 }
 
 impl<S, C, D, T, L> WalletSyncer<S, C, D, T, L>
@@ -485,6 +490,8 @@ impl<
                 let light_block = self
                     .env
                     .light_client
+                    .as_ref()
+                    .expect("get light client")
                     .verify_to_highest()
                     .map_err(|e| Error::new(ErrorKind::VerifyError, format!("{}", e)))?;
 
@@ -935,6 +942,9 @@ fn make_light_client_instance(
     addr: tendermint::net::Address,
     db_path: impl AsRef<Path>,
     trusting_period: Duration,
+    trusting_height: u64,
+    trusting_blockhash: String,
+    light_client_block_confirm: Option<BlockConfirmFunc>,
 ) -> Result<Instance> {
     let mut peer_map = HashMap::new();
     peer_map.insert(peer_id, addr);
@@ -950,14 +960,45 @@ fn make_light_client_instance(
     })?;
 
     let mut light_store = SledStore::new(db);
+    let height = trusting_height;
+    let blockhash = hex::decode(&trusting_blockhash).map_err(|e| {
+        Error::new(
+            ErrorKind::InvalidInput,
+            format!("blockhash is incorrect {}", e),
+        )
+    })?;
 
     if light_store.latest(Status::Verified).is_none() {
         // FIXME trust height 1 automatically
         let trusted_state = io
-            .fetch_light_block(peer_id, AtHeight::At(1))
+            .fetch_light_block(peer_id, AtHeight::At(trusting_height))
             .err_kind(ErrorKind::InitializationError, || {
                 "could not retrieve trusted header of block 1"
             })?;
+        let db_height = trusted_state.signed_header.commit.height;
+        let db_hash = trusted_state.signed_header.commit.block_id.hash.as_bytes();
+        if db_height.value() == height
+            && (db_hash == blockhash.as_slice() || "" == trusting_blockhash)
+        {
+            if let Some(ask_func) = light_client_block_confirm {
+                let ask_to_user = ask_func.lock().unwrap();
+                let trust_this_block = ask_to_user(db_height.value(), hex::encode(db_hash));
+                if !trust_this_block {
+                    // not trust this block
+                    return Err(Error::new(
+                        ErrorKind::InvalidInput,
+                        format!("not trust this block, yours height={} blockhash={}  light-client height={} blockhash={}",
+                        height,   hex::encode(&blockhash),
+                        db_height, hex::encode(&db_hash))));
+                }
+            }
+        } else {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                format!("trust block differnt yours {}={}  light-client {}={}\ncheck blockhash,height again or use other light-client,you can get blockhash from official block-explorer\nif you trust specific height, just specify height only",
+                 height, hex::encode(&blockhash),db_height.value(), hex::encode(&db_hash))));
+        }
+
         light_store.insert(trusted_state, Status::Verified);
     }
     let state = State {
@@ -973,10 +1014,10 @@ fn make_light_client_instance(
         // https://docs.tendermint.com/master/spec/consensus/light-client/verification.html#high-level-solution
         // set a minimal duration because integration test's unbonding period is too short for
         // trusting period.
-        trusting_period: max(trusting_period, Duration::from_secs(600)),
         // allowed clock drift between local clocks and BFT time
         // https://docs.tendermint.com/master/spec/consensus/light-client/verification.html#failure-model
         clock_drift: Duration::from_secs(1),
+        trusting_period,
     };
 
     let verifier = ProdVerifier::default();
@@ -1033,7 +1074,7 @@ mod tests {
                 gen.gen_block(&[]);
             }
         }
-        let light_client = client.clone();
+        let light_client = Some(client.clone());
 
         let mut syncer = WalletSyncer::with_config(
             SyncerConfig {
@@ -1047,6 +1088,9 @@ mod tests {
                     batch_size: 20,
                     block_height_ensure: 50,
                     light_client_peers: "".into(),
+                    light_client_trusting_period_seconds: 36000000,
+                    light_client_trusting_height: 1,
+                    light_client_trusting_blockhash: "".into(),
                 },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
@@ -1155,7 +1199,7 @@ mod tests {
             .new_wallet(name, &wallet_passphrase, WalletKind::Basic, None)
             .expect("create wallet failed");
         let client = MockTendermintClient {};
-        let light_client = client.clone();
+        let light_client = Some(client.clone());
 
         let enable_fast_forward = false;
 
@@ -1171,6 +1215,9 @@ mod tests {
                     batch_size: 20,
                     block_height_ensure: 50,
                     light_client_peers: "".into(),
+                    light_client_trusting_period_seconds: 36000000,
+                    light_client_trusting_height: 1,
+                    light_client_trusting_blockhash: "".into(),
                 },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
@@ -1211,7 +1258,7 @@ mod tests {
                 gen.gen_block(&[]);
             }
         }
-        let light_client = client.clone();
+        let light_client = Some(client.clone());
 
         let mut syncer = WalletSyncer::with_config(
             SyncerConfig {
@@ -1225,6 +1272,9 @@ mod tests {
                     batch_size: 20,
                     block_height_ensure: 50,
                     light_client_peers: "".into(),
+                    light_client_trusting_period_seconds: 36000000,
+                    light_client_trusting_height: 1,
+                    light_client_trusting_blockhash: "".into(),
                 },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
@@ -1272,7 +1322,7 @@ mod tests {
                 gen.gen_block(&[]);
             }
         }
-        let light_client = client.clone();
+        let light_client = Some(client.clone());
 
         let mut syncer = WalletSyncer::with_config(
             SyncerConfig {
@@ -1286,6 +1336,9 @@ mod tests {
                     batch_size: 20,
                     block_height_ensure: 50,
                     light_client_peers: "".into(),
+                    light_client_trusting_period_seconds: 36000000,
+                    light_client_trusting_height: 1,
+                    light_client_trusting_blockhash: "".into(),
                 },
             },
             |_txids: &[TxId]| -> Result<Vec<Transaction>> { Ok(vec![]) },
@@ -1376,9 +1429,19 @@ fn parse_node(nodelist_info: &str) -> Result<Vec<(String, String, u32)>> {
 /// [new light client design](https://github.com/informalsystems/tendermint-rs/blob/master/docs/architecture/adr-006-light-client-refactor.md)
 pub fn spawn_light_client_supervisor(
     db_path: &Path,
-    trusting_period: Duration,
+    trusting_period_default: Duration,
     light_client_peers: String,
+    light_client_trusting_period_seconds: u64,
+    light_client_trusting_height: u64,
+    light_client_trusting_blockhash: String,
+    light_client_block_confirm: Option<BlockConfirmFunc>,
 ) -> Result<LightClientWrapper<impl Handle + 'static>> {
+    let trusting_period = if 0 == light_client_trusting_period_seconds {
+        trusting_period_default
+    } else {
+        Duration::from_secs(light_client_trusting_period_seconds)
+    };
+
     if "" == light_client_peers {
         return Err(Error::new(
             ErrorKind::InvalidInput,
@@ -1423,12 +1486,20 @@ pub fn spawn_light_client_supervisor(
         let node_address =
             tendermint::net::Address::from_str(&format!("tcp://{}:{}", nodeip, nodeport))
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Unable to parse node_address"))?;
-        log::debug!("node instance {:?} {:?}", node_peerid, node_address);
+        log::info!(
+            "Node instance peerid {} peeraddress {} dbpath {}",
+            node_peerid.to_string(),
+            node_address.to_string(),
+            node_db_path.to_str().expect("get db_path")
+        );
         let node_instance = make_light_client_instance(
             node_peerid,
             node_address.clone(),
             node_db_path,
             trusting_period,
+            light_client_trusting_height,
+            light_client_trusting_blockhash.clone(),
+            light_client_block_confirm.clone(),
         )?;
         all_peers_map.insert(node_peerid, node_address.clone());
         if 0 == i {

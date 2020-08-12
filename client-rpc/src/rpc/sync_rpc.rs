@@ -88,7 +88,7 @@ where
     progress_callback: Option<CBindingCore>,
     worker: WorkerShared,
     recover_address: T,
-    light_client_handle: L,
+    light_client_handle: Option<L>,
 }
 
 impl<S, C, O, T, L> SyncRpcImpl<S, C, O, T, L>
@@ -104,7 +104,7 @@ where
         progress_callback: Option<CBindingCore>,
 
         recover_address: T,
-        light_client_handle: L,
+        light_client_handle: Option<L>,
     ) -> Self {
         SyncRpcImpl {
             config,
@@ -338,8 +338,12 @@ where
     L: Handle + Send + Sync + Clone,
 {
     fn drop(&mut self) {
-        self.light_client_handle
-            .terminate()
-            .expect("terminate light client supervisor in drop");
+        if self.light_client_handle.is_some() {
+            self.light_client_handle
+                .as_ref()
+                .expect("get light-client handle")
+                .terminate()
+                .expect("terminate light client supervisor in drop");
+        }
     }
 }

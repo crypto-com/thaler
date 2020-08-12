@@ -68,10 +68,33 @@ pub struct Options {
         name = "light client peer",
         short = "l",
         long = "light-client-peers",
-        default_value = "",
         help = "Light client peers"
     )]
-    pub light_client_peers: String,
+    pub light_client_peers: Option<String>,
+
+    #[structopt(
+        name = "light client trusting period in seconds",
+        long = "light-client-trusting-period",
+        default_value = "36000000",
+        help = "light client trusting period in seconds"
+    )]
+    pub light_client_trusting_period_seconds: u64,
+
+    #[structopt(
+        name = "light client trusting height",
+        long = "light-client-trusting-height",
+        default_value = "1",
+        help = "light client trusting height"
+    )]
+    pub light_client_trusting_height: u64,
+
+    #[structopt(
+        name = "light client trusting blockhash",
+        long = "light-client-trusting-blockhash",
+        default_value = "",
+        help = "light client trusting blockhash"
+    )]
+    pub light_client_trusting_blockhash: String,
 
     #[structopt(
         name = "disable-address-recovery",
