@@ -9,6 +9,9 @@ use crate::{Error, ErrorKind, Result, Storage};
 pub struct MemoryStorage(Arc<RwLock<HashMap<Vec<u8>, HashMap<Vec<u8>, Vec<u8>>>>>);
 
 impl Storage for MemoryStorage {
+    fn flush(&self) -> Result<()> {
+        Ok(())
+    }
     fn clear<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<()> {
         let mut memory = self.0.write().map_err(|_| {
             Error::new(

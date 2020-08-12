@@ -403,6 +403,9 @@ pub trait WalletClient: Send + Sync {
 
     /// Get current sync state of wallet, return genesis one if not exists.
     fn get_sync_state(&self, name: &str) -> Result<SyncState>;
+
+    ///Flush databaase
+    fn flush_database(&self) -> Result<()>;
 }
 
 #[cfg(feature = "experimental")]

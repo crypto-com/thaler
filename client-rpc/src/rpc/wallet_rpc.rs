@@ -198,6 +198,7 @@ where
             .new_transfer_address(&request.name, &enckey)
             .map_err(to_rpc_error)?;
 
+        self.client.flush_database().map_err(to_rpc_error)?;
         match (kind, mnemonic) {
             (WalletKind::Basic, None) => Ok((enckey, None)),
             (WalletKind::HD, Some(mnemonic)) => {
@@ -223,6 +224,7 @@ where
         self.client
             .new_transfer_address(&request.name, &enckey)
             .map_err(to_rpc_error)?;
+        self.client.flush_database().map_err(to_rpc_error)?;
         Ok(enckey)
     }
 
@@ -234,21 +236,27 @@ where
             .client
             .restore_basic_wallet(&request.name, &request.passphrase, &view_key)
             .map_err(to_rpc_error)?;
-
+        self.client.flush_database().map_err(to_rpc_error)?;
         Ok(enckey)
     }
 
     fn delete(&self, request: CreateWalletRequest) -> Result<()> {
-        self.client
+        let ret = self
+            .client
             .delete_wallet(&request.name, &request.passphrase)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error);
+        self.client.flush_database().map_err(to_rpc_error)?;
+        ret
     }
 
     fn create_staking_address(&self, request: WalletRequest) -> Result<String> {
-        self.client
+        let ret = self
+            .client
             .new_staking_address(&request.name, &request.enckey)
             .map(|staked_state_addr| staked_state_addr.to_string())
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error);
+        self.client.flush_database().map_err(to_rpc_error)?;
+        ret
     }
     fn create_staking_address_batch(&self, request: WalletRequest, count: u32) -> Result<u32> {
         let total_now = std::time::Instant::now();
@@ -269,6 +277,7 @@ where
                 total_now.elapsed().as_secs()
             );
         }
+        self.client.flush_database().map_err(to_rpc_error)?;
         Ok(count)
     }
 
@@ -277,10 +286,13 @@ where
         request: WalletRequest,
         public_key: PublicKey,
     ) -> Result<String> {
-        self.client
+        let ret = self
+            .client
             .new_watch_staking_address(&request.name, &request.enckey, &public_key)
             .map(|staked_state_addr| staked_state_addr.to_string())
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error);
+        self.client.flush_database().map_err(to_rpc_error)?;
+        ret
     }
 
     fn create_transfer_address(&self, request: WalletRequest) -> Result<String> {
@@ -289,6 +301,7 @@ where
             .new_transfer_address(&request.name, &request.enckey)
             .map_err(to_rpc_error)?;
 
+        self.client.flush_database().map_err(to_rpc_error)?;
         Ok(extended_address.to_string())
     }
 
@@ -309,6 +322,7 @@ where
                 total_now.elapsed().as_secs()
             );
         }
+        self.client.flush_database().map_err(to_rpc_error)?;
         Ok(count)
     }
 
@@ -322,6 +336,7 @@ where
             .new_watch_transfer_address(&request.name, &request.enckey, &public_key)
             .map_err(to_rpc_error)?;
 
+        self.client.flush_database().map_err(to_rpc_error)?;
         Ok(extended_address.to_string())
     }
 
@@ -424,6 +439,7 @@ where
                 self.network_id,
             )
             .map_err(to_rpc_error)?;
+        self.client.flush_database().map_err(to_rpc_error)?;
         Ok(hex::encode(tx_id))
     }
 
@@ -455,6 +471,7 @@ where
             .map_err(to_rpc_error)?;
         let raw_data = unsigned_transfer_tx.encode();
         let b64 = base64::encode(&raw_data);
+        self.client.flush_database().map_err(to_rpc_error)?;
         Ok(b64)
     }
 
@@ -470,6 +487,7 @@ where
             .client
             .broadcast_signed_transfer_tx(&request.name, &request.enckey, signed_tx)
             .map_err(to_rpc_error)?;
+        self.client.flush_database().map_err(to_rpc_error)?;
         Ok(hex::encode(tx_id))
     }
 
@@ -482,9 +500,13 @@ where
     }
 
     fn import_plain_tx(&self, request: WalletRequest, tx: String) -> Result<Coin> {
-        self.client
+        let ret = self
+            .client
             .import_plain_tx(&request.name, &request.enckey, &tx)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error);
+
+        self.client.flush_database().map_err(to_rpc_error)?;
+        ret
     }
 
     fn transactions(
@@ -516,9 +538,12 @@ where
     fn import(&self, request: CreateWalletRequest, wallet_info: WalletInfo) -> Result<SecKey> {
         let mut info = wallet_info;
 
-        self.client
+        let ret = self
+            .client
             .import_wallet(&request.name, &request.passphrase, &mut info)
-            .map_err(to_rpc_error)
+            .map_err(to_rpc_error);
+        self.client.flush_database().map_err(to_rpc_error)?;
+        ret
     }
 }
 

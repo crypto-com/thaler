@@ -45,6 +45,12 @@ impl SledStorage {
 }
 
 impl Storage for SledStorage {
+    fn flush(&self) -> Result<()> {
+        self.0
+            .flush()
+            .chain(|| (ErrorKind::StorageError, "Unable to flush"))?;
+        Ok(())
+    }
     fn clear<S: AsRef<[u8]>>(&self, keyspace: S) -> Result<()> {
         let tree = self.0.open_tree(keyspace.as_ref().to_vec()).chain(|| {
             (

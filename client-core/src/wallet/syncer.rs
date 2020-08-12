@@ -364,6 +364,7 @@ impl<
     fn save(&mut self, memento: &WalletStateMemento) -> Result<()> {
         service::save_sync_state(&self.env.storage, &self.env.name, &self.sync_state)?;
         self.update_state(memento)?;
+        self.env.storage.flush()?;
         Ok(())
     }
 

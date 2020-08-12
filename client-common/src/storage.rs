@@ -79,6 +79,9 @@ pub trait Storage: Send + Sync + Clone {
     fn save<T: Encode>(&self, keyspace: &str, key: &str, value: &T) -> Result<()> {
         self.set(keyspace, key, value.encode()).map(|_| ())
     }
+
+    /// flush db
+    fn flush(&self) -> Result<()>;
 }
 
 /// Interface for a generic key-value storage (with encryption)
