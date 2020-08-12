@@ -12,7 +12,7 @@ mock-enclave = []
 edp = ["aesm-client", "enclave-runner", "sgxs-loaders", "tokio"]
 
 [dependencies]
-abci = "0.7"
+abci = { version = "0.7", git = "https://github.com/crypto-com/rust-abci.git", rev = "d7e007cea9179d560f9d51075525a9cc9449a808" }
 chain-core = { path = "../chain-core" }
 chain-storage = { path = "../chain-storage" }
 chain-tx-filter = { path = "../chain-tx-filter" }
@@ -33,7 +33,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 serde_yaml = "0.8"
 hex = "0.4"
-protobuf = "2.7.0"
+protobuf = "2.16.2"
 integer-encoding = "1.1.5"
 structopt = "0.3"
 secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "1aae6edc5f1de0bbdcdb26f1f1d8b00ca28e012a", features = ["recovery", "endomorphism", "global-context"] }
