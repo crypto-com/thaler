@@ -19,11 +19,9 @@
 !/target/debug/chain-abci
 !/target/debug/client-rpc
 !/target/debug/dev-utils
-!/target/debug/tx-query-app
 !/target/debug/tx_query_enclave.signed.so
 !/target/debug/tx-validation-app
 !/target/debug/tx_validation_enclave.signed.so
-!/target/debug/tx-query2-app-runner
 !/target/debug/tx-query2-enclave-app.sig
 !/target/debug/tx-query2-enclave-app.sgxs
 !/target/debug/tx-validation-next.sig
@@ -33,8 +31,6 @@
 !/target/release/chain-abci
 !/target/release/client-rpc
 !/target/release/dev-utils
-!/target/release/tx-query-app
-!/target/release/tx-query2-app-runner
 !/target/release/tx-query2-enclave-app.sig
 !/target/release/tx-query2-enclave-app.sgxs
 !/target/release/tx-validation-next.sig
