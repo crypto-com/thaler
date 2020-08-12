@@ -58,6 +58,7 @@ assert len(rpc.chain.validators()['validators']) == 2
 addr = rpc.address.list(enckey=enckey, name='target')[0]
 rpc.wallet.sync(enckey=enckey, name='target')
 state = rpc.staking.state(addr, name='target')
+print('joinstate', state)
 punishment = state['last_slash']
 print('punishment', punishment)
 assert punishment['kind'] == 'NonLive'

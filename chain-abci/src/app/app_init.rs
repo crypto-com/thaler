@@ -8,8 +8,6 @@ use parity_scale_codec::{Decode, Encode};
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
-#[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
-use crate::enclave_bridge::edp::start_zmq;
 use crate::enclave_bridge::EnclaveProxy;
 use crate::staking::StakingTable;
 use chain_core::common::MerkleTree;
@@ -296,30 +294,18 @@ impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
     /// * `chain_id` - the chain ID set in Tendermint genesis.json (our name convention is that the last two characters should be hex digits)
     /// * `storage` - underlying storage to be used (in-mem or persistent)
     /// * `tx_query_address` -  address of tx query enclave to supply to clients (if any)
-    /// * `enclave_server` -  connection string which ZeroMQ server wrapper around the transaction validation enclave will listen on
     pub fn new_with_storage(
         mut tx_validator: T,
         gah: &str,
         chain_id: &str,
         mut storage: Storage,
         tx_query_address: Option<String>,
-        enclave_server: Option<String>,
     ) -> Self {
         let decoded_gah = hex::decode(gah).expect("failed to decode genesis app hash");
         let mut genesis_app_hash = [0u8; HASH_SIZE_256];
         genesis_app_hash.copy_from_slice(&decoded_gah[..]);
         let chain_hex_id = hex::decode(&chain_id[chain_id.len() - 2..])
             .expect("failed to decode two last hex digits in chain ID")[0];
-
-        if let (Some(_), Some(_conn_str)) = (tx_query_address.as_ref(), enclave_server.as_ref()) {
-            #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
-            let _ = start_zmq(
-                tx_validator.clone(),
-                _conn_str,
-                chain_hex_id,
-                storage.get_read_only(),
-            );
-        }
 
         if let Some(data) = storage.get_last_app_state() {
             info!("last app state stored");

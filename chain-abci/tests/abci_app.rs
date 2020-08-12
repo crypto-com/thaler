@@ -108,7 +108,6 @@ fn proper_hash_and_chainid_should_be_stored() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         None,
-        None,
     );
     let decoded_gah = decode(example_hash).unwrap();
     let stored_genesis = app.storage.get_genesis_app_hash();
@@ -127,7 +126,6 @@ fn proper_last_state_should_be_restored() {
         EXAMPLE_HASH,
         TEST_CHAIN_ID,
         storage,
-        None,
         None,
     );
     let decoded_gah = decode(EXAMPLE_HASH).unwrap();
@@ -148,7 +146,6 @@ fn too_long_hash_should_panic() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         None,
-        None,
     );
 }
 
@@ -163,7 +160,6 @@ fn chain_id_without_hex_digits_should_panic() {
         "test",
         Storage::new_db(db.clone()),
         None,
-        None,
     );
 }
 
@@ -177,7 +173,6 @@ fn nonhex_hash_should_panic() {
         example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
-        None,
         None,
     );
 }
@@ -239,7 +234,6 @@ fn previously_stored_hash_should_match() {
         error_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db),
-        None,
         None,
     );
 }
@@ -309,7 +303,6 @@ fn init_chain_for(address: RedeemAddress) -> ChainNodeApp<MockClient> {
             &example_hash,
             TEST_CHAIN_ID,
             storage,
-            None,
             None,
         );
         let mut req = RequestInitChain::default();
@@ -398,7 +391,6 @@ fn init_chain_panics_with_different_app_hash() {
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
         None,
-        None,
     );
     let mut req = RequestInitChain::default();
     req.set_app_state_bytes(serde_json::to_vec(&c).unwrap());
@@ -417,7 +409,6 @@ fn init_chain_panics_with_empty_app_bytes() {
         &example_hash,
         TEST_CHAIN_ID,
         Storage::new_db(db.clone()),
-        None,
         None,
     );
     let req = RequestInitChain::default();

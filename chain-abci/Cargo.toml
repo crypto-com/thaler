@@ -45,8 +45,6 @@ aesm-client = {version = "0.5", features = ["sgxs"], optional = true }
 enclave-runner = {version = "0.4", optional = true}
 sgxs-loaders = {version = "0.2", optional = true}
 tokio = { version = "0.2", features = ["uds"], optional = true }
-enclave-utils = { path = "../chain-tx-enclave-next/enclave-utils", features = ["zmq-helper"] }
-zmq = "0.9"
 rand = "0.7"
 
 [build-dependencies]

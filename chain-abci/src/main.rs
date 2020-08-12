@@ -5,7 +5,9 @@ use chain_abci::enclave_bridge::edp::{
 };
 #[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 use chain_abci::enclave_bridge::mock::MockClient;
+use chain_abci::enclave_bridge::EnclaveProxy;
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
+use chain_storage::ReadOnlyStorage;
 use chain_storage::{Storage, StorageConfig, StorageType};
 use log::{error, info, warn};
 use ra_sp_server::config::SpRaConfig;
@@ -14,6 +16,8 @@ use std::env::var;
 use std::fs::{create_dir_all, write, File};
 use std::io::BufReader;
 use std::net::SocketAddr;
+#[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 
@@ -25,10 +29,26 @@ pub struct Config {
     host: String,
     genesis_app_hash: String,
     chain_id: String,
-    enclave_server: Option<String>,
     tx_query: Option<String>,
+    // if different from `tx_query`
+    tx_query_listen: Option<String>,
     launch_ra_proxy: bool,
     remote_attestation: SpRaConfig,
+    data_bootstrap: TdbeConfig,
+}
+
+/// TODO: more concrete when ready
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct TdbeConfig {
+    /// Optional TM RPC address of another TDBE server from where to fetch data
+    /// TODO: it'll get txids + the TDBE connection details from RPC
+    /// TODO: DNS can be obtained from RPC?
+    pub remote_rpc_address: Option<String>,
+    /// TODO: expose on RPC / query?
+    pub local_addresse: String,
+    /// TDBE server address to listen on E.g. `0.0.0.0:3445`
+    /// set to something if different from local_address
+    pub local_listen_address: Option<String>,
 }
 
 impl Default for Config {
@@ -39,8 +59,8 @@ impl Default for Config {
             genesis_app_hash: "54F4F05167492B83F0135AA55D27308C43AEA36E3FE91F4AD21028728207D70F"
                 .into(),
             chain_id: "testnet-thaler-crypto-com-chain-42".into(),
-            enclave_server: None,
             tx_query: None,
+            tx_query_listen: None,
             // in multi-node integration tests, the proxy is shared among nodes
             launch_ra_proxy: false,
             remote_attestation: SpRaConfig {
@@ -58,6 +78,7 @@ impl Default for Config {
                 // TODO: compile-time? only needed to change with version upgrades
                 ias_report_path: "/attestation/v4/report".into(),
             },
+            data_bootstrap: TdbeConfig::default(),
         }
     }
 }
@@ -83,7 +104,7 @@ impl Config {
             self.chain_id = cid.clone();
         }
         if opt.enclave_server.is_some() {
-            self.enclave_server = opt.enclave_server.clone();
+            warn!("enclave_server is deprecated");
         }
         if opt.tx_query.is_some() {
             self.tx_query = opt.tx_query.clone();
@@ -97,10 +118,6 @@ impl Config {
         }
         if self.chain_id.is_empty() {
             error!("chain_id should be set");
-            valid = false
-        }
-        if self.enclave_server.is_none() {
-            error!("enclave_server should be set");
             valid = false
         }
         valid
@@ -162,11 +179,7 @@ pub struct AbciOpt {
         help = "The expected chain id from init chain (the name convention is \"...some-name...-<TWO_HEX_DIGITS>\")"
     )]
     chain_id: Option<String>,
-    #[structopt(
-        short = "e",
-        long = "enclave_server",
-        help = "Connection string (e.g. ipc://enclave.socket or tcp://127.0.0.1:25933) on which ZeroMQ server wrapper around the transaction validation enclave will listen."
-    )]
+    #[structopt(short = "e", long = "enclave_server", help = "DEPRECATED")]
     enclave_server: Option<String>,
     #[structopt(
         short = "tq",
@@ -191,10 +204,20 @@ fn get_enclave_proxy() -> MockClient {
 
 /// edp
 #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
-fn start_up_ra_tx_query(config: &Config) {
-    if let (Some(tx_query_address), Some(zmq_conn)) =
-        (config.tx_query.as_ref(), config.enclave_server.as_ref())
-    {
+fn start_up_ra_tx_query<T: EnclaveProxy + 'static>(
+    config: &Config,
+    proxy: T,
+    storage: ReadOnlyStorage,
+) {
+    if let Some(tx_query_address) = config.tx_query.as_ref() {
+        let (sender, receiver) = UnixStream::pair().expect("init tx query socket");
+        let network_id = hex::decode(&config.chain_id[config.chain_id.len() - 2..])
+            .expect("failed to decode two last hex digits in chain ID")[0];
+        let tqe_address = if let Some(listen_addr) = config.tx_query_listen.as_ref() {
+            listen_addr.clone()
+        } else {
+            tx_query_address.clone()
+        };
         temp_start_up_ra_tx_query(
             if config.launch_ra_proxy {
                 Some(config.remote_attestation.clone())
@@ -202,17 +225,25 @@ fn start_up_ra_tx_query(config: &Config) {
                 None
             },
             TempTxQueryOptions {
-                zmq_conn_str: zmq_conn.clone(),
+                chain_abci_data: sender,
                 sp_address: config.remote_attestation.address.clone(),
-                address: tx_query_address.clone(),
+                address: tqe_address,
             },
+            proxy,
+            network_id,
+            storage,
+            receiver,
         );
     }
 }
 
 /// for development
 #[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
-fn start_up_ra_tx_query(_config: &Config) {
+fn start_up_ra_tx_query<T: EnclaveProxy + 'static>(
+    _config: &Config,
+    _proxy: T,
+    _storage: ReadOnlyStorage,
+) {
     // nothing
 }
 
@@ -269,7 +300,7 @@ fn main() {
             let host = config.host.parse().expect("invalid host");
             let addr = SocketAddr::new(host, config.port);
             let storage = Storage::new(&StorageConfig::new(&opt.data, StorageType::Node));
-            start_up_ra_tx_query(&config);
+            start_up_ra_tx_query(&config, tx_validator.clone(), storage.get_read_only());
             info!("starting up");
             abci::run(
                 addr,
@@ -279,7 +310,6 @@ fn main() {
                     &config.chain_id,
                     storage,
                     config.tx_query,
-                    config.enclave_server,
                 ),
             );
         }
