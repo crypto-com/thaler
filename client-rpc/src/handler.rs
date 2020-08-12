@@ -65,11 +65,19 @@ impl RpcHandler {
             fee_policy.clone(),
             tendermint_client.clone(),
         )?;
-        let handle = spawn_light_client_supervisor(
-            storage_dir.as_ref(),
-            tendermint_client.genesis()?.trusting_period(),
-            sync_options.light_client_peers.clone(),
-        )?;
+        let handle = if sync_options.disable_light_client {
+            None
+        } else {
+            Some(spawn_light_client_supervisor(
+                storage_dir.as_ref(),
+                tendermint_client.genesis()?.trusting_period(),
+                sync_options.light_client_peers.clone(),
+                sync_options.light_client_trusting_period_seconds,
+                sync_options.light_client_trusting_height,
+                sync_options.light_client_trusting_blockhash.clone(),
+                None,
+            )?)
+        };
         let syncer_config = AppSyncerConfig::new(
             storage.clone(),
             tendermint_client.clone(),

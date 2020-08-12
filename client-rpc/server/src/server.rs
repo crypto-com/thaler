@@ -5,9 +5,9 @@ use std::net::SocketAddr;
 
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use client_common::Result;
+use client_common::{Error, ErrorKind};
 use client_core::wallet::syncer::SyncerOptions;
 use client_rpc_core::RpcHandler;
-
 pub(crate) struct Server {
     host: String,
     port: u16,
@@ -24,6 +24,19 @@ impl Server {
         let network_id = get_network_id();
 
         println!("Network type {:?} id {:02X}", get_network(), network_id);
+        let mut light_client_peers: String = "".to_string();
+
+        if !options.disable_light_client {
+            if let Some(value) = options.light_client_peers {
+                light_client_peers = value;
+            } else {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Invalid light-client-peers",
+                ));
+            }
+        }
+
         Ok(Server {
             host: options.host,
             port: options.port,
@@ -36,7 +49,10 @@ impl Server {
                 enable_address_recovery: !options.disable_address_recovery,
                 batch_size: options.batch_size,
                 block_height_ensure: options.block_height_ensure,
-                light_client_peers: options.light_client_peers,
+                light_client_peers,
+                light_client_trusting_period_seconds: options.light_client_trusting_period_seconds,
+                light_client_trusting_height: options.light_client_trusting_height,
+                light_client_trusting_blockhash: options.light_client_trusting_blockhash,
             },
         })
     }

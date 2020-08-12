@@ -4,6 +4,7 @@ mod transaction_command;
 mod wallet_command;
 
 use std::convert::TryInto;
+use std::sync::{Arc, Mutex};
 
 use chrono::{DateTime, Local, NaiveDateTime, Utc};
 use cli_table::format::{CellFormat, Color, Justify};
@@ -219,10 +220,30 @@ pub enum Command {
             name = "light client peer",
             short = "l",
             long = "light-client-peers",
-            default_value = "",
             help = "Light client peers"
         )]
-        light_client_peers: String,
+        light_client_peers: Option<String>,
+
+        #[structopt(
+            name = "light client trusting period in seconds",
+            long = "light-client-trusting-period",
+            help = "light client trusting period in seconds"
+        )]
+        light_client_trusting_period_seconds: Option<u64>,
+
+        #[structopt(
+            name = "light client trusting height",
+            long = "light-client-trusting-height",
+            help = "light client trusting height"
+        )]
+        light_client_trusting_height: Option<u64>,
+
+        #[structopt(
+            name = "light client trusting blockhash",
+            long = "light-client-trusting-blockhash",
+            help = "light client trusting blockhash"
+        )]
+        light_client_trusting_blockhash: Option<String>,
 
         #[structopt(
             name = "disable-address-recovery",
@@ -402,19 +423,139 @@ impl Command {
                 disable_address_recovery,
                 block_height_ensure,
                 light_client_peers,
+                light_client_trusting_period_seconds,
+                light_client_trusting_height,
+                light_client_trusting_blockhash,
             } => {
-                let enckey = ask_seckey(None)?;
                 let rpc_url = tendermint_url();
                 let tendermint_client = WebsocketRpcClient::new(&rpc_url)?;
                 let tx_obfuscation = get_tx_query(tendermint_client.clone())?;
-
                 let db_path = storage_path();
                 let storage = SledStorage::new(&db_path)?;
-                let handle = spawn_light_client_supervisor(
-                    db_path.as_ref(),
-                    tendermint_client.genesis()?.trusting_period(),
-                    light_client_peers.into(),
-                )?;
+                let max_trusting_period = tendermint_client.genesis()?.trusting_period();
+
+                let mut light_client_peers_user: String = "".into();
+                let mut light_client_trusting_period_seconds_user: u64 = 0;
+                let mut light_client_trusting_height_user: u64 = 0;
+                let mut light_client_trusting_blockhash_user: String = "".into();
+                let mut automode = false;
+
+                if !disable_light_client {
+                    light_client_peers_user = if let Some(value) = light_client_peers {
+                        value.clone()
+                    } else {
+                        ask("Enter light-client peers (node@ip:port,node1@ip:port): ");
+                        quest::text().chain(|| {
+                            (
+                                ErrorKind::IoError,
+                                "Unable to read value  light-client-peers",
+                            )
+                        })?
+                    };
+
+                    light_client_trusting_period_seconds_user = if let Some(value) =
+                        light_client_trusting_period_seconds
+                    {
+                        *value
+                    } else {
+                        success(format!("Light-client trusting period should be smaller than {:?}\nFor the safety, check the time carefully.",max_trusting_period).as_str());
+                        ask("Enter light-client trusting period (in seconds): ");
+                        let value_str = quest::text().chain(|| {
+                            (ErrorKind::IoError, "Unable to read value  trusting period")
+                        })?;
+                        value_str.parse::<u64>().chain(|| {
+                            (ErrorKind::IoError, "Unable to parse value  trusting period")
+                        })?
+                    };
+
+                    light_client_trusting_height_user =
+                        if let Some(value) = light_client_trusting_height {
+                            *value
+                        } else {
+                            ask("Enter light-client trusting height: ");
+                            let value_str = quest::text().chain(|| {
+                                (ErrorKind::IoError, "Unable to read value trusting height")
+                            })?;
+                            value_str.parse::<u64>().chain(|| {
+                                (ErrorKind::IoError, "Unable to parse value trusting height")
+                            })?
+                        };
+
+                    light_client_trusting_blockhash_user = if let Some(value) =
+                        light_client_trusting_blockhash
+                    {
+                        if "" == value {
+                            automode = true;
+                        }
+                        value.clone()
+                    } else {
+                        ask("You can find specific block-hash in block-explorer.\nIf you don't have it, just press return-key\nEnter light-client trusting block-hash: ");
+                        quest::text().chain(|| {
+                            (
+                                ErrorKind::IoError,
+                                "Unable to read value trusting block-hash",
+                            )
+                        })?
+                    };
+
+                    log::info!(
+                        "light client options  trust peroid {} seconds    height={} blockhash={}",
+                        light_client_trusting_period_seconds_user,
+                        light_client_trusting_height_user,
+                        light_client_trusting_blockhash_user
+                    );
+                }
+                let enckey = ask_seckey(None)?;
+
+                let mut trusting_period = max_trusting_period;
+                if 0 < light_client_trusting_period_seconds_user {
+                    trusting_period =
+                        std::time::Duration::from_secs(light_client_trusting_period_seconds_user);
+                }
+                log::info!(
+                    "light-client trusting period in seconds {:?}  height {}  blockhash {}",
+                    trusting_period,
+                    light_client_trusting_height_user,
+                    light_client_trusting_blockhash_user,
+                );
+
+                let user_func = |number: u64, info: String| -> bool {
+                    quest::ask(
+                        format!(
+                            "Height={}  BlockHash={} Would you confirm this block?(y or n)",
+                            number, info
+                        )
+                        .as_str(),
+                    );
+                    quest::yesno(true)
+                        .expect("get trusted block confirm")
+                        .expect("get trusted block confirm")
+                };
+
+                let handle = if automode && !disable_light_client {
+                    Some(spawn_light_client_supervisor(
+                        db_path.as_ref(),
+                        trusting_period,
+                        light_client_peers_user.clone(),
+                        light_client_trusting_period_seconds_user,
+                        light_client_trusting_height_user,
+                        "".into(),
+                        None,
+                    )?)
+                } else if !automode && !disable_light_client {
+                    Some(spawn_light_client_supervisor(
+                        db_path.as_ref(),
+                        trusting_period,
+                        light_client_peers_user.clone(),
+                        light_client_trusting_period_seconds_user,
+                        light_client_trusting_height_user,
+                        light_client_trusting_blockhash_user.clone(),
+                        Some(Arc::new(Mutex::new(Box::new(user_func)))),
+                    )?)
+                } else {
+                    None
+                };
+
                 let config = ObfuscationSyncerConfig::new(
                     storage.clone(),
                     tendermint_client,
@@ -425,12 +566,18 @@ impl Command {
                         enable_address_recovery: !*disable_address_recovery,
                         batch_size: *batch_size,
                         block_height_ensure: *block_height_ensure,
-                        light_client_peers: light_client_peers.clone(),
+                        light_client_peers: light_client_peers_user,
+                        light_client_trusting_period_seconds:
+                            light_client_trusting_period_seconds_user,
+                        light_client_trusting_height: light_client_trusting_height_user,
+                        light_client_trusting_blockhash: light_client_trusting_blockhash_user,
                     },
                     handle.clone(),
                 );
                 Self::resync(config, name.clone(), enckey, *force, storage)?;
                 handle
+                    .as_ref()
+                    .expect("get light-client")
                     .terminate()
                     .expect("terminate light client supervisor in client-cli");
                 Ok(())
