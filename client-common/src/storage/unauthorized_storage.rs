@@ -5,6 +5,9 @@ use crate::{ErrorKind, Result, Storage};
 pub struct UnauthorizedStorage;
 
 impl Storage for UnauthorizedStorage {
+    fn flush(&self) -> Result<()> {
+        Ok(())
+    }
     fn clear<S: AsRef<[u8]>>(&self, _keyspace: S) -> Result<()> {
         Err(ErrorKind::PermissionDenied.into())
     }

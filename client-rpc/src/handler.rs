@@ -1,10 +1,13 @@
 use jsonrpc_core::IoHandler;
 
+#[cfg(feature = "experimental")]
+use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
 use chain_core::tx::fee::FeeAlgorithm;
 use client_common::cipher::TransactionObfuscation;
 use client_common::storage::SledStorage;
 use client_common::tendermint::{types::GenesisExt, Client, WebsocketRpcClient};
 use client_common::Result;
+use client_common::Storage;
 use client_core::service::HwKeyService;
 use client_core::signer::WalletSignerManager;
 use client_core::transaction_builder::DefaultWalletTransactionBuilder;
@@ -13,9 +16,6 @@ use client_core::wallet::syncer::{
 };
 use client_core::wallet::DefaultWalletClient;
 use client_network::network_ops::DefaultNetworkOpsClient;
-
-#[cfg(feature = "experimental")]
-use crate::rpc::multisig_rpc::{MultiSigRpc, MultiSigRpcImpl};
 
 use crate::rpc::{
     info_rpc::{InfoRpc, InfoRpcImpl},
@@ -49,6 +49,16 @@ impl RpcHandler {
     ) -> Result<Self> {
         let mut io = IoHandler::new();
         let storage = SledStorage::new(&storage_dir)?;
+
+        let polling_storage = storage.clone();
+        std::thread::spawn(move || {
+            loop {
+                polling_storage.flush().expect("sled storage flush");
+                // every 1 second
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        });
+
         let tendermint_client = WebsocketRpcClient::new(&websocket_url)?;
         let obfuscation = tendermint_client.clone();
         let fee_policy = tendermint_client.clone();

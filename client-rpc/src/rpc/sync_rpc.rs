@@ -306,6 +306,7 @@ where
                 self.progress_callback.clone(),
                 self.recover_address.clone(),
             )?;
+
             Ok(RunSyncResult::default())
         } else {
             self.do_run_sync(request, sync_request.reset, sync_request.do_loop)

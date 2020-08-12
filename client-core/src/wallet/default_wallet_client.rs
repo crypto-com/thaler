@@ -807,6 +807,12 @@ where
         }
     }
 
+    fn flush_database(&self) -> Result<()> {
+        self.storage
+            .flush()
+            .chain(|| (ErrorKind::IoError, "Unable to flush sled"))?;
+        Ok(())
+    }
     fn new_staking_address(&self, name: &str, enckey: &SecKey) -> Result<StakedStateAddress> {
         let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         let public_key = match wallet.wallet_kind {
@@ -879,7 +885,19 @@ where
         self.wallet_service
             .add_public_key(name, enckey, &public_key)?;
 
-        self.new_multisig_transfer_address(name, enckey, vec![public_key.clone()], public_key, 1)
+        let ret = self.new_multisig_transfer_address(
+            name,
+            enckey,
+            vec![public_key.clone()],
+            public_key,
+            1,
+        );
+
+        self.storage
+            .flush()
+            .chain(|| (ErrorKind::IoError, "Unable to flush sled"))?;
+
+        ret
     }
 
     fn new_watch_staking_address(
@@ -890,6 +908,10 @@ where
     ) -> Result<StakedStateAddress> {
         self.wallet_service
             .add_staking_key(name, enckey, public_key)?;
+
+        self.storage
+            .flush()
+            .chain(|| (ErrorKind::IoError, "Unable to flush sled"))?;
 
         Ok(StakedStateAddress::BasicRedeem(RedeemAddress::from(
             public_key,
@@ -931,6 +953,10 @@ where
                 .new_root_hash(name, public_keys, self_public_key, m, enckey)?;
 
         self.wallet_service.add_root_hash(name, enckey, root_hash)?;
+
+        self.storage
+            .flush()
+            .chain(|| (ErrorKind::IoError, "Unable to flush sled"))?;
 
         Ok(multi_sig_address.into())
     }
@@ -1175,6 +1201,11 @@ where
 
         self.wallet_state_service
             .apply_memento(name, enckey, &memento)?;
+
+        self.storage
+            .flush()
+            .chain(|| (ErrorKind::IoError, "Unable to flush sled"))?;
+
         Ok(imported_value)
     }
 
