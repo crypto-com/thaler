@@ -21,7 +21,8 @@ endif
 
 
 chain_abci_features ?= ${CHAIN_ABCI_FEATURES}
-client_features ?= ${CLIENT_FEATURES}
+client_cli_features ?= ${CLIENT_CLI_FEATURES}
+client_rpc_features ?= ${CLIENT_RPC_FEATURES}
 
 ifeq ($(chain_abci_features)x, x)
 	CARGO_BUILD_CMD_ABCI = $(CARGO_BUILD_CMD)
@@ -32,7 +33,13 @@ endif
 ifeq ($(client_features)x, x)
 	CARGO_BUILD_CMD_CLI = $(CARGO_BUILD_CMD)
 else
-	CARGO_BUILD_CMD_CLI = $(CARGO_BUILD_CMD) --features "$(client_features)"
+	CARGO_BUILD_CMD_CLI = $(CARGO_BUILD_CMD) --features "$(client_cli_features)"
+endif
+
+ifeq ($(client_features)x, x)
+	CARGO_BUILD_CMD_RPC = $(CARGO_BUILD_CMD)
+else
+	CARGO_BUILD_CMD_RPC = $(CARGO_BUILD_CMD) --features "$(client_rpc_features)"
 endif
 
 
@@ -201,7 +208,7 @@ build-chain:
 			echo "========  build client-cli   =========" && \
 			cd ../client-cli && $(CARGO_BUILD_CMD_CLI)&& \
 			echo "========  build client-rpc   =========" && \
-			cd ../client-rpc/server && $(CARGO_BUILD_CMD_CLI)'; \
+			cd ../client-rpc/server && $(CARGO_BUILD_CMD_RPC)'; \
 	fi
 
 # build the enclave queury-next and tx-validation-next binary and sig

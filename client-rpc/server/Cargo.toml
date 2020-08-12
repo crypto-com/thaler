@@ -6,6 +6,7 @@ edition = "2018"
 
 [features]
 mock-enclave = ["client-rpc-core/mock-enclave"]
+experimental = ["client-rpc-core/experimental"]
 
 [dependencies]
 client-rpc-core = { path = ".." }
