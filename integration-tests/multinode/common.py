@@ -43,16 +43,16 @@ def wait_for_validators(rpc, count, timeout=10):
 
 
 def latest_block_height(rpc):
-    return int(rpc.chain.status()['sync_info']['latest_block_height'])
+    return latest_block(rpc)[1]
 
 
 def wait_for_blocks(rpc, n, height=None):
     height = height if height is not None else latest_block_height(rpc)
     while True:
         time.sleep(1)
-        delta = latest_block_height(rpc) - height
-        if delta >= n:
-            break
+        latest = latest_block_height(rpc)
+        if latest - height >= n:
+            return latest
 
 
 def stop_node(supervisor, name):
@@ -61,16 +61,40 @@ def stop_node(supervisor, name):
 
 
 def latest_block_time(rpc):
-    return datetime.timestamp(iso8601.parse_date(rpc.chain.status()['sync_info']['latest_block_time']))
+    return latest_block(rpc)[0]
+
+
+def latest_block(rpc):
+    sync_info = rpc.chain.status()['sync_info']
+    return (
+        datetime.timestamp(iso8601.parse_date(sync_info['latest_block_time'])),
+        int(sync_info['latest_block_height'])
+    )
 
 
 def wait_for_blocktime(rpc, t):
     while True:
         time.sleep(1)
-        block_time = latest_block_time(rpc)
+        block_time, block_height = latest_block(rpc)
         print('block_time:', block_time)
         if block_time > t:
-            break
+            return block_height
+
+
+def wait_for_block_state(rpc, height):
+    'wait for block committed in abci'
+    # query the chain state from abci
+    while True:
+        rsp = rpc.chain.query("state", '', height, False)['response']
+        if rsp['code'] == 0:
+            return rsp
+        elif rsp['code'] == 2:
+            # not exist, retry
+            print('block not ready, retry later')
+            time.sleep(0.5)
+            continue
+        else:
+            assert False, f'query chain state failed: {rsp}'
 
 
 _rpc_cache = weakref.WeakValueDictionary()

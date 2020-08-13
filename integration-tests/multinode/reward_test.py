@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 import os
 import math
-from common import get_rpc, UnixStreamXMLRPCClient, wait_for_blocks, stop_node, wait_for_blocktime, wait_for_port, latest_block_time
+from common import (
+    get_rpc, UnixStreamXMLRPCClient, wait_for_blocks, stop_node, wait_for_blocktime, wait_for_port,
+    latest_block_time, wait_for_block_state
+)
 
 '''
 wait for first reward distribution (the second block)
@@ -69,13 +72,13 @@ assert state['node_meta']['CouncilNode']['jailed_until'] is not None
 stop_node(supervisor, 'node1')
 
 # wait for reward period, for second reward distribution
-wait_for_blocktime(rpc, block_time + 10)
+height = wait_for_blocktime(rpc, block_time + 10)
+wait_for_block_state(rpc, height)
 # minted = 6182420000
 minted = monetary_expansion(bonded_rewarded, int(145000000000000000 * 0.99986))
 
-state = rpc.chain.staking(bonded_staking2)
+state = rpc.chain.staking(bonded_staking2, height)
 assert int(state['bonded']) == last_bonded, 'jailed node don\'t get rewarded'
 
-state = rpc.chain.staking(bonded_staking)
-print('reward debug', bonded_rewarded, minted, slashed, state)
+state = rpc.chain.staking(bonded_staking, height)
 assert int(state['bonded']) == bonded_rewarded + minted + slashed
