@@ -1,4 +1,5 @@
 use crate::hd_wallet::ChainPath;
+use crate::service::ledger_hw_key_service::LedgerService;
 #[cfg(feature = "mock-hardware-wallet")]
 use crate::service::MockHardwareService;
 use client_common::{ErrorKind, PrivateKeyAction, PublicKey, Result};
@@ -29,6 +30,8 @@ pub enum HwKeyService {
     /// mock key service
     #[cfg(feature = "mock-hardware-wallet")]
     Mock(MockHardwareService),
+    /// ledger service
+    Ledger(LedgerService),
 }
 
 impl Default for HwKeyService {
@@ -44,6 +47,7 @@ impl HwKeyService {
             HwKeyService::Unauthorized(hw_key_service) => hw_key_service.get_sign_key(hd_path),
             #[cfg(feature = "mock-hardware-wallet")]
             HwKeyService::Mock(hw_key_service) => hw_key_service.get_sign_key(hd_path),
+            HwKeyService::Ledger(ledger_service) => ledger_service.get_sign_key(hd_path),
         }
     }
 
@@ -53,6 +57,7 @@ impl HwKeyService {
             HwKeyService::Unauthorized(hw_key_service) => hw_key_service.get_public_key(chain_path),
             #[cfg(feature = "mock-hardware-wallet")]
             HwKeyService::Mock(hw_key_service) => hw_key_service.get_public_key(chain_path),
+            HwKeyService::Ledger(ledger_service) => ledger_service.get_public_key(chain_path),
         }
     }
 }

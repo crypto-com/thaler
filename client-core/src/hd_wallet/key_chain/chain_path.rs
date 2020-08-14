@@ -40,7 +40,7 @@ impl ChainPath {
     }
 
     /// Convert ChainPath to &str represent format
-    fn to_string(&self) -> &str {
+    pub fn to_string(&self) -> &str {
         &self.0
     }
 

@@ -2,9 +2,9 @@ From ubuntu:18.04
 
 RUN apt-get update && apt-get install -y \
      make \
-     libzmq3-dev \
      libssl1.1 \
      libssl-dev \
+     libudev-dev \
      curl \
      libprotobuf-dev \
      libssl-dev && \

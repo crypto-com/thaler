@@ -43,9 +43,9 @@ use crate::logo::{get_jok, get_logo};
 use crate::{ask_seckey, storage_path, tendermint_url};
 use chain_core::tx::fee::LinearFee;
 use client_core::hd_wallet::HardwareKind;
-use client_core::service::HwKeyService;
 #[cfg(feature = "mock-hardware-wallet")]
 use client_core::service::MockHardwareService;
+use client_core::service::{HwKeyService, LedgerService};
 use once_cell::sync::Lazy;
 use std::env;
 
@@ -345,7 +345,10 @@ impl Command {
                     #[cfg(feature = "mock-hardware-wallet")]
                     Some(HardwareKind::Mock) => HwKeyService::Mock(MockHardwareService::new()),
                     Some(HardwareKind::Trezor) => HwKeyService::default(),
-                    Some(HardwareKind::Ledger) => HwKeyService::default(),
+                    Some(HardwareKind::Ledger) => {
+                        let ledger_service = LedgerService::new(true)?;
+                        HwKeyService::Ledger(ledger_service)
+                    }
                 };
                 let signer_manager =
                     WalletSignerManager::new(storage.clone(), hw_key_service.clone());
@@ -384,7 +387,10 @@ impl Command {
                     #[cfg(feature = "mock-hardware-wallet")]
                     Some(HardwareKind::Mock) => HwKeyService::Mock(MockHardwareService::new()),
                     Some(HardwareKind::Trezor) => HwKeyService::default(),
-                    Some(HardwareKind::Ledger) => HwKeyService::default(),
+                    Some(HardwareKind::Ledger) => {
+                        let ledger_service = LedgerService::new(true)?;
+                        HwKeyService::Ledger(ledger_service)
+                    }
                 };
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;

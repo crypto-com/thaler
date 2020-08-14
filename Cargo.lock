@@ -799,6 +799,8 @@ dependencies = [
  "indexmap",
  "itertools 0.9.0",
  "jsonrpc-core",
+ "ledger-crypto",
+ "ledger-transport-hid",
  "log",
  "mock-utils",
  "once_cell",
@@ -816,9 +818,10 @@ dependencies = [
  "test-common",
  "thiserror",
  "tiny-bip39",
- "tokio 0.1.22",
+ "tokio 0.2.20",
  "unicase",
  "zeroize",
+ "zx-bip44",
  "zxcvbn",
 ]
 
@@ -1869,6 +1872,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "644f9158b2f133fd50f5fb3242878846d9eb792e445c893805ff0e3824006e35"
 
 [[package]]
+name = "hidapi"
+version = "1.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c6ffb97f2ec5835ec73bcea5256fc2cd57a13c5958230778ef97f11900ba661"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+]
+
+[[package]]
 name = "hkdf"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2333,6 +2347,73 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
 
 [[package]]
+name = "ledger-apdu"
+version = "0.1.0"
+source = "git+https://github.com/Zondax/ledger-rs#279434c7b853d5f9f9c2c705dd65281530058e62"
+
+[[package]]
+name = "ledger-crypto"
+version = "0.1.0"
+source = "git+https://github.com/Zondax/ledger-crypto-rs?rev=62ccadf0374c45e318e622cc01fb44647592659f#62ccadf0374c45e318e622cc01fb44647592659f"
+dependencies = [
+ "byteorder",
+ "hex",
+ "lazy_static",
+ "ledger-transport",
+ "ledger-transport-hid",
+ "ledger-zondax-generic",
+ "log",
+ "serde",
+ "thiserror",
+ "zx-bip44",
+]
+
+[[package]]
+name = "ledger-transport"
+version = "0.0.0"
+source = "git+https://github.com/Zondax/ledger-rs#279434c7b853d5f9f9c2c705dd65281530058e62"
+dependencies = [
+ "byteorder",
+ "futures 0.3.5",
+ "js-sys",
+ "lazy_static",
+ "ledger-apdu",
+ "ledger-transport-hid",
+ "serde",
+ "thiserror",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+]
+
+[[package]]
+name = "ledger-transport-hid"
+version = "0.3.0"
+source = "git+https://github.com/Zondax/ledger-rs#279434c7b853d5f9f9c2c705dd65281530058e62"
+dependencies = [
+ "byteorder",
+ "cfg-if",
+ "hex",
+ "hidapi",
+ "lazy_static",
+ "ledger-apdu",
+ "libc",
+ "log",
+ "nix 0.17.0",
+ "thiserror",
+]
+
+[[package]]
+name = "ledger-zondax-generic"
+version = "0.1.0"
+source = "git+https://github.com/Zondax/ledger-rs#279434c7b853d5f9f9c2c705dd65281530058e62"
+dependencies = [
+ "ledger-apdu",
+ "ledger-transport",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "lexical-core"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2665,6 +2746,19 @@ name = "nix"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4dbdc256eaac2e3bd236d93ad999d3479ef775c863dbda3068c4006a92eec51b"
+dependencies = [
+ "bitflags",
+ "cc",
+ "cfg-if",
+ "libc",
+ "void",
+]
+
+[[package]]
+name = "nix"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "50e4785f2c3b7589a0d0c1dd60285e1188adac4006e8abd6dd578e1567027363"
 dependencies = [
  "bitflags",
  "cc",
@@ -3671,9 +3765,9 @@ dependencies = [
 
 [[package]]
 name = "rs-libc"
-version = "0.2.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be0b66dae43e662009880c5cd71fd335699cb77b06e31f5d53ee8fb89c7d247e"
+checksum = "71ecb2603155fa7473cac8df6f080f06bea5282a7a900dd71d361a351883d4f9"
 dependencies = [
  "cc",
 ]
@@ -5328,6 +5422,15 @@ dependencies = [
  "quote",
  "syn",
  "synstructure",
+]
+
+[[package]]
+name = "zx-bip44"
+version = "0.1.0"
+source = "git+https://github.com/Zondax/blockchain-tools-rs#ece6dd2a81037016d9660470f4e811b8a6b0896f"
+dependencies = [
+ "byteorder",
+ "thiserror",
 ]
 
 [[package]]

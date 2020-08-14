@@ -124,17 +124,15 @@ impl SyncRpcClient {
             return Ok(maybe_rpc_client.clone().unwrap());
         }
         let mut runtime = self.runtime.lock().unwrap();
-        let async_rpc_client = runtime
-            .block_on(async { AsyncRpcClient::new(&self.url).await })
-            .chain(|| {
-                (
-                    ErrorKind::InitializationError,
-                    format!(
-                        "Unable to connect to tendermint RPC websocket at: {}",
-                        self.url
-                    ),
-                )
-            })?;
+        let async_rpc_client = runtime.block_on(AsyncRpcClient::new(&self.url)).chain(|| {
+            (
+                ErrorKind::InitializationError,
+                format!(
+                    "Unable to connect to tendermint RPC websocket at: {}",
+                    self.url
+                ),
+            )
+        })?;
         *maybe_rpc_client = Some(async_rpc_client.clone());
         Ok(async_rpc_client)
     }

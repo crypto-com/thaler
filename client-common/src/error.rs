@@ -123,6 +123,8 @@ pub enum ErrorKind {
     VerifyError,
     /// Run enclave error (gen keypackage)
     RunEnclaveError,
+    /// Ledger error
+    LedgerError,
 }
 
 impl fmt::Display for ErrorKind {
@@ -146,6 +148,7 @@ impl fmt::Display for ErrorKind {
             ErrorKind::ValidationError => write!(f, "Validation error"),
             ErrorKind::VerifyError => write!(f, "Verify error"),
             ErrorKind::RunEnclaveError => write!(f, "Run enclave error"),
+            ErrorKind::LedgerError => write!(f, "ledger error"),
         }
     }
 }

@@ -146,7 +146,7 @@ impl AddressCommand {
         let wallet_kind = wallet_client.get_wallet_kind(name, &enckey)?;
         if wallet_kind == WalletKind::HW {
             let hw_kind = ask_hardware_kind(None)?;
-            wallet_client.update_hw_service(hw_kind);
+            wallet_client.update_hw_service(hw_kind)?;
         }
         match address_type {
             AddressType::Staking => {

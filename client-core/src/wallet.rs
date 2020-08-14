@@ -63,7 +63,7 @@ pub trait WalletClient: Send + Sync {
     fn get_transaction(&self, name: &str, enckey: &SecKey, txid: TxId) -> Result<Transaction>;
 
     /// update hardware wallet service
-    fn update_hw_service(&mut self, hardware_type: HardwareKind);
+    fn update_hw_service(&mut self, hardware_type: HardwareKind) -> Result<()>;
 
     /// get wallet kind
     fn get_wallet_kind(&self, name: &str, enckey: &SecKey) -> Result<WalletKind>;
