@@ -77,4 +77,5 @@ state = rpc.chain.staking(bonded_staking2)
 assert int(state['bonded']) == last_bonded, 'jailed node don\'t get rewarded'
 
 state = rpc.chain.staking(bonded_staking)
+print('reward debug', bonded_rewarded, minted, slashed, state)
 assert int(state['bonded']) == bonded_rewarded + minted + slashed

@@ -20,6 +20,13 @@ pub trait StreamRead: Decode {
 impl<T: Encode> StreamWrite for T {
     fn write_to<W: Write>(&self, mut writer: W) -> io::Result<usize> {
         let mut bytes = self.encode();
+        if bytes.len() > (u32::MAX as usize) {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "output doesn't fit in u32",
+            ));
+        }
+        // TODO: is this intermediate Vec necessary -- ok to call "write(&size); write(&bytes);" instead?
         let mut to_send = Vec::with_capacity(
             bytes
                 .len()

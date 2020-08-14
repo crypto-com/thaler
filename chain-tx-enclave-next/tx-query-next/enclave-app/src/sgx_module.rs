@@ -28,9 +28,9 @@ pub fn entry(cert_expiration: Option<Duration>) -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
-    log::info!("Connecting to ZeroMQ");
-    let zmq_stream = Arc::new(Mutex::new(TcpStream::connect("zmq")?));
-
+    log::info!("Connecting to chain-abci data");
+    let chain_data_stream = Arc::new(Mutex::new(TcpStream::connect("chain-abci-data")?));
+    // FIXME: connect to tx-validation (mutually attested TLS)
     let num_threads = 4;
 
     // use the smaller Duration as certificate validity, so that we can check the certification is expired or not correctly
@@ -58,7 +58,7 @@ pub fn entry(cert_expiration: Option<Duration>) -> std::io::Result<()> {
 
     for stream in listener.incoming() {
         let context = context.clone();
-        let zmq_stream = zmq_stream.clone();
+        let chain_data_stream = chain_data_stream.clone();
 
         thread_pool_sender
             .send(move || {
@@ -76,7 +76,7 @@ pub fn entry(cert_expiration: Option<Duration>) -> std::io::Result<()> {
                 let tls_session = ServerSession::new(&tls_server_config);
                 let stream = StreamOwned::new(tls_session, stream.unwrap());
 
-                handle_connection(stream, zmq_stream);
+                handle_connection(stream, chain_data_stream);
             })
             .expect("Unable to send tasks to thread pool");
     }
@@ -85,14 +85,14 @@ pub fn entry(cert_expiration: Option<Duration>) -> std::io::Result<()> {
     Ok(())
 }
 
-fn handle_connection<T: Read + Write>(mut stream: T, zmq_stream: Arc<Mutex<TcpStream>>) {
+fn handle_connection<T: Read + Write>(mut stream: T, chain_data_stream: Arc<Mutex<TcpStream>>) {
     let mut bytes = vec![0u8; ENCRYPTION_REQUEST_SIZE];
 
     match stream.read(&mut bytes) {
         Ok(len) => {
             match TxQueryInitRequest::decode(&mut &bytes.as_slice()[0..len]) {
                 Ok(TxQueryInitRequest::Encrypt(request)) => {
-                    let response = handle_encryption_request(request, len, zmq_stream);
+                    let response = handle_encryption_request(request, len, chain_data_stream);
 
                     let response = match response {
                         Ok(response) => response,
@@ -128,8 +128,10 @@ fn handle_connection<T: Read + Write>(mut stream: T, zmq_stream: Arc<Mutex<TcpSt
                                         return;
                                     }
 
-                                    match handle_decryption_request(&decryption_request, zmq_stream)
-                                    {
+                                    match handle_decryption_request(
+                                        &decryption_request,
+                                        chain_data_stream,
+                                    ) {
                                         Ok(decryption_response) => {
                                             if let Err(err) =
                                                 stream.write_all(&decryption_response.encode())

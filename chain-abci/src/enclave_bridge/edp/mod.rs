@@ -19,7 +19,6 @@ use std::{future::Future, io, pin::Pin};
 use ra_sp_server::{config::SpRaConfig, server::SpRaServer};
 use tokio::net::{TcpListener, TcpStream};
 
-use enclave_utils::zmq_helper::ZmqHelper;
 use std::os::unix::net::UnixStream;
 
 /// pair of unix domain sockets
@@ -48,25 +47,6 @@ impl Default for TxValidationApp {
             runner_stream: Arc::new(Mutex::new(sender)),
         }
     }
-}
-
-/// It launches a ZMQ server that can server tx-query requests;
-/// (used to be in a separate process -- tx-validation-app that had a custom storage;
-/// now it's in a thread of chain-abci and shares its storage)
-pub fn start_zmq<T: EnclaveProxy + 'static>(
-    proxy: T,
-    zmq_conn_str: &str,
-    network_id: u8,
-    storage: ReadOnlyStorage,
-) -> thread::JoinHandle<()> {
-    let (sender, receiver) = channel();
-    let mut server =
-        server::TxValidationServer::new(zmq_conn_str, proxy, storage, network_id, sender)
-            .expect("could not start a zmq server");
-    log::info!("starting zmq server");
-    let child_t = thread::spawn(move || server.execute());
-    receiver.recv().unwrap();
-    child_t
 }
 
 type UserCallStream = io::Result<Option<Box<dyn AsyncStream>>>;
@@ -159,11 +139,9 @@ pub fn launch_tx_validation() -> TxValidationApp {
 /// Temporary tx query launching options
 #[derive(Debug)]
 pub struct TempTxQueryOptions {
-    /// ZeroMQ connection string of tx-validation server (now in chain-abci). E.g.
-    /// `ipc://enclave.ipc` or `tcp://127.0.0.1:25933`
-    /// FIXME: no need -- replace with 1) direct attested TLS to tx-validation (over unix domain socket)
-    /// 2) some lookup serving chain-abci storage
-    pub zmq_conn_str: String,
+    /// FIXME: split up encryption to direct attested TLS to tx-validation (over unix domain socket
+    /// provided both to tx-validation and tx-query enclaves)
+    pub chain_abci_data: UnixStream,
     /// `ra-sp-server` address for remote attestation. E.g. `0.0.0.0:8989`
     /// FIXME: enclave direct connection -- not via TCP proxy
     pub sp_address: String,
@@ -183,9 +161,10 @@ impl UsercallExtension for TempTxQueryOptions {
             addr: &str,
         ) -> io::Result<Option<Box<dyn AsyncStream>>> {
             match addr {
-                "zmq" => {
-                    let zmq_helper = ZmqHelper::new(&this.zmq_conn_str)?;
-                    Ok(Some(Box::new(zmq_helper)))
+                "chain-abci-data" => {
+                    let stream =
+                        tokio::net::UnixStream::from_std(this.chain_abci_data.try_clone()?)?;
+                    Ok(Some(Box::new(stream)))
                 }
                 "ra-sp-server" => {
                     let stream = TcpStream::connect(&this.sp_address).await?;
@@ -218,9 +197,13 @@ impl UsercallExtension for TempTxQueryOptions {
 }
 
 /// starts up remote attestation proxy and tx-query enclave
-pub fn temp_start_up_ra_tx_query(
+pub fn temp_start_up_ra_tx_query<T: EnclaveProxy + 'static>(
     ra_config: Option<SpRaConfig>,
     tx_query_options: TempTxQueryOptions,
+    proxy: T,
+    network_id: u8,
+    storage: ReadOnlyStorage,
+    socket_to_enclave: UnixStream,
 ) {
     if let Some(ra_config) = ra_config {
         let ra_address = ra_config.address.clone();
@@ -248,4 +231,11 @@ pub fn temp_start_up_ra_tx_query(
             .expect("Failed to build enclave");
         enclave.run().expect("Failed to start enclave")
     });
+
+    let (sender, receiver) = channel();
+    let mut server =
+        server::TxValidationServer::new(socket_to_enclave, proxy, storage, network_id, sender);
+    log::info!("starting tx-query data handling server");
+    let _child_t = thread::spawn(move || server.execute());
+    receiver.recv().unwrap();
 }

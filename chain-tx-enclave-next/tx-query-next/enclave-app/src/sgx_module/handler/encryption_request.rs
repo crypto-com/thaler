@@ -17,7 +17,7 @@ use enclave_utils::SealedData;
 pub fn handle_encryption_request(
     encryption_request: Box<EncryptionRequest>,
     request_len: usize,
-    zmq_stream: Arc<Mutex<TcpStream>>,
+    chain_data_stream: Arc<Mutex<TcpStream>>,
 ) -> Result<EncryptionResponse, String> {
     let request = construct_request(&*encryption_request, request_len);
 
@@ -27,28 +27,33 @@ pub fn handle_encryption_request(
             // Prepare enclave request
             let enclave_request = EnclaveRequest::EncryptTx(Box::new(request)).encode();
 
-            let mut zmq_stream = zmq_stream.lock().unwrap();
+            let mut chain_data_stream = chain_data_stream.lock().unwrap();
 
-            // Send request to ZeroMQ
-            zmq_stream
+            // Send request to chain-abci
+            chain_data_stream
                 .write_all(&enclave_request)
-                .map_err(|err| format!("Error while writing request to ZeroMQ: {}", err))?;
+                .map_err(|err| format!("Error while writing request to chain-abci: {}", err))?;
 
-            // Read reponse length from ZeroMQ (little endian u32 bytes)
+            // Read reponse length from chain-abci (little endian u32 bytes)
             let mut response_len = [0u8; 4];
-            zmq_stream.read(&mut response_len).map_err(|err| {
-                format!("Error while reading reponse length from ZeroMQ: {}", err)
+            chain_data_stream.read(&mut response_len).map_err(|err| {
+                format!(
+                    "Error while reading reponse length from chain-abci: {}",
+                    err
+                )
             })?;
 
             let response_len: usize = u32::from_le_bytes(response_len)
                 .try_into()
-                .expect("Response length exceeds `usize` bounds");
-
-            // Read result from ZeroMQ
+                .map_err(|_| "Response length exceeds `usize` bounds".to_owned())?;
+            if response_len == 0 {
+                return Err("Unexpected response from chain-abci".to_owned());
+            }
+            // Read result from chain-abci
             let mut result_buf = vec![0u8; response_len];
-            zmq_stream
+            chain_data_stream
                 .read(&mut result_buf)
-                .map_err(|err| format!("Error while reading response from ZeroMQ: {}", err))?;
+                .map_err(|err| format!("Error while reading response from chain-abci: {}", err))?;
 
             match EnclaveResponse::decode(&mut result_buf.as_ref()) {
                 Ok(EnclaveResponse::EncryptTx(enclave_response)) => {
@@ -84,9 +89,9 @@ pub fn handle_encryption_request(
 
                     Ok(encryption_response)
                 }
-                Ok(_) => Err("Unexpected response from ZeroMQ".to_owned()),
+                Ok(_) => Err("Unexpected response from chain-abci".to_owned()),
                 Err(err) => Err(format!(
-                    "Error while decoding response from ZeroMQ: {}",
+                    "Error while decoding response from chain-abci: {}",
                     err
                 )),
             }

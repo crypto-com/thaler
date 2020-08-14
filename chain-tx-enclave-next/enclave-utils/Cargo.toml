@@ -12,11 +12,7 @@ aes-gcm = "0.6"
 aead = "0.3"
 zeroize = "1.1"
 rand = "0.7"
-async_zmq = { version = "0.3", optional = true }
-futures = { version = "0.3", optional = true }
 log = "0.4"
-tokio = { version = "0.2", features = ["sync", "tcp"], optional = true }
 
 [features]
 sgxstd = ["sgx-isa/sgxstd"]
-zmq-helper = ["async_zmq", "futures", "tokio"]

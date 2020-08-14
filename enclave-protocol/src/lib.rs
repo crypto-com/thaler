@@ -196,9 +196,6 @@ pub enum EnclaveResponse {
     UnknownRequest,
 }
 
-/// ZMQ flags to be used in the socket connection
-pub const FLAGS: i32 = 0;
-
 /// initial request sent by client to TQE
 #[derive(Encode, Decode)]
 pub enum TxQueryInitRequest {
