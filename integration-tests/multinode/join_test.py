@@ -63,13 +63,16 @@ punishment = state['last_slash']
 print('punishment', punishment)
 assert punishment['kind'] == 'NonLive'
 print('slash amount', punishment['amount'])
+if state['node_meta']:
+    jailed_until = state['node_meta']['CouncilNode']['jailed_until']
+    assert jailed_until is None, 'NonLive fault is not jailed'
+else:
+    print('node is cleaned up')
 
 print('Starting', TARGET_NODE)
 supervisor.supervisor.startProcessGroup(TARGET_NODE)
 wait_for_port(TARGET_PORT + 7)
 print('Started', TARGET_NODE)
-jailed_until = state['node_meta']['CouncilNode']['jailed_until']
-assert jailed_until is None, 'NonLive fault is not jailed'
 
 print('Join', TARGET_NODE)
 txid = rpc.staking.join(
