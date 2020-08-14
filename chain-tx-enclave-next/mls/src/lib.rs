@@ -7,6 +7,8 @@
 #![warn(clippy::wildcard_imports)]
 pub mod ciphersuite;
 pub mod credential;
+pub mod crypto;
+pub mod error;
 pub mod extensions;
 pub mod extras;
 pub mod group;

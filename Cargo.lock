@@ -2585,6 +2585,7 @@ dependencies = [
  "assert_matches",
  "chain-util",
  "chrono",
+ "generic-array 0.14.2",
  "hkdf",
  "hpke",
  "nom",

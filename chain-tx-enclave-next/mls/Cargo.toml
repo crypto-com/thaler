@@ -27,6 +27,7 @@ p256 = { version = "0.3.0", features = ["arithmetic", "zeroize"], git = "https:/
 zeroize = "1.1"
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 once_cell = "1.4"
+generic-array = "0.14"
 
 [dev-dependencies]
 chrono = "0.4"

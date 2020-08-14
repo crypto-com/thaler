@@ -1,4 +1,6 @@
-use crate::keypackage::{self, Timespec};
+use crate::ciphersuite::CipherSuite;
+use crate::error::KeyPackageError;
+use crate::keypackage::Timespec;
 use crate::message::MLSPlaintext;
 use crate::Codec;
 use ra_client::{CertVerifyResult, ENCLAVE_CERT_VERIFIER};
@@ -10,7 +12,7 @@ pub enum NodeJoinError {
     #[error("decoding failed")]
     DecodeError,
     #[error("verification error: {0}")]
-    VerifyError(#[from] keypackage::Error),
+    VerifyError(#[from] KeyPackageError),
 }
 
 /// FIXME: needs design/spec https://github.com/crypto-com/chain-docs/issues/141
@@ -22,13 +24,14 @@ pub struct NodeJoinResult {
 /// FIXME: needs design/spec https://github.com/crypto-com/chain-docs/issues/141
 /// this may need to be passed in more arguments, e.g. groupcontext or whatever the chain-abci
 /// can maintain
-pub fn check_nodejoin(
+pub fn check_nodejoin<CS: CipherSuite>(
     add_proposal: &[u8],
     _commit: &[u8],
     block_time: Timespec,
 ) -> Result<NodeJoinResult, NodeJoinError> {
     // FIXME: many missing validations
-    let proposal = MLSPlaintext::read_bytes(add_proposal).ok_or(NodeJoinError::DecodeError)?;
+    let proposal =
+        MLSPlaintext::<CS>::read_bytes(add_proposal).ok_or(NodeJoinError::DecodeError)?;
     let add = proposal.get_add().ok_or(NodeJoinError::DecodeError)?;
 
     let info = add
