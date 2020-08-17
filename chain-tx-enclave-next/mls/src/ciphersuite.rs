@@ -147,6 +147,8 @@ impl CipherSuite for P256 {
     }
 }
 
+pub type DefaultCipherSuite = P256;
+
 pub type Kex<CS> = <<CS as CipherSuite>::Kem as hpke::Kem>::Kex;
 // KEM.Nsk draft-ietf-mls-protocol.md#ratchet-tree-evolution
 pub type SecretSize<CS> =
@@ -243,10 +245,8 @@ impl<CS: CipherSuite> ConstantTimeEq for HashValue<CS> {
 impl<CS: CipherSuite> TryFrom<&[u8]> for HashValue<CS> {
     type Error = ();
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() == HashSize::<CS>::to_usize() {
-            Ok(Self(GenericArray::clone_from_slice(value)))
-        } else {
-            Err(())
-        }
+        GenericArray::from_exact_iter(value.iter().copied())
+            .ok_or(())
+            .map(Self)
     }
 }

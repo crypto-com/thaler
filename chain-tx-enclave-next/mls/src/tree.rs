@@ -482,14 +482,7 @@ impl<CS: CipherSuite> TreePublicKey<CS> {
         ctx: &[u8],
         my_pos: LeafSize,
         leaf_secret: &Secret<NodeSecret<CS>>,
-    ) -> Result<
-        (
-            Vec<DirectPathNode<CS>>,
-            Option<HashValue<CS>>,
-            TreeSecret<CS>,
-        ),
-        CommitError,
-    > {
+    ) -> Result<TreeEvolveResult<CS>, CommitError> {
         let tree_secret = TreeSecret::new(my_pos.into(), self.leaf_len(), &leaf_secret)?;
         let leaf_len = self.leaf_len();
         let my_node = NodeSize::from(my_pos);
@@ -538,7 +531,11 @@ impl<CS: CipherSuite> TreePublicKey<CS> {
         // update parent hash in path
         let leaf_parent_hash = self.set_parent_hash_path(my_pos);
 
-        Ok((path_nodes, leaf_parent_hash, tree_secret))
+        Ok(TreeEvolveResult {
+            path_nodes,
+            leaf_parent_hash,
+            tree_secret,
+        })
     }
 
     /// merge parent node public keys from `DirectPath`
@@ -650,6 +647,13 @@ impl<CS: CipherSuite> TreePublicKey<CS> {
     }
 }
 
+/// Return type of `TreePublicKey::evolve`.
+pub struct TreeEvolveResult<CS: CipherSuite> {
+    pub path_nodes: Vec<DirectPathNode<CS>>,
+    pub leaf_parent_hash: Option<HashValue<CS>>,
+    pub tree_secret: TreeSecret<CS>,
+}
+
 /// Store the path secrets for a leaf node.
 ///
 /// For example, in this tree:
@@ -720,7 +724,7 @@ impl<CS: CipherSuite> TreeSecret<CS> {
         ctx: &[u8],
         path_nodes: &[DirectPathNode<CS>],
         leaf_private_key: &HPKEPrivateKey<CS>,
-    ) -> Result<Option<(ParentSize, Secret<NodeSecret<CS>>)>, CommitError> {
+    ) -> Result<Option<NodeSecretWithPos<CS>>, CommitError> {
         let leaf_len = tree.leaf_len();
         let ancestor = ParentSize::common_ancestor(sender, my_pos);
         match ancestor {
@@ -888,6 +892,9 @@ impl<CS: CipherSuite> TreeSecret<CS> {
         self.update_secret = tree_diff.update_secret;
     }
 }
+
+/// returned by decrypt_path_secrets
+pub type NodeSecretWithPos<CS> = (ParentSize, Secret<NodeSecret<CS>>);
 
 /// Represent the diff needs to be applied later to `TreeSecret`
 pub struct TreeSecretDiff<CS: CipherSuite> {

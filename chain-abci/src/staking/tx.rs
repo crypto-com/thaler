@@ -9,7 +9,7 @@ use chain_core::state::tendermint::{BlockHeight, TendermintValidatorAddress};
 use chain_core::state::validator::NodeJoinRequestTx;
 use chain_core::tx::fee::Fee;
 use chain_storage::buffer::StoreStaking;
-use mls::extras::check_nodejoin;
+use mls::{extras::check_nodejoin, DefaultCipherSuite};
 
 use super::table::{set_staking, StakingTable};
 use crate::tx_error::{
@@ -44,7 +44,7 @@ impl StakingTable {
                 .node_meta
                 .get_node_join_mls_init()
                 .ok_or(NodeJoinError::InvalidMLSInitData)?;
-            let r = check_nodejoin(add, commit, block_time)
+            let r = check_nodejoin::<DefaultCipherSuite>(add, commit, block_time)
                 .map_err(NodeJoinError::MLSInitVerifyError)?;
             r.info.quote.report_body.isv_svn
         };

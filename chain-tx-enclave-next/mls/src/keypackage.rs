@@ -12,7 +12,7 @@ use subtle::ConstantTimeEq;
 #[cfg(target_env = "sgx")]
 use x509_parser::{error::X509Error, parse_x509_der, x509};
 
-use crate::ciphersuite::{CipherSuite, CipherSuiteTag, P256};
+use crate::ciphersuite::{CipherSuite, CipherSuiteTag, DefaultCipherSuite};
 use crate::credential::Credential;
 use crate::error::{FindExtensionError, KeyPackageError as Error};
 use crate::extensions::{self as ext, ExtensionType, MLSExtension};
@@ -32,7 +32,7 @@ pub const CREDENTIAL_TYPE_X509: u8 = 1;
 pub static DEFAULT_CAPABILITIES_EXT: Lazy<ext::CapabilitiesExt> =
     Lazy::new(|| ext::CapabilitiesExt {
         versions: vec![PROTOCOL_VERSION_MLS10],
-        ciphersuites: vec![P256::tag()],
+        ciphersuites: vec![DefaultCipherSuite::tag()],
         extensions: vec![
             ExtensionType::Capabilities,
             ExtensionType::LifeTime,
@@ -285,7 +285,7 @@ pub enum GenKeyPackageError {
 
 impl<CS: CipherSuite> KeyPackageSecret<CS> {
     #[cfg(target_env = "sgx")]
-    pub fn gen(ra_ctx: EnclaveRaContext) -> Result<(Self, KeyPackage), GenKeyPackageError> {
+    pub fn gen(ra_ctx: EnclaveRaContext) -> Result<(Self, KeyPackage<CS>), GenKeyPackageError> {
         let Certificate {
             certificate,
             private_key,
@@ -308,10 +308,10 @@ impl<CS: CipherSuite> KeyPackageSecret<CS> {
         ];
 
         let credential_private_key = IdentityPrivateKey::from_pkcs8(&private_key.0)?;
-        let (init_private_key, init_key) = HPKEPrivateKey::generate();
+        let (init_private_key, init_key) = gen_keypair();
         let payload = KeyPackagePayload {
             version: PROTOCOL_VERSION_MLS10,
-            cipher_suite: MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
+            cipher_suite: CS::tag(),
             init_key,
             credential: Credential::X509(certificate.0),
             extensions,

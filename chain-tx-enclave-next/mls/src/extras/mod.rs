@@ -199,7 +199,7 @@ impl NackMsg {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ciphersuite::{SecretValue, P256};
+    use crate::ciphersuite::{DefaultCipherSuite as CS, SecretValue};
     use crate::crypto::encrypt_path_secret;
     use crate::error::CommitError;
     use crate::group::test::{get_fake_keypackage, three_member_setup, MockVerifier};
@@ -207,8 +207,6 @@ mod test {
     use crate::message::{ContentType, MLSPlaintextTBS};
     use assert_matches::assert_matches;
     use secrecy::Secret;
-
-    type CS = P256;
 
     fn corrupt_and_sign_commit(
         commit: &MLSPlaintext<CS>,

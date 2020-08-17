@@ -20,5 +20,6 @@ pub mod tree;
 pub mod tree_math;
 pub mod utils;
 
+pub use ciphersuite::DefaultCipherSuite;
 pub use keypackage::{KeyPackage, KeyPackageSecret};
 pub use rustls::internal::msgs::codec::{self, Codec, Reader};

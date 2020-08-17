@@ -39,7 +39,7 @@ use chain_storage::{Storage, NUM_COLUMNS};
 use mls::{
     message::Add, message::ContentType, message::MLSPlaintext, message::MLSPlaintextCommon,
     message::Proposal, message::Sender, message::SenderType, tree_math::LeafSize, Codec,
-    KeyPackage,
+    DefaultCipherSuite, KeyPackage,
 };
 
 const TEST_CHAIN_ID: &str = "test-00";
@@ -154,7 +154,7 @@ pub fn mock_confidential_init_node_join() -> ConfidentialInit {
         sender_type: SenderType::Member,
         sender: LeafSize(0),
     };
-    let kp = KeyPackage::read_bytes(KEYPACKAGE_VECTOR).unwrap();
+    let kp = KeyPackage::<DefaultCipherSuite>::read_bytes(KEYPACKAGE_VECTOR).unwrap();
     let add_content = MLSPlaintextCommon {
         group_id: vec![],
         epoch: 0,
