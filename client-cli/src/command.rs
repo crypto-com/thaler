@@ -432,7 +432,7 @@ impl Command {
                 let tx_obfuscation = get_tx_query(tendermint_client.clone())?;
                 let db_path = storage_path();
                 let storage = SledStorage::new(&db_path)?;
-                let max_trusting_period = tendermint_client.genesis()?.trusting_period();
+                let max_trusting_period = tendermint_client.genesis()?.trusting_period() / 2;
 
                 let mut light_client_peers_user: String = "".into();
                 let mut light_client_trusting_period_seconds_user: u64 = 0;
