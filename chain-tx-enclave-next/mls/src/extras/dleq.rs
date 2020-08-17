@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use secrecy::Secret;
 
-use crate::ciphersuite::{CipherSuite, Kex, NodeSecret, PublicKey, P256};
+use crate::ciphersuite::{CipherSuite, DefaultCipherSuite, Kex, NodeSecret, PublicKey};
 use crate::crypto::decrypt_with_context;
 use crate::key::{gen_keypair, HPKEPrivateKey, HPKEPublicKey};
 use crate::message::HPKECiphertext;
@@ -207,7 +207,7 @@ impl Proof {
         let g = ProjectivePoint::from(gen_g);
         let m = ProjectivePoint::from(gen_m);
         // random element
-        let (s_rand_nonce, _s_pub) = gen_keypair::<P256>();
+        let (s_rand_nonce, _s_pub) = gen_keypair::<DefaultCipherSuite>();
         // no panic: HPKEPrivateKey should produce a valid scalar
         let s_scalar = Scalar::from_bytes(
             s_rand_nonce
@@ -319,10 +319,8 @@ impl Proof {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::ciphersuite::P256;
+    use crate::ciphersuite::DefaultCipherSuite as CS;
     use crate::key::gen_keypair;
-
-    type CS = P256;
 
     fn setup() -> (Scalar, AffinePoint, AffinePoint) {
         let (x, _) = gen_keypair::<CS>();

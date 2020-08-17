@@ -119,11 +119,8 @@ pub fn read_vec_u8_u16(r: &mut Reader) -> Option<Vec<u8>> {
 #[inline]
 pub fn read_arr_u8_u16<S: ArrayLength<u8>>(r: &mut Reader) -> Option<GenericArray<u8, S>> {
     let len = usize::from(u16::read(r)?);
-    if len != S::to_usize() {
-        return None;
-    }
     r.take(len)
-        .map(|slice| GenericArray::clone_from_slice(slice))
+        .and_then(|slice| GenericArray::from_exact_iter(slice.iter().copied()))
 }
 
 /// more efficient then `codec::read_vec_u8`
@@ -136,9 +133,6 @@ pub fn read_vec_u8_u8(r: &mut Reader) -> Option<Vec<u8>> {
 #[inline]
 pub fn read_arr_u8_u8<S: ArrayLength<u8>>(r: &mut Reader) -> Option<GenericArray<u8, S>> {
     let len = usize::from(u8::read(r)?);
-    if len != S::to_usize() {
-        return None;
-    }
     r.take(len)
-        .map(|slice| GenericArray::clone_from_slice(slice))
+        .and_then(|slice| GenericArray::from_exact_iter(slice.iter().copied()))
 }

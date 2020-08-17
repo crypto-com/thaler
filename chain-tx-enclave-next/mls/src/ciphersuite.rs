@@ -6,6 +6,7 @@ use generic_array::{typenum::Unsigned, ArrayLength, GenericArray};
 use secrecy::ExposeSecret;
 use secrecy::{CloneableSecret, Secret};
 use sha2::digest::{FixedOutput, Update};
+use static_assertions::const_assert;
 use subtle::{Choice, ConstantTimeEq};
 use zeroize::Zeroize;
 
@@ -49,6 +50,11 @@ pub trait CipherSuite: Debug + Clone + Default + Sized {
     type Kdf: hpke::kdf::Kdf;
     type Aead: hpke::aead::Aead;
 
+    // Implementor should do const_assert!(Implementor::INVARIANTS);
+    const INVARIANTS: bool = SecretSize::<Self>::USIZE <= HashSize::<Self>::USIZE * 255
+        && AeadKeySize::<Self>::USIZE <= HashSize::<Self>::USIZE * 255
+        && AeadNonceSize::<Self>::USIZE <= HashSize::<Self>::USIZE * 255;
+
     fn tag() -> CipherSuiteTag;
 
     fn hash(data: &[u8]) -> HashValue<Self> {
@@ -62,20 +68,8 @@ pub trait CipherSuite: Debug + Clone + Default + Sized {
     fn derive_path_secret(secret: &NodeSecret<Self>) -> Secret<NodeSecret<Self>> {
         // extract
         let hkdf = Hkdf::<Self>::new(None, secret.as_ref());
-
-        // expand
-        let labeled_payload = KDFLabel {
-            length: SecretSize::<Self>::to_u16(),
-            label: b"mls10 path".to_vec(),
-            context: vec![],
-        }
-        .get_encoding();
-
-        // TODO how to statically assert this?
-        assert!(SecretSize::<Self>::to_usize() <= HashSize::<Self>::to_usize() * 255);
         let mut okm = NodeSecret::<Self>::default();
-        hkdf.expand(&labeled_payload, okm.as_mut())
-            .expect("invariant asserted");
+        expand_with_label::<Self>(&hkdf, "path", okm.as_mut()).expect("invariant asserted");
         Secret::new(okm)
     }
 
@@ -92,18 +86,9 @@ pub trait CipherSuite: Debug + Clone + Default + Sized {
 
     /// spec: draft-ietf-mls-protocol.md#key-schedule
     fn derive_group_secret(prk: &KeySecret<Self>, label: &str) -> Secret<KeySecret<Self>> {
-        let full_label = "mls10 ".to_owned() + label;
-        let labeled_payload = KDFLabel {
-            length: HashSize::<Self>::to_u16(),
-            label: full_label.into_bytes().to_vec(),
-            context: vec![],
-        }
-        .get_encoding();
-
         let mut okm = KeySecret::<Self>::default();
         let hkdf = Hkdf::<Self>::from_prk(prk.as_ref()).expect("size of prk == Kdf.Nk");
-        hkdf.expand(&labeled_payload, okm.as_mut())
-            .expect("size of okm == Kdf.Nk");
+        expand_with_label::<Self>(&hkdf, label, okm.as_mut()).expect("size of okm == Kdf.Nk");
         Secret::new(okm)
     }
 
@@ -119,14 +104,10 @@ pub trait CipherSuite: Debug + Clone + Default + Sized {
         let kdf =
             Hkdf::<Self>::from_prk(prk.expose_secret().as_ref()).expect("size of prk == Kdf.Nk");
 
-        // TODO how to statically assert this?
-        assert!(AeadNonceSize::<Self>::to_usize() <= HashSize::<Self>::to_usize() * 255);
         let mut nonce = GenericArray::default();
         kdf.expand(b"nonce", &mut nonce)
             .expect("invariant asserted");
 
-        // TODO how to statically assert this?
-        assert!(AeadKeySize::<Self>::to_usize() <= HashSize::<Self>::to_usize() * 255);
         let mut key = GenericArray::default();
         kdf.expand(b"key", key.as_mut())
             .expect("invariant asserted");
@@ -135,9 +116,27 @@ pub trait CipherSuite: Debug + Clone + Default + Sized {
     }
 }
 
+/// spec: draft-ietf-mls-protocol.md#key-schedule
+fn expand_with_label<CS: CipherSuite>(
+    hkdf: &Hkdf<CS>,
+    label: &str,
+    okm: &mut [u8],
+) -> Result<(), hkdf::InvalidLength> {
+    let full_label = "mls10 ".to_owned() + label;
+    let labeled_payload = KDFLabel {
+        length: u16::try_from(okm.len()).map_err(|_| hkdf::InvalidLength)?,
+        label: full_label.into_bytes().to_vec(),
+        context: vec![],
+    }
+    .get_encoding();
+
+    hkdf.expand(&labeled_payload, okm)
+}
+
+/// MLS10_128_DHKEMP256_AES128GCM_SHA256_P256
 #[derive(Clone, Debug, Default, Ord, PartialOrd, Eq, PartialEq)]
-pub struct P256 {}
-impl CipherSuite for P256 {
+pub struct Dhkemp256Aes128gcmP256 {}
+impl CipherSuite for Dhkemp256Aes128gcmP256 {
     type Kem = hpke::kem::DhP256HkdfSha256;
     type Kdf = hpke::kdf::HkdfSha256;
     type Aead = hpke::aead::AesGcm128;
@@ -146,6 +145,9 @@ impl CipherSuite for P256 {
         2
     }
 }
+const_assert!(Dhkemp256Aes128gcmP256::INVARIANTS);
+
+pub type DefaultCipherSuite = Dhkemp256Aes128gcmP256;
 
 pub type Kex<CS> = <<CS as CipherSuite>::Kem as hpke::Kem>::Kex;
 // KEM.Nsk draft-ietf-mls-protocol.md#ratchet-tree-evolution
@@ -243,10 +245,8 @@ impl<CS: CipherSuite> ConstantTimeEq for HashValue<CS> {
 impl<CS: CipherSuite> TryFrom<&[u8]> for HashValue<CS> {
     type Error = ();
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() == HashSize::<CS>::to_usize() {
-            Ok(Self(GenericArray::clone_from_slice(value)))
-        } else {
-            Err(())
-        }
+        GenericArray::from_exact_iter(value.iter().copied())
+            .ok_or(())
+            .map(Self)
     }
 }

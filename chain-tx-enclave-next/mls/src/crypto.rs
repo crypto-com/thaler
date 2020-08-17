@@ -1,5 +1,5 @@
 use aead::{Aead, NewAead};
-use generic_array::{ArrayLength, GenericArray};
+use generic_array::GenericArray;
 use hpke::{
     aead::{AeadCtxR, AeadTag},
     EncappedKey, HpkeError, Marshallable, Unmarshallable,
@@ -75,6 +75,8 @@ pub fn open_group_secret<CS: CipherSuite>(
     Ok(GroupSecret::read_bytes(&payload))
 }
 
+/// Err(_): decrypt failure
+/// Ok(None) -> decrypt ok and decode failed
 pub fn open_group_info<CS: CipherSuite>(
     encrypted_group_info: &[u8],
     welcome_key: &GenericArray<u8, AeadKeySize<CS>>,
@@ -137,20 +139,16 @@ pub fn decrypt_with_context<CS: CipherSuite>(
     aad: &[u8],
     ct: &HPKECiphertext<CS>,
 ) -> Result<Secret<NodeSecret<CS>>, HpkeError> {
-    let (mut payload, tag) = split_ciphertext(ct)?;
+    let split_point = ct
+        .ciphertext
+        .len()
+        .checked_sub(16)
+        .ok_or(HpkeError::InvalidTag)?;
+    let (payload, tag_bytes) = ct.ciphertext.split_at(split_point);
+    let tag = AeadTag::<CS::Aead>::unmarshal(tag_bytes)?;
+    let mut payload =
+        GenericArray::from_exact_iter(payload.iter().copied()).ok_or(HpkeError::InvalidTag)?;
+
     context.open(&mut payload, aad, &tag)?;
     Ok(Secret::new(SecretValue(payload)))
-}
-
-/// split ciphertext into payload and tag
-fn split_ciphertext<CS: CipherSuite, N: ArrayLength<u8>>(
-    ct: &HPKECiphertext<CS>,
-) -> Result<(GenericArray<u8, N>, AeadTag<CS::Aead>), HpkeError> {
-    if ct.ciphertext.len() != N::to_usize() + 16 {
-        return Err(HpkeError::InvalidTag);
-    }
-
-    let (payload, tag_bytes) = ct.ciphertext.split_at(ct.ciphertext.len() - 16);
-    let tag = AeadTag::<CS::Aead>::unmarshal(tag_bytes)?;
-    Ok((GenericArray::clone_from_slice(payload), tag))
 }

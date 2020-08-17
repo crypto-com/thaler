@@ -22,7 +22,7 @@ use crate::message::{
     Sender, SenderType, Update, Welcome,
 };
 use crate::secrets::EpochSecrets;
-use crate::tree::{Node, RatchetTreeExt, TreePublicKey, TreeSecret};
+use crate::tree::{Node, RatchetTreeExt, TreeEvolveResult, TreePublicKey, TreeSecret};
 use crate::tree_math::{LeafSize, NodeSize, NodeType, ParentSize};
 use crate::utils::{encode_vec_u8_u16, encode_vec_u8_u8, read_vec_u8_u16, read_vec_u8_u8};
 
@@ -302,7 +302,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
     fn do_commit_proposals(
         &self,
         proposals: &[MLSPlaintext<CS>],
-    ) -> Result<(MLSPlaintext<CS>, Welcome<CS>, Option<HPKEPrivateKey<CS>>), CommitError> {
+    ) -> Result<CommitProposalResult<CS>, CommitError> {
         // split proposals by types
         let mut add_proposals_ids: Vec<ProposalId<CS>> = Vec::new();
         let mut additions: Vec<Add<CS>> = Vec::new();
@@ -356,7 +356,11 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
                 .update_init_key();
 
             // update path secrets
-            let (path_nodes, parent_hash, tree_secret) = updated_tree.evolve(
+            let TreeEvolveResult {
+                path_nodes,
+                leaf_parent_hash,
+                tree_secret,
+            } = updated_tree.evolve(
                 &self.context.get_encoding(),
                 self.my_pos,
                 &init_private_key.marshal(),
@@ -366,7 +370,8 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
                 .get_package_mut(self.my_pos)
                 .expect("my keypackage not exists");
             // update keypackage's parent_hash extension
-            kp.payload.put_extension(&ext::ParentHashExt(parent_hash));
+            kp.payload
+                .put_extension(&ext::ParentHashExt(leaf_parent_hash));
             kp.update_signature(credential_private_key)?;
             (
                 Some(DirectPath {
@@ -429,9 +434,9 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             updated_group_context.confirmed_transcript_hash.clone(),
         );
 
-        Ok((
-            signed_commit,
-            self.get_welcome_msg(
+        Ok(CommitProposalResult {
+            commit: signed_commit,
+            welcome: self.get_welcome_msg(
                 updated_tree,
                 &updated_group_context,
                 &epoch_secrets,
@@ -441,7 +446,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
                 tree_secret.as_ref().unwrap_or(&self.tree_secret),
             )?,
             init_private_key,
-        ))
+        })
     }
 
     /// commit proposals
@@ -449,12 +454,18 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         &mut self,
         proposals: &[MLSPlaintext<CS>],
     ) -> Result<(MLSPlaintext<CS>, Welcome<CS>), CommitError> {
-        let (msg, welcome, init_private_key) = self.do_commit_proposals(proposals)?;
+        let CommitProposalResult {
+            commit,
+            welcome,
+            init_private_key,
+        } = self.do_commit_proposals(proposals)?;
         if let Some(init_private_key) = init_private_key {
-            self.pending_commit
-                .insert(ProposalId(CS::hash(&msg.get_encoding())), init_private_key);
+            self.pending_commit.insert(
+                ProposalId(CS::hash(&commit.get_encoding())),
+                init_private_key,
+            );
         }
-        Ok((msg, welcome))
+        Ok((commit, welcome))
     }
 
     fn verify_msg_signature(
@@ -664,7 +675,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         others: Vec<KeyPackage<CS>>,
         ra_verifier: &impl AttestedCertVerifier,
         genesis_time: Timespec,
-    ) -> Result<(Self, Vec<MLSPlaintext<CS>>, MLSPlaintext<CS>, Welcome<CS>), InitGroupError> {
+    ) -> Result<InitGroupResult<CS>, InitGroupError> {
         let others_len = others.len();
         let kps = others.into_iter().collect::<BTreeSet<_>>();
         if kps.len() < others_len {
@@ -680,12 +691,17 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             let tree = TreePublicKey::init(creator_kp);
             let context = GroupContext::new(&tree);
             let mut group = GroupAux::new(context, tree, LeafSize(0), secret)?;
-            let add_proposals: Vec<MLSPlaintext<CS>> = kps
+            let adds: Vec<MLSPlaintext<CS>> = kps
                 .into_iter()
                 .map(|kp| group.get_signed_add(kp))
                 .collect::<Result<_, _>>()?;
-            let (commit, welcome) = group.commit_proposals(&add_proposals)?;
-            Ok((group, add_proposals, commit, welcome))
+            let (commit, welcome) = group.commit_proposals(&adds)?;
+            Ok(InitGroupResult {
+                group,
+                adds,
+                commit,
+                welcome,
+            })
         }
     }
 
@@ -822,6 +838,20 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
     }
 }
 
+/// Result of init_group operation
+pub struct InitGroupResult<CS: CipherSuite> {
+    pub group: GroupAux<CS>,
+    pub adds: Vec<MLSPlaintext<CS>>,
+    pub commit: MLSPlaintext<CS>,
+    pub welcome: Welcome<CS>,
+}
+
+pub struct CommitProposalResult<CS: CipherSuite> {
+    pub commit: MLSPlaintext<CS>,
+    pub welcome: Welcome<CS>,
+    pub init_private_key: Option<HPKEPrivateKey<CS>>,
+}
+
 const TDBE_GROUP_ID: &[u8] = b"Crypto.com Chain Council Node Transaction Data Bootstrap Enclave";
 
 /// spec: draft-ietf-mls-protocol.md#Welcoming-New-Members
@@ -911,7 +941,7 @@ impl<CS: CipherSuite> Codec for GroupInfo<CS> {
 pub mod test {
 
     use super::*;
-    use crate::ciphersuite::P256;
+    use crate::ciphersuite::DefaultCipherSuite as CS;
     use crate::credential::Credential;
     use crate::extensions::{self as ext, MLSExtension};
     use crate::key::{gen_keypair, IdentityPrivateKey};
@@ -923,8 +953,6 @@ pub mod test {
         AttestedCertVerifier, CertVerifyResult, EnclaveCertVerifierError, ENCLAVE_CERT_VERIFIER,
     };
     use rustls::internal::msgs::codec::Codec;
-
-    type CS = P256;
 
     #[derive(Clone)]
     pub struct MockVerifier();
@@ -1005,7 +1033,12 @@ pub mod test {
     fn test_welcome_commit_process() {
         let (creator_kp, creator_secret) = get_fake_keypackage();
         let (to_be_added, to_be_added_secret) = get_fake_keypackage();
-        let (mut creator_group, adds, commit, welcome) = GroupAux::init_group(
+        let InitGroupResult {
+            mut group,
+            adds,
+            commit,
+            welcome,
+        } = GroupAux::init_group(
             creator_kp,
             creator_secret,
             vec![to_be_added.clone()],
@@ -1021,11 +1054,11 @@ pub mod test {
             0,
         )
         .expect("group init from welcome");
-        creator_group
+        group
             .process_commit(commit, &adds, &MockVerifier {}, 0)
             .expect("commit ok");
         // they should get to the same context
-        assert_eq!(&added_group.context, &creator_group.context);
+        assert_eq!(&added_group.context, &group.context);
     }
 
     #[test]
@@ -1085,7 +1118,12 @@ pub mod test {
         let ra_verifier = MockVerifier {};
 
         // add member2 in genesis
-        let (mut member1_group, proposals, commit, welcome) = GroupAux::init_group(
+        let InitGroupResult {
+            group: mut member1_group,
+            adds,
+            commit,
+            welcome,
+        } = GroupAux::init_group(
             member1,
             member1_secret,
             vec![member2.clone()],
@@ -1096,7 +1134,7 @@ pub mod test {
 
         // after commit/welcome get confirmed
         member1_group
-            .process_commit(commit, &proposals, &ra_verifier, 0)
+            .process_commit(commit, &adds, &ra_verifier, 0)
             .expect("commit ok");
         let mut member2_group =
             GroupAux::init_group_from_welcome(member2, member2_secret, welcome, &ra_verifier, 0)
@@ -1202,7 +1240,12 @@ pub mod test {
         let ra_verifier = MockVerifier {};
 
         // add member2 in genesis
-        let (mut member1_group, proposals, commit, welcome) = GroupAux::init_group(
+        let InitGroupResult {
+            group: mut member1_group,
+            adds,
+            commit,
+            welcome,
+        } = GroupAux::init_group(
             member1,
             member1_secret,
             vec![member2.clone()],
@@ -1213,7 +1256,7 @@ pub mod test {
 
         // after commit/welcome get confirmed
         member1_group
-            .process_commit(commit, &proposals, &ra_verifier, 0)
+            .process_commit(commit, &adds, &ra_verifier, 0)
             .expect("commit ok");
         let mut member2_group =
             GroupAux::init_group_from_welcome(member2, member2_secret, welcome, &ra_verifier, 0)
