@@ -24,7 +24,7 @@ use client_core::transaction_builder::SignedTransferTransaction;
 use client_core::types::{BalanceChange, TransactionPending};
 use client_core::WalletClient;
 use client_network::NetworkOpsClient;
-use mls::{Codec, KeyPackage};
+use mls::{Codec, DefaultCipherSuite, KeyPackage};
 
 use chrono::{DateTime, Local, NaiveDateTime, TimeZone, Utc};
 use cli_table::format::{CellFormat, Color, Justify};
@@ -1032,7 +1032,7 @@ fn ask_transfer_address() -> Result<ExtendedAddr> {
     Ok(address)
 }
 
-fn keypackage_info(keypackage: &KeyPackage) -> Result<String> {
+fn keypackage_info(keypackage: &KeyPackage<DefaultCipherSuite>) -> Result<String> {
     let mut credential: Vec<u8> = vec![];
     keypackage.payload.credential.encode(&mut credential);
     let extensions = keypackage

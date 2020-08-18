@@ -1,7 +1,12 @@
-use crate::key::{HPKEPrivateKey, HPKEPublicKey};
+use std::convert::TryInto;
+
+use secrecy::Secret;
+
+use crate::ciphersuite::{CipherSuite, DefaultCipherSuite, Kex, NodeSecret, PublicKey};
+use crate::crypto::decrypt_with_context;
+use crate::key::{gen_keypair, HPKEPrivateKey, HPKEPublicKey};
 use crate::message::HPKECiphertext;
 use hpke::{
-    aead::{AeadTag, AesGcm128},
     kex::{Marshallable, Unmarshallable},
     EncappedKey,
 };
@@ -38,35 +43,25 @@ pub struct NackDleqProof {
 
 impl NackDleqProof {
     /// decryption directly using the revealed shared secret
-    pub fn decrypt_after_proof(
+    pub fn decrypt_after_proof<CS: CipherSuite>(
         &self,
-        receipient_pk: &HPKEPublicKey,
-        ct: &HPKECiphertext,
+        receipient_pk: &HPKEPublicKey<CS>,
+        ct: &HPKECiphertext<CS>,
         aad: &[u8],
-    ) -> Result<Vec<u8>, ()> {
-        let encapped_key =
-            EncappedKey::<<hpke::kem::DhP256HkdfSha256 as hpke::kem::Kem>::Kex>::unmarshal(
-                &ct.kem_output,
-            )
-            .map_err(|_| ())?;
-        let shared_secret = hpke::kem::decap_external::<hpke::kem::DhP256HkdfSha256>(
+    ) -> Result<Secret<NodeSecret<CS>>, ()> {
+        let encapped_key = EncappedKey::<Kex<CS>>::unmarshal(&ct.kem_output).map_err(|_| ())?;
+        let shared_secret = hpke::kem::decap_external::<CS::Kem>(
             &self.dh[..],
             &receipient_pk.kex_pubkey(),
             &encapped_key,
         )
         .map_err(|_| ())?;
-        let mut context = hpke::setup::derive_receiver_ctx::<
-            AesGcm128,
-            hpke::kdf::HkdfSha256,
-            hpke::kem::DhP256HkdfSha256,
-        >(&hpke::OpModeR::Base, shared_secret, b"");
-        let payload_len = ct.ciphertext.len();
-        let mut payload = ct.ciphertext[0..payload_len - 16].to_vec();
-        let tag_bytes = &ct.ciphertext[payload_len - 16..payload_len];
-        let tag = AeadTag::<AesGcm128>::unmarshal(tag_bytes).map_err(|_| ())?;
-
-        context.open(&mut payload, aad, &tag).map_err(|_| ())?;
-        Ok(payload)
+        let mut context = hpke::setup::derive_receiver_ctx::<CS::Aead, CS::Kdf, CS::Kem>(
+            &hpke::OpModeR::Base,
+            shared_secret,
+            b"",
+        );
+        decrypt_with_context(&mut context, aad, ct).map_err(|_| ())
     }
 
     /// ref: https://github.com/mlswg/mls-protocol/issues/21#issuecomment-455392023
@@ -93,16 +88,15 @@ impl NackDleqProof {
     ///
     /// FIXME: there's a lot of marshalling/unmarshaling due to the current API
     /// + intermediate / secret value zeroing may not be happening
-    pub fn get_nack_dleq_proof(receiver: &HPKEPrivateKey, kem_output: &[u8]) -> Result<Self, ()> {
-        let encapped_key =
-            <<hpke::kem::DhP256HkdfSha256 as hpke::Kem>::Kex as hpke::KeyExchange>::PublicKey::unmarshal(kem_output).map_err(|_| ())?;
+    pub fn get_nack_dleq_proof<CS: CipherSuite>(
+        receiver: &HPKEPrivateKey<CS>,
+        kem_output: &[u8],
+    ) -> Result<Self, ()> {
+        let encapped_key = PublicKey::<CS>::unmarshal(kem_output).map_err(|_| ())?;
 
         // assuming `SetupBaseS` / `SetupBaseR` (used in mls spec draft 10)
-        let shared = <<hpke::kem::DhP256HkdfSha256 as hpke::Kem>::Kex as hpke::KeyExchange>::kex(
-            &receiver.kex_secret(),
-            &encapped_key,
-        )
-        .map_err(|_| ())?;
+        let shared = <Kex<CS> as hpke::KeyExchange>::kex(&receiver.kex_secret(), &encapped_key)
+            .map_err(|_| ())?;
 
         // gen_g = encapped_key
         // pub_h = shared
@@ -120,7 +114,14 @@ impl NackDleqProof {
         let z = p256::PublicKey::from_bytes(&receiver.public_key().marshal()).unwrap();
         let pub_z = AffinePoint::from_pubkey(&z).unwrap();
         // no panic: HPKEPrivateKey is a valid scalar
-        let mut x = Scalar::from_bytes(receiver.marshal_arr_unsafe()).unwrap();
+        let mut x = Scalar::from_bytes(
+            receiver
+                .marshal_arr_unsafe()
+                .as_slice()
+                .try_into()
+                .expect("only work with p256 ciphersuit"),
+        )
+        .unwrap();
         let mproof = Proof::new_p256_sha256(gen_g, pub_h, gen_m, pub_z, &x);
         x.zeroize();
         let proof = mproof?;
@@ -141,9 +142,12 @@ impl NackDleqProof {
     /// reference to the invalid part of Commit or Welcome that the parties can retrieve
     /// and verify it's invalid by then using the disclosed `dh` to get HPKE context)
     /// FIXME: there's a lot of marshalling/unmarshaling due to the current API
-    pub fn verify(&self, receiver: &HPKEPublicKey, sender_kem_output: &[u8]) -> Result<(), ()> {
-        let encapped_key =
-            <<hpke::kem::DhP256HkdfSha256 as hpke::Kem>::Kex as hpke::KeyExchange>::PublicKey::unmarshal(sender_kem_output).map_err(|_| ())?;
+    pub fn verify<CS: CipherSuite>(
+        &self,
+        receiver: &HPKEPublicKey<CS>,
+        sender_kem_output: &[u8],
+    ) -> Result<(), ()> {
+        let encapped_key = PublicKey::<CS>::unmarshal(sender_kem_output).map_err(|_| ())?;
         // no panic: encapped_key is already parsed/validated by hpke::KeyExchange::PublicKey `unmarshal`
         let g = p256::PublicKey::from_bytes(&encapped_key.marshal()).unwrap();
         let gen_g = AffinePoint::from_pubkey(&g).unwrap();
@@ -203,9 +207,16 @@ impl Proof {
         let g = ProjectivePoint::from(gen_g);
         let m = ProjectivePoint::from(gen_m);
         // random element
-        let (s_rand_nonce, _s_pub) = HPKEPrivateKey::generate();
+        let (s_rand_nonce, _s_pub) = gen_keypair::<DefaultCipherSuite>();
         // no panic: HPKEPrivateKey should produce a valid scalar
-        let s_scalar = Scalar::from_bytes(s_rand_nonce.marshal_arr_unsafe()).unwrap();
+        let s_scalar = Scalar::from_bytes(
+            s_rand_nonce
+                .marshal_arr_unsafe()
+                .as_slice()
+                .try_into()
+                .expect("only work with p256 ciphersuit"),
+        )
+        .unwrap();
         // (a, b) = (g^s, m^s)
         let ma = (g * &s_scalar).to_affine();
         let mb = (m * &s_scalar).to_affine();
@@ -308,12 +319,15 @@ impl Proof {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::ciphersuite::DefaultCipherSuite as CS;
+    use crate::key::gen_keypair;
 
     fn setup() -> (Scalar, AffinePoint, AffinePoint) {
-        let (x, _) = HPKEPrivateKey::generate();
-        let x_scalar = Scalar::from_bytes(x.marshal_arr_unsafe()).unwrap();
-        let (_, g_pub) = HPKEPrivateKey::generate();
-        let (_, m_pub) = HPKEPrivateKey::generate();
+        let (x, _) = gen_keypair::<CS>();
+        let x_scalar =
+            Scalar::from_bytes(x.marshal_arr_unsafe().as_slice().try_into().unwrap()).unwrap();
+        let (_, g_pub) = gen_keypair::<CS>();
+        let (_, m_pub) = gen_keypair::<CS>();
 
         let g = p256::PublicKey::from_bytes(&g_pub.marshal()).unwrap();
         let gen_g = AffinePoint::from_pubkey(&g).unwrap();
@@ -326,7 +340,7 @@ mod test {
 
     #[test]
     fn test_external_proof() {
-        let (receive_secret, receiver_pk) = HPKEPrivateKey::generate();
+        let (receive_secret, receiver_pk) = gen_keypair::<CS>();
         let mut csprng = rand::thread_rng();
 
         let (kem_output, _) = hpke::setup_sender::<
@@ -376,8 +390,9 @@ mod test {
     #[test]
     fn test_proof_invalid() {
         let (x, gen_g, gen_m) = setup();
-        let (n, _) = HPKEPrivateKey::generate();
-        let n_scalar = Scalar::from_bytes(n.marshal_arr_unsafe()).unwrap();
+        let (n, _) = gen_keypair::<CS>();
+        let n_scalar =
+            Scalar::from_bytes(n.marshal_arr_unsafe().as_slice().try_into().unwrap()).unwrap();
 
         let pub_h = ProjectivePoint::from(gen_g.clone()) * &x;
         // z = nM instead

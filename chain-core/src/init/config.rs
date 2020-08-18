@@ -8,7 +8,7 @@ use crate::state::account::{
 };
 use crate::state::tendermint::TendermintValidatorPubKey;
 use crate::state::RewardsPoolState;
-use mls::{keypackage, Codec, KeyPackage};
+use mls::{error::KeyPackageError, Codec, DefaultCipherSuite, KeyPackage};
 use ra_client::ENCLAVE_CERT_VERIFIER;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
@@ -55,7 +55,7 @@ pub enum DistributionError {
     KeyPackageDecodeError,
     /// keypackage verify error
     #[error("invalid key package: {0}")]
-    KeyPackageVerifyError(#[from] keypackage::Error),
+    KeyPackageVerifyError(#[from] KeyPackageError),
 }
 
 /// Initial configuration ("app_state" in genesis.json of Tendermint config)
@@ -239,8 +239,8 @@ impl InitConfig {
 }
 
 fn verify_keypackage(genesis_time: Timespec, keypackage: &[u8]) -> Result<u16, DistributionError> {
-    let keypackage =
-        KeyPackage::read_bytes(keypackage).ok_or(DistributionError::KeyPackageDecodeError)?;
+    let keypackage = KeyPackage::<DefaultCipherSuite>::read_bytes(keypackage)
+        .ok_or(DistributionError::KeyPackageDecodeError)?;
     let info = keypackage
         .verify(&*ENCLAVE_CERT_VERIFIER, genesis_time)
         .map_err(DistributionError::KeyPackageVerifyError)?;

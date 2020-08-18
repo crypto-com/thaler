@@ -80,7 +80,7 @@ impl RpcHandler {
         } else {
             Some(spawn_light_client_supervisor(
                 storage_dir.as_ref(),
-                tendermint_client.genesis()?.trusting_period(),
+                tendermint_client.genesis()?.trusting_period() / 2,
                 sync_options.light_client_peers.clone(),
                 sync_options.light_client_trusting_period_seconds,
                 sync_options.light_client_trusting_height,

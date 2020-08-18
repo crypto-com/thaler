@@ -4,7 +4,7 @@ pub type Timespec = u64;
 
 #[cfg(target_env = "sgx")]
 fn main() -> io::Result<()> {
-    use mls::KeyPackageSecret;
+    use mls::{DefaultCipherSuite, KeyPackageSecret};
     use ra_enclave::{EnclaveRaConfig, EnclaveRaContext, DEFAULT_EXPIRATION_SECS};
     #[allow(unused_imports)]
     use rs_libc::alloc::*;
@@ -18,7 +18,7 @@ fn main() -> io::Result<()> {
     if config.is_err() {
         eprintln!("cannot connect ra-sp-server, run ra-sp-server beforehand e.g.) ra-sp-server --quote-type Unlinkable --ias-key $IAS_API_KEY --spid $SPID")
     }
-    let (_, keypackage) = KeyPackageSecret::gen(config.unwrap()).unwrap();
+    let (_, keypackage) = KeyPackageSecret::<DefaultCipherSuite>::gen(config.unwrap()).unwrap();
 
     let now = chrono::Utc::now().timestamp() as u64;
     let verication_result = keypackage.verify(&*ra_client::ENCLAVE_CERT_VERIFIER, now);

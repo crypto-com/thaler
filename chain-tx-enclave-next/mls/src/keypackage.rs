@@ -1,35 +1,38 @@
 //! Key package of mls protocol (draft-ietf-mls-protocol.md#key-packages)
 #[cfg(target_env = "sgx")]
 use std::convert::TryInto;
+use std::fmt::{Debug, Formatter, Result as FmtResult};
 use std::time::{Duration, UNIX_EPOCH};
 
 use once_cell::sync::Lazy;
-use ra_client::{AttestedCertVerifier, CertVerifyResult, EnclaveCertVerifierError};
+use ra_client::{AttestedCertVerifier, CertVerifyResult};
 #[cfg(target_env = "sgx")]
 use ra_enclave::{Certificate, EnclaveRaContext, EnclaveRaContextError};
-use rustls::internal::msgs::codec::{self, Codec, Reader};
 use subtle::ConstantTimeEq;
 #[cfg(target_env = "sgx")]
 use x509_parser::{error::X509Error, parse_x509_der, x509};
 
+use crate::ciphersuite::{CipherSuite, CipherSuiteTag, DefaultCipherSuite};
 use crate::credential::Credential;
+use crate::error::{FindExtensionError, KeyPackageError as Error};
 use crate::extensions::{self as ext, ExtensionType, MLSExtension};
-use crate::key::{HPKEPrivateKey, HPKEPublicKey, IdentityPrivateKey, IdentityPublicKey};
+use crate::key::{
+    gen_keypair, HPKEPrivateKey, HPKEPublicKey, IdentityPrivateKey, IdentityPublicKey,
+};
 use crate::utils;
+use crate::{codec, Codec, Reader};
 use core::cmp::Ordering;
 
 pub type ProtocolVersion = u8;
 pub type Timespec = u64;
-pub type CipherSuite = u16;
 
 pub const PROTOCOL_VERSION_MLS10: ProtocolVersion = 0;
 pub const DEFAULT_LIFE_TIME: Timespec = 90 * 24 * 3600; // certificate has 90 days valid duration
-pub const MLS10_128_DHKEMP256_AES128GCM_SHA256_P256: CipherSuite = 2;
 pub const CREDENTIAL_TYPE_X509: u8 = 1;
 pub static DEFAULT_CAPABILITIES_EXT: Lazy<ext::CapabilitiesExt> =
     Lazy::new(|| ext::CapabilitiesExt {
         versions: vec![PROTOCOL_VERSION_MLS10],
-        ciphersuites: vec![MLS10_128_DHKEMP256_AES128GCM_SHA256_P256],
+        ciphersuites: vec![DefaultCipherSuite::tag()],
         extensions: vec![
             ExtensionType::Capabilities,
             ExtensionType::LifeTime,
@@ -39,16 +42,28 @@ pub static DEFAULT_CAPABILITIES_EXT: Lazy<ext::CapabilitiesExt> =
     });
 
 /// spec: draft-ietf-mls-protocol.md#key-packages
-#[derive(Debug, Clone)]
-pub struct KeyPackagePayload {
+#[derive(Clone)]
+pub struct KeyPackagePayload<CS: CipherSuite> {
     pub version: ProtocolVersion,
-    pub cipher_suite: CipherSuite,
-    pub init_key: HPKEPublicKey,
+    pub cipher_suite: CipherSuiteTag,
+    pub init_key: HPKEPublicKey<CS>,
     pub credential: Credential,
     pub extensions: Vec<ext::ExtensionEntry>,
 }
 
-impl Codec for KeyPackagePayload {
+impl<CS: CipherSuite> Debug for KeyPackagePayload<CS> {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        f.debug_struct("KeyPackagePayload")
+            .field("version", &self.version)
+            .field("cipher_suite", &self.cipher_suite)
+            .field("init_key", &self.init_key)
+            .field("credential", &self.credential)
+            .field("extensions", &self.extensions)
+            .finish()
+    }
+}
+
+impl<CS: CipherSuite> Codec for KeyPackagePayload<CS> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.version.encode(bytes);
         self.cipher_suite.encode(bytes);
@@ -59,7 +74,7 @@ impl Codec for KeyPackagePayload {
 
     fn read(r: &mut Reader) -> Option<Self> {
         let version = ProtocolVersion::read(r)?;
-        let cipher_suite = CipherSuite::read(r)?;
+        let cipher_suite = CipherSuiteTag::read(r)?;
         let init_key = HPKEPublicKey::read(r)?;
         let credential = Credential::read(r)?;
         let extensions = codec::read_vec_u16(r)?;
@@ -73,7 +88,7 @@ impl Codec for KeyPackagePayload {
     }
 }
 
-impl KeyPackagePayload {
+impl<CS: CipherSuite> KeyPackagePayload<CS> {
     pub fn find_extension<T: MLSExtension>(&self) -> Result<T, FindExtensionError> {
         find_extension(&self.extensions)
     }
@@ -97,7 +112,7 @@ impl KeyPackagePayload {
         ra_verifier: &impl AttestedCertVerifier,
         now: Timespec,
     ) -> Result<CertVerifyResult, Error> {
-        if self.cipher_suite != MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 {
+        if self.cipher_suite != CS::tag() {
             return Err(Error::UnsupportedCipherSuite(self.cipher_suite));
         }
 
@@ -106,10 +121,7 @@ impl KeyPackagePayload {
         if !capabilities.versions.contains(&PROTOCOL_VERSION_MLS10) {
             return Err(Error::InvalidSupportedVersions);
         }
-        if !capabilities
-            .ciphersuites
-            .contains(&MLS10_128_DHKEMP256_AES128GCM_SHA256_P256)
-        {
+        if !capabilities.ciphersuites.contains(&self.cipher_suite) {
             return Err(Error::InvalidSupportedCipherSuites);
         }
 
@@ -146,13 +158,13 @@ pub(crate) fn find_extension<T: MLSExtension>(
 
 /// Key package, only send `(payload, signature)` to other nodes.
 /// spec: draft-ietf-mls-protocol.md#key-packages
-#[derive(Debug, Clone)]
-pub struct KeyPackage {
-    pub payload: KeyPackagePayload,
+#[derive(Clone)]
+pub struct KeyPackage<CS: CipherSuite> {
+    pub payload: KeyPackagePayload<CS>,
     pub signature: Vec<u8>,
 }
 
-impl Ord for KeyPackage {
+impl<CS: CipherSuite> Ord for KeyPackage<CS> {
     fn cmp(&self, other: &Self) -> Ordering {
         (
             self.payload.version,
@@ -173,13 +185,13 @@ impl Ord for KeyPackage {
     }
 }
 
-impl PartialOrd for KeyPackage {
+impl<CS: CipherSuite> PartialOrd for KeyPackage<CS> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl PartialEq for KeyPackage {
+impl<CS: CipherSuite> PartialEq for KeyPackage<CS> {
     fn eq(&self, other: &Self) -> bool {
         (
             self.payload.version,
@@ -199,9 +211,17 @@ impl PartialEq for KeyPackage {
     }
 }
 
-impl Eq for KeyPackage {}
+impl<CS: CipherSuite> Eq for KeyPackage<CS> {}
 
-impl Codec for KeyPackage {
+impl<CS: CipherSuite> Debug for KeyPackage<CS> {
+    fn fmt(&self, f: &mut Formatter) -> FmtResult {
+        f.debug_struct("KeyPackage")
+            .field("payload", &self.payload)
+            .field("signature", &self.signature)
+            .finish()
+    }
+}
+impl<CS: CipherSuite> Codec for KeyPackage<CS> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.payload.encode(bytes);
         utils::encode_vec_u8_u16(bytes, &self.signature);
@@ -213,7 +233,7 @@ impl Codec for KeyPackage {
     }
 }
 
-impl KeyPackage {
+impl<CS: CipherSuite> KeyPackage<CS> {
     /// Verify key package and signature
     pub fn verify(
         &self,
@@ -238,16 +258,16 @@ impl KeyPackage {
     }
 
     /// re-generate init key
-    pub fn update_init_key(&mut self) -> HPKEPrivateKey {
-        let (hpke_secret, hpke_public) = HPKEPrivateKey::generate();
+    pub fn update_init_key(&mut self) -> HPKEPrivateKey<CS> {
+        let (hpke_secret, hpke_public) = gen_keypair();
         self.payload.init_key = hpke_public;
         hpke_secret
     }
 }
 
-pub struct KeyPackageSecret {
+pub struct KeyPackageSecret<CS: CipherSuite> {
     pub credential_private_key: IdentityPrivateKey,
-    pub init_private_key: HPKEPrivateKey,
+    pub init_private_key: HPKEPrivateKey<CS>,
 }
 
 #[cfg(target_env = "sgx")]
@@ -263,9 +283,9 @@ pub enum GenKeyPackageError {
     InvalidPrivateKey(#[from] ring::error::KeyRejected),
 }
 
-impl KeyPackageSecret {
+impl<CS: CipherSuite> KeyPackageSecret<CS> {
     #[cfg(target_env = "sgx")]
-    pub fn gen(ra_ctx: EnclaveRaContext) -> Result<(Self, KeyPackage), GenKeyPackageError> {
+    pub fn gen(ra_ctx: EnclaveRaContext) -> Result<(Self, KeyPackage<CS>), GenKeyPackageError> {
         let Certificate {
             certificate,
             private_key,
@@ -288,10 +308,10 @@ impl KeyPackageSecret {
         ];
 
         let credential_private_key = IdentityPrivateKey::from_pkcs8(&private_key.0)?;
-        let (init_private_key, init_key) = HPKEPrivateKey::generate();
+        let (init_private_key, init_key) = gen_keypair();
         let payload = KeyPackagePayload {
             version: PROTOCOL_VERSION_MLS10,
-            cipher_suite: MLS10_128_DHKEMP256_AES128GCM_SHA256_P256,
+            cipher_suite: CS::tag(),
             init_key,
             credential: Credential::X509(certificate.0),
             extensions,
@@ -312,14 +332,14 @@ impl KeyPackageSecret {
     /// re-sign payload
     pub fn update_signature(
         &self,
-        keypackage: &mut KeyPackage,
+        keypackage: &mut KeyPackage<CS>,
     ) -> Result<(), ring::error::Unspecified> {
         keypackage.update_signature(&self.credential_private_key)
     }
 
     /// re-generate init key
-    pub fn update_init_key(&mut self, keypackage: &mut KeyPackage) {
-        let (hpke_secret, hpke_public) = HPKEPrivateKey::generate();
+    pub fn update_init_key(&mut self, keypackage: &mut KeyPackage<CS>) {
+        let (hpke_secret, hpke_public) = gen_keypair();
         keypackage.payload.init_key = hpke_public;
         self.init_private_key = hpke_secret;
     }
@@ -327,7 +347,7 @@ impl KeyPackageSecret {
     /// Verify key package secret and keypackage
     pub fn verify(
         &self,
-        kp: &KeyPackage,
+        kp: &KeyPackage<CS>,
         ra_verifier: &impl AttestedCertVerifier,
         now: Timespec,
     ) -> Result<CertVerifyResult, Error> {
@@ -342,9 +362,9 @@ impl KeyPackageSecret {
 }
 
 /// Verify key package secret and keypackage
-pub fn verify_keypackage_and_secrets(
-    kp: &KeyPackage,
-    init_private_key: &HPKEPrivateKey,
+pub fn verify_keypackage_and_secrets<CS: CipherSuite>(
+    kp: &KeyPackage<CS>,
+    init_private_key: &HPKEPrivateKey<CS>,
     credential_private_key: &IdentityPrivateKey,
     ra_verifier: &impl AttestedCertVerifier,
     now: Timespec,
@@ -368,32 +388,3 @@ pub fn verify_keypackage_and_secrets(
     }
     Ok(info)
 }
-
-/// Error type for key package verification.
-#[derive(thiserror::Error, Debug)]
-pub enum Error {
-    #[error("signature verify error: {0}")]
-    SignatureVerifyError(ring::error::Unspecified),
-    #[error("{0}")]
-    FindExtensionError(#[from] FindExtensionError),
-    #[error("invalid supported versions")]
-    InvalidSupportedVersions,
-    #[error("invalid supported cipher suites")]
-    InvalidSupportedCipherSuites,
-    #[error("invalid credential, only support X509")]
-    InvalidCredential,
-    #[error("key package can't be used after timestamp: {0}")]
-    NotAfter(Timespec),
-    #[error("key package can't be used before timestamp: {0}")]
-    NotBefore(Timespec),
-    #[error("certificate verify error: {0}")]
-    CertificateVerifyError(EnclaveCertVerifierError),
-    #[error("unsupported cipher suite: {0}")]
-    UnsupportedCipherSuite(CipherSuite),
-    #[error("Keypackage public keys don't match private keys")]
-    KeypackageSecretDontMatch,
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("find extension error: {0:?}, {1}")]
-pub struct FindExtensionError(ExtensionType, &'static str);

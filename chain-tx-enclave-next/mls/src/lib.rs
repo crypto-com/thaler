@@ -7,6 +7,8 @@
 #![warn(clippy::wildcard_imports)]
 pub mod ciphersuite;
 pub mod credential;
+pub mod crypto;
+pub mod error;
 pub mod extensions;
 pub mod extras;
 pub mod group;
@@ -18,5 +20,6 @@ pub mod tree;
 pub mod tree_math;
 pub mod utils;
 
+pub use ciphersuite::DefaultCipherSuite;
 pub use keypackage::{KeyPackage, KeyPackageSecret};
 pub use rustls::internal::msgs::codec::{self, Codec, Reader};

@@ -2,7 +2,7 @@
 use std::str::FromStr;
 
 use aes::{Aes256, NewBlockCipher};
-use aes_gcm_siv::aead::generic_array::{typenum::Unsigned, GenericArray};
+use aes_gcm_siv::aead::generic_array::GenericArray;
 use secstr::{SecBox, SecUtf8};
 use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
 use zeroize::Zeroize;
@@ -35,10 +35,8 @@ impl FromStr for SecKey {
 /// Parse encryption key from hex string
 pub fn parse_hex_enckey(s: &str) -> Result<SecKey> {
     if let Ok(mut bytes) = hex::decode(s) {
-        if bytes.len() != SecKeySize::to_usize() {
-            return Err(Error::new(ErrorKind::InvalidInput, "invalid seckey length"));
-        }
-        let arr = GenericArray::clone_from_slice(&bytes);
+        let arr = GenericArray::from_exact_iter(bytes.iter().copied())
+            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "invalid seckey length"))?;
         bytes.zeroize();
         Ok(SecKey(SecBox::new(Box::new(arr))))
     } else {

@@ -30,6 +30,7 @@
 /// module for external validation
 mod validation;
 
+use crate::ciphersuite::CipherSuite;
 use crate::key::IdentityPublicKey;
 use crate::keypackage::Timespec;
 use crate::message::MLSPlaintext;
@@ -38,7 +39,7 @@ use crate::tree_math::{LeafSize, NodeSize, ParentSize};
 use parity_scale_codec::{Decode, Encode};
 use ra_client::AttestedCertVerifier;
 use rustls::internal::msgs::codec::Codec;
-use secrecy::SecretVec;
+use secrecy::ExposeSecret;
 use subtle::ConstantTimeEq;
 pub use validation::{check_nodejoin, NodeJoinError, NodeJoinResult};
 /// module for dleq proofs
@@ -91,10 +92,10 @@ pub enum NackResult {
 
 impl NackMsg {
     /// verifies Nack message against a previously sent Commit
-    pub fn verify(
+    pub fn verify<CS: CipherSuite>(
         &self,
-        tree: &TreePublicKey,
-        commit: &MLSPlaintext,
+        tree: &TreePublicKey<CS>,
+        commit: &MLSPlaintext<CS>,
         ra_verifier: &impl AttestedCertVerifier,
         now: Timespec,
         encoded_ctx: &[u8],
@@ -105,8 +106,8 @@ impl NackMsg {
         let nack_sender_kp = tree
             .get_package(nack_sender)
             .ok_or(NackError::InvalidSender)?;
-        let commit_id = tree.cs.hash(&commit.get_encoding());
-        if !bool::from(commit_id.ct_eq(&self.content.commit_id)) {
+        let commit_id = CS::hash(&commit.get_encoding());
+        if !bool::from(commit_id.as_ref().ct_eq(&self.content.commit_id)) {
             return Err(NackError::InvalidCommit);
         }
         let commit_content = commit.get_commit().ok_or(NackError::InvalidCommit)?;
@@ -157,8 +158,7 @@ impl NackMsg {
             self.content
                 .proof
                 .decrypt_after_proof(&node_key, &affected_path_secret, encoded_ctx);
-        if let Ok(path_secret) = overlap_path_secret {
-            let overlap_path_secret = SecretVec::new(path_secret);
+        if let Ok(overlap_path_secret) = overlap_path_secret {
             let direct_path = NodeSize::from(nack_sender).direct_path(leaf_len);
             let overlap_pos = direct_path
                 .iter()
@@ -169,16 +169,12 @@ impl NackMsg {
             // the path secrets above(not including) the overlap node
             let mut secrets = vec![];
             for _ in overlap_path.iter() {
-                secrets.push(
-                    tree.cs
-                        .expand_with_label(
-                            secrets.last().unwrap_or(&overlap_path_secret),
-                            "path",
-                            &[],
-                            tree.cs.secret_size(),
-                        )
-                        .expect("expand label works"),
-                );
+                secrets.push(CS::derive_path_secret(
+                    secrets
+                        .last()
+                        .unwrap_or(&overlap_path_secret)
+                        .expose_secret(),
+                ));
             }
 
             // verify the new path secrets match public keys
@@ -203,16 +199,20 @@ impl NackMsg {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::ciphersuite::{DefaultCipherSuite as CS, SecretValue};
+    use crate::crypto::encrypt_path_secret;
+    use crate::error::CommitError;
     use crate::group::test::{get_fake_keypackage, three_member_setup, MockVerifier};
-    use crate::group::{CommitError, GroupAux};
+    use crate::group::GroupAux;
     use crate::message::{ContentType, MLSPlaintextTBS};
     use assert_matches::assert_matches;
+    use secrecy::Secret;
 
     fn corrupt_and_sign_commit(
-        commit: &MLSPlaintext,
-        sender: &GroupAux,
+        commit: &MLSPlaintext<CS>,
+        sender: &GroupAux<CS>,
         valid_ciphertext: bool,
-    ) -> MLSPlaintext {
+    ) -> MLSPlaintext<CS> {
         let mut new_commit = commit.clone();
         let (mut new_commit_content, confirmation) = match &new_commit.content.content {
             ContentType::Commit {
@@ -227,11 +227,12 @@ mod test {
                 .as_ref()
                 .expect("not blank node TODO")
                 .public_key();
-            path.nodes[0].encrypted_path_secret[0] = sender
-                .tree
-                .cs
-                .encrypt(vec![0u8; 32], &init_key, &sender.context.get_encoding())
-                .expect("encrypt")
+            path.nodes[0].encrypted_path_secret[0] = encrypt_path_secret(
+                &Secret::new(SecretValue::default()),
+                &init_key,
+                &sender.context.get_encoding(),
+            )
+            .expect("encrypt")
         } else {
             path.nodes[0].encrypted_path_secret[0].ciphertext[0] = 0;
         }
@@ -280,7 +281,7 @@ mod test {
         .expect("proof");
         let mut commit_id = [0u8; 32];
 
-        commit_id.copy_from_slice(&member1_group.tree.cs.hash(&commit.get_encoding()));
+        commit_id.copy_from_slice(CS::hash(&commit.get_encoding()).as_ref());
         let nack_content = NackMsgContent {
             sender: LeafSize(0),
             commit_id,
@@ -351,7 +352,7 @@ mod test {
         .expect("proof");
         let mut commit_id = [0u8; 32];
 
-        commit_id.copy_from_slice(&member1_group.tree.cs.hash(&commit.get_encoding()));
+        commit_id.copy_from_slice(CS::hash(&commit.get_encoding()).as_ref());
         let nack_content = NackMsgContent {
             sender: LeafSize(0),
             commit_id,
@@ -417,7 +418,7 @@ mod test {
         .expect("proof");
         let mut commit_id = [0u8; 32];
 
-        commit_id.copy_from_slice(&member1_group.tree.cs.hash(&commit.get_encoding()));
+        commit_id.copy_from_slice(CS::hash(&commit.get_encoding()).as_ref());
         let nack_content = NackMsgContent {
             sender: LeafSize(0),
             commit_id,

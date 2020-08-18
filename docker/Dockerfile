@@ -29,7 +29,6 @@ COPY ./target/${BUILD_MODE}/tx-validation-next.sgxs /usr/local/bin
 COPY ./target/${BUILD_MODE}/ra-sp-server /usr/local/bin
 # copy scripts
 COPY ./docker/wait-for-it.sh /usr/local/bin
-COPY ci-scripts/run_tx_query_next.sh /usr/local/bin
 COPY ci-scripts/run_chain_abci.sh /usr/local/bin
 
 # install sgx enclave PSW 2.9

@@ -4,7 +4,7 @@ set -e
 if [[ ! -z "$TX_QUERY_HOSTNAME" ]]; then
   PREFIX=""
 fi
-TX_QUERY_HOSTNAME=${TX_QUERY_HOSTNAME:-"sgx-query-next"}
+TX_QUERY_HOSTNAME=${TX_QUERY_HOSTNAME:-"chain-abci"}
 
 echo "[Config] SGX_MODE=${SGX_MODE}"
 echo "[Config] NETWORK_ID=${NETWORK_ID}"
@@ -16,18 +16,31 @@ if [ x"${SGX_MODE}" == "xHW" ]; then
 
   echo "[aesm_service] Running in background ..."
   # Wait for aesm_service to initialize
-  sleep 10
+  sleep 15
 fi
 
 PID=$!
 trap 'kill -TERM $PID' TERM INT EXIT
 
-echo "[Config] start chain abci on port 26658"
+./ra-sp-server --quote-type Unlinkable --ias-key $IAS_KEY --spid $SPID &
+echo "[ra-sp-server] Running in background ..."
+PID=$!
+trap 'kill -TERM $PID' TERM INT EXIT
+
+sleep 5
+
+echo "[Config] init chain abci config on port 26658 and set config"
+chain-abci init \
+    --data /crypto-chain/chain-storage 
+
+sed -i -e '/launch_ra_proxy:/ s/: .*/: false/' /crypto-chain/chain-storage/config.yaml  
+sed -i -e '/tx_query_listen:/ s/: .*/: 0.0.0.0:26651/' /crypto-chain/chain-storage/config.yaml
+sed -i -e "/tx_query:/ s/: .*/: ${PREFIX}${TX_QUERY_HOSTNAME}:26651/" /crypto-chain/chain-storage/config.yaml
+sed -i -e '/host:/ s/: .*/: 0.0.0.0/' /crypto-chain/chain-storage/config.yaml
+sed -i -e '/port:/ s/: .*/: 26658/' /crypto-chain/chain-storage/config.yaml
+
+echo "[Config] start chain abci"
 chain-abci run \
     --chain_id ${CHAIN_ID} \
     --data /crypto-chain/chain-storage \
-    --enclave_server ${TX_VALIDATION_CONN} \
-    --genesis_app_hash ${APP_HASH} \
-    --host 0.0.0.0 \
-    --port 26658 \
-    --tx_query ${PREFIX}${TX_QUERY_HOSTNAME}:26651
+    --genesis_app_hash ${APP_HASH}

@@ -4,7 +4,7 @@ use std::process;
 
 use chain_core::common::Timespec;
 use chrono::offset::Utc;
-use mls::{Codec, KeyPackage};
+use mls::{Codec, DefaultCipherSuite, KeyPackage};
 use ra_client::ENCLAVE_CERT_VERIFIER;
 
 use client_common::{Error, ErrorKind, Result, ResultExt};
@@ -41,7 +41,7 @@ pub fn verify_keypackage(keypackage: &[u8]) -> Result<()> {
         .timestamp()
         .try_into()
         .expect("reversed time flow");
-    let keypackage = KeyPackage::read_bytes(keypackage)
+    let keypackage = KeyPackage::<DefaultCipherSuite>::read_bytes(keypackage)
         .err_kind(ErrorKind::InvalidInput, || "keypackage decode fail")?;
     keypackage
         .verify(&*ENCLAVE_CERT_VERIFIER, now)

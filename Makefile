@@ -90,8 +90,8 @@ IMAGE_RUST             = cryptocom/chain
 IMAGE_TENDERMINT       = tendermint/tendermint:v0.33.7
 DOCKER_FILE            = docker/Dockerfile
 DOCKER_FILE_RELEASE    = docker/Dockerfile.release
-ITEMS_START            = sgx-query-next chain-abci tendermint client-rpc
-ITEMS_STOP             = client-rpc tendermint chain-abci sgx-query-next
+ITEMS_START            = chain-abci tendermint client-rpc
+ITEMS_STOP             = client-rpc tendermint chain-abci
 
 create-path:
 	mkdir -p ${HOME}/.cargo/{git,registry}
@@ -206,9 +206,9 @@ build-chain:
 
 # build the enclave queury-next and tx-validation-next binary and sig
 build-sgx-query-validation-next:
-	@if [ -e "./target/$(build_mode)/tx-query2-app-runner" -a -e "./target/$(build_mode)/tx-query2-enclave-app.sig" -a \
-	-e "./target/$(build_mode)/tx-query2-enclave-app.sgxs" -a -e "./target/$(build_mode)/tx-validation-next.sig" -a \
-	-e ./target/${build_mode}/tx-validation-next.sgxs -a -e ./target/${build_mode}/ra-sp-server ]; \
+	@if [ -e "./target/$(build_mode)/tx-query2-enclave-app.sig" -a -e "./target/$(build_mode)/tx-query2-enclave-app.sgxs" \
+	-a -e "./target/$(build_mode)/tx-validation-next.sig" -a -e "./target/${build_mode}/tx-validation-next.sgxs" \
+	-a -e "./target/$(build_mode)/ra-sp-server" ]; \
 	then \
 		echo "\033[32msgx binary already exist or delete binary by 'make clean' to force new build for chain\033[0m"; \
 	else \
@@ -229,8 +229,6 @@ build-sgx-query-validation-next:
 			rustup target add x86_64-fortanix-unknown-sgx && \
 			echo "========  build tx-query2-enclave-app   =========" && \
 			$(CARGO_BUILD_CMD) --target=x86_64-fortanix-unknown-sgx -p tx-query2-enclave-app && \
-			echo "========  build tx-query2-app-runner   =========" && \
-			$(CARGO_BUILD_CMD) -p tx-query2-app-runner && \
 			echo "========  build ra-sp-server   =========" && \
 			$(CARGO_BUILD_CMD) -p ra-sp-server && \
 			echo "========  install fortanix-sgx-tools sgxs-tools   =========" && \
@@ -258,49 +256,31 @@ rm-network:
 	@echo "\033\[32mremove network ${NETWORK}\033[0m"
 	docker network rm $(NETWORK)
 
-run-sgx-query-next: check-sgx-device
+run-abci: check-sgx-device
 	@if [ "${SPID}x" = "x" ] || [ "${IAS_API_KEY}x" = "x" ]; then \
 		echo "environment SPID and IAS_API_KEY should be set"; \
 	else \
-		echo "\033[32mrun docker sgx query-next\033[0m"; \
+		echo "\033[32mrun docker chain-abci\033[0m"; \
 		docker run -d \
 		--net $(NETWORK) \
 		--restart=always \
-		--name $(prefix)sgx-query-next \
 		-e RUST_LOG=$(RUST_LOG) \
 		-e SGX_MODE=$(SGX_MODE) \
 		-e NETWORK_ID=$(NETWORK_ID) \
+		-e CHAIN_ID=$(CHAIN_ID) \
+		-e PREFIX=$(prefix) \
+		-e TX_QUERY_HOSTNAME=$(TX_QUERY_HOSTNAME) \
+		-e APP_HASH=$(APP_HASH) \
 		-e SPID=${SPID} \
-		-e IAS_API_KEY=${IAS_API_KEY} \
-		-e TX_VALIDATION_CONN=ipc:///root/sockets/enclave.socket \
-		-v ${HOME}/sockets:/root/sockets \
+		-e IAS_KEY=${IAS_API_KEY} \
+		--name $(prefix)chain-abci \
+		-v $(data_path):/crypto-chain \
 		--device $(SGX_DEVICE) \
 		-p $(TX_QUERY_PORT):26651 \
 		--workdir=/usr/local/bin \
 		$(IMAGE):$(TAG) \
-		bash ./run_tx_query_next.sh; \
+		bash ./run_chain_abci.sh; \
 	fi
-
-run-abci: check-sgx-device
-	@echo "\033[32mrun docker chain-abci\033[0m"; \
-	docker run -d \
-	--net $(NETWORK) \
-	--restart=always \
-	-e RUST_LOG=$(RUST_LOG) \
-	-e SGX_MODE=$(SGX_MODE) \
-	-e NETWORK_ID=$(NETWORK_ID) \
-	-e CHAIN_ID=$(CHAIN_ID) \
-	-e PREFIX=$(prefix) \
-	-e TX_QUERY_HOSTNAME=$(TX_QUERY_HOSTNAME) \
-	-e APP_HASH=$(APP_HASH) \
-	-e TX_VALIDATION_CONN=ipc:///root/sockets/enclave.socket \
-	--name $(prefix)chain-abci \
-	-v $(data_path):/crypto-chain \
-	-v ${HOME}/sockets:/root/sockets \
-	--device $(SGX_DEVICE) \
-	--workdir=/usr/local/bin \
-	$(IMAGE):$(TAG) \
-	bash ./run_chain_abci.sh
 
 run-tendermint:
 	@echo "\033[32mrun docker tendermint\033[0m"; \
@@ -346,7 +326,7 @@ ifeq ($(chain), devnet)
 endif
 	@echo "CRYPTO_GENESIS_FINGERPRINT = \033[32m$(CRYPTO_GENESIS_FINGERPRINT)\033[0m";
 
-.PHONY: sgx-query-next chain-abci tendermint client-rpc
+.PHONY: chain-abci tendermint client-rpc
 
 START = $(patsubst %, start-%, $(ITEMS_START))
 RESTART = $(patsubst %, restart-%, $(ITEMS_START))
@@ -366,9 +346,6 @@ start-all:    $(START)
 stop-all:     $(STOP)
 rm-all:       $(REMOVE)
 restart-all:  $(RESTART)
-
-stop-sgx:
-	@echo "\033[32mstop $(prefix)sgx-query-next...\033[0m" && docker stop $(prefix)sgx-query-next || echo "sgx-query-next does not exist or stopped";
 
 stop-chain:
 	@echo "\033[32mstop $(prefix)chient-rpc...\033[0m" && docker stop $(prefix)client-rpc || echo "client-rpc does not exist";
@@ -400,9 +377,8 @@ clean:
 prepare:    create-path install-isgx-driver init-tendermint
 build-sgx:  build-sgx-query-validation-next build-chain
 build:      build-chain build-sgx
-run-sgx:    create-network run-sgx-query-next
 run-chain:  create-network run-tendermint run-abci run-client-rpc
-run:        run-sgx run-chain
+run:        run-chain
 .DEFAULT_GOAL :=
 default: help
 help:
@@ -428,7 +404,6 @@ help:
 		prepare                prepare the environment\n\
 		image                  build the docker image\n\
 		build                  just build the chain and enclave binaery in docker\n\
-		run-sgx                docker run chain-abci and a sgx-query-next container\n\
 		run-chain              docker run chain-abci, tendermint and client-rpc container\n\
 		stop-all               docker stop all the container\n\
 		start-all              docker start all the container\n\
@@ -442,7 +417,6 @@ help:
 \n\
 	make data_path=~/data chain_type=devnet prepare\n\
 	make  tag=v0.2.0 image\n\
-	make data_path=~/data prefix=node0- base_port=16650 run-sgx\n\
 	make data_path=~/data  prefix=node0- base_port=16650 run-chain\n\
 	make prefix=node0- rm-all\n\
 	make data_path=~/data clean-code\n\

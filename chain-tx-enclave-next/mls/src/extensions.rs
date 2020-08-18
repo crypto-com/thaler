@@ -1,9 +1,9 @@
 use rustls::internal::msgs::codec::{self, Codec, Reader};
 use std::convert::{TryFrom, TryInto};
 
-use crate::keypackage::{CipherSuite, ProtocolVersion, Timespec};
-use crate::tree::Node;
-use crate::utils::{encode_vec_option_u32, read_vec_option_u32};
+use crate::ciphersuite::{CipherSuite, CipherSuiteTag, HashValue};
+use crate::keypackage::{ProtocolVersion, Timespec};
+use crate::utils;
 
 /// spec: draft-ietf-mls-protocol.md#key-packages
 #[repr(u16)]
@@ -56,7 +56,7 @@ pub trait MLSExtension: Codec {
 #[derive(Debug)]
 pub struct CapabilitiesExt {
     pub versions: Vec<ProtocolVersion>,
-    pub ciphersuites: Vec<CipherSuite>,
+    pub ciphersuites: Vec<CipherSuiteTag>,
     pub extensions: Vec<ExtensionType>,
 }
 
@@ -139,46 +139,26 @@ impl MLSExtension for KeyIDExt {
 
 /// spec: draft-ietf-mls-protocol.md#parent-hash
 #[derive(Debug)]
-pub struct ParentHashExt(pub Vec<u8>);
+pub struct ParentHashExt<CS: CipherSuite>(pub Option<HashValue<CS>>);
 
-impl Codec for ParentHashExt {
+impl<CS: CipherSuite> Codec for ParentHashExt<CS> {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        codec::encode_vec_u8(bytes, &self.0);
+        utils::encode_vec_u8_u8(bytes, self.0.as_ref().map_or(&[], |h| h.as_ref()));
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        codec::read_vec_u8(r).map(Self)
+        let v = utils::read_vec_u8_u8(r)?;
+        let hash = if v.is_empty() {
+            None
+        } else {
+            Some(HashValue::try_from(v.as_slice()).ok()?)
+        };
+        Some(Self(hash))
     }
 }
 
-impl MLSExtension for ParentHashExt {
+impl<CS: CipherSuite> MLSExtension for ParentHashExt<CS> {
     const EXTENSION_TYPE: ExtensionType = ExtensionType::ParentHash;
-}
-
-/// spec: draft-ietf-mls-protocol.md#parent-hash
-#[derive(Debug)]
-pub struct RatchetTreeExt {
-    pub nodes: Vec<Option<Node>>,
-}
-
-impl Codec for RatchetTreeExt {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_vec_option_u32(bytes, &self.nodes);
-    }
-
-    fn read(r: &mut Reader) -> Option<Self> {
-        read_vec_option_u32(r).map(|nodes| Self { nodes })
-    }
-}
-
-impl MLSExtension for RatchetTreeExt {
-    const EXTENSION_TYPE: ExtensionType = ExtensionType::RatchetTree;
-}
-
-impl RatchetTreeExt {
-    pub fn new(nodes: Vec<Option<Node>>) -> Self {
-        Self { nodes }
-    }
 }
 
 /// Extension entry included in `KeyPackage`
