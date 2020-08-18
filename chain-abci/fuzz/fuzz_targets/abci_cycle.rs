@@ -216,7 +216,6 @@ fuzz_target!(|data: &[u8]| {
                 &chain_id,
                 Storage::new_db(create_db()),
                 None,
-                None,
             );
             app.init_chain(&init);
             let mut last_height = 0;
