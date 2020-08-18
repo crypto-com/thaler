@@ -1,4 +1,9 @@
-#![deny(missing_docs, unsafe_code, unstable_features)]
+// `proc_macro_hygiene` -- strange that this works OK / isn't required on stable Rust (1.45.2)
+#![cfg_attr(
+    all(target_os = "linux", not(feature = "mock-enclave")),
+    feature(proc_macro_hygiene)
+)]
+#![deny(missing_docs, unsafe_code)]
 //! This crate contains all the common types and utilities used by other `client-*` crates.
 mod transaction;
 

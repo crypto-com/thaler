@@ -747,6 +747,7 @@ dependencies = [
  "chain-core",
  "chain-tx-filter",
  "chrono",
+ "enclave-macro",
  "enclave-protocol",
  "futures-util",
  "gcd",
@@ -1391,6 +1392,7 @@ dependencies = [
 name = "enclave-macro"
 version = "0.6.0"
 dependencies = [
+ "hex",
  "rand 0.7.3",
 ]
 

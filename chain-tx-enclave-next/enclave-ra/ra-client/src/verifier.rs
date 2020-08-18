@@ -53,6 +53,7 @@ pub struct EnclaveCertVerifier {
     root_cert_store: RootCertStore,
     valid_enclave_quote_statuses: HashSet<EnclaveQuoteStatus>,
     report_validity_duration: Duration,
+    // TODO: make non-optional?
     enclave_info: Option<EnclaveInfo>,
 }
 
