@@ -1898,8 +1898,8 @@ dependencies = [
 
 [[package]]
 name = "hpke"
-version = "0.1.8"
-source = "git+https://github.com/crypto-com/rust-hpke.git?rev=25686eb87d2862535b1d5107d74e2ac8bd992bae#25686eb87d2862535b1d5107d74e2ac8bd992bae"
+version = "0.2.0"
+source = "git+https://github.com/crypto-com/rust-hpke.git?rev=afdaf6f62fa557a7055d6cc063af65fe5c387aaf#afdaf6f62fa557a7055d6cc063af65fe5c387aaf"
 dependencies = [
  "aead",
  "aes-gcm",

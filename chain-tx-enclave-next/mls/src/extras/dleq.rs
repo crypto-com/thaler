@@ -7,7 +7,7 @@ use crate::crypto::decrypt_with_context;
 use crate::key::{gen_keypair, HPKEPrivateKey, HPKEPublicKey};
 use crate::message::HPKECiphertext;
 use hpke::{
-    kex::{Marshallable, Unmarshallable},
+    kex::{Deserializable, Serializable},
     EncappedKey,
 };
 ///! Highly experimental implementation of (honest-verifier) NIZK proof
@@ -49,7 +49,7 @@ impl NackDleqProof {
         ct: &HPKECiphertext<CS>,
         aad: &[u8],
     ) -> Result<Secret<NodeSecret<CS>>, ()> {
-        let encapped_key = EncappedKey::<Kex<CS>>::unmarshal(&ct.kem_output).map_err(|_| ())?;
+        let encapped_key = EncappedKey::<Kex<CS>>::from_bytes(&ct.kem_output).map_err(|_| ())?;
         let shared_secret = hpke::kem::decap_external::<CS::Kem>(
             &self.dh[..],
             &receipient_pk.kex_pubkey(),
@@ -92,22 +92,23 @@ impl NackDleqProof {
         receiver: &HPKEPrivateKey<CS>,
         kem_output: &[u8],
     ) -> Result<Self, ()> {
-        let encapped_key = PublicKey::<CS>::unmarshal(kem_output).map_err(|_| ())?;
+        let encapped_key = PublicKey::<CS>::from_bytes(kem_output).map_err(|_| ())?;
 
         // assuming `SetupBaseS` / `SetupBaseR` (used in mls spec draft 10)
-        let shared = <Kex<CS> as hpke::KeyExchange>::kex(&receiver.kex_secret(), &encapped_key)
-            .map_err(|_| ())?;
+        let shared =
+            <Kex<CS> as hpke::kex::KeyExchange>::kex(&receiver.kex_secret(), &encapped_key)
+                .map_err(|_| ())?;
 
         // gen_g = encapped_key
         // pub_h = shared
         // gen_m = base point
         // pub_z = receiver pubkey
 
-        // no panic: encapped_key is already parsed/validated by hpke::KeyExchange::PublicKey `unmarshal`
-        let g = p256::PublicKey::from_bytes(&encapped_key.marshal()).unwrap();
+        // no panic: encapped_key is already parsed/validated by hpke::kex::KeyExchange::PublicKey `from_bytes`
+        let g = p256::PublicKey::from_bytes(&encapped_key.to_bytes()).unwrap();
         let gen_g = AffinePoint::from_pubkey(&g).unwrap();
-        // no panic: shared is already validated by hpke::KeyExchange `kex`
-        let h = p256::PublicKey::from_bytes(&shared.marshal()).unwrap();
+        // no panic: shared is already validated by hpke::kex::KeyExchange `kex`
+        let h = p256::PublicKey::from_bytes(&shared.to_bytes()).unwrap();
         let pub_h = AffinePoint::from_pubkey(&h).unwrap();
         let gen_m = AffinePoint::generator();
         // no panic: HPKEPrivateKey produces valid pubkey
@@ -147,9 +148,9 @@ impl NackDleqProof {
         receiver: &HPKEPublicKey<CS>,
         sender_kem_output: &[u8],
     ) -> Result<(), ()> {
-        let encapped_key = PublicKey::<CS>::unmarshal(sender_kem_output).map_err(|_| ())?;
-        // no panic: encapped_key is already parsed/validated by hpke::KeyExchange::PublicKey `unmarshal`
-        let g = p256::PublicKey::from_bytes(&encapped_key.marshal()).unwrap();
+        let encapped_key = PublicKey::<CS>::from_bytes(sender_kem_output).map_err(|_| ())?;
+        // no panic: encapped_key is already parsed/validated by hpke::kex::KeyExchange::PublicKey `from_bytes`
+        let g = p256::PublicKey::from_bytes(&encapped_key.to_bytes()).unwrap();
         let gen_g = AffinePoint::from_pubkey(&g).unwrap();
         let h = p256::PublicKey::from_bytes(&self.dh[..]).ok_or(())?;
         let pub_h = AffinePoint::from_pubkey(&h);
@@ -358,7 +359,7 @@ mod test {
 
         // assume sender e.g. put invalid content in ciphertext of EncryptedGroupSecrets
         // the receiver can then reveal the shared secret + dleq proof
-        let kem_in_mls_payload = kem_output.marshal();
+        let kem_in_mls_payload = kem_output.to_bytes();
         let proof_for_nack =
             NackDleqProof::get_nack_dleq_proof(&receive_secret, &kem_in_mls_payload)
                 .expect("valid proof");

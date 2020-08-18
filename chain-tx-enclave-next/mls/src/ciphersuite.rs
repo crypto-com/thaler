@@ -152,7 +152,7 @@ pub type DefaultCipherSuite = Dhkemp256Aes128gcmP256;
 pub type Kex<CS> = <<CS as CipherSuite>::Kem as hpke::Kem>::Kex;
 // KEM.Nsk draft-ietf-mls-protocol.md#ratchet-tree-evolution
 pub type SecretSize<CS> =
-    <<Kex<CS> as hpke::KeyExchange>::PrivateKey as hpke::Marshallable>::OutputSize;
+    <<Kex<CS> as hpke::kex::KeyExchange>::PrivateKey as hpke::Serializable>::OutputSize;
 pub type HashImpl<CS> = <<CS as CipherSuite>::Kdf as hpke::kdf::Kdf>::HashImpl;
 // KDF.Nh draft-ietf-mls-protocol.md#key-schedule
 pub type HashSize<CS> = <HashImpl<CS> as FixedOutput>::OutputSize;
@@ -161,9 +161,9 @@ pub type AeadKeySize<CS> =
 pub type AeadNonceSize<CS> =
     <<<CS as CipherSuite>::Aead as hpke::aead::Aead>::AeadImpl as Aead>::NonceSize;
 pub type PrivateKey<CS> =
-    <<<CS as CipherSuite>::Kem as hpke::Kem>::Kex as hpke::KeyExchange>::PrivateKey;
+    <<<CS as CipherSuite>::Kem as hpke::Kem>::Kex as hpke::kex::KeyExchange>::PrivateKey;
 pub type PublicKey<CS> =
-    <<<CS as CipherSuite>::Kem as hpke::Kem>::Kex as hpke::KeyExchange>::PublicKey;
+    <<<CS as CipherSuite>::Kem as hpke::Kem>::Kex as hpke::kex::KeyExchange>::PublicKey;
 pub type Hkdf<CS> = hkdf::Hkdf<HashImpl<CS>>;
 
 /// Statically sized secret value
