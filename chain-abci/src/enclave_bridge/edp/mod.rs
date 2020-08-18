@@ -1,4 +1,5 @@
 mod server;
+pub mod tdbe;
 
 use crate::enclave_bridge::EnclaveProxy;
 use aesm_client::AesmClient;
@@ -13,7 +14,7 @@ use parity_scale_codec::{Decode, Encode};
 use sgxs_loaders::isgx::Device;
 use std::io::{Read, Write};
 use std::sync::{mpsc::channel, Arc, Mutex};
-use std::thread::{self};
+use std::thread;
 use std::{future::Future, io, pin::Pin};
 
 use ra_sp_server::{config::SpRaConfig, server::SpRaServer};

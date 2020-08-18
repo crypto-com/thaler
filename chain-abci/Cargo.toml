@@ -46,6 +46,7 @@ enclave-runner = {version = "0.4", optional = true}
 sgxs-loaders = {version = "0.2", optional = true}
 tokio = { version = "0.2", features = ["uds"], optional = true }
 rand = "0.7"
+tdbe-common = { path = "../chain-tx-enclave-next/tdbe/tdbe-common" }
 
 [build-dependencies]
 cc = "1.0"
