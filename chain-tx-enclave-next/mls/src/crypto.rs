@@ -2,7 +2,7 @@ use aead::{Aead, NewAead};
 use generic_array::GenericArray;
 use hpke::{
     aead::{AeadCtxR, AeadTag},
-    EncappedKey, HpkeError, Marshallable, Unmarshallable,
+    Deserializable, EncappedKey, HpkeError, Serializable,
 };
 use secrecy::{ExposeSecret, Secret};
 
@@ -30,11 +30,11 @@ pub fn seal_group_secret<CS: CipherSuite>(
     )?;
     let mut group_secret = group_secret.get_encoding();
     let tag = context.seal(&mut group_secret, &[])?; // FIXME ?: &group_context.get_encoding())
-    group_secret.extend_from_slice(&tag.marshal());
+    group_secret.extend_from_slice(&tag.to_bytes());
 
     Ok(EncryptedGroupSecrets {
         encrypted_group_secrets: HPKECiphertext {
-            kem_output: kem_output.marshal(),
+            kem_output: kem_output.to_bytes(),
             ciphertext: group_secret,
         },
         key_package_hash,
@@ -48,7 +48,7 @@ pub fn open_group_secret<CS: CipherSuite>(
 ) -> Result<Option<GroupSecret<CS>>, HpkeError> {
     // FIXME: errors instead of panicking
     let recip_secret = kp_secret.init_private_key.kex_secret();
-    let encapped_key = EncappedKey::<Kex<CS>>::unmarshal(
+    let encapped_key = EncappedKey::<Kex<CS>>::from_bytes(
         &encrypted_group_secret.encrypted_group_secrets.kem_output,
     )?;
     let payload_len = encrypted_group_secret
@@ -62,7 +62,7 @@ pub fn open_group_secret<CS: CipherSuite>(
         .ciphertext
         .split_at(split_point);
     let mut payload = payload.to_vec();
-    let tag = AeadTag::<CS::Aead>::unmarshal(tag_bytes)?;
+    let tag = AeadTag::<CS::Aead>::from_bytes(tag_bytes)?;
 
     let mut receiver_ctx = hpke::setup_receiver::<CS::Aead, CS::Kdf, CS::Kem>(
         &hpke::OpModeR::Base,
@@ -111,9 +111,9 @@ pub fn encrypt_path_secret<CS: CipherSuite>(
         &mut csprng,
     )?;
     let tag = context.seal(&mut msg, aad)?;
-    msg.extend_from_slice(&tag.marshal());
+    msg.extend_from_slice(&tag.to_bytes());
     Ok(HPKECiphertext {
-        kem_output: kem_output.marshal(),
+        kem_output: kem_output.to_bytes(),
         ciphertext: msg,
     })
 }
@@ -124,7 +124,7 @@ pub fn decrypt_path_secret<CS: CipherSuite>(
     aad: &[u8],
     ct: &HPKECiphertext<CS>,
 ) -> Result<Secret<NodeSecret<CS>>, HpkeError> {
-    let encapped_key = EncappedKey::<Kex<CS>>::unmarshal(&ct.kem_output)?;
+    let encapped_key = EncappedKey::<Kex<CS>>::from_bytes(&ct.kem_output)?;
     let mut context = hpke::setup_receiver::<CS::Aead, CS::Kdf, CS::Kem>(
         &hpke::OpModeR::Base,
         private_key.kex_secret(),
@@ -145,7 +145,7 @@ pub fn decrypt_with_context<CS: CipherSuite>(
         .checked_sub(16)
         .ok_or(HpkeError::InvalidTag)?;
     let (payload, tag_bytes) = ct.ciphertext.split_at(split_point);
-    let tag = AeadTag::<CS::Aead>::unmarshal(tag_bytes)?;
+    let tag = AeadTag::<CS::Aead>::from_bytes(tag_bytes)?;
     let mut payload =
         GenericArray::from_exact_iter(payload.iter().copied()).ok_or(HpkeError::InvalidTag)?;
 

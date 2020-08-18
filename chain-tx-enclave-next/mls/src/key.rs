@@ -2,7 +2,7 @@
 use std::fmt::{Debug, Formatter, Result as FmtResult};
 
 use generic_array::GenericArray;
-use hpke::{HpkeError, Kem, KeyExchange, Marshallable, Unmarshallable};
+use hpke::{kex::KeyExchange, Deserializable, HpkeError, Kem, Serializable};
 use rand::thread_rng;
 use ring::{
     error, rand as ringrang,
@@ -67,22 +67,22 @@ impl<CS: CipherSuite> HPKEPublicKey<CS> {
         &self.0
     }
 
-    pub fn marshal(&self) -> GenericArray<u8, <PublicKey<CS> as Marshallable>::OutputSize> {
-        self.0.marshal()
+    pub fn marshal(&self) -> GenericArray<u8, <PublicKey<CS> as Serializable>::OutputSize> {
+        self.0.to_bytes()
     }
 }
 
 impl<CS: CipherSuite> Debug for HPKEPublicKey<CS> {
     fn fmt(&self, f: &mut Formatter) -> FmtResult {
         f.debug_struct("HPKEPublicKey")
-            .field("0", &self.0.marshal()) // TODO: hex?
+            .field("0", &self.0.to_bytes()) // TODO: hex?
             .finish()
     }
 }
 
 impl<CS: CipherSuite> Codec for HPKEPublicKey<CS> {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        let payload = self.0.marshal();
+        let payload = self.0.to_bytes();
         let len = payload.len();
         debug_assert!(len <= 0xffff);
         (len as u16).encode(bytes);
@@ -92,7 +92,7 @@ impl<CS: CipherSuite> Codec for HPKEPublicKey<CS> {
     fn read(r: &mut Reader) -> Option<Self> {
         let len = u16::read(r)? as usize;
         let slice = r.take(len)?;
-        let pk = <PublicKey<CS>>::unmarshal(slice).ok()?;
+        let pk = <PublicKey<CS>>::from_bytes(slice).ok()?;
         Some(Self(pk))
     }
 }
@@ -107,17 +107,17 @@ impl<CS: CipherSuite> HPKEPrivateKey<CS> {
     }
 
     pub fn unmarshal(secret: &[u8]) -> Result<Self, HpkeError> {
-        <PrivateKey<CS>>::unmarshal(secret).map(Self)
+        <PrivateKey<CS>>::from_bytes(secret).map(Self)
     }
 
     pub fn marshal(&self) -> Secret<NodeSecret<CS>> {
-        Secret::new(SecretValue(<PrivateKey<CS>>::marshal(&self.0)))
+        Secret::new(SecretValue(<PrivateKey<CS>>::to_bytes(&self.0)))
     }
 
     pub fn marshal_arr_unsafe(
         &self,
-    ) -> GenericArray<u8, <PrivateKey<CS> as Marshallable>::OutputSize> {
-        self.0.marshal()
+    ) -> GenericArray<u8, <PrivateKey<CS> as Serializable>::OutputSize> {
+        self.0.to_bytes()
     }
 
     pub fn public_key(&self) -> HPKEPublicKey<CS> {

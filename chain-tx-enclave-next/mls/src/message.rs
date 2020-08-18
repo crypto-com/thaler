@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 
 use generic_array::GenericArray;
-use hpke::Marshallable;
+use hpke::Serializable;
 use secrecy::{ExposeSecret, Secret};
 
 use crate::ciphersuite::{
@@ -499,7 +499,7 @@ pub struct EncryptedGroupSecrets<CS: CipherSuite> {
 #[derive(Debug, Clone)]
 pub struct HPKECiphertext<CS: CipherSuite> {
     /// 0..2^16-1
-    pub kem_output: GenericArray<u8, <PublicKey<CS> as Marshallable>::OutputSize>,
+    pub kem_output: GenericArray<u8, <PublicKey<CS> as Serializable>::OutputSize>,
     /// 0..2^16-1
     pub ciphertext: Vec<u8>,
 }

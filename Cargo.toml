@@ -59,4 +59,4 @@ ring = { git = "https://github.com/crypto-com/ring.git", rev = "8f2b68d2ac53b1df
 # FIXME: use upstream when merged
 sha2 = { git = "https://github.com/crypto-com/hashes.git", rev = "289d5b76f2163a3808010341ed1df3cb156d97e1" }
 # FIXME: before official spec has a solution
-hpke = { git = "https://github.com/crypto-com/rust-hpke.git", rev = "25686eb87d2862535b1d5107d74e2ac8bd992bae" }
+hpke = { git = "https://github.com/crypto-com/rust-hpke.git", rev = "afdaf6f62fa557a7055d6cc063af65fe5c387aaf" }
