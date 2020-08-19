@@ -16,6 +16,10 @@ else
     EDP_ARGS=
 fi
 
+# for unit tests; it may not appply, as it'll be signed by runner's dummy key
+export MRSIGNER="0000000000000000000000000000000000000000000000000000000000000000"
+export TQE_MRENCLAVE="0000000000000000000000000000000000000000000000000000000000000000"
+
 # Add a test runner
 mkdir .cargo
 echo "[target.x86_64-fortanix-unknown-sgx]

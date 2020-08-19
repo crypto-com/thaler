@@ -44,10 +44,15 @@ jobs:
       - name: temporary mock hack for stable
         run: |
           sed -i.bak -E "s/default = \[\".+\"\]/default = \[\"mock-enclave\"\]/" chain-abci/Cargo.toml;
+          sed -i.bak -E "s/default = \[\".+\"\]/default = \[\"mock-enclave\", \"sled\", \"websocket-rpc\"\]/" client-common/Cargo.toml;
       - uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: "-- -D warnings"
+        env:
+          NETWORK_ID: "ab"
+          MRSIGNER: "0000000000000000000000000000000000000000000000000000000000000000"
+          TQE_MRENCLAVE: "0000000000000000000000000000000000000000000000000000000000000000"
 
   security_audit:
     runs-on: ubuntu-latest
@@ -75,12 +80,15 @@ jobs:
       - name: temporary mock hack for stable
         run: |
           sed -i.bak -E "s/default = \[\".+\"\]/default = \[\"mock-enclave\"\]/" chain-abci/Cargo.toml;
+          sed -i.bak -E "s/default = \[\".+\"\]/default = \[\"mock-enclave\", \"sled\", \"websocket-rpc\"\]/" client-common/Cargo.toml;
       - uses: actions-rs/cargo@v1
         with:
           command: build
         env:
           RUSTFLAGS: "-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3 -D warnings"
           NETWORK_ID: "ab"
+          MRSIGNER: "0000000000000000000000000000000000000000000000000000000000000000"
+          TQE_MRENCLAVE: "0000000000000000000000000000000000000000000000000000000000000000"
       - name: test-stable
         uses: actions-rs/cargo@v1
         with:
@@ -88,6 +96,8 @@ jobs:
         env:
           RUSTFLAGS: "-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3 -D warnings"
           NETWORK_ID: "ab"
+          MRSIGNER: "0000000000000000000000000000000000000000000000000000000000000000"
+          TQE_MRENCLAVE: "0000000000000000000000000000000000000000000000000000000000000000"
 
   test-nightly-coverage:
     runs-on: ubuntu-latest
@@ -109,6 +119,8 @@ jobs:
           CARGO_INCREMENTAL: "0"
           RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=unwind -Zpanic_abort_tests"
           NETWORK_ID: "ab"
+          MRSIGNER: "0000000000000000000000000000000000000000000000000000000000000000"
+          TQE_MRENCLAVE: "0000000000000000000000000000000000000000000000000000000000000000"
       - uses: actions-rs/grcov@v0.1
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1

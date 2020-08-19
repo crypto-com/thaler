@@ -53,12 +53,14 @@ rust: &rust
     - LD_LIBRARY_PATH=$HOME/lib:/opt/sgxsdk/sdk_libs
     - PKG_CONFIG_PATH=$HOME/lib/pkgconfig:/opt/sgxsdk/pkgconfig
     - SGX_SDK=/opt/sgxsdk
-    - SGX_MODE=SW
+    - MRSIGNER=0000000000000000000000000000000000000000000000000000000000000000
+    - TQE_MRENCLAVE=0000000000000000000000000000000000000000000000000000000000000000
     - NETWORK_ID=ab
   before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
     - |
       if [[ "$TRAVIS_RUST_VERSION" != nightly ]]; then
         sed -i.bak -E "s/default = \[\".+\"\]/default = \[\"mock-enclave\"\]/" chain-abci/Cargo.toml;
+        sed -i.bak -E "s/default = \[\".+\"\]/default = \[\"mock-enclave\", \"sled\", \"websocket-rpc\"\]/" client-common/Cargo.toml;
       fi
     - |
       if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then

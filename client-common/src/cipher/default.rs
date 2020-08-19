@@ -6,22 +6,38 @@ use std::{
 
 use parity_scale_codec::{Decode, Encode};
 
+use crate::TransactionObfuscation;
 use crate::{
     tendermint::{types::AbciQueryExt, Client},
     Error, ErrorKind, PrivateKey, Result, ResultExt, SignedTransaction, Transaction,
 };
 use chain_core::tx::{data::TxId, TxAux, TxWithOutputs};
+use enclave_macro::{get_mrsigner, get_network_id, get_tqe_mrenclave};
 use enclave_protocol::{
     DecryptionRequest, DecryptionResponse, EncryptionRequest, EncryptionResponse,
     TxQueryInitRequest, TxQueryInitResponse,
 };
-use ra_client::EnclaveCertVerifier;
-
-use crate::TransactionObfuscation;
+use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierConfig, EnclaveInfo};
 
 fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
-    // TODO: Get enclave details from command line or env variables?
-    let verifier = EnclaveCertVerifier::default();
+    let mr_signer: [u8; 32] = get_mrsigner!();
+    let mr_enclave: [u8; 32] = get_tqe_mrenclave!();
+    let tqe_info = EnclaveInfo {
+        mr_enclave,
+        mr_signer,
+        previous_mr_enclave: None,
+        isv_prod_id: get_network_id!(),
+        // TODO: it seems there's no global CPU SVN across all CPU models,
+        // so one can't really fix it to one at compile-time?
+        cpu_svn: [0; 16],
+        // TODO: should also be configurable / upgrades should be tested
+        isv_svn: 0,
+        // TODO: should be configurable, but would need more human-interpretable config to bitvec
+        // e.g. which flag is the debug mode launch
+        attributes: [0; 16],
+    };
+    let config = EnclaveCertVerifierConfig::new_with_enclave_info(tqe_info);
+    let verifier = EnclaveCertVerifier::new(config).expect("verifier config");
     Ok(Arc::new(verifier.into_client_config()))
 }
 

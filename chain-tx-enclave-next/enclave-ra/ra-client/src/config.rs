@@ -19,7 +19,7 @@ pub struct EnclaveCertVerifierConfig<'a> {
     pub valid_enclave_quote_statuses: Cow<'a, [Cow<'a, str>]>,
     /// Duration for which an attestation report will be considered as valid (in secs)
     pub report_validity_secs: u32,
-    /// Information about the enclave that'll be verifier if present
+    /// Information about the enclave that'll be verifier if present -- TODO: make non-optional?
     pub enclave_info: Option<EnclaveInfo>,
 }
 
