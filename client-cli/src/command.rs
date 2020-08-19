@@ -575,11 +575,11 @@ impl Command {
                     handle.clone(),
                 );
                 Self::resync(config, name.clone(), enckey, *force, storage)?;
-                handle
-                    .as_ref()
-                    .expect("get light-client")
-                    .terminate()
-                    .expect("terminate light client supervisor in client-cli");
+                if let Some(this_handle) = handle.as_ref() {
+                    this_handle
+                        .terminate()
+                        .expect("terminate light client supervisor in client-cli");
+                }
                 Ok(())
             }
             Command::MultiSig { multisig_command } => {
