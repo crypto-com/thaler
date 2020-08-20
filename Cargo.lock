@@ -3769,9 +3769,9 @@ dependencies = [
 
 [[package]]
 name = "rs-libc"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71ecb2603155fa7473cac8df6f080f06bea5282a7a900dd71d361a351883d4f9"
+checksum = "be0b66dae43e662009880c5cd71fd335699cb77b06e31f5d53ee8fb89c7d247e"
 dependencies = [
  "cc",
 ]
