@@ -2,8 +2,8 @@ FROM ubuntu:18.04
 
 RUN apt update && apt install -y \
   make \
-  libzmq3-dev \
   libssl1.1 \
+  libudev-dev \
   curl \
   wget \
   gnupg \

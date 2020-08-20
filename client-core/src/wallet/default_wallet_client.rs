@@ -213,17 +213,21 @@ where
         Ok(tx)
     }
 
-    fn update_hw_service(&mut self, hw_wallet_kind: HardwareKind) {
+    fn update_hw_service(&mut self, hw_wallet_kind: HardwareKind) -> Result<()> {
         let hw_key_service = match hw_wallet_kind {
-            HardwareKind::Ledger => HwKeyService::Unauthorized(UnauthorizedHwKeyService),
             HardwareKind::Trezor => HwKeyService::Unauthorized(UnauthorizedHwKeyService),
             #[cfg(feature = "mock-hardware-wallet")]
             HardwareKind::Mock => {
                 let mock = MockHardwareService::new();
                 HwKeyService::Mock(mock)
             }
+            HardwareKind::Ledger => {
+                let ledger_service = LedgerService::new(true)?;
+                HwKeyService::Ledger(ledger_service)
+            }
         };
         self.hw_key_service = hw_key_service;
+        Ok(())
     }
 
     fn get_wallet_kind(&self, name: &str, enckey: &SecKey) -> Result<WalletKind> {

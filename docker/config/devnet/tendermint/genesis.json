@@ -1,5 +1,5 @@
 {
-    "app_hash": "9B3263E4412E90902E7ED634399062A8DEDF45E89C87919E1474FD23EF77BB2F",
+    "app_hash": "D3218ECBF9D1F90656C624246ECDFB30CE01386F5BD5C6AC423766FEFC0DEB62",
     "app_state": {
         "council_nodes": {
             "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
@@ -14,21 +14,25 @@
                 }
             ]
         },
-        "distribution": {
-            "0x0000000000000000000000000000000000000000": [
-                "UnbondedFromGenesis",
-                "8000000000000000000"
-            ],
-            "0x2dfde2178daa679508828242119dcf2114038ea8": [
-                "UnbondedFromGenesis",
-                "500000000000000000"
-            ],
-            "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
-                "Bonded",
-                "500000000000000000"
-            ]
-        },
-        "network_params": {
+      "distribution": {
+        "0x0000000000000000000000000000000000000000": [
+          "UnbondedFromGenesis",
+          "7000000000000000000"
+        ],
+        "0x2dfde2178daa679508828242119dcf2114038ea8": [
+          "UnbondedFromGenesis",
+          "500000000000000000"
+        ],
+        "0xbeba948c811c50103d872b7eb947de12f7ba8b42": [
+          "UnbondedFromGenesis",
+          "1000000000000000000"
+        ],
+        "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
+          "Bonded",
+          "500000000000000000"
+        ]
+      },
+      "network_params": {
             "initial_fee_policy": {
                 "coefficient": 0,
                 "constant": 0

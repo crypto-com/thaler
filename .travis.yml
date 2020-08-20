@@ -34,7 +34,7 @@ rust: &rust
         - gcc
         - binutils-dev
         - libc6-dev
-        - libzmq3-dev
+        - libudev-dev
         - protobuf-compiler
   cache:
     directories:

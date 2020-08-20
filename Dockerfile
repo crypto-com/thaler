@@ -10,7 +10,7 @@ RUN set -e; \
     echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu bionic main' | tee /etc/apt/sources.list.d/intel-sgx.list; \
     wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -; \
     apt-get update; \
-    apt-get install -y libzmq3-dev libssl1.1 libprotobuf10 libsgx-launch libsgx-urts libsgx-epid libsgx-quote-ex; \
+    apt-get install -y libudev-dev libssl1.1 libprotobuf10 libsgx-launch libsgx-urts libsgx-epid libsgx-quote-ex; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=tendermint/tendermint:v0.33.7 /usr/bin/tendermint /usr/bin/tendermint
@@ -33,7 +33,7 @@ RUN set -e; \
     apt-get install -y \
       cmake \
       libgflags-dev \
-      libzmq3-dev \
+      libudev-dev \
       pkg-config xz-utils; \
     wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-11.0.0-rc1/clang+llvm-11.0.0-rc1-x86_64-linux-gnu-ubuntu-16.04.tar.xz; \
     tar -xf clang+llvm-11.0.0-rc1-x86_64-linux-gnu-ubuntu-16.04.tar.xz --strip-components=1 -C /usr/; \

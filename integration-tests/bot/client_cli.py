@@ -18,8 +18,8 @@ def run(cmd, args=None):
     elif args:
         p.stdin.writelines("{}\n".format(args))
     output, err = p.communicate()
-    if err and "using mock" not in err.lower():
-        raise Exception("stdout: {}, stderr: {}".format(output, err))
+    if err and "using mock" not in err.lower() and " INFO " not in err:
+        raise Exception("cmd: {}, stdout: {}, stderr: {}".format(cmd, output, err))
     return remove_color(output)
 
 
@@ -277,6 +277,7 @@ class Wallet():
             force=False,
             disable_address_recovery=False,
             enable_fast_forward=True,
+            disable_light_client=True,
             batch_size=20,
             block_height_ensure=50,
             light_client_peers="0000000000000000000000000000000000000000@127.0.0.1:26657,1000000000000000000000000000000000000000@127.0.0.1:26657",
@@ -292,10 +293,12 @@ class Wallet():
         ]
         if force:
             cmd.append("--force")
-        if disable_address_recovery:
-            cmd.append("--disable-address-recovery")
         if enable_fast_forward:
             cmd.append("--enable-fast-forward")
+        if disable_light_client:
+            cmd.append("--disable-light-client")
+        if disable_address_recovery:
+            cmd.append("--disable-address-recovery")
         args = self.auth_token
         text = run(cmd, args)
         if "Error" in text:
