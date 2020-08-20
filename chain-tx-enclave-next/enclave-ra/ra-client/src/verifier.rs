@@ -260,8 +260,12 @@ impl EnclaveCertVerifier {
                 enclave_info.mr_enclave,
                 enclave_info.previous_mr_enclave,
             ) {
+                // Case 0: If `mr_enclave` is `None`, which means that we don't have to verify
+                // MRENCLAVE values (for `ClientCertiVerifier` for two-way attested TLS stream
+                // between different enclaves).
+                (isv_svn, None, _) if isv_svn == quote.report_body.isv_svn => Ok(()),
                 // Case 1: If `isv_svn` is the same, then `mr_enclave` should be the same
-                (isv_svn, mr_enclave, _)
+                (isv_svn, Some(mr_enclave), _)
                     if isv_svn == quote.report_body.isv_svn
                         && mr_enclave == quote.report_body.measurement.mr_enclave =>
                 {
@@ -287,20 +291,45 @@ impl EnclaveCertVerifier {
     }
 
     /// Converts enclave certificate verifier into client config expected by `rustls`
-    pub fn into_client_config(self) -> ClientConfig {
+    pub fn into_client_config(self) -> Result<ClientConfig, EnclaveCertVerifierError> {
+        match self.enclave_info {
+            None => Err(EnclaveCertVerifierError::MissingEnclaveInfo),
+            Some(ref enclave_info) => match enclave_info.mr_enclave {
+                Some(_) => Ok(()),
+                None => Err(EnclaveCertVerifierError::MissingMrenclave),
+            },
+        }?;
+
         let mut config = ClientConfig::new();
         config.dangerous().set_certificate_verifier(Arc::new(self));
         config.versions = vec![rustls::ProtocolVersion::TLSv1_3];
-        config
+        Ok(config)
     }
 
     /// Converts enclave certificate verifier into server config (configures current verifier as
     /// client certificate verifier, i.e., the client should also present a valid certificate with
     /// attestation report) expected by `rustls`
-    pub fn into_client_verifying_server_config(self) -> ServerConfig {
+    pub fn into_client_verifying_server_config(
+        self,
+        verify_mr_enclave: bool,
+    ) -> Result<ServerConfig, EnclaveCertVerifierError> {
+        match self.enclave_info {
+            None => Err(EnclaveCertVerifierError::MissingEnclaveInfo),
+            Some(ref enclave_info) => {
+                if verify_mr_enclave {
+                    match enclave_info.mr_enclave {
+                        Some(_) => Ok(()),
+                        None => Err(EnclaveCertVerifierError::MissingMrenclave),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+        }?;
+
         let mut server_config = ServerConfig::new(Arc::new(self));
         server_config.versions = vec![rustls::ProtocolVersion::TLSv1_3];
-        server_config
+        Ok(server_config)
     }
 }
 
@@ -382,6 +411,10 @@ pub enum EnclaveCertVerifierError {
     MissingAttestationReport,
     #[error("Attestation report signing certificate not available")]
     MissingAttestationReportSigningCertificate,
+    #[error("Enclave info is not provided for certificate verifier")]
+    MissingEnclaveInfo,
+    #[error("MRENCLAVE value not provided for certificate verifier")]
+    MissingMrenclave,
     #[error("Attestation report is older than report validify duration")]
     OldAttestationReport,
     #[error("Public key in certificate does not match with the one in enclave quote")]

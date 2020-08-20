@@ -54,7 +54,16 @@ pub struct EnclaveInfo {
     /// 256-bit hash of enclave author's public key
     pub mr_signer: [u8; 32],
     /// 256-bit hash that identifies the code and initial data in enclave
-    pub mr_enclave: [u8; 32],
+    ///
+    /// # Note
+    ///
+    /// - This value will be `Some` for `ServerCertVerifier` in any type of attested connection.
+    /// - This value will be `None` for `ClientCertVerifier` in two-way mutually attested TLS
+    ///   stream between different enclaves.
+    /// - This value will be `Some()` for `ClientCertVerifier` in two-way mutually attested TLS
+    ///   stream between same enclaves.
+    /// - `EnclaveInfo` will be `None` for `ClientCertVerifier` in one-way attested TLS stream.
+    pub mr_enclave: Option<[u8; 32]>,
     /// `mr_enclave` corresponding to previous `isv_svn`, i.e., `isv_svn - 1`
     pub previous_mr_enclave: Option<[u8; 32]>,
     /// CPU security version number
@@ -78,7 +87,7 @@ impl EnclaveInfo {
 
         Self {
             mr_signer: report.mrsigner,
-            mr_enclave: report.mrenclave,
+            mr_enclave: Some(report.mrenclave),
             previous_mr_enclave,
             cpu_svn: report.cpusvn,
             isv_svn: report.isvsvn,

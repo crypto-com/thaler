@@ -4559,6 +4559,7 @@ dependencies = [
 name = "test_cert_expiration"
 version = "0.1.0"
 dependencies = [
+ "enclave-macro",
  "ra-client",
  "rustls",
  "webpki",
