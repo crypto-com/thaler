@@ -49,6 +49,7 @@ pub struct GroupAux<CS: CipherSuite> {
     // public and shared
     pub context: GroupContext<CS>,
     pub tree: TreePublicKey<CS>,
+    pub interim_transcript_hash: Option<HashValue<CS>>,
 
     // public and specific to current participant
     /// position of the participant in the tree
@@ -80,6 +81,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         Ok(GroupAux {
             context,
             tree,
+            interim_transcript_hash: None,
             my_pos,
             tree_secret: TreeSecret::default(),
             secrets,
@@ -179,12 +181,8 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         })
     }
 
-    fn get_init_confirmed_transcript_hash(
-        &self,
-        sender: Sender,
-        commit: &Commit<CS>,
-    ) -> HashValue<CS> {
-        let interim_transcript_hash = b"".to_vec(); // TODO
+    /// spec: draft-ietf-mls-protocol.md#group-state
+    fn new_confirmed_transcript_hash(&self, sender: Sender, commit: &Commit<CS>) -> HashValue<CS> {
         let content_to_commit = message::MLSPlaintextCommitContent::new(
             self.context.group_id.clone(),
             self.context.epoch,
@@ -192,11 +190,22 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             commit.clone(),
         )
         .get_encoding();
-        let to_hash = [interim_transcript_hash, content_to_commit].concat();
+        let to_hash = [
+            // spec: When a new group is created, the `interim_transcript_hash` field is set to the
+            // zero-length octet string,
+            // which is the `None` case here.
+            self.interim_transcript_hash
+                .as_ref()
+                .map(|h| h.as_ref())
+                .unwrap_or(b""),
+            &content_to_commit,
+        ]
+        .concat();
         CS::hash(&to_hash)
     }
 
-    fn get_interim_transcript_hash(
+    /// spec: draft-ietf-mls-protocol.md#group-state
+    fn new_interim_transcript_hash(
         &self,
         commit_confirmation: HashValue<CS>,
         commit_msg_sig: Vec<u8>,
@@ -393,7 +402,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         };
         let updated_epoch = self.context.epoch + 1;
         let confirmed_transcript_hash =
-            self.get_init_confirmed_transcript_hash(self.get_sender(), &commit);
+            self.new_confirmed_transcript_hash(self.get_sender(), &commit);
         let updated_group_context = GroupContext {
             tree_hash: updated_tree.compute_tree_hash(),
             epoch: updated_epoch,
@@ -428,7 +437,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             },
         };
         let signed_commit = self.get_signed_commit(&commit_content)?;
-        let interim_transcript_hash = self.get_interim_transcript_hash(
+        let interim_transcript_hash = self.new_interim_transcript_hash(
             confirmation.clone(),
             signed_commit.signature.clone(),
             updated_group_context.confirmed_transcript_hash.clone(),
@@ -594,13 +603,10 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         };
 
         // "Update the new GroupContext's confirmed and interim transcript hashes using the new Commit."
-        let confirmed_transcript_hash = self.get_init_confirmed_transcript_hash(
-            commit.content.sender.clone(),
-            &commit_content.commit,
-        );
+        let confirmed_transcript_hash = self
+            .new_confirmed_transcript_hash(commit.content.sender.clone(), &commit_content.commit);
 
-        // FIXME: store interim transcript hash?
-        let _interim_transcript_hash = self.get_interim_transcript_hash(
+        let new_interim_transcript_hash = self.new_interim_transcript_hash(
             commit_content.confirmation.clone(),
             commit.signature,
             confirmed_transcript_hash.clone(),
@@ -642,6 +648,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         self.context = updated_group_context;
         self.secrets = epoch_secrets;
         self.tree = tree;
+        self.interim_transcript_hash = Some(new_interim_transcript_hash);
         if let Some(diff) = tree_diff {
             self.tree_secret.apply_tree_diff(diff);
         }
@@ -818,6 +825,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         let group = GroupAux {
             context,
             tree,
+            interim_transcript_hash: Some(group_info.payload.interim_transcript_hash.clone()),
             my_pos,
             tree_secret,
             kp_secret,
