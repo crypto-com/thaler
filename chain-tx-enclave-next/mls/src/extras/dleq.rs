@@ -6,6 +6,7 @@ use crate::ciphersuite::{CipherSuite, DefaultCipherSuite, Kex, NodeSecret, Publi
 use crate::crypto::decrypt_with_context;
 use crate::key::{gen_keypair, HPKEPrivateKey, HPKEPublicKey};
 use crate::message::HPKECiphertext;
+use elliptic_curve::{point::Generator, weierstrass::public_key::FromPublicKey, FromBytes};
 use hpke::{
     kex::{Deserializable, Serializable},
     EncappedKey,
@@ -23,7 +24,7 @@ use hpke::{
 ///! *be careful* if this is to be ported to non-prime-order EC ops (e.g. on curve25519)
 ///! ref: https://www.shiftleft.org/papers/decaf/decaf.pdf
 ///! (see "1.1 Pitfalls of a cofactor")
-use p256::{AffinePoint, ProjectivePoint, Scalar};
+use p256::{AffinePoint, ElementBytes, ProjectivePoint, Scalar};
 use parity_scale_codec::{Decode, Encode};
 use sha2::{Digest, Sha256};
 use subtle::{ConstantTimeEq, CtOption};
@@ -106,14 +107,14 @@ impl NackDleqProof {
 
         // no panic: encapped_key is already parsed/validated by hpke::kex::KeyExchange::PublicKey `from_bytes`
         let g = p256::PublicKey::from_bytes(&encapped_key.to_bytes()).unwrap();
-        let gen_g = AffinePoint::from_pubkey(&g).unwrap();
+        let gen_g = AffinePoint::from_public_key(&g).unwrap();
         // no panic: shared is already validated by hpke::kex::KeyExchange `kex`
         let h = p256::PublicKey::from_bytes(&shared.to_bytes()).unwrap();
-        let pub_h = AffinePoint::from_pubkey(&h).unwrap();
+        let pub_h = AffinePoint::from_public_key(&h).unwrap();
         let gen_m = AffinePoint::generator();
         // no panic: HPKEPrivateKey produces valid pubkey
         let z = p256::PublicKey::from_bytes(&receiver.public_key().marshal()).unwrap();
-        let pub_z = AffinePoint::from_pubkey(&z).unwrap();
+        let pub_z = AffinePoint::from_public_key(&z).unwrap();
         // no panic: HPKEPrivateKey is a valid scalar
         let mut x = Scalar::from_bytes(
             receiver
@@ -129,8 +130,8 @@ impl NackDleqProof {
         let mut dh = [0u8; 65];
         dh.copy_from_slice(h.as_bytes());
         Ok(NackDleqProof {
-            r_response: proof.r_response.to_bytes(),
-            c_inter_hash: proof.c_inter_hash.to_bytes(),
+            r_response: ElementBytes::from(proof.r_response).into(),
+            c_inter_hash: ElementBytes::from(proof.c_inter_hash).into(),
             dh,
         })
     }
@@ -151,15 +152,15 @@ impl NackDleqProof {
         let encapped_key = PublicKey::<CS>::from_bytes(sender_kem_output).map_err(|_| ())?;
         // no panic: encapped_key is already parsed/validated by hpke::kex::KeyExchange::PublicKey `from_bytes`
         let g = p256::PublicKey::from_bytes(&encapped_key.to_bytes()).unwrap();
-        let gen_g = AffinePoint::from_pubkey(&g).unwrap();
+        let gen_g = AffinePoint::from_public_key(&g).unwrap();
         let h = p256::PublicKey::from_bytes(&self.dh[..]).ok_or(())?;
-        let pub_h = AffinePoint::from_pubkey(&h);
+        let pub_h = AffinePoint::from_public_key(&h);
         // no panic: HPKEPublicKey should be valid
         let z = p256::PublicKey::from_bytes(&receiver.marshal()).unwrap();
-        let pub_z = AffinePoint::from_pubkey(&z).unwrap();
+        let pub_z = AffinePoint::from_public_key(&z).unwrap();
 
-        let r_response = Scalar::from_bytes(self.r_response);
-        let c_inter_hash = Scalar::from_bytes(self.c_inter_hash);
+        let r_response = Scalar::from_bytes(&ElementBytes::from(self.r_response));
+        let c_inter_hash = Scalar::from_bytes(&ElementBytes::from(self.c_inter_hash));
         let gen_m = AffinePoint::generator();
 
         // NOTE: these are subtle::Choice, not booleans
@@ -231,15 +232,16 @@ impl Proof {
         // note: in the paper, it's H(m, z, a, b)
         let mut hasher = Sha256::new();
         hasher.update(b"dleq proof");
-        hasher.update(gen_g.to_uncompressed_pubkey().as_bytes());
-        hasher.update(pub_h.to_uncompressed_pubkey().as_bytes());
-        hasher.update(gen_m.to_uncompressed_pubkey().as_bytes());
-        hasher.update(pub_z.to_uncompressed_pubkey().as_bytes());
-        hasher.update(a.to_uncompressed_pubkey().as_bytes());
-        hasher.update(b.to_uncompressed_pubkey().as_bytes());
+        hasher.update(gen_g.to_pubkey(false).as_bytes());
+        hasher.update(pub_h.to_pubkey(false).as_bytes());
+        hasher.update(gen_m.to_pubkey(false).as_bytes());
+        hasher.update(pub_z.to_pubkey(false).as_bytes());
+        hasher.update(a.to_pubkey(false).as_bytes());
+        hasher.update(b.to_pubkey(false).as_bytes());
         let c_bytes: [u8; 32] = hasher.finalize().into();
 
-        let mc_inter_hash = Scalar::from_bytes(c_bytes);
+        // TODO: is it safe to use from_bytes_reduced (+ in verification)?
+        let mc_inter_hash = Scalar::from_bytes(&ElementBytes::from(c_bytes));
         if mc_inter_hash.is_none().into() {
             return Err(());
         }
@@ -299,15 +301,15 @@ impl Proof {
         // c' = H(g, h, m, z, a, b) ?= c
         let mut hasher = Sha256::new();
         hasher.update(b"dleq proof");
-        hasher.update(self.gen_g.to_uncompressed_pubkey().as_bytes());
-        hasher.update(self.pub_h.to_uncompressed_pubkey().as_bytes());
-        hasher.update(self.gen_m.to_uncompressed_pubkey().as_bytes());
-        hasher.update(self.pub_z.to_uncompressed_pubkey().as_bytes());
-        hasher.update(a.to_uncompressed_pubkey().as_bytes());
-        hasher.update(b.to_uncompressed_pubkey().as_bytes());
+        hasher.update(self.gen_g.to_pubkey(false).as_bytes());
+        hasher.update(self.pub_h.to_pubkey(false).as_bytes());
+        hasher.update(self.gen_m.to_pubkey(false).as_bytes());
+        hasher.update(self.pub_z.to_pubkey(false).as_bytes());
+        hasher.update(a.to_pubkey(false).as_bytes());
+        hasher.update(b.to_pubkey(false).as_bytes());
         let c_bytes: [u8; 32] = hasher.finalize().into();
 
-        let c_inter_hash_prime = Scalar::from_bytes(c_bytes);
+        let c_inter_hash_prime = Scalar::from_bytes(&ElementBytes::from(c_bytes));
         let c_inter_hash = CtOption::new(self.c_inter_hash, 1u8.into());
         if c_inter_hash.ct_eq(&c_inter_hash_prime).into() {
             Ok(())
@@ -331,10 +333,10 @@ mod test {
         let (_, m_pub) = gen_keypair::<CS>();
 
         let g = p256::PublicKey::from_bytes(&g_pub.marshal()).unwrap();
-        let gen_g = AffinePoint::from_pubkey(&g).unwrap();
+        let gen_g = AffinePoint::from_public_key(&g).unwrap();
 
         let m = p256::PublicKey::from_bytes(&m_pub.marshal()).unwrap();
-        let gen_m = AffinePoint::from_pubkey(&m).unwrap();
+        let gen_m = AffinePoint::from_public_key(&m).unwrap();
 
         (x_scalar, gen_g, gen_m)
     }

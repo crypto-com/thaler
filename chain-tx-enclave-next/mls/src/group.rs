@@ -307,6 +307,42 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         })
     }
 
+    /// generates `confirmation_tag =
+    /// KDF.Extract(confirmation_key, GroupContext.confirmed_transcript_hash)`
+    /// plus returns the corresponding updated_group_context and epoch secrets
+    pub(crate) fn generate_commit_confirmation(
+        &self,
+        commit: &Commit<CS>,
+        updated_tree: &TreePublicKey<CS>,
+        tree_secret: Option<&TreeSecret<CS>>,
+    ) -> (HashValue<CS>, GroupContext<CS>, EpochSecrets<CS>) {
+        let updated_epoch = self.context.epoch + 1;
+        let confirmed_transcript_hash =
+            self.new_confirmed_transcript_hash(self.get_sender(), &commit);
+        let updated_group_context = GroupContext {
+            tree_hash: updated_tree.compute_tree_hash(),
+            epoch: updated_epoch,
+            confirmed_transcript_hash,
+            ..self.context.clone()
+        };
+
+        // If not populating the `path` field: ... Define `commit_secret` as the all-zero vector of the same
+        // length as a `path_secret` value would be.
+        let empty_commit_secret = Secret::new(NodeSecret::<CS>::default());
+        let commit_secret = tree_secret
+            .map(|secret| &secret.update_secret)
+            .unwrap_or(&empty_commit_secret);
+
+        let epoch_secrets = EpochSecrets::<CS>::generate(
+            self.secrets.init_secret.expose_secret(),
+            commit_secret.expose_secret(),
+            &updated_group_context.get_encoding(),
+        );
+        let confirmation =
+            epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
+        (confirmation, updated_group_context, epoch_secrets)
+    }
+
     /// Generate commit message for proposals.
     fn do_commit_proposals(
         &self,
@@ -400,31 +436,9 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             adds: add_proposals_ids,
             path,
         };
-        let updated_epoch = self.context.epoch + 1;
-        let confirmed_transcript_hash =
-            self.new_confirmed_transcript_hash(self.get_sender(), &commit);
-        let updated_group_context = GroupContext {
-            tree_hash: updated_tree.compute_tree_hash(),
-            epoch: updated_epoch,
-            confirmed_transcript_hash,
-            ..self.context.clone()
-        };
 
-        // If not populating the `path` field: ... Define `commit_secret` as the all-zero vector of the same
-        // length as a `path_secret` value would be.
-        let empty_commit_secret = Secret::new(NodeSecret::<CS>::default());
-        let commit_secret = tree_secret
-            .as_ref()
-            .map(|secret| &secret.update_secret)
-            .unwrap_or(&empty_commit_secret);
-
-        let epoch_secrets = EpochSecrets::<CS>::generate(
-            self.secrets.init_secret.expose_secret(),
-            commit_secret.expose_secret(),
-            &updated_group_context.get_encoding(),
-        );
-        let confirmation =
-            epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
+        let (confirmation, updated_group_context, epoch_secrets) =
+            self.generate_commit_confirmation(&commit, &updated_tree, tree_secret.as_ref());
         let sender = self.get_sender();
         let commit_content = MLSPlaintextCommon {
             group_id: self.context.group_id.clone(),

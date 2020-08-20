@@ -202,9 +202,12 @@ mod test {
     use crate::ciphersuite::{DefaultCipherSuite as CS, SecretValue};
     use crate::crypto::encrypt_path_secret;
     use crate::error::CommitError;
+    use crate::extensions::{self as ext};
     use crate::group::test::{get_fake_keypackage, three_member_setup, MockVerifier};
     use crate::group::GroupAux;
     use crate::message::{ContentType, MLSPlaintextTBS};
+    use crate::message::{DirectPath, Proposal, ProposalId};
+    use crate::tree::TreeEvolveResult;
     use assert_matches::assert_matches;
     use secrecy::Secret;
 
@@ -212,16 +215,59 @@ mod test {
         commit: &MLSPlaintext<CS>,
         sender: &GroupAux<CS>,
         valid_ciphertext: bool,
+        update_proposal: &MLSPlaintext<CS>,
     ) -> MLSPlaintext<CS> {
+        let proposal_id = ProposalId(CS::hash(&update_proposal.get_encoding()));
+        let mut updates = Vec::new();
+        match &update_proposal.content.content {
+            ContentType::Proposal(Proposal::Update(update)) => {
+                updates.push((
+                    update_proposal.content.sender.sender,
+                    update.clone(),
+                    proposal_id.clone(),
+                ));
+            }
+            _ => {}
+        };
+
         let mut new_commit = commit.clone();
-        let (mut new_commit_content, confirmation) = match &new_commit.content.content {
-            ContentType::Commit {
-                commit,
-                confirmation,
-            } => (commit.clone(), confirmation.clone()),
+        let mut new_commit_content = match &new_commit.content.content {
+            ContentType::Commit { commit, .. } => commit.clone(),
             _ => unreachable!(),
         };
-        let mut path = new_commit_content.path.clone().expect("path");
+
+        let mut updated_tree = sender.tree.clone();
+        let _positions = updated_tree
+            .update(&[], &updates, &[])
+            .expect("update tree");
+
+        // new init key
+        let init_private_key = sender.pending_commit.iter().next().unwrap().1;
+
+        // update path secrets
+        let TreeEvolveResult {
+            path_nodes,
+            leaf_parent_hash,
+            tree_secret,
+        } = updated_tree
+            .evolve(
+                &sender.context.get_encoding(),
+                sender.my_pos,
+                &init_private_key.marshal(),
+            )
+            .expect("update tree");
+
+        let kp = updated_tree
+            .get_package_mut(sender.my_pos)
+            .expect("my keypackage not exists");
+        kp.payload
+            .put_extension(&ext::ParentHashExt(leaf_parent_hash));
+        kp.update_signature(&sender.pending_updates.iter().next().unwrap().1)
+            .expect("msg");
+        let mut path = DirectPath {
+            leaf_key_package: kp.clone(),
+            nodes: path_nodes,
+        };
         if valid_ciphertext {
             let init_key = sender.tree.nodes[0]
                 .as_ref()
@@ -238,6 +284,11 @@ mod test {
         }
 
         new_commit_content.path = Some(path);
+        let tree_secret = Some(tree_secret);
+
+        let (confirmation, _updated_group_context, _epoch_secrets) = sender
+            .generate_commit_confirmation(&new_commit_content, &updated_tree, tree_secret.as_ref());
+
         new_commit.content.content = ContentType::Commit {
             commit: new_commit_content,
             confirmation,
@@ -304,10 +355,10 @@ mod test {
         member3_group
             .process_commit(commit.clone(), &proposals, &ra_verifier, 0)
             .expect("commit ok");
-        assert!(matches!(
+        assert_matches!(
             nack.verify(&member3_group.tree, &commit, &ra_verifier, 0, &ctx),
             Err(NackError::ValidPath)
-        ));
+        );
     }
 
     #[test]
@@ -324,7 +375,7 @@ mod test {
             .unwrap()];
         let (commit, _welcome) = member2_group.commit_proposals(&proposals).unwrap();
         // case 1: decryption fails
-        let commit = corrupt_and_sign_commit(&commit, &member2_group, false);
+        let commit = corrupt_and_sign_commit(&commit, &member2_group, false, &proposals[0]);
 
         // FIXME: the error shouldn't be discovered in "process commit", but some "verify" commit
         // + many things in Commit should be verified -- e.g. that "kem_output" is a valid pubkey
@@ -334,11 +385,10 @@ mod test {
         );
         let ctx = member3_group.context.get_encoding();
         // for group 3, it should be ok
-        // FIXME https://github.com/crypto-com/chain/issues/2066
-        assert!(matches!(
+        assert_matches!(
             member3_group.process_commit(commit.clone(), &proposals, &ra_verifier, 0),
-            Err(CommitError::GroupInfoIntegrityError)
-        ));
+            Ok(())
+        );
         let path = commit
             .get_commit()
             .expect("commit")
@@ -368,10 +418,10 @@ mod test {
             content: nack_content,
             signature: nack_signature,
         };
-        assert!(matches!(
+        assert_matches!(
             nack.verify(&member3_group.tree, &commit, &ra_verifier, 0, &ctx),
             Ok(NackResult::CannotDecrypt)
-        ));
+        );
     }
 
     #[test]
@@ -389,7 +439,7 @@ mod test {
         let (commit, _welcome) = member2_group.commit_proposals(&proposals).unwrap();
 
         // case 2: path secret doesn't match
-        let commit = corrupt_and_sign_commit(&commit, &member2_group, true);
+        let commit = corrupt_and_sign_commit(&commit, &member2_group, true, &proposals[0]);
 
         // FIXME: the error shouldn't be discovered in "process commit", but some "verify" commit
         // + many things in Commit should be verified -- e.g. that "kem_output" is a valid pubkey
@@ -399,10 +449,9 @@ mod test {
         );
         let ctx = member3_group.context.get_encoding();
         // for group 3, it should be ok
-        // FIXME https://github.com/crypto-com/chain/issues/2066
         assert_matches!(
             member3_group.process_commit(commit.clone(), &proposals, &ra_verifier, 0),
-            Err(CommitError::GroupInfoIntegrityError)
+            Ok(())
         );
 
         let path = commit
@@ -434,9 +483,9 @@ mod test {
             content: nack_content,
             signature: nack_signature,
         };
-        assert!(matches!(
+        assert_matches!(
             nack.verify(&member3_group.tree, &commit, &ra_verifier, 0, &ctx),
             Ok(NackResult::PathSecretMismatch)
-        ));
+        );
     }
 }
