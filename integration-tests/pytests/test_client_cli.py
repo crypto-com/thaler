@@ -120,7 +120,7 @@ def init_wallet():
 
     # create a mock hw wallet
     wallet_hw = Wallet("hw", PASSPHRASE)
-    wallet_hw.new("hw")
+    wallet_hw.new("hw", "mock")
 
 
 def deposit_transaction(wallet, staking_address, amount_cro):
@@ -159,12 +159,12 @@ def withdraw_transactions(wallet, staking_address, transfer_address=None, view_k
 
 
 
-def transfer_transaction(wallet_sender, wallet_receiver, amount_cro, sender_hardware=None, receiver_hardware=None, view_keys=[]):
+def transfer_transaction(wallet_sender, wallet_receiver, amount_cro, view_keys=[]):
     balance_sender_begin = wallet_sender.balance
     balance_receiver_begin = wallet_receiver.balance
-    tx = Transaction(wallet_sender, sender_hardware)
+    tx = Transaction(wallet_sender)
     view_keys.extend([wallet_receiver.view_key()])
-    tx.transfer(wallet_receiver.create_address("transfer", receiver_hardware), amount_cro, view_keys=view_keys)
+    tx.transfer(wallet_receiver.create_address("transfer"), amount_cro, view_keys=view_keys)
     balance_sender = wallet_sender.balance
     assert balance_sender["pending"] > 0
     assert balance_sender["total"] == balance_sender_begin["total"] - amount_cro * CRO
@@ -212,8 +212,8 @@ def test_transfer():
 @pytest.mark.zerofee
 def test_transfer_hw():
     # test mock hw wallet
-    transfer_transaction(wallet_1, wallet_hw, 10000, receiver_hardware="mock")
-    transfer_transaction(wallet_hw, wallet_1, 5000, sender_hardware="mock")
+    transfer_transaction(wallet_1, wallet_hw, 10000)
+    transfer_transaction(wallet_hw, wallet_1, 5000)
 
 @pytest.mark.zerofee
 def test_deposit_to_other_wallet():

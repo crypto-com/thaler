@@ -260,6 +260,7 @@ mod tests {
     use client_common::{storage::MemoryStorage, PublicKey, Result, Transaction};
 
     use super::*;
+    use crate::hd_wallet::HardwareKind;
     use crate::service::load_wallet;
     use crate::types::{TransactionPending, WalletKind};
     use crate::wallet::{DefaultWalletClient, WalletClient};
@@ -273,7 +274,13 @@ mod tests {
                 let name = format!("name{}", i);
                 let passphrase = SecUtf8::from("passphrase");
                 let (enckey, _) = wallet
-                    .new_wallet(&name, &passphrase, WalletKind::Basic, None)
+                    .new_wallet(
+                        &name,
+                        &passphrase,
+                        WalletKind::Basic,
+                        HardwareKind::LocalOnly,
+                        None,
+                    )
                     .expect("new wallet");
                 wallet
                     .new_transfer_address(&name, &enckey)

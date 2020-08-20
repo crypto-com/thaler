@@ -6,7 +6,8 @@ use client_common::{Error, ErrorKind, PrivateKey, Result, ResultExt};
 use client_core::types::WalletKind;
 use client_core::{Mnemonic, WalletClient};
 
-use crate::{ask_passphrase, ask_seckey};
+use crate::{ask_hardware_kind, ask_passphrase, ask_seckey};
+use client_core::hd_wallet::HardwareKind;
 use client_core::service::WalletInfo;
 use client_core::wallet::WalletRequest;
 use std::fs::File;
@@ -162,8 +163,20 @@ impl WalletCommand {
                 "Passphrases do not match",
             ));
         }
-        let (enckey, mnemonic) =
-            wallet_client.new_wallet(name, &passphrase, wallet_kind, Some(mnemonics_word_count))?;
+
+        let hardware_kind = if wallet_kind == WalletKind::HW {
+            ask_hardware_kind(None)?
+        } else {
+            HardwareKind::LocalOnly
+        };
+
+        let (enckey, mnemonic) = wallet_client.new_wallet(
+            name,
+            &passphrase,
+            wallet_kind,
+            hardware_kind,
+            Some(mnemonics_word_count),
+        )?;
 
         if let WalletKind::HD = wallet_kind {
             ask("Please store following mnemonic safely to restore your wallet later: ");

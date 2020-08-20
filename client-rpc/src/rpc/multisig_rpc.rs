@@ -346,6 +346,7 @@ mod test {
     use client_common::tendermint::Client;
     use client_common::TransactionObfuscation;
     use client_common::{PrivateKey, Result as CommonResult, SignedTransaction, Transaction};
+    use client_core::hd_wallet::HardwareKind;
     use client_core::service::HwKeyService;
     use client_core::signer::WalletSignerManager;
     use client_core::transaction_builder::DefaultWalletTransactionBuilder;
@@ -361,7 +362,13 @@ mod test {
 
         let (enckey, _) = multisig_rpc
             .client
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
         let wallet_request = WalletRequest {
             name: "Default".to_owned(),

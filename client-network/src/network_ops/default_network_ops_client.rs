@@ -557,6 +557,7 @@ mod tests {
     use client_common::tendermint::mock;
     use client_common::tendermint::types::*;
     use client_common::{seckey::derive_enckey, PrivateKey, PublicKey, Transaction};
+    use client_core::hd_wallet::HardwareKind;
     use client_core::service::HwKeyService;
     use client_core::signer::WalletSignerManager;
     use client_core::types::WalletKind;
@@ -787,7 +788,13 @@ mod tests {
         let transactions = vec![(input, output)];
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let tendermint_client = MockClient::default();
@@ -835,7 +842,13 @@ mod tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let tendermint_client = MockClient::default();
@@ -882,7 +895,13 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let from_address = network_ops_client
@@ -941,7 +960,13 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let from_address = network_ops_client
@@ -1010,7 +1035,13 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         assert_eq!(
@@ -1093,7 +1124,13 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let from_address = network_ops_client
@@ -1144,7 +1181,13 @@ mod tests {
 
         let (enckey, _) = network_ops_client
             .get_wallet_client()
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let staking_account_address = network_ops_client

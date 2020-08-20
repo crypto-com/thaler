@@ -216,6 +216,7 @@ where
     fn update_hw_service(&mut self, hw_wallet_kind: HardwareKind) -> Result<()> {
         let hw_key_service = match hw_wallet_kind {
             HardwareKind::Trezor => HwKeyService::Unauthorized(UnauthorizedHwKeyService),
+            HardwareKind::LocalOnly => HwKeyService::Unauthorized(UnauthorizedHwKeyService),
             #[cfg(feature = "mock-hardware-wallet")]
             HardwareKind::Mock => {
                 let mock = MockHardwareService::new();
@@ -233,6 +234,11 @@ where
     fn get_wallet_kind(&self, name: &str, enckey: &SecKey) -> Result<WalletKind> {
         let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
         Ok(wallet.wallet_kind)
+    }
+
+    fn get_hardware_kind(&self, name: &str, enckey: &SecKey) -> Result<HardwareKind> {
+        let wallet = self.wallet_service.get_wallet_info(name, enckey)?;
+        Ok(wallet.hardware_kind)
     }
 
     fn send_to_address(
@@ -484,6 +490,7 @@ where
         name: &str,
         passphrase: &SecUtf8,
         wallet_kind: WalletKind,
+        hardware_kind: HardwareKind,
         mnemonics_word_count: Option<u32>,
     ) -> Result<(SecKey, Option<Mnemonic>)> {
         check_passphrase_strength(name, passphrase)?;
@@ -501,7 +508,7 @@ where
                     .add_wallet_private_key(name, &private_key, &enckey)?;
 
                 self.wallet_service
-                    .create(name, &enckey, view_key, wallet_kind)?;
+                    .create(name, &enckey, view_key, wallet_kind, hardware_kind)?;
 
                 Ok((enckey, None))
             }
@@ -518,8 +525,13 @@ where
                 self.key_service
                     .add_wallet_private_key(name, &private_key, &enckey)?;
 
-                self.wallet_service
-                    .create(name, &enckey, public_key, wallet_kind)?;
+                self.wallet_service.create(
+                    name,
+                    &enckey,
+                    public_key,
+                    wallet_kind,
+                    hardware_kind,
+                )?;
 
                 Ok((enckey, Some(mnemonic)))
             }
@@ -532,7 +544,7 @@ where
                     .add_wallet_private_key(name, &private_key, &enckey)?;
 
                 self.wallet_service
-                    .create(name, &enckey, view_key, wallet_kind)?;
+                    .create(name, &enckey, view_key, wallet_kind, hardware_kind)?;
 
                 Ok((enckey, None))
             }
@@ -561,8 +573,13 @@ where
         self.key_service
             .add_wallet_private_key(name, &private_key, &enckey)?;
 
-        self.wallet_service
-            .create(name, &enckey, public_key, WalletKind::HD)?;
+        self.wallet_service.create(
+            name,
+            &enckey,
+            public_key,
+            WalletKind::HD,
+            HardwareKind::LocalOnly,
+        )?;
         Ok(enckey)
     }
 
@@ -581,8 +598,13 @@ where
         let view_key = PublicKey::from(view_key_priv);
         self.key_service
             .add_wallet_private_key(name, &view_key_priv, &enckey)?;
-        self.wallet_service
-            .create(name, &enckey, view_key, WalletKind::Basic)?;
+        self.wallet_service.create(
+            name,
+            &enckey,
+            view_key,
+            WalletKind::Basic,
+            HardwareKind::LocalOnly,
+        )?;
         Ok(enckey)
     }
 
@@ -1678,7 +1700,13 @@ mod tests {
         let dummy_viewkey = PublicKey::from(
             &PrivateKey::new().expect("Derive public key from private key should work"),
         );
-        let mut dummy_wallet = Wallet::new(dummy_viewkey, WalletKind::HD, "", None);
+        let mut dummy_wallet = Wallet::new(
+            dummy_viewkey,
+            WalletKind::HD,
+            HardwareKind::LocalOnly,
+            "",
+            None,
+        );
 
         assert_eq!(
             client

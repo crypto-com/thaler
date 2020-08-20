@@ -18,6 +18,7 @@ use client_core::{Mnemonic, UnspentTransactions, WalletClient};
 use parity_scale_codec::{Decode, Encode};
 
 use crate::{rpc_error_from_string, to_rpc_error};
+use client_core::hd_wallet::HardwareKind;
 
 #[rpc(server)]
 pub trait WalletRpc: Send + Sync {
@@ -187,6 +188,7 @@ where
                 &request.name,
                 &request.passphrase,
                 kind,
+                HardwareKind::LocalOnly,
                 mnemonics_word_count,
             )
             .map_err(to_rpc_error)?;
