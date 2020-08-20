@@ -1,4 +1,7 @@
-use ra_client::EnclaveCertVerifier;
+#![feature(proc_macro_hygiene)]
+
+use enclave_macro::{get_mrsigner, get_network_id, get_tqe_mrenclave};
+use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierConfig, EnclaveInfo};
 use rustls::{Certificate, ClientSession, Session};
 use std::env;
 use std::io::{Read, Write};
@@ -13,8 +16,19 @@ pub fn get_cert(port: u32) -> Certificate {
     let dns_name = webpki::DNSNameRef::try_from_ascii_str("localhost")
         .unwrap()
         .to_owned();
-    let verifier = EnclaveCertVerifier::default();
-    let client_config = Arc::new(verifier.into_client_config());
+    let verifier = EnclaveCertVerifier::new(EnclaveCertVerifierConfig::new_with_enclave_info(
+        EnclaveInfo {
+            mr_signer: get_mrsigner!(),
+            mr_enclave: Some(get_tqe_mrenclave!()),
+            previous_mr_enclave: None,
+            cpu_svn: [0; 16],
+            isv_svn: 0,
+            isv_prod_id: get_network_id!(),
+            attributes: [0; 16],
+        },
+    ))
+    .expect("EnclaveCertVerifier::new");
+    let client_config = Arc::new(verifier.into_client_config().expect("into_client_config"));
     // client_config.dangerous().set_certificate_verifier();
     let mut session = ClientSession::new(&client_config, dns_name.as_ref());
     let mut conn = TcpStream::connect(&address)

@@ -19,9 +19,9 @@ use enclave_protocol::{
 };
 use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierConfig, EnclaveInfo};
 
-fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
+fn get_tls_config() -> Arc<rustls::ClientConfig> {
     let mr_signer: [u8; 32] = get_mrsigner!();
-    let mr_enclave: [u8; 32] = get_tqe_mrenclave!();
+    let mr_enclave: Option<[u8; 32]> = Some(get_tqe_mrenclave!());
     let tqe_info = EnclaveInfo {
         mr_enclave,
         mr_signer,
@@ -38,7 +38,11 @@ fn get_tls_config() -> Result<Arc<rustls::ClientConfig>> {
     };
     let config = EnclaveCertVerifierConfig::new_with_enclave_info(tqe_info);
     let verifier = EnclaveCertVerifier::new(config).expect("verifier config");
-    Ok(Arc::new(verifier.into_client_config()))
+    Arc::new(
+        verifier
+            .into_client_config()
+            .expect("Error while creating TLS client configuration"),
+    )
 }
 
 /// Implementation of transaction obfuscation which directly talks to transaction decryption query and encryption enclaves
@@ -110,7 +114,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
             return Ok(vec![]);
         }
 
-        let client_config = get_tls_config()?;
+        let client_config = get_tls_config();
         let dns_name = self.tqe_hostname.as_ref();
         // FIXME: better response from enclave and retry mechanism
         for attempt in 0..3 {
@@ -215,7 +219,7 @@ impl TransactionObfuscation for DefaultTransactionObfuscation {
     }
 
     fn encrypt(&self, transaction: SignedTransaction) -> Result<TxAux> {
-        let client_config = get_tls_config()?;
+        let client_config = get_tls_config();
         let dns_name = self.tqe_hostname.as_ref();
         let mut sess = rustls::ClientSession::new(&client_config, dns_name);
 

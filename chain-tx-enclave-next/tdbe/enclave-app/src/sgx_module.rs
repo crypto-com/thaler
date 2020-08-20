@@ -223,7 +223,9 @@ fn create_tls_client_stream(
         .get_certificate()
         .expect("Unable to generate remote attestation certificate");
 
-    let mut client_config = verifier.into_client_config();
+    let mut client_config = verifier
+        .into_client_config()
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     certificate
         .configure_client_config(&mut client_config)
         .expect("Unable to configure TLS client config with certificate");
@@ -254,7 +256,9 @@ fn create_tls_server_stream(
     let certificate = context
         .get_certificate()
         .expect("Unable to create remote attestation certificate");
-    let mut tls_server_config = verifier.into_client_verifying_server_config();
+    let mut tls_server_config = verifier
+        .into_client_verifying_server_config(true)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
     certificate
         .configure_server_config(&mut tls_server_config)
