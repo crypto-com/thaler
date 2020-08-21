@@ -2352,7 +2352,7 @@ checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
 [[package]]
 name = "ledger-apdu"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs#707302a14629277dfbbc051fcf9f0c5c6a023f00"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 
 [[package]]
 name = "ledger-crypto"
@@ -2374,7 +2374,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs#707302a14629277dfbbc051fcf9f0c5c6a023f00"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "byteorder",
  "futures 0.3.5",
@@ -2391,7 +2391,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport-hid"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs#707302a14629277dfbbc051fcf9f0c5c6a023f00"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -2408,7 +2408,7 @@ dependencies = [
 [[package]]
 name = "ledger-zondax-generic"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs#707302a14629277dfbbc051fcf9f0c5c6a023f00"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "ledger-apdu",
  "ledger-transport",
