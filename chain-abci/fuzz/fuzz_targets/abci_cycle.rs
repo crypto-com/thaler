@@ -50,13 +50,15 @@ const TEST_GENESIS: &str = "{
         \"coefficient\": 1001
       },
       \"required_council_node_stake\": \"1\",
+      \"required_community_node_stake\": \"1\",
       \"jailing_config\": {
         \"block_signing_window\": 100,
         \"missed_block_threshold\": 50
       },
       \"slashing_config\": {
         \"liveness_slash_percent\": \"0.100\",
-        \"byzantine_slash_percent\": \"0.200\"
+        \"byzantine_slash_percent\": \"0.200\",
+        \"invalid_commit_slash_percent\": \"0.300\"
       },
       \"rewards_config\": {
         \"monetary_expansion_cap\": \"0\",

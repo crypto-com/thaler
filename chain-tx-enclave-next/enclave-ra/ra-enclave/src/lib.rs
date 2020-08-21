@@ -30,4 +30,5 @@ mod context;
 
 pub use self::{certificate::Certificate, config::EnclaveRaConfig};
 #[cfg(target_env = "sgx")]
-pub use context::{EnclaveRaContext, EnclaveRaContextError, DEFAULT_EXPIRATION_SECS};
+pub use context::{EnclaveRaContext, EnclaveRaContextError};
+pub use ra_common::DEFAULT_EXPIRATION_SECS;

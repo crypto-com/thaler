@@ -31,6 +31,16 @@
 #define KECCAK256_BYTES 32
 
 /**
+ * Time (in seconds) after which, the keypackage for a node will be considered as expired
+ */
+#define KEYPACKAGE_EXPIRATION_SECS (uint64_t)DEFAULT_EXPIRATION_SECS
+
+/**
+ * Time (in seconds) after which, the keypackage for a node is allowed to update, keypackage_update_secs < keypackage_expiration_secs
+ */
+#define KEYPACKAGE_UPDATE_SECS (KEYPACKAGE_EXPIRATION_SECS / 3)
+
+/**
  * maximum total supply with a fixed decimal point
  * ref: https://etherscan.io/token/0xa0b73e1ff0b80914ab6fe0444e65848c4c34450b
  * 100 billion + 8 decimals
@@ -46,6 +56,16 @@
  * 100 billion
  */
 #define MAX_COIN_UNITS 100000000000
+
+/**
+ * Timeout (in seconds) for MLS handshake commit
+ */
+#define MLS_COMMIT_TIMEOUT_SECS 60
+
+/**
+ * Timeout (in seconds) for MLS handshake message NACK
+ */
+#define MLS_MESSAGE_NACK_TIMEOUT_SECS MLS_COMMIT_TIMEOUT_SECS
 
 /**
  * ed25519 public key size

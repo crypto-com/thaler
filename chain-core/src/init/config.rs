@@ -59,7 +59,6 @@ pub enum DistributionError {
 }
 
 /// Initial configuration ("app_state" in genesis.json of Tendermint config)
-/// TODO: reward/treasury config, extra validator config...
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct InitConfig {
     /// Redeem mapping of ERC20 snapshot: Eth address => (StakedStateDestination,CRO tokens)

@@ -63,6 +63,7 @@ fn test_verify_test_example_snapshot() {
     let mut params = InitNetworkParameters {
         initial_fee_policy: fee_policy,
         required_council_node_stake: Coin::new(5000_0000_0000_0000).unwrap(),
+        required_community_node_stake: Coin::unit(),
         jailing_config: JailingParameters {
             block_signing_window: 100,
             missed_block_threshold: 50,
@@ -70,6 +71,7 @@ fn test_verify_test_example_snapshot() {
         slashing_config: SlashingParameters {
             liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            invalid_commit_slash_percent: SlashRatio::from_str("0.3").unwrap(),
         },
         rewards_config: RewardsParameters {
             monetary_expansion_cap: expansion_cap,

@@ -631,6 +631,7 @@ fn gen_network_params(
             coefficient: per_byte_fee,
         },
         required_council_node_stake: Coin::unit(),
+        required_community_node_stake: Coin::unit(),
         jailing_config: params::JailingParameters {
             block_signing_window: 100,
             missed_block_threshold: 50,
@@ -638,6 +639,7 @@ fn gen_network_params(
         slashing_config: params::SlashingParameters {
             liveness_slash_percent: params::SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: params::SlashRatio::from_str("0.2").unwrap(),
+            invalid_commit_slash_percent: params::SlashRatio::from_str("0.3").unwrap(),
         },
         rewards_config: params::RewardsParameters {
             monetary_expansion_cap: expansion_cap,

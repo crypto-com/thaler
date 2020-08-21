@@ -28,3 +28,4 @@ pub use self::{
         ENCLAVE_CERT_VERIFIER,
     },
 };
+pub use ra_common::DEFAULT_EXPIRATION_SECS;

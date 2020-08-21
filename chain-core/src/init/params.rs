@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 const MAX_SLASH_RATIO: Milli = Milli::new(1, 0); // 1.0
 
-/// network parameters specified at genesis
+/// network parameters specified at genesis (in genesis.json)
 /// ref: https://crypto-com.github.io/getting-started/network-parameters.html
 #[derive(Debug, PartialEq, Eq, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct InitNetworkParameters {
@@ -21,6 +21,8 @@ pub struct InitNetworkParameters {
     pub initial_fee_policy: LinearFee,
     /// minimal? council node stake
     pub required_council_node_stake: Coin,
+    /// minimal required stake for joining the network
+    pub required_community_node_stake: Coin,
     /// Jailing configuration
     pub jailing_config: JailingParameters,
     /// Slashing configuration
@@ -160,6 +162,9 @@ pub struct SlashingParameters {
     pub liveness_slash_percent: SlashRatio,
     /// Percentage of funds (bonded + unbonded) slashed when validator makes a byzantine fault
     pub byzantine_slash_percent: SlashRatio,
+    /// Percentage of funds (bonded + unbonded) slashed when it is detected (from NACK)
+    /// that a node submitted invalid MLS commit message (with update or remove)
+    pub invalid_commit_slash_percent: SlashRatio,
 }
 
 /// reward parameters
