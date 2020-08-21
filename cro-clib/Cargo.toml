@@ -28,4 +28,4 @@ libc = "0.2.74"
 env_logger = "0.7"
 
 [build-dependencies]
-cbindgen = "0.14.3"
+cbindgen = "0.14.4"
