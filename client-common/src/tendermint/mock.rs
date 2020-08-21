@@ -56,6 +56,7 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
                 "coefficient": 0
             },
             "required_council_node_stake": "1250000000000000000",
+            "required_community_node_stake": "100000000000",
             "unbonding_period": 86400,
             "jailing_config": {
                 "block_signing_window": 100,
@@ -63,7 +64,8 @@ const DEFAULT_GENESIS_JSON: &str = r#"{
             },
             "slashing_config": {
                 "liveness_slash_percent": "0.100",
-                "byzantine_slash_percent": "0.200"
+                "byzantine_slash_percent": "0.200",
+                "invalid_commit_slash_percent": "0.300"
             },
             "rewards_config": {
                 "monetary_expansion_cap": "6250000000000000000",

@@ -1,5 +1,5 @@
 {
-    "app_hash": "D3218ECBF9D1F90656C624246ECDFB30CE01386F5BD5C6AC423766FEFC0DEB62",
+    "app_hash": "CF34A4E4CF4C0060AE32EDF840C8FDEE3E95BFB893DE1CC9E0D3236B8AC02A1D",
     "app_state": {
         "council_nodes": {
             "0x45c1851c2f0dc6138935857b9e23b173185fea15": [
@@ -43,6 +43,7 @@
             },
             "max_validators": 50,
             "required_council_node_stake": "1",
+            "required_community_node_stake": "1",
             "rewards_config": {
                 "monetary_expansion_cap": "1000000000000000000",
                 "monetary_expansion_decay": 999860,
@@ -52,7 +53,8 @@
             },
             "slashing_config": {
                 "byzantine_slash_percent": "0.200",
-                "liveness_slash_percent": "0.100"
+                "liveness_slash_percent": "0.100",
+                "invalid_commit_slash_percent": "0.3"
             }
         }
     },

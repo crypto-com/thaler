@@ -18,9 +18,7 @@ use crate::{
     cmac::{Cmac, CmacError},
     config::EnclaveRaConfig,
 };
-
-/// 90 days
-pub const DEFAULT_EXPIRATION_SECS: i64 = 7776000;
+use ra_common::DEFAULT_EXPIRATION_SECS;
 
 /// Wraps all the in-enclave operations required for remote attestation
 pub struct EnclaveRaContext {

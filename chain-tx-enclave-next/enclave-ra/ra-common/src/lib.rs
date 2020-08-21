@@ -10,3 +10,6 @@ pub use self::{
         EnclaveQuoteStatusParsingError, QuoteParsingError, OID_EXTENSION_ATTESTATION_REPORT,
     },
 };
+
+/// 90 days
+pub const DEFAULT_EXPIRATION_SECS: i64 = 7776000;

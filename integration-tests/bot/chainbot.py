@@ -197,6 +197,7 @@ async def app_state_cfg(cfg):
     return {
         "distribution": gen_distribution(cfg),
         "required_council_node_stake": "100000000",  # 10 coins
+        "required_community_node_stake": "10000000",  # 1 coin
         "jailing_config": {
             "block_signing_window": 20,
             "missed_block_threshold": 5
@@ -204,6 +205,7 @@ async def app_state_cfg(cfg):
         "slashing_config": {
             "liveness_slash_percent": "0.1",
             "byzantine_slash_percent": "0.2",
+            "invalid_commit_slash_percent": "0.3"
         },
         "rewards_config": {
             "monetary_expansion_cap": str(cfg['expansion_cap']),

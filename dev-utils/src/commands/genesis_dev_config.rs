@@ -14,6 +14,7 @@ use chain_core::state::tendermint::TendermintValidatorPubKey;
 pub struct GenesisDevConfig {
     pub distribution: BTreeMap<RedeemAddress, Coin>,
     pub required_council_node_stake: Coin,
+    pub required_community_node_stake: Coin,
     pub jailing_config: JailingParameters,
     pub slashing_config: SlashingParameters,
     pub rewards_config: RewardsParameters,
@@ -35,6 +36,7 @@ impl GenesisDevConfig {
         GenesisDevConfig {
             distribution: BTreeMap::new(),
             required_council_node_stake: Coin::new(1_250_000_000_000_000_000).unwrap(),
+            required_community_node_stake: Coin::new(100_000_000_000).unwrap(),
             jailing_config: JailingParameters {
                 block_signing_window: 100,
                 missed_block_threshold: 50,
@@ -42,6 +44,7 @@ impl GenesisDevConfig {
             slashing_config: SlashingParameters {
                 liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
                 byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+                invalid_commit_slash_percent: SlashRatio::from_str("0.3").unwrap(),
             },
             rewards_config: RewardsParameters {
                 monetary_expansion_cap: expansion_cap,

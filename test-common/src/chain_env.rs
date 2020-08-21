@@ -103,6 +103,7 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
             Milli::try_new(0, 0).unwrap(),
         ),
         required_council_node_stake: Coin::unit(),
+        required_community_node_stake: Coin::unit(),
         jailing_config: JailingParameters {
             block_signing_window: 5,
             missed_block_threshold: 1,
@@ -110,6 +111,7 @@ pub fn get_init_network_params(expansion_cap: Coin) -> InitNetworkParameters {
         slashing_config: SlashingParameters {
             liveness_slash_percent: SlashRatio::from_str("0.1").unwrap(),
             byzantine_slash_percent: SlashRatio::from_str("0.2").unwrap(),
+            invalid_commit_slash_percent: SlashRatio::from_str("0.3").unwrap(),
         },
         rewards_config: RewardsParameters {
             monetary_expansion_cap: expansion_cap,
