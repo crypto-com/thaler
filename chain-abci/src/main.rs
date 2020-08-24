@@ -16,7 +16,6 @@ use std::env::var;
 use std::fs::{create_dir_all, write, File};
 use std::io::BufReader;
 use std::net::SocketAddr;
-#[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
@@ -191,13 +190,13 @@ pub struct AbciOpt {
 
 /// edp
 #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
-fn get_enclave_proxy() -> TxValidationApp {
-    launch_tx_validation()
+fn get_enclave_proxy(stream_to_txquery: UnixStream) -> TxValidationApp {
+    launch_tx_validation(stream_to_txquery)
 }
 
 /// for development
 #[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
-fn get_enclave_proxy() -> MockClient {
+fn get_enclave_proxy(_stream_to_txquery: UnixStream) -> MockClient {
     warn!("Using mock (non-enclave) infrastructure");
     MockClient::new(get_network_id())
 }
@@ -208,6 +207,7 @@ fn start_up_ra_tx_query<T: EnclaveProxy + 'static>(
     config: &Config,
     proxy: T,
     storage: ReadOnlyStorage,
+    stream_to_txvalidation: UnixStream,
 ) {
     if let Some(tx_query_address) = config.tx_query.as_ref() {
         let (sender, receiver) = UnixStream::pair().expect("init tx query socket");
@@ -228,6 +228,7 @@ fn start_up_ra_tx_query<T: EnclaveProxy + 'static>(
                 chain_abci_data: sender,
                 sp_address: config.remote_attestation.address.clone(),
                 address: tqe_address,
+                stream_to_txvalidation,
             },
             proxy,
             network_id,
@@ -243,6 +244,7 @@ fn start_up_ra_tx_query<T: EnclaveProxy + 'static>(
     _config: &Config,
     _proxy: T,
     _storage: ReadOnlyStorage,
+    _stream_to_txvalidation: UnixStream,
 ) {
     // nothing
 }
@@ -292,7 +294,11 @@ fn main() {
                 get_network(),
                 get_network_id()
             );
-            let tx_validator = get_enclave_proxy();
+
+            let (stream_to_txvalidation, stream_to_txquery): (UnixStream, UnixStream) =
+                UnixStream::pair().expect("sockets for tx-query, tx-validation");
+
+            let tx_validator = get_enclave_proxy(stream_to_txquery);
             if sanity_check_enabled() {
                 warn!("Enabled sanity checks");
             }
@@ -300,7 +306,12 @@ fn main() {
             let host = config.host.parse().expect("invalid host");
             let addr = SocketAddr::new(host, config.port);
             let storage = Storage::new(&StorageConfig::new(&opt.data, StorageType::Node));
-            start_up_ra_tx_query(&config, tx_validator.clone(), storage.get_read_only());
+            start_up_ra_tx_query(
+                &config,
+                tx_validator.clone(),
+                storage.get_read_only(),
+                stream_to_txvalidation,
+            );
             info!("starting up");
             abci::run(
                 addr,

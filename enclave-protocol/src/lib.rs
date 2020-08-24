@@ -137,13 +137,19 @@ pub enum IntraEnclaveResponseOk {
     /// if the the network id matched
     InitChainCheck,
     /// returns the actual paid fee + transaction data sealed for the local machine for later lookups
-    TxWithOutputs { paid_fee: Fee, sealed_tx: SealedLog },
+    TxWithOutputs {
+        paid_fee: Fee,
+        sealed_tx: SealedLog,
+    },
     /// deposit stake pays minimal fee, so this returns the sum of input amounts -- staked stake's bonded balance is added `input_coins-min_fee`
-    DepositStakeTx { input_coins: Coin },
+    DepositStakeTx {
+        input_coins: Coin,
+    },
     /// transaction filter
     EndBlock(Option<Box<TxFilter>>),
     /// encryption response
     Encrypt(TxObfuscated),
+    UnknownRequest,
 }
 
 /// variable length response returned from the tx-validation enclave
