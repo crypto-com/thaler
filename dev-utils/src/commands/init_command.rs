@@ -20,6 +20,7 @@ use client_core::wallet::{DefaultWalletClient, WalletClient};
 
 use super::genesis_command::generate_genesis;
 use super::genesis_dev_config::GenesisDevConfig;
+use client_core::hd_wallet::HardwareKind;
 
 #[derive(Debug)]
 pub struct InitCommand {
@@ -349,14 +350,19 @@ impl InitCommand {
         let name = self.ask_string("please enter wallet name=", "my");
 
         let passphrase = InitCommand::ask_passphrase()?;
-        let enckey =
-            match wallet_client.new_wallet(&name.as_str(), &passphrase, WalletKind::Basic, None) {
-                Ok((enckey, _)) => enckey,
-                Err(reason) => {
-                    println!("new wallet fail={}", reason.to_string());
-                    return Ok(());
-                }
-            };
+        let enckey = match wallet_client.new_wallet(
+            &name.as_str(),
+            &passphrase,
+            WalletKind::Basic,
+            HardwareKind::LocalOnly,
+            None,
+        ) {
+            Ok((enckey, _)) => enckey,
+            Err(reason) => {
+                println!("new wallet fail={}", reason.to_string());
+                return Ok(());
+            }
+        };
         success(&format!("Wallet created with name: {}", name));
 
         // main validator staking

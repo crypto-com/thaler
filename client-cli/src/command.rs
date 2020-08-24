@@ -45,7 +45,7 @@ use chain_core::tx::fee::LinearFee;
 use client_core::hd_wallet::HardwareKind;
 #[cfg(feature = "mock-hardware-wallet")]
 use client_core::service::MockHardwareService;
-use client_core::service::{HwKeyService, LedgerService};
+use client_core::service::{HwKeyService, LedgerService, WalletService};
 use once_cell::sync::Lazy;
 use std::env;
 
@@ -150,14 +150,6 @@ pub enum Command {
     Transaction {
         #[structopt(subcommand)]
         transaction_command: TransactionCommand,
-        #[structopt(
-            name = "hardware wallet type",
-            long = "hardware",
-            help = "Hardware wallet type",
-            possible_values = &HARDWARE_WALLET_KIND,
-            case_insensitive = false
-        )]
-        hardware: Option<HardwareKind>,
     },
     #[structopt(name = "state", about = "Get staked state of an address")]
     StakedState {
@@ -336,19 +328,22 @@ impl Command {
             }
             Command::Transaction {
                 transaction_command,
-                hardware,
             } => {
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;
-                let hw_key_service = match hardware {
-                    None => HwKeyService::default(),
+                let wallet_name = transaction_command.wallet_name();
+                let wallet_service = WalletService::new(storage.clone());
+                let enckey = ask_seckey(None)?;
+                let wallet = wallet_service.get_wallet(&wallet_name, &enckey)?;
+                let hw_key_service = match wallet.hardware_kind {
                     #[cfg(feature = "mock-hardware-wallet")]
-                    Some(HardwareKind::Mock) => HwKeyService::Mock(MockHardwareService::new()),
-                    Some(HardwareKind::Trezor) => HwKeyService::default(),
-                    Some(HardwareKind::Ledger) => {
+                    HardwareKind::Mock => HwKeyService::Mock(MockHardwareService::new()),
+                    HardwareKind::Trezor => HwKeyService::default(),
+                    HardwareKind::Ledger => {
                         let ledger_service = LedgerService::new(true)?;
                         HwKeyService::Ledger(ledger_service)
                     }
+                    HardwareKind::LocalOnly => HwKeyService::default(),
                 };
                 let signer_manager =
                     WalletSignerManager::new(storage.clone(), hw_key_service.clone());
@@ -374,8 +369,11 @@ impl Command {
                     fee_algorithm,
                     transaction_obfuscation,
                 );
-                transaction_command
-                    .execute(network_ops_client.get_wallet_client(), &network_ops_client)
+                transaction_command.execute(
+                    network_ops_client.get_wallet_client(),
+                    &network_ops_client,
+                    enckey,
+                )
             }
             Command::StakedState {
                 name,
@@ -391,6 +389,7 @@ impl Command {
                         let ledger_service = LedgerService::new(true)?;
                         HwKeyService::Ledger(ledger_service)
                     }
+                    Some(HardwareKind::LocalOnly) => HwKeyService::default(),
                 };
                 let storage = SledStorage::new(storage_path())?;
                 let tendermint_client = WebsocketRpcClient::new(&tendermint_url())?;

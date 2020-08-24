@@ -239,6 +239,7 @@ mod default_wallet_transaction_builder_tests {
     use client_common::storage::MemoryStorage;
     use client_common::Transaction;
 
+    use crate::hd_wallet::HardwareKind;
     use crate::service::HwKeyService;
     use crate::signer::WalletSignerManager;
     use crate::types::WalletKind;
@@ -287,7 +288,13 @@ mod default_wallet_transaction_builder_tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let public_keys = vec![
@@ -421,7 +428,13 @@ mod default_wallet_transaction_builder_tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let public_keys = vec![

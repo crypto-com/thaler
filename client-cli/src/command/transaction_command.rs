@@ -244,10 +244,22 @@ pub enum TransactionCommand {
 }
 
 impl TransactionCommand {
+    pub fn wallet_name(&self) -> String {
+        match self {
+            TransactionCommand::New { name, .. } => name.clone(),
+            TransactionCommand::Show { name, .. } => name.clone(),
+            TransactionCommand::Broadcast { name, .. } => name.clone(),
+            TransactionCommand::Import { name, .. } => name.clone(),
+            TransactionCommand::Build { name, .. } => name.clone(),
+            TransactionCommand::Export { name, .. } => name.clone(),
+            TransactionCommand::Sign { name, .. } => name.clone(),
+        }
+    }
     pub fn execute<T: WalletClient, N: NetworkOpsClient>(
         &self,
         wallet_client: &T,
         network_ops_client: &N,
+        enckey: SecKey,
     ) -> Result<()> {
         match self {
             TransactionCommand::New {
@@ -262,11 +274,12 @@ impl TransactionCommand {
                 transaction_type,
                 *advanced,
                 keypackage.clone(),
+                enckey,
             ),
             TransactionCommand::Show {
                 name,
                 transaction_id,
-            } => display_transaction(wallet_client, name, transaction_id),
+            } => display_transaction(wallet_client, name, transaction_id, enckey),
             TransactionCommand::Export { name, id } => {
                 let enckey = ask_seckey(None)?;
                 let tx_info = wallet_client.export_plain_tx(name, &enckey, id)?;
@@ -275,13 +288,11 @@ impl TransactionCommand {
                 Ok(())
             }
             TransactionCommand::Import { name, tx } => {
-                let enckey = ask_seckey(None)?;
                 let imported_amount = wallet_client.import_plain_tx(name, &enckey, tx)?;
                 success(format!("import amount: {}", imported_amount).as_str());
                 Ok(())
             }
             TransactionCommand::Build { name, file } => {
-                let enckey = ask_seckey(None)?;
                 let to_address = ask_transfer_address()?;
                 ask("Enter transfer amount (in CRO): ");
                 let amount_str = text().chain(|| (ErrorKind::IoError, "Unable to read amount"))?;
@@ -304,7 +315,6 @@ impl TransactionCommand {
                 from_file,
                 to_file,
             } => {
-                let enckey = ask_seckey(None)?;
                 let tx_unsigned = std::fs::read_to_string(from_file)
                     .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
                 let unsigned = UnsignedTransferTransaction::from_str(&tx_unsigned)?;
@@ -322,7 +332,6 @@ impl TransactionCommand {
                 Ok(())
             }
             TransactionCommand::Broadcast { name, file } => {
-                let enckey = ask_seckey(None)?;
                 let tx_signed = std::fs::read_to_string(file)
                     .chain(|| (ErrorKind::IoError, "Unable to read from file"))?;
                 let signed = SignedTransferTransaction::from_str(&tx_signed)?;
@@ -338,9 +347,8 @@ fn display_transaction<T: WalletClient>(
     wallet_client: &T,
     name: &str,
     transaction_id: &str,
+    enckey: SecKey,
 ) -> Result<()> {
-    let enckey = ask_seckey(None)?;
-
     let transaction_id_decoded = decode(transaction_id).chain(|| {
         (
             ErrorKind::DeserializationError,
@@ -531,6 +539,7 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
     transaction_type: &TransactionType,
     advanced: bool,
     keypackage: Option<PathBuf>,
+    enckey: SecKey,
 ) -> Result<()> {
     let can_use_advanced = vec![TransactionType::Deposit];
     if advanced && !can_use_advanced.contains(transaction_type) {
@@ -540,7 +549,6 @@ fn new_transaction<T: WalletClient, N: NetworkOpsClient>(
         );
         return Err(error);
     }
-    let enckey = ask_seckey(None)?;
 
     match transaction_type {
         TransactionType::Transfer => {

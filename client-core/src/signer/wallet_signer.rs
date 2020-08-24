@@ -204,6 +204,7 @@ mod wallet_signer_tests {
     use chain_tx_validation::witness::verify_tx_address;
     use client_common::storage::MemoryStorage;
 
+    use crate::hd_wallet::HardwareKind;
     use crate::types::WalletKind;
     use crate::wallet::{DefaultWalletClient, WalletClient};
 
@@ -218,7 +219,13 @@ mod wallet_signer_tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let public_keys = vec![
@@ -259,7 +266,13 @@ mod wallet_signer_tests {
         let wallet_client = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet_client
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let public_keys = vec![

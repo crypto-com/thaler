@@ -1,7 +1,7 @@
 use indexmap::IndexSet;
 use parity_scale_codec::{Decode, Encode, Input, Output};
 
-use crate::hd_wallet::ChainPath;
+use crate::hd_wallet::{ChainPath, HardwareKind};
 use crate::service::{load_wallet_state, HdKey, WalletState};
 use crate::types::WalletKind;
 use chain_core::common::H256;
@@ -254,12 +254,15 @@ pub struct Wallet {
     pub view_key: PublicKey,
     /// wallet type
     pub wallet_kind: WalletKind,
+    /// hardware wallet type
+    pub hardware_kind: HardwareKind,
 }
 
 impl Encode for Wallet {
     fn encode_to<W: Output>(&self, dest: &mut W) {
         self.view_key.encode_to(dest);
         self.wallet_kind.encode_to(dest);
+        self.hardware_kind.encode_to(dest);
     }
 }
 
@@ -267,12 +270,14 @@ impl Decode for Wallet {
     fn decode<I: Input>(input: &mut I) -> std::result::Result<Self, parity_scale_codec::Error> {
         let view_key = PublicKey::decode(input)?;
         let wallet_kind = WalletKind::decode(input)?;
+        let hardware_kind = HardwareKind::decode(input)?;
         Ok(Wallet {
             wallet_storage: None,
             name: "".into(),
             enckey: None,
             view_key,
             wallet_kind,
+            hardware_kind,
         })
     }
 }
@@ -282,6 +287,7 @@ impl Wallet {
     pub fn new(
         view_key: PublicKey,
         wallet_kind: WalletKind,
+        hardware_kind: HardwareKind,
         name: &str,
         enckey: Option<SecKey>,
     ) -> Self {
@@ -291,6 +297,7 @@ impl Wallet {
             enckey,
             view_key,
             wallet_kind,
+            hardware_kind,
         }
     }
 
@@ -732,6 +739,7 @@ where
         enckey: &SecKey,
         view_key: PublicKey,
         wallet_kind: WalletKind,
+        hardware_kind: HardwareKind,
     ) -> Result<()> {
         if self.storage.contains_key(KEYSPACE, name)? {
             return Err(Error::new(
@@ -741,7 +749,13 @@ where
         }
 
         let newstorage = self.storage.clone();
-        let mut newone = Wallet::new(view_key, wallet_kind, name, Some(enckey.clone()));
+        let mut newone = Wallet::new(
+            view_key,
+            wallet_kind,
+            hardware_kind,
+            name,
+            Some(enckey.clone()),
+        );
         newone.wallet_storage = Some(Arc::new(Mutex::new(WalletStorageImpl::new(newstorage))));
         self.set_wallet(name, enckey, newone)?;
 
@@ -1126,11 +1140,23 @@ mod tests {
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
 
         assert!(wallet_service
-            .create("name", &enckey, view_key.clone(), wallet_kind)
+            .create(
+                "name",
+                &enckey,
+                view_key.clone(),
+                wallet_kind,
+                HardwareKind::LocalOnly
+            )
             .is_ok());
 
         let error = wallet_service
-            .create("name", &enckey, view_key.clone(), wallet_kind)
+            .create(
+                "name",
+                &enckey,
+                view_key.clone(),
+                wallet_kind,
+                HardwareKind::LocalOnly,
+            )
             .expect_err("Created duplicate wallet");
 
         assert_eq!(error.kind(), ErrorKind::InvalidInput);
@@ -1141,7 +1167,13 @@ mod tests {
         );
 
         let error = wallet_service
-            .create("name", &enckey, view_key, wallet_kind)
+            .create(
+                "name",
+                &enckey,
+                view_key,
+                wallet_kind,
+                HardwareKind::LocalOnly,
+            )
             .expect_err("Able to create wallet with same name as previously created");
 
         assert_eq!(error.kind(), ErrorKind::InvalidInput, "Invalid error kind");
@@ -1184,6 +1216,7 @@ mod test {
             enckey: None,
             view_key: PublicKey::from(&private_key),
             wallet_kind: WalletKind::Basic,
+            hardware_kind: HardwareKind::LocalOnly,
         };
         let wallet_raw = wallet.encode();
         let wallet_2 = Wallet::decode(&mut wallet_raw.as_slice()).unwrap();

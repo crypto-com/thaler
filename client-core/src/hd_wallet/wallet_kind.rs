@@ -1,11 +1,14 @@
 use client_common::{Error, ErrorKind, Result};
+use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 /// hardware wallet types
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Serialize, Deserialize)]
 #[serde(rename = "lowercase")]
 pub enum HardwareKind {
+    /// not a hardware wallet
+    LocalOnly = 0,
     /// ledger wallet
     Ledger,
     /// trezor wallet

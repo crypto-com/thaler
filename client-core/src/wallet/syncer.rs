@@ -1047,6 +1047,7 @@ mod tests {
     use client_common::tendermint::Client;
     use test_common::block_generator::{BlockGenerator, GeneratorClient};
 
+    use crate::hd_wallet::HardwareKind;
     use crate::service::save_sync_state;
     use crate::types::WalletKind;
     use crate::wallet::{DefaultWalletClient, WalletClient};
@@ -1065,7 +1066,13 @@ mod tests {
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
 
         let (enckey, _) = wallet
-            .new_wallet(name, &passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .unwrap();
 
         let client = GeneratorClient::new(BlockGenerator::one_node());
@@ -1197,7 +1204,13 @@ mod tests {
         let wallet = DefaultWalletClient::new_read_only(storage.clone());
 
         let (wallet_enckey, _) = wallet
-            .new_wallet(name, &wallet_passphrase, WalletKind::Basic, None)
+            .new_wallet(
+                name,
+                &wallet_passphrase,
+                WalletKind::Basic,
+                HardwareKind::LocalOnly,
+                None,
+            )
             .expect("create wallet failed");
         let client = MockTendermintClient {};
         let light_client = Some(client.clone());
@@ -1375,7 +1388,13 @@ mod tests {
         let dummy_viewkey = PublicKey::from(
             &PrivateKey::new().expect("Derive public key from private key should work"),
         );
-        let mut dummy_wallet = Wallet::new(dummy_viewkey, WalletKind::HD, "", None);
+        let mut dummy_wallet = Wallet::new(
+            dummy_viewkey,
+            WalletKind::HD,
+            HardwareKind::LocalOnly,
+            "",
+            None,
+        );
 
         // already created
         assert_eq!(

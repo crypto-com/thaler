@@ -68,6 +68,9 @@ pub trait WalletClient: Send + Sync {
     /// get wallet kind
     fn get_wallet_kind(&self, name: &str, enckey: &SecKey) -> Result<WalletKind>;
 
+    /// get hardware kind
+    fn get_hardware_kind(&self, name: &str, enckey: &SecKey) -> Result<HardwareKind>;
+
     /// Send balance to a transfer address, return the transaction id directly
     fn send_to_address(
         &self,
@@ -102,6 +105,7 @@ pub trait WalletClient: Send + Sync {
         name: &str,
         passphrase: &SecUtf8,
         wallet_kind: WalletKind,
+        hardware_kind: HardwareKind,
         mnemonics_word_count: Option<u32>,
     ) -> Result<(SecKey, Option<Mnemonic>)>;
 
