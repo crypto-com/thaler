@@ -30,9 +30,11 @@ else
 endif
 
 ifeq ($(client_features)x, x)
-	CARGO_BUILD_CMD_CLI = $(CARGO_BUILD_CMD)
+	CARGO_BUILD_CMD_CLI = $(CARGO_BUILD_CMD) --features mock-hardware-wallet
+	CARGO_BUILD_CMD_RPC = $(CARGO_BUILD_CMD)
 else
 	CARGO_BUILD_CMD_CLI = $(CARGO_BUILD_CMD) --features "$(client_features)"
+	CARGO_BUILD_CMD_RPC = $(CARGO_BUILD_CMD) --features "$(client_features)"
 endif
 
 
@@ -181,7 +183,7 @@ else
 endif
 
 # build the chain binary in docker
-build-chain:
+build-chain: build-sgx-query-validation-next
 	@if [ -e "./target/$(build_mode)/client-cli" -a -e "./target/$(build_mode)/chain-abci" -a -e "./target/$(build_mode)/client-rpc" -a -e "./target/$(build_mode)/dev-utils" ]; then \
 		echo "\033[32mchain binary already exist or delete binary by 'make clean' to force new build for chain\033[0m"; \
 	else \
@@ -191,9 +193,14 @@ build-chain:
 			-v ${HOME}/.cargo/registry:/root/.cargo/registry \
 			-v `pwd`:/chain \
 			--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3 \
+			--env NETWORK_ID=$(NETWORK_ID) \
 			--workdir=/chain \
 			$(IMAGE_RUST):latest \
 			bash -c '. /root/.docker_bashrc && \
+			echo "========  parse tx-query sig struct   =========" && \
+			export TQE_SIGSTRUCT=./target/$(build_mode)/tx-query2-enclave-app.sig && \
+			export TQE_MRENCLAVE=`od -A none -t x1 --read-bytes=32 -j 960 -w32 $$TQE_SIGSTRUCT | tr -d " "` && \
+			export MRSIGNER=`dd if=$$TQE_SIGSTRUCT bs=1 skip=128 count=384 status=none | sha256sum | cut -d" " -f1` && \
 			echo "========  build dev-utils   =========" && \
 			${CARGO_BUILD_CMD} --bin dev-utils && \
 			echo "========  build chain-abci   =========" && \
@@ -201,7 +208,7 @@ build-chain:
 			echo "========  build client-cli   =========" && \
 			cd ../client-cli && $(CARGO_BUILD_CMD_CLI)&& \
 			echo "========  build client-rpc   =========" && \
-			cd ../client-rpc/server && $(CARGO_BUILD_CMD_CLI)'; \
+			cd ../client-rpc/server && $(CARGO_BUILD_CMD_RPC)'; \
 	fi
 
 # build the enclave queury-next and tx-validation-next binary and sig
@@ -213,14 +220,15 @@ build-sgx-query-validation-next:
 		echo "\033[32msgx binary already exist or delete binary by 'make clean' to force new build for chain\033[0m"; \
 	else \
 		echo "\033[32mcompile sgx query-next and tx-validation-next\033[0m"; \
+		docker pull $(IMAGE_RUST):latest; \
 		docker run -i --rm \
 			-v ${HOME}/.cargo/git:/root/.cargo/git \
 			-v ${HOME}/.cargo/registry:/root/.cargo/registry \
 			-v `pwd`:/chain \
 			--env SGX_MODE=$(SGX_MODE) \
 			--env CFLAGS=-gz=none \
-			--env NETWORK_ID=$(NETWORK_ID) \
 			--env RUSTFLAGS=-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha \
+			--env NETWORK_ID=$(NETWORK_ID) \
 			--workdir=/chain \
 			$(IMAGE_RUST):latest \
 			bash -c '. /root/.docker_bashrc && \
@@ -231,19 +239,21 @@ build-sgx-query-validation-next:
 			$(CARGO_BUILD_CMD) --target=x86_64-fortanix-unknown-sgx -p tx-query2-enclave-app && \
 			echo "========  build ra-sp-server   =========" && \
 			$(CARGO_BUILD_CMD) -p ra-sp-server && \
-			echo "========  install fortanix-sgx-tools sgxs-tools   =========" && \
-			cargo install fortanix-sgx-tools sgxs-tools && \
 			echo "========  run ftxsgx-elf2sgxs   =========" && \
 			ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-query2-enclave-app --output ./target/$(build_mode)/tx-query2-enclave-app.sgxs --heap-size 0x2000000 --stack-size 0x80000 --threads 6 --debug && \
 			echo "========  run sgxs-sign tx-query2-enclave-app   =========" && \
-			sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0 && \
+			sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid $$(( 16#$(NETWORK_ID) )) --isvsvn 0 && \
+			echo "========  parse tx-query sig struct   =========" && \
+			export TQE_SIGSTRUCT=./target/$(build_mode)/tx-query2-enclave-app.sig && \
+			export TQE_MRENCLAVE=`od -A none -t x1 --read-bytes=32 -j 960 -w32 $$TQE_SIGSTRUCT | tr -d " "` && \
+			export MRSIGNER=`dd if=$$TQE_SIGSTRUCT bs=1 skip=128 count=384 status=none | sha256sum | cut -d" " -f1` && \
 			echo "========  build tx-validation-next   =========" && \
 			$(CARGO_BUILD_CMD) --target x86_64-fortanix-unknown-sgx -p tx-validation-next && \
 			echo "========  run ftxsgx-elf2sgxs   =========" && \
 			ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-validation-next --output ./target/$(build_mode)/tx-validation-next.sgxs  --heap-size 0x20000000 --stack-size 0x40000 --threads 2 --debug && \
 			echo "========  run sgxs-sign tx-validation-next   =========" && \
-			sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-validation-next.sgxs ./target/$(build_mode)/tx-validation-next.sig -d --xfrm 7/0 --isvprodid 0 --isvsvn 0'; \
-	fi;
+			sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-validation-next.sgxs ./target/$(build_mode)/tx-validation-next.sig -d --xfrm 7/0 --isvprodid $$(( 16#$(NETWORK_ID) )) --isvsvn 0'; \
+	fi
 
 create-network:
 	@if [ `docker network ls -f NAME=$(NETWORK) | wc -l ` -eq 2 ]; then \
@@ -318,9 +328,10 @@ run-client-rpc: set-genesis-fingerprint
 
 set-genesis-fingerprint:
 ifeq ($(chain), devnet)
-	@if [ $$(dpkg-query -W -f='$${Status}' libzmq3-dev 2>/dev/null | grep -c "ok installed") -eq 0 ]; \
+	@if [ $$(dpkg-query -W -f='$${Status}' libudev-dev 2>/dev/null | grep -c "ok installed") -eq 0 ]; \
 	then \
-		sudo apt install libzmq3-dev -y; \
+		sudo apt update && \
+		sudo apt install libudev-dev -y; \
 	fi; 
 	$(eval CRYPTO_GENESIS_FINGERPRINT=$(shell ./target/$(build_mode)/dev-utils genesis fingerprint -t ./docker/config/devnet/tendermint/genesis.json))
 endif
@@ -376,7 +387,7 @@ clean:
 
 prepare:    create-path install-isgx-driver init-tendermint
 build-sgx:  build-sgx-query-validation-next build-chain
-build:      build-chain build-sgx
+build:      build-sgx build-chain
 run-chain:  create-network run-tendermint run-abci run-client-rpc
 run:        run-chain
 .DEFAULT_GOAL :=
