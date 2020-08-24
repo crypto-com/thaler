@@ -44,11 +44,11 @@ pub struct TdbeConfig {
     /// TODO: it'll get txids + the TDBE connection details from RPC
     /// TODO: DNS can be obtained from RPC?
     pub remote_rpc_address: Option<String>,
-    /// TODO: expose on RPC / query?
-    pub local_addresse: String,
-    /// TDBE server address to listen on E.g. `0.0.0.0:3445`
-    /// set to something if different from local_address
-    pub local_listen_address: Option<String>,
+    /// Local TDBE server address to listen on. E.g. `127.0.0.1:3445`
+    pub local_listen_address: String,
+    /// External TDBE server address, used by remote nodes to send RPC requests. E.g.
+    /// `<public_ip>:<public_port>`
+    pub external_listen_address: String,
 }
 
 impl Default for Config {
@@ -310,6 +310,7 @@ fn main() {
                     &config.chain_id,
                     storage,
                     config.tx_query,
+                    config.data_bootstrap.external_listen_address,
                 ),
             );
         }

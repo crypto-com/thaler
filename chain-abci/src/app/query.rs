@@ -95,6 +95,9 @@ impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
                     resp.log += "tx query address not set";
                 }
             },
+            "tdbe" => {
+                resp.value = self.tdbe_address.clone().into_bytes();
+            }
             "store" => {
                 let key = self.lookup(
                     &mut resp,

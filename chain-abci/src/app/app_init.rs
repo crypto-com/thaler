@@ -140,6 +140,8 @@ pub struct ChainNodeApp<T: EnclaveProxy> {
     pub rewards_pool_updated: bool,
     /// address of tx query enclave to supply to clients (if any)
     pub tx_query_address: Option<String>,
+    /// Address of TDBE to supply to clients
+    pub tdbe_address: String,
 
     /// consensus buffer of staking merkle trie storage
     pub staking_buffer: StakingBuffer,
@@ -246,6 +248,7 @@ impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
         chain_id: &str,
         storage: Storage,
         tx_query_address: Option<String>,
+        tdbe_address: String,
     ) -> Self {
         let stored_genesis = storage.get_genesis_app_hash();
 
@@ -276,6 +279,7 @@ impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
             tx_validator,
             rewards_pool_updated: false,
             tx_query_address,
+            tdbe_address,
 
             staking_buffer: HashMap::new(),
             mempool_staking_buffer: HashMap::new(),
@@ -300,6 +304,7 @@ impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
         chain_id: &str,
         mut storage: Storage,
         tx_query_address: Option<String>,
+        tdbe_address: String,
     ) -> Self {
         let decoded_gah = hex::decode(gah).expect("failed to decode genesis app hash");
         let mut genesis_app_hash = [0u8; HASH_SIZE_256];
@@ -354,6 +359,7 @@ impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
                 chain_id,
                 storage,
                 tx_query_address,
+                tdbe_address,
             )
         } else {
             info!("no last app state stored");
@@ -378,6 +384,7 @@ impl<T: EnclaveProxy + 'static> ChainNodeApp<T> {
                 tx_validator,
                 rewards_pool_updated: false,
                 tx_query_address,
+                tdbe_address,
 
                 staking_buffer: HashMap::new(),
                 mempool_staking_buffer: HashMap::new(),

@@ -340,6 +340,7 @@ impl ChainEnv {
             TEST_CHAIN_ID,
             storage,
             None,
+            "".to_string(),
         )
     }
 
