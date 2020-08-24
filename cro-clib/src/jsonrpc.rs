@@ -222,7 +222,7 @@ unsafe fn create_rpc(
         block_height_ensure: 50,
         light_client_peers: "0000000000000000000000000000000000000000@127.0.0.1:26657,1000000000000000000000000000000000000000@127.0.0.1:26657"
         .into(),
-        light_client_trusting_period_seconds:3600000000000,
+        light_client_trusting_period_seconds:3_600_000_000_000,
         light_client_trusting_height: 1,
         light_client_trusting_blockhash: "".into(),
     };

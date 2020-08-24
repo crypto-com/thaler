@@ -11,7 +11,6 @@
 //!   These 20 bytes are the address.
 //!
 //! [Recommended Read](https://kobl.one/blog/create-full-ethereum-keypair-and-address/)
-use bech32::{self, u5, FromBase32, ToBase32};
 use parity_scale_codec::{Decode, Encode, EncodeLike, Error as ScaleError, Input, Output};
 use std::ops;
 use std::prelude::v1::{String, Vec};
@@ -24,7 +23,7 @@ use std::fmt;
 use tiny_keccak::{Hasher, Keccak};
 
 use crate::common::{H256, HASH_SIZE_256};
-use crate::init::network::{get_bech32_human_part_from_network, Network};
+use crate::init::network::Network;
 
 /// errors with bech32 transfer addresses
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -196,28 +195,6 @@ impl RedeemAddress {
     }
 }
 
-impl CroAddress<RedeemAddress> for RedeemAddress {
-    fn to_cro(&self, network: Network) -> Result<String, CroAddressError> {
-        let checked_data: Vec<u5> = self.0.to_vec().to_base32();
-        let encoded = bech32::encode(get_bech32_human_part_from_network(network), checked_data)
-            .expect("bech32 encoding error");
-        Ok(encoded)
-    }
-
-    fn from_cro(encoded: &str, network: Network) -> Result<Self, CroAddressError> {
-        let (human_part, u5_bytes) =
-            bech32::decode(encoded).map_err(|e| CroAddressError::Bech32Error(e.to_string()))?;
-
-        if human_part != get_bech32_human_part_from_network(network) {
-            return Err(CroAddressError::InvalidNetwork);
-        }
-
-        let bytes = Vec::from_base32(&u5_bytes).map_err(|_| CroAddressError::ConvertError)?;
-
-        RedeemAddress::try_from(&bytes).map_err(|_| CroAddressError::ConvertError)
-    }
-}
-
 impl ops::Deref for RedeemAddress {
     type Target = [u8];
 
@@ -385,21 +362,5 @@ mod tests {
     #[test]
     fn should_catch_empty_address_string() {
         assert!("".parse::<RedeemAddress>().is_err());
-    }
-
-    #[test]
-    fn should_be_correct_textual_address() {
-        let network = Network::Devnet;
-
-        let redeem_address =
-            RedeemAddress::from_str("0x0e7c045110b8dbf29765047380898919c5cb56f4").unwrap();
-        let bech32_address = redeem_address.to_cro(network).unwrap();
-        assert_eq!(
-            bech32_address.to_string(),
-            "dcro1pe7qg5gshrdl99m9q3ecpzvfr8zuk4h5rm547c"
-        );
-
-        let restored_redeem_address = RedeemAddress::from_cro(&bech32_address, network).unwrap();
-        assert_eq!(redeem_address, restored_redeem_address);
     }
 }
