@@ -41,6 +41,10 @@ if [ $BUILD_MODE == "sgx" ]; then
     RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul" cargo build --target x86_64-fortanix-unknown-sgx --package tdb-enclave-app
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/tdb-enclave-app --heap-size 0x2000000 --stack-size 0x80000 --threads 6 $EDP_ARGS
     sgxs-sign --key DEV_ONLY_KEY.kem $EDP_TARGET_DIR/tdb-enclave-app.sgxs $EDP_TARGET_DIR/tdb-enclave-app.sig -d --xfrm 7/0 --isvprodid $(( 16#$NETWORK_ID )) --isvsvn 0
+
+    export TDBE_SIGSTRUCT=$EDP_TARGET_DIR/tdb-enclave-app.sig
+    export TDBE_MRENCLAVE=$(od -A none -t x1 --read-bytes=32 -j 960 -w32 $TDBE_SIGSTRUCT | tr -d ' ')
+
     # tx-validation enclave
     RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha" cargo build --target x86_64-fortanix-unknown-sgx --package tx-validation-next
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/tx-validation-next --heap-size 0x20000000 --stack-size 0x40000 --threads 2 $EDP_ARGS

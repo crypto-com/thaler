@@ -5,12 +5,17 @@ mod validate;
 #[allow(unused_imports)]
 use rs_libc::alloc::*;
 
+use aead::{generic_array::GenericArray, NewAead};
+use aes_gcm_siv::Aes128GcmSiv;
 use chain_core::tx::TX_AUX_SIZE;
 use chain_tx_filter::BlockFilter;
 use chain_tx_validation::Error;
-use enclave_macro::get_network_id;
+use enclave_macro::{get_network_id, get_tdbe_mrenclave};
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponse, IntraEnclaveResponseOk};
+use enclave_utils::tls::{create_ra_context, create_tls_client_stream};
 use parity_scale_codec::{Decode, Encode};
+use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierConfig, EnclaveInfo};
+use sgx_isa::Report;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -26,16 +31,42 @@ pub(crate) fn write_response<I: Write>(response: IntraEnclaveResponse, output: &
     }
 }
 
+fn get_tdbe_enclave_verifier() -> EnclaveCertVerifier {
+    log::info!("Creating enclave certificate verifier for transaction data bootstrapping");
+
+    let enclave_info =
+        EnclaveInfo::from_report_other_enclave(Report::for_self(), Some(get_tdbe_mrenclave!()));
+    let verifier_config = EnclaveCertVerifierConfig::new_with_enclave_info(enclave_info);
+    let verifier = EnclaveCertVerifier::new(verifier_config)
+        .expect("Unable to create enclave certificate verifier");
+
+    log::info!("Created enclave certificate verifier for transaction data bootstrapping");
+
+    verifier
+}
+
 /// `process_signal` is used in unit tests
 /// where the bool is used to stop the thread
 /// and sender is used for signalling that response was written
-fn handling_loop<I: Read + Write>(
+fn handling_loop<I: Read + Write, J: Read + Write>(
     mut chain_abci: I,
+    mut tdbe_tls: J,
     process_signal: Option<(Arc<AtomicBool>, Sender<()>)>,
 ) {
     let mut filter = BlockFilter::default();
     let mut request_buf = vec![0u8; 2 * TX_AUX_SIZE];
     log::debug!("waiting for chain-abci requests");
+
+    let mut key = GenericArray::default();
+    // FIXME: also read the "epoch" / know which generation this key refers to
+    if tdbe_tls.read_exact(&mut key).is_err() {
+        log::error!("failed to read the mock key");
+        unreachable!();
+    } else {
+        log::debug!("mock key pushed");
+    }
+    let aead = Aes128GcmSiv::new(&key);
+
     loop {
         if let Some((ref b, _)) = process_signal {
             if b.load(Ordering::Relaxed) {
@@ -59,7 +90,13 @@ fn handling_loop<I: Read + Write>(
                 }
                 Ok(IntraEnclaveRequest::ValidateTx { request, tx_inputs }) => {
                     log::debug!("validate tx request");
-                    validate::handle_validate_tx(request, tx_inputs, &mut filter, &mut chain_abci);
+                    validate::handle_validate_tx(
+                        &aead,
+                        request,
+                        tx_inputs,
+                        &mut filter,
+                        &mut chain_abci,
+                    );
                     if let Some((_, ref s)) = process_signal {
                         let _ = s.send(());
                     }
@@ -81,7 +118,7 @@ fn handling_loop<I: Read + Write>(
                     }
                 }
                 Ok(IntraEnclaveRequest::Encrypt(request)) => {
-                    obfuscate::handle_encrypt_request(request, &mut chain_abci);
+                    obfuscate::handle_encrypt_request(&aead, request, &mut chain_abci);
                     if let Some((_, ref s)) = process_signal {
                         let _ = s.send(());
                     }
@@ -110,7 +147,13 @@ pub fn entry() -> std::io::Result<()> {
     log::info!("Connecting to chain-abci");
     // not really TCP -- stream provided by the runner
     let chain_abci = TcpStream::connect("chain-abci")?;
-    handling_loop(chain_abci, None);
+
+    log::info!("Connecting to tx data bootstrapping enclave");
+    let tdbe_verifier = get_tdbe_enclave_verifier();
+    let context = create_ra_context();
+    let tdbe_stream = create_tls_client_stream(&context, tdbe_verifier, "tdbe", "tdbe")?;
+
+    handling_loop(chain_abci, tdbe_stream, None);
     Ok(())
 }
 
@@ -144,6 +187,7 @@ mod tests {
     use chain_core::tx::{PlainTxAux, TxToObfuscate};
     use chain_core::ChainInfo;
     use chain_tx_validation::Error;
+    use enclave_macro::mock_key;
     use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponseOk, VerifyTxRequest};
     use log::debug;
     use parity_scale_codec::{Decode, Encode};
@@ -257,9 +301,15 @@ mod tests {
         let stream = SyncStream::default();
         let stream2 = stream.stream.clone();
         push_bytes(stream2.clone(), &IntraEnclaveRequest::EndBlock.encode());
+        const MOCK_KEY: [u8; 16] = mock_key!();
+        let key = GenericArray::clone_from_slice(&MOCK_KEY);
+        let aead = Aes128GcmSiv::new(&key);
+
+        let keystream = SyncStream::default();
+        push_bytes(keystream.stream.clone(), &MOCK_KEY);
 
         let _handler = std::thread::spawn(move || {
-            handling_loop(stream, Some((stop2, sender)));
+            handling_loop(stream, keystream, Some((stop2, sender)));
         });
 
         let _ = receiver.recv().unwrap();
@@ -301,6 +351,7 @@ mod tests {
             no_of_outputs: tx0.outputs.len() as TxoSize,
             witness: witness0.clone(),
             payload: crate::sgx_module::obfuscate::encrypt(
+                &aead,
                 TxToObfuscate::from(PlainTxAux::WithdrawUnbondedStakeTx(tx0.clone()), *txid)
                     .expect("tx"),
             ),
@@ -372,6 +423,7 @@ mod tests {
             inputs: tx1.inputs.clone(),
             no_of_outputs: tx1.outputs.len() as TxoSize,
             payload: crate::sgx_module::obfuscate::encrypt(
+                &aead,
                 TxToObfuscate::from(PlainTxAux::TransferTx(tx1.clone(), witness1.clone()), txid1)
                     .expect("tx"),
             ),
@@ -417,6 +469,7 @@ mod tests {
             inputs: tx2.inputs.clone(),
             no_of_outputs: tx2.outputs.len() as TxoSize,
             payload: crate::sgx_module::obfuscate::encrypt(
+                &aead,
                 TxToObfuscate::from(PlainTxAux::TransferTx(tx2.clone(), witness2.clone()), txid2)
                     .expect("tx"),
             ),

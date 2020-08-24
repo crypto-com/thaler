@@ -1,5 +1,6 @@
 use crate::sgx_module::obfuscate::check_unseal;
 use crate::sgx_module::write_response;
+use aes_gcm_siv::Aes128GcmSiv;
 use chain_core::init::coin::Coin;
 use chain_core::tx::data::TxId;
 use chain_core::tx::fee::Fee;
@@ -63,13 +64,14 @@ fn construct_simple_response(
 }
 
 #[inline]
-fn decrypt(payload: &TxObfuscated) -> Result<PlainTxAux, ()> {
-    crate::sgx_module::obfuscate::decrypt(payload)
+fn decrypt(alg: &Aes128GcmSiv, payload: &TxObfuscated) -> Result<PlainTxAux, ()> {
+    crate::sgx_module::obfuscate::decrypt(alg, payload)
 }
 
 /// takes a request to verify transaction and writes back the result
 #[inline]
 pub(crate) fn handle_validate_tx<I: Write>(
+    alg: &Aes128GcmSiv,
     request: Box<VerifyTxRequest>,
     tx_inputs: Option<Vec<Vec<u8>>>,
     filter: &mut BlockFilter,
@@ -89,7 +91,7 @@ pub(crate) fn handle_validate_tx<I: Write>(
                     inputs,
                 },
             ) => {
-                let plaintx = decrypt(&payload);
+                let plaintx = decrypt(alg, &payload);
                 let unsealed_inputs = check_unseal(inputs.iter().map(|x| x.id), sealed_inputs);
                 match (plaintx, unsealed_inputs) {
                     (Ok(PlainTxAux::TransferTx(tx, witness)), Some(inputs)) => {
@@ -113,7 +115,7 @@ pub(crate) fn handle_validate_tx<I: Write>(
                 }
             }
             (Some(sealed_inputs), TxEnclaveAux::DepositStakeTx { tx, payload }) => {
-                let plaintx = decrypt(&payload);
+                let plaintx = decrypt(alg, &payload);
                 let inputs = check_unseal(tx.inputs.iter().map(|x| x.id), sealed_inputs);
                 match (plaintx, inputs) {
                     (Ok(PlainTxAux::DepositStakeTx(witness)), Some(inputs)) => {
@@ -143,7 +145,7 @@ pub(crate) fn handle_validate_tx<I: Write>(
                     log::error!("get recover address failed: {:?}", e);
                     write_response(Err(Error::EnclaveRejected), output);
                 } else {
-                    let plaintx = decrypt(&payload);
+                    let plaintx = decrypt(alg, &payload);
                     match (plaintx, request.account) {
                         (Ok(PlainTxAux::WithdrawUnbondedStakeTx(tx)), Some(account)) => {
                             if tx.id() != payload.txid

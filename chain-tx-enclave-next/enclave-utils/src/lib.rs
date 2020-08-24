@@ -11,6 +11,8 @@ use sgx_isa::{ErrorCode, Keyname, Keypolicy, Report};
 use std::convert::TryFrom;
 #[cfg(all(feature = "sgxstd", target_env = "sgx"))]
 use zeroize::Zeroize;
+#[cfg(all(feature = "sgxstd", target_env = "sgx"))]
+pub mod tls;
 
 /// Cryptographic payload in the sealed log of Intel SGX SDK
 /// (tag is detached, unlike in RFC-5116)

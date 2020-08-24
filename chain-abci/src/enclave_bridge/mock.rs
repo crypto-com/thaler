@@ -25,6 +25,10 @@ impl Clone for MockClient {
 }
 
 impl MockClient {
+    pub fn get_comm_only(&self) -> Self {
+        self.clone()
+    }
+
     pub fn new(chain_hex_id: u8) -> Self {
         MockClient {
             chain_hex_id,

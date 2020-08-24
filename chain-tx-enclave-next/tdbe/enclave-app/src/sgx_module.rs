@@ -16,10 +16,12 @@ use thread_pool::ThreadPool;
 use webpki::DNSNameRef;
 
 use chain_core::tx::data::TxId;
+use enclave_macro::mock_key;
 use enclave_protocol::{
     codec::{StreamRead, StreamWrite},
     tdbe_protocol::{PersistenceCommand, TrustedTdbeRequest, TrustedTdbeResponse},
 };
+use enclave_utils::tls::{create_ra_context, create_tls_client_stream, create_tls_server_stream};
 use enclave_utils::SealedData;
 use ra_client::{EnclaveCertVerifier, EnclaveCertVerifierConfig, EnclaveInfo};
 use ra_enclave::{EnclaveRaConfig, EnclaveRaContext, DEFAULT_EXPIRATION_SECS};
@@ -32,68 +34,84 @@ pub fn entry() -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     env_logger::init();
 
-    // Get enclave certificate verifier
-    let verifier = get_enclave_verifier();
-
+    // FIXME: init state / fetch old tx, ...
     // Get initial options provided in command line arguments
     let tdbe_config = get_tdbe_config();
+    // the "temp_mock_feature" should be some separate thread with MLS state
+    // + previous state to be exposed in the config + some option for genesis?
+    if !tdbe_config.temp_mock_feature {
+        // Get enclave certificate verifier
+        let verifier = get_enclave_verifier();
 
-    // Create remote attestation context
-    let context = create_ra_context();
+        // Create remote attestation context
+        let context = create_ra_context();
 
-    // Fetch initial transaction data if TDBE is configured to connect to another TDBE server
-    if let Some(ref remote_rpc_address) = tdbe_config.remote_rpc_address {
-        let (tdbe_address, tdbe_dns_name) =
-            fetch_remote_tdbe_connection_details(remote_rpc_address)?;
-        let (transaction_ids, last_fetched_block) = fetch_transaction_ids();
+        // Fetch initial transaction data if TDBE is configured to connect to another TDBE server
+        if let Some(ref remote_rpc_address) = tdbe_config.remote_rpc_address {
+            let (tdbe_address, tdbe_dns_name) =
+                fetch_remote_tdbe_connection_details(remote_rpc_address)?;
+            let (transaction_ids, last_fetched_block) = fetch_transaction_ids();
 
-        if let Err(err) = fetch_initial_data(
-            &context,
-            verifier.clone(),
-            &tdbe_address,
-            &tdbe_dns_name,
-            &transaction_ids,
-            last_fetched_block,
-        ) {
-            log::error!("Unable to fetch initial data from another TDBE server");
-            return Err(err);
+            if let Err(err) = fetch_initial_data(
+                &context,
+                verifier.clone(),
+                &tdbe_address,
+                &tdbe_dns_name,
+                &transaction_ids,
+                last_fetched_block,
+            ) {
+                log::error!("Unable to fetch initial data from another TDBE server");
+                return Err(err);
+            }
         }
+
+        // Connect to chain-abci
+        log::info!("Connecting to chain-abci");
+        let chain_abci = Arc::new(Mutex::new(TcpStream::connect("chain-abci")?));
+
+        // Start TDBE server
+        log::info!("Starting TBDE Server");
+        let listener = TcpListener::bind("tdbe")?;
+
+        // Create a thread pool for handling incoming connections
+        let (thread_pool_sender, thread_pool) = ThreadPool::fixed_size(THREAD_POOL_SIZE);
+
+        for stream in listener.incoming() {
+            let context = context.clone();
+            let verifier = verifier.clone();
+            let chain_abci = chain_abci.clone();
+
+            thread_pool_sender
+                .send(move || {
+                    // Create TLS stream
+                    let tls_stream = create_tls_server_stream(
+                        &context,
+                        verifier,
+                        stream.expect("Error while conntecting to incoming stream"),
+                        true,
+                    )
+                    .expect("Unable to create TLS server stream");
+
+                    // Handle client conntection
+                    handle_connection(tls_stream, chain_abci);
+                })
+                .expect("Unable to send tasks to thread pool");
+        }
+
+        // Shut down thread pool when the listener is closed
+        thread_pool.shutdown();
+    } else {
+        // Connect to tx-validation
+        log::info!("Connecting to tx-validation");
+        let tve_verifier = get_tve_enclave_verifier();
+        let context = create_ra_context();
+        let tve_uds = TcpStream::connect("tx-validation")?;
+        let mut tve_stream = create_tls_server_stream(&context, tve_verifier, tve_uds, false)?;
+
+        /// FIXME: this should be generated using "MLS-Exporter": https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md#new-obfuscation-key
+        const MOCK_KEY: [u8; 16] = mock_key!();
+        tve_stream.write_all(&MOCK_KEY);
     }
-
-    // Connect to chain-abci
-    log::info!("Connecting to chain-abci");
-    let chain_abci = Arc::new(Mutex::new(TcpStream::connect("chain-abci")?));
-
-    // Start TDBE server
-    log::info!("Starting TBDE Server");
-    let listener = TcpListener::bind("tdbe")?;
-
-    // Create a thread pool for handling incoming connections
-    let (thread_pool_sender, thread_pool) = ThreadPool::fixed_size(THREAD_POOL_SIZE);
-
-    for stream in listener.incoming() {
-        let context = context.clone();
-        let verifier = verifier.clone();
-        let chain_abci = chain_abci.clone();
-
-        thread_pool_sender
-            .send(move || {
-                // Create TLS stream
-                let tls_stream = create_tls_server_stream(
-                    &context,
-                    verifier,
-                    stream.expect("Error while conntecting to incoming stream"),
-                )
-                .expect("Unable to create TLS server stream");
-
-                // Handle client conntection
-                handle_connection(tls_stream, chain_abci);
-            })
-            .expect("Unable to send tasks to thread pool");
-    }
-
-    // Shut down thread pool when the listener is closed
-    thread_pool.shutdown();
 
     Ok(())
 }
@@ -144,6 +162,19 @@ fn get_enclave_verifier() -> EnclaveCertVerifier {
     verifier
 }
 
+fn get_tve_enclave_verifier() -> EnclaveCertVerifier {
+    log::info!("Creating enclave certificate verifier for transaction validation");
+
+    let enclave_info = EnclaveInfo::from_report_other_enclave(Report::for_self(), None);
+    let verifier_config = EnclaveCertVerifierConfig::new_with_enclave_info(enclave_info);
+    let verifier = EnclaveCertVerifier::new(verifier_config)
+        .expect("Unable to create enclave certificate verifier");
+
+    log::info!("Created enclave certificate verifier for transaction validation");
+
+    verifier
+}
+
 fn get_tdbe_config() -> TdbeStartupConfig {
     log::info!("Fetching initial TDBE configuration");
 
@@ -155,31 +186,6 @@ fn get_tdbe_config() -> TdbeStartupConfig {
     log::info!("Finished fetching initial TDBE configuration");
 
     tdbe_config
-}
-
-fn create_ra_context() -> Arc<EnclaveRaContext> {
-    log::info!("Creating enclave remote attestation context");
-
-    let certificate_expiration_time = {
-        option_env!("CERTIFICATE_EXPIRATION_SECS").map(|s| {
-            let sec = s
-                .parse()
-                .expect("invalid CERTIFICATE_EXPIRATION_SECS, expect u64");
-            Duration::seconds(sec)
-        })
-    };
-    let config = EnclaveRaConfig {
-        sp_addr: "ra-sp-server".to_string(),
-        certificate_validity_secs: DEFAULT_EXPIRATION_SECS as u32,
-        certificate_expiration_time,
-    };
-
-    let enclave_ra_context =
-        EnclaveRaContext::new(&config).expect("Unable to create new remote attestation context");
-
-    log::info!("Created enclave remote attestation context");
-
-    Arc::new(enclave_ra_context)
 }
 
 /// Fetches connection details of remote TDBE server using TM RPC
@@ -252,65 +258,4 @@ fn fetch_initial_data(
     log::info!("Finished fetching initial data from another TDBE server");
 
     Ok(())
-}
-
-fn create_tls_client_stream(
-    context: &EnclaveRaContext,
-    verifier: EnclaveCertVerifier,
-    dns_name: &str,
-    address: &str,
-) -> std::io::Result<StreamOwned<ClientSession, TcpStream>> {
-    log::info!("Creating enclave-to-enclave attested TLS client stream");
-    let certificate = context
-        .get_certificate()
-        .expect("Unable to generate remote attestation certificate");
-
-    let mut client_config = verifier
-        .into_client_config()
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-    certificate
-        .configure_client_config(&mut client_config)
-        .expect("Unable to configure TLS client config with certificate");
-    let client_config = Arc::new(client_config);
-
-    let dns_name_ref = DNSNameRef::try_from_ascii_str(dns_name).expect("Invalid DNS name");
-
-    let client_session = ClientSession::new(&client_config, dns_name_ref);
-    let tcp_stream = match TcpStream::connect(address) {
-        Ok(tcp_stream) => tcp_stream,
-        Err(err) => {
-            log::error!("Error while connecting to TCP stream");
-            return Err(err);
-        }
-    };
-
-    log::info!("Created enclave-to-enclave TLS client stream");
-
-    Ok(StreamOwned::new(client_session, tcp_stream))
-}
-
-fn create_tls_server_stream(
-    context: &EnclaveRaContext,
-    verifier: EnclaveCertVerifier,
-    stream: TcpStream,
-) -> std::io::Result<StreamOwned<ServerSession, TcpStream>> {
-    log::info!("Creating enclave-to-enclave attested TLS server stream");
-    let certificate = context
-        .get_certificate()
-        .expect("Unable to create remote attestation certificate");
-    let mut tls_server_config = verifier
-        .into_client_verifying_server_config(true)
-        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
-
-    certificate
-        .configure_server_config(&mut tls_server_config)
-        .expect("Unable to create TLS server config");
-
-    let tls_server_config = Arc::new(tls_server_config);
-
-    let tls_session = ServerSession::new(&tls_server_config);
-
-    log::info!("Created enclave-to-enclave attested TLS server stream");
-
-    Ok(StreamOwned::new(tls_session, stream))
 }

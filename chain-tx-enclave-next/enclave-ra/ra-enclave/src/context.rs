@@ -21,6 +21,20 @@ use crate::{
 use ra_common::DEFAULT_EXPIRATION_SECS;
 
 /// Wraps all the in-enclave operations required for remote attestation
+/// explanations of confusing names:
+/// "Certificate" isn't really a certificate -- it's a wrapper with the private key
+/// validity vs expiration (by devashishdxt):
+/// "We can set both of them as same. "certificate validity (1 day)"
+/// means that each enclave will generate a new certificate each day.
+/// "certificate expiration time" is the time until which a certificate will be valid.
+/// "certificate expiration time" is a configuration on client side (client decides for how much time they consider a certificate as valid)."
+///
+/// Also in `EnclaveCertVerifierConfig` (client), there's "report_validity_secs" which
+/// determines the validity of the attestation report (in the cert extension).
+///
+/// FIXME: these naming confusions start to look like potential footguns;
+/// it's unclear whether one wants to be able to individually configure all these.
+/// https://github.com/crypto-com/chain/issues/2028 + potential simplification + more meaningful name
 pub struct EnclaveRaContext {
     certificate: Arc<Mutex<Option<Certificate>>>,
     sp_ra_client: SpRaClient,

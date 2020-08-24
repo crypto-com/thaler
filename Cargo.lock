@@ -1442,9 +1442,14 @@ version = "0.6.0"
 dependencies = [
  "aead",
  "aes-gcm",
+ "chrono",
  "log",
+ "ra-client",
+ "ra-enclave",
  "rand 0.7.3",
+ "rustls",
  "sgx-isa",
+ "webpki",
  "zeroize",
 ]
 
@@ -4400,6 +4405,7 @@ version = "0.6.0"
 dependencies = [
  "chain-core",
  "chrono",
+ "enclave-macro",
  "enclave-protocol",
  "enclave-utils",
  "env_logger",
@@ -5025,9 +5031,12 @@ dependencies = [
  "env_logger",
  "log",
  "parity-scale-codec",
+ "ra-client",
+ "ra-enclave",
  "rand 0.7.3",
  "rs-libc",
  "secp256k1",
+ "sgx-isa",
  "zeroize",
 ]
 

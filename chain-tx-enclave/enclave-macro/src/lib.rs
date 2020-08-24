@@ -12,20 +12,27 @@ pub fn mock_key(_input: TokenStream) -> TokenStream {
     format!("{:?}", random_bytes).parse().unwrap()
 }
 
-#[proc_macro]
-pub fn get_mrsigner(_input: TokenStream) -> TokenStream {
-    let mrsigner: Vec<u8> = hex::decode(env! {"MRSIGNER"}).unwrap();
+#[inline]
+fn get_32byte_from_hex(data: &str) -> TokenStream {
+    let mrsigner: Vec<u8> = hex::decode(data).unwrap();
     if mrsigner.len() != 32 {
-        panic!("mrsigner incorrect length");
+        panic!("mrsigner or mrenclave incorrect length");
     }
     format!("{:?}", mrsigner).parse().unwrap()
 }
 
 #[proc_macro]
+pub fn get_mrsigner(_input: TokenStream) -> TokenStream {
+    get_32byte_from_hex(env! {"MRSIGNER"})
+}
+
+#[proc_macro]
 pub fn get_tqe_mrenclave(_input: TokenStream) -> TokenStream {
-    let mrenclave: Vec<u8> = hex::decode(env! {"TQE_MRENCLAVE"}).unwrap();
-    if mrenclave.len() != 32 {
-        panic!("mrenclave incorrect length");
-    }
-    format!("{:?}", mrenclave).parse().unwrap()
+    get_32byte_from_hex(env! {"TQE_MRENCLAVE"})
+}
+
+#[proc_macro]
+#[cfg(feature = "tdbe-macro")]
+pub fn get_tdbe_mrenclave(_input: TokenStream) -> TokenStream {
+    get_32byte_from_hex(env! {"TDBE_MRENCLAVE"})
 }
