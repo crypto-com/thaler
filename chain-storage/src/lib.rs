@@ -45,6 +45,7 @@ pub const NUM_COLUMNS: u32 = 12;
 pub const CHAIN_ID_KEY: &[u8] = b"chain_id";
 pub const GENESIS_APP_HASH_KEY: &[u8] = b"genesis_app_hash";
 pub const LAST_STATE_KEY: &[u8] = b"last_state";
+pub const LAST_FETCHED_BLOCK_KEY: &[u8] = b"last_fetched_block";
 
 pub enum StorageType {
     Node,
@@ -114,6 +115,10 @@ impl Get for ReadOnlyStorage {
 }
 
 impl ReadOnlyStorage {
+    pub fn new_db(db: Arc<dyn KeyValueDB>) -> Self {
+        Self { db }
+    }
+
     pub fn get_last_app_state(&self) -> Option<Vec<u8>> {
         self.db
             .get(COL_NODE_INFO, LAST_STATE_KEY)

@@ -1,20 +1,19 @@
-use std::{
-    convert::TryInto,
-    io::{Read, Write},
-    net::TcpStream,
-};
+use std::net::TcpStream;
 
 use parity_scale_codec::{Decode, Encode};
 use zeroize::Zeroize;
 
 use chain_core::tx::{data::TxId, TxWithOutputs};
-use enclave_protocol::{EnclaveRequest, EnclaveResponse};
+use enclave_protocol::{
+    codec::{StreamRead, StreamWrite},
+    EnclaveRequest, EnclaveResponse,
+};
 use enclave_utils::SealedData;
 
 /// Retrieves all the transactions with outputs with given transaction IDs
 pub fn get_transactions_with_outputs(
     transaction_ids: Vec<TxId>,
-    zmq_stream: &mut TcpStream,
+    chain_abci: &mut TcpStream,
 ) -> Result<Vec<TxWithOutputs>, String> {
     // Prepare enclave request
     let enclave_request = EnclaveRequest::GetSealedTxData {
@@ -22,29 +21,17 @@ pub fn get_transactions_with_outputs(
     }
     .encode();
 
-    // Send request to ZeroMQ
-    zmq_stream
-        .write_all(&enclave_request)
-        .map_err(|err| format!("Error while writing request to ZeroMQ: {}", err))?;
+    // Send request to chain-abci
+    enclave_request
+        .write_to(&*chain_abci)
+        .map_err(|err| format!("Unable to send request to chain-abci: {}", err))?;
 
-    // Read reponse length from ZeroMQ (little endian u32 bytes)
-    let mut response_len = [0u8; 4];
-    zmq_stream
-        .read(&mut response_len)
-        .map_err(|err| format!("Error while reading reponse length from ZeroMQ: {}", err))?;
+    // Read response from chain-abci
+    let enclave_response = EnclaveResponse::read_from(&*chain_abci)
+        .map_err(|err| format!("Unable to receive response from chain-abci: {}", err))?;
 
-    let response_len: usize = u32::from_le_bytes(response_len)
-        .try_into()
-        .expect("Response length exceeds `usize` bounds");
-
-    // Read result from ZeroMQ
-    let mut result_buf = vec![0u8; response_len];
-    zmq_stream
-        .read(&mut result_buf)
-        .map_err(|err| format!("Error while reading response from ZeroMQ: {}", err))?;
-
-    match EnclaveResponse::decode(&mut result_buf.as_ref()) {
-        Ok(EnclaveResponse::GetSealedTxData(Some(sealed_logs))) => {
+    match enclave_response {
+        EnclaveResponse::GetSealedTxData(Some(sealed_logs)) => {
             let mut transactions_with_outputs = Vec::with_capacity(sealed_logs.len());
 
             for (txid, sealed_log) in transaction_ids.into_iter().zip(sealed_logs.into_iter()) {
@@ -71,11 +58,7 @@ pub fn get_transactions_with_outputs(
 
             Ok(transactions_with_outputs)
         }
-        Ok(EnclaveResponse::GetSealedTxData(None)) => Err("Transactions not found".to_owned()),
-        Ok(_) => Err("Unexpected response from ZeroMQ".to_owned()),
-        Err(err) => Err(format!(
-            "Error while decoding response from ZeroMQ: {}",
-            err
-        )),
+        EnclaveResponse::GetSealedTxData(None) => Err("Transactions not found".to_owned()),
+        _ => Err("Unexpected response from ZeroMQ".to_owned()),
     }
 }

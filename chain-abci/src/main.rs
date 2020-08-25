@@ -5,7 +5,7 @@ use chain_abci::enclave_bridge::edp::{
 };
 #[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 use chain_abci::enclave_bridge::mock::MockClient;
-use chain_abci::enclave_bridge::EnclaveProxy;
+use chain_abci::enclave_bridge::{EnclaveProxy, TdbeConfig};
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_storage::ReadOnlyStorage;
 use chain_storage::{Storage, StorageConfig, StorageType};
@@ -35,20 +35,6 @@ pub struct Config {
     launch_ra_proxy: bool,
     remote_attestation: SpRaConfig,
     data_bootstrap: TdbeConfig,
-}
-
-/// TODO: more concrete when ready
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct TdbeConfig {
-    /// Optional TM RPC address of another TDBE server from where to fetch data
-    /// TODO: it'll get txids + the TDBE connection details from RPC
-    /// TODO: DNS can be obtained from RPC?
-    pub remote_rpc_address: Option<String>,
-    /// Local TDBE server address to listen on. E.g. `127.0.0.1:3445`
-    pub local_listen_address: String,
-    /// External TDBE server address, used by remote nodes to send RPC requests. E.g.
-    /// `<public_ip>:<public_port>`
-    pub external_listen_address: String,
 }
 
 impl Default for Config {

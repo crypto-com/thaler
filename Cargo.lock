@@ -569,6 +569,7 @@ dependencies = [
  "sgxs-loaders",
  "sha3",
  "structopt",
+ "tdbe-common",
  "test-common",
  "thiserror",
  "tokio 0.2.22",

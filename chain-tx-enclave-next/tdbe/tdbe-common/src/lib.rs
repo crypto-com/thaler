@@ -1,12 +1,8 @@
 use parity_scale_codec::{Decode, Encode};
 
-use chain_core::tx::data::TxId;
-
 /// Configuration options passed to TDBE on startup
 #[derive(Debug, Encode, Decode)]
-pub struct TdbeConfig {
-    /// DNS name of TDBE server for fetching initial data
-    pub tdbe_dns_name: Option<String>,
-    /// Transaction IDs to fetch from another TDBE server
-    pub transaction_ids: Vec<TxId>,
+pub struct TdbeStartupConfig {
+    /// Optional TM RPC address of another TDBE server from where to fetch data
+    pub remote_rpc_address: Option<String>,
 }
