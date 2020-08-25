@@ -4,6 +4,23 @@ use parity_scale_codec::{Decode, Encode};
 
 use chain_core::tx::{data::TxId, TxWithOutputs};
 
+/// Command sent by TDBE to persist a sealed transaction in chain-storage
+#[derive(Encode, Decode)]
+pub enum PersistenceCommand {
+    /// Command to store transaction in chain-storage
+    Store {
+        /// Transaction ID
+        transaction_id: TxId,
+        /// Sealed transaction data
+        sealed_log: Vec<u8>,
+    },
+    /// Command to signal completion of catch-up process
+    Finish {
+        /// Height of last fetched block in catch-up process
+        last_fetched_block: u32,
+    },
+}
+
 /// TDBE request initialized from other TDBE servers (enclave-to-enclave communication)
 #[derive(Encode, Decode)]
 pub enum TrustedTdbeRequest<'a> {

@@ -14,7 +14,8 @@ use chain_core::tx::data::{
 use super::buffer::{GetKV, StoreKV};
 use super::{
     LookupItem, StoredChainState, CHAIN_ID_KEY, COL_APP_HASHS, COL_APP_STATES, COL_EXTRA,
-    COL_NODE_INFO, COL_STAKING_VERSIONS, GENESIS_APP_HASH_KEY, LAST_STATE_KEY,
+    COL_NODE_INFO, COL_STAKING_VERSIONS, GENESIS_APP_HASH_KEY, LAST_FETCHED_BLOCK_KEY,
+    LAST_STATE_KEY,
 };
 
 pub fn get_last_app_state(db: &impl GetKV) -> Option<Vec<u8>> {
@@ -32,6 +33,13 @@ pub fn lookup_item(
 ) -> Option<Vec<u8>> {
     let col = item_type as u32;
     db.get(&(col, txid_or_app_hash.to_vec()))
+}
+
+pub fn set_last_fetched_block(db: &mut impl StoreKV, last_fetched_block: u32) {
+    db.set(
+        (COL_EXTRA, LAST_FETCHED_BLOCK_KEY.to_vec()),
+        last_fetched_block.encode(),
+    )
 }
 
 pub fn insert_item(
