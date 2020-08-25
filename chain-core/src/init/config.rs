@@ -6,7 +6,7 @@ use crate::state::account::{
     ConfidentialInit, CouncilNodeMeta, MLSInit, NodeName, NodeSecurityContact, StakedState,
     StakedStateAddress, StakedStateDestination,
 };
-use crate::state::tendermint::TendermintValidatorPubKey;
+use crate::state::tendermint::{TendermintValidatorPubKey, TendermintVotePower};
 use crate::state::RewardsPoolState;
 use mls::{error::KeyPackageError, Codec, DefaultCipherSuite, KeyPackage};
 use ra_client::ENCLAVE_CERT_VERIFIER;
@@ -244,4 +244,36 @@ fn verify_keypackage(genesis_time: Timespec, keypackage: &[u8]) -> Result<u16, D
         .verify(&*ENCLAVE_CERT_VERIFIER, genesis_time)
         .map_err(DistributionError::KeyPackageVerifyError)?;
     Ok(info.quote.report_body.isv_svn)
+}
+
+/// Compiled into tdbe enclave as genesis
+#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
+pub struct LightGenesis {
+    ///
+    #[serde(with = "map_as_vec")]
+    pub validators: BTreeMap<TendermintValidatorPubKey, TendermintVotePower>,
+}
+
+mod map_as_vec {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::collections::BTreeMap;
+
+    pub fn serialize<S: Serializer, K: Ord + Serialize, V: Serialize>(
+        value: &BTreeMap<K, V>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        let vec = value.iter().collect::<Vec<_>>();
+        vec.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D, K: Ord + Deserialize<'de>, V: Deserialize<'de>>(
+        deserializer: D,
+    ) -> Result<BTreeMap<K, V>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(Vec::<(K, V)>::deserialize(deserializer)?
+            .into_iter()
+            .collect::<BTreeMap<_, _>>())
+    }
 }

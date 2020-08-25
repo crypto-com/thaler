@@ -30,9 +30,3 @@ pub fn get_mrsigner(_input: TokenStream) -> TokenStream {
 pub fn get_tqe_mrenclave(_input: TokenStream) -> TokenStream {
     get_32byte_from_hex(env! {"TQE_MRENCLAVE"})
 }
-
-#[proc_macro]
-#[cfg(feature = "tdbe-macro")]
-pub fn get_tdbe_mrenclave(_input: TokenStream) -> TokenStream {
-    get_32byte_from_hex(env! {"TDBE_MRENCLAVE"})
-}

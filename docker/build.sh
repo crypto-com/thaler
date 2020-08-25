@@ -8,8 +8,10 @@ fi
 
 BUILD_PROFILE=${BUILD_PROFILE:-debug}
 BUILD_MODE=${BUILD_MODE:-sgx}
-CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"../target"}
+CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-"target"}
 EDP_TARGET_DIR=$CARGO_TARGET_DIR/x86_64-fortanix-unknown-sgx/$BUILD_PROFILE
+DEV_CONF=${DEV_CONF:-"dev-utils/example-dev-conf.json"}
+export NETWORK_ID=${NETWORK_ID:-AB}
 
 if [ $BUILD_PROFILE == "debug" ]; then
     export SGX_DEBUG=1
@@ -37,13 +39,16 @@ if [ $BUILD_MODE == "sgx" ]; then
     export TQE_MRENCLAVE=$(od -A none -t x1 --read-bytes=32 -j 960 -w32 $TQE_SIGSTRUCT | tr -d ' ')
     export MRSIGNER=$(dd if=$TQE_SIGSTRUCT bs=1 skip=128 count=384 status=none | sha256sum | awk '{print $1}')
 
+    cargo build $CARGO_ARGS -p dev-utils
+    $CARGO_TARGET_DIR/$BUILD_PROFILE/dev-utils genesis light --genesis_dev_config_path $DEV_CONF > chain-tx-enclave-next/tdbe/enclave-app/src/light_genesis.json
+
     # tdbe
     RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul" cargo build --target x86_64-fortanix-unknown-sgx --package tdb-enclave-app
     ftxsgx-elf2sgxs $EDP_TARGET_DIR/tdb-enclave-app --heap-size 0x2000000 --stack-size 0x80000 --threads 6 $EDP_ARGS
     sgxs-sign --key DEV_ONLY_KEY.kem $EDP_TARGET_DIR/tdb-enclave-app.sgxs $EDP_TARGET_DIR/tdb-enclave-app.sig -d --xfrm 7/0 --isvprodid $(( 16#$NETWORK_ID )) --isvsvn 0
 
     export TDBE_SIGSTRUCT=$EDP_TARGET_DIR/tdb-enclave-app.sig
-    export TDBE_MRENCLAVE=$(od -A none -t x1 --read-bytes=32 -j 960 -w32 $TDBE_SIGSTRUCT | tr -d ' ')
+    dd if=$TDBE_SIGSTRUCT bs=960 skip=1 | dd bs=32 count=1 > chain-tx-enclave-next/tx-validation-next/src/tdbe.mrenclave
 
     # tx-validation enclave
     RUSTFLAGS="-Ctarget-feature=+aes,+sse2,+sse4.1,+ssse3,+pclmul,+sha" cargo build --target x86_64-fortanix-unknown-sgx --package tx-validation-next

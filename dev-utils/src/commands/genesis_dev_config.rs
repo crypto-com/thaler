@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use chain_core::init::{
     address::RedeemAddress,
     coin::Coin,
-    config::{JailingParameters, RewardsParameters, SlashRatio, SlashingParameters},
+    config::{JailingParameters, LightGenesis, RewardsParameters, SlashRatio, SlashingParameters},
 };
 use chain_core::state::account::{ConfidentialInit, NodeName, NodeSecurityContact};
 use chain_core::state::tendermint::TendermintValidatorPubKey;
@@ -62,6 +62,16 @@ impl GenesisDevConfig {
                 max_age_num_blocks: "200".into(),
             },
             council_nodes: BTreeMap::new(),
+        }
+    }
+
+    pub fn light_genesis(&self) -> LightGenesis {
+        LightGenesis {
+            validators: self
+                .council_nodes
+                .iter()
+                .map(|(addr, (_, _, pubkey, _))| (pubkey.clone(), self.distribution[addr].into()))
+                .collect::<BTreeMap<_, _>>(),
         }
     }
 }

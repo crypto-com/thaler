@@ -97,6 +97,19 @@ pub enum GenesisCommand {
         )]
         tendermint_genesis_path: Option<PathBuf>,
     },
+    #[structopt(
+        name = "light",
+        about = "Calculate the light genesis information from dev-conf.json"
+    )]
+    Light {
+        #[structopt(
+            name = "genesis_dev_config_path",
+            short,
+            long,
+            help = "Path to a file containing the genesis-related configuration (e.g. ERC20 holdership) -- see example-dev-conf.json"
+        )]
+        genesis_dev_config_path: PathBuf,
+    },
 }
 
 impl GenesisCommand {
@@ -123,6 +136,9 @@ impl GenesisCommand {
             GenesisCommand::Fingerprint {
                 tendermint_genesis_path,
             } => get_genesis_fingerprint(tendermint_genesis_path),
+            GenesisCommand::Light {
+                genesis_dev_config_path,
+            } => generate_light_genesis(genesis_dev_config_path),
         }
     }
 }
@@ -271,6 +287,27 @@ fn generate_genesis_command(
         println!("{}", tendermint_genesis_string);
     }
 
+    Ok(())
+}
+
+fn generate_light_genesis(genesis_dev_config_path: &PathBuf) -> Result<()> {
+    let genesis_dev_config_string = fs::read_to_string(genesis_dev_config_path).chain(|| {
+        (
+            ErrorKind::InvalidInput,
+            "Something went wrong reading the genesis dev config file",
+        )
+    })?;
+    let genesis_dev_config: GenesisDevConfig = serde_json::from_str(&genesis_dev_config_string)
+        .chain(|| {
+            (
+                ErrorKind::DeserializationError,
+                "failed to parse genesis dev config",
+            )
+        })?;
+    println!(
+        "{}",
+        serde_json::to_string(&genesis_dev_config.light_genesis()).unwrap()
+    );
     Ok(())
 }
 
