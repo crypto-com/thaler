@@ -17,8 +17,8 @@ use client_common::Transaction;
 use super::syncer::FilteredBlock;
 use crate::service::{Wallet, WalletState};
 use crate::types::{BalanceChange, TransactionChange, TransactionInput, TransactionType};
+use crate::wallet::syncer::ProgressReport;
 use crate::WalletStateMemento;
-
 #[derive(Error, Debug)]
 pub enum SyncerLogicError {
     #[error("Total output amount exceeds maximum allowed value(txid: {0})")]
@@ -35,6 +35,7 @@ pub(crate) fn handle_blocks(
     wallet_state: &mut WalletState,
     blocks: &[FilteredBlock],
     enclave_transactions: &[Transaction],
+    callback_progress: &mut dyn FnMut(ProgressReport) -> bool,
 ) -> Result<WalletStateMemento, SyncerLogicError> {
     let enclave_transactions = enclave_transactions
         .iter()
@@ -43,6 +44,11 @@ pub(crate) fn handle_blocks(
     let mut memento = WalletStateMemento::default();
 
     for block in blocks {
+        callback_progress(ProgressReport::Update {
+            wallet_name: wallet.name.clone(),
+            current_block_height: block.block_height,
+        });
+
         for tx in block.staking_transactions.iter() {
             if let Some(fee) = block.valid_transaction_fees.get(&tx.id()) {
                 handle_transaction(

@@ -853,7 +853,7 @@ impl Command {
                 } => {
                     if let Some(ref mut pb) = progress_bar {
                         if current_block_height == final_block_height {
-                            pb.finish_println("Synchronization complete!\n");
+                            pb.finish_print("Synchronization complete!");
                         } else {
                             pb.set(current_block_height - init_block_height);
                         }
@@ -868,8 +868,7 @@ impl Command {
         if force {
             syncer.reset_state()?;
         }
-        syncer.sync(progress_callback)?;
-        Ok(())
+        syncer.sync(progress_callback)
     }
 }
 
