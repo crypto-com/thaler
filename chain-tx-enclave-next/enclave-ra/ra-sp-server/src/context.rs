@@ -23,9 +23,7 @@ impl SpRaContext {
     /// Creates a new SP remote attestation context
     pub fn new(config: SpRaConfig) -> Result<Self, SpRaContextError> {
         let aesm_client = AesmClient::new();
-        let quote_info = aesm_client
-            .init_quote()
-            .map_err(SpRaContextError::AesmError)?;
+        let quote_info = get_quote_info(&aesm_client)?;
         let quote_type = config.quote_type;
 
         let ias_client = IasClient::new(
@@ -93,6 +91,19 @@ impl SpRaContext {
             .verify_attestation_evidence(quote)
             .map_err(Into::into)
     }
+}
+
+fn get_quote_info(aesm_client: &AesmClient) -> Result<QuoteInfo, SpRaContextError> {
+    for _ in 0..5 {
+        match aesm_client.init_quote() {
+            Ok(quote_info) => return Ok(quote_info),
+            Err(_) => std::thread::sleep(std::time::Duration::from_secs(2)),
+        }
+    }
+
+    aesm_client
+        .init_quote()
+        .map_err(SpRaContextError::AesmError)
 }
 
 fn parse_quote_type(quote_type: &str) -> Result<QuoteType, SpRaContextError> {
