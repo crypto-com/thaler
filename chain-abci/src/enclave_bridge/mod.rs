@@ -20,7 +20,7 @@ pub struct TdbeConfig {
 }
 
 /// Abstracts over communication with an external part that does enclave calls
-pub trait EnclaveProxy: Sync + Send + Sized + Clone {
+pub trait EnclaveProxy: Sync + Send + Sized {
     // sanity check for checking enclave initialization
     fn check_chain(&mut self, network_id: u8) -> Result<(), ()>;
     fn process_request(&mut self, request: IntraEnclaveRequest) -> IntraEnclaveResponse;

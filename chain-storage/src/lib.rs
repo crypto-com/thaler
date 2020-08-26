@@ -156,6 +156,21 @@ pub enum LookupItem {
 }
 
 impl Storage {
+    /// current TDBE app code takes directly `Arc<dyn KeyValueDB>`
+    /// for some reason,
+    /// which defeats the purpose of encapsulation / that Storage is exposed
+    /// in a controlled way and random threads aren't writing to it.
+    /// --
+    /// As tdbe<->chain-abci persistence seems to be only required on a "one-off" basis
+    /// during the initial data boostrap,
+    /// it's unclear why it needs to spin off a background thread
+    /// (instead of handling this one-off data fetch on the main thread)
+    /// FIXME: once the TDBE persistence of initially fetched sealed tx is actually used,
+    /// remove / rethink this
+    pub fn temp_hack_for_tdbe(&self) -> Arc<dyn KeyValueDB> {
+        self.db.clone()
+    }
+
     pub fn get_read_only(&self) -> ReadOnlyStorage {
         ReadOnlyStorage {
             db: self.db.clone(),

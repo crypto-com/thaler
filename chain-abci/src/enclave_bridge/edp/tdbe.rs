@@ -1,18 +1,16 @@
 use std::{
     collections::HashMap,
     future::Future,
-    io::{self, Cursor, Seek, SeekFrom},
+    io::{Cursor, Seek, SeekFrom},
     os::unix::net::UnixStream,
     pin::Pin,
     sync::Arc,
     thread,
+    thread::JoinHandle,
 };
 
 use aesm_client::AesmClient;
-use enclave_runner::{
-    usercalls::{AsyncListener, AsyncStream, UsercallExtension},
-    EnclaveBuilder,
-};
+use enclave_runner::{usercalls::UsercallExtension, EnclaveBuilder};
 use kvdb::KeyValueDB;
 use sgxs_loaders::isgx::Device;
 use tdbe_common::TdbeStartupConfig;
@@ -27,7 +25,10 @@ use enclave_protocol::{
 };
 use ra_sp_server::config::SpRaConfig;
 
-use crate::enclave_bridge::TdbeConfig;
+use crate::enclave_bridge::{
+    edp::{UserCallListener, UserCallStream},
+    TdbeConfig,
+};
 
 #[derive(Debug)]
 pub struct TdbeApp {
@@ -42,6 +43,8 @@ pub struct TdbeApp {
     remote_rpc_address: Option<String>,
     /// Local TDBE server address to listen on. E.g. `127.0.0.1:3445`
     local_listen_address: String,
+    /// UDS to push secrets to tx-validation enclave
+    tve_stream: UnixStream,
 }
 
 impl TdbeApp {
@@ -49,20 +52,22 @@ impl TdbeApp {
     pub fn new(
         tdbe_config: &TdbeConfig,
         ra_config: &SpRaConfig,
-        storage: Arc<dyn KeyValueDB>,
+        _storage: Arc<dyn KeyValueDB>,
+        tve_stream: UnixStream,
     ) -> std::io::Result<Self> {
         // - `chain_abci_stream` is passed to enclave. Encalve can send requests to chain-abci
         //   using this
         // - `chain_abci_receiver` listens to the requests sent by enclave and responds to them
-        let (chain_abci_stream, chain_abci_receiver) = UnixStream::pair()?;
+        let (chain_abci_stream, _chain_abci_receiver) = UnixStream::pair()?;
 
         // - `persistence_stream` is passed to enclave. Encalve can send requests to chain-storage
         //   using this
         // - `persistence_receiver` listens to the requests sent by enclave and responds to them
-        let (persistence_stream, persistence_receiver) = UnixStream::pair()?;
+        let (persistence_stream, _persistence_receiver) = UnixStream::pair()?;
 
-        spawn_chain_abci_thread(chain_abci_receiver, storage.clone());
-        spawn_persistence_thread(persistence_receiver, storage);
+        // FIXME: spawn these when they actually do something
+        // spawn_chain_abci_thread(chain_abci_receiver, storage.clone());
+        // spawn_persistence_thread(persistence_receiver, storage);
 
         Ok(Self {
             chain_abci_stream,
@@ -70,10 +75,11 @@ impl TdbeApp {
             sp_address: ra_config.address.clone(),
             remote_rpc_address: tdbe_config.remote_rpc_address.clone(),
             local_listen_address: tdbe_config.local_listen_address.clone(),
+            tve_stream,
         })
     }
 
-    pub fn spawn(self) {
+    pub fn spawn(self) -> JoinHandle<()> {
         thread::spawn(move || {
             let mut device = Device::new()
                 .expect("SGX device was not found")
@@ -90,10 +96,11 @@ impl TdbeApp {
                 .build(&mut device)
                 .expect("Failed to build enclave");
             enclave.run().expect("Failed to start enclave")
-        });
+        })
     }
 }
 
+#[allow(dead_code)]
 fn spawn_chain_abci_thread(mut receiver: UnixStream, storage: Arc<dyn KeyValueDB>) {
     let _ = thread::spawn(move || {
         let storage = chain_storage::ReadOnlyStorage::new_db(storage);
@@ -127,6 +134,8 @@ fn get_sealed_tx_data(txids: Vec<TxId>, storage: &ReadOnlyStorage) -> Option<Vec
     Some(result)
 }
 
+/// FIXME: should this start a background thread if this is one-off and the main thread needs to wait for its completion?
+#[allow(dead_code)]
 fn spawn_persistence_thread(mut receiver: UnixStream, storage: Arc<dyn KeyValueDB>) {
     let _ = thread::spawn(move || {
         let mut storage = chain_storage::Storage::new_db(storage);
@@ -143,6 +152,9 @@ fn spawn_persistence_thread(mut receiver: UnixStream, storage: Arc<dyn KeyValueD
                     chain_storage::set_last_fetched_block(&mut kvdb, last_fetched_block);
                     break;
                 }
+                _ => {
+                    // FIXME
+                }
             }
         }
 
@@ -151,23 +163,20 @@ fn spawn_persistence_thread(mut receiver: UnixStream, storage: Arc<dyn KeyValueD
     });
 }
 
-#[allow(clippy::type_complexity)]
 impl UsercallExtension for TdbeApp {
     fn connect_stream<'future>(
         &'future self,
         addr: &'future str,
         _local_addr: Option<&'future mut String>,
         _peer_addr: Option<&'future mut String>,
-    ) -> Pin<Box<dyn Future<Output = io::Result<Option<Box<dyn AsyncStream>>>> + 'future>> {
-        async fn connect_stream_inner(
-            this: &TdbeApp,
-            addr: &str,
-        ) -> io::Result<Option<Box<dyn AsyncStream>>> {
+    ) -> Pin<Box<dyn Future<Output = UserCallStream> + 'future>> {
+        async fn connect_stream_inner(this: &TdbeApp, addr: &str) -> UserCallStream {
             match addr {
                 // Passes initial startup configuration to enclave
                 "init" => {
                     let tdbe_startup_config = TdbeStartupConfig {
                         remote_rpc_address: this.remote_rpc_address.clone(),
+                        temp_mock_feature: true,
                     };
 
                     let mut stream = Cursor::new(Vec::new());
@@ -192,6 +201,10 @@ impl UsercallExtension for TdbeApp {
                     let stream = TcpStream::connect(&this.sp_address).await?;
                     Ok(Some(Box::new(stream)))
                 }
+                "tx-validation" => {
+                    let stream = tokio::net::UnixStream::from_std(this.tve_stream.try_clone()?)?;
+                    Ok(Some(Box::new(stream)))
+                }
                 _ => Ok(None),
             }
         }
@@ -203,11 +216,8 @@ impl UsercallExtension for TdbeApp {
         &'future self,
         addr: &'future str,
         _local_addr: Option<&'future mut String>,
-    ) -> Pin<Box<dyn Future<Output = io::Result<Option<Box<dyn AsyncListener>>>> + 'future>> {
-        async fn bind_stream_inner(
-            this: &TdbeApp,
-            addr: &str,
-        ) -> io::Result<Option<Box<dyn AsyncListener>>> {
+    ) -> Pin<Box<dyn Future<Output = UserCallListener> + 'future>> {
+        async fn bind_stream_inner(this: &TdbeApp, addr: &str) -> UserCallListener {
             match addr {
                 // Binds TCP listener for TDBE server
                 "tdbe" => {

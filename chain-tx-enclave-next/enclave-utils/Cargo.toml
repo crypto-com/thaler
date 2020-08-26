@@ -13,6 +13,11 @@ aead = "0.3"
 zeroize = "1.1"
 rand = "0.7"
 log = "0.4"
+rustls = "0.18"
+webpki = "0.21"
+chrono = "0.4"
+ra-client = { path = "../enclave-ra/ra-client" }
+ra-enclave = { path = "../enclave-ra/ra-enclave" }
 
 [features]
 sgxstd = ["sgx-isa/sgxstd"]

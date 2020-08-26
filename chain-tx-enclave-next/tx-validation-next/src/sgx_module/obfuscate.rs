@@ -1,6 +1,6 @@
 // TODO: remove, as it's not required on newer nightly
 use crate::sgx_module::write_response;
-use aead::{generic_array::GenericArray, Aead, NewAead};
+use aead::{generic_array::GenericArray, Aead};
 use aes_gcm_siv::Aes128GcmSiv;
 use chain_core::state::tendermint::BlockHeight;
 use chain_core::tx::data::TxId;
@@ -12,7 +12,6 @@ use chain_tx_validation::{
     verify_bonded_deposit_core, verify_transfer, verify_unbonded_withdraw_core,
     witness::verify_tx_recover_address,
 };
-use enclave_macro::mock_key;
 use enclave_protocol::{EncryptionRequest, IntraEncryptRequest};
 use enclave_protocol::{IntraEnclaveResponse, IntraEnclaveResponseOk};
 use enclave_utils::SealedData;
@@ -21,15 +20,10 @@ use std::io::Write;
 use std::prelude::v1::Box;
 use zeroize::Zeroize;
 
-/// this will be injected by TDBE connection
-const MOCK_KEY: [u8; 16] = mock_key!();
-
-pub(crate) fn encrypt(tx: TxToObfuscate) -> TxObfuscated {
+pub(crate) fn encrypt(alg: &Aes128GcmSiv, tx: TxToObfuscate) -> TxObfuscated {
     let init_vector: [u8; 12] = rand::random();
-    let key = GenericArray::clone_from_slice(&MOCK_KEY);
-    let aead = Aes128GcmSiv::new(&key);
     let nonce = GenericArray::from_slice(&init_vector);
-    let ciphertext = aead.encrypt(nonce, &tx).expect("encryption failure!");
+    let ciphertext = alg.encrypt(nonce, &tx).expect("encryption failure!");
     TxObfuscated {
         key_from: BlockHeight::genesis(),
         init_vector,
@@ -38,11 +32,9 @@ pub(crate) fn encrypt(tx: TxToObfuscate) -> TxObfuscated {
     }
 }
 
-pub(crate) fn decrypt(tx: &TxObfuscated) -> Result<PlainTxAux, ()> {
-    let key = GenericArray::clone_from_slice(&MOCK_KEY);
-    let aead = Aes128GcmSiv::new(&key);
+pub(crate) fn decrypt(alg: &Aes128GcmSiv, tx: &TxObfuscated) -> Result<PlainTxAux, ()> {
     let nonce = GenericArray::from_slice(&tx.init_vector);
-    let plaintext = aead.decrypt(nonce, tx).map_err(|_| ())?;
+    let plaintext = alg.decrypt(nonce, tx).map_err(|_| ())?;
     let result = PlainTxAux::decode(&mut plaintext.as_slice());
     result.map_err(|_| ())
 }
@@ -100,7 +92,11 @@ where
 }
 
 #[inline]
-pub(crate) fn handle_encrypt_request<I: Write>(request: Box<IntraEncryptRequest>, output: &mut I) {
+pub(crate) fn handle_encrypt_request<I: Write>(
+    alg: &Aes128GcmSiv,
+    request: Box<IntraEncryptRequest>,
+    output: &mut I,
+) {
     match (unseal_request(&request), request.tx_inputs) {
         (Some(EncryptionRequest::TransferTx(tx, witness)), Some(sealed_inputs)) => {
             let unsealed_inputs = check_unseal(tx.inputs.iter().map(|x| x.id), sealed_inputs);
@@ -109,6 +105,7 @@ pub(crate) fn handle_encrypt_request<I: Write>(request: Box<IntraEncryptRequest>
                 let txid = tx.id();
                 let response: IntraEnclaveResponse = result.map(|_| {
                     IntraEnclaveResponseOk::Encrypt(encrypt(
+                        alg,
                         TxToObfuscate::from(PlainTxAux::TransferTx(tx, witness), txid)
                             .expect("construct plain payload"),
                     ))
@@ -126,6 +123,7 @@ pub(crate) fn handle_encrypt_request<I: Write>(request: Box<IntraEncryptRequest>
                 let txid = tx.id();
                 let response: IntraEnclaveResponse = result.map(|_| {
                     IntraEnclaveResponseOk::Encrypt(encrypt(
+                        alg,
                         TxToObfuscate::from(PlainTxAux::DepositStakeTx(witness), txid)
                             .expect("construct plain payload"),
                     ))
@@ -145,6 +143,7 @@ pub(crate) fn handle_encrypt_request<I: Write>(request: Box<IntraEncryptRequest>
                         let result = verify_unbonded_withdraw_core(&tx, &request.info, &account);
                         let response: IntraEnclaveResponse = result.map(|_| {
                             IntraEnclaveResponseOk::Encrypt(encrypt(
+                                alg,
                                 TxToObfuscate::from(PlainTxAux::WithdrawUnbondedStakeTx(tx), txid)
                                     .expect("construct plain payload"),
                             ))

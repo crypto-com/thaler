@@ -22,36 +22,55 @@ use tokio::net::{TcpListener, TcpStream};
 
 use std::os::unix::net::UnixStream;
 
+const REMOTE_ATTESTATION_PROXY: &str = "ra-sp-server";
+
 /// pair of unix domain sockets
-/// enclave_stream is only needed / passed in `connect_stream`
+/// enclave_stream / tdbe_stream is only needed / passed in `connect_stream`
 /// `runner_stream` is shared in chain-abci app
+/// TODO: separate out the "chain-abci-side" runner_stream and "usercall extensions"-side
+/// (enclave_stream / tdbe_stream)
 #[derive(Debug)]
 pub struct TxValidationApp {
     enclave_stream: Option<UnixStream>,
     runner_stream: Arc<Mutex<UnixStream>>,
+    /// `ra-sp-server` address for remote attestation. E.g. `0.0.0.0:8989`
+    /// FIXME: enclave direct connection -- not via TCP proxy
+    sp_address: Option<String>,
+    tdbe_stream: Option<UnixStream>,
 }
 
-impl Clone for TxValidationApp {
-    fn clone(&self) -> Self {
+impl TxValidationApp {
+    /// only used for `TxValidationServer`/`chain-abci` having access to "runner_stream",
+    /// _not for enclave launching_
+    pub fn get_comm_only(&self) -> Self {
         Self {
             enclave_stream: None,
             runner_stream: self.runner_stream.clone(),
+            sp_address: None,
+            tdbe_stream: None,
         }
+    }
+
+    fn new(sp_address: String) -> (Self, UnixStream) {
+        let (sender, receiver) = UnixStream::pair().expect("init chain-abci<->tve socket");
+        let (from_tdbe_to_tve, from_tve_to_tdbe) =
+            UnixStream::pair().expect("init tve<->tdbe socket");
+
+        (
+            Self {
+                enclave_stream: Some(receiver),
+                runner_stream: Arc::new(Mutex::new(sender)),
+                sp_address: Some(sp_address),
+                tdbe_stream: Some(from_tve_to_tdbe),
+            },
+            from_tdbe_to_tve,
+        )
     }
 }
 
-impl Default for TxValidationApp {
-    fn default() -> Self {
-        let (sender, receiver) = UnixStream::pair().expect("init tx validation socket");
-        Self {
-            enclave_stream: Some(receiver),
-            runner_stream: Arc::new(Mutex::new(sender)),
-        }
-    }
-}
-
-type UserCallStream = io::Result<Option<Box<dyn AsyncStream>>>;
-type UserCallListener = io::Result<Option<Box<dyn AsyncListener>>>;
+/// type aliases for outputs in UsercallExtension async return types
+pub type UserCallStream = io::Result<Option<Box<dyn AsyncStream>>>;
+pub type UserCallListener = io::Result<Option<Box<dyn AsyncListener>>>;
 
 impl UsercallExtension for TxValidationApp {
     fn connect_stream<'future>(
@@ -64,6 +83,22 @@ impl UsercallExtension for TxValidationApp {
             match addr {
                 "chain-abci" => {
                     if let Some(enclave_stream) = this.enclave_stream.as_ref() {
+                        let stream = tokio::net::UnixStream::from_std(enclave_stream.try_clone()?)?;
+                        Ok(Some(Box::new(stream)))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                REMOTE_ATTESTATION_PROXY => {
+                    if let Some(ra_address) = this.sp_address.as_ref() {
+                        let stream = TcpStream::connect(ra_address).await?;
+                        Ok(Some(Box::new(stream)))
+                    } else {
+                        Ok(None)
+                    }
+                }
+                "tdbe" => {
+                    if let Some(enclave_stream) = this.tdbe_stream.as_ref() {
                         let stream = tokio::net::UnixStream::from_std(enclave_stream.try_clone()?)?;
                         Ok(Some(Box::new(stream)))
                     } else {
@@ -113,9 +148,11 @@ impl EnclaveProxy for TxValidationApp {
 /// Launches tx-validation enclave --
 /// it expects "tx-validation-next.sgxs" (+ signature)
 /// to be in the same directory as chain-abci
-pub fn launch_tx_validation() -> TxValidationApp {
-    let app = TxValidationApp::default();
-    let app2 = app.clone();
+/// it returns the "copied" app (for `TxValidationServer` / chain-abci)
+/// + the unix stream for transaction data bootstrapping enclave
+pub fn launch_tx_validation(ra_proxy_address: String) -> (TxValidationApp, UnixStream) {
+    let (app, from_tdbe_to_tve) = TxValidationApp::new(ra_proxy_address);
+    let app2 = app.get_comm_only();
     let mut device = Device::new()
         .expect("SGX device was not found")
         .einittoken_provider(AesmClient::new())
@@ -134,7 +171,7 @@ pub fn launch_tx_validation() -> TxValidationApp {
         log::info!("starting tx validation enclave");
         enclave.run().expect("Failed to start enclave")
     });
-    app2
+    (app2, from_tdbe_to_tve)
 }
 
 /// Temporary tx query launching options
@@ -167,7 +204,7 @@ impl UsercallExtension for TempTxQueryOptions {
                         tokio::net::UnixStream::from_std(this.chain_abci_data.try_clone()?)?;
                     Ok(Some(Box::new(stream)))
                 }
-                "ra-sp-server" => {
+                REMOTE_ATTESTATION_PROXY => {
                     let stream = TcpStream::connect(&this.sp_address).await?;
                     Ok(Some(Box::new(stream)))
                 }

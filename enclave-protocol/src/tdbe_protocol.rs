@@ -19,6 +19,18 @@ pub enum PersistenceCommand {
         /// Height of last fetched block in catch-up process
         last_fetched_block: u32,
     },
+    /// Command for the node operator to handle node join (take these payloads, create/sign/broadcast nodejointx)
+    NodeJoin {
+        /// add proposal: MLSPlaintext
+        add: Vec<u8>,
+        /// commit MLSPlaintext
+        commit: Vec<u8>,
+    },
+    /// Command issued after successful nodejoin is detected or other updates
+    SealEnclaveState {
+        /// contains the trusted anchor + keypackage secrets
+        sealed_state: Vec<u8>,
+    },
 }
 
 /// TDBE request initialized from other TDBE servers (enclave-to-enclave communication)

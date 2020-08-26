@@ -1,7 +1,8 @@
 use chain_abci::app::{sanity_check_enabled, ChainNodeApp};
 #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
 use chain_abci::enclave_bridge::edp::{
-    launch_tx_validation, temp_start_up_ra_tx_query, TempTxQueryOptions, TxValidationApp,
+    launch_tx_validation, tdbe::TdbeApp, temp_start_up_ra_tx_query, TempTxQueryOptions,
+    TxValidationApp,
 };
 #[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
 use chain_abci::enclave_bridge::mock::MockClient;
@@ -9,6 +10,7 @@ use chain_abci::enclave_bridge::{EnclaveProxy, TdbeConfig};
 use chain_core::init::network::{get_network, get_network_id, init_chain_id};
 use chain_storage::ReadOnlyStorage;
 use chain_storage::{Storage, StorageConfig, StorageType};
+use kvdb::KeyValueDB;
 use log::{error, info, warn};
 use ra_sp_server::config::SpRaConfig;
 use serde::{Deserialize, Serialize};
@@ -19,6 +21,7 @@ use std::net::SocketAddr;
 #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use structopt::StructOpt;
 
 /// TODO: should this also set the tx-query enclave file path
@@ -177,13 +180,26 @@ pub struct AbciOpt {
 
 /// edp
 #[cfg(all(not(feature = "mock-enclave"), feature = "edp", target_os = "linux"))]
-fn get_enclave_proxy() -> TxValidationApp {
-    launch_tx_validation()
+fn get_enclave_proxy(config: &Config, storage: Arc<dyn KeyValueDB>) -> TxValidationApp {
+    let (app, stream_from_tdbe) = launch_tx_validation(config.remote_attestation.address.clone());
+    let tdbe_app = TdbeApp::new(
+        &config.data_bootstrap,
+        &config.remote_attestation,
+        storage,
+        stream_from_tdbe,
+    )
+    .expect("create tdbe app");
+    // FIXME: currently this blocks, but it'll need more involved signalling chain-abci:
+    // 1. after catching up and completing persistence of sealed transactions payloads,
+    // it'll also need to send back to chain-abci the Add+ Commit payloads for node join construction
+    // 2. it'll need to send back the trusted anchors + sealed keypackage secrets once the nodejoin is accepted
+    let _ = tdbe_app.spawn().join();
+    app
 }
 
 /// for development
 #[cfg(any(feature = "mock-enclave", not(target_os = "linux")))]
-fn get_enclave_proxy() -> MockClient {
+fn get_enclave_proxy(_config: &Config, _storage: Arc<dyn KeyValueDB>) -> MockClient {
     warn!("Using mock (non-enclave) infrastructure");
     MockClient::new(get_network_id())
 }
@@ -278,15 +294,21 @@ fn main() {
                 get_network(),
                 get_network_id()
             );
-            let tx_validator = get_enclave_proxy();
-            if sanity_check_enabled() {
-                warn!("Enabled sanity checks");
-            }
 
             let host = config.host.parse().expect("invalid host");
             let addr = SocketAddr::new(host, config.port);
             let storage = Storage::new(&StorageConfig::new(&opt.data, StorageType::Node));
-            start_up_ra_tx_query(&config, tx_validator.clone(), storage.get_read_only());
+
+            let tx_validator = get_enclave_proxy(&config, storage.temp_hack_for_tdbe());
+            if sanity_check_enabled() {
+                warn!("Enabled sanity checks");
+            }
+
+            start_up_ra_tx_query(
+                &config,
+                tx_validator.get_comm_only(),
+                storage.get_read_only(),
+            );
             info!("starting up");
             abci::run(
                 addr,

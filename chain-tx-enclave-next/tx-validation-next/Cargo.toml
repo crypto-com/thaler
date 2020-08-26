@@ -23,7 +23,10 @@ env_logger = { version = "0.7", default-features = false }
 log = "0.4"
 rs-libc = "0.2"
 rand = "0.7"
-enclave-utils = { path = "../../chain-tx-enclave-next/enclave-utils", features = ["sgxstd"] }
+enclave-utils = { path = "../enclave-utils", features = ["sgxstd"] }
+ra-enclave = { path = "../enclave-ra/ra-enclave" }
+ra-client = { path = "../enclave-ra/ra-client" }
+sgx-isa = { version = "0.3", features = ["sgxstd"] }
 
 [package.metadata.fortanix-sgx]
 # stack size (in bytes) for each thread, the default stack size is 0x20000.

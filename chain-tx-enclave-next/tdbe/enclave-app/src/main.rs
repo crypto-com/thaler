@@ -1,3 +1,5 @@
+#![cfg_attr(target_env = "sgx", feature(proc_macro_hygiene))]
+
 #[cfg(target_env = "sgx")]
 mod sgx_module;
 

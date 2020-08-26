@@ -77,6 +77,25 @@ pub struct EnclaveInfo {
 }
 
 impl EnclaveInfo {
+    /// Creates an `Enclave` object from enclave's own `Report`, but replaces MRENCLAVE value (as that's a different enclave code)
+    pub fn from_report_other_enclave(report: Report, mr_enclave: Option<[u8; 32]>) -> Self {
+        let mut attributes = [0; 16];
+
+        // This will never panic because `UNPADDED_SIZE` for attributes in `Report` is 16 bytes. See
+        // here: https://github.com/fortanix/rust-sgx/blob/master/sgx-isa/src/lib.rs#L385
+        attributes.copy_from_slice(&report.attributes.as_ref());
+
+        Self {
+            mr_signer: report.mrsigner,
+            mr_enclave,
+            previous_mr_enclave: None,
+            cpu_svn: report.cpusvn,
+            isv_svn: report.isvsvn,
+            isv_prod_id: report.isvprodid,
+            attributes,
+        }
+    }
+
     /// Creates an `EncalveInfo` object from enclave `Report`
     pub fn from_report(report: Report, previous_mr_enclave: Option<[u8; 32]>) -> Self {
         let mut attributes = [0; 16];
