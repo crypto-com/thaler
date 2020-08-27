@@ -17,8 +17,8 @@ use client_common::Transaction;
 use super::syncer::FilteredBlock;
 use crate::service::{Wallet, WalletState};
 use crate::types::{BalanceChange, TransactionChange, TransactionInput, TransactionType};
+use crate::wallet::syncer::ProgressReport;
 use crate::WalletStateMemento;
-
 #[derive(Error, Debug)]
 pub enum SyncerLogicError {
     #[error("Total output amount exceeds maximum allowed value(txid: {0})")]
@@ -35,6 +35,7 @@ pub(crate) fn handle_blocks(
     wallet_state: &mut WalletState,
     blocks: &[FilteredBlock],
     enclave_transactions: &[Transaction],
+    callback_progress: &mut dyn FnMut(ProgressReport) -> bool,
 ) -> Result<WalletStateMemento, SyncerLogicError> {
     let enclave_transactions = enclave_transactions
         .iter()
@@ -43,6 +44,11 @@ pub(crate) fn handle_blocks(
     let mut memento = WalletStateMemento::default();
 
     for block in blocks {
+        callback_progress(ProgressReport::Update {
+            wallet_name: wallet.name.clone(),
+            current_block_height: block.block_height,
+        });
+
         for tx in block.staking_transactions.iter() {
             if let Some(fee) = block.valid_transaction_fees.get(&tx.id()) {
                 handle_transaction(
@@ -394,7 +400,16 @@ mod tests {
             &[unbond_transaction(), outgoing_staking_tx],
             [0u8; 32],
         )];
-        let memento = handle_blocks(&wallets[0], &mut state, &blocks, &[tx.clone()]).unwrap();
+
+        let mut progress_callback = |_report: ProgressReport| true;
+        let memento = handle_blocks(
+            &wallets[0],
+            &mut state,
+            &blocks,
+            &[tx.clone()],
+            &mut progress_callback,
+        )
+        .unwrap();
         state.apply_memento(&memento).expect("apply memento");
         assert!(state.transaction_history.contains_key(&tx_cloned.id()));
         assert!(state
@@ -445,14 +460,27 @@ mod tests {
 
         let txs = [transactions[0].clone()];
         let blocks = [block_header(&[view_keys[0].clone()], &txs, &[], [0u8; 32])];
+        let mut progress_callback = |_report: ProgressReport| true;
         {
-            let memento = handle_blocks(&wallets[0], &mut states[0], &blocks, &txs)
-                .expect("handle block for wallet1");
+            let memento = handle_blocks(
+                &wallets[0],
+                &mut states[0],
+                &blocks,
+                &txs,
+                &mut progress_callback,
+            )
+            .expect("handle block for wallet1");
             states[0].apply_memento(&memento).expect("apply memento1");
         }
         {
-            let memento = handle_blocks(&wallets[1], &mut states[1], &blocks, &[])
-                .expect("handle block for wallet2");
+            let memento = handle_blocks(
+                &wallets[1],
+                &mut states[1],
+                &blocks,
+                &[],
+                &mut progress_callback,
+            )
+            .expect("handle block for wallet2");
             states[1].apply_memento(&memento).expect("apply memento2");
         }
         assert_eq!(states[0].transaction_history.len(), 1);
@@ -462,14 +490,26 @@ mod tests {
         let blocks = [block_header(&view_keys, &txs, &[], [0u8; 32])];
 
         {
-            let memento = handle_blocks(&wallets[0], &mut states[0], &blocks, &txs)
-                .expect("handle block for wallet1");
+            let memento = handle_blocks(
+                &wallets[0],
+                &mut states[0],
+                &blocks,
+                &txs,
+                &mut progress_callback,
+            )
+            .expect("handle block for wallet1");
             states[0].apply_memento(&memento).expect("apply memento1");
         }
 
         {
-            let memento = handle_blocks(&wallets[1], &mut states[1], &blocks, &txs)
-                .expect("handle block for wallet2");
+            let memento = handle_blocks(
+                &wallets[1],
+                &mut states[1],
+                &blocks,
+                &txs,
+                &mut progress_callback,
+            )
+            .expect("handle block for wallet2");
             states[1].apply_memento(&memento).expect("apply memento2");
         }
 

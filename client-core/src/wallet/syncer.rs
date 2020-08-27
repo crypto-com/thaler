@@ -433,8 +433,14 @@ impl<
         }
 
         let handle_blocks_time = std::time::Instant::now();
-        let memento = handle_blocks(&self.wallet, &mut self.wallet_state, &blocks, &enclave_txs)
-            .map_err(|err| Error::new(ErrorKind::InvalidInput, err.to_string()))?;
+        let memento = handle_blocks(
+            &self.wallet,
+            &mut self.wallet_state,
+            &blocks,
+            &enclave_txs,
+            &mut self.progress_callback,
+        )
+        .map_err(|err| Error::new(ErrorKind::InvalidInput, err.to_string()))?;
         log::debug!(
             "syncer handle_blocks time {} micro-seconds",
             handle_blocks_time.elapsed().as_micros()
@@ -525,9 +531,7 @@ impl<
             return Err(Error::new(ErrorKind::InvalidInput, "Cancelled by user"));
         }
 
-        self.sync_to(target_height, &target_app_hash, &target_block_hash)?;
-
-        Ok(())
+        self.sync_to(target_height, &target_app_hash, &target_block_hash)
     }
 
     fn sync_to(
@@ -537,6 +541,7 @@ impl<
         target_block_hash: &str,
     ) -> Result<()> {
         self.sync_state.trusted = false;
+        log::debug!("sync_to block {} ", target_height);
 
         // Send batch RPC requests to tendermint in chunks of `batch_size` requests per batch call
         for chunk in ((self.sync_state.last_block_height + 1)..=target_height)
@@ -568,6 +573,7 @@ impl<
             let blocks = self.env.client.block_batch(range.iter())?;
             let block_results = self.env.client.block_results_batch(range.iter())?;
             let states = self.env.client.query_state_batch(range.iter().cloned())?;
+            log::debug!("get {} blocks", blocks.len());
 
             for (block, block_result, state) in izip!(
                 blocks.into_iter(),
@@ -604,7 +610,7 @@ impl<
                 }
                 self.sync_state.last_block_hash = block.block_hash.clone();
 
-                self.update_progress(block.block_height);
+                log::debug!("fetching block {}", block.block_height);
                 batch.push(block);
             }
             if let Some(non_empty_batch) = NonEmpty::new(batch) {
