@@ -10,7 +10,7 @@ use aes_gcm_siv::Aes128GcmSiv;
 use chain_core::tx::TX_AUX_SIZE;
 use chain_tx_filter::BlockFilter;
 use chain_tx_validation::Error;
-use enclave_macro::{get_network_id, get_tdbe_mrenclave};
+use enclave_macro::get_network_id;
 use enclave_protocol::{IntraEnclaveRequest, IntraEnclaveResponse, IntraEnclaveResponseOk};
 use enclave_utils::tls::{create_ra_context, create_tls_client_stream};
 use parity_scale_codec::{Decode, Encode};
@@ -24,6 +24,7 @@ use std::sync::Arc;
 
 /// FIXME: genesis app hash etc.?
 pub const NETWORK_HEX_ID: u8 = get_network_id!();
+pub const TDBE_MRENCLAVE: &[u8; 32] = include_bytes!("tdbe.mrenclave");
 
 pub(crate) fn write_response<I: Write>(response: IntraEnclaveResponse, output: &mut I) {
     if let Err(e) = output.write_all(&response.encode()) {
@@ -35,7 +36,7 @@ fn get_tdbe_enclave_verifier() -> EnclaveCertVerifier {
     log::info!("Creating enclave certificate verifier for transaction data bootstrapping");
 
     let enclave_info =
-        EnclaveInfo::from_report_other_enclave(Report::for_self(), Some(get_tdbe_mrenclave!()));
+        EnclaveInfo::from_report_other_enclave(Report::for_self(), Some(*TDBE_MRENCLAVE));
     let verifier_config = EnclaveCertVerifierConfig::new_with_enclave_info(enclave_info);
     let verifier = EnclaveCertVerifier::new(verifier_config)
         .expect("Unable to create enclave certificate verifier");

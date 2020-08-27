@@ -15,6 +15,7 @@ use sgx_isa::Report;
 use thread_pool::ThreadPool;
 use webpki::DNSNameRef;
 
+use chain_core::init::config::LightGenesis;
 use chain_core::tx::data::TxId;
 use enclave_macro::mock_key;
 use enclave_protocol::{
@@ -28,6 +29,12 @@ use ra_enclave::{EnclaveRaConfig, EnclaveRaContext, DEFAULT_EXPIRATION_SECS};
 use tdbe_common::TdbeStartupConfig;
 
 const THREAD_POOL_SIZE: usize = 4;
+const LIGHT_GENESIS: &str = include_str!("light_genesis.json");
+
+/// returns the compiled in light client genesis trust basis
+pub fn get_light_genesis() -> LightGenesis {
+    serde_json::from_str(LIGHT_GENESIS).unwrap()
+}
 
 pub fn entry() -> std::io::Result<()> {
     // Initialize logger
