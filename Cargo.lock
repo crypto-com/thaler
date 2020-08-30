@@ -2140,9 +2140,9 @@ checksum = "5b141fdc7836c525d4d594027d318c84161ca17aaf8113ab1f81ab93ae897485"
 
 [[package]]
 name = "integer-encoding"
-version = "1.1.5"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4f4ebd0bd29be0f11973e9b3e219005661042a019fd757798c36a47c87852625"
+checksum = "11516fe96f0e4c4b6401ffca01a27b8522157b225dd17e5e4596b17b550a7ded"
 
 [[package]]
 name = "iovec"
@@ -2358,7 +2358,7 @@ checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
 [[package]]
 name = "ledger-apdu"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 
 [[package]]
 name = "ledger-crypto"
@@ -2380,7 +2380,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "byteorder",
  "futures 0.3.5",
@@ -2397,7 +2397,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport-hid"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -2414,7 +2414,7 @@ dependencies = [
 [[package]]
 name = "ledger-zondax-generic"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "ledger-apdu",
  "ledger-transport",
