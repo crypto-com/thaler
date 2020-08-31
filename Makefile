@@ -9,6 +9,7 @@ sgx_mode ?= HW
 build_mode ?= debug
 TX_QUERY_HOSTNAME ?=
 MAKE_CMD = make
+DEV_CONF ?= dev-utils/example-dev-conf.json
 
 
 ifeq ($(build_mode), release)
@@ -184,7 +185,7 @@ endif
 
 # build the chain binary in docker
 build-chain: build-sgx-query-validation-next
-	@if [ -e "./target/$(build_mode)/client-cli" -a -e "./target/$(build_mode)/chain-abci" -a -e "./target/$(build_mode)/client-rpc" -a -e "./target/$(build_mode)/dev-utils" ]; then \
+	@if [ -e "./target/$(build_mode)/client-cli" -a -e "./target/$(build_mode)/chain-abci" -a -e "./target/$(build_mode)/client-rpc" ]; then \
 		echo "\033[32mchain binary already exist or delete binary by 'make clean' to force new build for chain\033[0m"; \
 	else \
 		echo "\033[32mbuilding binary\033[0m"; \
@@ -201,8 +202,6 @@ build-chain: build-sgx-query-validation-next
 			export TQE_SIGSTRUCT=./target/$(build_mode)/tx-query2-enclave-app.sig && \
 			export TQE_MRENCLAVE=`od -A none -t x1 --read-bytes=32 -j 960 -w32 $$TQE_SIGSTRUCT | tr -d " "` && \
 			export MRSIGNER=`dd if=$$TQE_SIGSTRUCT bs=1 skip=128 count=384 status=none | sha256sum | cut -d" " -f1` && \
-			echo "========  build dev-utils   =========" && \
-			${CARGO_BUILD_CMD} --bin dev-utils && \
 			echo "========  build chain-abci   =========" && \
 			cd chain-abci && $(CARGO_BUILD_CMD_ABCI) && \
 			echo "========  build client-cli   =========" && \
@@ -215,7 +214,7 @@ build-chain: build-sgx-query-validation-next
 build-sgx-query-validation-next:
 	@if [ -e "./target/$(build_mode)/tx-query2-enclave-app.sig" -a -e "./target/$(build_mode)/tx-query2-enclave-app.sgxs" \
 	-a -e "./target/$(build_mode)/tx-validation-next.sig" -a -e "./target/${build_mode}/tx-validation-next.sgxs" \
-	-a -e "./target/$(build_mode)/ra-sp-server" ]; \
+	-a -e "./target/$(build_mode)/ra-sp-server" -a -e "./target/$(build_mode)/dev-utils" ]; \
 	then \
 		echo "\033[32msgx binary already exist or delete binary by 'make clean' to force new build for chain\033[0m"; \
 	else \
@@ -237,16 +236,22 @@ build-sgx-query-validation-next:
 			rustup target add x86_64-fortanix-unknown-sgx && \
 			echo "========  build tx-query2-enclave-app   =========" && \
 			$(CARGO_BUILD_CMD) --target=x86_64-fortanix-unknown-sgx -p tx-query2-enclave-app && \
-			echo "========  build ra-sp-server   =========" && \
-			$(CARGO_BUILD_CMD) -p ra-sp-server && \
-			echo "========  run ftxsgx-elf2sgxs   =========" && \
 			ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tx-query2-enclave-app --output ./target/$(build_mode)/tx-query2-enclave-app.sgxs --heap-size 0x2000000 --stack-size 0x80000 --threads 6 --debug && \
-			echo "========  run sgxs-sign tx-query2-enclave-app   =========" && \
 			sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tx-query2-enclave-app.sgxs ./target/$(build_mode)/tx-query2-enclave-app.sig -d --xfrm 7/0 --isvprodid $$(( 16#$(NETWORK_ID) )) --isvsvn 0 && \
-			echo "========  parse tx-query sig struct   =========" && \
 			export TQE_SIGSTRUCT=./target/$(build_mode)/tx-query2-enclave-app.sig && \
 			export TQE_MRENCLAVE=`od -A none -t x1 --read-bytes=32 -j 960 -w32 $$TQE_SIGSTRUCT | tr -d " "` && \
 			export MRSIGNER=`dd if=$$TQE_SIGSTRUCT bs=1 skip=128 count=384 status=none | sha256sum | cut -d" " -f1` && \
+			echo "========  build dev-utils   =========" && \
+			${CARGO_BUILD_CMD} --bin dev-utils && \
+			./target/$(build_mode)/dev-utils genesis light --genesis_dev_config_path $(DEV_CONF) > chain-tx-enclave-next/tdbe/enclave-app/src/light_genesis.json && \
+			echo "========  build tdb-enclave-app   =========" && \
+			$(CARGO_BUILD_CMD) --target x86_64-fortanix-unknown-sgx --package tdb-enclave-app && \
+			ftxsgx-elf2sgxs ./target/x86_64-fortanix-unknown-sgx/$(build_mode)/tdb-enclave-app --output ./target/$(build_mode)/tdb-enclave-app.sgxs --heap-size 0x2000000 --stack-size 0x80000 --threads 6 --debug && \
+			sgxs-sign --key ./sgx.pem ./target/$(build_mode)/tdb-enclave-app.sgxs ./target/$(build_mode)/tdb-enclave-app.sig -d --xfrm 7/0 --isvprodid $$(( 16#$(NETWORK_ID) )) --isvsvn 0 && \
+			export TDBE_SIGSTRUCT=./target/$(build_mode)/tdb-enclave-app.sig && \
+			dd if=$$TDBE_SIGSTRUCT bs=960 skip=1 | dd bs=32 count=1 > ./chain-tx-enclave-next/tx-validation-next/src/tdbe.mrenclave && \
+			echo "========  build ra-sp-server   =========" && \
+			$(CARGO_BUILD_CMD) -p ra-sp-server && \
 			echo "========  build tx-validation-next   =========" && \
 			$(CARGO_BUILD_CMD) --target x86_64-fortanix-unknown-sgx -p tx-validation-next && \
 			echo "========  run ftxsgx-elf2sgxs   =========" && \

@@ -26,6 +26,8 @@ COPY ./target/${BUILD_MODE}/tx-query2-enclave-app.sig /usr/local/bin
 COPY ./target/${BUILD_MODE}/tx-query2-enclave-app.sgxs /usr/local/bin
 COPY ./target/${BUILD_MODE}/tx-validation-next.sig /usr/local/bin
 COPY ./target/${BUILD_MODE}/tx-validation-next.sgxs /usr/local/bin
+COPY ./target/${BUILD_MODE}/tdb-enclave-app.sig /usr/local/bin
+COPY ./target/${BUILD_MODE}/tdb-enclave-app.sgxs /usr/local/bin
 COPY ./target/${BUILD_MODE}/ra-sp-server /usr/local/bin
 # copy scripts
 COPY ./docker/wait-for-it.sh /usr/local/bin
