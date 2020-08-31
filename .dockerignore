@@ -26,6 +26,8 @@
 !/target/debug/tx-query2-enclave-app.sgxs
 !/target/debug/tx-validation-next.sig
 !/target/debug/tx-validation-next.sgxs
+!/target/debug/tdb-enclave-app.sig
+!/target/debug/tdb-enclave-app.sgxs
 !/target/debug/ra-sp-server
 !/target/release/client-cli
 !/target/release/chain-abci
@@ -35,6 +37,8 @@
 !/target/release/tx-query2-enclave-app.sgxs
 !/target/release/tx-validation-next.sig
 !/target/release/tx-validation-next.sgxs
+!/target/release/tdb-enclave-app.sig
+!/target/release/tdb-enclave-app.sgxs
 !/target/release/ra-sp-server
 !/target/release/tx_query_enclave.signed.so
 !/target/release/tx-validation-app
