@@ -534,6 +534,17 @@ impl<
         self.sync_to(target_height, &target_app_hash, &target_block_hash)
     }
 
+    fn get_block_data_tuple_for_sync(
+        &mut self,
+        range: &[u64],
+    ) -> Result<(Vec<Block>, Vec<BlockResultsResponse>, Vec<ChainState>)> {
+        let blocks = self.env.client.block_batch(range.iter())?;
+        let block_results = self.env.client.block_results_batch(range.iter())?;
+        let states = self.env.client.query_state_batch(range.iter().cloned())?;
+        Ok((blocks, block_results, states)) // return tuple
+    }
+
+    // recursively sync until all synced
     fn sync_to(
         &mut self,
         target_height: u64,
@@ -570,10 +581,44 @@ impl<
             }
 
             // Fetch batch details if it cannot be fast forwarded
-            let blocks = self.env.client.block_batch(range.iter())?;
-            let block_results = self.env.client.block_results_batch(range.iter())?;
-            let states = self.env.client.query_state_batch(range.iter().cloned())?;
-            log::debug!("get {} blocks", blocks.len());
+            let mut blocks: Vec<Block> = vec![];
+            let mut block_results: Vec<BlockResultsResponse> = vec![];
+            let mut states: Vec<ChainState> = vec![];
+            // if any error occurs, do it again
+            let mut succeed = false;
+            for _ in 0..12 {
+                let block_data_tuple = self.get_block_data_tuple_for_sync(&range);
+                if let Ok((tmp_blocks, tmp_block_results, tmp_states)) = block_data_tuple.as_ref() {
+                    blocks = tmp_blocks.to_vec();
+                    block_results = tmp_block_results.to_vec();
+                    states = tmp_states.to_vec();
+                    if blocks.len() == block_results.len() && block_results.len() == states.len() {
+                        assert!(blocks.len() == block_results.len());
+                        assert!(block_results.len() == states.len());
+                        log::debug!(
+                            "correct data blocks  {}  block_results {}  states {}",
+                            tmp_blocks.len(),
+                            tmp_block_results.len(),
+                            tmp_states.len()
+                        );
+                        succeed = true;
+                        break;
+                    } else {
+                        log::info!(
+                            "incorrect data blocks  {}  block_results {}  states {}",
+                            tmp_blocks.len(),
+                            tmp_block_results.len(),
+                            tmp_states.len()
+                        );
+                    }
+                }
+                log::info!("retry fetching block-data");
+                std::thread::sleep(std::time::Duration::from_secs(5));
+            }
+            // succeed?
+            if !succeed {
+                return Err(Error::new(ErrorKind::IoError, "sync fetch-block failed"));
+            }
 
             for (block, block_result, state) in izip!(
                 blocks.into_iter(),
