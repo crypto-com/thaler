@@ -2115,9 +2115,9 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
-version = "1.5.1"
+version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86b45e59b16c76b11bf9738fd5d38879d3bd28ad292d7b313608becb17ae2df9"
+checksum = "4e47a3566dd4fd4eec714ae6ceabdee0caec795be835c223d92c2d40f1e8cf1c"
 dependencies = [
  "autocfg 1.0.0",
  "hashbrown",
@@ -2358,7 +2358,7 @@ checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
 [[package]]
 name = "ledger-apdu"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 
 [[package]]
 name = "ledger-crypto"
@@ -2380,7 +2380,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "byteorder",
  "futures 0.3.5",
@@ -2397,7 +2397,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport-hid"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -2414,7 +2414,7 @@ dependencies = [
 [[package]]
 name = "ledger-zondax-generic"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "ledger-apdu",
  "ledger-transport",
