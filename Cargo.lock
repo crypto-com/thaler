@@ -9,7 +9,7 @@ dependencies = [
  "bytes 0.5.4",
  "env_logger",
  "futures 0.3.5",
- "integer-encoding",
+ "integer-encoding 1.1.5",
  "log",
  "protobuf",
  "protobuf-codegen-pure",
@@ -549,7 +549,7 @@ dependencies = [
  "enclave-runner",
  "env_logger",
  "hex",
- "integer-encoding",
+ "integer-encoding 2.0.0",
  "kvdb",
  "kvdb-memorydb",
  "log",
@@ -611,7 +611,7 @@ dependencies = [
  "blake3",
  "chain-core",
  "criterion",
- "integer-encoding",
+ "integer-encoding 2.0.0",
  "jellyfish-merkle",
  "kvdb",
  "kvdb-memorydb",
@@ -2145,6 +2145,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4f4ebd0bd29be0f11973e9b3e219005661042a019fd757798c36a47c87852625"
 
 [[package]]
+name = "integer-encoding"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "48a5266747b89ff3d6b402ae42773957e020d16cb4879ca1d9984cd594c212a6"
+
+[[package]]
 name = "iovec"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2358,7 +2364,7 @@ checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
 [[package]]
 name = "ledger-apdu"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 
 [[package]]
 name = "ledger-crypto"
@@ -2380,7 +2386,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "byteorder",
  "futures 0.3.5",
@@ -2397,7 +2403,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport-hid"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -2414,7 +2420,7 @@ dependencies = [
 [[package]]
 name = "ledger-zondax-generic"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs?branch=master#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
 dependencies = [
  "ledger-apdu",
  "ledger-transport",
