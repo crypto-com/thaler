@@ -2,7 +2,7 @@ use std::convert::TryInto;
 
 use secrecy::Secret;
 
-use crate::ciphersuite::{CipherSuite, DefaultCipherSuite, Kex, NodeSecret, PublicKey};
+use crate::ciphersuite::{CipherSuite, DefaultCipherSuite, Kex, PublicKey, SecretValue};
 use crate::crypto::decrypt_with_context;
 use crate::key::{gen_keypair, HPKEPrivateKey, HPKEPublicKey};
 use crate::message::HPKECiphertext;
@@ -49,7 +49,7 @@ impl NackDleqProof {
         receipient_pk: &HPKEPublicKey<CS>,
         ct: &HPKECiphertext<CS>,
         aad: &[u8],
-    ) -> Result<Secret<NodeSecret<CS>>, ()> {
+    ) -> Result<Secret<SecretValue<CS>>, ()> {
         let encapped_key = EncappedKey::<Kex<CS>>::from_bytes(&ct.kem_output).map_err(|_| ())?;
         let shared_secret = hpke::kem::decap_external::<CS::Kem>(
             &self.dh[..],
