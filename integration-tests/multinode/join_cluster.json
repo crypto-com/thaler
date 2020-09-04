@@ -45,18 +45,12 @@
             "op": "replace",
             "path": "/initial_fee_policy/per_byte_fee",
             "value": "1.25"
-        }
-    ],
-    "tendermint_config_patch": [
-        {
-            "op": "replace",
-            "path": "/consensus/create_empty_blocks",
-            "value": true
         },
         {
-            "op": "add",
-            "path": "/consensus/create_empty_blocks_interval",
-            "value": "0s"
+            "op": "replace",
+            "path": "/evidence/max_age_duration",
+            "value":  "18000000000"
         }
-    ]
+    ],
+    "tendermint_config_patch": []
 }

@@ -5,6 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use core::cmp::Ordering;
+use itertools::Itertools;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
@@ -188,6 +189,12 @@ impl StakingTable {
                     .idx_validator_address
                     .insert(val.validator_address(), *addr)
                     .is_none());
+                for (val_addr, _) in val.used_validator_addresses.iter() {
+                    assert!(self
+                        .idx_validator_address
+                        .insert(val_addr.clone(), *addr)
+                        .is_none());
+                }
             } else {
                 // no panic: Invariant 2.4
                 unreachable!("only council node addresses stored in internal indicies");
@@ -472,6 +479,7 @@ impl StakingTable {
         let to_delete = self
             .idx_validator_address
             .values()
+            .unique()
             .filter_map(|addr| {
                 let staking = heap.get(addr).unwrap();
                 if let Some(NodeState::CouncilNode(val)) = &staking.node_meta {
