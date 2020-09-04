@@ -7,6 +7,15 @@
 ### Improvements
 ### Bug Fixes
 
+*September 4, 2020*
+
+This release contains a hotfix for the network halt issue in chain-abci.
+
+## V0.5.4
+### Bug Fixes
+
+- *chain-abci* [2204](https://github.com/crypto-com/chain/pull/2204): deduplicate staking address when doing cleanup and index used_validator_addresses when initialize after load from storage
+
 *May 20, 2020*
 
 This release contains a hotfix for client-cli deposit transaction issue.

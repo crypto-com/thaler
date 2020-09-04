@@ -1,6 +1,6 @@
 [package]
 name = "chain-abci"
-version = "0.5.1"
+version = "0.5.4"
 authors = ["Crypto.com <chain@crypto.com>"]
 description = "Pre-alpha version prototype of Crypto.com Chain node (Tendermint ABCI application)"
 readme = "README.md"
@@ -34,6 +34,7 @@ structopt = "0.3"
 secp256k1zkp = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "f8759809f6e3fed793b37166f7cd91c57cdb2eab", features = ["recovery", "endomorphism"] }
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 thiserror = "1.0"
+itertools = "0.9"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 enclave-u-common = { path = "../chain-tx-enclave/enclave-u-common" }
