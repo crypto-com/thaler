@@ -550,6 +550,7 @@ dependencies = [
  "env_logger",
  "hex",
  "integer-encoding 2.0.0",
+ "itertools 0.9.0",
  "kvdb",
  "kvdb-memorydb",
  "log",

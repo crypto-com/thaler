@@ -362,7 +362,7 @@ async def fix_genesis(genesis, cfg):
             json.dump(cfg, fp_cfg)
             fp_cfg.flush()
             await run(
-                f'dev-utils genesis generate --in_place --no_backup --no_genesistime_overwrite --no_evidence_overwrite '
+                f'dev-utils genesis generate --in_place --no_backup --no_genesistime_overwrite '
                 f'--genesis_dev_config_path "{fp_cfg.name}" '
                 f'--tendermint_genesis_path "{fp_genesis.name}"'
             )
