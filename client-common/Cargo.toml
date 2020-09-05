@@ -24,7 +24,7 @@ chrono = { version = "0.4", features = ["serde"] }
 futures-util = { version = "0.3", optional = true }
 gcd = "2.0"
 hex = "0.4"
-indexmap = "1.5"
+indexmap = "1.6"
 itertools = "0.9"
 num-bigint = "0.2.5"
 log = "0.4.11"

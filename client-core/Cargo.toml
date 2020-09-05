@@ -40,7 +40,7 @@ tendermint = "0.15"
 tendermint-light-client = "0.15"
 thiserror = { version = "1.0", default-features = false }
 zxcvbn = "2.0"
-indexmap = "1.5"
+indexmap = "1.6"
 sled = "0.33.0"
 zx-bip44 = { git = "https://github.com/Zondax/blockchain-tools-rs" }
 ledger-transport-hid = { git = "https://github.com/Zondax/ledger-rs", branch="master" }
