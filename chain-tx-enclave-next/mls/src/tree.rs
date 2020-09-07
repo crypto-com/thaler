@@ -7,14 +7,14 @@ use ra_client::AttestedCertVerifier;
 use secrecy::{ExposeSecret, Secret};
 use subtle::ConstantTimeEq;
 
-use crate::ciphersuite::{CipherSuite, HashValue, NodeSecret};
+use crate::ciphersuite::{CipherSuite, HashValue, SecretValue};
 use crate::crypto::{decrypt_path_secret, encrypt_path_secret};
 use crate::error::{CommitError, ProcessWelcomeError, TreeIntegrityError};
 use crate::extensions as ext;
 use crate::extensions::{ExtensionType, MLSExtension};
 use crate::key::{derive_keypair, HPKEPrivateKey, HPKEPublicKey};
 use crate::keypackage::{KeyPackage, Timespec};
-use crate::message::{Add, DirectPathNode, ProposalId, Remove, Update};
+use crate::message::{Add, ProposalId, Remove, Update, UpdatePathNode};
 use crate::tree_math::{LeafSize, NodeSize, NodeType, ParentSize};
 use crate::utils;
 use crate::utils::{decode_option, encode_option, encode_vec_u32, read_vec_u32};
@@ -89,11 +89,11 @@ impl<CS: CipherSuite> Codec for Node<CS> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         match self {
             Node::Leaf(kp) => {
-                0u8.encode(bytes);
+                1u8.encode(bytes);
                 kp.encode(bytes);
             }
             Node::Parent(pn) => {
-                1u8.encode(bytes);
+                2u8.encode(bytes);
                 pn.encode(bytes);
             }
         }
@@ -102,8 +102,8 @@ impl<CS: CipherSuite> Codec for Node<CS> {
     fn read(r: &mut Reader) -> Option<Self> {
         let tag = u8::read(r)?;
         match tag {
-            0 => Some(Node::Leaf(KeyPackage::read(r)?)),
-            1 => Some(Node::Parent(ParentNode::read(r)?)),
+            1 => Some(Node::Leaf(KeyPackage::read(r)?)),
+            2 => Some(Node::Parent(ParentNode::read(r)?)),
             _ => None,
         }
     }
@@ -481,7 +481,7 @@ impl<CS: CipherSuite> TreePublicKey<CS> {
         &mut self,
         ctx: &[u8],
         my_pos: LeafSize,
-        leaf_secret: &Secret<NodeSecret<CS>>,
+        leaf_secret: &Secret<SecretValue<CS>>,
     ) -> Result<TreeEvolveResult<CS>, CommitError> {
         let tree_secret = TreeSecret::new(my_pos.into(), self.leaf_len(), &leaf_secret)?;
         let leaf_len = self.leaf_len();
@@ -513,9 +513,9 @@ impl<CS: CipherSuite> TreePublicKey<CS> {
                 .collect::<Result<Vec<_>, _>>()?;
 
             // derive keypair for parent
-            let (_, public_key) = derive_keypair(secret.expose_secret().as_ref());
+            let (_, public_key) = derive_keypair(secret.expose_secret());
 
-            path_nodes.push(DirectPathNode {
+            path_nodes.push(UpdatePathNode {
                 public_key: public_key.clone(),
                 encrypted_path_secret,
             });
@@ -538,13 +538,13 @@ impl<CS: CipherSuite> TreePublicKey<CS> {
         })
     }
 
-    /// merge parent node public keys from `DirectPath`
+    /// merge parent node public keys from `UpdatePath`
     ///
     /// Returns None if there's no non-empty parent nodes in the path.
     pub fn merge(
         &mut self,
         sender: LeafSize,
-        path_nodes: &[DirectPathNode<CS>],
+        path_nodes: &[UpdatePathNode<CS>],
     ) -> Option<HashValue<CS>> {
         let leaf_len = self.leaf_len();
         let from = NodeSize::from(sender);
@@ -599,11 +599,11 @@ impl<CS: CipherSuite> TreePublicKey<CS> {
     /// Verify the secret match the public key in the parent node
     pub(crate) fn verify_node_private_key(
         &self,
-        secret: &Secret<NodeSecret<CS>>,
+        path_secret: &SecretValue<CS>,
         pos: ParentSize,
     ) -> Result<(), ()> {
         if let Some(node) = self.get_parent_node(pos) {
-            let (_, public_key) = derive_keypair::<CS>(secret.expose_secret().as_ref());
+            let (_, public_key) = derive_keypair::<CS>(path_secret);
             if bool::from(public_key.marshal().ct_eq(&node.public_key.marshal())) {
                 return Ok(());
             }
@@ -652,7 +652,7 @@ impl<CS: CipherSuite> TreePublicKey<CS> {
 
 /// Return type of `TreePublicKey::evolve`.
 pub struct TreeEvolveResult<CS: CipherSuite> {
-    pub path_nodes: Vec<DirectPathNode<CS>>,
+    pub path_nodes: Vec<UpdatePathNode<CS>>,
     pub leaf_parent_hash: Option<HashValue<CS>>,
     pub tree_secret: TreeSecret<CS>,
 }
@@ -677,9 +677,9 @@ pub struct TreeEvolveResult<CS: CipherSuite> {
 /// The `update_secret` is derived from the secret of the root node.
 pub struct TreeSecret<CS: CipherSuite> {
     /// Not including leaf private key
-    pub path_secrets: Vec<Secret<NodeSecret<CS>>>,
+    pub path_secrets: Vec<Secret<SecretValue<CS>>>,
     /// The commit secret
-    pub update_secret: Secret<NodeSecret<CS>>,
+    pub update_secret: Secret<SecretValue<CS>>,
 }
 
 impl<CS: CipherSuite> Default for TreeSecret<CS> {
@@ -695,18 +695,21 @@ impl<CS: CipherSuite> TreeSecret<CS> {
     pub fn new(
         start: NodeSize,
         leaf_len: LeafSize,
-        secret: &Secret<NodeSecret<CS>>,
+        secret: &Secret<SecretValue<CS>>,
     ) -> Result<Self, hkdf::InvalidLength> {
         let mut path_secrets = vec![];
         for _ in start.direct_path(leaf_len).iter() {
             // path secret for parent
-            path_secrets.push(CS::derive_path_secret(
+            path_secrets.push(CS::derive_secret(
                 path_secrets.last().unwrap_or(secret).expose_secret(),
+                "path",
             ));
         }
 
-        let update_secret =
-            CS::derive_path_secret(&path_secrets.last().unwrap_or(secret).expose_secret());
+        let update_secret = CS::derive_secret(
+            &path_secrets.last().unwrap_or(secret).expose_secret(),
+            "path",
+        );
 
         Ok(Self {
             path_secrets,
@@ -725,9 +728,9 @@ impl<CS: CipherSuite> TreeSecret<CS> {
         my_pos: LeafSize,
         tree: &TreePublicKey<CS>,
         ctx: &[u8],
-        path_nodes: &[DirectPathNode<CS>],
-        leaf_private_key: &HPKEPrivateKey<CS>,
-    ) -> Result<Option<NodeSecretWithPos<CS>>, CommitError> {
+        path_nodes: &[UpdatePathNode<CS>],
+        leaf_secret: &SecretValue<CS>,
+    ) -> Result<Option<SecretValueWithPos<CS>>, CommitError> {
         let leaf_len = tree.leaf_len();
         let ancestor = ParentSize::common_ancestor(sender, my_pos);
         match ancestor {
@@ -735,10 +738,7 @@ impl<CS: CipherSuite> TreeSecret<CS> {
                 // `sender` and `my_pos` are the same leaf node
                 let node_index = NodeSize::from(sender);
                 match node_index.parent(leaf_len) {
-                    Some(node) => Ok(Some((
-                        node,
-                        CS::derive_path_secret(leaf_private_key.marshal().expose_secret()),
-                    ))),
+                    Some(node) => Ok(Some((node, CS::derive_secret(leaf_secret, "path")))),
                     None => Ok(None),
                 }
             }
@@ -760,11 +760,14 @@ impl<CS: CipherSuite> TreeSecret<CS> {
                 // move one level down from ancestor to get to the node the secret encrypted to,
                 // `None` means it's leaf node under the ancestor.
                 let secret = match pos.checked_sub(1) {
-                    None => decrypt_path_secret(
-                        &leaf_private_key,
-                        ctx,
-                        &path_node.encrypted_path_secret[0],
-                    )?,
+                    None => {
+                        let (leaf_private_key, _) = derive_keypair(leaf_secret);
+                        decrypt_path_secret(
+                            &leaf_private_key,
+                            ctx,
+                            &path_node.encrypted_path_secret[0],
+                        )?
+                    }
                     Some(pos) => decrypt_path_secret(
                         &HPKEPrivateKey::unmarshal(
                             self.path_secrets[pos].expose_secret().as_ref(),
@@ -790,13 +793,13 @@ impl<CS: CipherSuite> TreeSecret<CS> {
         my_pos: LeafSize,
         tree: &TreePublicKey<CS>,
         ctx: &[u8],
-        path_nodes: &[DirectPathNode<CS>],
-        leaf_private_key: &HPKEPrivateKey<CS>,
+        path_nodes: &[UpdatePathNode<CS>],
+        leaf_secret: &SecretValue<CS>,
     ) -> Result<TreeSecretDiff<CS>, CommitError> {
         let leaf_len = tree.leaf_len();
         // Find overlap and decrypt the path secret
         if let Some((overlap, overlap_secret)) =
-            self.decrypt_path_secrets(sender, my_pos, tree, ctx, path_nodes, leaf_private_key)?
+            self.decrypt_path_secrets(sender, my_pos, tree, ctx, path_nodes, leaf_secret)?
         {
             let diff = self.apply_overlap_secret(my_pos, tree, overlap, overlap_secret)?;
 
@@ -807,13 +810,13 @@ impl<CS: CipherSuite> TreeSecret<CS> {
                 .iter()
                 .zip(iter::once(&overlap).chain(overlap_path.iter()))
             {
-                tree.verify_node_private_key(secret, parent)
+                tree.verify_node_private_key(secret.expose_secret(), parent)
                     .map_err(|_| CommitError::PathSecretPublicKeyDontMatch)?;
             }
 
             Ok(diff)
         } else {
-            let update_secret = CS::derive_path_secret(leaf_private_key.marshal().expose_secret());
+            let update_secret = CS::derive_secret(leaf_secret, "path");
             Ok(TreeSecretDiff {
                 overlap_pos: None,
                 path_secrets: vec![],
@@ -826,7 +829,7 @@ impl<CS: CipherSuite> TreeSecret<CS> {
         &mut self,
         sender: LeafSize,
         my_pos: LeafSize,
-        secret: Secret<NodeSecret<CS>>,
+        secret: Secret<SecretValue<CS>>,
         tree: &TreePublicKey<CS>,
     ) -> Result<(), ProcessWelcomeError> {
         let leaf_len = tree.leaf_len();
@@ -841,7 +844,7 @@ impl<CS: CipherSuite> TreeSecret<CS> {
             .iter()
             .zip(iter::once(&overlap).chain(overlap_path.iter()))
         {
-            tree.verify_node_private_key(secret, parent)
+            tree.verify_node_private_key(secret.expose_secret(), parent)
                 .map_err(|_| ProcessWelcomeError::PathSecretPublicKeyDontMatch)?;
         }
 
@@ -855,7 +858,7 @@ impl<CS: CipherSuite> TreeSecret<CS> {
         my_pos: LeafSize,
         tree: &TreePublicKey<CS>,
         overlap: ParentSize,
-        overlap_secret: Secret<NodeSecret<CS>>,
+        overlap_secret: Secret<SecretValue<CS>>,
     ) -> Result<TreeSecretDiff<CS>, hkdf::InvalidLength> {
         let leaf_len = tree.leaf_len();
         let direct_path = NodeSize::from(my_pos).direct_path(leaf_len);
@@ -872,13 +875,16 @@ impl<CS: CipherSuite> TreeSecret<CS> {
         // the path secrets above(including) the overlap node
         let mut path_secrets = NonEmpty::from(overlap_secret);
         for _ in overlap_path.iter() {
-            path_secrets.push(CS::derive_path_secret(path_secrets.last().expose_secret()));
+            path_secrets.push(CS::derive_secret(
+                path_secrets.last().expose_secret(),
+                "path",
+            ));
         }
         assert_eq!(overlap_pos + path_secrets.len().get(), direct_path.len());
 
         // Define `commit_secret` as the value `path_secret[n+1]` derived from the
         // `path_secret[n]` value assigned to the root node.
-        let update_secret = CS::derive_path_secret(path_secrets.last().expose_secret());
+        let update_secret = CS::derive_secret(path_secrets.last().expose_secret(), "path");
 
         Ok(TreeSecretDiff {
             overlap_pos: Some(overlap_pos),
@@ -897,7 +903,7 @@ impl<CS: CipherSuite> TreeSecret<CS> {
 }
 
 /// returned by decrypt_path_secrets
-pub type NodeSecretWithPos<CS> = (ParentSize, Secret<NodeSecret<CS>>);
+pub type SecretValueWithPos<CS> = (ParentSize, Secret<SecretValue<CS>>);
 
 /// Represent the diff needs to be applied later to `TreeSecret`
 pub struct TreeSecretDiff<CS: CipherSuite> {
@@ -906,8 +912,8 @@ pub struct TreeSecretDiff<CS: CipherSuite> {
     /// None means no common ancestor
     pub overlap_pos: Option<usize>,
     /// the path secrets from(including) overlap_pos to root
-    pub path_secrets: Vec<Secret<NodeSecret<CS>>>,
-    pub update_secret: Secret<NodeSecret<CS>>,
+    pub path_secrets: Vec<Secret<SecretValue<CS>>>,
+    pub update_secret: Secret<SecretValue<CS>>,
 }
 
 /// draft-ietf-mls-protocol.md#tree-hashes

@@ -8,25 +8,28 @@ use once_cell::sync::Lazy;
 use ra_client::{AttestedCertVerifier, CertVerifyResult};
 #[cfg(target_env = "sgx")]
 use ra_enclave::{Certificate, EnclaveRaContext, EnclaveRaContextError};
+use secrecy::{ExposeSecret, Secret};
 use subtle::ConstantTimeEq;
 #[cfg(target_env = "sgx")]
 use x509_parser::{error::X509Error, parse_x509_der, x509};
 
-use crate::ciphersuite::{CipherSuite, CipherSuiteTag, DefaultCipherSuite};
+use crate::ciphersuite::{
+    CipherSuite, CipherSuiteTag, DefaultCipherSuite, GenericSecret, SecretValue,
+};
 use crate::credential::Credential;
 use crate::error::{FindExtensionError, KeyPackageError as Error};
 use crate::extensions::{self as ext, ExtensionType, MLSExtension};
 use crate::key::{
-    gen_keypair, HPKEPrivateKey, HPKEPublicKey, IdentityPrivateKey, IdentityPublicKey,
+    derive_keypair, HPKEPrivateKey, HPKEPublicKey, IdentityPrivateKey, IdentityPublicKey,
 };
 use crate::utils;
-use crate::{codec, Codec, Reader};
+use crate::{Codec, Reader};
 use core::cmp::Ordering;
 
 pub type ProtocolVersion = u8;
 pub type Timespec = u64;
 
-pub const PROTOCOL_VERSION_MLS10: ProtocolVersion = 0;
+pub const PROTOCOL_VERSION_MLS10: ProtocolVersion = 1;
 pub const DEFAULT_LIFE_TIME: Timespec = 90 * 24 * 3600; // certificate has 90 days valid duration
 pub const CREDENTIAL_TYPE_X509: u8 = 1;
 pub static DEFAULT_CAPABILITIES_EXT: Lazy<ext::CapabilitiesExt> =
@@ -69,7 +72,7 @@ impl<CS: CipherSuite> Codec for KeyPackagePayload<CS> {
         self.cipher_suite.encode(bytes);
         self.init_key.encode(bytes);
         self.credential.encode(bytes);
-        codec::encode_vec_u16(bytes, &self.extensions);
+        utils::encode_vec_u32(bytes, &self.extensions);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
@@ -77,7 +80,7 @@ impl<CS: CipherSuite> Codec for KeyPackagePayload<CS> {
         let cipher_suite = CipherSuiteTag::read(r)?;
         let init_key = HPKEPublicKey::read(r)?;
         let credential = Credential::read(r)?;
-        let extensions = codec::read_vec_u16(r)?;
+        let extensions = utils::read_vec_u32(r)?;
         Some(Self {
             version,
             cipher_suite,
@@ -258,16 +261,27 @@ impl<CS: CipherSuite> KeyPackage<CS> {
     }
 
     /// re-generate init key
-    pub fn update_init_key(&mut self) -> HPKEPrivateKey<CS> {
-        let (hpke_secret, hpke_public) = gen_keypair();
+    pub fn update_init_key(&mut self) -> Secret<SecretValue<CS>> {
+        let leaf_secret = Secret::new(GenericSecret::gen());
+        let (_, hpke_public) = derive_keypair(leaf_secret.expose_secret());
         self.payload.init_key = hpke_public;
-        hpke_secret
+        leaf_secret
     }
 }
 
 pub struct KeyPackageSecret<CS: CipherSuite> {
     pub credential_private_key: IdentityPrivateKey,
-    pub init_private_key: HPKEPrivateKey<CS>,
+    pub leaf_secret: Secret<SecretValue<CS>>,
+}
+
+impl<CS: CipherSuite> KeyPackageSecret<CS> {
+    pub fn init_private_key(&self) -> HPKEPrivateKey<CS> {
+        derive_keypair(self.leaf_secret.expose_secret()).0
+    }
+
+    pub fn path_secret(&self) -> Secret<SecretValue<CS>> {
+        CS::derive_secret(self.leaf_secret.expose_secret(), "path")
+    }
 }
 
 #[cfg(target_env = "sgx")]
@@ -308,7 +322,8 @@ impl<CS: CipherSuite> KeyPackageSecret<CS> {
         ];
 
         let credential_private_key = IdentityPrivateKey::from_pkcs8(&private_key.0)?;
-        let (init_private_key, init_key) = gen_keypair();
+        let leaf_secret = Secret::new(GenericSecret::gen());
+        let (_, init_key) = derive_keypair(leaf_secret.expose_secret());
         let payload = KeyPackagePayload {
             version: PROTOCOL_VERSION_MLS10,
             cipher_suite: CS::tag(),
@@ -323,7 +338,7 @@ impl<CS: CipherSuite> KeyPackageSecret<CS> {
         Ok((
             Self {
                 credential_private_key,
-                init_private_key,
+                leaf_secret,
             },
             KeyPackage { payload, signature },
         ))
@@ -339,9 +354,7 @@ impl<CS: CipherSuite> KeyPackageSecret<CS> {
 
     /// re-generate init key
     pub fn update_init_key(&mut self, keypackage: &mut KeyPackage<CS>) {
-        let (hpke_secret, hpke_public) = gen_keypair();
-        keypackage.payload.init_key = hpke_public;
-        self.init_private_key = hpke_secret;
+        self.leaf_secret = keypackage.update_init_key();
     }
 
     /// Verify key package secret and keypackage
@@ -353,7 +366,7 @@ impl<CS: CipherSuite> KeyPackageSecret<CS> {
     ) -> Result<CertVerifyResult, Error> {
         verify_keypackage_and_secrets(
             kp,
-            &self.init_private_key,
+            self.leaf_secret.expose_secret(),
             &self.credential_private_key,
             ra_verifier,
             now,
@@ -364,19 +377,15 @@ impl<CS: CipherSuite> KeyPackageSecret<CS> {
 /// Verify key package secret and keypackage
 pub fn verify_keypackage_and_secrets<CS: CipherSuite>(
     kp: &KeyPackage<CS>,
-    init_private_key: &HPKEPrivateKey<CS>,
+    leaf_secret: &SecretValue<CS>,
     credential_private_key: &IdentityPrivateKey,
     ra_verifier: &impl AttestedCertVerifier,
     now: Timespec,
 ) -> Result<CertVerifyResult, Error> {
     let info = kp.verify(ra_verifier, now)?;
+    let (_, public_key) = derive_keypair::<CS>(leaf_secret);
     // verify init public key and private key match
-    if !bool::from(
-        kp.payload
-            .init_key
-            .marshal()
-            .ct_eq(&init_private_key.public_key().marshal()),
-    ) {
+    if !bool::from(kp.payload.init_key.marshal().ct_eq(&public_key.marshal())) {
         return Err(Error::KeypackageSecretDontMatch);
     }
     // verify signature public key and private key match

@@ -19,10 +19,12 @@ fn verify_keypackage_test_vector_mock() {
 
 #[test]
 fn verify_keypackage_test_vector() {
+    // keypackage.bin is generated with not_before=0
+    // after re-gen keypackage.bin, update the value of now to current timestamp
+    let now = 1599383142;
     static VECTOR: &[u8] = include_bytes!("test_vectors/keypackage.bin");
 
     let kp = KeyPackage::<DefaultCipherSuite>::read_bytes(VECTOR).expect("decode");
-    let now = 1596448111;
     let expire = now + DEFAULT_LIFE_TIME;
     kp.verify(&*ENCLAVE_CERT_VERIFIER, now).unwrap();
     assert!(matches!(

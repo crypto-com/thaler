@@ -3,8 +3,8 @@ use std::fmt::Debug;
 
 use aead::{Aead, NewAead};
 use generic_array::{typenum::Unsigned, ArrayLength, GenericArray};
-use secrecy::ExposeSecret;
-use secrecy::{CloneableSecret, Secret};
+use rand::{thread_rng, RngCore};
+use secrecy::{CloneableSecret, ExposeSecret, Secret};
 use sha2::digest::{FixedOutput, Update};
 use static_assertions::const_assert;
 use subtle::{Choice, ConstantTimeEq};
@@ -63,16 +63,6 @@ pub trait CipherSuite: Debug + Clone + Default + Sized {
         HashValue(hasher.finalize_fixed())
     }
 
-    /// spec: draft-ietf-mls-protocol.md#ratchet-tree-evolve
-    /// extract and expand
-    fn derive_path_secret(secret: &NodeSecret<Self>) -> Secret<NodeSecret<Self>> {
-        // extract
-        let hkdf = Hkdf::<Self>::new(None, secret.as_ref());
-        let mut okm = NodeSecret::<Self>::default();
-        expand_with_label::<Self>(&hkdf, "path", okm.as_mut()).expect("invariant asserted");
-        Secret::new(okm)
-    }
-
     /// spec: draft-ietf-mls-protocol.md#key-schedule
     fn extract(salt: Option<&[u8]>, ikm: &[u8]) -> GenericArray<u8, HashSize<Self>> {
         let (prk, _) = Hkdf::<Self>::extract(salt, ikm);
@@ -80,13 +70,13 @@ pub trait CipherSuite: Debug + Clone + Default + Sized {
     }
 
     /// spec: draft-ietf-mls-protocol.md#key-schedule
-    fn extract_group_secret(salt: Option<&[u8]>, ikm: &[u8]) -> Secret<KeySecret<Self>> {
-        Secret::new(SecretValue(Self::extract(salt, ikm)))
+    fn extract_secret(salt: Option<&[u8]>, ikm: &[u8]) -> Secret<SecretValue<Self>> {
+        Secret::new(GenericSecret(Self::extract(salt, ikm)))
     }
 
     /// spec: draft-ietf-mls-protocol.md#key-schedule
-    fn derive_group_secret(prk: &KeySecret<Self>, label: &str) -> Secret<KeySecret<Self>> {
-        let mut okm = KeySecret::<Self>::default();
+    fn derive_secret(prk: &SecretValue<Self>, label: &str) -> Secret<SecretValue<Self>> {
+        let mut okm = SecretValue::<Self>::default();
         let hkdf = Hkdf::<Self>::from_prk(prk.as_ref()).expect("size of prk == Kdf.Nk");
         expand_with_label::<Self>(&hkdf, label, okm.as_mut()).expect("size of okm == Kdf.Nk");
         Secret::new(okm)
@@ -95,12 +85,12 @@ pub trait CipherSuite: Debug + Clone + Default + Sized {
     /// spec: draft-ietf-mls-protocol.md#welcoming-new-members
     /// returns (welcome_key, welcome_nonce)
     fn derive_welcome_secret(
-        joiner_secret: &KeySecret<Self>,
+        joiner_secret: &SecretValue<Self>,
     ) -> (
         GenericArray<u8, AeadKeySize<Self>>,
         GenericArray<u8, AeadNonceSize<Self>>,
     ) {
-        let prk = Self::derive_group_secret(joiner_secret, "welcome");
+        let prk = Self::derive_secret(joiner_secret, "welcome");
         let kdf =
             Hkdf::<Self>::from_prk(prk.expose_secret().as_ref()).expect("size of prk == Kdf.Nk");
 
@@ -168,35 +158,35 @@ pub type Hkdf<CS> = hkdf::Hkdf<HashImpl<CS>>;
 
 /// Statically sized secret value
 #[derive(Clone, Default)]
-pub struct SecretValue<L: ArrayLength<u8>>(pub(crate) GenericArray<u8, L>);
+pub struct GenericSecret<L: ArrayLength<u8>>(pub(crate) GenericArray<u8, L>);
 
-impl<L: ArrayLength<u8>> AsMut<[u8]> for SecretValue<L> {
+impl<L: ArrayLength<u8>> AsMut<[u8]> for GenericSecret<L> {
     fn as_mut(&mut self) -> &mut [u8] {
         &mut self.0
     }
 }
 
-impl<L: ArrayLength<u8>> AsRef<[u8]> for SecretValue<L> {
+impl<L: ArrayLength<u8>> AsRef<[u8]> for GenericSecret<L> {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl<L: ArrayLength<u8>> Debug for SecretValue<L> {
+impl<L: ArrayLength<u8>> Debug for GenericSecret<L> {
     fn fmt(&self, _: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
         Ok(())
     }
 }
 
-impl<L: ArrayLength<u8>> Zeroize for SecretValue<L> {
+impl<L: ArrayLength<u8>> Zeroize for GenericSecret<L> {
     fn zeroize(&mut self) {
         self.0.zeroize()
     }
 }
 
-impl<L: ArrayLength<u8>> CloneableSecret for SecretValue<L> {}
+impl<L: ArrayLength<u8>> CloneableSecret for GenericSecret<L> {}
 
-impl<L: ArrayLength<u8>> Codec for SecretValue<L> {
+impl<L: ArrayLength<u8>> Codec for GenericSecret<L> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         utils::encode_vec_u8_u8(bytes, &self.0);
     }
@@ -205,10 +195,18 @@ impl<L: ArrayLength<u8>> Codec for SecretValue<L> {
     }
 }
 
-/// spec: draft-ietf-mls-protocol.md#ratchet-tree-evolve
-pub type NodeSecret<CS> = SecretValue<SecretSize<CS>>;
+impl<L: ArrayLength<u8>> GenericSecret<L> {
+    /// sampling a fresh random value
+    pub fn gen() -> Self {
+        let mut csprng = thread_rng();
+        let mut v = Self::default();
+        csprng.fill_bytes(v.as_mut());
+        v
+    }
+}
+
 /// spec: draft-ietf-mls-protocol.md#key-schedule
-pub type KeySecret<CS> = SecretValue<HashSize<CS>>;
+pub type SecretValue<CS> = GenericSecret<HashSize<CS>>;
 
 #[derive(Clone, Debug, Default, Ord, PartialOrd, PartialEq, Eq)]
 pub struct HashValue<CS: CipherSuite>(pub(crate) GenericArray<u8, HashSize<CS>>);
@@ -229,9 +227,9 @@ impl<CS: CipherSuite> Codec for HashValue<CS> {
     }
 }
 
-impl<CS: CipherSuite> From<HashValue<CS>> for KeySecret<CS> {
+impl<CS: CipherSuite> From<HashValue<CS>> for SecretValue<CS> {
     fn from(v: HashValue<CS>) -> Self {
-        SecretValue(v.0)
+        GenericSecret(v.0)
     }
 }
 

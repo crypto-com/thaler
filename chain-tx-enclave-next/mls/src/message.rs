@@ -5,13 +5,12 @@ use generic_array::GenericArray;
 use hpke::Serializable;
 use secrecy::{ExposeSecret, Secret};
 
-use crate::ciphersuite::{
-    CipherSuite, CipherSuiteTag, HashValue, KeySecret, NodeSecret, PublicKey,
-};
+use crate::ciphersuite::{CipherSuite, CipherSuiteTag, HashValue, PublicKey, SecretValue};
 use crate::extensions::ExtensionEntry;
 use crate::key::{HPKEPublicKey, IdentityPublicKey};
 use crate::keypackage::{KeyPackage, ProtocolVersion};
 use crate::tree_math::LeafSize;
+use crate::utils;
 use crate::utils::{
     decode_option, encode_option, encode_vec_u32, encode_vec_u8_u16, encode_vec_u8_u8,
     read_arr_u8_u16, read_vec_u32, read_vec_u8_u16, read_vec_u8_u8,
@@ -117,11 +116,11 @@ impl<CS: CipherSuite> Codec for MLSPlaintextCommon<CS> {
             }
             ContentType::Commit {
                 commit,
-                confirmation,
+                confirmation_tag,
             } => {
                 3u8.encode(bytes);
                 commit.encode(bytes);
-                confirmation.encode(bytes);
+                confirmation_tag.encode(bytes);
             }
         }
     }
@@ -143,10 +142,10 @@ impl<CS: CipherSuite> Codec for MLSPlaintextCommon<CS> {
             }
             3 => {
                 let commit = Commit::read(r)?;
-                let confirmation = HashValue::read(r)?;
+                let confirmation_tag = HashValue::read(r)?;
                 Some(ContentType::Commit {
                     commit,
-                    confirmation,
+                    confirmation_tag,
                 })
             }
             _ => None,
@@ -311,37 +310,24 @@ impl<CS: CipherSuite> Codec for ProposalId<CS> {
 /// spec: draft-ietf-mls-protocol.md#Commit
 #[derive(Debug, Clone)]
 pub struct Commit<CS: CipherSuite> {
-    /// 0..2^16-1
-    pub updates: Vec<ProposalId<CS>>,
-    /// 0..2^16-1
-    pub removes: Vec<ProposalId<CS>>,
-    /// 0..2^16-1
-    pub adds: Vec<ProposalId<CS>>,
+    /// 0..2^32-1
+    pub proposals: Vec<ProposalId<CS>>,
     /// "path field of a Commit message MUST be populated if the Commit covers at least one Update or Remove proposal"
     /// "path field MUST also be populated if the Commit covers no proposals at all (i.e., if all three proposal vectors are empty)."
-    pub path: Option<DirectPath<CS>>,
+    pub path: Option<UpdatePath<CS>>,
 }
 
 impl<CS: CipherSuite> Codec for Commit<CS> {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        codec::encode_vec_u16(bytes, &self.updates);
-        codec::encode_vec_u16(bytes, &self.removes);
-        codec::encode_vec_u16(bytes, &self.adds);
+        utils::encode_vec_u32(bytes, &self.proposals);
         encode_option(bytes, &self.path);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let updates: Vec<ProposalId<_>> = codec::read_vec_u16(r)?;
-        let removes: Vec<ProposalId<_>> = codec::read_vec_u16(r)?;
-        let adds: Vec<ProposalId<_>> = codec::read_vec_u16(r)?;
-        let path: Option<DirectPath<_>> = decode_option(r)?;
+        let proposals: Vec<ProposalId<_>> = utils::read_vec_u32(r)?;
+        let path: Option<UpdatePath<_>> = decode_option(r)?;
 
-        Some(Commit {
-            updates,
-            removes,
-            adds,
-            path,
-        })
+        Some(Commit { proposals, path })
     }
 }
 
@@ -402,22 +388,22 @@ impl<CS: CipherSuite> Codec for MLSPlaintextCommitContent<CS> {
 #[derive(Debug, Clone)]
 pub struct MLSPlaintextCommitAuthData<CS: CipherSuite> {
     /// 0..255
-    pub confirmation: HashValue<CS>,
+    pub confirmation_tag: HashValue<CS>,
     /// 0..2^16-1
     pub signature: Vec<u8>,
 }
 
 impl<CS: CipherSuite> Codec for MLSPlaintextCommitAuthData<CS> {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        self.confirmation.encode(bytes);
+        self.confirmation_tag.encode(bytes);
         encode_vec_u8_u16(bytes, &self.signature);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let confirmation = HashValue::read(r)?;
+        let confirmation_tag = HashValue::read(r)?;
         let signature = read_vec_u8_u16(r)?;
         Some(Self {
-            confirmation,
+            confirmation_tag,
             signature,
         })
     }
@@ -436,7 +422,7 @@ pub struct Welcome<CS: CipherSuite> {
 /// spec: draft-ietf-mls-protocol.md#Welcoming-New-Members
 pub struct PathSecret<CS: CipherSuite> {
     /// 1..255
-    pub path_secret: Secret<NodeSecret<CS>>,
+    pub path_secret: Secret<SecretValue<CS>>,
 }
 
 // not printing out the secret values
@@ -453,7 +439,7 @@ impl<CS: CipherSuite> Codec for PathSecret<CS> {
 
     fn read(r: &mut Reader) -> Option<Self> {
         Some(PathSecret {
-            path_secret: Secret::new(NodeSecret::<CS>::read(r)?),
+            path_secret: Secret::new(SecretValue::<CS>::read(r)?),
         })
     }
 }
@@ -461,7 +447,7 @@ impl<CS: CipherSuite> Codec for PathSecret<CS> {
 /// spec: draft-ietf-mls-protocol.md#Welcoming-New-Members
 pub struct GroupSecret<CS: CipherSuite> {
     /// 1..255
-    pub joiner_secret: Secret<KeySecret<CS>>,
+    pub joiner_secret: Secret<SecretValue<CS>>,
     pub path_secret: Option<PathSecret<CS>>,
 }
 
@@ -479,7 +465,7 @@ impl<CS: CipherSuite> Codec for GroupSecret<CS> {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let joiner_secret = Secret::new(KeySecret::<CS>::read(r)?);
+        let joiner_secret = Secret::new(SecretValue::<CS>::read(r)?);
         let path_secret = decode_option(r)?;
 
         Some(GroupSecret {
@@ -523,13 +509,13 @@ impl<CS: CipherSuite> Codec for HPKECiphertext<CS> {
 
 /// spec: draft-ietf-mls-protocol.md#Direct-Paths
 #[derive(Debug, Clone)]
-pub struct DirectPathNode<CS: CipherSuite> {
+pub struct UpdatePathNode<CS: CipherSuite> {
     pub public_key: HPKEPublicKey<CS>,
     /// 0..2^32-1
     pub encrypted_path_secret: Vec<HPKECiphertext<CS>>,
 }
 
-impl<CS: CipherSuite> Codec for DirectPathNode<CS> {
+impl<CS: CipherSuite> Codec for UpdatePathNode<CS> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.public_key.encode(bytes);
         encode_vec_u32(bytes, &self.encrypted_path_secret);
@@ -539,7 +525,7 @@ impl<CS: CipherSuite> Codec for DirectPathNode<CS> {
         let public_key = HPKEPublicKey::read(r)?;
         let encrypted_path_secret: Vec<HPKECiphertext<_>> = read_vec_u32(r)?;
 
-        Some(DirectPathNode {
+        Some(UpdatePathNode {
             public_key,
             encrypted_path_secret,
         })
@@ -548,23 +534,23 @@ impl<CS: CipherSuite> Codec for DirectPathNode<CS> {
 
 /// spec: draft-ietf-mls-protocol.md#Direct-Paths
 #[derive(Debug, Clone)]
-pub struct DirectPath<CS: CipherSuite> {
+pub struct UpdatePath<CS: CipherSuite> {
     pub leaf_key_package: KeyPackage<CS>,
     /// 0..2^16-1
-    pub nodes: Vec<DirectPathNode<CS>>,
+    pub nodes: Vec<UpdatePathNode<CS>>,
 }
 
-impl<CS: CipherSuite> Codec for DirectPath<CS> {
+impl<CS: CipherSuite> Codec for UpdatePath<CS> {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.leaf_key_package.encode(bytes);
-        codec::encode_vec_u16(bytes, &self.nodes);
+        utils::encode_vec_u32(bytes, &self.nodes);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
         let leaf_key_package = KeyPackage::read(r)?;
-        let nodes: Vec<DirectPathNode<_>> = codec::read_vec_u16(r)?;
+        let nodes: Vec<UpdatePathNode<_>> = utils::read_vec_u32(r)?;
 
-        Some(DirectPath {
+        Some(UpdatePath {
             leaf_key_package,
             nodes,
         })
@@ -584,7 +570,7 @@ pub enum ContentType<CS: CipherSuite> {
     Commit {
         commit: Commit<CS>,
         // 0..255
-        confirmation: HashValue<CS>,
+        confirmation_tag: HashValue<CS>,
     }, //= 3,
 }
 
@@ -630,7 +616,7 @@ impl Codec for Sender {
 pub struct CommitContent<CS: CipherSuite> {
     pub sender: LeafSize,
     pub commit: Commit<CS>,
-    pub confirmation: HashValue<CS>,
+    pub confirmation_tag: HashValue<CS>,
     pub additions: Vec<Add<CS>>,
     pub updates: Vec<(LeafSize, Update<CS>, ProposalId<CS>)>,
     pub removes: Vec<Remove>,
@@ -640,69 +626,53 @@ impl<CS: CipherSuite + Ord> CommitContent<CS> {
     /// Verify and extract message contents
     pub fn new(commit: &MLSPlaintext<CS>, proposals: &[MLSPlaintext<CS>]) -> Result<Self, ()> {
         let sender = commit.content.sender.sender;
-        let (commit, confirmation) = match &commit.content.content {
+        let (commit, confirmation_tag) = match &commit.content.content {
             ContentType::Commit {
                 commit,
-                confirmation,
-            } => (commit.clone(), confirmation.clone()),
+                confirmation_tag,
+            } => (commit.clone(), confirmation_tag.clone()),
             _ => {
                 return Err(());
             }
         };
-
-        // "Verify that the path value is populated if either of the updates or removes vectors has length greater than zero
-        // all of the updates, removes, and adds vectors are empty."
-        let has_update_or_remove = !commit.updates.is_empty() || !commit.removes.is_empty();
-        let dont_has_proposal =
-            commit.adds.is_empty() && commit.updates.is_empty() && commit.removes.is_empty();
-        if (has_update_or_remove || dont_has_proposal) && commit.path.is_none() {
-            return Err(());
-        }
 
         let proposals_ids = proposals
             .iter()
             .map(|p| (ProposalId(CS::hash(&p.get_encoding())), p))
             .collect::<BTreeMap<_, _>>();
 
-        let additions = commit
-            .adds
-            .iter()
-            .map(|proposal_id| {
-                proposals_ids
-                    .get(proposal_id)
-                    .and_then(|add| add.get_add().cloned())
-                    .ok_or(())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let updates = commit
-            .updates
-            .iter()
-            .map(|proposal_id| {
-                proposals_ids
-                    .get(proposal_id)
-                    .and_then(|p| {
-                        p.get_update()
-                            .cloned()
-                            .map(|update| (p.content.sender.sender, update, proposal_id.clone()))
-                    })
-                    .ok_or(())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let removes = commit
-            .removes
-            .iter()
-            .map(|proposal_id| {
-                proposals_ids
-                    .get(proposal_id)
-                    .and_then(|p| p.get_remove().cloned())
-                    .ok_or(())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut additions = Vec::new();
+        let mut updates = Vec::new();
+        let mut removes = Vec::new();
+        for proposal_id in commit.proposals.iter() {
+            let proposal = proposals_ids.get(proposal_id).ok_or(())?;
+            match &proposal.content.content {
+                ContentType::Proposal(Proposal::Add(add)) => additions.push(add.clone()),
+                ContentType::Proposal(Proposal::Update(update)) => updates.push((
+                    proposal.content.sender.sender,
+                    update.clone(),
+                    proposal_id.clone(),
+                )),
+                ContentType::Proposal(Proposal::Remove(remove)) => removes.push(remove.clone()),
+                _ => return Err(()),
+            }
+        }
+
+        // The `path` field of a Commit message MUST be populated if the Commit covers at
+        // least one Update or Remove proposal. The `path` field MUST also be populated
+        // if the Commit covers no proposals at all (i.e., if the proposals vector
+        // is empty). The `path` field MAY be omitted if the Commit covers only Add
+        // proposals.
+        let must_populate_path =
+            !updates.is_empty() || !removes.is_empty() || commit.proposals.is_empty();
+        if must_populate_path && commit.path.is_none() {
+            return Err(());
+        }
 
         Ok(Self {
             sender,
             commit,
-            confirmation,
+            confirmation_tag,
             additions,
             updates,
             removes,

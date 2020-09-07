@@ -1,29 +1,30 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ra_client::AttestedCertVerifier;
-use rustls::internal::msgs::codec::{self, Codec, Reader};
+use rustls::internal::msgs::codec::{Codec, Reader};
 use secrecy::{ExposeSecret, Secret, Zeroize};
 use subtle::ConstantTimeEq;
 
-use crate::ciphersuite::{CipherSuite, HashValue, NodeSecret};
+use crate::ciphersuite::{CipherSuite, HashValue, SecretValue};
 use crate::crypto::{encrypt_group_info, open_group_info, open_group_secret, seal_group_secret};
 use crate::error::{
     CommitError, FindExtensionError, InitGroupError, KeyPackageError, ProcessWelcomeError,
 };
 use crate::extensions::{self as ext, ExtensionType, MLSExtension};
-use crate::key::{HPKEPrivateKey, IdentityPrivateKey, IdentityPublicKey};
+use crate::key::{IdentityPrivateKey, IdentityPublicKey};
 use crate::keypackage::{
     find_extension, verify_keypackage_and_secrets, KeyPackage, KeyPackageSecret, Timespec,
     PROTOCOL_VERSION_MLS10,
 };
 use crate::message::{
-    self, Add, Commit, CommitContent, ContentType, DirectPath, GroupContext, GroupSecret,
-    MLSPlaintext, MLSPlaintextCommon, MLSPlaintextTBS, PathSecret, Proposal, ProposalId, Remove,
-    Sender, SenderType, Update, Welcome,
+    self, Add, Commit, CommitContent, ContentType, GroupContext, GroupSecret, MLSPlaintext,
+    MLSPlaintextCommon, MLSPlaintextTBS, PathSecret, Proposal, ProposalId, Remove, Sender,
+    SenderType, Update, UpdatePath, Welcome,
 };
 use crate::secrets::EpochSecrets;
 use crate::tree::{Node, RatchetTreeExt, TreeEvolveResult, TreePublicKey, TreeSecret};
 use crate::tree_math::{LeafSize, NodeSize, NodeType, ParentSize};
+use crate::utils;
 use crate::utils::{encode_vec_u8_u16, encode_vec_u8_u8, read_vec_u8_u16, read_vec_u8_u8};
 
 impl<CS: CipherSuite> GroupContext<CS> {
@@ -67,7 +68,7 @@ pub struct GroupAux<CS: CipherSuite> {
     pub pending_updates: BTreeMap<ProposalId<CS>, IdentityPrivateKey>,
     /// record the new init private key generate in commit.
     /// inserted when commit proposals, removed when processing self commit.
-    pub pending_commit: BTreeMap<ProposalId<CS>, HPKEPrivateKey<CS>>,
+    pub pending_commit: BTreeMap<ProposalId<CS>, Secret<SecretValue<CS>>>,
 }
 
 impl<CS: CipherSuite + Ord> GroupAux<CS> {
@@ -212,7 +213,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         confirmed_transcript: HashValue<CS>,
     ) -> HashValue<CS> {
         let commit_auth = message::MLSPlaintextCommitAuthData {
-            confirmation: commit_confirmation,
+            confirmation_tag: commit_confirmation,
             signature: commit_msg_sig,
         }
         .get_encoding();
@@ -242,7 +243,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         updated_tree: TreePublicKey<CS>,
         updated_group_context: &GroupContext<CS>,
         updated_secrets: &EpochSecrets<CS>,
-        confirmation: HashValue<CS>,
+        confirmation_tag: HashValue<CS>,
         interim_transcript_hash: HashValue<CS>,
         positions: Vec<(LeafSize, KeyPackage<CS>)>,
         tree_secret: &TreeSecret<CS>,
@@ -283,7 +284,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             confirmed_transcript_hash: updated_group_context.confirmed_transcript_hash.clone(),
             interim_transcript_hash,
             extensions, // FIXME: gen new keypackage + extension with parent hash?
-            confirmation,
+            confirmation_tag,
             signer_index: self.my_pos,
         };
         let signature = self
@@ -328,7 +329,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
 
         // If not populating the `path` field: ... Define `commit_secret` as the all-zero vector of the same
         // length as a `path_secret` value would be.
-        let empty_commit_secret = Secret::new(NodeSecret::<CS>::default());
+        let empty_commit_secret = Secret::new(SecretValue::<CS>::default());
         let commit_secret = tree_secret
             .map(|secret| &secret.update_secret)
             .unwrap_or(&empty_commit_secret);
@@ -338,9 +339,9 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             commit_secret.expose_secret(),
             &updated_group_context.get_encoding(),
         );
-        let confirmation =
+        let confirmation_tag =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
-        (confirmation, updated_group_context, epoch_secrets)
+        (confirmation_tag, updated_group_context, epoch_secrets)
     }
 
     /// Generate commit message for proposals.
@@ -349,25 +350,23 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         proposals: &[MLSPlaintext<CS>],
     ) -> Result<CommitProposalResult<CS>, CommitError> {
         // split proposals by types
-        let mut add_proposals_ids: Vec<ProposalId<CS>> = Vec::new();
+        let mut proposal_ids: Vec<ProposalId<CS>> = Vec::new();
         let mut additions: Vec<Add<CS>> = Vec::new();
-        let mut update_proposals_ids: Vec<ProposalId<CS>> = Vec::new();
         let mut updates: Vec<(LeafSize, Update<CS>, ProposalId<CS>)> = Vec::new();
-        let mut remove_proposals_ids: Vec<ProposalId<CS>> = Vec::new();
         let mut removes: Vec<Remove> = Vec::new();
         for p in proposals.iter() {
             let proposal_id = ProposalId(CS::hash(&p.get_encoding()));
             match &p.content.content {
                 ContentType::Proposal(Proposal::Add(add)) => {
-                    add_proposals_ids.push(proposal_id);
+                    proposal_ids.push(proposal_id);
                     additions.push(add.clone());
                 }
                 ContentType::Proposal(Proposal::Update(update)) => {
-                    update_proposals_ids.push(proposal_id.clone());
+                    proposal_ids.push(proposal_id.clone());
                     updates.push((p.content.sender.sender, update.clone(), proposal_id));
                 }
                 ContentType::Proposal(Proposal::Remove(remove)) => {
-                    remove_proposals_ids.push(proposal_id);
+                    proposal_ids.push(proposal_id);
                     removes.push(remove.clone());
                 }
                 _ => panic!("invalid proposal message type"),
@@ -393,9 +392,9 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         let should_populate_path =
             proposals.is_empty() || !updates.is_empty() || !removes.is_empty();
 
-        let (path, tree_secret, init_private_key) = if should_populate_path {
+        let (path, tree_secret, leaf_secret) = if should_populate_path {
             // new init key
-            let init_private_key = updated_tree
+            let leaf_secret = updated_tree
                 .get_package_mut(self.my_pos)
                 .expect("my keypackage not exists")
                 .update_init_key();
@@ -405,11 +404,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
                 path_nodes,
                 leaf_parent_hash,
                 tree_secret,
-            } = updated_tree.evolve(
-                &self.context.get_encoding(),
-                self.my_pos,
-                &init_private_key.marshal(),
-            )?;
+            } = updated_tree.evolve(&self.context.get_encoding(), self.my_pos, &leaf_secret)?;
 
             let kp = updated_tree
                 .get_package_mut(self.my_pos)
@@ -419,25 +414,23 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
                 .put_extension(&ext::ParentHashExt(leaf_parent_hash));
             kp.update_signature(credential_private_key)?;
             (
-                Some(DirectPath {
+                Some(UpdatePath {
                     leaf_key_package: kp.clone(),
                     nodes: path_nodes,
                 }),
                 Some(tree_secret),
-                Some(init_private_key),
+                Some(leaf_secret),
             )
         } else {
             (None, None, None)
         };
 
         let commit = Commit {
-            updates: update_proposals_ids,
-            removes: remove_proposals_ids,
-            adds: add_proposals_ids,
+            proposals: proposal_ids,
             path,
         };
 
-        let (confirmation, updated_group_context, epoch_secrets) =
+        let (confirmation_tag, updated_group_context, epoch_secrets) =
             self.generate_commit_confirmation(&commit, &updated_tree, tree_secret.as_ref());
         let sender = self.get_sender();
         let commit_content = MLSPlaintextCommon {
@@ -447,12 +440,12 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             authenticated_data: vec![],
             content: ContentType::Commit {
                 commit,
-                confirmation: confirmation.clone(),
+                confirmation_tag: confirmation_tag.clone(),
             },
         };
         let signed_commit = self.get_signed_commit(&commit_content)?;
         let interim_transcript_hash = self.new_interim_transcript_hash(
-            confirmation.clone(),
+            confirmation_tag.clone(),
             signed_commit.signature.clone(),
             updated_group_context.confirmed_transcript_hash.clone(),
         );
@@ -463,12 +456,12 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
                 updated_tree,
                 &updated_group_context,
                 &epoch_secrets,
-                confirmation,
+                confirmation_tag,
                 interim_transcript_hash,
                 positions,
                 tree_secret.as_ref().unwrap_or(&self.tree_secret),
             )?,
-            init_private_key,
+            leaf_secret,
         })
     }
 
@@ -480,13 +473,11 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         let CommitProposalResult {
             commit,
             welcome,
-            init_private_key,
+            leaf_secret,
         } = self.do_commit_proposals(proposals)?;
-        if let Some(init_private_key) = init_private_key {
-            self.pending_commit.insert(
-                ProposalId(CS::hash(&commit.get_encoding())),
-                init_private_key,
-            );
+        if let Some(leaf_secret) = leaf_secret {
+            self.pending_commit
+                .insert(ProposalId(CS::hash(&commit.get_encoding())), leaf_secret);
         }
         Ok((commit, welcome))
     }
@@ -544,14 +535,14 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
         };
 
         let commit_id = ProposalId(CS::hash(&commit.get_encoding()));
-        let init_private_key =
+        let leaf_secret =
             if commit_content.commit.path.is_some() && commit_content.sender == self.my_pos {
-                // apply pending `init_private_key` if I'm the committer
+                // apply pending `leaf_secret` if I'm the committer
                 self.pending_commit
                     .get(&commit_id)
                     .ok_or(CommitError::PendingInitPrivateKeyNotFound)?
             } else {
-                &self.kp_secret.init_private_key
+                &self.kp_secret.leaf_secret
             };
 
         // verify the leaf key package in commit path
@@ -559,7 +550,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             if commit_content.sender == self.my_pos {
                 verify_keypackage_and_secrets(
                     &path.leaf_key_package,
-                    init_private_key,
+                    leaf_secret.expose_secret(),
                     credential_private_key,
                     ra_verifier,
                     now,
@@ -594,7 +585,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
                 &tree,
                 &self.context.get_encoding(),
                 &path.nodes,
-                &init_private_key,
+                leaf_secret.expose_secret(),
             )?;
             // Verify that the KeyPackage has a `parent_hash` extension and that its value
             // matches the new parent of the sender's leaf node.
@@ -621,7 +612,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             .new_confirmed_transcript_hash(commit.content.sender.clone(), &commit_content.commit);
 
         let new_interim_transcript_hash = self.new_interim_transcript_hash(
-            commit_content.confirmation.clone(),
+            commit_content.confirmation_tag.clone(),
             commit.signature,
             confirmed_transcript_hash.clone(),
         );
@@ -635,7 +626,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
 
         // "Use the commit_secret, the provisional GroupContext,
         // and the init secret from the previous epoch to compute the epoch secret and derived secrets for the new epoch."
-        let empty_commit_secret = Secret::new(NodeSecret::<CS>::default());
+        let empty_commit_secret = Secret::new(SecretValue::<CS>::default());
         let commit_secret = tree_diff
             .as_ref()
             .map(|diff| &diff.update_secret)
@@ -645,13 +636,13 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             commit_secret.expose_secret(),
             &updated_group_context.get_encoding(),
         );
-        // "Use the confirmation_key for the new epoch to compute the confirmation MAC for this message,
-        // as described below, and verify that it is the same as the confirmation field in the MLSPlaintext object."
+        // "Use the `confirmation_key` for the new epoch to compute the confirmation tag for this message,
+        // as described below, and verify that it is the same as the `confirmation_tag` field in the MLSPlaintext object."
         let confirmation_computed =
             epoch_secrets.compute_confirmation(&updated_group_context.confirmed_transcript_hash);
 
         let confirmation_ok: bool = commit_content
-            .confirmation
+            .confirmation_tag
             .ct_eq(&confirmation_computed)
             .into();
         if !confirmation_ok {
@@ -679,7 +670,7 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
 
         // set pending init_private_key
         if commit_content.commit.path.is_some() && commit_content.sender == self.my_pos {
-            self.kp_secret.init_private_key = self
+            self.kp_secret.leaf_secret = self
                 .pending_commit
                 .remove(&commit_id)
                 .expect("impossible, checked above");
@@ -800,11 +791,8 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             .next()
             .ok_or(ProcessWelcomeError::KeyPackageNotFound)?;
 
-        let mut tree_secret = TreeSecret::new(
-            my_pos.into(),
-            tree.leaf_len(),
-            &kp_secret.init_private_key.marshal(),
-        )?;
+        let mut tree_secret =
+            TreeSecret::new(my_pos.into(), tree.leaf_len(), &kp_secret.leaf_secret)?;
         if let Some(PathSecret { path_secret, .. }) = group_secret.path_secret {
             tree_secret.apply_welcome_secret(
                 group_info.payload.signer_index,
@@ -847,12 +835,14 @@ impl<CS: CipherSuite + Ord> GroupAux<CS> {
             pending_updates: BTreeMap::new(),
             pending_commit: BTreeMap::new(),
         };
-        // * "Verify the confirmation MAC in the GroupInfo using the derived confirmation key and the confirmed_transcript_hash from the GroupInfo."
-        let confirmation = group
+        // * "Verify the confirmation tag in the GroupInfo using the derived confirmation key and the confirmed_transcript_hash from the GroupInfo."
+        let confirmation_tag = group
             .secrets
             .compute_confirmation(&group.context.confirmed_transcript_hash);
 
-        let confirmation_ok: bool = confirmation.ct_eq(&group_info.payload.confirmation).into();
+        let confirmation_ok: bool = confirmation_tag
+            .ct_eq(&group_info.payload.confirmation_tag)
+            .into();
         if !confirmation_ok {
             return Err(ProcessWelcomeError::GroupInfoIntegrityError);
         }
@@ -871,7 +861,7 @@ pub struct InitGroupResult<CS: CipherSuite> {
 pub struct CommitProposalResult<CS: CipherSuite> {
     pub commit: MLSPlaintext<CS>,
     pub welcome: Welcome<CS>,
-    pub init_private_key: Option<HPKEPrivateKey<CS>>,
+    pub leaf_secret: Option<Secret<SecretValue<CS>>>,
 }
 
 const TDBE_GROUP_ID: &[u8] = b"Crypto.com Chain Council Node Transaction Data Bootstrap Enclave";
@@ -891,10 +881,10 @@ pub struct GroupInfoPayload<CS: CipherSuite> {
     pub confirmed_transcript_hash: HashValue<CS>,
     /// 0..255
     pub interim_transcript_hash: HashValue<CS>,
-    /// 0..2^16-1
+    /// 0..2^32-1
     pub extensions: Vec<ext::ExtensionEntry>,
     /// 0..255
-    pub confirmation: HashValue<CS>,
+    pub confirmation_tag: HashValue<CS>,
     pub signer_index: LeafSize,
 }
 
@@ -905,8 +895,8 @@ impl<CS: CipherSuite> Codec for GroupInfoPayload<CS> {
         self.tree_hash.encode(bytes);
         self.confirmed_transcript_hash.encode(bytes);
         self.interim_transcript_hash.encode(bytes);
-        codec::encode_vec_u16(bytes, &self.extensions);
-        self.confirmation.encode(bytes);
+        utils::encode_vec_u32(bytes, &self.extensions);
+        self.confirmation_tag.encode(bytes);
         self.signer_index.encode(bytes);
     }
 
@@ -916,8 +906,8 @@ impl<CS: CipherSuite> Codec for GroupInfoPayload<CS> {
         let tree_hash = HashValue::read(r)?;
         let confirmed_transcript_hash = HashValue::read(r)?;
         let interim_transcript_hash = HashValue::read(r)?;
-        let extensions = codec::read_vec_u16(r)?;
-        let confirmation = HashValue::read(r)?;
+        let extensions = utils::read_vec_u32(r)?;
+        let confirmation_tag = HashValue::read(r)?;
         let signer_index = LeafSize::read(r)?;
         Some(GroupInfoPayload {
             group_id,
@@ -926,7 +916,7 @@ impl<CS: CipherSuite> Codec for GroupInfoPayload<CS> {
             confirmed_transcript_hash,
             interim_transcript_hash,
             extensions,
-            confirmation,
+            confirmation_tag,
             signer_index,
         })
     }
@@ -964,9 +954,10 @@ pub mod test {
 
     use super::*;
     use crate::ciphersuite::DefaultCipherSuite as CS;
+    use crate::ciphersuite::GenericSecret;
     use crate::credential::Credential;
     use crate::extensions::{self as ext, MLSExtension};
-    use crate::key::{gen_keypair, IdentityPrivateKey};
+    use crate::key::{derive_keypair, IdentityPrivateKey};
     use crate::keypackage::{
         KeyPackage, KeyPackagePayload, DEFAULT_CAPABILITIES_EXT, PROTOCOL_VERSION_MLS10,
     };
@@ -1013,7 +1004,8 @@ pub mod test {
 
         let private_key =
             IdentityPrivateKey::from_pkcs8(keypair.as_ref()).expect("invalid private key");
-        let (hpke_secret, hpke_public) = gen_keypair();
+        let leaf_secret = Secret::new(GenericSecret::gen());
+        let (_, hpke_public) = derive_keypair(leaf_secret.expose_secret());
 
         let payload = KeyPackagePayload {
             version: PROTOCOL_VERSION_MLS10,
@@ -1030,7 +1022,7 @@ pub mod test {
             KeyPackage { payload, signature },
             KeyPackageSecret {
                 credential_private_key: private_key,
-                init_private_key: hpke_secret,
+                leaf_secret,
             },
         )
     }

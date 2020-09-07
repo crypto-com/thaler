@@ -6,7 +6,9 @@ use hpke::{
 };
 use secrecy::{ExposeSecret, Secret};
 
-use crate::ciphersuite::{AeadKeySize, AeadNonceSize, CipherSuite, Kex, NodeSecret, SecretValue};
+use crate::ciphersuite::{
+    AeadKeySize, AeadNonceSize, CipherSuite, GenericSecret, Kex, SecretValue,
+};
 use crate::group::GroupInfo;
 use crate::key::{HPKEPrivateKey, HPKEPublicKey};
 use crate::keypackage::{KeyPackage, KeyPackageSecret};
@@ -47,7 +49,8 @@ pub fn open_group_secret<CS: CipherSuite>(
     kp_secret: &KeyPackageSecret<CS>,
 ) -> Result<Option<GroupSecret<CS>>, HpkeError> {
     // FIXME: errors instead of panicking
-    let recip_secret = kp_secret.init_private_key.kex_secret();
+    let init_private_key = kp_secret.init_private_key();
+    let recip_secret = init_private_key.kex_secret();
     let encapped_key = EncappedKey::<Kex<CS>>::from_bytes(
         &encrypted_group_secret.encrypted_group_secrets.kem_output,
     )?;
@@ -98,7 +101,7 @@ pub fn encrypt_group_info<CS: CipherSuite>(
 
 /// encrypt to public key
 pub fn encrypt_path_secret<CS: CipherSuite>(
-    secret: &Secret<NodeSecret<CS>>,
+    secret: &Secret<SecretValue<CS>>,
     recip_pk: &HPKEPublicKey<CS>,
     aad: &[u8],
 ) -> Result<HPKECiphertext<CS>, HpkeError> {
@@ -123,7 +126,7 @@ pub fn decrypt_path_secret<CS: CipherSuite>(
     private_key: &HPKEPrivateKey<CS>,
     aad: &[u8],
     ct: &HPKECiphertext<CS>,
-) -> Result<Secret<NodeSecret<CS>>, HpkeError> {
+) -> Result<Secret<SecretValue<CS>>, HpkeError> {
     let encapped_key = EncappedKey::<Kex<CS>>::from_bytes(&ct.kem_output)?;
     let mut context = hpke::setup_receiver::<CS::Aead, CS::Kdf, CS::Kem>(
         &hpke::OpModeR::Base,
@@ -138,7 +141,7 @@ pub fn decrypt_with_context<CS: CipherSuite>(
     context: &mut AeadCtxR<CS::Aead, CS::Kdf, CS::Kem>,
     aad: &[u8],
     ct: &HPKECiphertext<CS>,
-) -> Result<Secret<NodeSecret<CS>>, HpkeError> {
+) -> Result<Secret<SecretValue<CS>>, HpkeError> {
     let split_point = ct
         .ciphertext
         .len()
@@ -150,5 +153,5 @@ pub fn decrypt_with_context<CS: CipherSuite>(
         GenericArray::from_exact_iter(payload.iter().copied()).ok_or(HpkeError::InvalidTag)?;
 
     context.open(&mut payload, aad, &tag)?;
-    Ok(Secret::new(SecretValue(payload)))
+    Ok(Secret::new(GenericSecret(payload)))
 }

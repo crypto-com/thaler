@@ -3,7 +3,6 @@ use std::fmt::{Debug, Formatter, Result as FmtResult};
 
 use generic_array::GenericArray;
 use hpke::{kex::KeyExchange, Deserializable, HpkeError, Kem, Serializable};
-use rand::thread_rng;
 use ring::{
     error, rand as ringrang,
     signature::{
@@ -11,9 +10,9 @@ use ring::{
         ECDSA_P256_SHA256_ASN1_SIGNING,
     },
 };
-use secrecy::Secret;
+use secrecy::ExposeSecret;
 
-use crate::ciphersuite::{CipherSuite, Kex, NodeSecret, PrivateKey, PublicKey, SecretValue};
+use crate::ciphersuite::{CipherSuite, GenericSecret, Kex, PrivateKey, PublicKey, SecretValue};
 use crate::{Codec, Reader};
 
 /// p-256 public key
@@ -110,10 +109,6 @@ impl<CS: CipherSuite> HPKEPrivateKey<CS> {
         <PrivateKey<CS>>::from_bytes(secret).map(Self)
     }
 
-    pub fn marshal(&self) -> Secret<NodeSecret<CS>> {
-        Secret::new(SecretValue(<PrivateKey<CS>>::to_bytes(&self.0)))
-    }
-
     pub fn marshal_arr_unsafe(
         &self,
     ) -> GenericArray<u8, <PrivateKey<CS> as Serializable>::OutputSize> {
@@ -126,12 +121,17 @@ impl<CS: CipherSuite> HPKEPrivateKey<CS> {
 }
 
 pub fn gen_keypair<CS: CipherSuite>() -> (HPKEPrivateKey<CS>, HPKEPublicKey<CS>) {
-    let (hpke_secret, hpke_public) = <CS::Kem as Kem>::gen_keypair(&mut thread_rng());
-    (HPKEPrivateKey(hpke_secret), HPKEPublicKey(hpke_public))
+    derive_keypair(&GenericSecret::gen())
 }
 
-pub fn derive_keypair<CS: CipherSuite>(ikm: &[u8]) -> (HPKEPrivateKey<CS>, HPKEPublicKey<CS>) {
-    let (hpke_secret, hpke_public) = <CS::Kem as Kem>::derive_keypair(ikm);
+pub fn derive_keypair<CS: CipherSuite>(
+    path_secret: &SecretValue<CS>,
+) -> (HPKEPrivateKey<CS>, HPKEPublicKey<CS>) {
+    let (hpke_secret, hpke_public) = <CS::Kem as Kem>::derive_keypair(
+        CS::derive_secret(path_secret, "node")
+            .expose_secret()
+            .as_ref(),
+    );
     (HPKEPrivateKey(hpke_secret), HPKEPublicKey(hpke_public))
 }
 

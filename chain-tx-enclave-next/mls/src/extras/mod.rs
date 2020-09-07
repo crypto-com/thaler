@@ -169,23 +169,27 @@ impl NackMsg {
             // the path secrets above(not including) the overlap node
             let mut secrets = vec![];
             for _ in overlap_path.iter() {
-                secrets.push(CS::derive_path_secret(
+                secrets.push(CS::derive_secret(
                     secrets
                         .last()
                         .unwrap_or(&overlap_path_secret)
                         .expose_secret(),
+                    "path",
                 ));
             }
 
             // verify the new path secrets match public keys
             if tree
-                .verify_node_private_key(&overlap_path_secret, ancestor)
+                .verify_node_private_key(overlap_path_secret.expose_secret(), ancestor)
                 .is_err()
             {
                 return Ok(NackResult::PathSecretMismatch);
             }
             for (secret, &parent) in secrets.iter().skip(1).zip(overlap_path) {
-                if tree.verify_node_private_key(secret, parent).is_err() {
+                if tree
+                    .verify_node_private_key(secret.expose_secret(), parent)
+                    .is_err()
+                {
                     return Ok(NackResult::PathSecretMismatch);
                 }
             }
@@ -206,7 +210,7 @@ mod test {
     use crate::group::test::{get_fake_keypackage, three_member_setup, MockVerifier};
     use crate::group::GroupAux;
     use crate::message::{ContentType, MLSPlaintextTBS};
-    use crate::message::{DirectPath, Proposal, ProposalId};
+    use crate::message::{Proposal, ProposalId, UpdatePath};
     use crate::tree::TreeEvolveResult;
     use assert_matches::assert_matches;
     use secrecy::Secret;
@@ -242,7 +246,7 @@ mod test {
             .expect("update tree");
 
         // new init key
-        let init_private_key = sender.pending_commit.iter().next().unwrap().1;
+        let leaf_secret = sender.pending_commit.iter().next().unwrap().1;
 
         // update path secrets
         let TreeEvolveResult {
@@ -250,11 +254,7 @@ mod test {
             leaf_parent_hash,
             tree_secret,
         } = updated_tree
-            .evolve(
-                &sender.context.get_encoding(),
-                sender.my_pos,
-                &init_private_key.marshal(),
-            )
+            .evolve(&sender.context.get_encoding(), sender.my_pos, &leaf_secret)
             .expect("update tree");
 
         let kp = updated_tree
@@ -264,7 +264,7 @@ mod test {
             .put_extension(&ext::ParentHashExt(leaf_parent_hash));
         kp.update_signature(&sender.pending_updates.iter().next().unwrap().1)
             .expect("msg");
-        let mut path = DirectPath {
+        let mut path = UpdatePath {
             leaf_key_package: kp.clone(),
             nodes: path_nodes,
         };
@@ -274,7 +274,7 @@ mod test {
                 .expect("not blank node TODO")
                 .public_key();
             path.nodes[0].encrypted_path_secret[0] = encrypt_path_secret(
-                &Secret::new(SecretValue::default()),
+                &Secret::new(SecretValue::<CS>::default()),
                 &init_key,
                 &sender.context.get_encoding(),
             )
@@ -286,12 +286,12 @@ mod test {
         new_commit_content.path = Some(path);
         let tree_secret = Some(tree_secret);
 
-        let (confirmation, _updated_group_context, _epoch_secrets) = sender
+        let (confirmation_tag, _updated_group_context, _epoch_secrets) = sender
             .generate_commit_confirmation(&new_commit_content, &updated_tree, tree_secret.as_ref());
 
         new_commit.content.content = ContentType::Commit {
             commit: new_commit_content,
-            confirmation,
+            confirmation_tag,
         };
         let to_be_signed = MLSPlaintextTBS {
             context: sender.context.clone(),
@@ -326,7 +326,7 @@ mod test {
             .as_ref()
             .expect("path");
         let proof = NackDleqProof::get_nack_dleq_proof(
-            &member1_group.kp_secret.init_private_key,
+            &member1_group.kp_secret.init_private_key(),
             &path.nodes[0].encrypted_path_secret[0].kem_output,
         )
         .expect("proof");
@@ -396,7 +396,7 @@ mod test {
             .as_ref()
             .expect("path");
         let proof = NackDleqProof::get_nack_dleq_proof(
-            &member1_group.kp_secret.init_private_key,
+            &member1_group.kp_secret.init_private_key(),
             &path.nodes[0].encrypted_path_secret[0].kem_output,
         )
         .expect("proof");
@@ -461,7 +461,7 @@ mod test {
             .as_ref()
             .expect("path");
         let proof = NackDleqProof::get_nack_dleq_proof(
-            &member1_group.kp_secret.init_private_key,
+            &member1_group.kp_secret.init_private_key(),
             &path.nodes[0].encrypted_path_secret[0].kem_output,
         )
         .expect("proof");
