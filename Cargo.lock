@@ -5389,9 +5389,9 @@ dependencies = [
 
 [[package]]
 name = "x509-parser"
-version = "0.8.0-beta4"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "585710d3abbfc2f12099e0e1bfd7f715a84e9374c9113a63ca4b02d8c20fd322"
+checksum = "114a5503a794229ded7edbe50f79e1c273c44b34eb8d5ee2c52c9d1e7becacfa"
 dependencies = [
  "base64 0.12.3",
  "chrono",
@@ -5403,6 +5403,7 @@ dependencies = [
  "num-bigint 0.3.0",
  "rusticata-macros",
  "rustversion",
+ "thiserror",
 ]
 
 [[package]]
