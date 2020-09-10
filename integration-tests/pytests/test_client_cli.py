@@ -2,10 +2,37 @@ import json
 import pytest
 import os
 import time
+import socket
+import threading
 from client_cli import Wallet, Transaction, run
 
 PASSPHRASE = "123456"
 CRO = 10**8
+
+ZEMU_HOST = "127.0.0.1"
+ZEMU_BUTTON_PORT = 9997
+
+os.environ["ZEMU_HTTP_HOST"] = ZEMU_HOST
+os.environ["ZEMU_HTTP_PORT"] = "9998"
+
+class PressButton:
+    def __init__(self, zemu_host, zemu_key_port):
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client.connect((zemu_host, zemu_key_port))
+
+    def press_left_button(self):
+        data = "Ll"
+        self.client.send(data.encode())
+
+    def press_right_button(self):
+        data = "Rr"
+        self.client.send(data.encode())
+
+    def press_both_button(self):
+        data = "LRlr"
+        self.client.send(data.encode())
+
+
 
 def delete_all_wallet():
     wallet_names = Wallet.list()
@@ -211,9 +238,51 @@ def test_transfer():
 
 @pytest.mark.zerofee
 def test_transfer_hw():
-    # test mock hw wallet
-    transfer_transaction(wallet_1, wallet_hw, 10000)
-    transfer_transaction(wallet_hw, wallet_1, 5000)
+    if not os.environ.get("TEST_HW_WALLET"):
+        return
+    address_transfer = wallet_hw.create_address()
+    address_staking_bonded = wallet_hw.create_address("staking")
+    address_staking = wallet_hw.create_address("staking")
+    p = PressButton(ZEMU_HOST, ZEMU_BUTTON_PORT)
+
+    def _test_transfer_hw():
+        # zemu blocked after send sign request
+        withdraw_transactions(wallet_hw, address_staking, address_transfer)
+
+    def _test_unbonded_hw():
+        unbounded_transaction(wallet_hw, address_staking_bonded, 10000)
+
+    t = threading.Thread(target=_test_transfer_hw)
+    t.start()
+    time.sleep(2)
+    for _ in range(0, 12):
+        p.press_right_button()
+        time.sleep(0.2)
+    p.press_both_button()
+
+    t.join()
+    balance = wallet_hw.balance
+    assert balance["available"] == 500000000000000000
+
+    time.sleep(5)
+    state = wallet_hw.state(address_staking_bonded)
+    assert state['bonded'] > 0
+    t = threading.Thread(target = _test_unbonded_hw)
+    t.start()
+    time.sleep(2)
+    for _ in range(0, 7):
+        p.press_right_button()
+        time.sleep(0.2)
+    p.press_both_button()
+    t.join()
+
+    wallet_hw.sync()
+    state2 = wallet_hw.state(address_staking_bonded)
+    assert state2['bonded'] == state['bonded'] - 10000*CRO
+    assert state2['unbonded'] == state['unbonded'] + 10000*CRO
+
+
+
 
 @pytest.mark.zerofee
 def test_deposit_to_other_wallet():

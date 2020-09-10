@@ -219,11 +219,11 @@ where
             HardwareKind::LocalOnly => HwKeyService::Unauthorized(UnauthorizedHwKeyService),
             #[cfg(feature = "mock-hardware-wallet")]
             HardwareKind::Mock => {
-                let mock = MockHardwareService::new();
+                let mock = LedgerServiceZemu::new(false)?;
                 HwKeyService::Mock(mock)
             }
             HardwareKind::Ledger => {
-                let ledger_service = LedgerService::new(true)?;
+                let ledger_service = LedgerServiceHID::new(true)?;
                 HwKeyService::Ledger(ledger_service)
             }
         };

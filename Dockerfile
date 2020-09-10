@@ -57,11 +57,16 @@ ARG NETWORK_ID
 
 ENV SGX_MODE=$SGX_MODE
 ENV NETWORK_ID=$NETWORK_ID
+ENV TEST_HW_WALLET=true
 
 # install python3.8, nodejs
 RUN set -e; \
     apt-get update; \
-    apt-get install -y software-properties-common; \
+    apt-get install -y software-properties-common git\
+        qemu-user-static python3-pyqt5 python3-construct python3-jsonschema python3-mnemonic python3-pyelftools \
+        gcc-arm-linux-gnueabihf libc6-dev-armhf-cross gdb-multiarch libvncserver-dev; \
+    cd /root && git clone  https://github.com/LedgerHQ/speculos.git && cd speculos && git checkout ac7ba2246500a \
+    && cmake -Bbuild -H. -DWITH_VNC=1 && make -C build/; \
     echo "deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu bionic main" | tee -a /etc/apt/sources.list; \
     echo "deb-src http://ppa.launchpad.net/deadsnakes/ppa/ubuntu bionic main" | tee -a /etc/apt/sources.list; \
     apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F23C5A6CF475977595C89F51BA6932366A755776; \

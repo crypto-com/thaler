@@ -2,9 +2,7 @@
 mod hd_key_service;
 mod hw_key_service;
 mod key_service;
-mod ledger_hw_key_service;
-#[cfg(feature = "mock-hardware-wallet")]
-mod mock_hw_key_service;
+mod ledger_service;
 #[cfg(feature = "experimental")]
 mod multi_sig_session_service;
 mod root_hash_service;
@@ -18,9 +16,9 @@ pub use self::wallet_state_service::WalletStateMemento;
 pub use self::hd_key_service::{HDAccountType, HdKey, HdKeyService};
 pub use self::hw_key_service::{HwKeyService, UnauthorizedHwKeyService};
 pub use self::key_service::KeyService;
-pub use self::ledger_hw_key_service::{LedgerService, LedgerSignKey};
-#[cfg(feature = "mock-hardware-wallet")]
-pub use self::mock_hw_key_service::{MockHardwareKey, MockHardwareService, MockHardwareWallet};
+pub use self::ledger_service::{
+    LedgerServiceHID, LedgerServiceZemu, LedgerSignKeyHID, LedgerSignKeyZemu,
+};
 #[cfg(feature = "experimental")]
 pub use self::multi_sig_session_service::MultiSigSessionService;
 pub use self::root_hash_service::RootHashService;

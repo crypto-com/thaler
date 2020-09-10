@@ -256,6 +256,16 @@ checksum = "5024ee8015f02155eee35c711107ddd9a9bf3cb689cf2a9089c97e79b6e1ae83"
 
 [[package]]
 name = "base64"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "489d6c0ed21b11d038c31b6ceccca973e65d73ba3bd8ecb9a2babf5546164643"
+dependencies = [
+ "byteorder",
+ "safemem",
+]
+
+[[package]]
+name = "base64"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
@@ -802,7 +812,9 @@ dependencies = [
  "itertools 0.9.0",
  "jsonrpc-core",
  "ledger-crypto",
+ "ledger-transport",
  "ledger-transport-hid",
+ "ledger-transport-zemu",
  "log",
  "mock-utils",
  "once_cell",
@@ -1806,6 +1818,44 @@ dependencies = [
 ]
 
 [[package]]
+name = "grpc"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2632a201d4680b900494389747c9a8407d4fe85b0dbd8002cab55b649246b114"
+dependencies = [
+ "base64 0.9.3",
+ "bytes 0.5.4",
+ "futures 0.3.5",
+ "httpbis",
+ "log",
+ "log-ndc",
+ "tls-api",
+ "tls-api-stub",
+ "tokio 0.2.22",
+]
+
+[[package]]
+name = "grpc-compiler"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "28639c0bf54b98edbb908c113b0e24ed8443c921b090eee628cfd4ed28a9cd3d"
+dependencies = [
+ "protobuf",
+ "protobuf-codegen",
+]
+
+[[package]]
+name = "grpc-protobuf"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59e991b06899ac6b40399f9c83ed539f58da4007091b2972cd336b7e00098d8d"
+dependencies = [
+ "bytes 0.5.4",
+ "grpc",
+ "protobuf",
+]
+
+[[package]]
 name = "h2"
 version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1987,6 +2037,25 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd179ae861f0c2e53da70d892f5f3029f9594be0c41dc5269cd371691b1dc2f9"
 
 [[package]]
+name = "httpbis"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d3e4404f8f87938a2db89336609bde64363f5a556b15af936343e7252c9648d"
+dependencies = [
+ "bytes 0.5.4",
+ "futures 0.3.5",
+ "log",
+ "log-ndc",
+ "net2",
+ "rand 0.5.6",
+ "tls-api",
+ "tls-api-stub",
+ "tokio 0.2.22",
+ "unix_socket",
+ "void",
+]
+
+[[package]]
 name = "humantime"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2063,6 +2132,19 @@ dependencies = [
  "tokio 0.2.22",
  "tokio-rustls",
  "webpki",
+]
+
+[[package]]
+name = "hyper-tls"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d979acc56dcb5b8dddba3917601745e877576475aa046df3226eabdecef78eed"
+dependencies = [
+ "bytes 0.5.4",
+ "hyper 0.13.5",
+ "native-tls",
+ "tokio 0.2.22",
+ "tokio-tls",
 ]
 
 [[package]]
@@ -2362,12 +2444,12 @@ checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
 [[package]]
 name = "ledger-apdu"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
 
 [[package]]
 name = "ledger-crypto"
 version = "0.1.0"
-source = "git+https://github.com/Zondax/ledger-crypto-rs?rev=62ccadf0374c45e318e622cc01fb44647592659f#62ccadf0374c45e318e622cc01fb44647592659f"
+source = "git+https://github.com/linfeng-crypto/ledger-crypto-rs?rev=3e0a2dadc52be437c44b1ad5a0691fd0337bcac3#3e0a2dadc52be437c44b1ad5a0691fd0337bcac3"
 dependencies = [
  "byteorder",
  "hex",
@@ -2384,7 +2466,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
 dependencies = [
  "byteorder",
  "futures 0.3.5",
@@ -2392,8 +2474,10 @@ dependencies = [
  "lazy_static",
  "ledger-apdu",
  "ledger-transport-hid",
+ "ledger-transport-zemu",
  "serde",
  "thiserror",
+ "trait-async",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -2401,7 +2485,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport-hid"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -2416,9 +2500,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "ledger-transport-zemu"
+version = "0.1.0"
+source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
+dependencies = [
+ "grpc",
+ "grpc-protobuf",
+ "hex",
+ "ledger-apdu",
+ "log",
+ "protobuf",
+ "protoc-rust-grpc",
+ "reqwest",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "ledger-zondax-generic"
 version = "0.4.0"
-source = "git+https://github.com/Zondax/ledger-rs#9d7bf3082a14176dc41d79631948d05973f4de46"
+source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
 dependencies = [
  "ledger-apdu",
  "ledger-transport",
@@ -2558,6 +2659,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fabed175da42fed1fa0746b0ea71f412aa9d35e76e95e59b192c64b9dc2bf8b"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "log-ndc"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edb09057c7b58b7d27498b528eaee9a1e661b2974a733fcabbbc3350360bc8bd"
+dependencies = [
+ "log",
 ]
 
 [[package]]
@@ -3279,6 +3389,9 @@ name = "protobuf"
 version = "2.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d883f78645c21b7281d21305181aa1f4dd9e9363e7cf2566c93121552cff003e"
+dependencies = [
+ "bytes 0.5.4",
+]
 
 [[package]]
 name = "protobuf-codegen"
@@ -3318,6 +3431,19 @@ dependencies = [
  "protobuf-codegen",
  "protoc",
  "tempfile",
+]
+
+[[package]]
+name = "protoc-rust-grpc"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c1e5a81f75b067037e8c5311088f083659591482eeb78083aa95cc4dbf416b3"
+dependencies = [
+ "grpc-compiler",
+ "protobuf",
+ "protoc",
+ "protoc-rust",
+ "tempdir",
 ]
 
 [[package]]
@@ -3439,6 +3565,32 @@ name = "radium"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "def50a86306165861203e7f84ecffbbdfdea79f0e51039b33de1e952358c47ac"
+
+[[package]]
+name = "rand"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "552840b97013b1a26992c11eac34bdd778e464601a4c2054b5f0bff7c6761293"
+dependencies = [
+ "fuchsia-cprng",
+ "libc",
+ "rand_core 0.3.1",
+ "rdrand",
+ "winapi 0.3.8",
+]
+
+[[package]]
+name = "rand"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c618c47cd3ebd209790115ab837de41425723956ad3ce2e6a7f09890947cacb9"
+dependencies = [
+ "cloudabi 0.0.3",
+ "fuchsia-cprng",
+ "libc",
+ "rand_core 0.3.1",
+ "winapi 0.3.8",
+]
 
 [[package]]
 name = "rand"
@@ -3700,12 +3852,14 @@ dependencies = [
  "http-body 0.3.1",
  "hyper 0.13.5",
  "hyper-rustls",
+ "hyper-tls",
  "ipnet",
  "js-sys",
  "lazy_static",
  "log",
  "mime",
  "mime_guess",
+ "native-tls",
  "percent-encoding",
  "pin-project-lite",
  "rustls",
@@ -3714,6 +3868,7 @@ dependencies = [
  "serde_urlencoded",
  "tokio 0.2.22",
  "tokio-rustls",
+ "tokio-tls",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
@@ -3875,6 +4030,12 @@ name = "ryu"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed3d612bc64430efeb3f7ee6ef26d590dce0c43249217bddc62112540c7941e1"
+
+[[package]]
+name = "safemem"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef703b7cb59335eae2eb93ceb664c0eb7ea6bf567079d843e09420219668e072"
 
 [[package]]
 name = "same-file"
@@ -4436,6 +4597,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tempdir"
+version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15f2b5fb00ccdf689e0149d1b1b3c03fead81c2b37735d812fa8bddbbf41b6d8"
+dependencies = [
+ "rand 0.4.6",
+ "remove_dir_all",
+]
+
+[[package]]
 name = "tempfile"
 version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4672,6 +4843,27 @@ checksum = "6d3dc76004a03cec1c5932bca4cdc2e39aaa798e3f82363dd94f9adf6098c12f"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "tls-api"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ebb4107c167a4087349fcf08aea4debc358fe69d60fe1df991781842cfe98a3"
+dependencies = [
+ "log",
+ "tokio 0.2.22",
+]
+
+[[package]]
+name = "tls-api-stub"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f8ff269def04f25ae84b9aac156a400b92c97018a184036548c91cedaafd783"
+dependencies = [
+ "tls-api",
+ "tokio 0.2.22",
+ "void",
 ]
 
 [[package]]
@@ -4969,6 +5161,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e987b6bf443f4b5b3b6f38704195592cca41c5bb7aedd3c3693c7081f8289860"
 
 [[package]]
+name = "trait-async"
+version = "0.1.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfe8c654712ee594c93b7222d98b4e61c7e003aec49e73877edac607a213699d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "try-lock"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5104,6 +5307,16 @@ checksum = "8326b2c654932e3e4f9196e69d08fdf7cfd718e1dc6f66b347e6024a0c961402"
 dependencies = [
  "generic-array 0.14.4",
  "subtle 2.3.0",
+]
+
+[[package]]
+name = "unix_socket"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6aa2700417c405c38f5e6902d699345241c28c0b7ade4abaad71e35a87eb1564"
+dependencies = [
+ "cfg-if",
+ "libc",
 ]
 
 [[package]]

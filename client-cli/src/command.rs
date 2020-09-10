@@ -44,8 +44,8 @@ use crate::{ask_seckey, storage_path, tendermint_url};
 use chain_core::tx::fee::LinearFee;
 use client_core::hd_wallet::HardwareKind;
 #[cfg(feature = "mock-hardware-wallet")]
-use client_core::service::MockHardwareService;
-use client_core::service::{HwKeyService, LedgerService, WalletService};
+use client_core::service::LedgerServiceZemu;
+use client_core::service::{HwKeyService, LedgerServiceHID, WalletService};
 use once_cell::sync::Lazy;
 use std::env;
 
@@ -337,10 +337,10 @@ impl Command {
                 let wallet = wallet_service.get_wallet(&wallet_name, &enckey)?;
                 let hw_key_service = match wallet.hardware_kind {
                     #[cfg(feature = "mock-hardware-wallet")]
-                    HardwareKind::Mock => HwKeyService::Mock(MockHardwareService::new()),
+                    HardwareKind::Mock => HwKeyService::Mock(LedgerServiceZemu::new(false)?),
                     HardwareKind::Trezor => HwKeyService::default(),
                     HardwareKind::Ledger => {
-                        let ledger_service = LedgerService::new(true)?;
+                        let ledger_service = LedgerServiceHID::new(true)?;
                         HwKeyService::Ledger(ledger_service)
                     }
                     HardwareKind::LocalOnly => HwKeyService::default(),
@@ -383,10 +383,10 @@ impl Command {
                 let hw_key_service = match hardware {
                     None => HwKeyService::default(),
                     #[cfg(feature = "mock-hardware-wallet")]
-                    Some(HardwareKind::Mock) => HwKeyService::Mock(MockHardwareService::new()),
+                    Some(HardwareKind::Mock) => HwKeyService::Mock(LedgerServiceZemu::new(false)?),
                     Some(HardwareKind::Trezor) => HwKeyService::default(),
                     Some(HardwareKind::Ledger) => {
-                        let ledger_service = LedgerService::new(true)?;
+                        let ledger_service = LedgerServiceHID::new(true)?;
                         HwKeyService::Ledger(ledger_service)
                     }
                     Some(HardwareKind::LocalOnly) => HwKeyService::default(),
