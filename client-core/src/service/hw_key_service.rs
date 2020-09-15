@@ -1,7 +1,7 @@
 use crate::hd_wallet::ChainPath;
-use crate::service::ledger_hw_key_service::LedgerService;
+use crate::service::ledger_service::LedgerServiceHID;
 #[cfg(feature = "mock-hardware-wallet")]
-use crate::service::MockHardwareService;
+use crate::service::ledger_service::LedgerServiceZemu;
 use client_common::{ErrorKind, PrivateKeyAction, PublicKey, Result};
 
 /// collection of hardware key interfaces
@@ -29,9 +29,9 @@ pub enum HwKeyService {
     Unauthorized(UnauthorizedHwKeyService),
     /// mock key service
     #[cfg(feature = "mock-hardware-wallet")]
-    Mock(MockHardwareService),
+    Mock(LedgerServiceZemu),
     /// ledger service
-    Ledger(LedgerService),
+    Ledger(LedgerServiceHID),
 }
 
 impl Default for HwKeyService {

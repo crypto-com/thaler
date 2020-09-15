@@ -1,10 +1,11 @@
 use crate::hd_wallet::ChainPath;
 use crate::service::hw_key_service::HardwareWalletAction;
+use crate::service::ledger_service::get_blob;
+use crate::sync;
 use client_common::{
     Error, ErrorKind, PrivateKeyAction, PublicKey, Result, ResultExt, Transaction,
 };
 use ledger_crypto::{APDUTransport, Address, CryptoApp};
-use parity_scale_codec::Encode;
 use secp256k1::recovery::{RecoverableSignature, RecoveryId};
 use secp256k1::schnorrsig::SchnorrSignature;
 use std::sync::Arc;
@@ -13,14 +14,14 @@ use zx_bip44::BIP44Path;
 
 /// Hedger Service
 #[derive(Clone)]
-pub struct LedgerService {
+pub struct LedgerServiceHID {
     /// crypto app of ledger
-    pub app: Arc<CryptoApp>,
+    pub app: Arc<CryptoApp<ledger::TransportNativeHID>>,
     /// confirmation on ledger or not
     pub require_confirmation: bool,
 }
 
-impl std::fmt::Debug for LedgerService {
+impl std::fmt::Debug for LedgerServiceHID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LedgerService")
             .field("app", &"CryptoApp")
@@ -29,14 +30,7 @@ impl std::fmt::Debug for LedgerService {
     }
 }
 
-macro_rules! sync {
-    ($f:expr, $e: expr) => {{
-        let mut run_time = Runtime::new().unwrap();
-        run_time.block_on($f).chain(|| (ErrorKind::LedgerError, $e))
-    }};
-}
-
-impl LedgerService {
+impl LedgerServiceHID {
     /// create a new LedgerService
     pub fn new(require_confirmation: bool) -> Result<Self> {
         let wrapper = ledger::TransportNativeHID::new()
@@ -56,7 +50,7 @@ impl LedgerService {
     }
 }
 
-impl HardwareWalletAction for LedgerService {
+impl HardwareWalletAction for LedgerServiceHID {
     fn get_public_key(&self, chain_path: ChainPath) -> Result<PublicKey> {
         let path = BIP44Path::from_string(chain_path.to_string())
             .chain(|| (ErrorKind::InvalidInput, "input invalid hd path"))?;
@@ -68,7 +62,7 @@ impl HardwareWalletAction for LedgerService {
     fn get_sign_key(&self, hd_path: &ChainPath) -> Result<Box<dyn PrivateKeyAction>> {
         let path = BIP44Path::from_string(hd_path.to_string())
             .chain(|| (ErrorKind::InvalidInput, "invalid hd path"))?;
-        let hw_key = LedgerSignKey {
+        let hw_key = LedgerSignKeyHID {
             path,
             service: self.clone(),
         };
@@ -77,73 +71,12 @@ impl HardwareWalletAction for LedgerService {
 }
 
 /// represent a private key, can sign msg in the ledger device with `path` using `service`
-pub struct LedgerSignKey {
+pub struct LedgerSignKeyHID {
     path: BIP44Path,
-    service: LedgerService,
+    service: LedgerServiceHID,
 }
 
-/// the header defined in `app/src/coin.h` of ledger crypto app, the size is `CRO_HEADER_SIZE` which is `2`
-/// the first one is `CRO_TX_AUX_ENUM_ENCLAVE_TX` or `CRO_TX_AUX_ENUM_PUBLIC_TX`
-/// the seconde one depends on the tx type, which is defined in `app/src/parser_txdef.h` of ledger crypto app
-const CRO_TX_AUX_ENUM_ENCLAVE_TX: u8 = 0;
-const CRO_TX_AUX_ENUM_PUBLIC_TX: u8 = 1;
-
-const CRO_TX_AUX_PUBLIC_AUX_UNBOND_STAKE: u8 = 0;
-const CRO_TX_AUX_PUBLIC_AUX_UNJAIL: u8 = 1;
-const CRO_TX_AUX_PUBLIC_AUX_NODE_JOIN: u8 = 2;
-
-const CRO_TX_AUX_ENCLAVE_TRANSFER_TX: u8 = 0;
-const CRO_TX_AUX_ENCLAVE_DEPOSIT_STAKE: u8 = 1;
-const CRO_TX_AUX_ENCLAVE_WITHDRAW_UNBOUNDED_STAKE: u8 = 2;
-
-fn get_blob(tx: &Transaction) -> Vec<u8> {
-    match tx {
-        Transaction::UnbondStakeTransaction(tx) => {
-            let mut encoded = tx.encode();
-            let mut blob = vec![
-                CRO_TX_AUX_ENUM_PUBLIC_TX,
-                CRO_TX_AUX_PUBLIC_AUX_UNBOND_STAKE,
-            ];
-            blob.append(&mut encoded);
-            blob
-        }
-        Transaction::UnjailTransaction(tx) => {
-            let mut encoded = tx.encode();
-            let mut blob = vec![CRO_TX_AUX_ENUM_PUBLIC_TX, CRO_TX_AUX_PUBLIC_AUX_UNJAIL];
-            blob.append(&mut encoded);
-            blob
-        }
-        Transaction::NodejoinTransaction(tx) => {
-            let mut encoded = tx.encode();
-            let mut blob = vec![CRO_TX_AUX_ENUM_PUBLIC_TX, CRO_TX_AUX_PUBLIC_AUX_NODE_JOIN];
-            blob.append(&mut encoded);
-            blob
-        }
-        Transaction::TransferTransaction(tx) => {
-            let mut encoded = tx.encode();
-            let mut blob = vec![CRO_TX_AUX_ENUM_ENCLAVE_TX, CRO_TX_AUX_ENCLAVE_TRANSFER_TX];
-            blob.append(&mut encoded);
-            blob
-        }
-        Transaction::DepositStakeTransaction(tx) => {
-            let mut encoded = tx.encode();
-            let mut blob = vec![CRO_TX_AUX_ENUM_ENCLAVE_TX, CRO_TX_AUX_ENCLAVE_DEPOSIT_STAKE];
-            blob.append(&mut encoded);
-            blob
-        }
-        Transaction::WithdrawUnbondedStakeTransaction(tx) => {
-            let mut blob = vec![
-                CRO_TX_AUX_ENUM_ENCLAVE_TX,
-                CRO_TX_AUX_ENCLAVE_WITHDRAW_UNBOUNDED_STAKE,
-            ];
-            let mut encoded = tx.encode();
-            blob.append(&mut encoded);
-            blob
-        }
-    }
-}
-
-impl PrivateKeyAction for LedgerSignKey {
+impl PrivateKeyAction for LedgerSignKeyHID {
     fn sign(&self, tx: &Transaction) -> Result<RecoverableSignature> {
         let blob = get_blob(tx);
         let f = self.service.app.sign(&self.path, &blob);
