@@ -2444,12 +2444,12 @@ checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
 [[package]]
 name = "ledger-apdu"
 version = "0.4.0"
-source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
+source = "git+https://github.com/crypto-com/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
 
 [[package]]
 name = "ledger-crypto"
 version = "0.1.0"
-source = "git+https://github.com/linfeng-crypto/ledger-crypto-rs?rev=3e0a2dadc52be437c44b1ad5a0691fd0337bcac3#3e0a2dadc52be437c44b1ad5a0691fd0337bcac3"
+source = "git+https://github.com/crypto-com/ledger-crypto-rs?rev=1548ca9bf12ba16c6a760b5379e671ac54eadd1e#1548ca9bf12ba16c6a760b5379e671ac54eadd1e"
 dependencies = [
  "byteorder",
  "hex",
@@ -2466,7 +2466,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport"
 version = "0.4.0"
-source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
+source = "git+https://github.com/crypto-com/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
 dependencies = [
  "byteorder",
  "futures 0.3.5",
@@ -2485,7 +2485,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport-hid"
 version = "0.4.0"
-source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
+source = "git+https://github.com/crypto-com/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
 dependencies = [
  "byteorder",
  "cfg-if",
@@ -2502,7 +2502,7 @@ dependencies = [
 [[package]]
 name = "ledger-transport-zemu"
 version = "0.1.0"
-source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
+source = "git+https://github.com/crypto-com/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
 dependencies = [
  "grpc",
  "grpc-protobuf",
@@ -2519,7 +2519,7 @@ dependencies = [
 [[package]]
 name = "ledger-zondax-generic"
 version = "0.4.0"
-source = "git+https://github.com/linfeng-crypto/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
+source = "git+https://github.com/crypto-com/ledger-rs?rev=8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d#8d94ced5cdd9dc3255bf0e6e775e4ec397b61f0d"
 dependencies = [
  "ledger-apdu",
  "ledger-transport",
@@ -5639,9 +5639,9 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cbac2ed2ba24cc90f5e06485ac8c7c1e5449fe8911aef4d8877218af021a5b8"
+checksum = "05f33972566adbd2d3588b0491eb94b98b43695c4ef897903470ede4f3f5a28a"
 dependencies = [
  "zeroize_derive",
 ]
