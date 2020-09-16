@@ -35,7 +35,6 @@ rust: &rust
         - binutils-dev
         - libc6-dev
         - libudev-dev
-        - protobuf-compiler
   cache:
     directories:
       - $HOME/.cargo
@@ -58,6 +57,7 @@ rust: &rust
     - TDBE_MRENCLAVE=0000000000000000000000000000000000000000000000000000000000000000
     - NETWORK_ID=ab
   before_install: # versions from https://github.com/erickt/rust-zmq/blob/master/.travis.yml
+    - ./ci-scripts/install_protoc.sh
     - |
       if [[ "$TRAVIS_RUST_VERSION" != nightly ]]; then
         sed -i.bak -E "s/default = \[\".+\"\]/default = \[\"mock-enclave\"\]/" chain-abci/Cargo.toml;
