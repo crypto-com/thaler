@@ -8,7 +8,7 @@ use crate::key::{gen_keypair, HPKEPrivateKey, HPKEPublicKey};
 use crate::message::HPKECiphertext;
 use elliptic_curve::{point::Generator, weierstrass::public_key::FromPublicKey, FromBytes};
 use hpke::{
-    kex::{Deserializable, Serializable},
+    kex::{Deserializable, Serializable, ToPubkeyBytes},
     EncappedKey,
 };
 ///! Highly experimental implementation of (honest-verifier) NIZK proof
@@ -38,8 +38,8 @@ pub struct NackDleqProof {
     r_response: [u8; 32],
     /// the intermediate hash
     c_inter_hash: [u8; 32],
-    /// revealed shared secret; same size as uncompressed pubkey
-    dh: [u8; 65],
+    /// revealed shared secret (plus a compressed pubkey tag)
+    dh: [u8; 33],
 }
 
 impl NackDleqProof {
@@ -52,7 +52,7 @@ impl NackDleqProof {
     ) -> Result<Secret<SecretValue<CS>>, ()> {
         let encapped_key = EncappedKey::<Kex<CS>>::from_bytes(&ct.kem_output).map_err(|_| ())?;
         let shared_secret = hpke::kem::decap_external::<CS::Kem>(
-            &self.dh[..],
+            &self.dh[1..],
             &receipient_pk.kex_pubkey(),
             &encapped_key,
         )
@@ -98,8 +98,8 @@ impl NackDleqProof {
         // assuming `SetupBaseS` / `SetupBaseR` (used in mls spec draft 10)
         let shared =
             <Kex<CS> as hpke::kex::KeyExchange>::kex(&receiver.kex_secret(), &encapped_key)
-                .map_err(|_| ())?;
-
+                .map_err(|_| ())?
+                .to_pubkey_bytes();
         // gen_g = encapped_key
         // pub_h = shared
         // gen_m = base point
@@ -109,7 +109,7 @@ impl NackDleqProof {
         let g = p256::PublicKey::from_bytes(&encapped_key.to_bytes()).unwrap();
         let gen_g = AffinePoint::from_public_key(&g).unwrap();
         // no panic: shared is already validated by hpke::kex::KeyExchange `kex`
-        let h = p256::PublicKey::from_bytes(&shared.to_bytes()).unwrap();
+        let h = p256::PublicKey::from_bytes(&shared).unwrap();
         let pub_h = AffinePoint::from_public_key(&h).unwrap();
         let gen_m = AffinePoint::generator();
         // no panic: HPKEPrivateKey produces valid pubkey
@@ -127,8 +127,8 @@ impl NackDleqProof {
         let mproof = Proof::new_p256_sha256(gen_g, pub_h, gen_m, pub_z, &x);
         x.zeroize();
         let proof = mproof?;
-        let mut dh = [0u8; 65];
-        dh.copy_from_slice(h.as_bytes());
+        let mut dh = [0u8; 33];
+        dh.copy_from_slice(shared.as_ref());
         Ok(NackDleqProof {
             r_response: ElementBytes::from(proof.r_response).into(),
             c_inter_hash: ElementBytes::from(proof.c_inter_hash).into(),
@@ -167,6 +167,7 @@ impl NackDleqProof {
         let error = pub_h.is_none() | r_response.is_none() | c_inter_hash.is_none();
 
         if error.into() {
+            dbg!("err1");
             Err(())
         } else {
             let proof = Proof {
@@ -293,6 +294,7 @@ impl Proof {
         let mb = b_p.to_affine();
         if (ma.is_none() | mb.is_none()).into() {
             // TODO: is this possible?
+            dbg!("err2");
             return Err(());
         }
         let a = ma.unwrap();
@@ -314,6 +316,7 @@ impl Proof {
         if c_inter_hash.ct_eq(&c_inter_hash_prime).into() {
             Ok(())
         } else {
+            dbg!("err3");
             Err(())
         }
     }

@@ -1971,16 +1971,17 @@ dependencies = [
 
 [[package]]
 name = "hpke"
-version = "0.2.0"
-source = "git+https://github.com/crypto-com/rust-hpke.git?rev=afdaf6f62fa557a7055d6cc063af65fe5c387aaf#afdaf6f62fa557a7055d6cc063af65fe5c387aaf"
+version = "0.3.1"
+source = "git+https://github.com/crypto-com/rust-hpke.git?rev=858d6433525529a6189382a8bd2f46d51959bdfa#858d6433525529a6189382a8bd2f46d51959bdfa"
 dependencies = [
  "aead",
  "aes-gcm",
  "byteorder",
  "chacha20poly1305",
  "digest 0.9.0",
+ "generic-array 0.14.4",
  "hkdf",
- "p256 0.3.0",
+ "p256",
  "rand 0.7.3",
  "sha2 0.9.1",
  "subtle 2.3.0",
@@ -2797,7 +2798,7 @@ dependencies = [
  "hpke",
  "nom",
  "once_cell",
- "p256 0.4.1",
+ "p256",
  "parity-scale-codec",
  "ra-client",
  "ra-enclave",
@@ -3037,16 +3038,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ff55baddef9e4ad00f88b6c743a2a8062d4c6ade126c2a528644b8e444d52ce"
 dependencies = [
  "stable_deref_trait",
-]
-
-[[package]]
-name = "p256"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a425ecb71515663b2735fd1e65bb638fd134c5ad23857eb197c2f157784476cf"
-dependencies = [
- "elliptic-curve 0.4.0",
- "subtle 2.3.0",
 ]
 
 [[package]]

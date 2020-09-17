@@ -38,4 +38,4 @@ path = "fuzz_targets/abci_cycle.rs"
 [patch.crates-io]
 ring = { git = "https://github.com/crypto-com/ring.git", rev = "bdbcc7041095f028d49d9fecd7edcf26d6083274" }
 # FIXME: before official spec has a solution
-hpke = { git = "https://github.com/crypto-com/rust-hpke.git", rev = "afdaf6f62fa557a7055d6cc063af65fe5c387aaf" }
+hpke = { git = "https://github.com/crypto-com/rust-hpke.git", rev = "858d6433525529a6189382a8bd2f46d51959bdfa" }
