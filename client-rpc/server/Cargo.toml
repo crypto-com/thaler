@@ -15,7 +15,7 @@ client-network = { path= "../../client-network"}
 chain-core = { path = "../../chain-core" }
 
 jsonrpc-core = "14.2"
-jsonrpc-http-server = "14.2"
+jsonrpc-http-server = "15.0"
 structopt = "0.3"
 dirs = "3.0.1"
 env_logger="0.7.1"
