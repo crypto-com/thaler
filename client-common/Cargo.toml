@@ -14,7 +14,7 @@ ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
 mls = { path = "../chain-tx-enclave-next/mls" }
 
 aes = "0.4"
-aes-gcm-siv = "0.5"
+aes-gcm-siv = "0.8"
 anyhow = "1.0"
 base64 = "0.12"
 bit-vec = "0.6.2"
