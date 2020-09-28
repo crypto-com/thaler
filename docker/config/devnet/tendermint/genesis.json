@@ -49,7 +49,7 @@
                 "monetary_expansion_decay": 999860,
                 "monetary_expansion_r0": 450,
                 "monetary_expansion_tau": 14500000000000000,
-                "reward_period_seconds": 8640
+                "reward_period_seconds": 86400
             },
             "slashing_config": {
                 "byzantine_slash_percent": "0.200",
