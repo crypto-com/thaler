@@ -10,7 +10,7 @@ client-common = { path = "../client-common" }
 client-core = { path = "../client-core" }
 client-network = { path= "../client-network"}
 
-base64 = "0.12"
+base64 = "0.13"
 jsonrpc-core = "14.2"
 jsonrpc-derive = "14.2"
 serde = { version = "1.0", features = ["derive"] }
