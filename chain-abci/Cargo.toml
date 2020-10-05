@@ -22,7 +22,7 @@ mock-utils = { path = "../chain-tx-enclave/mock-utils" }
 mls = { path = "../chain-tx-enclave-next/mls" }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
 ra-sp-server = { path = "../chain-tx-enclave-next/enclave-ra/ra-sp-server" }
-blake3 = { version = "0.3.6", default-features = false }
+blake3 = { version = "0.3.7", default-features = false }
 
 log = "0.4.11"
 env_logger = "0.7.1"
