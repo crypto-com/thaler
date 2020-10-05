@@ -322,6 +322,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3441f0f7b02788e948e47f457ca01f1d7e6d92c693bc132c22b087d3141c03ff"
 
 [[package]]
+name = "base64"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
+
+[[package]]
 name = "bech32"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -599,7 +605,7 @@ version = "0.6.0"
 dependencies = [
  "abci",
  "aesm-client",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bit-vec",
  "blake3",
  "byteorder",
@@ -646,7 +652,7 @@ name = "chain-core"
 version = "0.6.0"
 dependencies = [
  "aead",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bech32",
  "blake3",
  "digest 0.9.0",
@@ -776,7 +782,7 @@ dependencies = [
 name = "client-cli"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.3",
+ "base64 0.13.0",
  "chain-core",
  "chrono",
  "cli-table",
@@ -808,7 +814,7 @@ dependencies = [
  "aes 0.4.0",
  "aes-gcm-siv",
  "anyhow",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bit-vec",
  "blake3",
  "cfg-if",
@@ -852,7 +858,7 @@ name = "client-core"
 version = "0.6.0"
 dependencies = [
  "base58",
- "base64 0.12.3",
+ "base64 0.13.0",
  "bit-vec",
  "blake3",
  "byteorder",
@@ -899,7 +905,7 @@ dependencies = [
 name = "client-network"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.3",
+ "base64 0.13.0",
  "chain-core",
  "chain-storage",
  "chain-tx-validation",
@@ -935,7 +941,7 @@ dependencies = [
 name = "client-rpc-core"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.3",
+ "base64 0.13.0",
  "chain-core",
  "client-common",
  "client-core",
@@ -1335,7 +1341,7 @@ dependencies = [
 name = "dev-utils"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.3",
+ "base64 0.13.0",
  "chain-abci",
  "chain-core",
  "chrono",
@@ -3537,7 +3543,7 @@ dependencies = [
 name = "ra-client"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.3",
+ "base64 0.13.0",
  "chrono",
  "der-parser",
  "lazy_static",
@@ -3554,7 +3560,7 @@ dependencies = [
 name = "ra-common"
 version = "0.6.0"
 dependencies = [
- "base64 0.12.3",
+ "base64 0.13.0",
  "serde",
  "serde_json",
  "thiserror",
@@ -3594,7 +3600,7 @@ name = "ra-sp-server"
 version = "0.6.0"
 dependencies = [
  "aesm-client",
- "base64 0.12.3",
+ "base64 0.13.0",
  "env_logger",
  "hex",
  "log",
@@ -4236,9 +4242,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.57"
+version = "1.0.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "164eacbdb13512ec2745fb09d51fd5b22b0d65ed294a1dcf7285a360c80a675c"
+checksum = "a230ea9107ca2220eea9d46de97eddcb04cd00e92d13dda78e478dd33fa82bd4"
 dependencies = [
  "itoa",
  "ryu",
@@ -4763,7 +4769,7 @@ name = "test-common"
 version = "0.6.0"
 dependencies = [
  "abci",
- "base64 0.12.3",
+ "base64 0.13.0",
  "chain-abci",
  "chain-core",
  "chain-storage",

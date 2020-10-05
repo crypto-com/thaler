@@ -21,4 +21,4 @@ lazy_static = "1.4"
 ra-common = { path = "../ra-common" }
 
 [dev-dependencies]
-base64 = "0.12"
+base64 = "0.13"

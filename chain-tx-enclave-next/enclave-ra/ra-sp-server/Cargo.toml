@@ -9,7 +9,7 @@ edition = "2018"
 
 [dependencies]
 aesm-client = "0.5"
-base64 = "0.12"
+base64 = "0.13"
 env_logger = "0.7"
 hex = "0.4"
 log = "0.4"
