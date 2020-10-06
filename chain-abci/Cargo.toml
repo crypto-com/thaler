@@ -45,7 +45,7 @@ itertools = "0.9"
 [target.'cfg(target_os = "linux")'.dependencies]
 aesm-client = {version = "0.5", features = ["sgxs"], optional = true }
 enclave-runner = {version = "0.4", optional = true}
-sgxs-loaders = {version = "0.2", optional = true}
+sgxs-loaders = {version = "0.3", optional = true}
 tokio = { version = "0.2", features = ["uds"], optional = true }
 rand = "0.7"
 tdbe-common = { path = "../chain-tx-enclave-next/tdbe/tdbe-common" }
