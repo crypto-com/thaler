@@ -10,7 +10,7 @@ edition = "2018"
 ring = { version = "0.16.15", features = ["std"] }
 thiserror = "1.0"
 rustls = "0.18"
-x509-parser = "0.8.0"
+x509-parser = "0.8.1"
 nom = "5.1"
 secrecy = "0.7.0"
 sha2 = "0.9"
