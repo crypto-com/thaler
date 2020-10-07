@@ -19,7 +19,7 @@ anyhow = "1.0"
 base64 = "0.13"
 bit-vec = "0.6.2"
 blake3 = "0.3.7"
-cfg-if = "0.1"
+cfg-if = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = { version = "0.3", optional = true }
 gcd = "2.0"
