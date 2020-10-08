@@ -5662,9 +5662,9 @@ dependencies = [
 
 [[package]]
 name = "x509-parser"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c465f4da3097ac54da6396c8c9be68242df0f0229c6acd028b4deee28765cd76"
+checksum = "a76245c48460d72a3e17ad3a01855c3cae98601bb992091c1c1421c77d1cb27c"
 dependencies = [
  "base64 0.13.0",
  "chrono",
