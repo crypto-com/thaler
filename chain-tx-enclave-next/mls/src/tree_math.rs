@@ -294,28 +294,12 @@ impl NodeSize {
 /// assert_eq!(log2(0b100001), 5);
 /// ```
 pub fn log2(x: u32) -> u32 {
-    // FIXME after leading_trailing_ones get stablized
-    // let msb = std::mem::size_of::<NodeSize>() as u32 * 8 - x.leading_zeros();
-    // msb.saturating_sub(1)
-    if x == 0 {
-        return 0;
-    }
-
-    let mut k = 0;
-    while (x >> k) > 0 {
-        k += 1
-    }
-    k - 1
+    let msb = std::mem::size_of::<NodeSize>() as u32 * 8 - x.leading_zeros();
+    msb.saturating_sub(1)
 }
 
 pub fn level(x: u32) -> u32 {
-    // FIXME after leading_trailing_ones get stablized
-    // let n = x.trailing_ones();
-    let mut k = 0;
-    while ((x >> k) & 0x01) == 1 {
-        k += 1;
-    }
-    k
+    x.trailing_ones()
 }
 
 /// The immediate parent of a node.  May be beyond the right edge of
