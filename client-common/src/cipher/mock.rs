@@ -48,7 +48,7 @@ where
             .collect::<Result<Vec<_>>>()
             .expect("abci_query failed");
 
-        let sealed_logs = rsps.into_iter().map(|rsp| rsp.value).collect::<Vec<_>>();
+        let sealed_logs = rsps.into_iter().map(|rsp| rsp.value);
 
         let txs = sealed_logs
             .into_iter()
