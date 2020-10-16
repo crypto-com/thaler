@@ -7,7 +7,7 @@ source = "git+https://github.com/crypto-com/rust-abci.git?rev=d7e007cea9179d560f
 dependencies = [
  "byteorder",
  "bytes 0.5.4",
- "env_logger",
+ "env_logger 0.7.1",
  "futures 0.3.5",
  "integer-encoding 1.1.5",
  "log",
@@ -344,7 +344,7 @@ dependencies = [
  "cfg-if 0.1.10",
  "clang-sys",
  "clap",
- "env_logger",
+ "env_logger 0.7.1",
  "lazy_static",
  "lazycell",
  "log",
@@ -624,7 +624,7 @@ dependencies = [
  "digest 0.9.0",
  "enclave-protocol",
  "enclave-runner",
- "env_logger",
+ "env_logger 0.8.1",
  "hex",
  "integer-encoding 2.0.0",
  "itertools 0.9.0",
@@ -796,7 +796,7 @@ dependencies = [
  "client-common",
  "client-core",
  "client-network",
- "env_logger",
+ "env_logger 0.8.1",
  "hex",
  "log",
  "mls",
@@ -937,7 +937,7 @@ dependencies = [
  "client-network",
  "client-rpc-core",
  "dirs",
- "env_logger",
+ "env_logger 0.8.1",
  "jsonrpc-core",
  "jsonrpc-http-server",
  "log",
@@ -953,7 +953,7 @@ dependencies = [
  "client-common",
  "client-core",
  "client-network",
- "env_logger",
+ "env_logger 0.8.1",
  "hex",
  "jsonrpc-core",
  "jsonrpc-derive",
@@ -1089,7 +1089,7 @@ dependencies = [
  "client-core",
  "client-network",
  "client-rpc-core",
- "env_logger",
+ "env_logger 0.8.1",
  "hex",
  "jsonrpc-core",
  "libc",
@@ -1551,7 +1551,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "44533bbbb3bb3c1fa17d9f2e4e38bbbaf8396ba82193c4cb1b6445d711445d36"
 dependencies = [
  "atty",
- "humantime",
+ "humantime 1.3.0",
+ "log",
+ "regex",
+ "termcolor",
+]
+
+[[package]]
+name = "env_logger"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54532e3223c5af90a6a757c90b5c5521564b07e5e7a958681bcd2afad421cdcd"
+dependencies = [
+ "atty",
+ "humantime 2.0.1",
  "log",
  "regex",
  "termcolor",
@@ -2133,6 +2146,12 @@ checksum = "df004cfca50ef23c36850aaaa59ad52cc70d0e90243c3c7737a4dd32dc7a3c4f"
 dependencies = [
  "quick-error",
 ]
+
+[[package]]
+name = "humantime"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c1ad908cc71012b7bea4d0c53ba96a8cba9962f048fa68d143376143d863b7a"
 
 [[package]]
 name = "hyper"
@@ -3531,7 +3550,7 @@ version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a44883e74aa97ad63db83c4bf8ca490f02b2fc02f92575e720c8551e843c945f"
 dependencies = [
- "env_logger",
+ "env_logger 0.7.1",
  "log",
  "rand 0.7.3",
  "rand_core 0.5.1",
@@ -3608,7 +3627,7 @@ version = "0.6.0"
 dependencies = [
  "aesm-client",
  "base64 0.13.0",
- "env_logger",
+ "env_logger 0.8.1",
  "hex",
  "log",
  "percent-encoding",
@@ -4633,7 +4652,7 @@ dependencies = [
  "enclave-macro",
  "enclave-protocol",
  "enclave-utils",
- "env_logger",
+ "env_logger 0.8.1",
  "log",
  "parity-scale-codec",
  "ra-client",
@@ -5271,7 +5290,7 @@ dependencies = [
  "chrono",
  "enclave-protocol",
  "enclave-utils",
- "env_logger",
+ "env_logger 0.8.1",
  "log",
  "parity-scale-codec",
  "ra-enclave",
@@ -5296,7 +5315,7 @@ dependencies = [
  "enclave-macro",
  "enclave-protocol",
  "enclave-utils",
- "env_logger",
+ "env_logger 0.8.1",
  "log",
  "parity-scale-codec",
  "ra-client",
