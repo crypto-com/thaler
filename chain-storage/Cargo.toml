@@ -2,7 +2,7 @@
 name = "chain-storage"
 version = "0.6.0"
 authors = ["Crypto.com <chain@crypto.com>"]
-description = "Storage of Crypto.com Chain node (Merkle trie, transaction metadata etc.)"
+description = "Storage of Thaler Experimental Network node (Merkle trie, transaction metadata etc.)"
 readme = "README.md"
 edition = "2018"
 

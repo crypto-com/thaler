@@ -864,7 +864,7 @@ pub struct CommitProposalResult<CS: CipherSuite> {
     pub leaf_secret: Option<Secret<SecretValue<CS>>>,
 }
 
-const TDBE_GROUP_ID: &[u8] = b"Crypto.com Chain Council Node Transaction Data Bootstrap Enclave";
+const TDBE_GROUP_ID: &[u8] = b"Thaler Experimental Network Council Node Transaction Data Bootstrap Enclave";
 
 /// spec: draft-ietf-mls-protocol.md#Welcoming-New-Members
 #[derive(Debug, Clone)]

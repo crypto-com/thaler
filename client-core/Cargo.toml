@@ -2,7 +2,7 @@
 name = "client-core"
 version = "0.6.0"
 authors = ["Devashish Dixit <devashish@crypto.com>"]
-description = "This crate exposes following functionalities for interacting with Crypto.com Chain."
+description = "This crate exposes following functionalities for interacting with Thaler Experimental Network."
 edition = "2018"
 
 [dependencies]

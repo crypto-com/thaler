@@ -1,5 +1,5 @@
 #![deny(missing_docs, unsafe_code, unstable_features)]
-//! CLI for interacting with Crypto.com Chain
+//! CLI for interacting with Thaler Experimental Network
 use std::str::FromStr;
 
 mod command;

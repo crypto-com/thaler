@@ -117,7 +117,7 @@ impl Config {
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "chain-abci",
-    about = "Crypto.com Chain node (Tendermint ABCI application)."
+    about = "Thaler Experimental Network node (Tendermint ABCI application)."
 )]
 pub enum AbciApp {
     /// Run chain-abci

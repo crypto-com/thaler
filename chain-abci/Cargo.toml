@@ -2,7 +2,7 @@
 name = "chain-abci"
 version = "0.6.0"
 authors = ["Crypto.com <chain@crypto.com>"]
-description = "Crypto.com Chain node (Tendermint ABCI application)"
+description = "Thaler Experimental Network node (Tendermint ABCI application)"
 readme = "README.md"
 edition = "2018"
 

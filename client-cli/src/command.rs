@@ -83,10 +83,10 @@ const HARDWARE_WALLET_KIND: [&str; 2] = ["ledger", "trezor"];
 #[structopt(
     name = "client-cli",
     version = VERSION.as_str(),
-    about = r#"Basic CLI tool for interacting with Crypto.com Chain
+    about = r#"Basic CLI tool for interacting with Thaler Experimental Network
 ENVIRONMENT VARIABLES:
     CRYPTO_CLIENT_DEBUG             Set to `true` for detailed error messages (Default: `false`)
-    CRYPTO_CHAIN_ID                 Chain ID of Crypto.com Chain
+    CRYPTO_CHAIN_ID                 Chain ID of Thaler Experimental Network
     CRYPTO_CLIENT_STORAGE           Storage directory (Default: `.storage`)
     CRYPTO_CLIENT_TENDERMINT        Websocket endpoint for tendermint (Default: `ws://localhost:26657/websocket`)
     CRYPTO_GENESIS_FINGERPRINT             Set the genesis fingerprint(Optional)
@@ -171,7 +171,7 @@ pub enum Command {
         )]
         hardware: Option<HardwareKind>,
     },
-    #[structopt(name = "sync", about = "Synchronize client with Crypto.com Chain")]
+    #[structopt(name = "sync", about = "Synchronize client with Thaler Experimental Network")]
     Sync {
         #[structopt(
             name = "wallet name",

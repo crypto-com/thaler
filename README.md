@@ -1,14 +1,4 @@
-<br />
-<p align="center">
-  <img src="./assets/logo.svg" alt="Crypto.com Chain" width="400">
-</p>
-<br />
-
-<p align="center">
-  <a href="https://travis-ci.org/crypto-com/chain"><img label="Build Status" src="https://travis-ci.org/crypto-com/chain.svg?branch=master" /></a>
-  <a href="https://codecov.io/gh/crypto-com/chain"><img label="Code Coverage" src="https://codecov.io/gh/crypto-com/chain/branch/master/graph/badge.svg" /></a>
-  <a href="https://gitter.im/crypto-com/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge"><img label="Gitter" src="https://badges.gitter.im/crypto-com/community.svg" /></a>
-</p>
+# DEVELOPMENT OF CRYPTO.COM CHAIN MOVED TO: https://github.com/crypto-com/chain-main
 
 ## Table of Contents
 
@@ -24,13 +14,13 @@
 6. [Start a Local Full Node](#start-local-full-node)
 7. [Send your First Transaction](#send-first-transaction)
 8. [Testing](#testing)
-9. [Useful LInks](#useful-links)
+9. [Useful Links](#useful-links)
 
 <a id="description" />
 
 ## 1. Description
 
-This repository contains the pre-alpha version prototype implementation of Crypto.com Chain. The current repository consists of the following Rust sub-crates:
+This repository contains the Thaler Experimental Network code (pre-pivoted Crypto.com Chain). The current repository consists of the following Rust sub-crates:
 
 * *chain-abci*: the Tendermint ABCI application that currently does the transaction validation etc.
 * *chain-core*: the library that contains the main type definitions and any utility code (such as serialization), so that it can be used in *chain-abci* and other applications.
