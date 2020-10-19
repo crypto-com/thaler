@@ -19,7 +19,7 @@ aes-gcm-siv = "0.9"
 aead = "0.3"
 chrono = "0.4"
 zeroize = { version = "1.1" }
-env_logger = { version = "0.7", default-features = false }
+env_logger = { version = "0.8", default-features = false }
 log = "0.4"
 rs-libc = "0.2"
 rand = "0.7"
