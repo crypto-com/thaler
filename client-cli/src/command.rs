@@ -171,7 +171,10 @@ pub enum Command {
         )]
         hardware: Option<HardwareKind>,
     },
-    #[structopt(name = "sync", about = "Synchronize client with Thaler Experimental Network")]
+    #[structopt(
+        name = "sync",
+        about = "Synchronize client with Thaler Experimental Network"
+    )]
     Sync {
         #[structopt(
             name = "wallet name",
