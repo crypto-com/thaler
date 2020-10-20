@@ -101,7 +101,7 @@ volumes:
 
 trigger:
   branch:
-  - master
+  - main
   - staging
   - trying
   event:
@@ -127,13 +127,13 @@ steps:
 
 trigger:
   branch:
-  - master
+  - main
   event:
   - push
       
 
 ---
 kind: signature
-hmac: cdaf463e399063ff58aeed14d5fe48b678ed77fd38d4a51482f8983a07e95c0a
+hmac: af080ab0e7e61803c192a78101706898bbaf548fc6086d5f4d5e105873dbffda
 
 ...
