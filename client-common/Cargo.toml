@@ -13,7 +13,7 @@ enclave-macro = { path = "../chain-tx-enclave/enclave-macro" }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
 mls = { path = "../chain-tx-enclave-next/mls" }
 
-aes = "0.4"
+aes = "0.6"
 aes-gcm-siv = "0.9"
 anyhow = "1.0"
 base64 = "0.13"

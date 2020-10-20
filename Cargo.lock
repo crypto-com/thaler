@@ -820,7 +820,7 @@ dependencies = [
 name = "client-common"
 version = "0.6.0"
 dependencies = [
- "aes 0.4.0",
+ "aes 0.6.0",
  "aes-gcm-siv",
  "anyhow",
  "base64 0.13.0",
@@ -3607,7 +3607,7 @@ dependencies = [
 name = "ra-enclave"
 version = "0.6.0"
 dependencies = [
- "aes 0.4.0",
+ "aes 0.6.0",
  "chrono",
  "cmac",
  "crypto-mac 0.8.0",
