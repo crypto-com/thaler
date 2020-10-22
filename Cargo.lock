@@ -619,7 +619,7 @@ dependencies = [
  "enclave-runner",
  "env_logger 0.8.1",
  "hex",
- "integer-encoding 2.1.0",
+ "integer-encoding 2.1.1",
  "itertools 0.9.0",
  "kvdb",
  "kvdb-memorydb",
@@ -682,7 +682,7 @@ dependencies = [
  "blake3",
  "chain-core",
  "criterion",
- "integer-encoding 2.1.0",
+ "integer-encoding 2.1.1",
  "jellyfish-merkle",
  "kvdb",
  "kvdb-memorydb",
@@ -2326,9 +2326,9 @@ checksum = "4f4ebd0bd29be0f11973e9b3e219005661042a019fd757798c36a47c87852625"
 
 [[package]]
 name = "integer-encoding"
-version = "2.1.0"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cbec427f756ff18aa66fac9d002c68d61548e1645580d0f5c8750a586cfc4a9"
+checksum = "1ddae3dfefb8ba2cb7c2bab20594847cea19f0cd0f28d57a4e79a12ddcfa9940"
 
 [[package]]
 name = "iovec"

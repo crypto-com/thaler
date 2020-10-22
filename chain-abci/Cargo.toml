@@ -34,7 +34,7 @@ serde_json = "1.0"
 serde_yaml = "0.8"
 hex = "0.4"
 protobuf = "2.16.2"
-integer-encoding = "2.1.0"
+integer-encoding = "2.1.1"
 structopt = "0.3"
 secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "1aae6edc5f1de0bbdcdb26f1f1d8b00ca28e012a", features = ["recovery", "endomorphism", "global-context"] }
 parity-scale-codec = { features = ["derive"], version = "1.3" }
