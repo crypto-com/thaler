@@ -1634,9 +1634,9 @@ dependencies = [
 
 [[package]]
 name = "fixed"
-version = "1.3.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b86e33bf1f32090a48bd345958453f989e08ff923921dc0cc2795f30698950a0"
+checksum = "b7199a77adc07a67f7946fc69f1ff2f37651190949af1496506230b30e4c8784"
 dependencies = [
  "typenum",
 ]
