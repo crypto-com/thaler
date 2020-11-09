@@ -1,6 +1,6 @@
 ///! This module contains additional parts that are a part of the MLS draft spec,
 ///! but are required for resolving relevant open issues in the draft spec
-///! or for extra conventions / operations: https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md.
+///! or for extra conventions / operations: https://github.com/crypto-com/thaler-docs/blob/master/docs/modules/tdbe.md.
 ///!
 ///! At the moment, one issue is that the node generating Commit/Welcome
 ///! may put "bogus" in the ciphertext, which will block nodes (newly joining or on the affected
@@ -119,7 +119,7 @@ impl NackMsg {
         // if there's no ancestor, this would be meaningless -- committer sending NACK for its own commit?
         let ancestor = ParentSize::common_ancestor(commit_sender, nack_sender)
             .ok_or(NackError::InvalidCommit)?;
-        // incomplete paths are expected to be checked: https://github.com/crypto-com/chain-docs/issues/190 https://github.com/crypto-com/chain-docs/issues/189
+        // incomplete paths are expected to be checked: https://github.com/crypto-com/thaler-docs/issues/190 https://github.com/crypto-com/thaler-docs/issues/189
         let path_node = NodeSize::from(commit_sender)
             .direct_path(leaf_len)
             .into_iter()
