@@ -37,7 +37,7 @@ jsonrpc-core = "14.2"
 log ="0.4.11"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "= 0.2.22" }
-tiny-bip39 = { version = "0.7", default-features = false }
+tiny-bip39 = { version = "0.8", default-features = false }
 unicase = "2.6.0"
 ring = "0.16.15"
 tendermint = "0.15"
