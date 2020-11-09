@@ -254,7 +254,7 @@ impl EnclaveCertVerifier {
                 return Err(EnclaveCertVerifierError::MeasurementMismatch);
             }
 
-            // SVN verification: https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md#svn-verification--compilation-order
+            // SVN verification: https://github.com/crypto-com/thaler-docs/blob/master/docs/modules/tdbe.md#svn-verification--compilation-order
             match (
                 enclave_info.isv_svn,
                 enclave_info.mr_enclave,

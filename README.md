@@ -54,7 +54,7 @@ and the [contributing guidelines](CONTRIBUTING.md) when submitting code.
 
 ## 4. Documentation
 
-Technical documentation can be found in this [Github repository](https://github.com/crypto-com/chain-docs) (you can read it in [this hosted version](https://crypto-com.github.io)).
+Technical documentation can be found in this [Github repository](https://github.com/crypto-com/thaler-docs) (you can read it in [this hosted version](https://thaler-testnet.crypto.com/docs/getting-started/).
 
 <a id="build" />
 
@@ -149,13 +149,13 @@ TODO
 
 ## 6. Start a Local Full Node
 
-Please follow the [instruction](https://crypto-com.github.io/getting-started/local_full_node_development.html) to deploy a local full node.
+Please follow the [instruction](https://thaler-testnet.crypto.com/docs/getting-started/local-devnet.html) to deploy a local full node.
 
 <a id="send-first-transaction" />
 
 ## 7. Send Your First Transaction
 
-Kindly refer to this [instruction](https://crypto-com.github.io/getting-started/send_your_first_transaction.html#send-your-first-transaction) to perform transactions between addresses.
+Kindly refer to this [instruction](https://thaler-testnet.crypto.com/docs/getting-started/local-devnet.html#send-your-first-transaction) to perform transactions between addresses.
 
 <a id="testing" />
 
@@ -175,7 +175,7 @@ $ drone exec --trusted \
     --include multinode-tests
 ```
 
-Kindly refer to [Prepare SPID & KEY](https://crypto-com.github.io/getting-started/#prepare-spid-key) to obtain the values of `SPID` and `IAS_API_KEY`. 
+Kindly refer to [Prepare SPID & KEY](https://thaler-testnet.crypto.com/docs/getting-started/local-devnet.html#prepare-spid-key) to obtain the values of `SPID` and `IAS_API_KEY`. 
 
 ---
 
@@ -183,7 +183,7 @@ Kindly refer to [Prepare SPID & KEY](https://crypto-com.github.io/getting-starte
 
 ## 9. Useful links
 
-* [Project Website](http://crypto.com/chain)
-* [Technical Documentation](https://crypto-com.github.io)
+* [Project Website](https://thaler-testnet.crypto.com/)
+* [Technical Documentation](https://thaler-testnet.crypto.com/docs/)
 * Community chatrooms (non-technical): [Discord](https://discord.gg/nsp9JTC) [Telegram](https://t.me/CryptoComOfficial)
 * Developer community chatroom (technical): [![Gitter](https://badges.gitter.im/crypto-com/community.svg)](https://gitter.im/crypto-com/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)

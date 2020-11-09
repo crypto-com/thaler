@@ -1,6 +1,6 @@
 //! This crate implements [mls protocol](https://github.com/mlswg/mls-protocol/blob/1d5e14d79435834bc5cab6c7aa9e2fcdd6afeabc/draft-ietf-mls-protocol.md)
 //! Note: "Application Secret Tree" is not implemented here, as it's not being used in the latest
-//! TDBE iteration: https://github.com/crypto-com/chain-docs/blob/master/docs/modules/tdbe.md#new-obfuscation-key
+//! TDBE iteration: https://github.com/crypto-com/thaler-docs/blob/master/docs/modules/tdbe.md#new-obfuscation-key
 //! (i.e. instead of exchanging application messages, only node tree ratcheting + secret derivations are used,
 //! as the obfuscation key for transactions is obtained directly using the MLS "exporter" construct that didn't exist in the earlier protocol drafts)
 
