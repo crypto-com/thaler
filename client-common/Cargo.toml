@@ -28,7 +28,7 @@ indexmap = "1.6"
 itertools = "0.9"
 num-bigint = "0.2.5"
 log = "0.4.11"
-once_cell = "1.4"
+once_cell = "1.5"
 parity-scale-codec = { features = ["derive"], version = "1.3" }
 rand = "0.7"
 rust-argon2 = "0.8"
