@@ -11,7 +11,7 @@ ring = { version = "0.16.15", features = ["std"] }
 thiserror = "1.0"
 rustls = "0.18"
 x509-parser = "0.8.2"
-nom = "5.1"
+nom = "6.0"
 secrecy = "0.7.0"
 sha2 = "0.9"
 hkdf = { version = "0.10", features = ["std"] }
