@@ -32,7 +32,7 @@ impl SpRaClient {
             .into_iter()
             .next()
             .transpose()?
-            .ok_or_else(|| SpRaClientError::NoResponse)?;
+            .ok_or(SpRaClientError::NoResponse)?;
 
         match response {
             Response::GetTargetInfo { target_info } => Ok(target_info),
@@ -53,7 +53,7 @@ impl SpRaClient {
             .into_iter()
             .next()
             .transpose()?
-            .ok_or_else(|| SpRaClientError::NoResponse)?;
+            .ok_or(SpRaClientError::NoResponse)?;
 
         match response {
             Response::GetQuote { quote_result } => Ok(quote_result),
@@ -73,7 +73,7 @@ impl SpRaClient {
             .into_iter()
             .next()
             .transpose()?
-            .ok_or_else(|| SpRaClientError::NoResponse)?;
+            .ok_or(SpRaClientError::NoResponse)?;
 
         match response {
             Response::GetAttestationReport { attestation_report } => Ok(attestation_report),
