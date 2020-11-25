@@ -847,7 +847,7 @@ dependencies = [
  "ra-client",
  "rand 0.7.3",
  "rust-argon2 0.8.3",
- "rustls",
+ "rustls 0.19.0",
  "secp256k1",
  "secstr",
  "serde",
@@ -1568,7 +1568,7 @@ dependencies = [
  "ra-client",
  "ra-enclave",
  "rand 0.7.3",
- "rustls",
+ "rustls 0.19.0",
  "sgx-isa",
  "webpki",
  "zeroize",
@@ -2276,7 +2276,7 @@ dependencies = [
  "futures-util",
  "hyper 0.13.5",
  "log",
- "rustls",
+ "rustls 0.18.1",
  "tokio 0.2.22",
  "tokio-rustls",
  "webpki",
@@ -2952,7 +2952,7 @@ dependencies = [
  "rand 0.7.3",
  "ring",
  "rs-libc",
- "rustls",
+ "rustls 0.19.0",
  "secrecy",
  "sha2 0.9.1",
  "static_assertions 1.1.0",
@@ -3658,7 +3658,7 @@ dependencies = [
  "der-parser",
  "lazy_static",
  "ra-common",
- "rustls",
+ "rustls 0.19.0",
  "serde_json",
  "sgx-isa",
  "thiserror",
@@ -3689,7 +3689,7 @@ dependencies = [
  "ra-sp-client",
  "rcgen",
  "ring",
- "rustls",
+ "rustls 0.19.0",
  "serde_json",
  "sgx-isa",
  "sha2 0.9.1",
@@ -4025,7 +4025,7 @@ dependencies = [
  "native-tls",
  "percent-encoding",
  "pin-project-lite 0.2.0",
- "rustls",
+ "rustls 0.18.1",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -4172,6 +4172,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d1126dcf58e93cee7d098dbda643b5f92ed724f1f6a63007c1116eed6700c81"
 dependencies = [
  "base64 0.12.3",
+ "log",
+ "ring",
+ "sct",
+ "webpki",
+]
+
+[[package]]
+name = "rustls"
+version = "0.19.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "064fd21ff87c6e87ed4506e68beb42459caa4a0e2eb144932e6776768556980b"
+dependencies = [
+ "base64 0.13.0",
  "log",
  "ring",
  "sct",
@@ -4743,7 +4756,7 @@ dependencies = [
  "ra-client",
  "ra-enclave",
  "rs-libc",
- "rustls",
+ "rustls 0.19.0",
  "serde_json",
  "sgx-isa",
  "tdbe-common",
@@ -4912,7 +4925,7 @@ version = "0.1.0"
 dependencies = [
  "enclave-macro",
  "ra-client",
- "rustls",
+ "rustls 0.19.0",
  "webpki",
 ]
 
@@ -5187,7 +5200,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "228139ddd4fea3fa345a29233009635235833e52807af7ea6448ead03890d6a9"
 dependencies = [
  "futures-core",
- "rustls",
+ "rustls 0.18.1",
  "tokio 0.2.22",
  "webpki",
 ]
@@ -5389,7 +5402,7 @@ dependencies = [
  "ra-enclave",
  "rand 0.7.3",
  "rs-libc",
- "rustls",
+ "rustls 0.19.0",
  "secp256k1",
  "thread-pool",
  "zeroize",
