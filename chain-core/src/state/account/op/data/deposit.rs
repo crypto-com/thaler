@@ -32,7 +32,7 @@ impl Decode for DepositBondTx {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let size = input
             .remaining_len()?
-            .ok_or_else(|| "Unable to calculate size of input")?;
+            .ok_or("Unable to calculate size of input")?;
 
         if size > MAX_DEPOSIT_TX_SIZE {
             return Err("Input too large".into());

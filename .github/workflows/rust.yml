@@ -40,7 +40,7 @@ jobs:
           components: clippy
           override: true
       - name: Install deps
-        run: sudo apt-get install libudev-dev protobuf-compiler
+        run: sudo apt-get update && sudo apt-get install libudev-dev protobuf-compiler
       - name: temporary mock hack for stable
         run: |
           sed -i.bak -E "s/default = \[\".+\"\]/default = \[\"mock-enclave\"\]/" chain-abci/Cargo.toml;
@@ -77,7 +77,7 @@ jobs:
           toolchain: stable
           override: true
       - name: Install deps
-        run: sudo apt-get install libudev-dev protobuf-compiler
+        run: sudo apt-get update && sudo apt-get install libudev-dev protobuf-compiler
       - name: temporary mock hack for stable
         run: |
           sed -i.bak -E "s/default = \[\".+\"\]/default = \[\"mock-enclave\"\]/" chain-abci/Cargo.toml;
@@ -114,7 +114,7 @@ jobs:
         with:
           command: clean
       - name: Install deps
-        run: sudo apt-get install libudev-dev protobuf-compiler
+        run: sudo apt-get update && sudo apt-get install libudev-dev protobuf-compiler
       - uses: actions-rs/cargo@v1
         with:
           command: test

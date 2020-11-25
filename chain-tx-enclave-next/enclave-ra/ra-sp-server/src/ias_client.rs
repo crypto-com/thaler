@@ -120,7 +120,7 @@ impl IasClient {
 fn extract_signing_certificate(response_headers: &HeaderMap) -> Result<Vec<u8>, IasClientError> {
     let urlencoded_signing_certificate = response_headers
         .get("X-IASReport-Signing-Certificate")
-        .ok_or_else(|| IasClientError::MissingSigningCertificate)?
+        .ok_or(IasClientError::MissingSigningCertificate)?
         .as_ref();
     let signing_certificate = percent_encoding::percent_decode(urlencoded_signing_certificate)
         .decode_utf8()
@@ -131,7 +131,7 @@ fn extract_signing_certificate(response_headers: &HeaderMap) -> Result<Vec<u8>, 
 fn extract_signature(response_headers: &HeaderMap) -> Result<Vec<u8>, IasClientError> {
     let encoded_signature = response_headers
         .get("X-IASReport-Signature")
-        .ok_or_else(|| IasClientError::MissingSignature)?;
+        .ok_or(IasClientError::MissingSignature)?;
     if encoded_signature.is_empty() {
         return Err(IasClientError::MissingSignature);
     }

@@ -68,7 +68,7 @@ fn get_end_entity_certificate(
 ) -> Result<EndEntityCert, EnclaveCertVerifierError> {
     let signing_cert = certificate_chain
         .first()
-        .ok_or_else(|| EnclaveCertVerifierError::MissingAttestationReportSigningCertificate)?;
+        .ok_or(EnclaveCertVerifierError::MissingAttestationReportSigningCertificate)?;
     EndEntityCert::from(&signing_cert.0)
         .map_err(|_| EnclaveCertVerifierError::AttestationReportSigningCertificateParsingError)
 }
