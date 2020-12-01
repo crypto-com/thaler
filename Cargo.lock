@@ -466,6 +466,32 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c98bfd7c112b6399fef97cc0614af1cd375b27a112e552ce60f94c1b5f13cb74"
 
 [[package]]
+name = "botan"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e05aaaeef77ac5bb0eb14e322432cf15be76918d20a9b7be0e134ff914149f27"
+dependencies = [
+ "botan-sys",
+ "cty",
+]
+
+[[package]]
+name = "botan-src"
+version = "0.21701.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "032615a6d5f02fc090056773b7097ef133e1d80a331e0c9d2e0d4bc23c75b126"
+
+[[package]]
+name = "botan-sys"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3801c6a81dc76f638b72240a6029cb354211fc3a886758abac48c27e27a94c5f"
+dependencies = [
+ "botan-src",
+ "cty",
+]
+
+[[package]]
 name = "bstr"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1257,6 +1283,12 @@ checksum = "fb4a30d54f7443bf3d6191dcd486aca19e67cb3c49fa7a06a319966346707e7f"
 dependencies = [
  "cipher",
 ]
+
+[[package]]
+name = "cty"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7313c0d620d0cb4dbd9d019e461a4beb501071ff46ec0ab933efb4daa76d73e3"
 
 [[package]]
 name = "curve25519-dalek"
@@ -3351,12 +3383,12 @@ checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
 
 [[package]]
 name = "pem"
-version = "0.7.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1581760c757a756a41f0ee3ff01256227bdf64cb752839779b95ffb01c59793"
+checksum = "f4c220d01f863d13d96ca82359d1e81e64a7c6bf0637bcde7b2349630addf0c6"
 dependencies = [
- "base64 0.11.0",
- "lazy_static",
+ "base64 0.13.0",
+ "once_cell",
  "regex",
 ]
 
@@ -3928,10 +3960,11 @@ dependencies = [
 
 [[package]]
 name = "rcgen"
-version = "0.8.3"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c4c907ce15a2c29b03fb48c62a1c965b2d59ce2cbbd737373a01ab041f7217a"
+checksum = "3bac1ab9400bb5e4901c4708c98823b563b842ad24d77bdcb0b49b47195a3245"
 dependencies = [
+ "botan",
  "chrono",
  "pem",
  "ring",
