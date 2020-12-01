@@ -3351,12 +3351,12 @@ checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
 
 [[package]]
 name = "pem"
-version = "0.7.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1581760c757a756a41f0ee3ff01256227bdf64cb752839779b95ffb01c59793"
+checksum = "f4c220d01f863d13d96ca82359d1e81e64a7c6bf0637bcde7b2349630addf0c6"
 dependencies = [
- "base64 0.11.0",
- "lazy_static",
+ "base64 0.13.0",
+ "once_cell",
  "regex",
 ]
 
@@ -3928,9 +3928,9 @@ dependencies = [
 
 [[package]]
 name = "rcgen"
-version = "0.8.3"
+version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c4c907ce15a2c29b03fb48c62a1c965b2d59ce2cbbd737373a01ab041f7217a"
+checksum = "b676155349f1b548fa3214e14780836b747788c012796a3553ca8f1b9c71c7d1"
 dependencies = [
  "chrono",
  "pem",
