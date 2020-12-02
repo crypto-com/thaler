@@ -4043,8 +4043,9 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.16.15"
-source = "git+https://github.com/crypto-com/ring.git?rev=8f2b68d2ac53b1df61ca5cdc1190f86d74e302a3#8f2b68d2ac53b1df61ca5cdc1190f86d74e302a3"
+version = "0.16.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "024a1e66fea74c66c66624ee5622a7ff0e4b73a13b4f5c326ddb50c708944226"
 dependencies = [
  "cc",
  "libc",
@@ -5722,9 +5723,9 @@ dependencies = [
 
 [[package]]
 name = "webpki"
-version = "0.21.3"
+version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab146130f5f790d45f82aeeb09e55a256573373ec64409fc19a6fb82fb1032ae"
+checksum = "b8e38c0608262c46d4a56202ebabdeb094cef7e560ca7a226c6bf055188aa4ea"
 dependencies = [
  "ring",
  "untrusted",
@@ -5891,3 +5892,8 @@ dependencies = [
  "quick-error",
  "regex",
 ]
+
+[[patch.unused]]
+name = "ring"
+version = "0.16.15"
+source = "git+https://github.com/crypto-com/ring.git?rev=8f2b68d2ac53b1df61ca5cdc1190f86d74e302a3#8f2b68d2ac53b1df61ca5cdc1190f86d74e302a3"
