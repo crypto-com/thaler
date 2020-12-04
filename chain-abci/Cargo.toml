@@ -26,7 +26,7 @@ blake3 = { version = "0.3.7", default-features = false }
 
 log = "0.4.11"
 env_logger = "0.8.2"
-bit-vec = { version = "0.6.2", features = ["serde_no_std"] }
+bit-vec = { version = "0.6.3", features = ["serde_no_std"] }
 byteorder = "1.3.4"
 serde = "1.0"
 serde_derive = "1.0"
