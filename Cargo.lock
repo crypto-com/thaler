@@ -4042,8 +4042,8 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.16.15"
-source = "git+https://github.com/crypto-com/ring.git?rev=8f2b68d2ac53b1df61ca5cdc1190f86d74e302a3#8f2b68d2ac53b1df61ca5cdc1190f86d74e302a3"
+version = "0.16.19"
+source = "git+https://github.com/crypto-com/ring.git?branch=sgx-env#493eb07f3a7118870867093bf934f1e37a1aa602"
 dependencies = [
  "cc",
  "libc",
