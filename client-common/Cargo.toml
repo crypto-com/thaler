@@ -45,7 +45,7 @@ tokio = { version = "= 0.2.22", features = ["rt-threaded", "sync", "time", "tcp"
 tokio-tungstenite = { version = "0.10", features = ["tls"], optional = true }
 uuid = { version = "0.8.1", features = ["v4"] }
 webpki = "0.21"
-zeroize = "1.1"
+zeroize = "1.2"
 
 [dev-dependencies]
 quickcheck = "0.9"

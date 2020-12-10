@@ -16,7 +16,7 @@ rustls = "0.19"
 sgx-isa = { version = "0.3", features = ["sgxstd"] }
 thread-pool = "0.1"
 webpki = "0.21"
-zeroize = "1.1"
+zeroize = "1.2"
 chrono = "0.4"
 serde_json = "1.0"
 
