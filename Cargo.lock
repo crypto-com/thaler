@@ -2471,9 +2471,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-derive"
-version = "14.2.2"
+version = "16.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d0e77e8812f02155b85a677a96e1d16b60181950c0636199bc4528524fba98dc"
+checksum = "f4b6a15924a4b7ae582079c5e78cc5d692ec8ebe5167e660ee1755509a59b551"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -4043,7 +4043,7 @@ dependencies = [
 [[package]]
 name = "ring"
 version = "0.16.19"
-source = "git+https://github.com/crypto-com/ring.git?branch=sgx-env#493eb07f3a7118870867093bf934f1e37a1aa602"
+source = "git+https://github.com/crypto-com/ring.git?rev=493eb07f3a7118870867093bf934f1e37a1aa602#493eb07f3a7118870867093bf934f1e37a1aa602"
 dependencies = [
  "cc",
  "libc",
