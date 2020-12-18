@@ -47,7 +47,7 @@ aesm-client = {version = "0.5", features = ["sgxs"], optional = true }
 enclave-runner = {version = "0.4", optional = true}
 sgxs-loaders = {version = "0.3", optional = true}
 tokio = { version = "= 0.2.22", features = ["uds"], optional = true }
-rand = "0.7"
+rand = "0.8"
 tdbe-common = { path = "../chain-tx-enclave-next/tdbe/tdbe-common" }
 
 [build-dependencies]
@@ -64,7 +64,7 @@ base64 = "0.13"
 kvdb = "0.7"
 kvdb-memorydb = "0.7"
 test-common = { path = "../test-common" }
-rand = "0.7"
+rand = "0.8"
 
 # TODO: currently not maintained benchmarks
 # [[bench]]
