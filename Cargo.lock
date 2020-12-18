@@ -5837,9 +5837,9 @@ dependencies = [
 
 [[package]]
 name = "zxcvbn"
-version = "2.1.0"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9b73331d007ec3e6b6512f4884ad661718c96eadf7a6a841c6e2327fba9317f"
+checksum = "a5f9db3a05b2ee81dcda4602487314ab654eca316f517be2e2e64175658f0dd0"
 dependencies = [
  "chrono",
  "derive_builder",
