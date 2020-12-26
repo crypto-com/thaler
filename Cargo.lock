@@ -620,7 +620,7 @@ dependencies = [
  "env_logger 0.8.2",
  "hex",
  "integer-encoding 2.1.1",
- "itertools 0.9.0",
+ "itertools 0.10.0",
  "kvdb",
  "kvdb-memorydb",
  "log",
@@ -838,7 +838,7 @@ dependencies = [
  "gcd",
  "hex",
  "indexmap",
- "itertools 0.9.0",
+ "itertools 0.10.0",
  "log",
  "mls",
  "mock-utils",
@@ -882,7 +882,7 @@ dependencies = [
  "client-common",
  "hex",
  "indexmap",
- "itertools 0.9.0",
+ "itertools 0.10.0",
  "jsonrpc-core",
  "ledger-crypto",
  "ledger-transport",
@@ -2399,6 +2399,15 @@ name = "itertools"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "37d572918e350e82412fe766d24b15e6682fb2ed2bbe018280caa810397cb319"
 dependencies = [
  "either",
 ]
