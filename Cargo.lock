@@ -1117,7 +1117,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69323bff1fb41c635347b8ead484a5ca6c3f11914d784170b158d8449ab07f8e"
 dependencies = [
  "cfg-if 0.1.10",
- "crossbeam-channel",
+ "crossbeam-channel 0.4.2",
  "crossbeam-deque",
  "crossbeam-epoch",
  "crossbeam-queue",
@@ -1132,6 +1132,16 @@ checksum = "cced8691919c02aac3cb0a1bc2e9b73d89e832bf9a06fc579d4e71b68a2da061"
 dependencies = [
  "crossbeam-utils 0.7.2",
  "maybe-uninit",
+]
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dca26ee1f8d361640700bde38b2c37d8c22b3ce2d360e1fc1c74ea4b0aa7d775"
+dependencies = [
+ "cfg-if 1.0.0",
+ "crossbeam-utils 0.8.0",
 ]
 
 [[package]]
@@ -3406,11 +3416,11 @@ dependencies = [
 
 [[package]]
 name = "pbr"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74333e3d1d8bced07fd0b8599304825684bcdb4a1fcc6fa6a470e6e08cefd254"
+checksum = "ff5751d87f7c00ae6403eb1fcbba229b9c76c9a30de8c1cf87182177b168cea2"
 dependencies = [
- "crossbeam-channel",
+ "crossbeam-channel 0.5.0",
  "libc",
  "time",
  "winapi 0.3.8",
@@ -4924,7 +4934,7 @@ checksum = "5f4607ed34754d39ac3261010ba275ff76b0d622b5a726617f0734e5adbfdcbe"
 dependencies = [
  "anomaly",
  "contracts",
- "crossbeam-channel",
+ "crossbeam-channel 0.4.2",
  "derive_more",
  "futures 0.3.5",
  "prost-amino",
