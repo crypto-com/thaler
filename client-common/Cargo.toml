@@ -43,7 +43,7 @@ tendermint = "0.15"
 tendermint-rpc = "0.15"
 tokio = { version = "= 0.2.22", features = ["rt-threaded", "sync", "time", "tcp"], optional = true }
 tokio-tungstenite = { version = "0.10", features = ["tls"], optional = true }
-uuid = { version = "0.8.1", features = ["v4"] }
+uuid = { version = "0.8.2", features = ["v4"] }
 webpki = "0.21"
 zeroize = "1.2"
 
