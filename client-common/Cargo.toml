@@ -48,7 +48,7 @@ webpki = "0.21"
 zeroize = "1.2"
 
 [dev-dependencies]
-quickcheck = "0.9"
+quickcheck = "1.0"
 
 [features]
 default = ["sled", "websocket-rpc"]
