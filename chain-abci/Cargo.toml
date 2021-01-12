@@ -24,7 +24,7 @@ ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
 ra-sp-server = { path = "../chain-tx-enclave-next/enclave-ra/ra-sp-server" }
 blake3 = { version = "0.3.7", default-features = false }
 
-log = "0.4.12"
+log = "0.4.13"
 env_logger = "0.8.2"
 bit-vec = { version = "0.6.3", features = ["serde_no_std"] }
 byteorder = "1.4.2"
