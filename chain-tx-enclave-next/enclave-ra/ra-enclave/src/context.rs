@@ -118,8 +118,9 @@ impl EnclaveRaContext {
         verify_qe_report(&qe_report, &target_info, &quote, nonce)?;
 
         // Get attestation report from SP server
+        let ias_nonce = hex::encode(&get_random_nonce()?);
         self.sp_ra_client
-            .get_attestation_report(quote)
+            .get_attestation_report(quote, ias_nonce)
             .map_err(Into::into)
     }
 

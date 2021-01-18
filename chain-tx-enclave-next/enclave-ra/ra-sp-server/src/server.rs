@@ -68,8 +68,11 @@ fn handle_connection(context: &SpRaContext, stream: TcpStream) -> Result<(), SpR
 
                 Response::GetQuote { quote_result }
             }
-            Request::GetAttestationReport { ref quote } => {
-                let attestation_report = context.verify_quote(quote)?;
+            Request::GetAttestationReport {
+                ref quote,
+                ref ias_nonce,
+            } => {
+                let attestation_report = context.verify_quote(quote, ias_nonce)?;
 
                 Response::GetAttestationReport { attestation_report }
             }
