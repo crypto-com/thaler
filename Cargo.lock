@@ -883,7 +883,7 @@ dependencies = [
  "hex",
  "indexmap",
  "itertools 0.10.0",
- "jsonrpc-core",
+ "jsonrpc-core 17.0.0",
  "ledger-crypto",
  "ledger-transport",
  "ledger-transport-hid",
@@ -942,7 +942,7 @@ dependencies = [
  "client-rpc-core",
  "dirs",
  "env_logger 0.8.2",
- "jsonrpc-core",
+ "jsonrpc-core 17.0.0",
  "jsonrpc-http-server",
  "log",
  "structopt",
@@ -959,7 +959,7 @@ dependencies = [
  "client-network",
  "env_logger 0.8.2",
  "hex",
- "jsonrpc-core",
+ "jsonrpc-core 17.0.0",
  "jsonrpc-derive",
  "log",
  "parity-scale-codec",
@@ -1101,7 +1101,7 @@ dependencies = [
  "client-rpc-core",
  "env_logger 0.8.2",
  "hex",
- "jsonrpc-core",
+ "jsonrpc-core 17.0.0",
  "libc",
  "parity-scale-codec",
  "secp256k1",
@@ -2549,6 +2549,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonrpc-core"
+version = "17.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07569945133257ff557eb37b015497104cea61a2c9edaf126c1cbd6e8332397f"
+dependencies = [
+ "futures 0.3.5",
+ "log",
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
+
+[[package]]
 name = "jsonrpc-derive"
 version = "14.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2567,7 +2580,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0da906d682799df05754480dac1b9e70ec92e12c19ebafd2662a5ea1c9fd6522"
 dependencies = [
  "hyper 0.12.35",
- "jsonrpc-core",
+ "jsonrpc-core 14.2.0",
  "jsonrpc-server-utils",
  "log",
  "net2",
@@ -2583,7 +2596,7 @@ checksum = "56cbfb462e7f902e21121d9f0d1c2b77b2c5b642e1a4e8f4ebfa2e15b94402bb"
 dependencies = [
  "bytes 0.4.12",
  "globset",
- "jsonrpc-core",
+ "jsonrpc-core 14.2.0",
  "lazy_static",
  "log",
  "tokio 0.1.22",
