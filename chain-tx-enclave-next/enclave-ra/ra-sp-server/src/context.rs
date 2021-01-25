@@ -86,9 +86,13 @@ impl SpRaContext {
     }
 
     /// Verifies quote using IAS
-    pub fn verify_quote(&self, quote: &[u8]) -> Result<AttestationReport, SpRaContextError> {
+    pub fn verify_quote(
+        &self,
+        quote: &[u8],
+        ias_nonce: &str,
+    ) -> Result<AttestationReport, SpRaContextError> {
         self.ias_client
-            .verify_attestation_evidence(quote)
+            .verify_attestation_evidence(quote, ias_nonce)
             .map_err(Into::into)
     }
 }

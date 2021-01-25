@@ -3800,6 +3800,7 @@ dependencies = [
  "chrono",
  "cmac",
  "crypto-mac 0.8.0",
+ "hex",
  "log",
  "ra-common",
  "ra-sp-client",
