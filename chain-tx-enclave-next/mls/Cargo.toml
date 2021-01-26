@@ -17,7 +17,7 @@ sha2 = "0.9"
 hkdf = { version = "0.10", features = ["std"] }
 hpke = { version = "0.3.1", default-features = false, features = ["p256", "std"] }
 aead = { version = "0.3", features = ["std"] }
-rand = "0.7"
+rand = "0.8"
 chrono="0.4.19"
 ra-client = { path = "../enclave-ra/ra-client" }
 subtle = "2.4.0"
