@@ -22,7 +22,7 @@ ledger-transport = { git = "https://github.com/crypto-com/ledger-rs", rev = "8d9
 
 # secp256k1experimental = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "cccfdb77c068b9cefa07b6884849f8473683d6d4", features = ["serde", "zeroize", "rand", "recovery", "endomorphism", "musig"] }
 secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "1aae6edc5f1de0bbdcdb26f1f1d8b00ca28e012a", features = ["serde", "rand", "recovery", "endomorphism", "schnorrsig", "global-context"] }
-parity-scale-codec = { features = ["derive"], version = "1.3" }
+parity-scale-codec = { features = ["derive"], version = "2.0" }
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.7"
 hex = "0.4"

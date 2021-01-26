@@ -13,7 +13,7 @@ kvdb-rocksdb = { version = "0.9", optional = true }
 kvdb-memorydb = "0.7"
 chain-core = { path = "../chain-core" }
 bit-vec = { version = "0.6.3", features = ["serde_no_std"] }
-parity-scale-codec = { features = ["derive"], version = "1.3" }
+parity-scale-codec = { features = ["derive"], version = "2.0" }
 integer-encoding = "3.0.1"
 anyhow = "1.0"
 jellyfish-merkle = { git = "https://github.com/crypto-com/jellyfish-merkle-tree.git", rev = "a5dac3bb8d2a4f96f9cb853e6e80751589b0c095" }

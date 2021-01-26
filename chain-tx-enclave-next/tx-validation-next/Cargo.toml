@@ -12,7 +12,7 @@ chain-tx-validation   = {  path = "../../chain-tx-validation" }
 chain-core   = {  path = "../../chain-core" }
 # TODO: "rand" feature may only be dev-dependency / needed for tests
 secp256k1 = { git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "1aae6edc5f1de0bbdcdb26f1f1d8b00ca28e012a", features = ["recovery", "endomorphism", "lowmemory", "schnorrsig", "rand", "global-context"] }
-parity-scale-codec = { version = "1.3" }
+parity-scale-codec = { version = "2.0" }
 enclave-protocol   = { path = "../../enclave-protocol" }
 chain-tx-filter   = { path = "../../chain-tx-filter" }
 aes-gcm-siv = "0.9"

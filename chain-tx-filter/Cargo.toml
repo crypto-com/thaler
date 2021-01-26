@@ -11,7 +11,7 @@ default = ["bit-vec/std", "chain-core/default"]
 
 [dependencies]
 chain-core = { default-features = false, path = "../chain-core" }
-parity-scale-codec = { version = "1.3" }
+parity-scale-codec = { version = "2.0" }
 secp256k1 = { default-features = false, git = "https://github.com/crypto-com/rust-secp256k1-zkp.git", rev = "1aae6edc5f1de0bbdcdb26f1f1d8b00ca28e012a", features = ["endomorphism", "global-context"] }
 bit-vec = { default-features = false, version = "0.6" }
 
