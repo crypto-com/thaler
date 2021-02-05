@@ -27,6 +27,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "aead"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8aeaececfd937b9762778f2aca063ad24fdc827c48c07aeae36fb20c03afa11a"
+dependencies = [
+ "generic-array 0.14.4",
+]
+
+[[package]]
 name = "aes"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -54,7 +63,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86f5007801316299f922a6198d1d09a0bae95786815d066d5880d13f7c45ead1"
 dependencies = [
- "aead",
+ "aead 0.3.2",
  "aes 0.4.0",
  "block-cipher",
  "ghash",
@@ -67,7 +76,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5278b5fabbb9bd46e24aa69b2fdea62c99088e0a950a9be40e3e0101298f88da"
 dependencies = [
- "aead",
+ "aead 0.3.2",
  "aes 0.6.0",
  "cipher",
  "ctr",
@@ -81,7 +90,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "202a43562bc3e159554b7590f5fd1f432d9e8de0cc2c2ce4bb8d194a34b3b0f3"
 dependencies = [
- "aead",
+ "aead 0.3.2",
  "aes 0.6.0",
  "cipher",
  "ctr",
@@ -592,7 +601,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18b0c90556d8e3fec7cf18d84a2f53d27b21288f2fe481b830fadcf809e48205"
 dependencies = [
- "aead",
+ "aead 0.3.2",
  "chacha20",
  "poly1305",
  "stream-cipher",
@@ -651,7 +660,7 @@ dependencies = [
 name = "chain-core"
 version = "0.6.0"
 dependencies = [
- "aead",
+ "aead 0.4.0",
  "base64 0.13.0",
  "bech32",
  "blake3",
@@ -1563,7 +1572,7 @@ dependencies = [
 name = "enclave-utils"
 version = "0.6.0"
 dependencies = [
- "aead",
+ "aead 0.4.0",
  "aes-gcm 0.8.0",
  "chrono",
  "log",
@@ -2148,7 +2157,7 @@ name = "hpke"
 version = "0.3.1"
 source = "git+https://github.com/crypto-com/rust-hpke.git?rev=858d6433525529a6189382a8bd2f46d51959bdfa#858d6433525529a6189382a8bd2f46d51959bdfa"
 dependencies = [
- "aead",
+ "aead 0.3.2",
  "aes-gcm 0.6.0",
  "byteorder",
  "chacha20poly1305",
@@ -3020,7 +3029,7 @@ checksum = "258c143ddb5105becc4834f66d0b0ad3d3205d07cb3efc3236f33f623dd07b16"
 name = "mls"
 version = "0.6.0"
 dependencies = [
- "aead",
+ "aead 0.4.0",
  "assert_matches",
  "chain-util",
  "chrono",
@@ -5610,7 +5619,7 @@ dependencies = [
 name = "tx-validation-next"
 version = "0.6.0"
 dependencies = [
- "aead",
+ "aead 0.4.0",
  "aes-gcm-siv",
  "chain-core",
  "chain-tx-filter",
