@@ -291,13 +291,19 @@ impl EnclaveCertVerifier {
     }
 
     /// Converts enclave certificate verifier into client config expected by `rustls`
-    pub fn into_client_config(self) -> Result<ClientConfig, EnclaveCertVerifierError> {
+    pub fn into_client_config(
+        self,
+        verify_mr_enclave: bool,
+    ) -> Result<ClientConfig, EnclaveCertVerifierError> {
         match self.enclave_info {
             None => Err(EnclaveCertVerifierError::MissingEnclaveInfo),
-            Some(ref enclave_info) => match enclave_info.mr_enclave {
-                Some(_) => Ok(()),
-                None => Err(EnclaveCertVerifierError::MissingMrenclave),
-            },
+            Some(ref enclave_info) => {
+                if !verify_mr_enclave || enclave_info.mr_enclave.is_some() {
+                    Ok(())
+                } else {
+                    Err(EnclaveCertVerifierError::MissingMrenclave)
+                }
+            }
         }?;
 
         let mut config = ClientConfig::new();
@@ -316,13 +322,10 @@ impl EnclaveCertVerifier {
         match self.enclave_info {
             None => Err(EnclaveCertVerifierError::MissingEnclaveInfo),
             Some(ref enclave_info) => {
-                if verify_mr_enclave {
-                    match enclave_info.mr_enclave {
-                        Some(_) => Ok(()),
-                        None => Err(EnclaveCertVerifierError::MissingMrenclave),
-                    }
-                } else {
+                if !verify_mr_enclave || enclave_info.mr_enclave.is_some() {
                     Ok(())
+                } else {
+                    Err(EnclaveCertVerifierError::MissingMrenclave)
                 }
             }
         }?;
