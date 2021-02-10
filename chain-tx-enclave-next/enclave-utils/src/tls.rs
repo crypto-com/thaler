@@ -21,7 +21,7 @@ pub fn create_tls_client_stream(
         .expect("Unable to generate remote attestation certificate");
 
     let mut client_config = verifier
-        .into_client_config()
+        .into_client_config(true)
         .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     certificate
         .configure_client_config(&mut client_config)

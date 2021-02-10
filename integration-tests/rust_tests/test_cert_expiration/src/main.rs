@@ -28,7 +28,11 @@ pub fn get_cert(port: u32) -> Certificate {
         },
     ))
     .expect("EnclaveCertVerifier::new");
-    let client_config = Arc::new(verifier.into_client_config().expect("into_client_config"));
+    let client_config = Arc::new(
+        verifier
+            .into_client_config(true)
+            .expect("into_client_config"),
+    );
     // client_config.dangerous().set_certificate_verifier();
     let mut session = ClientSession::new(&client_config, dns_name.as_ref());
     let mut conn = TcpStream::connect(&address)

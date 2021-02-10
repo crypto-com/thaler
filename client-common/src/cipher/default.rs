@@ -40,7 +40,7 @@ fn get_tls_config() -> Arc<rustls::ClientConfig> {
     let verifier = EnclaveCertVerifier::new(config).expect("verifier config");
     Arc::new(
         verifier
-            .into_client_config()
+            .into_client_config(true)
             .expect("Error while creating TLS client configuration"),
     )
 }
