@@ -9,12 +9,13 @@
 //! use rustls::ClientConfig;
 //!
 //! let verifier_config = EnclaveCertVerifierConfig {
-//!     signing_ca_cert_path: "./path/to/Intel_SGX_Attestation_RootCA.pem".into(),
+//!     //signing_ca_cert_pem: include_bytes!("./path/to/Intel_SGX_Attestation_RootCA.pem"),
 //!     valid_enclave_quote_statuses: vec!["OK".into(), "GROUP_OUT_OF_DATE".into()].into(),
+//!     ..Default::default()
 //! };
 //! let verifier = EnclaveCertVerifier::new(verifier_config).unwrap();
 //!
-//! let tls_client_config: Arc<ClientConfig> = Arc::new(verifier.into());
+//! let tls_client_config: Arc<ClientConfig> = Arc::new(verifier.into_client_config(true).unwrap());
 //!
 //! // This `tls_client_config` can now be used to create a `rustls::Stream`.
 //! ```
