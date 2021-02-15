@@ -617,7 +617,7 @@ dependencies = [
  "digest 0.9.0",
  "enclave-protocol",
  "enclave-runner",
- "env_logger 0.8.2",
+ "env_logger 0.8.3",
  "hex",
  "integer-encoding 3.0.1",
  "itertools 0.10.0",
@@ -800,7 +800,7 @@ dependencies = [
  "client-common",
  "client-core",
  "client-network",
- "env_logger 0.8.2",
+ "env_logger 0.8.3",
  "hex",
  "log",
  "mls",
@@ -941,7 +941,7 @@ dependencies = [
  "client-network",
  "client-rpc-core",
  "dirs",
- "env_logger 0.8.2",
+ "env_logger 0.8.3",
  "jsonrpc-core",
  "jsonrpc-http-server",
  "log",
@@ -957,7 +957,7 @@ dependencies = [
  "client-common",
  "client-core",
  "client-network",
- "env_logger 0.8.2",
+ "env_logger 0.8.3",
  "hex",
  "jsonrpc-core",
  "jsonrpc-derive",
@@ -1099,7 +1099,7 @@ dependencies = [
  "client-core",
  "client-network",
  "client-rpc-core",
- "env_logger 0.8.2",
+ "env_logger 0.8.3",
  "hex",
  "jsonrpc-core",
  "libc",
@@ -1600,9 +1600,9 @@ dependencies = [
 
 [[package]]
 name = "env_logger"
-version = "0.8.2"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f26ecb66b4bdca6c1409b40fb255eefc2bd4f6d135dab3c3124f80ffa2a9661e"
+checksum = "17392a012ea30ef05a610aa97dfb49496e71c9f676b27879922ea5bdf60d9d3f"
 dependencies = [
  "atty",
  "humantime 2.0.1",
@@ -3828,7 +3828,7 @@ version = "0.6.0"
 dependencies = [
  "aesm-client",
  "base64 0.13.0",
- "env_logger 0.8.2",
+ "env_logger 0.8.3",
  "hex",
  "log",
  "percent-encoding",
@@ -4878,7 +4878,7 @@ dependencies = [
  "enclave-macro",
  "enclave-protocol",
  "enclave-utils",
- "env_logger 0.8.2",
+ "env_logger 0.8.3",
  "log",
  "parity-scale-codec",
  "ra-client",
@@ -5594,7 +5594,7 @@ dependencies = [
  "chrono",
  "enclave-protocol",
  "enclave-utils",
- "env_logger 0.8.2",
+ "env_logger 0.8.3",
  "log",
  "parity-scale-codec",
  "ra-enclave",
@@ -5619,7 +5619,7 @@ dependencies = [
  "enclave-macro",
  "enclave-protocol",
  "enclave-utils",
- "env_logger 0.8.2",
+ "env_logger 0.8.3",
  "log",
  "parity-scale-codec",
  "ra-client",
