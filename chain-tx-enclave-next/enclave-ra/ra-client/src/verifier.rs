@@ -3,6 +3,7 @@ use std::{collections::HashSet, sync::Arc};
 use chrono::{DateTime, Duration, Utc};
 use der_parser::oid::Oid;
 use lazy_static::lazy_static;
+use log::trace;
 use ra_common::{
     AttestationReport, AttestationReportBody, EnclaveQuoteStatus, Quote,
     OID_EXTENSION_ATTESTATION_REPORT,
@@ -90,6 +91,11 @@ impl EnclaveCertVerifier {
 
         let report_validity_duration = Duration::seconds(config.report_validity_secs.into());
 
+        match config.enclave_info {
+            None => trace!("No enclave info present"),
+            Some(_) => trace!("Enclave info present"),
+        }
+
         Ok(Self {
             root_cert_store,
             valid_enclave_quote_statuses,
@@ -153,6 +159,7 @@ impl EnclaveCertVerifier {
 
         let quote = self.verify_attestation_report(extension.1.value, &public_key, now)?;
 
+        trace!("Verified attestation report, returning pk and quote");
         Ok(CertVerifyResult { public_key, quote })
     }
 
@@ -251,6 +258,7 @@ impl EnclaveCertVerifier {
 
         if let Some(ref enclave_info) = self.enclave_info {
             if enclave_info.mr_signer != quote.report_body.measurement.mr_signer {
+                trace!("Failing due to mr_signers not matching");
                 return Err(EnclaveCertVerifierError::MeasurementMismatch);
             }
 
@@ -263,13 +271,32 @@ impl EnclaveCertVerifier {
                 // Case 0: If `mr_enclave` is `None`, which means that we don't have to verify
                 // MRENCLAVE values (for `ClientCertiVerifier` for two-way attested TLS stream
                 // between different enclaves).
-                (isv_svn, None, _) if isv_svn == quote.report_body.isv_svn => Ok(()),
+                (isv_svn, None, _) => {
+                    trace!("Matching on isv_svn");
+                    if isv_svn != quote.report_body.isv_svn {
+                        trace!("isv_svn did not match quote");
+                        return Err(EnclaveCertVerifierError::SvnMismatch);
+                    }
+                    trace!("isv_svn values match");
+                }
                 // Case 1: If `isv_svn` is the same, then `mr_enclave` should be the same
-                (isv_svn, Some(mr_enclave), _)
-                    if isv_svn == quote.report_body.isv_svn
-                        && mr_enclave == quote.report_body.measurement.mr_enclave =>
-                {
-                    Ok(())
+                (isv_svn, Some(mr_enclave), None) => {
+                    trace!("Matching on mr_enclave (no previous_mr_enclave)");
+                    if isv_svn == quote.report_body.isv_svn {
+                        if mr_enclave != quote.report_body.measurement.mr_enclave {
+                            trace!("mr_enclave did not match quote");
+                            return Err(EnclaveCertVerifierError::MeasurementMismatch);
+                        }
+                        trace!("isv_svn matches and mr_enclave matches)");
+                    } else if isv_svn == quote.report_body.isv_svn - 1 {
+                        trace!("Allowing connection with isv_svn + 1");
+                    } else if isv_svn > quote.report_body.isv_svn - 1 {
+                        trace!("isv_svn is too big, only allowed to connect with isv_svn + 1");
+                        return Err(EnclaveCertVerifierError::SvnMismatch);
+                    } else {
+                        trace!("isv_svn too small, must be equal or one bigger");
+                        return Err(EnclaveCertVerifierError::SvnMismatch);
+                    }
                 }
                 // Case 2: If `isv_svn` is the previous version, then `mr_enclave` should be same
                 // as previous version
@@ -277,14 +304,19 @@ impl EnclaveCertVerifier {
                 // Enclaves are allowed to connect to previous version for supporting upgrades:
                 // - Temporal aspect should be checked/configured by the caller
                 // - When older version is not allowed, caller can set `previous_mr_enclave` as `None`)
-                (isv_svn, _, Some(previous_mr_enclave))
-                    if isv_svn - 1 == quote.report_body.isv_svn
-                        && previous_mr_enclave == quote.report_body.measurement.mr_enclave =>
-                {
-                    Ok(())
+                (isv_svn, Some(_), Some(previous_mr_enclave)) => {
+                    trace!("Matching on previous_mr_enclave");
+                    if isv_svn - 1 != quote.report_body.isv_svn {
+                        trace!("'isv_svn - 1' did not match quote");
+                        return Err(EnclaveCertVerifierError::MeasurementMismatch);
+                    }
+                    if previous_mr_enclave != quote.report_body.measurement.mr_enclave {
+                        trace!("previous_mr_enclave did not match quote");
+                        return Err(EnclaveCertVerifierError::MeasurementMismatch);
+                    }
+                    trace!("previous_mr_enclave measurement matches quote mr_enclave and isv_svn has been bumped by 1");
                 }
-                _ => Err(EnclaveCertVerifierError::MeasurementMismatch),
-            }?
+            }
         }
 
         Ok(quote)
@@ -345,7 +377,8 @@ impl ServerCertVerifier for EnclaveCertVerifier {
             return Err(TLSError::NoCertificatesPresented);
         }
 
-        for cert in presented_certs {
+        for (i, cert) in presented_certs.iter().enumerate() {
+            trace!("Verifying server cert {} of {}", i, presented_certs.len());
             self.verify_cert(&cert.0, Utc::now())?;
         }
 
@@ -368,10 +401,12 @@ impl ClientCertVerifier for EnclaveCertVerifier {
         _sni: Option<&DNSName>,
     ) -> Result<ClientCertVerified, TLSError> {
         if presented_certs.is_empty() {
+            trace!("No certificate presented");
             return Err(TLSError::NoCertificatesPresented);
         }
 
-        for cert in presented_certs {
+        for (i, cert) in presented_certs.iter().enumerate() {
+            trace!("Verifying client cert {} of {}", i, presented_certs.len());
             self.verify_cert(&cert.0, Utc::now())?;
         }
 
@@ -425,6 +460,8 @@ pub enum EnclaveCertVerifierError {
     TimeError,
     #[error("Webpki error: {0}")]
     WebpkiError(#[from] webpki::Error),
+    #[error("SVN mismatch")]
+    SvnMismatch,
 }
 
 impl From<EnclaveCertVerifierError> for TLSError {
