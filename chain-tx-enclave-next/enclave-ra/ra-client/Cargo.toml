@@ -11,6 +11,7 @@ edition = "2018"
 chrono = "0.4"
 der-parser = "4.1"
 lazy_static = "1.4"
+log = "0.4"
 rustls = { version = "0.19", features = ["dangerous_configuration"] }
 serde_json = "1.0"
 sgx-isa = "0.3"
