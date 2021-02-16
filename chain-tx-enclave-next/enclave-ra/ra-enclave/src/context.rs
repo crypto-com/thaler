@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::{Duration, Utc};
+use log::trace;
 use ra_common::{AttestationReport, OID_EXTENSION_ATTESTATION_REPORT};
 use ra_sp_client::{SpRaClient, SpRaClientError};
 use rcgen::{
@@ -61,6 +62,7 @@ impl EnclaveRaContext {
 
     /// Returns current certificate. If current certificate is no longer valid, then it creates a new one
     pub fn get_certificate(&self) -> Result<Certificate, EnclaveRaContextError> {
+        trace!("Getting certificate");
         let mut certificate = self.certificate.lock().unwrap();
 
         let needs_creating = match *certificate {
