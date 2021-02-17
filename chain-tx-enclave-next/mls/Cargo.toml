@@ -22,7 +22,7 @@ chrono="0.4.19"
 ra-client = { path = "../enclave-ra/ra-client" }
 subtle = "2.4.0"
 chain-util = { path = "../../chain-util" }
-elliptic-curve = "0.5.0"
+elliptic-curve = "0.9.3"
 p256 = { version = "0.4.1", features = ["arithmetic", "zeroize"] }
 zeroize = "1.2"
 parity-scale-codec = { features = ["derive"], version = "1.3" }
