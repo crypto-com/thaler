@@ -18,7 +18,7 @@ client-network = { path = "../client-network" }
 mls = { path = "../chain-tx-enclave-next/mls" }
 ra-client = { path = "../chain-tx-enclave-next/enclave-ra/ra-client" }
 rand = "0.7"
-once_cell = "1.5"
+once_cell = "1.6"
 structopt = "0.3"
 quest = "0.3"
 secstr = { version = "0.4.0", features = ["serde"] }
