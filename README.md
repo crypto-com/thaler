@@ -1,4 +1,4 @@
-# DEVELOPMENT OF CRYPTO.COM CHAIN MOVED TO: https://github.com/crypto-com/chain-main
+# DEVELOPMENT MOVED TO: https://github.com/crypto-org-chain/chain-main
 
 ## Table of Contents
 
